@@ -644,37 +644,67 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       );
     }
   }
-  backfillHosts(deps.tx);
+  backfillHosts(deps.tx, now);
   seeded.add(deps.tx);
 }
 
-/** The host record every connection gets when it is made (cn_connection_hosts): a connection from before that table exists gets the same one from its connector's actions, once at start-up (a row that exists is never touched). */
-export function backfillHosts(tx: Tx): void {
-  const rows = tx.all<{ connection_id: string; def: string }>(
-    "SELECT c.connection_id AS connection_id, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
+/**
+ * The host record of a connection from before the table existed, written once, from the connector version that was live when the connection was made (the newest published version at or before its creation; a
+ * connector shipped with the product, which nobody can redefine, uses its current definition). A version that cannot be found records an empty list: no host is allowed until a person approves one. After this pass
+ * (cn_host_backfill) nothing is ever written from a later definition, so no one can approve a host by publishing and waiting for a restart.
+ */
+export function backfillHosts(tx: Tx, now = 0): void {
+  if (tx.get("SELECT 1 AS x FROM cn_host_backfill WHERE id = 1")) return;
+  const rows = tx.all<{ connection_id: string; connector: string; created_at: number; builtin: number; def: string }>(
+    "SELECT c.connection_id AS connection_id, c.connector AS connector, c.created_at AS created_at, k.builtin AS builtin, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
   );
   for (const r of rows) {
-    const def = JSON.parse(r.def) as ConnectorDef;
-    const rec = recordFor(def);
+    let def: ConnectorDef | null = null;
+    if (r.builtin === 1) def = JSON.parse(r.def) as ConnectorDef;
+    else {
+      const v = tx.get<{ def: string }>("SELECT def FROM cn_versions WHERE key = ? AND at <= ? ORDER BY at DESC LIMIT 1", r.connector, r.created_at);
+      if (v) def = JSON.parse(v.def) as ConnectorDef;
+    }
+    const rec = def === null ? [] : def.auth.type === "none" ? null : recordFor(def);
     if (rec === null) continue;
     tx.run("INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", r.connection_id, JSON.stringify(rec));
   }
+  tx.run("INSERT OR IGNORE INTO cn_host_backfill (id, at) VALUES (1, ?)", now);
 }
 
 /**
- * What a connection's host record holds, from its connector as it is now: the exact hosts (with ports) its actions call, or, when an action takes its host from the caller's input (a tenant subdomain), the connector's
- * declared domains as `domain:` entries. Either way a version published later that reaches a host outside the record does not send the key there until a person allows it. Null: no key travels (no record).
+ * What a connection's host record holds, from its connector as it is at the moment the connection is made: the exact hosts (with ports) its actions call, or, when an action takes its host from the caller's input (a
+ * tenant subdomain), the connector's declared domains as `domain:<pattern>:<port>` entries (the default https port when the pattern names none). A connector with no addresses yet gives an empty list: nothing is allowed until a
+ * person approves a host. Either way a version published later that reaches a host outside the record does not send the key there.
  */
-export function recordFor(def: ConnectorDef): string[] | null {
-  if (hostFromInput(def)) return def.domains.length > 0 ? def.domains.map((d) => `domain:${d.toLowerCase()}`) : null;
-  return keyHosts(def).length > 0 ? recordHosts(def) : null;
+export function recordFor(def: ConnectorDef): string[] {
+  if (hostFromInput(def))
+    return def.domains.map((d) => {
+      const m = /^(.*):(\d{1,5})$/.exec(d.toLowerCase());
+      return `domain:${m ? m[1] : d.toLowerCase()}:${m ? m[2] : "443"}`;
+    });
+  return keyHosts(def).length > 0 ? recordHosts(def) : [];
 }
-/** May a connection whose record is this send its key to this address? An exact host entry, or a recorded domain pattern. */
+/** May a connection whose record is this send its key to this address? An exact host and port, or a recorded domain pattern on the port it names. */
 export function recordAllows(record: readonly string[], u: URL): boolean {
+  const port = u.port || (u.protocol === "http:" ? "80" : "443");
   return (
     record.includes(originKey(u)) ||
-    record.some((e) => e.startsWith("domain:") && domainAllowed(u.hostname, [e.slice("domain:".length)]))
+    record.some((e) => {
+      if (!e.startsWith("domain:")) return false;
+      const m = /^domain:(.*):(\d{1,5})$/.exec(e);
+      const pattern = m ? m[1]! : e.slice("domain:".length);
+      return (m ? m[2] : "443") === port && domainAllowed(u.hostname, [pattern]);
+    })
   );
+}
+/** A record in plain words for a person: "any address ending in .crm.test", "api.crm.test". */
+export function recordWords(entry: string): string {
+  const m = /^domain:(.*?)(?::(\d{1,5}))?$/.exec(entry);
+  if (!m) return entry.replace(/:443$/, "");
+  const pattern = m[1]!;
+  const port = m[2] && m[2] !== "443" ? ` on port ${m[2]}` : "";
+  return pattern.startsWith("*.") ? `any address ending in ${pattern.slice(1)}${port}` : `${pattern}${port}`;
 }
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */

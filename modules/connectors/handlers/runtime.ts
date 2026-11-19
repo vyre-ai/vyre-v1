@@ -29,7 +29,6 @@ import {
   originKey,
   recordAllows,
   recordFor,
-  recordHosts,
   fillString,
   fillOptional,
   withoutSecretValues,
@@ -499,9 +498,11 @@ export async function executeAction(
         "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
         conn.connection_id,
       );
-      if (rec && !recordAllows(JSON.parse(rec.hosts) as string[], url)) {
+      // a connection that can send a key always has a record; one that somehow has none allows no host, never every host
+      const list = rec ? (JSON.parse(rec.hosts) as string[]) : def.auth.type !== "none" ? [] : null;
+      if (list && !recordAllows(list, url)) {
         // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
-        const gained = recordAllows(recordFor(def) ?? recordHosts(def), url);
+        const gained = recordAllows(recordFor(def), url);
         refuse(
           ctx,
           "permission.no_grant",

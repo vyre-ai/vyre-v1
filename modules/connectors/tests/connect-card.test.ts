@@ -340,6 +340,9 @@ test("B: a connection made before the host record existed (a data folder shaped 
   // rc.28 had no host table rows: drop this connection's, as a data folder from before would have it
   k.tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", id);
   assert.equal(k.tx.all("SELECT * FROM cn_connection_hosts WHERE connection_id = ?", id).length, 0);
+  k.tx.run("DELETE FROM cn_host_backfill"); // a server that never ran the pass: the table is new to it
+  // the version that was live when the connection was made
+  k.tx.run("INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES ('fathom', '1.0.0', ?, 0, 'x', '', '[]')", JSON.stringify(FATHOM));
   backfillHosts(k.tx);
   backfillHosts(k.tx); // idempotent
   assert.deepEqual(

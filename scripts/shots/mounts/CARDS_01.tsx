@@ -2,6 +2,7 @@
 //   all                the error, approval, held message, key request, access, terminal, mount, note offer and redact cards in one column
 //   err | err-acct     the error card with its next steps and Details; and the one for a missing AI account
 //   approval | approval-deny | approval-done        the approval card (a file edit with its diff), after Deny, and answered
+//   approval-host                                   a held key for a connection that sends to any subdomain, in plain words
 //   held | held-edit | held-deny                    the held message card, with Edit open, and asking why on Deny
 //   key | key-deny     the key request card, and after Deny
 //   access | terminal | mount | noteoffer | redact
@@ -76,6 +77,18 @@ const DM = {
   },
 };
 
+// a held set_secret on a connection whose connector takes its host from the call: the card names the domain in plain words
+const HOST = {
+  type: "approval_preview",
+  v: 1,
+  data: {
+    act: "approve",
+    cap: "connections.set_secret",
+    input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+    holdId: "hld_2",
+  },
+};
+
 function call(state: string) {
   return async (cap: string): Promise<unknown> => {
     if (cap === "tasks.get")
@@ -85,11 +98,13 @@ function call(state: string) {
           kind: "approve",
           title: "Approve",
           state,
-          blocks: [state === "dm" || state === "dm-done" ? DM : FILE],
+          blocks: [state === "dm" || state === "dm-done" ? DM : state === "host" ? HOST : FILE],
           actions: [],
           updatedAt: Date.UTC(2026, 10, 6, 9, 30),
         },
       };
+    if (cap === "automations.key_hosts.pending_bind")
+      return { found: true, items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }], hosts: ["*.app.n8n.cloud"] };
     if (cap === "files.get") return { file: { name: "Q4 pricing.docx" } };
     if (cap === "files.read") return { text: "Q4 pricing\nBasic 39 a month\nPro 99 a month" };
     if (cap === "access.principals.get") return { principal: { name: "Aliza Rizvi" } };
@@ -130,6 +145,9 @@ const Err = ({ acct }: { acct?: boolean }): ReactNode => (
 );
 const Approval = ({ state = "awaiting_approval" }: { state?: string }): ReactNode => (
   <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={gdata(state)} />
+);
+const HostCard = (): ReactNode => (
+  <ApprovalCard taskId="tsk_1" agent="Scout" agentId="agt_1" data={gdata("host")} />
 );
 const Held = ({ state = "awaiting_approval" }: { state?: string }): ReactNode => (
   <ApprovalCard
@@ -284,6 +302,7 @@ export default function Mount_(): ReactNode {
     approval: <Approval />,
     "approval-deny": <Approval />,
     "approval-done": <Approval state="done" />,
+    "approval-host": <HostCard />,
     held: <Held />,
     "held-edit": <Held />,
     "held-deny": <Held />,

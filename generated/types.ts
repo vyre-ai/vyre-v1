@@ -11698,6 +11698,7 @@ export type ConnectionsCreateOut = {
     createdAt: number;
     handles: Array<string>;
     filled: Array<string>;
+    pendingHosts?: Array<string>;
   };
   authUrl?: string;
 };
@@ -11726,6 +11727,7 @@ export type ConnectionsGetOut = {
     createdAt: number;
     handles: Array<string>;
     filled: Array<string>;
+    pendingHosts?: Array<string>;
   };
 };
 export type ConnectionsListIn = {
@@ -11750,6 +11752,7 @@ export type ConnectionsListOut = {
       createdAt: number;
       handles: Array<string>;
       filled: Array<string>;
+      pendingHosts?: Array<string>;
     }>;
   next?: string;
   total?: number;
@@ -11800,6 +11803,7 @@ export type ConnectionsSetSecretOut = {
     createdAt: number;
     handles: Array<string>;
     filled: Array<string>;
+    pendingHosts?: Array<string>;
   };
 };
 export type ConnectionsTestIn = {
@@ -11831,6 +11835,7 @@ export type ConnectionsUpdateOut = {
     createdAt: number;
     handles: Array<string>;
     filled: Array<string>;
+    pendingHosts?: Array<string>;
   };
 };
 export type ConnectorsBuildIn = {

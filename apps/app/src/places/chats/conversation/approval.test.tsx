@@ -474,6 +474,49 @@ test("a held test read of a Vault key names the key the server resolved, and Alw
   });
 });
 
+test("a held set_secret names a domain pattern in plain words, and Allow also approves the connection's hosts (connections.approve_hosts) before the hold is answered", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const held = {
+    task: {
+      id: "tsk_n8n",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: { act: "approve", cap: "connections.set_secret", input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" } },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return { found: true, items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }], hosts: ["*.app.n8n.cloud"] };
+      if (cap === "connections.get") return { connection: { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_n8n" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  assert.match(textOf(root), /Scout wants to use #N8n with any address ending in \.app\.n8n\.cloud/);
+  assert.ok(!/\*\./.test(textOf(find(root, "approval-tsk_n8n"))), "no raw pattern on the card");
+  await press(find(root, "approval-allow-tsk_n8n"));
+  await flush();
+  const order = calls.map((c) => c.cap);
+  assert.deepEqual(calls.find((c) => c.cap === "connections.approve_hosts")?.input, {
+    connectionId: "con_n8n",
+    hosts: ["domain:*.app.n8n.cloud:443"],
+  });
+  assert.ok(order.indexOf("connections.approve_hosts") < order.indexOf("tasks.act"), "recorded before the hold is answered");
+});
+
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {
   const make = (blockData: Record<string, unknown>) => ({
     call: async (cap: string) =>

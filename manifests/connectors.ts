@@ -83,10 +83,8 @@ const connectionRow = t.obj({
   lastSyncAt: t.opt(t.ts()),
   createdAt: t.ts(),
   handles: t.arr(id.handle, { description: "The Vault handles this connection uses. Names only, never a value." }),
-  filled: t.arr(t.str(), {
-    description:
-      "The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.",
-  }),
+  filled: t.arr(t.str(), { description: "Secret slots holding a Vault handle; a declared slot not listed is empty." }),
+  pendingHosts: t.opt(t.arr(t.str(), { description: "The connector's addresses, when not all are allowed yet; what approve_hosts takes." })),
 });
 
 const serviceChoice = t.obj({

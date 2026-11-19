@@ -2,6 +2,7 @@
 // The card reads that task and answers it here: what the agent wants to do, a short excerpt, Allow and Deny. Deny asks for an optional reason that goes back to the agent. An answered card
 // collapses to one line ("Allowed · edit Q4 pricing.docx"). The same task is in Needs you; answering in either place answers both: the card reads the task on every change in the Space, so it never offers a
 // choice that is gone, and a press that was too late hears "Already decided.".
+import { hostWords } from "./host-words.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
@@ -380,7 +381,17 @@ export function ApprovalCard({
           Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
         ),
       );
-      void Promise.all(saves).then(
+      // the connection's own record of where its key may go is the connector module's, apart from the Vault's list: a held set_secret on a connection allows what was shown there too
+      const connectionId = held.cap === "connections.set_secret" ? held.input["connectionId"] : undefined;
+      const record = async (): Promise<void> => {
+        if (typeof connectionId !== "string") return;
+        const got = (await data.call("connections.get", { connectionId })) as {
+          connection?: { pendingHosts?: string[] };
+        } | null;
+        const hosts = got?.connection?.pendingHosts;
+        if (Array.isArray(hosts) && hosts.length > 0) await data.call("connections.approve_hosts", { connectionId, hosts });
+      };
+      void Promise.all(saves).then(record).then(
         () => answerTask(key, note),
         () => {
           setBusy(false);
@@ -430,7 +441,7 @@ export function ApprovalCard({
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
   const bindLine = keyBind?.found
-    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts)}`
+    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts.map(hostWords))}`
     : null;
   const keyLine =
     bindLine ??

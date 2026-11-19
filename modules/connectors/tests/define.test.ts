@@ -274,10 +274,24 @@ test("a safety flag cannot be optional: dry_run, dryRun, confirm, force and prev
   await k.hs["connectors.init"](k.ctx, { key: "flags", title: "Flags", mode: "api", source: false } as never);
   const def = (a: Record<string, unknown>) =>
     k.hs["connectors.define"](k.ctx, { key: "flags", ...BASE, actions: [{ name: "x", method: "POST", write: true, url: "https://api.shop.test/x", ...a }] } as never);
-  for (const key of ["dry_run", "dryRun", "dry-run", "confirm", "confirmed", "force", "forceDelete", "preview", "is_preview"]) {
+  for (const key of ["dry_run", "dryRun", "DRY-RUN", "dryrun", "confirm", "Force", "preview", "simulate", "validate_only", "check-only", "noop", "sandbox", "test_mode", "live"]) {
     await assert.rejects(def({ query: { [key]: "{input.v?}" } }), (e) => /cannot be optional/.test(msg(e)), `query ${key}`);
     await assert.rejects(def({ body: { nested: { [key]: "{input.v?}" } } }), (e) => /cannot be optional/.test(msg(e)), `body ${key}`);
     await assert.rejects(def({ form: { [key]: "x{input.v?}" } }), (e) => /cannot be optional/.test(msg(e)), `form ${key}`);
   }
   await def({ query: { dry_run: "{input.dry}" }, body: { confirm: true, note: "{input.note?}" } });
+  // ordinary keys that only contain a flag's letters stay allowed
+  await def({ query: { previews: "{input.p?}", preview_text: "{input.t?}", confirmed_by: "{input.c?}", delivered: "{input.d?}" } });
+});
+
+test("an action cannot set Authorization or the connector's own sign-in header, and the extra framing headers are refused", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "hdrs", title: "Hdrs", mode: "api", source: false } as never);
+  const def = (headers: Record<string, string>, auth: Record<string, unknown> = { type: "bearer", secret: "Shop_Key" }) =>
+    k.hs["connectors.define"](k.ctx, { key: "hdrs", ...BASE, auth, actions: [{ name: "x", url: "https://api.shop.test/x", headers }] } as never);
+  for (const h of ["Proxy-Authorization", "TE", "Upgrade", "Expect", "Trailer", "Keep-Alive", "Proxy-Connection", "Set-Cookie", "Origin", "Referer"])
+    await assert.rejects(def({ [h]: "x" }), (e) => /cannot be/.test(msg(e)), h);
+  await assert.rejects(def({ authorization: "Bearer x" }), (e) => /sign-in/.test(msg(e)));
+  await assert.rejects(def({ "X-Shop-Token": "x" }, { type: "api_key", secret: "Shop_Key", header: "x-shop-token" }), (e) => /sign-in/.test(msg(e)));
+  await def({ "X-Other": "ok" }, { type: "api_key", secret: "Shop_Key", header: "X-Shop-Token" });
 });

@@ -32,6 +32,13 @@
    "note": "approval card"
   },
   {
+   "id": "CARDS_01-approval-host",
+   "route": "/m/CARDS_01?part=approval-host",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid='approval-tsk_1']",
+   "note": "a held key for a connection that sends to any subdomain, named in plain words"
+  },
+  {
    "id": "CARDS_01-approval-deny",
    "route": "/m/CARDS_01?part=approval",
    "proto": "chats,{skin}",
