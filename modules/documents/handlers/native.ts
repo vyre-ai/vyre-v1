@@ -191,7 +191,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId)])}`}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId), intoFolderId, ctx.actingFor ?? ctx.principal.id])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
@@ -262,7 +262,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
     bytes: set.pdf,
     mime: "application/pdf",
     kind: "pdf",
-    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${await askKey([o.name, text])}`}`,
+    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${await askKey([o.name, text, intoFolderId, ctx.actingFor ?? ctx.principal.id])}`}`,
   });
   remember(ctx, saved, set.roles, set.places, {});
   ctx.log.info("documents.make_pdf", { fileId: saved.fileId, from: fileId, pages: set.pages });

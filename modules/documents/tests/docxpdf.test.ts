@@ -286,6 +286,12 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
   // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
   const { parse, inline } = await import("../handlers/vdoc.ts");
   const inputs = (n: number): string[] => [
+    `a${" ".repeat(n)}x`,
+    `a${" ".repeat(n)}\\`,
+    `| a |\n-- ${" ".repeat(n)}`,
+    `| a |\n${" ".repeat(n)}-x`,
+    `| a |\n|${" ".repeat(n)}`,
+    `| a |\n${"| -- ".repeat(n / 4)}x`,
     `${"[a](".repeat(n)})`,
     `${"[a](x".repeat(n)})`,
     "[a".repeat(n),
@@ -386,4 +392,24 @@ test("links and pictures keep only their text, exactly as before the linear scan
   assert.equal(text("![a](b)![c](d)"), "ac");
   assert.equal(text("[a](b"), "[a](b");
   assert.equal(text("x [a] (b)"), "x [a] (b)");
+});
+
+test("hard breaks and table rules read as before the linear versions", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const para = (md: string) => {
+    const b = parse(md)[0];
+    return b && b.t === "p" ? b.runs.map((r) => r.text).join("") : "";
+  };
+  assert.equal(para("one  \ntwo"), "one\ntwo", "two trailing spaces are a hard break");
+  assert.equal(para("one\\\ntwo"), "one\ntwo", "a trailing backslash is a hard break");
+  assert.equal(para("one \ntwo"), "one two", "one trailing space is not");
+  const kinds = (md: string) =>
+    parse(md)
+      .map((b) => b.t)
+      .join(",");
+  assert.equal(kinds("| a | b |\n| --- | :---: |\n| 1 | 2 |"), "table");
+  assert.equal(kinds("| a | b |\n|--|--|\n| 1 | 2 |"), "table");
+  assert.equal(kinds("| a |\n| - |\n| 1 |"), "p", "one dash is not a rule");
+  assert.equal(kinds("| a |\n| ---x |\n| 1 |"), "p");
+  assert.equal(kinds("| a |\n|  |\n| 1 |"), "p");
 });

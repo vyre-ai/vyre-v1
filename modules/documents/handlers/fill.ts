@@ -1030,7 +1030,7 @@ export async function documentsFill(
     bytes: out,
     mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
     kind: format === "pdf" ? "pdf" : "document",
-    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version])}`}`,
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version, intoFolderId, ctx.actingFor ?? ctx.principal.id])}`}`,
   });
   const { fileId, versionId } = saved;
   // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)

@@ -411,6 +411,24 @@ const cells = (line: string): string[] =>
     .map((c) => c.trim());
 
 /** The blocks of a document. A line break inside a paragraph is kept when the line ends with two spaces or a backslash; otherwise lines of one paragraph join with a space. */
+/** The line under a table's head: `| --- | :---: |`, each cell two or more dashes with an optional colon at either end. Cells are cut by hand, so a long line of spaces or dashes is read once. */
+function isTableRule(line: string): boolean {
+  let t = line.trim();
+  if (t.startsWith("|")) t = t.slice(1);
+  if (t.endsWith("|")) t = t.slice(0, -1);
+  if (t === "") return false;
+  for (const cell of t.split("|")) {
+    const c = cell.trim();
+    let a = 0;
+    let b = c.length;
+    if (c[a] === ":") a++;
+    if (b > a && c[b - 1] === ":") b--;
+    if (b - a < 2) return false;
+    for (let k = a; k < b; k++) if (c[k] !== "-") return false;
+  }
+  return true;
+}
+
 export function parse(md: string): Block[] {
   const lines = md.split("\n");
   const out: Block[] = [];
@@ -420,8 +438,12 @@ export function parse(md: string): Block[] {
     if (para.length === 0) return;
     let text = "";
     para.forEach((l, n) => {
-      const hard = / {2,}$/.test(l) || /\\$/.test(l);
-      text += l.replace(/( {2,}|\\)$/, "").trim();
+      // trailing spaces counted by hand: the regex form re-read a long run of spaces from every position
+      let e = l.length;
+      while (e > 0 && l[e - 1] === " ") e--;
+      const spaces = l.length - e;
+      const hard = spaces >= 2 || l.endsWith("\\");
+      text += (spaces >= 2 ? l.slice(0, e) : l.endsWith("\\") ? l.slice(0, -1) : l).trim();
       if (n < para.length - 1) text += hard ? "\n" : " ";
     });
     para = [];
@@ -482,10 +504,7 @@ export function parse(md: string): Block[] {
       });
       continue;
     }
-    if (
-      line.trimStart().startsWith("|") &&
-      /^\s*\|?[ \t]*:?-{2,}:?[ \t]*(\|[ \t]*:?-{2,}:?[ \t]*)*\|?\s*$/.test(lines[n + 1] ?? "")
-    ) {
+    if (line.trimStart().startsWith("|") && isTableRule(lines[n + 1] ?? "")) {
       endPara();
       const head = cells(line).map(inline);
       const rows: Run[][][] = [];

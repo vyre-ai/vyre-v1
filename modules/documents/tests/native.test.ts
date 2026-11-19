@@ -429,3 +429,20 @@ test("a Word fill with no key of its own is keyed by the resolved record values 
   w.files.get(id)!.versions = 2;
   assert.notEqual(await keyOf(), second, "the template was edited");
 });
+
+test("with no key of its own, the same ask by another person or into another folder is another file, never the first person's file replayed", async () => {
+  const w = world();
+  const id = w.add("Service agreement.md", enc(AGREEMENT));
+  const keyOf = async (into: string, who: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](
+      { ...w.ctx, principal: { kind: "person", id: who } },
+      { templateFileId: id, intoFolderId: into, values: VALUES, signingDate: "2026-11-19" },
+    );
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(/:[^:]*\.pdf$/, "");
+  };
+  const a = await keyOf(FOLDER, "per_a");
+  assert.equal(await keyOf(FOLDER, "per_a"), a, "the same person, the same folder: the same ask");
+  assert.notEqual(await keyOf(FOLDER, "per_b"), a, "another person");
+  assert.notEqual(await keyOf("fld_other", "per_a"), a, "another folder");
+});
