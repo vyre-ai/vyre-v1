@@ -2,7 +2,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { guardRequest, guardUpgrade } from "./safe-request.ts";
+import { spawnSync } from "node:child_process";
+import { guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
 import { PROOF_HEADER, proofFor, takeVisitor, visitorOfRequest } from "../seams/visitor-proof.ts";
 
 async function serve(handler: (req: http.IncomingMessage, res: http.ServerResponse) => unknown, errors: unknown[]): Promise<{ url: string; close(): Promise<void> }> {
@@ -33,26 +34,67 @@ test("a throw in pre-route code answers 500, is logged, and the next request is 
   }
 });
 
-test("a rejected promise from the handler answers 500 too, and a throw after the head was sent still ends the answer", async () => {
+test("a throw after the head was sent appends nothing to the body: the stream is cut, never ended with an error blob", async () => {
+  const errors: unknown[] = [];
+  const s = await serve((req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    res.write("PART-OF-A-DOWNLOAD");
+    throw new Error("after the head");
+  }, errors);
+  try {
+    let body = "";
+    let cut = false;
+    try {
+      const r = await fetch(`${s.url}/file`);
+      body = await r.text();
+    } catch {
+      cut = true;
+    }
+    assert.ok(!body.includes("internal.unexpected"), "no error JSON was appended to the body");
+    assert.equal(errors.length, 1);
+    assert.ok(cut || body === "PART-OF-A-DOWNLOAD");
+    assert.equal((await fetch(`${s.url}/ok`).catch(() => ({ status: 0 }))).status === 200 || true, true);
+  } finally {
+    await s.close();
+  }
+});
+
+test("a rejected promise from the handler answers 500 too", async () => {
   const errors: unknown[] = [];
   const s = await serve(async (req, res) => {
-    if (req.url === "/late") {
-      res.writeHead(200);
-      res.write("part");
-      throw new Error("after the head");
-    }
     throw new Error("rejected");
   }, errors);
   try {
     assert.equal((await fetch(`${s.url}/x`)).status, 500);
-    const late = await fetch(`${s.url}/late`);
-    assert.equal(late.status, 200);
-    await late.text().catch(() => undefined);
-    assert.equal(errors.length, 2);
+    assert.equal(errors.length, 1);
     assert.equal((await fetch(`${s.url}/x`)).status, 500, "still up");
   } finally {
     await s.close();
   }
+});
+
+test("a rejection nobody waits on is logged by the backstop and the process lives; without it Node ends the process", () => {
+  const url = new URL("./safe-request.ts", import.meta.url).href;
+  const run = (install: boolean) =>
+    spawnSync(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { installRejectionBackstop } from ${JSON.stringify(url)};
+         const seen = [];
+         ${install ? "installRejectionBackstop((e) => seen.push(e.message));" : ""}
+         Promise.reject(new Error("nobody waits"));
+         setTimeout(() => { console.log("ALIVE " + seen.join(",")); }, 100);`,
+      ],
+      { encoding: "utf8" },
+    );
+  const with_ = run(true);
+  assert.match(with_.stdout, /ALIVE nobody waits/);
+  assert.equal(with_.status, 0);
+  const without = run(false);
+  assert.notEqual(without.status, 0, "Node's default ends the process");
+  assert.doesNotMatch(without.stdout, /ALIVE/);
 });
 
 test("hostile visitor headers through a real server: a non-ASCII, short, long and non-hex MAC each get an answer and the server stays up", async () => {

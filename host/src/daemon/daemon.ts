@@ -273,7 +273,7 @@ import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
 import { takeVisitor } from "../seams/visitor-proof.ts";
-import { guardRequest, guardUpgrade } from "./safe-request.ts";
+import { guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
 import type { OnError } from "./safe-request.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
@@ -7619,6 +7619,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const httpLog = sink.logger({ space: space ?? "-", place: "http" });
     const onHttpError: OnError = (where, error) =>
       httpLog.error("http.handler_threw", { where, error: error instanceof Error ? error.message : String(error) });
+    installRejectionBackstop((error) =>
+      httpLog.error("process.unhandled_rejection", { error: error instanceof Error ? error.message : String(error) }),
+    );
     server.on("request", guardRequest((req, res) => {
       // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
       takeVisitor(req);
@@ -7691,7 +7694,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         appFiles.handle(req, res)
       )
         return;
-      listener(req, res);
+      return listener(req, res);
     }, onHttpError));
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep

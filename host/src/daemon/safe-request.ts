@@ -16,8 +16,13 @@ export function guardRequest(
       /* logging never decides whether the answer goes out */
     }
     try {
-      if (!res.headersSent) res.writeHead(500, { "content-type": "application/json", "cache-control": "no-store" });
-      if (!res.writableEnded) res.end(JSON.stringify({ error: { code: "internal.unexpected", message: "Something went wrong on the server." } }));
+      // once the head is out the body is someone's stream, download or proxied answer: nothing is appended to it, the connection is cut
+      if (res.headersSent) {
+        res.destroy();
+        return;
+      }
+      res.writeHead(500, { "content-type": "application/json", "cache-control": "no-store" });
+      res.end(JSON.stringify({ error: { code: "internal.unexpected", message: "Something went wrong on the server." } }));
     } catch {
       res.destroy();
     }
@@ -49,4 +54,20 @@ export function guardUpgrade(
       socket.destroy();
     }
   };
+}
+
+let backstop = false;
+/**
+ * The last line: a promise that rejects with nothing waiting on it is logged (its message only, never a URL or a header) and the daemon goes on, where Node's default would end the process. Installed once.
+ */
+export function installRejectionBackstop(onError: (error: unknown) => void): void {
+  if (backstop) return;
+  backstop = true;
+  process.on("unhandledRejection", (reason) => {
+    try {
+      onError(reason);
+    } catch {
+      /* logging never decides whether the daemon lives */
+    }
+  });
 }

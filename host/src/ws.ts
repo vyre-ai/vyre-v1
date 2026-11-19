@@ -645,7 +645,11 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         c.closed = true;
       });
     })();
-  }, () => undefined));
+  }, (where, error) =>
+    o.sink
+      ?.logger({ space: "-", place: "ws" })
+      .error("ws.upgrade_threw", { where, error: error instanceof Error ? error.message : String(error) }),
+  ));
 
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {
