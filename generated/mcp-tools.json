@@ -35517,6 +35517,67 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.values.get",
+      "deferred": false,
+      "description": "Values a Journey carries for a record",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_values_get",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.values.set",
+      "deferred": false,
+      "description": "Keep a Journey value for a record",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "recordId",
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_values_set",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.versions",
       "deferred": false,
       "description": "List versions of a Journey definition",

@@ -1595,6 +1595,10 @@ export function stubs(ctx: CallCtx) {
       tasks: call("journeys.tasks"),
       test_path: call("journeys.test_path"),
       to_pipeline: call("journeys.to_pipeline"),
+      values: {
+        get: call("journeys.values.get"),
+        set: call("journeys.values.set"),
+      },
       versions: call("journeys.versions"),
       where: call("journeys.where"),
     },

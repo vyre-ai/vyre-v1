@@ -42,6 +42,7 @@ import { rememberAccountPicks } from "../accounts.ts";
 import { buttonType, noButtonLine } from "../button.ts";
 import { namesFor } from "../names.ts";
 import { flowSentence } from "../../../lib/flow-sentence.ts";
+import { readsOf, textsIn } from "../../../lib/flow-reads.ts";
 import { shapeIssues } from "../shape.ts";
 import { readIssues } from "../reads.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
@@ -906,6 +907,49 @@ async function buttonIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
   return line ? [issue("error", line)] : [];
 }
 
+/** A `{{journey.x}}` has to be a value some Journey carries: said at save, before the Run that would fail on it. Nothing is asked when no step reads one. */
+export async function journeyValueIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const reads = def.nodes.flatMap((n) =>
+    [...textsIn(n.input), ...textsIn(n.ai ?? {})].flatMap((t) =>
+      readsOf(t)
+        .filter((r) => r.root === "journey" && r.segs[0] !== undefined)
+        .map((r) => ({ nodeId: n.id, text: r.text, key: r.segs[0]! })),
+    ),
+  );
+  if (reads.length === 0 || !ctx.call) return [];
+  let carried: { key: string; title: string }[];
+  try {
+    const got = (await ctx.call("journeys.list", {})) as {
+      journeys?: { variables?: { key: string; title: string }[] }[];
+    };
+    carried = (got.journeys ?? []).flatMap((j) => j.variables ?? []);
+  } catch {
+    return [];
+  }
+  const keys = new Set(carried.map((v) => v.key));
+  const seen = new Set<string>();
+  const out: Issue[] = [];
+  for (const r of reads) {
+    if (keys.has(r.key) || seen.has(`${r.nodeId}:${r.text}`)) continue;
+    seen.add(`${r.nodeId}:${r.text}`);
+    out.push(
+      issue(
+        "error",
+        carried.length
+          ? `{{${r.text}}} is not a value any Journey carries. They carry ${[...new Set(carried.map((v) => v.title))].join(", ")}.`
+          : `{{${r.text}}} reads a Journey value, and no Journey carries any yet.`,
+        r.nodeId,
+      ),
+    );
+  }
+  return out;
+}
+
+async function refuseJourneyValues(ctx: AutoCtx, def: Definition): Promise<void> {
+  const bad = await journeyValueIssues(ctx, def);
+  if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
+}
+
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = input.definition as Definition;
   // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
@@ -915,7 +959,15 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
   const gone = Array.isArray(def?.nodes) ? await goneAgentIssues(ctx, def) : [];
   const button = Array.isArray(def?.triggers) ? await buttonIssues(ctx, def) : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked, ...gone, ...button];
+  const journeyValues = Array.isArray(def?.nodes) ? await journeyValueIssues(ctx, def) : [];
+  const issues = [
+    ...validateDefinition(def, readPolicy(ctx.db)),
+    ...keyBlocked,
+    ...useBlocked,
+    ...gone,
+    ...button,
+    ...journeyValues,
+  ];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
@@ -997,6 +1049,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
       reason: "agent_not_yours",
       issues: [agentIssue],
     });
+  await refuseJourneyValues(ctx, def);
   await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId))
     raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
@@ -1053,6 +1106,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
+    await refuseJourneyValues(ctx, input.definition);
     await guardKeySteps(ctx, a.definition, input.definition);
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)

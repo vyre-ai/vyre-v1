@@ -2901,6 +2901,14 @@
   "journeys_to_pipeline": {
     "journeyId": "jrn_a1b2c3"
   },
+  "journeys_values_get": {
+    "recordId": "rec_a1b2c3"
+  },
+  "journeys_values_set": {
+    "recordId": "rec_a1b2c3",
+    "key": "Plan_Key",
+    "value": "Quarterly planning"
+  },
   "journeys_versions": {
     "journeyId": "jrn_a1b2c3"
   },

@@ -1595,6 +1595,10 @@ export function createClient(transport: Transport) {
       tasks: call("journeys.tasks", 1),
       test_path: call("journeys.test_path", 1),
       to_pipeline: call("journeys.to_pipeline", 1),
+      values: {
+        get: call("journeys.values.get", 1),
+        set: call("journeys.values.set", 1),
+      },
       versions: call("journeys.versions", 1),
       where: call("journeys.where", 1),
     },

@@ -549,3 +549,22 @@ export function refileLinks(db: Db, fromId: string, toId: string): void {
   db.run("UPDATE journeys_tasks SET record_id = ? WHERE record_id = ?", toId, fromId);
   db.run("UPDATE journeys_breaches SET record_id = ? WHERE record_id = ?", toId, fromId);
 }
+
+// ---- carried values ----
+
+export function getValues(db: Db, recordId: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const r of db.all("SELECT key, value FROM journeys_values WHERE record_id = ? ORDER BY key", recordId) as Raw[])
+    out[r.key as string] = json<unknown>(r.value, null);
+  return out;
+}
+export function putValue(db: Db, recordId: string, key: string, value: unknown, at: number, by: string): void {
+  db.run(
+    "INSERT OR REPLACE INTO journeys_values (record_id, key, value, at, by_who) VALUES (?, ?, ?, ?, ?)",
+    recordId,
+    key,
+    js(value ?? null),
+    at,
+    by,
+  );
+}

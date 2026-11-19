@@ -130,3 +130,40 @@ test("a form link made in one step is usable in the email after it, and a mistyp
   assert.deepEqual(say(flow("Finish here: {{steps.link.out.url}}")), []);
   assert.match(say(flow("{{steps.link.out.link}}"))[0]!, /After steps\.link\.out you can use expiresAt, url/);
 });
+
+test("a {{journey.x}} has to be a value some Journey carries: refused at save and said by validate, with what they carry", async () => {
+  const h = harness();
+  h.callee("journeys.list", () => ({
+    journeys: [
+      {
+        variables: [
+          { key: "plan", title: "Plan" },
+          { key: "owner", title: "Owner" },
+        ],
+      },
+    ],
+  }));
+  const flow = (text: string) =>
+    goodDefinition({
+      triggers: [{ key: "record_change", filter: { type: "contact" } }],
+      nodes: [
+        node("a", "records.update", { type: "contact", recordId: "{{trigger.recordId}}", patch: { note: text } }),
+      ],
+    });
+  const ok = await h.call("automations.validate", { definition: flow("Plan: {{journey.plan}}") }, alice);
+  assert.equal(
+    ok.issues.some((i: { message: string }) => /journey/.test(i.message)),
+    false,
+  );
+  const bad = await h.call("automations.validate", { definition: flow("{{journey.colour}}") }, alice);
+  assert.equal(bad.ok, false);
+  assert.match(
+    bad.issues.map((i: { message: string }) => i.message).join("\n"),
+    /\{\{journey\.colour\}\} is not a value any Journey carries\. They carry Plan, Owner\./,
+  );
+  await assert.rejects(
+    h.call("automations.create", create({ definition: flow("{{journey.colour}}") }), alice),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await h.call("automations.create", create({ definition: flow("{{journey.plan}}") }), alice);
+});

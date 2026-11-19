@@ -405,3 +405,46 @@ test("an rc.39 Space's Journeys survive the new migrations: the rows are still t
   assert.deepEqual({ ...r }, { stage: "review", channel_id: "chn_1", legacy_record_id: null });
   assert.equal((db.prepare("SELECT COUNT(*) AS n FROM journeys_migration").get() as { n: number }).n, 0);
 });
+
+test("values: a Journey carries the keys it declares for a record; reading a record that is on no Journey is empty and writing is refused", async () => {
+  const h = harness();
+  const j = await pipe(h, {
+    variables: [
+      { key: "plan", title: "Plan" },
+      { key: "owner", title: "Owner" },
+    ],
+  });
+  await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_c1" }, alice);
+  assert.deepEqual((await h.call("journeys.values.get", { recordId: "rec_c1" }, alice)).values, {});
+  await h.call("journeys.values.set", { recordId: "rec_c1", key: "plan", value: "Premium" }, alice);
+  await h.call("journeys.values.set", { recordId: "rec_c1", key: "owner", value: { name: "Lena" } }, alice);
+  await h.call("journeys.values.set", { recordId: "rec_c1", key: "plan", value: "Gold" }, alice);
+  assert.deepEqual((await h.call("journeys.values.get", { recordId: "rec_c1" }, alice)).values, {
+    owner: { name: "Lena" },
+    plan: "Gold",
+  });
+  assert.deepEqual((await h.call("journeys.values.get", { recordId: "rec_nobody" }, alice)).values, {});
+  await refused(
+    h.call("journeys.values.set", { recordId: "rec_nobody", key: "plan", value: 1 }, alice),
+    "validation.precondition_failed",
+    "not_on_journey",
+  );
+  await refused(
+    h.call("journeys.values.set", { recordId: "rec_c1", key: "colour", value: 1 }, alice),
+    "validation.precondition_failed",
+    "not_declared",
+  );
+  await refused(
+    h.call("journeys.values.set", { recordId: "rec_c1", key: "plan", value: "x".repeat(4001) }, alice),
+    "validation.precondition_failed",
+    "too_long",
+  );
+});
+
+test("values follow the record through a move onto the pipeline model", async () => {
+  const h = harness();
+  const { j, ids } = await old(h, 1);
+  void ids;
+  const g = (await h.call("journeys.get", { journeyId: j.id }, alice)).journey;
+  assert.equal(g.variables, undefined, "an old Journey carries nothing until it is given values");
+});

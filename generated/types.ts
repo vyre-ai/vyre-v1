@@ -24027,6 +24027,7 @@ export type JourneysCreateOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24154,6 +24155,7 @@ export type JourneysDesignOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24226,6 +24228,7 @@ export type JourneysGetOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24244,6 +24247,12 @@ export type JourneysListOut = {
       version: number;
       stages: number;
       inFlight: number;
+      mode?: "subject" | "migrating" | "pipeline";
+      variables?: Array<{
+          key: string;
+          title: string;
+        }>;
+      migrateNote?: string;
       updatedAt: number;
     }>;
   next?: string;
@@ -24366,6 +24375,7 @@ export type JourneysRenameOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24449,6 +24459,7 @@ export type JourneysRulesSetOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24571,6 +24582,7 @@ export type JourneysToPipelineOut = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24582,6 +24594,21 @@ export type JourneysToPipelineOut = {
       error: string;
     }>;
   finished: boolean;
+};
+export type JourneysValuesGetIn = {
+  recordId: string;
+};
+export type JourneysValuesGetOut = {
+  values: Record<string, unknown>;
+};
+export type JourneysValuesSetIn = {
+  recordId: string;
+  key: string;
+  value: unknown;
+};
+export type JourneysValuesSetOut = {
+  recordId: string;
+  key: string;
 };
 export type JourneysVersionsIn = {
   journeyId: string;
@@ -49756,6 +49783,8 @@ export interface CapMap {
   "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
   "journeys.test_path": { in: JourneysTestPathIn; out: JourneysTestPathOut };
   "journeys.to_pipeline": { in: JourneysToPipelineIn; out: JourneysToPipelineOut };
+  "journeys.values.get": { in: JourneysValuesGetIn; out: JourneysValuesGetOut };
+  "journeys.values.set": { in: JourneysValuesSetIn; out: JourneysValuesSetOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
   "journeys.where": { in: JourneysWhereIn; out: JourneysWhereOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };

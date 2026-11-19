@@ -311,6 +311,7 @@ const STEP_ICON: Readonly<Record<string, IconKey>> = {
   stop: "stop",
   start_journey: "journey",
   "journeys.move_stage": "journey",
+  "journeys.values.set": "journey",
   wait_stage: "hourglass",
   "sheet.add_rows": "sheet",
   "sheet.find_rows": "search",

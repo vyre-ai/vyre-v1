@@ -28,6 +28,8 @@ export interface Scope {
   item?: unknown;
   index?: number;
   vars?: Record<string, unknown>;
+  /** The values the Journey carries for the record the Run is about. */
+  journey?: Record<string, unknown>;
   run?: { id: string };
   now?: number;
 }
@@ -325,6 +327,7 @@ function ev(a: Ast, scope: Scope): unknown {
         item: scope.item,
         index: scope.index,
         vars: scope.vars ?? {},
+        journey: scope.journey ?? {},
         run: scope.run,
         input: scope.trigger,
       };

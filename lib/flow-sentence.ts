@@ -230,6 +230,10 @@ function doOf(n: SentenceNode, names: SentenceNames): string {
       return "ask for approval";
     case "start_journey":
       return "start a Journey";
+    case "journeys.values.set": {
+      const key = literal(i["key"]);
+      return key ? `remember ${words(key)} for the Journey` : "remember a value for the Journey";
+    }
     case "journeys.move_stage": {
       const stage = literal(i["toStage"]);
       return stage ? `move it to ${cap(words(stage))}` : "move it to a stage";

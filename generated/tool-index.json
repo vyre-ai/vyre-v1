@@ -5048,6 +5048,18 @@
     },
     {
       "deferred": false,
+      "name": "journeys_values_get",
+      "summary": "Values a Journey carries for a record",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "journeys_values_set",
+      "summary": "Keep a Journey value for a record",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "journeys_versions",
       "summary": "List versions of a Journey definition",
       "toolset": "automations"

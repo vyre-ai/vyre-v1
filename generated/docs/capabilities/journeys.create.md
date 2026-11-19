@@ -152,6 +152,7 @@ type Out = {
         title: string;
       }>;
     legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -250,6 +251,7 @@ type Out = {
       "id": "jrn_a1b2c3",
       "inFlight": 1,
       "legacyType": "contact",
+      "migrateNote": "example",
       "mode": "subject",
       "name": "example",
       "recordType": "contact",

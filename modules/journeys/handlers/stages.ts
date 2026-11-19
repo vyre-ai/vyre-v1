@@ -173,6 +173,7 @@ export async function list(ctx: JourneysCtx, input: In): Promise<unknown> {
     stages: j.stages.length,
     inFlight: countInFlight(ctx.db, j.id),
     mode: j.mode ?? "subject",
+    ...(j.variables ? { variables: j.variables } : {}),
     ...(j.migrateNote ? { migrateNote: j.migrateNote } : {}),
     updatedAt: j.updatedAt,
   }));

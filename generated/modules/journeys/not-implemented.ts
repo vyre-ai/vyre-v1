@@ -24,6 +24,8 @@ export const handlers: Handlers<HandlerCtx> = {
   "journeys.tasks": async (ctx) => { throw new VyreErr(notImplemented("journeys.tasks", ctx.trace)); },
   "journeys.test_path": async (ctx) => { throw new VyreErr(notImplemented("journeys.test_path", ctx.trace)); },
   "journeys.to_pipeline": async (ctx) => { throw new VyreErr(notImplemented("journeys.to_pipeline", ctx.trace)); },
+  "journeys.values.get": async (ctx) => { throw new VyreErr(notImplemented("journeys.values.get", ctx.trace)); },
+  "journeys.values.set": async (ctx) => { throw new VyreErr(notImplemented("journeys.values.set", ctx.trace)); },
   "journeys.versions": async (ctx) => { throw new VyreErr(notImplemented("journeys.versions", ctx.trace)); },
   "journeys.where": async (ctx) => { throw new VyreErr(notImplemented("journeys.where", ctx.trace)); },
 };

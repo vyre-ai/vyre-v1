@@ -123,12 +123,17 @@ const TRIGGER_PAYLOADS = new Map(registry.triggers.map((t) => [t.key, t.payload]
 const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
 const DAY30 = "30d";
 
-export function scopeOf(env: StepEnv, call: Pick<StepCall, "trigger" | "outputs" | "vars" | "item" | "index">): Scope {
+export function scopeOf(
+  env: StepEnv,
+  call: Pick<StepCall, "trigger" | "outputs" | "vars" | "item" | "index">,
+  journey?: Record<string, unknown>,
+): Scope {
   const steps = Object.fromEntries(Object.entries(call.outputs).map(([k, v]) => [k, { out: v }]));
   return clean({
     trigger: call.trigger,
     steps,
     vars: call.vars ?? {},
+    ...(journey ? { journey } : {}),
     item: call.item,
     index: call.index,
     run: { id: env.run.id },
@@ -805,6 +810,10 @@ const ADAPTERS: Record<string, Adapter> = {
       reason: typeof i.reason === "string" && i.reason.trim() !== "" ? i.reason : "Moved by an automation",
     }),
   },
+  "journeys.values.set": {
+    cap: "journeys.values.set",
+    input: (i) => ({ recordId: i.recordId, key: i.key, value: i.value ?? null }),
+  },
   start_journey: { cap: "journeys.start", output: (o, i) => ({ recordId: o?.recordId ?? i.subjectRecordId }) },
   sign: {
     cap: "esign.send",
@@ -962,15 +971,54 @@ function accountRefusal(e: unknown, title: string, input: Record<string, unknown
 
 // ---- the runner ----
 
+/** The record a Run is about: what a record trigger carries as `record`, or a plain `recordId`. */
+function runRecordId(trigger: unknown): string | undefined {
+  const t = trigger as { record?: { id?: unknown }; recordId?: unknown } | null | undefined;
+  const id = t?.record?.id ?? t?.recordId;
+  return typeof id === "string" && id ? id : undefined;
+}
+/**
+ * The values a Journey carries for the record this Run is about, when the step reads {{journey.x}}. Nothing is asked when no part of the step names the Journey, so a Flow without one pays nothing.
+ * A Run about no record, or a read that fails, says nothing about the names: the step then fails with the line "has no value yet" only when the values were really read.
+ */
+async function journeyValues(
+  env: StepEnv,
+  node: StepNode,
+  call: StepCall,
+): Promise<{ values: Record<string, unknown>; keys: string[] } | undefined> {
+  if (!env.ctx.call || !textsIn(node.input).some((t) => /\bjourney\s*[.[]/.test(t))) return undefined;
+  const recordId = runRecordId(call.trigger);
+  if (!recordId) return undefined;
+  try {
+    const got = (await env.ctx.call("journeys.values.get", { recordId })) as {
+      values?: Record<string, unknown>;
+    } | null;
+    if (!got || typeof got.values !== "object" || got.values === null) return undefined;
+    const keys = Object.keys(got.values);
+    // a key the Journey declares but nobody has kept yet is told apart from a name that is not a value at all by the declared list
+    const declared = (await env.ctx.call("journeys.list", {}).catch(() => null)) as {
+      journeys?: { variables?: { key: string }[] }[];
+    } | null;
+    const all = new Set<string>(keys);
+    for (const j of declared?.journeys ?? []) for (const v of j.variables ?? []) all.add(v.key);
+    return { values: got.values, keys: [...all].sort() };
+  } catch {
+    return undefined;
+  }
+}
+
 /** Run one step. Sandboxes (test mode, replay) answer every step that writes or sends with its sample and run only what reads. */
 export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Promise<StepResult> {
   const def = STEPS.get(node.key);
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
-  const scope = scopeOf(env, call);
+  // the values a Journey carries for the record this Run is about, read only when the step names one ({{journey.plan}})
+  const carried = await journeyValues(env, node, call);
+  const scope = scopeOf(env, call, carried?.values);
   // a name the Run cannot have fails the step in words, instead of the step sending an empty value (r40 audit, gap 4)
   const unresolved = unresolvedLine(textsIn(node.input), {
     trigger: call.trigger,
     steps: scope.steps,
+    ...(carried ? { journey: carried.values, journeyKeys: carried.keys } : {}),
     declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? ""), DEFS),
     checkSteps: !(call.sandbox && Object.keys(call.outputs).length === 0),
   });

@@ -76,6 +76,7 @@ const journeySummary = t.obj({
   stages: t.int(),
   inFlight: t.int(),
   mode: t.opt(t.enm("subject", "migrating", "pipeline")),
+  variables: t.opt(t.arr(t.obj({ key: t.str(), title: t.str() }))),
   migrateNote: t.opt(t.str()),
   updatedAt: t.ts(),
 });
@@ -406,6 +407,20 @@ export default defineManifest({
       perm: "journeys.manage",
       level: "use",
       tool: "automations",
+    }),
+    read("journeys.values.get", "Values a Journey carries for a record", {
+      in: { recordId: id.record },
+      out: { values: t.rec() },
+      on: ["record", "/recordId"],
+      tool: "automations",
+    }),
+    write("journeys.values.set", "Keep a Journey value for a record", {
+      in: { recordId: id.record, key: t.str({ pattern: "^[a-z][a-z0-9_]*$" }), value: t.json() },
+      out: { recordId: id.record, key: t.str() },
+      on: ["record", "/recordId"],
+      idem: "natural",
+      tool: "automations",
+      errors: ["validation.precondition_failed"],
     }),
     write(
       "journeys.adopt",

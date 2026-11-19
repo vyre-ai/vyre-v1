@@ -84,6 +84,7 @@ export const STEP_PALETTE: readonly { key: string; title: string; group: string;
   { key: "call_automation", title: "Run another automation", group: "Flow", icon: "journey" },
   { key: "start_journey", title: "Start a Journey", group: "Journeys", icon: "journey" },
   { key: "journeys.move_stage", title: "Move to a stage", group: "Journeys", icon: "journey" },
+  { key: "journeys.values.set", title: "Remember for the Journey", group: "Journeys", icon: "journey" },
   { key: "wait_stage", title: "Wait for a Journey stage", group: "Journeys", icon: "hourglass" },
   { key: "sheet.add_rows", title: "Add rows", group: "Spreadsheets", icon: "sheet" },
   { key: "sheet.find_rows", title: "Find rows", group: "Spreadsheets", icon: "search" },
@@ -826,6 +827,10 @@ const REQUIRED: Readonly<Record<string, readonly { field: string; label: string 
   "forms.link_create": [
     { field: "formId", label: "a form" },
     { field: "recordId", label: "a record" },
+  ],
+  "journeys.values.set": [
+    { field: "recordId", label: "a record" },
+    { field: "key", label: "the value's name" },
   ],
   "journeys.move_stage": [
     { field: "journeyId", label: "a Journey" },

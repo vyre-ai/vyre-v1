@@ -231,6 +231,17 @@ export default defineManifest({
       },
       out: { recordId: id.record, stage: t.str() },
     }),
+    step("journeys.values.set", "Remember for the Journey", "journey", "capability", {
+      cap: "journeys.values.set",
+      effects: "write",
+      idempotency: "natural",
+      in: {
+        recordId: id.record,
+        key: t.str({ examples: ["plan"] }),
+        value: tpl("Read later as {{journey.<name>}}"),
+      },
+      out: { recordId: id.record, key: t.str() },
+    }),
     step("wait_stage", "Wait for a Journey stage", "wait", "wait", {
       effects: "read",
       in: { recordId: id.record, stage: t.str(), timeout: t.opt(duration) },
