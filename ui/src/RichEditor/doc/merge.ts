@@ -207,8 +207,11 @@ export function mergeRemote(state: EditorState, base: string, remote: string, wh
       return;
     }
     const r = reach[i] as { a: number; b: number };
-    const from = shiftStart(r.a);
-    const to = shiftEnd(r.b, false);
+    // the stretch of the page: every local change that touches it is inside it; the others that end before it only move it
+    const inside = lh.filter((g) => touches(as(r), g));
+    const before = lh.filter((g) => !inside.includes(g) && g.b <= r.a).reduce((n, g) => n + delta(g), 0);
+    const from = r.a + before;
+    const to = r.b + before + inside.reduce((n, g) => n + delta(g), 0);
     const k = `${from}:${to}`;
     const have = regions.get(k);
     const sug = asSuggestion(incoming, schema, who);

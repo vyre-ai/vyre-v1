@@ -640,3 +640,24 @@ test("lists and quotes opened on the marker's line come back as written, at dept
     assert.equal(roundtrip(t), t, t);
   schema.nodeFromJSON(markdownToDoc(`${"- ".repeat(50)}x\n`, D)).check();
 });
+
+test("the person deleted a block the agent rewrites: the rewrite arrives as a suggestion, no other block is struck", () => {
+  const base = "A\n\nB\n";
+  const s0 = stateOf(base, false);
+  const s = s0.apply(s0.tr.delete(0, s0.doc.child(0).nodeSize));
+  assert.equal(mdOf(s), "B\n");
+  const r = merged(s, base, "A2\n\nB\n");
+  assert.equal(r.clashed, true);
+  assert.equal(mdOf(r.state), `{++A2++}${meta("Agent")}\n\nB\n`);
+});
+
+test("person and agent each add a block at the same place: both stay, the agent's as a suggestion after the person's", () => {
+  const base = "A\n\nB\n";
+  const s0 = stateOf(base, false);
+  const s = s0.apply(
+    s0.tr.insert(s0.doc.child(0).nodeSize, schema.nodes["paragraph"]!.create(null, schema.text("mine"))),
+  );
+  const r = merged(s, base, "A\n\ntheirs\n\nB\n");
+  assert.equal(r.clashed, true);
+  assert.equal(mdOf(r.state), `A\n\nmine\n\n{++theirs++}${meta("Agent")}\n\nB\n`);
+});
