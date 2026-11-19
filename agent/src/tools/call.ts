@@ -81,10 +81,10 @@ export interface CallHooks {
 export interface BackgroundPort {
   /** How long the call is waited for before it is left running. */
   graceMs: number;
-  /** Make the node that stands for the running command. Null: none could be made, so the call is simply waited for. */
+  /** Make the node that stands for the command, before it starts: the call carries its id, so stopping the node interrupts the command. Null: none could be made, so the call is simply waited for. */
   begin(ctx: ToolCtx, t: ToolDef): Promise<{ runId: string } | null>;
   /** The call ended. */
-  end(runId: string, outcome: { ok: boolean; summary: string; code?: string }): Promise<void>;
+  end(runId: string, outcome: { ok: boolean; summary: string; code?: string; held?: boolean }): Promise<void>;
 }
 export const BACKGROUND_GRACE_MS = 4000;
 
@@ -527,10 +527,12 @@ export function createToolSession(deps: CallDeps): ToolSession {
         sent = rest;
       }
       let res: Awaited<ReturnType<typeof deps.invoke>>;
-      if (!wantsBackground) res = await deps.invoke(t.cap, sent, seed);
+      // the node that stands for the command is made first and names the call (seed.run), so a Stop on the node reaches the command in its tab
+      const node = wantsBackground ? await deps.background!.begin(ctx, t).catch(() => null) : null;
+      if (!node) res = await deps.invoke(t.cap, sent, seed);
       else {
         const port = deps.background!;
-        const pending = deps.invoke(t.cap, sent, seed);
+        const pending = deps.invoke(t.cap, sent, { ...seed, run: node.runId });
         const early = await Promise.race([
           pending.then(
             (r) => ({ r }),
@@ -538,38 +540,39 @@ export function createToolSession(deps: CallDeps): ToolSession {
           ),
           new Promise<null>((ok) => setTimeout(() => ok(null), port.graceMs).unref?.()),
         ]);
-        if (early !== null && "e" in early) throw early.e;
-        if (early !== null) res = early.r;
-        else {
-          const node = await port.begin(ctx, t).catch(() => null);
-          if (!node) res = await pending;
-          else {
-            const finish = (outcome: { ok: boolean; summary: string; code?: string }): void => {
-              void port.end(node.runId, outcome).catch(() => undefined);
-            };
-            pending.then(
-              (r) => finish(backgroundOutcome(r)),
-              (e: unknown) =>
-                finish({
-                  ok: false,
-                  summary: e instanceof HostError ? e.error.message : "The command could not finish.",
-                  code: e instanceof HostError ? e.error.code : "internal.unexpected",
-                }),
-            );
-            return {
-              kind: "result",
-              traceId,
-              result: {
-                ok: true,
-                content: {
-                  started: true,
-                  runId: node.runId,
-                  message:
-                    "It is still running in its tab and will go on. To wait for it without spending anything, use wait_for on the event run.node_ended with this runId; the answer then says how it ended. Read what it printed with terminal_read.",
-                },
+        const settle = (o: { ok: boolean; summary: string; code?: string; held?: boolean }): void => {
+          void port.end(node.runId, o).catch(() => undefined);
+        };
+        const failure = (e: unknown): { ok: boolean; summary: string; code?: string } => ({
+          ok: false,
+          summary: e instanceof HostError ? e.error.message : "The command could not finish.",
+          code: e instanceof HostError ? e.error.code : "internal.unexpected",
+        });
+        if (early !== null && "e" in early) {
+          settle(failure(early.e));
+          throw early.e;
+        }
+        if (early !== null) {
+          settle(backgroundOutcome(early.r));
+          res = early.r;
+        } else {
+          pending.then(
+            (r) => settle(backgroundOutcome(r)),
+            (e: unknown) => settle(failure(e)),
+          );
+          return {
+            kind: "result",
+            traceId,
+            result: {
+              ok: true,
+              content: {
+                started: true,
+                runId: node.runId,
+                message:
+                  "It is still running in its tab and will go on. To wait for it without spending anything, use wait_for on the event run.node_ended with this runId; the answer then says how it ended. Read what it printed with terminal_read.",
               },
-            };
-          }
+            },
+          };
         }
       }
       if (!isDynamic && res.status === "ok")
@@ -711,9 +714,14 @@ export function createToolSession(deps: CallDeps): ToolSession {
 }
 
 /** How a background command ended, in words for the node: the exit code and how long, or why it did not finish. */
-function backgroundOutcome(r: { status: string; output?: unknown }): { ok: boolean; summary: string; code?: string } {
+function backgroundOutcome(r: { status: string; output?: unknown }): {
+  ok: boolean;
+  summary: string;
+  code?: string;
+  held?: boolean;
+} {
   if (r.status !== "ok")
-    return { ok: false, summary: "It was held for a person's approval.", code: "permission.needs_approval" };
+    return { ok: false, held: true, summary: "It waits for a person's approval; it starts when allowed." };
   const o = (r.output ?? {}) as { exitCode?: number | null; durationMs?: number };
   const mins = typeof o.durationMs === "number" ? Math.max(1, Math.round(o.durationMs / 60_000)) : undefined;
   const took = mins === undefined ? "" : mins < 2 ? " after about a minute" : ` after ${mins} minutes`;

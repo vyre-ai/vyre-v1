@@ -7,18 +7,27 @@ import { ctx, loadGenerated } from "../src/tools/harness.ts";
 import { HostError, makeError } from "../../host/src/routes/errors.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 
-function rig(opts: { port?: boolean; beginFails?: boolean } = {}) {
+function rig(opts: { port?: boolean; beginFails?: boolean; refuse?: boolean; hold?: boolean; quick?: boolean } = {}) {
   const loaded = loadGenerated();
   const sent: Array<Record<string, unknown>> = [];
   const pending: Array<{ resolve: (v: unknown) => void; reject: (e: unknown) => void }> = [];
-  const invoke: Invoke = (cap, input) =>
+  const seeds: Array<{ run?: string | undefined }> = [];
+  const invoke: Invoke = (cap, input, seed) =>
     new Promise((resolve, reject) => {
+      if (cap === "terminal.run") seeds.push({ run: seed.run });
+      if (opts.refuse)
+        return reject(
+          new HostError(
+            makeError("permission.role_lacks_permission", "t", { message: "A rule of yours stops that command." }),
+          ),
+        );
+      if (opts.hold) return resolve({ status: "held", taskId: "task_1", traceId: "t" });
       if (cap === "terminal.run") sent.push(input as Record<string, unknown>);
       pending.push({
         resolve: (output) => resolve({ status: "ok", output, traceId: "t" }),
         reject,
       });
-      if ((input as { quick?: boolean }).quick) pending.pop()!.resolve({ exitCode: 0, output: "ok", durationMs: 5 });
+      if (opts.quick) pending.pop()!.resolve({ exitCode: 0, output: "ok", durationMs: 5 });
     });
   const began: string[] = [];
   const ended: Array<{ runId: string; ok: boolean; summary: string; code?: string | undefined }> = [];
@@ -45,7 +54,7 @@ function rig(opts: { port?: boolean; beginFails?: boolean } = {}) {
   session.preload("T1", ["terminal_run"]);
   const call = (input: Record<string, unknown>) =>
     session.call(ctx({ turnId: "trn_1", callId: "c1" }), "terminal_run", input);
-  return { call, sent, pending, began, ended };
+  return { call, sent, pending, began, ended, seeds };
 }
 const settle = () => new Promise((r) => setTimeout(r, 15));
 
@@ -59,6 +68,8 @@ test("a command still running after the grace is left running: the model is told
   assert.match(String(c["message"]), /run\.node_ended/);
   assert.equal("background" in r.sent[0]!, false);
   assert.deepEqual(r.ended, [], "it has not ended");
+  assert.deepEqual(r.began, ["run_node1"], "the node was made before the command started");
+  assert.equal(r.seeds[0]?.run, "run_node1", "and the call carries its id, so a Stop on the node reaches the command");
 });
 
 test("when the command ends, its node ends with the exit code and how long it took; a failing exit ends it failed", async () => {
@@ -88,11 +99,38 @@ test("a call that fails after it was left running ends the node failed with the 
   assert.equal(r.ended[0]?.code, "timeout.deadline");
 });
 
-test("a command that finishes inside the grace answers like any call and makes no node", async () => {
-  const r = rig();
-  const out = await r.call({ command: "ls", background: true, quick: true } as never).catch((e) => e);
-  assert.deepEqual(r.began, []);
+test("a command that finishes inside the grace answers like any call, and its node ends with it", async () => {
+  const r = rig({ quick: true });
+  const out = await r.call({ command: "ls", background: true });
   assert.notEqual((out as { result?: { content?: { started?: boolean } } }).result?.content?.started, true);
+  await settle();
+  assert.equal(r.ended.length, 1);
+  assert.equal(r.ended[0]?.ok, true);
+});
+
+test("a command that is refused is refused in the background exactly as in the foreground: same error, nothing left running, its node ends failed", async () => {
+  const fg = rig({ refuse: true });
+  const a = await fg.call({ command: "rm -rf /" });
+  const bg = rig({ refuse: true });
+  const b = await bg.call({ command: "rm -rf /", background: true });
+  assert.equal(a.kind, "error");
+  assert.equal(b.kind, "error");
+  assert.equal((b as { error: { code: string } }).error.code, (a as { error: { code: string } }).error.code);
+  assert.equal((b as { error: { code: string } }).error.code, "permission.role_lacks_permission");
+  await settle();
+  assert.equal(bg.ended[0]?.ok, false);
+  assert.equal(bg.ended[0]?.code, "permission.role_lacks_permission");
+});
+
+test("a command that needs a person's yes is held in the background as in the foreground, and its node does not claim to be running", async () => {
+  const fg = rig({ hold: true });
+  const bg = rig({ hold: true });
+  const a = await fg.call({ command: "sudo reboot" });
+  const b = await bg.call({ command: "sudo reboot", background: true });
+  assert.equal(a.kind, "held");
+  assert.equal(b.kind, "held");
+  await settle();
+  assert.equal(bg.ended[0]?.held, true);
 });
 
 test("with no port wired, or when no node can be made, the word is dropped and the command is simply waited for", async () => {
@@ -104,7 +142,7 @@ test("with no port wired, or when no node can be made, the word is dropped and t
   assert.equal((await p).kind, "result");
   const bad = rig({ beginFails: true });
   const q = bad.call({ command: "ls", background: true });
-  await new Promise((r) => setTimeout(r, 60));
+  await settle();
   bad.pending[0]!.resolve({ exitCode: 0, output: "", durationMs: 1 });
   const out = await q;
   assert.equal((out as { result: { content: { started?: boolean } } }).result.content.started, undefined);

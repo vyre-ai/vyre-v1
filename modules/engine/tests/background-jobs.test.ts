@@ -68,3 +68,11 @@ test("the server dies while it waits: the lease runs out and the sweep ends the 
   await w.port.end(a.runId, { ok: true, summary: "late" }); // a late end of the dead process changes nothing and throws nothing
   assert.equal(w.row(a.runId)?.status, "failed");
 });
+
+test("a command held for approval ends its node as stopped (it has not started), never failed", async () => {
+  const w = world();
+  const a = (await w.port.begin(tctx, tool))!;
+  await w.port.end(a.runId, { ok: false, held: true, summary: "It waits for a person's approval; it starts when allowed." });
+  assert.equal(w.row(a.runId)?.status, "stopped");
+  assert.equal(w.row(a.runId)?.error_code, null);
+});

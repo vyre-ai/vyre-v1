@@ -2391,3 +2391,24 @@ test("Z1 and Z2: run.stopped (no marker, the stopper's free text as reason) inte
   );
   assert.equal((await cmd).exitCode, 130);
 });
+
+test("r42-runtime: a person's Stop on the node of a command left running interrupts that command in its tab; another node, or a node that only changed state, interrupts nothing", async () => {
+  const { consumers } = await import("../impl.ts");
+  const { agent, hn } = setup();
+  const seen: string[] = [];
+  bindHost(stoppableHost(seen) as never);
+  const stop = consumers["terminal.turn_stopped"]!;
+  // the call carries the id of its node (seed.run), so the command is marked with it
+  const inNode: TermCtx = { ...agent, run: "run_node1" };
+  const cmd = h["terminal.run"]!(inNode, { command: "npm run build", idempotencyKey: idem() });
+  await until(() => seen.includes("npm run build"), "running");
+  const at = hn.ctx.now();
+  for (const [payload, why] of [
+    [{ runId: "run_node1", to: "waiting" }, "a state change that is not a stop"],
+    [{ runId: "run_node1", to: "succeeded" }, "an end that is not a stop"],
+    [{ runId: "run_other", to: "stopped" }, "another node's stop"],
+  ] as const)
+    assert.deepEqual(stop.run(hn.ctx, { name: "run.node_state", payload, at }), [], why);
+  assert.deepEqual(stop.run(hn.ctx, { name: "run.node_state", payload: { runId: "run_node1", to: "stopped" }, at }), ["1"]);
+  assert.equal((await cmd).exitCode, 130, "Ctrl-C, and the exit is reported");
+});

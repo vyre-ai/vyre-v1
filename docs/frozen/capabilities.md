@@ -743,3 +743,14 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/connectors.json.
 
 Signed: lead, 17 Nov 2026
+
+## 19 Nov 2026: the Run node, and terminal.run may be left running (lane r42-runtime)
+
+Changed contracts: `manifests/runs.ts` and `manifests/terminal.ts`. Nothing was removed and no version moved: everything is new or an optional input.
+
+- What changed: `runs` gains the tree of agent work: capabilities `runs.node.start`, `runs.node.move`, `runs.node.event`, `runs.node.claim`, `runs.node.beat`, `runs.node.reclaim` (system calls: the host or another capability, never a person at the gateway), `runs.node.control` (pause, resume, stop; the owner or someone who manages runs), `runs.node.get`, `runs.tree.get`, `runs.events.list`, `runs.activity.list`; events `run.node_state` and `run.node_ended`. `terminal.run` gains the optional input `background` (a bool).
+- What `background` does: the call is the ordinary `terminal.run` with the same permissions, Gate, Vault scrubbing, place rules and approvals (the capability ignores the word). The tool layer (`agent/src/tools/call.ts`) makes a node that stands for the command first, passes its id as the call's run, waits for the call a few seconds, and if it has not finished tells the model it is running, with that id. The node ends done or failed when the call ends (`run.node_ended`), and a Stop on the node interrupts the command in its tab (Ctrl-C). A refused command is refused in the background exactly as in the foreground; a held one is held.
+- Who sees a tree: the owner, the starter and anyone who manages runs see all of it; another person who may view the chat sees state and clock only ("Helper 1"), never a brief, words, result, cost or name.
+- Snapshots: docs/frozen/snapshots/runs.json, docs/frozen/snapshots/terminal.json.
+
+Signed: lead, 19 Nov 2026
