@@ -586,7 +586,11 @@ function Body({
           ...(canDesign ? [{ key: "settings", label: "Settings" }] : []),
         ]}
       />
-      <ScrollView style={s.scroll} contentContainerStyle={s.col} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={tab === "path" ? s.colWide : s.col}
+        keyboardShouldPersistTaps="handled"
+      >
         {tab === "path" ? (
           <PathTab journey={j} counts={counts} {...(pathStart ? { start: pathStart } : {})} />
         ) : tab === "settings" && canDesign ? (
@@ -768,6 +772,7 @@ const s = StyleSheet.create({
   viewOnlyDim: { fontSize: 12.5, color: "var(--ink-4)" as string },
   scroll: { flex: 1, minHeight: 0 },
   col: { width: "100%", maxWidth: 820, alignSelf: "center", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
+  colWide: { width: "100%", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
   lab: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   labDim: { fontSize: 11.5, color: "var(--ink-4)" as string, marginLeft: 6, flexShrink: 1 },
   fbar: { flexDirection: "row", gap: 2, height: 10, marginTop: 8, borderRadius: 5, overflow: "hidden" },
