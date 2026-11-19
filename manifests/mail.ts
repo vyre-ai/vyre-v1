@@ -241,11 +241,18 @@ const manifest = defineManifest({
       retention: "audit",
     }),
     ev("mail.received", "An email arrived in a mailbox (deduped across inboxes)", {
-      p: { messageId: emlId, mailboxId: id.mailbox, from: email, subject: t.str(), contactId: t.opt(id.record) },
+      p: {
+        messageId: emlId,
+        mailboxId: id.mailbox,
+        from: email,
+        subject: t.str(),
+        contactId: t.opt(id.record),
+        auto: t.opt(t.bool()),
+      },
       subject: ["mailbox", "/mailboxId"],
       label: "subject",
       redact: ["/subject"],
-      trigger: { title: "An email arrives", fields: ["/mailboxId", "/from"] },
+      trigger: { title: "An email arrives", fields: ["/mailboxId", "/from", "/auto"] },
     }),
     ev("message.sent", "A message left the Space (email or text)", {
       p: {
@@ -948,6 +955,33 @@ const manifest = defineManifest({
       tool: "inbox",
       idem: "natural",
     }),
+    // ---- watching inboxes (lane r42-email-in)
+    read(
+      "mail.inbox.monitor",
+      "Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to",
+      {
+        in: { mailboxId: t.opt(id.mailbox) },
+        out: {
+          inboxes: t.arr(
+            t.obj({
+              mailboxId: id.mailbox,
+              address: email,
+              kind: mailboxKind,
+              how: t.enm("imap", "google", "microsoft", "provider_webhook"),
+              state: t.enm("ok", "late", "failing", "paused"),
+              lastReceivedAt: t.opt(t.ts()),
+              lastSyncAt: t.opt(t.ts()),
+              receivedToday: t.int({ minimum: 0 }),
+              problem: t.opt(t.obj({ reason: t.str(), fix: t.str(), at: t.ts() })),
+            }),
+          ),
+          unrouted: t.arr(t.obj({ address: t.str(), reason: t.str(), fix: t.str(), at: t.ts() })),
+        },
+        tool: "inbox",
+        label: "check",
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
     write(
       "mail.unsubscribe",
       "Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list",

@@ -19,6 +19,7 @@ import { domainAdd, domainCheck, domainGet, domainList, domainRemove, domainSetD
 import { routeList, routeRemove, routeSet } from "./routes.ts";
 import { health, statusUpdate } from "./status.ts";
 import { retry, trail } from "./delivery.ts";
+import { monitor } from "./inbound.ts";
 import { forDocumentClear, forDocumentGet, forDocumentSet, get as templateGet, list as templateList, preview as templatePreview, reset as templateReset, save as templateSave } from "./template.ts";
 
 export const extraHandlers: Record<string, Handler> = {
@@ -43,6 +44,7 @@ export const extraHandlers: Record<string, Handler> = {
   "mail.status_update": (ctx, input) => statusUpdate(ctx, input),
   "mail.delivery.trail": (ctx, input) => trail(ctx, input),
   "mail.delivery.retry": (ctx, input) => retry(ctx, input),
+  "mail.inbox.monitor": (ctx, input) => monitor(ctx, input),
   "mail.template.list": (ctx) => templateList(ctx),
   "mail.template.get": (ctx, input) => templateGet(ctx, input),
   "mail.template.save": (ctx, input) => templateSave(ctx, input),

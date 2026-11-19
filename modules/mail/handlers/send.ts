@@ -53,6 +53,7 @@ import {
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
+import { autoReplyGuard } from "./extra/inbound.ts";
 
 // ---- shapes
 
@@ -545,6 +546,9 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
   if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft")
     input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
+  // an Automation or an agent never answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender) by itself: that is how a loop starts
+  const stop = autoReplyGuard(ctx, input.replyToMessageId, actorOf(ctx.principal.kind, ctx.origin));
+  if (stop) refuse(ctx, stop);
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
   const now = p.now;
