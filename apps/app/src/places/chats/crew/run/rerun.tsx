@@ -313,7 +313,7 @@ export function SaveAgentForm({
         onChange={setSharing}
         options={[
           { id: "me", label: "Only me" },
-          { id: "everyone", label: "Everyone in the Space" },
+          { id: "everyone", label: "Everyone" },
         ]}
       />
       <Text style={st.hint}>It also keeps the model and the tools it used.</Text>
