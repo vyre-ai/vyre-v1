@@ -617,11 +617,10 @@ test("an old database with the first 0006 trigger and no revision rows is upgrad
   const after = (await k.hs["connectors.for_service"](k.ctx, { service: "upg" })).connector!.revision;
   assert.notEqual(after, before, "a roll back after the upgrade moves the revision");
   // and a state change moves it too, which the old trigger would not have seen
+  assert.match(String(after), /^n\d+$/, "the revision after the roll back is a server counter");
   k.tx.run("UPDATE cn_connectors SET state = 'draft' WHERE key = 'upg'");
-  assert.notEqual(
-    k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'")!.rev,
-    Number(String(after).slice(1)),
-  );
+  const moved = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'")!.rev;
+  assert.ok(moved > Number(String(after).slice(1)), `a state change moves the revision (${moved} after ${after})`);
 });
 
 test("a connector deleted and made again never repeats an earlier revision, even when the clock and the definition are the same", async () => {
