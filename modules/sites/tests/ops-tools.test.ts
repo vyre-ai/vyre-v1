@@ -205,3 +205,32 @@ test("a wrong first call is answered with the exact shape the action needs, so t
   });
   assert.equal(made.job.name, "x");
 });
+
+// ---- a live first call: the call an agent makes from the tool's own text goes through the real input validator and the real handler
+
+import { validateInput, validateOutput } from "../../../generated/validators.ts";
+
+test("live: an agent's first call to a logs action, as the tool and the skill describe it, passes the real validator and returns lines", async () => {
+  const w = world();
+  st.addLogs(w.db, "sit_a", "dpl_1", "app", [
+    { at: NOW - 1000, text: "listening on 3000" },
+    { at: NOW - 500, text: "Error: boom" },
+  ]);
+  const first = { siteId: "sit_a", action: "logs" };
+  assert.deepEqual(validateInput("sites.ops", 1, first), [], "the bare first call is valid");
+  const out = await toolHandlers["sites.ops"](w.ctx, first);
+  assert.deepEqual(validateOutput("sites.ops", 1, out), [], "and its answer matches the contract");
+  assert.deepEqual(
+    (out as { result: { lines: { text: string }[] } }).result.lines.map((l) => l.text),
+    ["listening on 3000", "Error: boom"],
+  );
+  // with the args the skill names
+  const narrowed = { siteId: "sit_a", action: "logs", args: { q: "error", level: "error", limit: 5 } };
+  assert.deepEqual(validateInput("sites.ops", 1, narrowed), []);
+  assert.deepEqual(
+    ((await toolHandlers["sites.ops"](w.ctx, narrowed)) as { result: { lines: { text: string }[] } }).result.lines.map(
+      (l) => l.text,
+    ),
+    ["Error: boom"],
+  );
+});
