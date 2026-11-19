@@ -11,7 +11,7 @@ Connect the caller's own Gmail, Outlook or IMAP mailbox
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

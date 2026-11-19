@@ -9,18 +9,16 @@ import { createGateHook } from "../src/daemon/gate-hook.ts";
 import { createInvoke, createRateLimiter, indexCapabilities } from "../src/invoke.ts";
 import type { CtxSeed, Handler, InvokeDeps } from "../src/invoke.ts";
 import { HostError } from "../src/routes/errors.ts";
+import { CONFIGURE_ROUTE } from "../../modules/mail/handlers/setup.ts";
 import type { CapabilityDef } from "../../packages/contracts/src/types.ts";
 
-const CALLEES = [
-  "mail.setup.status",
-  "mail.smtp.get",
-  "mail.smtp.set",
-  "mail.smtp.verify",
-  "mail.address.list",
-  "mail.address.add",
-  "mail.address.move",
-];
-const defs = CALLEES.map((n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef);
+// the callees come from mail.configure's own routing table (minus the test email, which goes through mail.send and has its own tests), so a new action is checked the day it is added
+const CALLEES = Object.values(CONFIGURE_ROUTE).filter((n) => n !== "mail.setup.test_send");
+// the reroutes an agent could use instead of the tool are held the same way: asked through the pipeline they are parked, not run
+const REROUTES = ["mail.route.set", "mail.route.remove", "mail.domain.add", "mail.domain.set_default"];
+const defs = [...CALLEES, ...REROUTES].map(
+  (n) => registry.capabilities.find((c) => c.name === n) as unknown as CapabilityDef,
+);
 
 function world(): AccessSnapshot {
   const s = new AccessSnapshot();
@@ -64,7 +62,7 @@ function rig() {
   const ran: string[] = [];
   const parked: { cap: string; act: string }[] = [];
   const handlers: Record<string, Handler> = Object.fromEntries(
-    CALLEES.map((n) => [n, (async () => (ran.push(n), {})) as Handler]),
+    [...CALLEES, ...REROUTES].map((n) => [n, (async () => (ran.push(n), {})) as Handler]),
   );
   const store = new Map<string, { hash: string; result: unknown }>();
   const gate = createGateHook({
@@ -111,6 +109,10 @@ const INPUT: Record<string, Record<string, unknown>> = {
   "mail.smtp.verify": { idempotencyKey: "k3" },
   "mail.address.list": {},
   "mail.address.add": { domainId: "dom_1", localPart: "billing", idempotencyKey: "k1" },
+  "mail.route.set": { domainId: "dom_1", localPart: "*", mailboxId: "mbx_b", idempotencyKey: "k4" },
+  "mail.route.remove": { routeId: "rte_1", domainId: "dom_1" },
+  "mail.domain.add": { name: "north.example", provider: "resend", idempotencyKey: "k5" },
+  "mail.domain.set_default": { domainId: "dom_1" },
   "mail.address.move": {
     domainId: "dom_1",
     localPart: "billing",
@@ -119,6 +121,11 @@ const INPUT: Record<string, Record<string, unknown>> = {
     idempotencyKey: "k2",
   },
 };
+assert.deepEqual(
+  CALLEES.filter((n) => !(n in INPUT)),
+  [],
+  "every callee has an example input here: add one for a new action",
+);
 const codeOf = async (p: Promise<unknown>): Promise<string> =>
   p.then(
     () => "",
@@ -140,7 +147,7 @@ test("through the real invoke pipeline: a member without comms.domains is refuse
 });
 
 test("through the real Gate: an agent changing the mail server or moving an address is held for a person's ok, a person's own change is one step, and reads are not held", async () => {
-  for (const name of ["mail.smtp.set", "mail.address.move"]) {
+  for (const name of ["mail.smtp.set", "mail.address.move", ...REROUTES]) {
     const asAgent = rig();
     const held = await asAgent.invoke(name, { ...INPUT[name] }, seed("agt_bot", "agent", { actingFor: "usr_admin" }));
     assert.equal(held.status, "held", `${name}: an agent is held`);

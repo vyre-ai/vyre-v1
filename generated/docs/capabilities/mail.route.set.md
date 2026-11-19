@@ -11,7 +11,7 @@ Route an address on a Space domain (MX on the Space domain) to a mailbox through
 | Grant level | edit |
 | Risk | medium |
 | Resource | domain (/domainId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

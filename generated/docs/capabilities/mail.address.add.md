@@ -11,7 +11,7 @@ Make an address on a Space domain. With an inbox it is an alias that delivers th
 | Grant level | edit |
 | Risk | medium |
 | Resource | domain (/domainId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

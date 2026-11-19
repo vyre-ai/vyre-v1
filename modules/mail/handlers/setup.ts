@@ -150,7 +150,8 @@ interface SetupToolIn {
   action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
   [k: string]: unknown;
 }
-const ROUTE: Record<SetupToolIn["action"], string> = {
+/** The capability each mail.configure action routes to. Tests build their lists of callees from this, so a new action cannot skip the permission and Gate checks. */
+export const CONFIGURE_ROUTE: Record<SetupToolIn["action"], string> = {
   status: "mail.setup.status",
   test: "mail.setup.test_send",
   smtp_get: "mail.smtp.get",
@@ -193,8 +194,8 @@ function repeatKey(action: string, rest: Record<string, unknown>, nonce: unknown
 
 /** Routes to the capability behind the screen, so its permission, Gate and audit apply exactly as when a person presses the button. Nothing is decided here. */
 export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ result: unknown }> {
-  const cap = ROUTE[input.action];
-  if (!cap) bad(ctx, `mail.configure action is one of: ${Object.keys(ROUTE).join(", ")}.`);
+  const cap = CONFIGURE_ROUTE[input.action];
+  if (!cap) bad(ctx, `mail.configure action is one of: ${Object.keys(CONFIGURE_ROUTE).join(", ")}.`);
   const { action: _action, ...rest } = input;
   const fields = fieldsOf(SHAPE[input.action]);
   const given = Object.keys(rest).filter((k) => rest[k] !== undefined);

@@ -11,7 +11,7 @@ Make a verified domain the default sender for Space sending
 | Grant level | edit |
 | Risk | medium |
 | Resource | domain (/domainId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

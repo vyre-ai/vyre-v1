@@ -1,26 +1,23 @@
-// mail.configure carries no permission of its own: every action routes through the capability behind the screen, so those capabilities are the whole door. This pins them against the registry and the real kernel:
-// each demands comms.domains, a member who lacks it is refused by authorize, and the two that can reroute or send outward from an agent are held at the Gate.
+// mail.configure carries no permission of its own: every action routes to the capability behind the screen, so those capabilities are the whole door. This pins them against the registry and the real kernel,
+// and sweeps every mail capability that writes: one that changes where mail goes or who it is sent as is held at the Gate when the actor is not a person, and a new one cannot slip in without either that hold or a stated reason.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { registry } from "../../../generated/registry.ts";
+import { CONFIGURE_ROUTE } from "../handlers/setup.ts";
 
-const CALLEES = [
-  "mail.setup.status",
-  "mail.setup.test_send",
-  "mail.smtp.get",
-  "mail.smtp.set",
-  "mail.smtp.verify",
-  "mail.address.list",
-  "mail.address.add",
-  "mail.address.move",
-];
-const def = (name: string) =>
-  registry.capabilities.find((c) => c.name === name) as unknown as {
-    permission: string | null;
-    level: string;
-    gate?: { act: string; when?: string };
-  };
+type Def = {
+  name: string;
+  module: string;
+  effects: string;
+  permission: string | null;
+  level: string;
+  gate?: { act: string; when?: string; reason?: string };
+};
+const all = registry.capabilities as unknown as Def[];
+const def = (name: string): Def => all.find((c) => c.name === name) as Def;
+// the callees come from mail.configure's own routing table, so a new action is checked the day it is added
+const CALLEES = Object.values(CONFIGURE_ROUTE);
 
 test("every capability mail.configure routes to demands comms.domains, and a member without it is refused by the kernel", () => {
   const s = new AccessSnapshot();
@@ -43,8 +40,10 @@ test("every capability mail.configure routes to demands comms.domains, and a mem
       source: `role:${role}`,
     });
   }
+  assert.ok(CALLEES.length >= 8);
   for (const name of CALLEES) {
     const c = def(name);
+    assert.ok(c, `${name} is in the registry`);
     assert.equal(c.permission, "comms.domains", `${name} asks for comms.domains`);
     const ask = (who: string) =>
       authorize(s, {
@@ -53,8 +52,7 @@ test("every capability mail.configure routes to demands comms.domains, and a mem
         resource: { type: "space", id: "spc_t" },
         now: 1_760_000_000_000,
       });
-    const refused = ask("usr_member");
-    assert.equal(refused.effect, "deny", `${name}: a member without comms.domains is refused`);
+    assert.equal(ask("usr_member").effect, "deny", `${name}: a member without comms.domains is refused`);
     assert.equal(ask("usr_admin").effect, "allow", `${name}: an admin with it is let in`);
   }
   assert.equal(
@@ -64,11 +62,59 @@ test("every capability mail.configure routes to demands comms.domains, and a mem
   );
 });
 
-test("changing the Space's mail server or moving an address, asked by an agent, is held at the Gate for a person's ok; a person's own change is not", () => {
-  for (const name of ["mail.smtp.set", "mail.address.move"]) {
-    const g = def(name).gate;
-    assert.equal(g?.act, "send", `${name} is held as an outward act`);
-    assert.equal(g?.when, "actor.kind != 'person'", `${name} holds only for an agent or automation`);
-  }
-  assert.equal(def("mail.setup.test_send").gate?.act, "send");
+/** Mail capabilities that write and are not held for an agent, each with why. Anything else that writes must carry the hold. */
+const NOT_HELD: Record<string, string> = {
+  "mail.attachment.save": "copies an attachment into Files for a person who can already read the message",
+  "mail.auto_connect_members":
+    "the Google and Microsoft syncs call it for members the directory lists; a person turned that sync on",
+  "mail.configure": "routes to the capabilities behind it, each with its own permission and hold",
+  "mail.domain.check": "reads DNS and the provider and records the answer; it changes nothing about where mail goes",
+  "mail.draft": "makes a draft; nothing leaves until mail.send, which is held",
+  "mail.drafts.discard": "throws away one's own draft",
+  "mail.ingest": "the provider's inbound mail, not a person's or agent's choice",
+  "mail.mailbox.pause": "stops syncing one mailbox; it routes nothing elsewhere",
+  "mail.mailbox.resume": "starts syncing one mailbox again",
+  "mail.mailbox.set_sync_state": "the sync's own bookkeeping",
+  "mail.member_pause": "the connector pauses a member's mailbox when the member leaves or the company turns Mail off",
+  "mail.message.erase": "erases one message under policy.manage",
+  "mail.message.set_private": "hides one message from others; it does not move mail",
+  "mail.status_update": "the provider's delivery events",
+  "mail.sync_now": "pulls mail now from a mailbox that is already connected",
+  "mail.template.for_document.clear": "wording of an email, under comms.templates",
+  "mail.template.for_document.set": "wording of an email, under comms.templates",
+  "mail.template.reset": "wording of an email, under comms.templates",
+  "mail.template.save": "wording of an email, under comms.templates",
+  "mail.templates": "wording of an email, under comms.templates",
+  "mail.unsubscribe": "a recipient's own unsubscribe link",
+  "mail.smtp.verify": "opens a connection and signs in; nothing is sent and nothing is changed",
+};
+const held = (g: Def["gate"]): boolean =>
+  !!g && ((g.when ?? "").includes("actor.kind != 'person'") || (g.act === "send" && g.when === undefined));
+
+test("every mail capability that writes is held at the Gate for an agent, or is on the short list of ones that do not move mail or change who it is sent as, with the reason", () => {
+  const writes = all.filter((c) => c.module === "mail" && c.effects !== "read");
+  const unheld = writes.filter((c) => !held(c.gate) && !(c.name in NOT_HELD)).map((c) => c.name);
+  assert.deepEqual(
+    unheld,
+    [],
+    "these write mail configuration with no hold and no stated reason: hold each (gate act send when the actor is not a person) or add it to NOT_HELD with why",
+  );
+  for (const name of Object.keys(NOT_HELD)) assert.ok(def(name), `${name} on the list is a real capability`);
+  // the ones that move mail or change who it is sent as are held
+  for (const name of [
+    "mail.smtp.set",
+    "mail.address.add",
+    "mail.address.move",
+    "mail.domain.add",
+    "mail.domain.remove",
+    "mail.domain.set_default",
+    "mail.route.set",
+    "mail.route.remove",
+    "mail.mailbox.create",
+    "mail.mailbox.update",
+    "mail.mailbox.set_privacy",
+    "mail.mailbox.disconnect",
+    "mail.connect",
+  ])
+    assert.ok(held(def(name).gate), `${name} is held for an agent`);
 });
