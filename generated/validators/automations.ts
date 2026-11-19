@@ -5412,6 +5412,7 @@ if (!("id" in o1919)) e.push(p + "/record" + "/id" + ': required');
 if ("id" in o1919) lf(o1919["id"], p + "/record" + "/id", e, L28);
 if ("type" in o1919) lf(o1919["type"], p + "/record" + "/type", e, L32);
 if ("typeName" in o1919) lf(o1919["typeName"], p + "/record" + "/typeName", e, L1);
+if ("typePlural" in o1919) lf(o1919["typePlural"], p + "/record" + "/typePlural", e, L1);
 if ("title" in o1919) lf(o1919["title"], p + "/record" + "/title", e, L1);
 }
 }
@@ -5548,6 +5549,8 @@ if ("of" in o1927) lf(o1927["of"], p + "/of", e, L2);
 if ("capped" in o1927) lf(o1927["capped"], p + "/capped", e, L3);
 if ("what" in o1927) lf(o1927["what"], p + "/what", e, L1);
 if ("noun" in o1927) lf(o1927["noun"], p + "/noun", e, L1);
+if ("recordType" in o1927) lf(o1927["recordType"], p + "/recordType", e, L32);
+if ("titleField" in o1927) lf(o1927["titleField"], p + "/titleField", e, L1);
 if ("starts" in o1927) {
 {
 const x1928 = o1927["starts"];

@@ -85,8 +85,8 @@
     "automations.watches.save@1": "4d90b5a151212841994ce381fd82825fc6fb48785802e57383cd275929ab0c4b",
     "automations.webhook_url.get@1": "f33ccf2f1bad29340e0c5c466f02caafa78e7f06b9d7664a24dbd75b6c8b7821",
     "automations.webhook_url.rotate@1": "b777fc7cbbf439ec3e80e4aa10acad626ad78f70fcfa8614cc086c1d6456f84a",
-    "automations.why_not@1": "e0108b077b80f847e97ad4f951ca43499941facbc9b0bf18aa3c8dee133201e0",
-    "automations.would_run@1": "e90a501fc2f78884516757836d713b67112ac6ab9efb50f09b7ef85b68594916"
+    "automations.why_not@1": "10a49e15a6432e0081e007b79a436ac893b896511b2cb8b02e6bdf7e01fda538",
+    "automations.would_run@1": "0551230671cde0c164d84f57b4c9f9233eecbcb123cbcfac72b2e4beab128c6e"
   },
   "events": {
     "automation.alerts_changed": "5ae588103dd686cb136d1644c2672fbbc16d035339224eae02fb79c0d8a8d496",

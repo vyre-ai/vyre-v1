@@ -6649,6 +6649,7 @@ export type AutomationsWhyNotOut = {
     id: string;
     type?: string;
     typeName?: string;
+    typePlural?: string;
     title?: string;
   };
   changes: Array<{
@@ -6684,6 +6685,8 @@ export type AutomationsWouldRunOut = {
   capped: boolean;
   what?: string;
   noun?: string;
+  recordType?: string;
+  titleField?: string;
   starts: Array<{
       eventId: string;
       at: number;

@@ -39,6 +39,7 @@ type Out = {
     id: string;
     type?: string;
     typeName?: string;
+    typePlural?: string;
     title?: string;
   };
   changes: Array<{
@@ -113,7 +114,8 @@ type Out = {
       "id": "rec_a1b2c3",
       "title": "example",
       "type": "contact",
-      "typeName": "example"
+      "typeName": "example",
+      "typePlural": "example"
     }
   }
 }

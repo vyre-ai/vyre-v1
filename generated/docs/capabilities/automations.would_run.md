@@ -41,6 +41,8 @@ type Out = {
   capped: boolean;
   what?: string;
   noun?: string;
+  recordType?: string;
+  titleField?: string;
   starts: Array<{
       eventId: string;
       at: number;
@@ -77,6 +79,7 @@ type Out = {
     "n": 1,
     "noun": "example",
     "of": 1,
+    "recordType": "contact",
     "starts": [
       {
         "at": 1760000000000,
@@ -90,6 +93,7 @@ type Out = {
       }
     ],
     "supported": true,
+    "titleField": "example",
     "what": "example"
   }
 }
