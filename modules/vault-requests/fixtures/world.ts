@@ -60,6 +60,8 @@ export interface Script {
   noProbe?: boolean;
   /** the revision connectors.for_service reports (r1 when left out); read at each call */
   revision?: () => string;
+  /** connections.create refuses with this message (the service changed under the card's pin) */
+  createRefuses?: string;
   /** runs when a typed key is tried (a republish between the try and the keeping) */
   onCheck?: () => void;
   /** what trying a typed key answers */
@@ -199,6 +201,7 @@ export function world(over: Partial<Script> = {}) {
           ...((script.check ?? "ok") === "ok" && script.noProbe !== true ? { tested: "Reached Fathom" } : {}),
         };
       case "connections.create": {
+        if (script.createRefuses) throw new Error(script.createRefuses);
         const made = {
           connectionId: "con_new",
           owner: (i["ownerKind"] === "space" ? "space" : "mine") as "space" | "mine",

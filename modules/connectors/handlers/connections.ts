@@ -146,16 +146,13 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
   /**
-   * What the server counts of a connector's publishes: the newest cn_versions row (its row id and time), so a republish changes it whatever version text the new definition carries. A connector shipped with the
-   * product has no rows and changes with a release (its code version).
+   * The server's revision of a connector: a counter that moves on every change to its stored definition (publish, roll back, sync-spec publish, delete and make again; see migrations/0006_revisions.sql) and
+   * never repeats. A connector shipped with the product carries the hash of its code definition, so a fix without a version bump changes it too.
    */
   const revisionOf = (def: ConnectorDef): string => {
-    if (def.builtin === true) return `b${def.version}`;
-    const r = tx.get<{ id: number; at: number }>(
-      "SELECT rowid AS id, at FROM cn_versions WHERE key = ? ORDER BY at DESC, rowid DESC LIMIT 1",
-      def.key,
-    );
-    return r ? `${r.id}.${r.at}` : "0";
+    if (def.builtin === true) return `b${def.shipped ?? def.version}`;
+    const r = tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", def.key);
+    return r ? `n${r.rev}` : "0";
   };
   /** The Space's built-in connectors: what a connector somebody else published may not overlap (destination.ts). */
   const builtinDefs = (): ConnectorDef[] =>

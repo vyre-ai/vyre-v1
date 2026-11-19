@@ -510,6 +510,66 @@ test("the revision the card pins is the server's: a republish that keeps the sam
   assert.ok(fresh.connection.connectionId);
 });
 
+test("a roll back changes the revision, so a card shown before it is refused (the secret slots can change under the same hosts)", async () => {
+  const k = kit();
+  k.vault["#RbKey"] = "rb-key-value-1";
+  const def = (secret: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "rbapp",
+      domains: ["api.rb.test"],
+      auth: { type: "bearer", secret },
+      secrets: [{ name: secret, description: "k" }],
+      actions: [{ name: "ping", url: "https://api.rb.test/ping" }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "rbapp", title: "Rb", mode: "api", source: false } as never);
+  await def("Old_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "rbapp" });
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'rbapp' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  await def("New_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "rbapp" });
+  const shown = (await k.hs["connectors.for_service"](k.ctx, { service: "rbapp" })).connector!;
+  const pin = [shown.revision, ...shown.hosts];
+  await k.hs["connectors.rollback"](k.ctx, { key: "rbapp", version: first });
+  const back = (await k.hs["connectors.for_service"](k.ctx, { service: "rbapp" })).connector!;
+  assert.notEqual(back.revision, shown.revision, "a roll back changes the revision");
+  assert.deepEqual(back.hosts, shown.hosts, "the hosts alone would not have caught it");
+  await assert.rejects(
+    k.hs["connections.create"](k.ctx, {
+      connector: "rbapp",
+      title: "R",
+      ownerKind: "space",
+      secrets: { Old_Key: "#RbKey" },
+      pin,
+    } as never),
+    /changed since you looked/,
+  );
+});
+
+test("a connector deleted and made again never repeats an earlier revision, even when the clock and the definition are the same", async () => {
+  const k = kit();
+  const make = async () => {
+    await k.hs["connectors.init"](k.ctx, { key: "again", title: "Again", mode: "api", source: false } as never);
+    await k.hs["connectors.define"](k.ctx, {
+      key: "again",
+      domains: ["api.again.test"],
+      auth: { type: "bearer", secret: "A_Key" },
+      secrets: [{ name: "A_Key", description: "k" }],
+      actions: [{ name: "ping", url: "https://api.again.test/ping" }],
+    } as never);
+    await k.hs["connectors.publish"](k.ctx, { key: "again" });
+    return (await k.hs["connectors.for_service"](k.ctx, { service: "again" })).connector!.revision;
+  };
+  const seen = new Set<string>([await make()]);
+  for (let i = 0; i < 3; i++) {
+    await k.hs["connectors.remove"](k.ctx, { key: "again" } as never);
+    const r = await make();
+    assert.ok(!seen.has(r), `revision ${r} was used before`);
+    seen.add(r);
+  }
+});
+
 test("approve_hosts takes a list with a repeated address as the same list, and records each address once", async () => {
   const k = kit();
   k.install(linkApp({ domains: ["api.fathom.test", "api2.fathom.test"] }));

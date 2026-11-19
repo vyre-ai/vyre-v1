@@ -779,3 +779,14 @@ test("a service republished between the key's try and its keeping: nothing is st
   assert.equal(w.called("vault.item.put").length, 0, "the key was not kept");
   assert.equal(w.called("connections.create").length, 0, "nothing was connected");
 });
+
+test("connections.create refusing after the key was stored: the key is taken back, nothing stays, and the person is told in plain words", async () => {
+  const w = room({ createRefuses: "Fathom changed since you looked. Open the card again." });
+  const r = await ask(w);
+  await assert.rejects(
+    submit(w, r.requestId!),
+    /The service changed while you were connecting\. Nothing was saved\. Open it again\./,
+  );
+  assert.equal(w.called("vault.item.put").length, 1, "the key was stored for the try");
+  assert.equal(w.called("vault.item.discard_new").length, 1, "and taken back: no orphan key");
+});

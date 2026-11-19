@@ -691,6 +691,18 @@ export async function connectSubmit(
     } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working:${attempt}` });
   } catch (e) {
     const erased = await takeBack(connectionId);
+    // the service changed between the card and the connecting (connections.create checks the card's pin): the key just stored is taken back above, and the person is told so in these words
+    if (
+      erased &&
+      /changed since you looked/.test(
+        e instanceof Error ? e.message : String((e as { message?: unknown })?.message ?? ""),
+      )
+    )
+      raise(
+        trace,
+        "validation.precondition_failed",
+        "The service changed while you were connecting. Nothing was saved. Open it again.",
+      );
     if (saved) throw e;
     // the key passed its check but the service could not be connected: it is erased; if that failed too, the card says it is saved
     stay(erased ? "offline" : "kept");
