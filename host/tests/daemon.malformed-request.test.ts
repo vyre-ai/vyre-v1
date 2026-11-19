@@ -21,7 +21,7 @@ const rawSend = (port: number, bytes: Buffer): Promise<string> =>
     };
     s.setTimeout(3000, done);
     s.on("connect", () => s.write(bytes));
-    s.on("data", (c) => {
+    s.on("data", (c: Buffer) => {
       chunks.push(c);
       if (Buffer.concat(chunks).includes("\r\n\r\n")) done();
     });
