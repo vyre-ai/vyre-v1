@@ -295,9 +295,8 @@ export function testLines(output: string): string {
     .map((l) => l.trim())
     .filter(
       (l) =>
-        /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(
-          l,
-        ) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l),
+        /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(l) ||
+        /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l),
     )
     .slice(-12)
     .join("\n")

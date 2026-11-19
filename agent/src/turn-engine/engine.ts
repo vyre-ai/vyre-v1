@@ -270,6 +270,7 @@ interface Running {
   /** why it was cancelled, said in the chat */ why?: string;
   /** who stopped it, said in the chat */ by?: StoppedBy;
   /** a pause was asked for: the turn stops at its next safe point (after the tool call it is on) and keeps its place */ pausing?: string;
+  /** the turn runs on an engine that runs its own tools (a command-line engine) */ cli?: boolean;
 }
 /** Why a turn ends that nobody pressed: the engine's own doing, said as the system. */
 const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved", "paused"]);
@@ -421,13 +422,15 @@ export interface TurnEngine {
   recover(threadId: string): boolean;
   /**
    * Ask the turn an agent is working on to pause: it finishes the call it is on, then stops at that safe point with everything it did kept (the journal), and its queue row waits as paused. Not a Stop: nothing is
-   * lost and it can go on. Returns the turns asked. A turn that is not working, or whose engine runs its own tools (it cannot be held between calls), is not paused.
+   * lost and it can go on. Returns the turns asked. A turn that is not working, or whose engine runs its own tools (see cliRunning), is not counted.
    */
   pause(threadId: string, o: { agentId?: string; reason: string }): number;
   /** Go on with turns that were paused: each is started again as a turn of its own, told what it had done. A turn whose journal is gone (kept a day) cannot go on and is ended host_lost. */
   resumePaused(threadId: string, o?: { agentId?: string }): { resumed: number; lost: number };
   /** The turns waiting paused in a thread. */
   paused(threadId: string): QueueItem[];
+  /** The agents whose turn runs now on an engine that runs its own tools: such a turn cannot be paused between calls, so a limit holds its next call at the hook (modules/engine/spend-hold.ts). */
+  cliRunning(threadId: string, o?: { agentId?: string }): string[];
   /** Run what is queued in a thread that is open here (a retry queued by a capability). */
   kick(threadId: string): void;
   idle(threadId: string): Promise<void>;
@@ -1219,6 +1222,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       session: null,
       cancelled: false,
       lostLease: false,
+      // an engine that runs its own tools cannot be held between calls from here: a limit holds its next call at the hook instead
+      cli: CLI_DRIVERS.has(account?.driver ?? ""),
     };
     st.running.set(item.agentId, run);
     // a Stop that came while this turn was starting: it ends cancelled before anything runs (the session opens and is cancelled at once; the reply loop breaks on its first event)
@@ -2341,7 +2346,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       const st = need(threadId);
       let n = 0;
       for (const run of st.running.values()) {
-        if (run.cancelled || run.pausing !== undefined) continue;
+        if (run.cancelled || run.pausing !== undefined || run.cli === true) continue; // a command-line engine's turn is not paused here: see cliRunning
         if (o.agentId !== undefined && run.agentId !== o.agentId) continue;
         run.pausing = o.reason;
         n += 1;
@@ -2382,6 +2387,10 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       return { resumed, lost };
     },
     paused: (threadId) => queue.list(threadId).filter((r) => r.state === "paused"),
+    cliRunning: (threadId, o) =>
+      [...need(threadId).running.values()]
+        .filter((r) => r.cli === true && !r.cancelled && (o?.agentId === undefined || r.agentId === o.agentId))
+        .map((r) => r.agentId),
     kick(threadId) {
       kick(need(threadId));
     },

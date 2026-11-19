@@ -33,19 +33,23 @@ const TOP = {
 };
 
 test("a call with an agent_id asks the gate for that subagent; a call with none does not; a refusal is its stop and carries the reason", async () => {
-  const asked: Array<{ subagent: string; tool?: string }> = [];
+  const asked: Array<{ subagent?: string; tool?: string }> = [];
   let refuse: string | null = null;
   bindSubagentGate(async (c) => {
-    asked.push({ subagent: c.subagent, ...(c.tool ? { tool: c.tool } : {}) });
+    asked.push({ ...(c.subagent ? { subagent: c.subagent } : {}), ...(c.tool ? { tool: c.tool } : {}) });
     return { block: refuse, notes: refuse ? [] : ["Pine sent you a note"] };
   });
   const rig = await startMcp({ [TOKEN]: driverCaller() });
   try {
     const top = await hook(rig.url, TOP);
-    assert.deepEqual(asked, [], "the main agent's own call is not a subagent's");
+    assert.deepEqual(
+      asked,
+      [{ tool: "Agent" }],
+      "the main agent's own call asks the gate too (a limit may hold it), but names no subagent",
+    );
     assert.equal(top.block, null);
     const told = await hook(rig.url, INNER);
-    assert.deepEqual(asked, [{ subagent: "a3a1aa893f5f8d8fc", tool: "Bash" }]);
+    assert.deepEqual(asked.at(-1), { subagent: "a3a1aa893f5f8d8fc", tool: "Bash" });
     assert.deepEqual(told.notes, ["Pine sent you a note"]);
     refuse = "Stopped: Rubab asked it to stop.";
     const stopped = await hook(rig.url, INNER);

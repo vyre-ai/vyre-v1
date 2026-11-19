@@ -150,3 +150,55 @@ test("pause names the agent: another agent's turn is not touched; nothing runnin
   r.hold.open();
   await a.e.idle("T");
 });
+
+test("a turn on an engine that runs its own tools is not paused here and is not counted as paused: it is named, so a limit can hold its next call at the hook; an API turn beside it is paused", async () => {
+  const acct = (driver: string) => ({
+    ref: "#A",
+    driver,
+    provider: driver,
+    kind: "api_key" as const,
+    payer: "dana",
+    reason: "starter" as const,
+  });
+  for (const [driver, cli] of [
+    ["claude_code", true],
+    ["anthropic", false],
+  ] as const) {
+    const hold = gate();
+    const p = scriptedProvider({
+      script: [
+        { type: "tool_call", id: "c1", name: "read_prices", input: {} },
+        { type: "tool_call", id: "c2", name: "read_policy", input: {} },
+        { type: "done" },
+      ],
+    });
+    const ran: string[] = [];
+    const e = createTurnEngine({
+      holder: "host:a",
+      openSession: p.openSession,
+      toolSafety: SAFETY,
+      resolveAccount: async () => acct(driver),
+      callTool: async (c) => {
+        ran.push(c.id);
+        if (c.id === "c1") await hold.wait;
+        return { ok: true, content: {} };
+      },
+    });
+    e.openThread(thread("T"));
+    e.receive({ threadId: "T", author: person("dana"), body: "Go" });
+    await until(() => ran.includes("c1"));
+    assert.equal(
+      e.pause("T", { reason: "x" }),
+      cli ? 0 : 1,
+      `${driver}: only an engine we can hold between calls is paused`,
+    );
+    assert.deepEqual(e.cliRunning("T"), cli ? ["intake"] : []);
+    hold.open();
+    await e.idle("T");
+    assert.equal(
+      ran.includes("c2"),
+      cli,
+      `${driver}: the CLI turn is not stopped by pause itself; the API one stops at its safe point`,
+    );
+  }
+});

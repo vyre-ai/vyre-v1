@@ -1055,19 +1055,17 @@ export function createContextBuilder(d: ContextDeps) {
       const zoneName = (shared ? spaceZone : undefined) ?? str((zone?.["row"] as Obj | undefined)?.["value"]) ?? "UTC";
       const isThread = kind === "thread" || str(th?.["parentThreadId"]) !== undefined;
       const listed = await read<Obj>("chat.messages.list", { threadId: roomId, limit: READ_LIMIT }, asker);
-      const all = arr<Obj>(listed?.["messages"]).map(
-        (m): RoomMessage => ({
-          messageId: str(m["messageId"]) ?? "",
-          threadSeq: Number(m["threadSeq"] ?? 0),
-          author: {
-            kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""),
-            id: str((m["author"] as Obj | undefined)?.["id"]) ?? "",
-          },
-          kind: str(m["kind"]) ?? "text",
-          body: str(m["body"]) ?? "",
-          createdAt: Number(m["createdAt"] ?? 0),
-        }),
-      );
+      const all = arr<Obj>(listed?.["messages"]).map((m): RoomMessage => ({
+        messageId: str(m["messageId"]) ?? "",
+        threadSeq: Number(m["threadSeq"] ?? 0),
+        author: {
+          kind: String((m["author"] as Obj | undefined)?.["kind"] ?? ""),
+          id: str((m["author"] as Obj | undefined)?.["id"]) ?? "",
+        },
+        kind: str(m["kind"]) ?? "text",
+        body: str(m["body"]) ?? "",
+        createdAt: Number(m["createdAt"] ?? 0),
+      }));
       // the cut: what was said before the latest person came in was not said to the room, and what the agent answers is read by the whole room. So for every asker, in every turn of a shared chat,
       // nothing from before the last join is sent to the model (a chat with one person has no join and is read whole)
       const joins = Object.values((roomTh?.["joinedAt"] as Record<string, unknown> | undefined) ?? {}).filter(

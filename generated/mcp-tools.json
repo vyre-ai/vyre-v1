@@ -3180,6 +3180,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "instructions": {
+            "description": "What the agent is told to do, added to its AGENT.md",
+            "maxLength": 20000,
+            "type": "string"
+          },
           "limits": {
             "properties": {
               "dayCostMicros": {

@@ -5,45 +5,11 @@
 import { appendEvent } from "./node-log.ts";
 import { clean } from "./projections.ts";
 import type { RunsCtx } from "./projections.ts";
-import { findNode, getNode, subtreeOf, subtreeSpent } from "./node.ts";
-import type { Node } from "./node.ts";
+import { getNode, limited, moveNode, reached, subtreeOf } from "./node.ts";
+import type { Budget, Node } from "./node.ts";
 
-export interface Budget {
-  usdMicros?: number;
-  tokens?: number;
-}
-export const budgetOf = (n: Node): Budget => {
-  const b = (n.budget ?? {}) as Record<string, unknown>;
-  const num = (v: unknown): number | undefined =>
-    typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.round(v) : undefined;
-  return clean({ usdMicros: num(b["usdMicros"]), tokens: num(b["tokens"]) }) as Budget;
-};
-
-/** Which limit of a node the tree under it has reached, if any: what was used and what the limit was. */
-export function reached(
-  db: RunsCtx["db"],
-  n: Node,
-): { what: "money" | "tokens"; used: number; limit: number } | undefined {
-  const b = budgetOf(n);
-  if (b.usdMicros === undefined && b.tokens === undefined) return undefined;
-  const s = subtreeSpent(db, n.id);
-  if (b.usdMicros !== undefined && s.usdMicros >= b.usdMicros)
-    return { what: "money", used: s.usdMicros, limit: b.usdMicros };
-  const tokens = s.tokensIn + s.tokensOut;
-  if (b.tokens !== undefined && tokens >= b.tokens) return { what: "tokens", used: tokens, limit: b.tokens };
-  return undefined;
-}
-
-/** The nodes above and including this one that carry a limit, nearest first. */
-export function limited(ctx: RunsCtx, n: Node): Node[] {
-  const out: Node[] = [];
-  let at: Node | undefined = n;
-  for (let i = 0; at && i < 64; i++) {
-    if (at.budget !== undefined) out.push(at);
-    at = at.parentRun ? findNode(ctx.db, at.parentRun) : undefined;
-  }
-  return out;
-}
+export type { Budget } from "./node.ts";
+export { budgetOf, limited, reached } from "./node.ts";
 
 const dollars = (micros: number): string => `$${(micros / 1_000_000).toFixed(2)}`;
 const said = (r: { what: string; used: number; limit: number }): string =>
@@ -75,9 +41,17 @@ export async function enforceBudgets(ctx: RunsCtx, from: Node): Promise<Node[]> 
     const live = subtreeOf(ctx.db, a.id).filter(
       (x) => x.status === "running" && x.threadId !== undefined && x.whoId !== undefined && x.whoKind === "agent",
     );
+    let held = 0;
+    let stopped = 0;
     for (const x of live) {
       try {
-        await ctx.call?.("engine.pause", { threadId: x.threadId, agentId: x.whoId, reason: "its limit" });
+        const r = (await ctx.call?.("engine.pause", {
+          threadId: x.threadId,
+          agentId: x.whoId,
+          reason: "its limit",
+        })) as { paused?: number; held?: number } | undefined;
+        held += r?.held ?? 0;
+        stopped += r?.paused ?? 0;
       } catch {
         appendEvent(ctx.db, {
           rootRun: a.rootRun,
@@ -96,7 +70,7 @@ export async function enforceBudgets(ctx: RunsCtx, from: Node): Promise<Node[]> 
         clean({
           kind: "unblock",
           title: `${a.name ?? "A job"} reached its limit`,
-          summary: `It used ${said(hit)}. It is paused where it can go on from.`,
+          summary: `It used ${said(hit)}. ${held > 0 ? `${stopped > 0 ? "Some of it is paused where it can go on from; the rest is" : "It is"} held at its next step.` : "It is paused where it can go on from."}`,
           why: "Raise the limit to let it go on, or stop it.",
           assigned: { kind: "person", id: a.owner },
           source: { kind: "run", id: a.id },
@@ -134,32 +108,48 @@ export async function setBudget(ctx: RunsCtx, id: string, b: Budget | null): Pro
   const now = getNode(ctx, id);
   let resumed = 0;
   if (!reached(ctx.db, now)) {
-    // no limit above the paused work is still reached: it goes on
-    for (const x of pausedUnder(ctx, id)) {
+    // no limit above the work it paused or held is still reached: it goes on
+    for (const x of subtreeOf(ctx.db, id)) {
+      if (x.status !== "paused" && x.status !== "running") continue;
       if (limited(ctx, x).some((a) => reached(ctx.db, a))) continue;
+      const engineBacked = x.threadId !== undefined && x.whoId !== undefined && x.whoKind === "agent";
+      if (!engineBacked) {
+        // work with no engine behind it that was held back from starting under the limit simply goes back in the queue
+        if (x.status === "paused") {
+          try {
+            moveNode(ctx, x.id, "queued", { why: "resumed", by: ctx.principal.id });
+            resumed += 1;
+          } catch {
+            /* moved by someone else meanwhile */
+          }
+        }
+        continue;
+      }
       try {
+        // a paused turn starts again as a turn of its own; a turn held at its next call is let go (it was never stopped)
         const r = (await ctx.call?.("engine.resume_paused", { threadId: x.threadId, agentId: x.whoId })) as
-          | { resumed?: number }
-          | undefined;
-        resumed += r?.resumed ?? 0;
-        // the turn goes on as a turn of its own (its own node); the one that waited has done its part
-        ctx.db.run(
-          "UPDATE runs_node SET status = 'stopped', stop_reason = 'resumed', version = version + 1, ended_at = ?, updated_at = ? WHERE run_id = ? AND status = 'paused'",
-          ctx.now(),
-          ctx.now(),
-          x.id,
-        );
-        appendEvent(ctx.db, {
-          rootRun: x.rootRun,
-          runId: x.id,
-          at: ctx.now(),
-          type: "state",
-          actor: ctx.principal.id,
-          key: `resumed:${x.id}`,
-          payload: { from: "paused", to: "stopped", why: "resumed" },
-        });
+          { resumed?: number; released?: number } | undefined;
+        resumed += (r?.resumed ?? 0) + (r?.released ?? 0);
+        if (x.status === "paused") {
+          // the turn goes on as a turn of its own (its own node); the one that waited has done its part
+          ctx.db.run(
+            "UPDATE runs_node SET status = 'stopped', stop_reason = 'resumed', version = version + 1, ended_at = ?, updated_at = ? WHERE run_id = ? AND status = 'paused'",
+            ctx.now(),
+            ctx.now(),
+            x.id,
+          );
+          appendEvent(ctx.db, {
+            rootRun: x.rootRun,
+            runId: x.id,
+            at: ctx.now(),
+            type: "state",
+            actor: ctx.principal.id,
+            key: `resumed:${x.id}`,
+            payload: { from: "paused", to: "stopped", why: "resumed" },
+          });
+        }
       } catch {
-        /* it stays paused; the person can try again */
+        /* it stays as it was; the person can try again */
       }
     }
   }

@@ -2453,6 +2453,7 @@ export function stubs(ctx: CallCtx) {
       node: {
         beat: call("runs.node.beat"),
         claim: call("runs.node.claim"),
+        compare: call("runs.node.compare"),
         control: call("runs.node.control"),
         event: call("runs.node.event"),
         find: call("runs.node.find"),
@@ -2460,6 +2461,8 @@ export function stubs(ctx: CallCtx) {
         label: call("runs.node.label"),
         move: call("runs.node.move"),
         reclaim: call("runs.node.reclaim"),
+        rerun: call("runs.node.rerun"),
+        save_as_agent: call("runs.node.save_as_agent"),
         start: call("runs.node.start"),
       },
       people_counts: call("runs.people_counts"),

@@ -23,7 +23,10 @@ export const bindHooksPort = (p: HooksPort | null): void => {
  */
 export type SubagentGate = (c: {
   threadId: string;
-  subagent: string;
+  /** the Vyre agent whose command-line session this is */
+  agentId: string;
+  /** the subagent the call is made inside, when it is made inside one */
+  subagent?: string;
   tool?: string;
 }) => Promise<{ block: string | null; notes: string[] }>;
 export const subagentGateHolder: { gate: SubagentGate | null } = { gate: null };

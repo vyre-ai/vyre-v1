@@ -136,8 +136,7 @@ export async function classifyAgent(ctx: AgentsCtx, a: AgentRec): Promise<{ clas
   let subjects: Array<{ kind?: string; id?: string }> = [];
   try {
     const r = (await ctx.call?.("access.shares_of", { resource: { type: "agent", id: a.id } })) as
-      | { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> }
-      | undefined;
+      { shares?: Array<{ grant?: { subject?: { kind?: string; id?: string } } }> } | undefined;
     subjects = (r?.shares ?? []).map((s) => s.grant?.subject ?? {});
   } catch {
     /* what cannot be read is not shared: the narrower answer */
@@ -356,6 +355,7 @@ type CreateInput = {
   computer?: boolean;
   templateKey?: string;
   tools?: { allowed: string[]; denied: string[] };
+  instructions?: string;
   limits?: Limits;
   projectId?: string;
   threadId?: string;
@@ -428,10 +428,20 @@ async function make(ctx: AgentsCtx, input: CreateInput, kind: AgentKind, runtime
   const template = await readTemplate(ctx);
   const starter = template.items.find((i) => i.kind === "file" && i.path === "AGENT.md")?.text;
   // the private assistant is the person's own, above any one Space: it starts from its own AGENT.md, never from the Space's Agent template
-  const agentMd =
+  const baseMd =
     starter !== undefined && kind !== "assistant"
       ? starter.replaceAll("{{name}}", name).replaceAll("{{role}}", input.role?.trim() ?? "")
       : AGENT_MD_DEFAULT(name, input.role, kind);
+  // what the agent was asked to do (a saved piece of work's brief) goes in its own section, above what it learns, so Learned stays the last
+  const agentMd = ((): string => {
+    const text = input.instructions?.trim();
+    if (!text) return baseMd;
+    const section = `## Instructions\n\n${text}\n\n`;
+    const at = baseMd.search(/^## Learned\b/m);
+    return at >= 0
+      ? `${baseMd.slice(0, at)}${section}${baseMd.slice(at)}`
+      : `${baseMd.trimEnd()}\n\n${section.trimEnd()}\n`;
+  })();
   const tree = await createTree(ctx, id, name, tomlText, agentMd);
   const rec: AgentRec = {
     id,

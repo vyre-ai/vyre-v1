@@ -36,6 +36,7 @@ type In = {
 ```ts
 type Out = {
   paused: number;
+  held: number;
 };
 ```
 
@@ -58,6 +59,7 @@ type Out = {
     "threadId": "thr_a1b2c3"
   },
   "output": {
+    "held": 1,
     "paused": 1
   }
 }

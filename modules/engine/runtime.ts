@@ -25,6 +25,7 @@ import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
 import { createNodeMirror } from "./node-mirror.ts";
 import { activeSubNodes } from "./sub-nodes.ts";
+import { createSpendGate, holdOff } from "./spend-hold.ts";
 import { bindSubagentGate } from "../../agent/src/tools/hooks.ts";
 import { nameTag, nodeNoteBody } from "../../lib/helper-result.ts";
 import { UNNAMED_AGENT, agentDisplay } from "./agent-names.ts";
@@ -697,8 +698,7 @@ export async function spaceRule(call: EngineHostSeam["call"]): Promise<EgressRul
  */
 export async function engineAccessFor(call: EngineHostSeam["call"], asker: string): Promise<AccessAsked> {
   const out = (await call("spaces.get", {}, asker)) as
-    | { space?: { kind?: string; owner?: string; address?: { mode?: string } } }
-    | undefined;
+    { space?: { kind?: string; owner?: string; address?: { mode?: string } } } | undefined;
   const s = out?.space;
   const own = s !== undefined && s.owner === asker && (s.kind === "personal" || s.address?.mode === "device");
   if (!own) return { where: "server", folders: [] };
@@ -837,7 +837,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     },
     ...(h.log ? { log: h.log } : {}),
   });
-  bindSubagentGate((c) => activeSubNodes()?.gate(c) ?? Promise.resolve({ block: null, notes: [] }));
+  bindSubagentGate(createSpendGate(() => activeSubNodes()));
   const opener = host.openSession
     ? null
     : buildOpener({
@@ -1443,6 +1443,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         // who stopped it travels with it: the turn's record names them (engine.turn.get), as the chat's stopped line does
         ...(ev.type === "turn.cancelled" && ev.stoppedBy ? { stoppedBy: ev.stoppedBy } : {}),
       };
+      if (phase === "completed" || phase === "failed" || phase === "cancelled") holdOff(turn.threadId, turn.agentId);
       void mirror.turn(turn, phase, {
         ...(ev.type === "turn.failed" ? { code: ev.code, message: ev.message } : {}),
         ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),

@@ -46,6 +46,7 @@ import {
 } from "./node.ts";
 import { previewUndo, undo } from "./undo.ts";
 import { erase, purge } from "./purge.ts";
+import { compare, rerun, saveAsAgent } from "./rerun.ts";
 import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
 const base = {
@@ -68,6 +69,9 @@ const base = {
   "runs.node.label": nodeLabel,
   "runs.node.move": nodeMove,
   "runs.node.reclaim": nodeReclaim,
+  "runs.node.rerun": rerun,
+  "runs.node.save_as_agent": saveAsAgent,
+  "runs.node.compare": compare,
   "runs.node.start": nodeStart,
   "runs.tree.find": treeFind,
   "runs.tree.get": treeGet,

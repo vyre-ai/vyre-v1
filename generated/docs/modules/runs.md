@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (45)
+## Capabilities (48)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
@@ -24,6 +24,7 @@ Requires: nothing.
 - [runs.message.take](../capabilities/runs.message.take.md): The server hands a node what waits for it and marks it delivered, once
 - [runs.node.beat](../capabilities/runs.node.beat.md): A worker's heartbeat on a node it holds; false means the lease is gone and the worker must stop
 - [runs.node.claim](../capabilities/runs.node.claim.md): Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free
+- [runs.node.compare](../capabilities/runs.node.compare.md): A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager; not for someone who only watches the chat)
 - [runs.node.control](../capabilities/runs.node.control.md): Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)
 - [runs.node.event](../capabilities/runs.node.event.md): Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once
 - [runs.node.find](../capabilities/runs.node.find.md): The nodes that stand for given threads and idempotency keys (for a tile to read its node), only those the person may see
@@ -31,6 +32,8 @@ Requires: nothing.
 - [runs.node.label](../capabilities/runs.node.label.md): Give a node its name, once the task it was asked is known (the server)
 - [runs.node.move](../capabilities/runs.node.move.md): Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)
 - [runs.node.reclaim](../capabilities/runs.node.reclaim.md): Put nodes whose worker stopped beating back in the queue with the next attempt (the host's sweep)
+- [runs.node.rerun](../capabilities/runs.node.rerun.md): Start a finished helper again beside the first, with an edited brief or another model; both are kept and read side by side with runs.node.compare
+- [runs.node.save_as_agent](../capabilities/runs.node.save_as_agent.md): Make a finished piece of work into an agent: its brief becomes the agent's instructions, with the same model and tools. Made as the person who asks, by the agent-creating permission; an agent asking needs the person's ok
 - [runs.node.start](../capabilities/runs.node.start.md): Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watcher, terminal command or job (the engine, chat and terminal call this)
 - [runs.people_counts](../capabilities/runs.people_counts.md): How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work
 - [runs.pin_version](../capabilities/runs.pin_version.md): Move an active Run onto a definition version without replaying its steps

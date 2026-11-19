@@ -626,7 +626,12 @@ export default defineManifest({
       "Pause one agent's turn in a thread at its next safe point, keeping everything it did (a limit was reached)",
       {
         in: { ...threadT, agentId: t.opt(id.agent), reason: t.opt(t.str({ maxLength: 120 })) },
-        out: { paused: t.int() },
+        out: {
+          paused: t.int(),
+          held: t.int({
+            description: "Turns of an engine that runs its own tools: held at their next call, not paused",
+          }),
+        },
         on: ["thread", "/threadId"],
         level: "use",
         offline: "online",
@@ -639,7 +644,7 @@ export default defineManifest({
       "Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had already done",
       {
         in: { ...threadT, agentId: t.opt(id.agent) },
-        out: { resumed: t.int(), lost: t.int() },
+        out: { resumed: t.int(), lost: t.int(), released: t.int() },
         on: ["thread", "/threadId"],
         level: "use",
         offline: "online",
