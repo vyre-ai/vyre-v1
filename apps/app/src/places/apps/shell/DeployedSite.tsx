@@ -29,6 +29,8 @@ import {
   sourceLine,
 } from "./site/model.ts";
 import { LogLines, StepMark, markOf } from "./site/parts.tsx";
+import { Variables } from "./site/Variables.tsx";
+import type { EnvEntry } from "./site/model.ts";
 
 type Site = CapMap["sites.get"]["out"]["site"];
 type Dep = CapMap["sites.deployments"]["out"]["deployments"][number];
@@ -80,7 +82,6 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
   const [follow, setFollow] = useState(false);
   const [find, setFind] = useState("");
   const [envName, setEnvName] = useState(""),
-    [envKey, setEnvKey] = useState(""),
     [password, setPassword] = useState(""),
     [domain, setDomain] = useState(""),
     [importKey, setImportKey] = useState("");
@@ -426,83 +427,19 @@ export function DeployedSite({ site: x, refresh, back }: { site: Site; refresh()
     </Card>
   );
 
+  const saveEnv = async (entries: readonly EnvEntry[]): Promise<boolean> =>
+    (await run("Saving", "sites.env_set", { siteId: id, entries })) !== null;
   const variablesTab = (
-    <>
-      <Card title="Env vars">
-        <Text style={ui.text}>
-          Each one takes its value from a Vault key when it deploys. Values never show here. PORT is set for you.
-        </Text>
-        {envRows.map((e) => (
-          <Row
-            key={e.name}
-            id={`env-${e.name}`}
-            title={e.name}
-            note={e.vaultName}
-            trailing={
-              <Button
-                title="Remove"
-                disabled={!!busy || !online}
-                onPress={() =>
-                  void run("Saving", "sites.env_set", {
-                    siteId: id,
-                    entries: envRows
-                      .filter((r) => r.name !== e.name)
-                      .map((r) => ({ name: r.name, vaultHandle: r.vaultName })),
-                  })
-                }
-              />
-            }
-          />
-        ))}
-        {/* ui-rows-lint: not a list (chips of the env names the app looks for) */}
-        {wanted.length ? (
-          <View style={s.chips}>
-            <Text style={ui.text}>It also looks for:</Text>
-            {wanted.map((n) => (
-              <Pressable key={n} onPress={() => setEnvName(n)} style={s.chip}>
-                <Text style={s.chipText}>{n}</Text>
-              </Pressable>
-            ))}
-          </View>
-        ) : null}
-        <TextInput
-          accessibilityLabel="Env var name"
-          testID="site-env-name"
-          value={envName}
-          onChangeText={setEnvName}
-          placeholder="NAME"
-          placeholderTextColor="var(--ink-4)"
-          autoCapitalize="characters"
-          style={[ui.input, s.mono]}
-        />
-        {keyChips(envKey, setEnvKey)}
-        <Button
-          title="Add env var"
-          testID="site-env-add"
-          disabled={!!busy || !online || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(envName.trim()) || !envKey}
-          onPress={() =>
-            void run(
-              "Saving",
-              "sites.env_set",
-              {
-                siteId: id,
-                entries: [
-                  ...envRows
-                    .filter((r) => r.name !== envName.trim())
-                    .map((r) => ({ name: r.name, vaultHandle: r.vaultName })),
-                  { name: envName.trim(), vaultHandle: envKey },
-                ],
-              },
-              () => {
-                setEnvName("");
-                setEnvKey("");
-                setNote("Saved. Deploy again to use it.");
-              },
-            )
-          }
-        />
-      </Card>
-    </>
+    <Variables
+      site={x}
+      rows={envRows}
+      wanted={wanted}
+      keys={keys}
+      busy={!!busy}
+      online={online}
+      save={saveEnv}
+      {...(envName ? { preset: envName } : {})}
+    />
   );
   const domainsTab = (
     <>

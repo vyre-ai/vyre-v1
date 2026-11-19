@@ -37,6 +37,7 @@ function world(o: Fake = {}) {
     "0003_routes.sql",
     "0004_deploy.sql",
     "0005_deploy_steps.sql",
+    "0006_env_plain.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
@@ -329,6 +330,56 @@ test("sites_ship with wait false returns while the deploy runs", async () => {
     assert.match(out.say, /^The deploy has started/);
     assert.ok(["queued", "building"].includes(out.deployment.state));
     await h["sites.deploy_cancel"]!(w.ctx, { siteId: out.siteId });
+  } finally {
+    w.done();
+  }
+});
+
+test("env: a plain value and a scope are kept, listed as given, and reach only the deploys they apply to", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Plain env");
+    await h["sites.env_set"]!(w.ctx, {
+      siteId,
+      entries: [
+        { name: "APP_MODE", value: "calm" },
+        { name: "ONLY_PROD", value: "p", scope: "production" },
+        { name: "ONLY_PREVIEW", value: "v", scope: "previews" },
+      ],
+    });
+    const list = await h["sites.env_list"]!(w.ctx, { siteId });
+    assert.deepEqual(
+      list.entries.map((e: { name: string; kind: string; value?: string; scope: string }) => `${e.name}:${e.kind}:${e.value}:${e.scope}`),
+      ["APP_MODE:plain:calm:all", "ONLY_PREVIEW:plain:v:previews", "ONLY_PROD:plain:p:production"],
+    );
+    assert.equal(list.entries[0].vaultName, "");
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d1", "production"), { APP_MODE: "calm", ONLY_PROD: "p" });
+    assert.deepEqual(await _test.envOf(w.ctx, siteId, "d2", "preview"), { APP_MODE: "calm", ONLY_PREVIEW: "v" });
+    // a deploy gets them
+    const out = await h["sites.deploy"]!(w.ctx, { siteId, wait: true });
+    assert.equal(out.deployment.state, "ready");
+  } finally {
+    w.done();
+  }
+});
+
+test("env: a name takes a Vault key or a plain value, one of the two; bad scopes, reserved names and long values are refused", async () => {
+  const w = world();
+  try {
+    const siteId = await w.make("Bad env");
+    const set = (entries: unknown[]) => h["sites.env_set"]!(w.ctx, { siteId, entries });
+    await assert.rejects(() => set([{ name: "A" }]), /one of the two/);
+    await assert.rejects(() => set([{ name: "A", value: "x", vaultHandle: "#K" }]), /one of the two/);
+    await assert.rejects(() => set([{ name: "A", value: "x", scope: "everywhere" }]), /scope is all/);
+    await assert.rejects(() => set([{ name: "PORT", value: "1" }]), /set by Vyre/);
+    await assert.rejects(() => set([{ name: "A", value: "x".repeat(9000) }]), /over 8 KB/);
+    await assert.rejects(() => set([{ name: "A", value: 5 }]), /not text/);
+    await assert.rejects(() => set([{ name: "A", value: "1" }, { name: "A", value: "2" }]), /listed twice/);
+    // nothing was kept by the refusals
+    assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries.length, 0);
+    // an empty plain value is a value
+    await set([{ name: "EMPTY", value: "" }]);
+    assert.equal((await h["sites.env_list"]!(w.ctx, { siteId })).entries[0].kind, "plain");
   } finally {
     w.done();
   }

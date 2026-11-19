@@ -45,7 +45,9 @@ type In = {
   };
   env?: Array<{
       name: string;
-      vaultHandle: string;
+      vaultHandle?: string;
+      value?: string;
+      scope?: "all" | "production" | "previews";
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;
@@ -111,6 +113,8 @@ type Out = {
     "env": [
       {
         "name": "example",
+        "scope": "all",
+        "value": "example",
         "vaultHandle": "#Dana_Lawmatics"
       }
     ],

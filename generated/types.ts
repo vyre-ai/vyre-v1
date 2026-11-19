@@ -37536,6 +37536,9 @@ export type SitesEnvListOut = {
       name: string;
       vaultName: string;
       injected: boolean;
+      kind: "secret" | "plain";
+      value?: string;
+      scope: "all" | "production" | "previews";
     }>;
   wanted?: Array<string>;
 };
@@ -37543,7 +37546,9 @@ export type SitesEnvSetIn = {
   siteId: string;
   entries: Array<{
       name: string;
-      vaultHandle: string;
+      vaultHandle?: string;
+      value?: string;
+      scope?: "all" | "production" | "previews";
     }>;
 };
 export type SitesEnvSetOut = {
@@ -38038,7 +38043,9 @@ export type SitesShipIn = {
   };
   env?: Array<{
       name: string;
-      vaultHandle: string;
+      vaultHandle?: string;
+      value?: string;
+      scope?: "all" | "production" | "previews";
     }>;
   addons?: Array<"postgres" | "redis">;
   wait?: boolean;

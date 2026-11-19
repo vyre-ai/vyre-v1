@@ -2,3 +2,4 @@
 - A deploy that is running can be canceled: the build is cut off, a container that was started is removed, and the last good build keeps serving. A canceled deploy says Canceled and is not counted as a failure. Agents cancel with sites.deploy_cancel.
 - A deploy keeps its commit's first line, so the list reads "Annual pricing on the plans page" and not a hash.
 - An agent puts an app on the web in one call, sites_ship: it creates the site from its source, sets env from Vault handles, adds Postgres or Redis, deploys and waits. The answer is the address, or the step that failed with the reason and the fix, and a second call with the returned siteId goes on with the same site.
+- A site's variables can be plain values as well as Vault secrets, each with where it applies (everywhere, production or previews). Paste a whole .env: its secrets go to the Vault as one item and are never shown again, the rest stay plain.

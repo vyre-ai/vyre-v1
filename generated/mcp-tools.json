@@ -57508,7 +57508,7 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "description": "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57516,6 +57516,18 @@
             "items": {
               "properties": {
                 "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
                   "type": "string"
                 },
                 "vaultHandle": {
@@ -57527,8 +57539,7 @@
                 }
               },
               "required": [
-                "name",
-                "vaultHandle"
+                "name"
               ],
               "type": "object"
             },
@@ -57998,6 +58009,18 @@
                 "name": {
                   "type": "string"
                 },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
+                  "description": "A plain value that is not a secret. Give this or vaultHandle, not both",
+                  "type": "string"
+                },
                 "vaultHandle": {
                   "examples": [
                     "#Dana_Lawmatics"
@@ -58007,8 +58030,7 @@
                 }
               },
               "required": [
-                "name",
-                "vaultHandle"
+                "name"
               ],
               "type": "object"
             },

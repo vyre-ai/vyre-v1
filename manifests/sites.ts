@@ -53,6 +53,13 @@ const dep = t.obj({
   steps: t.opt(t.arr(step, { description: "Fetch, build, start and check, each with its state and time" })),
 });
 const access = t.enm("public", "password", "space", "private");
+const envScope = t.enm("all", "production", "previews");
+const envEntry = t.obj({
+  name: t.str(),
+  vaultHandle: t.opt(id.handle),
+  value: t.opt(t.str({ description: "A plain value that is not a secret. Give this or vaultHandle, not both" })),
+  scope: t.opt(envScope),
+});
 const source = t.obj({
   repo: t.opt(
     t.str({
@@ -382,7 +389,7 @@ export default defineManifest({
           kind: t.opt(t.enm("site", "app", "api", "worker")),
           access: t.opt(access),
           limits: t.opt(limits),
-          env: t.opt(t.arr(t.obj({ name: t.str(), vaultHandle: id.handle }))),
+          env: t.opt(t.arr(envEntry)),
           addons: t.opt(t.arr(t.enm("postgres", "redis"))),
           wait: t.opt(t.bool({ description: "Default true. False returns as soon as the deploy has started" })),
         },
@@ -503,9 +510,9 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them",
       {
-        in: { siteId: id.site, entries: t.arr(t.obj({ name: t.str(), vaultHandle: id.handle })) },
+        in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -520,7 +527,16 @@ export default defineManifest({
       {
         in: deployTarget,
         out: {
-          entries: t.arr(t.obj({ name: t.str(), vaultName: t.str(), injected: t.bool() })),
+          entries: t.arr(
+            t.obj({
+              name: t.str(),
+              vaultName: t.str({ description: "The Vault key, empty for a plain value" }),
+              injected: t.bool(),
+              kind: t.enm("secret", "plain"),
+              value: t.opt(t.str({ description: "Only for a plain value" })),
+              scope: envScope,
+            }),
+          ),
           wanted: t.opt(t.arr(t.str())),
         },
         on: ["site", "/siteId"],

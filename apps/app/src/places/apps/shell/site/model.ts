@@ -163,3 +163,67 @@ export function attention(
 export function missingName(problem: string | undefined): string | null {
   return /because (\w+) is not set/.exec(problem ?? "")?.[1] ?? null;
 }
+
+// ---- variables: a pasted .env, which names are secrets, and the list as env_set takes it
+
+export type EnvRow = CapMap["sites.env_list"]["out"]["entries"][number];
+export type EnvScope = EnvRow["scope"];
+export type EnvEntry = { name: string; vaultHandle?: string; value?: string; scope?: EnvScope };
+
+export const SCOPE_TITLE: Readonly<Record<EnvScope, string>> = {
+  all: "Everywhere",
+  production: "Production",
+  previews: "Previews",
+};
+
+/** A row of the list as env_set takes it back, so changing one name keeps every other as it was. */
+export function entryOf(r: EnvRow): EnvEntry {
+  return {
+    name: r.name,
+    scope: r.scope,
+    ...(r.kind === "plain" ? { value: r.value ?? "" } : { vaultHandle: r.vaultName }),
+  };
+}
+
+/** The names that carry a secret by what they say: keys, tokens, passwords, and an address with a login in it. Everything else in a pasted .env is plain. */
+const SECRET_NAME = /(^|_)(KEY|SECRET|TOKEN|PASSWORD|PASSWD|PASS|PWD|PRIVATE|CREDENTIALS?|AUTH|SALT|DSN)(_|$)/i;
+const URL_WITH_LOGIN = /^[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@/i;
+export const isSecretVar = (name: string, value: string): boolean => SECRET_NAME.test(name) || URL_WITH_LOGIN.test(value);
+
+/** Parse the text of a .env: NAME=value lines, `export NAME=value`, quoted values (a double quote reads \n), a trailing # comment on an unquoted value, blank and # lines skipped. The last of a repeated name wins. Names that cannot be env vars come back in `skipped`. */
+export function parseEnv(text: string): { vars: { name: string; value: string; secret: boolean }[]; skipped: string[] } {
+  const found = new Map<string, string>();
+  const skipped: string[] = [];
+  for (const raw of text.replace(/\r\n?/g, "\n").split("\n")) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith("#")) continue;
+    const m = /^(?:export\s+)?([^=\s]+)\s*=\s*(.*)$/.exec(line);
+    if (!m) {
+      skipped.push(line.slice(0, 40));
+      continue;
+    }
+    const name = m[1] as string;
+    let v = (m[2] as string).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(name)) {
+      skipped.push(name.slice(0, 40));
+      continue;
+    }
+    if (v.startsWith('"') && v.lastIndexOf('"') > 0) v = v.slice(1, v.lastIndexOf('"')).replace(/\\n/g, "\n").replace(/\\"/g, '"');
+    else if (v.startsWith("'") && v.lastIndexOf("'") > 0) v = v.slice(1, v.lastIndexOf("'"));
+    else v = v.replace(/\s+#.*$/, "");
+    found.set(name, v);
+  }
+  return { vars: [...found].map(([name, value]) => ({ name, value, secret: isSecretVar(name, value) })), skipped };
+}
+
+/** What a paste does to the list: each name is added or replaces the one with that name. Names Vyre sets itself (PORT and the like) are left out and said so. */
+export function mergeEnv(
+  have: readonly EnvEntry[],
+  add: readonly EnvEntry[],
+  reserved: ReadonlySet<string> = new Set(["PORT", "HOST", "HOSTNAME", "PATH", "HOME"]),
+): { entries: EnvEntry[]; left: string[] } {
+  const left = add.filter((e) => reserved.has(e.name)).map((e) => e.name);
+  const keep = add.filter((e) => !reserved.has(e.name));
+  const names = new Set(keep.map((e) => e.name));
+  return { entries: [...have.filter((e) => !names.has(e.name)), ...keep], left };
+}

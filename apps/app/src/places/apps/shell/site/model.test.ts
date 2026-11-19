@@ -176,3 +176,49 @@ test("the source in a line, and the variable a failure names", () => {
   assert.equal(missingName("It stopped because STRIPE_KEY is not set. Add it from the Vault."), "STRIPE_KEY");
   assert.equal(missingName("The build failed."), null);
 });
+
+import { entryOf, isSecretVar, mergeEnv, parseEnv } from "./model.ts";
+import type { EnvRow } from "./model.ts";
+
+test("a pasted .env: lines, quotes, comments and export are read, the last repeat wins, bad names are said", () => {
+  const out = parseEnv(
+    [
+      "# the app",
+      "APP_MODE=calm",
+      "export STRIPE_KEY=sk_live_123 # prod",
+      'GREETING="hello # there"',
+      "NOTE='a b'",
+      "MULTI=\"a\\nb\"",
+      "APP_MODE=loud",
+      "1BAD=x",
+      "not a line",
+      "",
+    ].join("\r\n"),
+  );
+  assert.deepEqual(
+    out.vars.map((v) => `${v.name}=${v.value}:${v.secret}`),
+    ["APP_MODE=loud:false", "STRIPE_KEY=sk_live_123:true", "GREETING=hello # there:false", "NOTE=a b:false", "MULTI=a\nb:false"],
+  );
+  assert.deepEqual(out.skipped, ["1BAD", "not a line"]);
+});
+
+test("a secret is what its name or its value says: a key, a token, a password, an address with a login", () => {
+  for (const n of ["API_KEY", "SESSION_SECRET", "GITHUB_TOKEN", "DB_PASSWORD", "PRIVATE_KEY", "SENTRY_DSN"])
+    assert.equal(isSecretVar(n, "x"), true, n);
+  assert.equal(isSecretVar("DATABASE_URL", "postgres://app:pw@db:5432/app"), true);
+  for (const n of ["APP_MODE", "PUBLIC_URL", "KEYBOARD", "MONKEY"]) assert.equal(isSecretVar(n, "https://a.example"), false, n);
+});
+
+test("a paste adds names or replaces the ones that exist, and leaves out what Vyre sets itself", () => {
+  const have = [{ name: "A", value: "1", scope: "all" as const }, { name: "B", vaultHandle: "#K" }];
+  const m = mergeEnv(have, [{ name: "A", value: "2" }, { name: "PORT", value: "80" }, { name: "C", value: "3" }]);
+  assert.deepEqual(m.entries.map((e) => `${e.name}=${e.value ?? e.vaultHandle}`), ["B=#K", "A=2", "C=3"]);
+  assert.deepEqual(m.left, ["PORT"]);
+});
+
+test("a row of the list goes back as the entry it was", () => {
+  const plain: EnvRow = { name: "A", vaultName: "", injected: false, kind: "plain", value: "x", scope: "previews" };
+  const secret: EnvRow = { name: "B", vaultName: "#K.b", injected: true, kind: "secret", scope: "all" };
+  assert.deepEqual(entryOf(plain), { name: "A", scope: "previews", value: "x" });
+  assert.deepEqual(entryOf(secret), { name: "B", scope: "all", vaultHandle: "#K.b" });
+});

@@ -235,8 +235,9 @@ export default function Mount(): ReactNode {
       }),
       "sites.env_list": () => ({
         entries: [
-          { name: "GHL_API_KEY", vaultName: "#GHL_CX", injected: true },
-          { name: "SESSION_SECRET", vaultName: "#CX_Session", injected: true },
+          { name: "GHL_API_KEY", vaultName: "#GHL_CX", injected: true, kind: "secret", scope: "all" },
+          { name: "SESSION_SECRET", vaultName: "#CX_Session", injected: true, kind: "secret", scope: "all" },
+          { name: "APP_MODE", vaultName: "", injected: true, kind: "plain", value: "calm", scope: "production" },
         ],
         wanted: view === "failed" ? ["SLACK_WEBHOOK"] : [],
       }),

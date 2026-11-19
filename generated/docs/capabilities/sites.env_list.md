@@ -37,6 +37,9 @@ type Out = {
       name: string;
       vaultName: string;
       injected: boolean;
+      kind: "secret" | "plain";
+      value?: string;
+      scope: "all" | "production" | "previews";
     }>;
   wanted?: Array<string>;
 };
@@ -62,7 +65,10 @@ type Out = {
     "entries": [
       {
         "injected": true,
+        "kind": "secret",
         "name": "example",
+        "scope": "all",
+        "value": "example",
         "vaultName": "example"
       }
     ],

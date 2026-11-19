@@ -39,6 +39,7 @@ export function deployWorld(o: { vault?: Record<string, string>; members?: strin
     "0003_routes.sql",
     "0004_deploy.sql",
     "0005_deploy_steps.sql",
+    "0006_env_plain.sql",
   ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {

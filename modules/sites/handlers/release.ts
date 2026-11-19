@@ -9,6 +9,7 @@
 //   cancel    sites.deploy_cancel stops the deploy that is running: the build is cut off, a container that was started is removed, and the last good build keeps serving
 // @reads ../migrations/0004_deploy.sql
 // @reads ../migrations/0005_deploy_steps.sql
+// @reads ../migrations/0006_env_plain.sql
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { touchActivity } from "../projections.ts";
 import {
@@ -56,6 +57,7 @@ const WAIT_MAX_MS = 20 * 60_000;
 const CANCEL_WAIT_MS = 20_000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
 const HANDLE = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+const ENV_SCOPES = new Set(["all", "production", "previews"]);
 const RESERVED_ENV = new Set(["PORT", "HOST", "HOSTNAME", "PATH", "HOME"]);
 
 const runner = (): Runner | null => siteRunner();
@@ -466,10 +468,20 @@ async function addonEnv(ctx: Ctx, siteId: string): Promise<Record<string, string
   return out;
 }
 
-async function envOf(ctx: Ctx, siteId: string, depId: string): Promise<Record<string, string>> {
+/** The env vars of a deploy: the site's databases, then each var whose scope applies to this kind of deploy (all, and production or previews). A plain value is used as kept; a secret is filled from the Vault now. */
+async function envOf(
+  ctx: Ctx,
+  siteId: string,
+  depId: string,
+  kind: "production" | "preview" = "production",
+): Promise<Record<string, string>> {
   const out = await addonEnv(ctx, siteId);
-  for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId))
-    out[str(e.name)] = await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
+  const want = kind === "production" ? "production" : "previews";
+  for (const e of many(ctx, "SELECT * FROM sites_env WHERE site_id = ?", siteId)) {
+    const scope = isNull(e.scope) ? "all" : str(e.scope);
+    if (scope !== "all" && scope !== want) continue;
+    out[str(e.name)] = !isNull(e.plain) ? str(e.plain) : await filled(ctx, str(e.vault_handle), `${depId}:${str(e.name)}`);
+  }
   return out;
 }
 
@@ -1007,14 +1019,18 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
   });
   const words = (e: unknown): string => (e instanceof Error ? e.message : String(e));
   try {
-    const entries = Array.isArray(o["env"]) ? (o["env"] as { name: string; vaultHandle: string }[]) : [];
+    const entries = Array.isArray(o["env"]) ? (o["env"] as { name: string; vaultHandle?: string; value?: string }[]) : [];
     if (entries.length) {
       const have = (await ctx.call("sites.env_list", { siteId } as never)) as {
-        entries: { name: string; vaultName: string }[];
+        entries: { name: string; vaultName: string; kind: string; value?: string; scope: string }[];
       };
       const keep = have.entries
         .filter((e) => !entries.some((n) => n.name === e.name))
-        .map((e) => ({ name: e.name, vaultHandle: e.vaultName }));
+        .map((e) => ({
+          name: e.name,
+          scope: e.scope,
+          ...(e.kind === "plain" ? { value: e.value ?? "" } : { vaultHandle: e.vaultName }),
+        }));
       await ctx.call("sites.env_set", { siteId, entries: [...keep, ...entries] } as never);
     }
   } catch (e) {
@@ -1188,11 +1204,17 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
   if (o.entries.length > 200)
     fail(ctx, "validation.too_large", "A site takes at most 200 env vars.", { field: "entries" });
   const seen = new Set<string>();
-  const next: { name: string; handle: string }[] = [];
+  const next: { name: string; handle: string; plain: string | null; scope: string }[] = [];
   for (const e of o.entries) {
     const row = rec(ctx, e);
     const name = reqStr(ctx, row, "name").trim();
-    const handle = reqStr(ctx, row, "vaultHandle").trim();
+    const handle = (optStr(ctx, row, "vaultHandle") ?? "").trim();
+    const value = row["value"];
+    if (value !== undefined && typeof value !== "string")
+      fail(ctx, "validation.bad_input", `The value of ${name} is not text.`, { field: "entries.value", name });
+    const scope = optStr(ctx, row, "scope") ?? "all";
+    if (!ENV_SCOPES.has(scope))
+      fail(ctx, "validation.bad_input", "A scope is all, production or previews.", { field: "entries.scope", name });
     if (!ENV_NAME.test(name))
       fail(
         ctx,
@@ -1202,25 +1224,37 @@ async function sitesEnvSet(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> {
       );
     if (RESERVED_ENV.has(name))
       fail(ctx, "validation.bad_input", `${name} is set by Vyre.`, { field: "entries.name", name });
-    if (!HANDLE.test(handle))
+    if ((handle === "") === (value === undefined))
+      fail(ctx, "validation.bad_input", `${name} takes a Vault key or a plain value, one of the two.`, {
+        field: "entries.vaultHandle",
+        name,
+      });
+    if (value !== undefined && value.length > 8192)
+      fail(ctx, "validation.too_large", `The value of ${name} is over 8 KB. Put it in the Vault as a secret.`, {
+        field: "entries.value",
+        name,
+      });
+    if (handle !== "" && !HANDLE.test(handle))
       fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", {
         field: "entries.vaultHandle",
         name,
       });
     if (seen.has(name)) fail(ctx, "validation.duplicate", `${name} is listed twice.`, { name });
     seen.add(name);
-    next.push({ name, handle });
+    next.push({ name, handle, plain: typeof value === "string" ? value : null, scope });
   }
   // the caller must be able to use each key now, or a deploy would fail later for a reason they cannot see
-  for (const e of next) await filled(ctx, e.handle, `check:${str(site.id)}:${e.name}:${ctx.now()}`);
+  for (const e of next) if (e.handle !== "") await filled(ctx, e.handle, `check:${str(site.id)}:${e.name}:${ctx.now()}`);
   ctx.db.run("DELETE FROM sites_env WHERE site_id = ?", site.id);
   for (const e of next)
     ctx.db.run(
-      "INSERT INTO sites_env (site_id, name, vault_handle, injected) VALUES (?, ?, ?, ?)",
+      "INSERT INTO sites_env (site_id, name, vault_handle, injected, plain, scope) VALUES (?, ?, ?, ?, ?, ?)",
       site.id,
       e.name,
       e.handle,
       0,
+      e.plain,
+      e.scope,
     );
   ctx.db.run("UPDATE sites_site SET updated_at = ? WHERE id = ?", ctx.now(), site.id);
   return { ok: true };
@@ -1244,7 +1278,14 @@ async function sitesEnvList(ctx: Ctx, input: unknown): Promise<{ entries: unknow
   const have = new Set([...rows.map((r) => str(r.name)), ...Object.keys(addonNames(ctx, str(site.id)))]);
   const wanted = (plan.env ?? []).filter((n) => !have.has(n) && !RESERVED_ENV.has(n) && n !== "NODE_ENV");
   return {
-    entries: rows.map((r) => ({ name: str(r.name), vaultName: str(r.vault_handle), injected: injected > 0 })),
+    entries: rows.map((r) => ({
+      name: str(r.name),
+      vaultName: str(r.vault_handle),
+      injected: injected > 0,
+      kind: isNull(r.plain) ? "secret" : "plain",
+      ...(isNull(r.plain) ? {} : { value: str(r.plain) }),
+      scope: isNull(r.scope) ? "all" : str(r.scope),
+    })),
     wanted,
   };
 }
@@ -1618,4 +1659,4 @@ export const releaseHandlers = {
   "sites.signin_link": (ctx: Ctx, input: unknown) => sitesSigninLink(ctx, input),
 };
 
-export const _test = { diagnose, enqueue, hexOf, DeployLog, stepsIn, closedMeta };
+export const _test = { diagnose, enqueue, hexOf, DeployLog, stepsIn, closedMeta, envOf };

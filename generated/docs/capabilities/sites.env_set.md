@@ -1,6 +1,6 @@
 # sites.env_set
 
-Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them
+Set the env vars of a deployed site (this replaces the list): a secret takes its value from a Vault key, filled at deploy time and never shown; a plain value is kept as given. scope says where it applies: all, production or previews. The next deploy uses them
 
 | | |
 |---|---|
@@ -28,7 +28,9 @@ type In = {
   siteId: string;
   entries: Array<{
       name: string;
-      vaultHandle: string;
+      vaultHandle?: string;
+      value?: string;
+      scope?: "all" | "production" | "previews";
     }>;
 };
 ```
@@ -59,6 +61,8 @@ type Out = {
     "entries": [
       {
         "name": "example",
+        "scope": "all",
+        "value": "example",
         "vaultHandle": "#Dana_Lawmatics"
       }
     ],
