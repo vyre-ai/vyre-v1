@@ -279,8 +279,9 @@ export async function planRetry(
 
 function markGaveUp(ctx: MailCtx, rootId: string, address: string, reason: string | undefined, at: number): void {
   ctx.db.run(
-    `UPDATE mail_delivery_retry SET state = ?, "nextAt" = NULL WHERE "messageId" = ? AND address = ?`,
+    `UPDATE mail_delivery_retry SET state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ?`,
     "gave_up",
+    null,
     rootId,
     address,
   );
@@ -345,9 +346,10 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
 
   // claim the attempt before sending: a crash after this point cannot send the same attempt twice
   ctx.db.run(
-    `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = NULL WHERE "messageId" = ? AND address = ? AND attempts = ?`,
+    `UPDATE mail_delivery_retry SET attempts = ?, state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ? AND attempts = ?`,
     input.attempt,
     "sending",
+    null,
     input.messageId,
     address,
     input.attempt - 1,
@@ -421,8 +423,9 @@ export async function retry(ctx: MailCtx, input: RetryIn): Promise<{ outcome: Re
 
 function finish(ctx: MailCtx, messageId: string, address: string, state: string): void {
   ctx.db.run(
-    `UPDATE mail_delivery_retry SET state = ?, "nextAt" = NULL WHERE "messageId" = ? AND address = ?`,
+    `UPDATE mail_delivery_retry SET state = ?, "nextAt" = ? WHERE "messageId" = ? AND address = ?`,
     state,
+    null,
     messageId,
     address,
   );
