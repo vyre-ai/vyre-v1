@@ -17,7 +17,7 @@ Remove a worker
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/service_remove |
-| MCP tool | sites_service_remove (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

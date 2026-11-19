@@ -17,7 +17,7 @@ Delete a backup and its file
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backup_delete |
-| MCP tool | sites_backup_delete (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

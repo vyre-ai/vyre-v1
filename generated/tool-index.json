@@ -8343,37 +8343,13 @@
     {
       "deferred": false,
       "name": "sites_backup_create",
-      "summary": "Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_backup_delete",
-      "summary": "Delete a backup and its file",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_backup_download",
-      "summary": "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_backup_pin",
-      "summary": "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_backup_restore",
-      "summary": "Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked",
+      "summary": "Back up the site's Postgres now; read sites_backups_list to see it finish",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_backups_list",
-      "summary": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
+      "summary": "The site's database backups and the database size",
       "toolset": "sites"
     },
     {
@@ -8474,44 +8450,20 @@
     },
     {
       "deferred": false,
-      "name": "sites_job_cancel",
-      "summary": "Stop a job run that is queued or going",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
       "name": "sites_job_create",
-      "summary": "Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_job_delete",
-      "summary": "Delete a scheduled job and its history; a run that is going is stopped",
+      "summary": "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_job_run",
-      "summary": "Run a scheduled job now. Refused while one of its runs is still going",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_job_runs",
-      "summary": "The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_job_update",
-      "summary": "Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed",
+      "summary": "Run a scheduled job now (refused while one of its runs goes)",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_jobs_list",
-      "summary": "A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history",
+      "summary": "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
       "toolset": "sites"
     },
     {
@@ -8529,13 +8481,13 @@
     {
       "deferred": false,
       "name": "sites_logs_read",
-      "summary": "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      "summary": "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_metrics",
-      "summary": "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      "summary": "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
       "toolset": "sites"
     },
     {
@@ -8589,7 +8541,7 @@
     {
       "deferred": false,
       "name": "sites_service_add",
-      "summary": "Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again",
+      "summary": "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
       "toolset": "sites"
     },
     {
@@ -8600,26 +8552,8 @@
     },
     {
       "deferred": false,
-      "name": "sites_service_remove",
-      "summary": "Remove a worker",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
       "name": "sites_service_restart",
-      "summary": "Restart a worker now, clearing a crash loop that stopped it",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_service_stop",
-      "summary": "Stop a worker and keep it stopped until it is restarted",
-      "toolset": "sites"
-    },
-    {
-      "deferred": false,
-      "name": "sites_services_list",
-      "summary": "A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes",
+      "summary": "Restart a worker, clearing a crash loop that stopped it",
       "toolset": "sites"
     },
     {

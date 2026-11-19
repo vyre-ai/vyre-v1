@@ -1,6 +1,6 @@
 # sites.backups_list
 
-A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go
+The site's database backups and the database size
 
 | | |
 |---|---|

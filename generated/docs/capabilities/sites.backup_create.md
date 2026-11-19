@@ -1,6 +1,6 @@
 # sites.backup_create
 
-Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish
+Back up the site's Postgres now; read sites_backups_list to see it finish
 
 | | |
 |---|---|

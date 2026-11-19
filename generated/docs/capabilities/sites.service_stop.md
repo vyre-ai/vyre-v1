@@ -17,7 +17,7 @@ Stop a worker and keep it stopped until it is restarted
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/service_stop |
-| MCP tool | sites_service_stop (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

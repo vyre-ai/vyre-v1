@@ -1,6 +1,6 @@
 # sites.service_restart
 
-Restart a worker now, clearing a crash loop that stopped it
+Restart a worker, clearing a crash loop that stopped it
 
 | | |
 |---|---|

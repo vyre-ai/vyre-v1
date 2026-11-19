@@ -17,7 +17,7 @@ The newest runs of a job (up to 50): when, how long, how it ended and one senten
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_runs |
-| MCP tool | sites_job_runs (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

@@ -1,6 +1,6 @@
 # sites.job_create
 
-Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped
+Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables
 
 | | |
 |---|---|

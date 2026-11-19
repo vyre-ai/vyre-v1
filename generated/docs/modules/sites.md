@@ -11,12 +11,12 @@ Requires: nothing.
 - [sites.artifact_open](../capabilities/sites.artifact_open.md): A short-lived address that opens an artifact for the person asking, in a tab or the browser
 - [sites.artifact_publish](../capabilities/sites.artifact_publish.md): Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {"title":"Q3 plan","html":"<h1>Q3</h1>"}. Same title or artifactId updates the link. No title: its <title> is used
 - [sites.artifact_thumb_set](../capabilities/sites.artifact_thumb_set.md): Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one
-- [sites.backup_create](../capabilities/sites.backup_create.md): Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish
+- [sites.backup_create](../capabilities/sites.backup_create.md): Back up the site's Postgres now; read sites_backups_list to see it finish
 - [sites.backup_delete](../capabilities/sites.backup_delete.md): Delete a backup and its file
 - [sites.backup_download](../capabilities/sites.backup_download.md): Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site
 - [sites.backup_pin](../capabilities/sites.backup_pin.md): Keep a backup for good (the clean-up never deletes a pinned one), or let it go again
 - [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
-- [sites.backups_list](../capabilities/sites.backups_list.md): A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go
+- [sites.backups_list](../capabilities/sites.backups_list.md): The site's database backups and the database size
 - [sites.build](../capabilities/sites.build.md): Build the site from its repo (the site agent runs in the repo); test and verify
 - [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds
 - [sites.create](../capabilities/sites.create.md): Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed
@@ -34,16 +34,16 @@ Requires: nothing.
 - [sites.get](../capabilities/sites.get.md): Read one site
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
 - [sites.job_cancel](../capabilities/sites.job_cancel.md): Stop a job run that is queued or going
-- [sites.job_create](../capabilities/sites.job_create.md): Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped
+- [sites.job_create](../capabilities/sites.job_create.md): Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables
 - [sites.job_delete](../capabilities/sites.job_delete.md): Delete a scheduled job and its history; a run that is going is stopped
-- [sites.job_run](../capabilities/sites.job_run.md): Run a scheduled job now. Refused while one of its runs is still going
+- [sites.job_run](../capabilities/sites.job_run.md): Run a scheduled job now (refused while one of its runs goes)
 - [sites.job_runs](../capabilities/sites.job_runs.md): The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope
 - [sites.job_update](../capabilities/sites.job_update.md): Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed
-- [sites.jobs_list](../capabilities/sites.jobs_list.md): A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history
+- [sites.jobs_list](../capabilities/sites.jobs_list.md): A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run
 - [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
 - [sites.logs](../capabilities/sites.logs.md): The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
-- [sites.logs_read](../capabilities/sites.logs_read.md): Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content
-- [sites.metrics](../capabilities/sites.metrics.md): How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits
+- [sites.logs_read](../capabilities/sites.logs_read.md): Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content
+- [sites.metrics](../capabilities/sites.metrics.md): CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password visitors type to open a site whose access is password. Kept only as a hash
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)
 - [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without building it again: its image starts with the production variables and the address switches when it answers. The build that was serving is kept for a rollback
@@ -53,10 +53,10 @@ Requires: nothing.
 - [sites.promote](../capabilities/sites.promote.md): Put a site on the public internet at its address. Held for approval unless the person asked for it this turn
 - [sites.publish](../capabilities/sites.publish.md): Serve a site that is not public: space or private access, or a password on its own domain
 - [sites.rollback](../capabilities/sites.rollback.md): Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built
-- [sites.service_add](../capabilities/sites.service_add.md): Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again
+- [sites.service_add](../capabilities/sites.service_add.md): Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy
 - [sites.service_identity](../capabilities/sites.service_identity.md): The site service identity and its grants (capped by the owner)
 - [sites.service_remove](../capabilities/sites.service_remove.md): Remove a worker
-- [sites.service_restart](../capabilities/sites.service_restart.md): Restart a worker now, clearing a crash loop that stopped it
+- [sites.service_restart](../capabilities/sites.service_restart.md): Restart a worker, clearing a crash loop that stopped it
 - [sites.service_stop](../capabilities/sites.service_stop.md): Stop a worker and keep it stopped until it is restarted
 - [sites.services_list](../capabilities/sites.services_list.md): A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes
 - [sites.ship](../capabilities/sites.ship.md): Put an app on the web in one call: create the site from its source (or take siteId), set env from Vault handles, add Postgres or Redis, deploy and wait. Answers with the address, or the failed step, reason and fix. Call again with the returned siteId to go on

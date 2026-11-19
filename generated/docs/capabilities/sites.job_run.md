@@ -1,6 +1,6 @@
 # sites.job_run
 
-Run a scheduled job now. Refused while one of its runs is still going
+Run a scheduled job now (refused while one of its runs goes)
 
 | | |
 |---|---|

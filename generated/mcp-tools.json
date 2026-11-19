@@ -56930,7 +56930,7 @@
       "blocks": [],
       "cap": "sites.backup_create",
       "deferred": false,
-      "description": "Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish",
+      "description": "Back up the site's Postgres now; read sites_backups_list to see it finish",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -56958,148 +56958,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.backup_delete",
-      "deferred": false,
-      "description": "Delete a backup and its file",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "backupId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backup_delete",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.backup_download",
-      "deferred": false,
-      "description": "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "backupId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backup_download",
-      "planMode": "allowed",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.backup_pin",
-      "deferred": false,
-      "description": "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "pinned": {
-            "type": "boolean"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "backupId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backup_pin",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.backup_restore",
-      "deferred": false,
-      "description": "Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "backupId": {
-            "examples": [
-              "bkp_a1b2c3"
-            ],
-            "pattern": "^bkp_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "backupId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_backup_restore",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.backups_list",
       "deferred": false,
-      "description": "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
+      "description": "The site's database backups and the database size",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57802,43 +57663,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.job_cancel",
-      "deferred": false,
-      "description": "Stop a job run that is queued or going",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "runId": {
-            "examples": [
-              "jrx_a1b2c3"
-            ],
-            "pattern": "^jrx_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "runId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_job_cancel",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.job_create",
       "deferred": false,
-      "description": "Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped",
+      "description": "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57902,43 +57729,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.job_delete",
-      "deferred": false,
-      "description": "Delete a scheduled job and its history; a run that is going is stopped",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "jobId": {
-            "examples": [
-              "job_a1b2c3"
-            ],
-            "pattern": "^job_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "jobId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_job_delete",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.job_run",
       "deferred": false,
-      "description": "Run a scheduled job now. Refused while one of its runs is still going",
+      "description": "Run a scheduled job now (refused while one of its runs goes)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57970,102 +57763,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.job_runs",
-      "deferred": false,
-      "description": "The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "jobId": {
-            "examples": [
-              "job_a1b2c3"
-            ],
-            "pattern": "^job_[a-z0-9]+$",
-            "type": "string"
-          },
-          "limit": {
-            "maximum": 50,
-            "minimum": 1,
-            "type": "integer"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "jobId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_job_runs",
-      "planMode": "allowed",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.job_update",
-      "deferred": false,
-      "description": "Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "command": {
-            "type": "string"
-          },
-          "enabled": {
-            "type": "boolean"
-          },
-          "jobId": {
-            "examples": [
-              "job_a1b2c3"
-            ],
-            "pattern": "^job_[a-z0-9]+$",
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "schedule": {
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          },
-          "timeoutSec": {
-            "maximum": 21600,
-            "minimum": 5,
-            "type": "integer"
-          },
-          "zone": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "jobId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_job_update",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.jobs_list",
       "deferred": false,
-      "description": "A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history",
+      "description": "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58176,12 +57876,12 @@
       "blocks": [],
       "cap": "sites.logs_read",
       "deferred": false,
-      "description": "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      "description": "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
       "effects": "read",
       "inputSchema": {
         "properties": {
           "after": {
-            "description": "Only lines after this seq: the lastSeq of the read before",
+            "description": "lastSeq of the read before",
             "type": "integer"
           },
           "from": {
@@ -58206,9 +57906,6 @@
             "type": "integer"
           },
           "q": {
-            "examples": [
-              "timeout \"db pool\" -health"
-            ],
             "type": "string"
           },
           "scope": {
@@ -58254,7 +57951,7 @@
       "blocks": [],
       "cap": "sites.metrics",
       "deferred": false,
-      "description": "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      "description": "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58584,7 +58281,7 @@
       "blocks": [],
       "cap": "sites.service_add",
       "deferred": false,
-      "description": "Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again",
+      "description": "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58660,43 +58357,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.service_remove",
-      "deferred": false,
-      "description": "Remove a worker",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "serviceId": {
-            "examples": [
-              "wkr_a1b2c3"
-            ],
-            "pattern": "^wkr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "serviceId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_service_remove",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "sites.service_restart",
       "deferred": false,
-      "description": "Restart a worker now, clearing a crash loop that stopped it",
+      "description": "Restart a worker, clearing a crash loop that stopped it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58723,66 +58386,6 @@
       },
       "name": "sites_service_restart",
       "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.service_stop",
-      "deferred": false,
-      "description": "Stop a worker and keep it stopped until it is restarted",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "serviceId": {
-            "examples": [
-              "wkr_a1b2c3"
-            ],
-            "pattern": "^wkr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId",
-          "serviceId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_service_stop",
-      "planMode": "blocked",
-      "toolset": "sites",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "sites.services_list",
-      "deferred": false,
-      "description": "A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes",
-      "effects": "read",
-      "inputSchema": {
-        "properties": {
-          "siteId": {
-            "examples": [
-              "sit_a1b2c3"
-            ],
-            "pattern": "^sit_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "siteId"
-        ],
-        "type": "object"
-      },
-      "name": "sites_services_list",
-      "planMode": "allowed",
       "toolset": "sites",
       "v": 1
     },

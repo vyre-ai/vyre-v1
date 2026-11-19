@@ -17,7 +17,7 @@ Change a scheduled job: its name, schedule, command, time zone, time limit, or p
 | Audit | sensitive |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_update |
-| MCP tool | sites_job_update (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

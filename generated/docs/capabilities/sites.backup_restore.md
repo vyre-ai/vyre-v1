@@ -17,7 +17,7 @@ Put a finished backup back, never losing data: the live database is backed up fi
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backup_restore |
-| MCP tool | sites_backup_restore (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

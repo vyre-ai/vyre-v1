@@ -1,6 +1,6 @@
 # sites.jobs_list
 
-A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history
+A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run
 
 | | |
 |---|---|
@@ -56,6 +56,17 @@ type Out = {
         by: "schedule" | "person";
       };
     }>;
+  services: Array<{
+      serviceId: string;
+      siteId: string;
+      name: string;
+      kind: "worker" | "web";
+      command: string;
+      state: "stopped" | "starting" | "running" | "backoff" | "failed";
+      note?: string;
+      startedAt?: number;
+      restartAt?: number;
+    }>;
 };
 ```
 
@@ -99,6 +110,19 @@ type Out = {
         "timeoutSec": 1,
         "when": "example",
         "zone": "example"
+      }
+    ],
+    "services": [
+      {
+        "command": "example",
+        "kind": "worker",
+        "name": "example",
+        "note": "example",
+        "restartAt": 1760000000000,
+        "serviceId": "wkr_a1b2c3",
+        "siteId": "sit_a1b2c3",
+        "startedAt": 1760000000000,
+        "state": "stopped"
       }
     ]
   }

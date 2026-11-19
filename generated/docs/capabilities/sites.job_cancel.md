@@ -17,7 +17,7 @@ Stop a job run that is queued or going
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_cancel |
-| MCP tool | sites_job_cancel (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

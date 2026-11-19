@@ -37881,6 +37881,17 @@ export type SitesJobsListOut = {
         by: "schedule" | "person";
       };
     }>;
+  services: Array<{
+      serviceId: string;
+      siteId: string;
+      name: string;
+      kind: "worker" | "web";
+      command: string;
+      state: "stopped" | "starting" | "running" | "backoff" | "failed";
+      note?: string;
+      startedAt?: number;
+      restartAt?: number;
+    }>;
 };
 export type SitesListIn = {
   section?: "personal" | "shared" | "space";

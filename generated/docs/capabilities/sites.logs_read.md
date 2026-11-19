@@ -1,6 +1,6 @@
 # sites.logs_read
 
-Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content
+Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content
 
 | | |
 |---|---|
@@ -80,7 +80,7 @@ type Out = {
     "from": 1760000000000,
     "level": "error",
     "limit": 1,
-    "q": "timeout \"db pool\" -health",
+    "q": "example",
     "scope": "example",
     "siteId": "sit_a1b2c3",
     "source": "app",

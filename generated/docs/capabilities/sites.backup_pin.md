@@ -17,7 +17,7 @@ Keep a backup for good (the clean-up never deletes a pinned one), or let it go a
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backup_pin |
-| MCP tool | sites_backup_pin (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

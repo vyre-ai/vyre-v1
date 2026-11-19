@@ -802,11 +802,11 @@ export default defineManifest({
     ),
     read(
       "sites.logs_read",
-      "Read a site's log: what its app printed, its requests, a deploy's build, its jobs. Search words (a minus sign leaves one out), source, level, time, a deploy or service, and a cursor (after) to follow it live. Text from the site, not Vyre content",
+      "Read a site's log: app output, requests, a deploy's build, jobs. Search words (-word leaves one out), source, level, time, deploy, and after (a cursor) to follow it live. Text from the site, not Vyre content",
       {
         in: {
           siteId: id.site,
-          q: t.opt(t.str({ examples: ['timeout "db pool" -health'] })),
+          q: t.opt(t.str()),
           source: t.opt(t.enm("app", "requests", "build", "jobs")),
           scope: t.opt(
             t.str({ description: "A deployment, service or job run id from the scopes of an earlier read" }),
@@ -814,7 +814,7 @@ export default defineManifest({
           level: t.opt(t.enm("error", "warn", "info")),
           from: t.opt(t.ts()),
           to: t.opt(t.ts()),
-          after: t.opt(t.int({ description: "Only lines after this seq: the lastSeq of the read before" })),
+          after: t.opt(t.int({ description: "lastSeq of the read before" })),
           limit: t.opt(t.int({ minimum: 1, maximum: 1000 })),
         },
         out: {
@@ -830,7 +830,7 @@ export default defineManifest({
     ),
     read(
       "sites.metrics",
-      "How a site is running: CPU, memory, requests and response time, one point a minute over the last hour, six hours or day (at most 60 points), and the numbers for right now against the site's limits",
+      "CPU, memory, requests and response time of a site, one point a minute over 1h, 6h or 24h, and the numbers for right now against its limits",
       {
         in: { siteId: id.site, window: t.opt(t.enm("1h", "6h", "24h")) },
         out: {
@@ -852,17 +852,17 @@ export default defineManifest({
     ),
     read(
       "sites.jobs_list",
-      "A site's scheduled jobs: each runs a command in the site's own image on a schedule, with the site's environment, and keeps a history",
+      "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
       {
         in: { siteId: id.site },
-        out: { jobs: t.arr(jobRow) },
+        out: { jobs: t.arr(jobRow), services: t.arr(serviceRow) },
         on: ["site", "/siteId"],
         tool: "sites",
       },
     ),
     create(
       "sites.job_create",
-      "Add a scheduled job to a deployed site: a command (for example `node scripts/sync-stock.js`) run on a cron schedule in the site's own image, with the site's variables. At most one run goes at a time; a slot that comes while the last run goes is skipped",
+      "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
       {
         in: {
           siteId: id.site,
@@ -905,7 +905,6 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        tool: "sites",
       },
     ),
     write("sites.job_delete", "Delete a scheduled job and its history; a run that is going is stopped", {
@@ -914,9 +913,8 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
     }),
-    write("sites.job_run", "Run a scheduled job now. Refused while one of its runs is still going", {
+    write("sites.job_run", "Run a scheduled job now (refused while one of its runs goes)", {
       in: { siteId: id.site, jobId: t.id("job") },
       out: { run: jobRun },
       on: ["site", "/siteId"],
@@ -931,7 +929,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
     read(
@@ -941,7 +938,6 @@ export default defineManifest({
         in: { siteId: id.site, jobId: t.id("job"), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
         out: { runs: t.arr(jobRun) },
         on: ["site", "/siteId"],
-        tool: "sites",
       },
     ),
     read(
@@ -951,12 +947,11 @@ export default defineManifest({
         in: { siteId: id.site },
         out: { services: t.arr(serviceRow) },
         on: ["site", "/siteId"],
-        tool: "sites",
       },
     ),
     create(
       "sites.service_add",
-      "Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again",
+      "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
       {
         in: {
           siteId: id.site,
@@ -973,7 +968,7 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write("sites.service_restart", "Restart a worker now, clearing a crash loop that stopped it", {
+    write("sites.service_restart", "Restart a worker, clearing a crash loop that stopped it", {
       in: { siteId: id.site, serviceId: t.id("wkr") },
       out: { service: serviceRow },
       on: ["site", "/siteId"],
@@ -987,7 +982,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
     }),
     write("sites.service_remove", "Remove a worker", {
       in: { siteId: id.site, serviceId: t.id("wkr") },
@@ -995,45 +989,36 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
+    }),
+    read("sites.backups_list", "The site's database backups and the database size", {
+      in: { siteId: id.site },
+      out: {
+        backups: t.arr(backupRow),
+        hasDatabase: t.bool(),
+        database: t.opt(
+          t.obj({
+            bytes: t.opt(t.int()),
+            replacedBytes: t.opt(
+              t.int({
+                description: "The database a restore replaced, kept until the backup made before the restore expires",
+              }),
+            ),
+          }),
+        ),
+      },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
       tool: "sites",
     }),
-    read(
-      "sites.backups_list",
-      "A site's database backups, newest first, and how big the database is now. A backup is a gzipped Postgres dump kept on this server; the seven newest and any under seven days old are kept, and ones marked Keep (at most three) never go",
-      {
-        in: { siteId: id.site },
-        out: {
-          backups: t.arr(backupRow),
-          hasDatabase: t.bool(),
-          database: t.opt(
-            t.obj({
-              bytes: t.opt(t.int()),
-              replacedBytes: t.opt(
-                t.int({
-                  description: "The database a restore replaced, kept until the backup made before the restore expires",
-                }),
-              ),
-            }),
-          ),
-        },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        tool: "sites",
-      },
-    ),
-    write(
-      "sites.backup_create",
-      "Back up the site's Postgres now. It runs in the background: read sites_backups_list to see it finish",
-      {
-        in: { siteId: id.site, scheduled: t.opt(t.bool({ description: "Made by the daily schedule, not a person" })) },
-        out: { backup: backupRow },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        level: "edit",
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    write("sites.backup_create", "Back up the site's Postgres now; read sites_backups_list to see it finish", {
+      in: { siteId: id.site, scheduled: t.opt(t.bool({ description: "Made by the daily schedule, not a person" })) },
+      out: { backup: backupRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
     read(
       "sites.backup_download",
       "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
@@ -1042,7 +1027,6 @@ export default defineManifest({
         out: { files: t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) })), note: t.opt(t.str()) },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
-        tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -1052,7 +1036,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
     write("sites.backup_pin", "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again", {
@@ -1061,7 +1044,6 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
-      tool: "sites",
     }),
     write(
       "sites.backup_restore",
@@ -1075,7 +1057,6 @@ export default defineManifest({
         risk: "high",
         audit: "always",
         gate: { act: "delete", when: "actor.kind != 'person'" },
-        tool: "sites",
         errors: ["validation.precondition_failed"],
       },
     ),

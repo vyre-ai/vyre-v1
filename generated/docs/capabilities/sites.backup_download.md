@@ -17,7 +17,7 @@ Where to fetch a finished backup from: one address per part (a dump over 32 MB i
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/backup_download |
-| MCP tool | sites_backup_download (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

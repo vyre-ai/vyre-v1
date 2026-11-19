@@ -84,10 +84,16 @@ function jobRow(ctx: Ctx, j: Job): Record<string, unknown> {
   };
 }
 
-async function jobsList(ctx: Ctx, input: unknown): Promise<{ jobs: Record<string, unknown>[] }> {
+async function jobsList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ jobs: Record<string, unknown>[]; services: Record<string, unknown>[] }> {
   const o = rec(ctx, input);
   const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
-  return { jobs: st.listJobs(ctx.db, str(site.id)).map((j) => jobRow(ctx, j)) };
+  return {
+    jobs: st.listJobs(ctx.db, str(site.id)).map((j) => jobRow(ctx, j)),
+    services: st.listServices(ctx.db, str(site.id)).map(serviceRow),
+  };
 }
 
 async function jobCreate(ctx: Ctx, input: unknown): Promise<{ job: Record<string, unknown> }> {

@@ -1,6 +1,6 @@
 # sites.service_add
 
-Add a worker to a deployed site: a command run in the site's own image, with the site's variables and no port. It starts at once, restarts itself when it crashes, and moves to the newest deploy when the site is deployed again
+Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy
 
 | | |
 |---|---|

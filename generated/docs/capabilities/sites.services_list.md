@@ -17,7 +17,7 @@ A site's workers: processes of its image that stay up without a port (a queue co
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/services_list |
-| MCP tool | sites_services_list (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 

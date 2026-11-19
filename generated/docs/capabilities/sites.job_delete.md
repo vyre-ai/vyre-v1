@@ -17,7 +17,7 @@ Delete a scheduled job and its history; a run that is going is stopped
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/sites/job_delete |
-| MCP tool | sites_job_delete (sites) |
+| MCP tool | none |
 | CLI | none |
 | Emits | none |
 
