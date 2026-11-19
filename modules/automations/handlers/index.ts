@@ -67,7 +67,7 @@ import {
 } from "./watches.ts";
 import { connectOptions, home } from "./home.ts";
 import { fire, replay, retry, run, stop, test, testEvents } from "./triggers.ts";
-import { readiness, whyNot, wouldRun } from "./clear.ts";
+import { readiness, stageOffers, whyNot, wouldRun } from "./clear.ts";
 
 export const handlers = {
   "automations.watches.check": watchCheck,
@@ -150,6 +150,7 @@ export const handlers = {
   "automations.step_ask": () => ({ ok: true }),
   "automations.readiness": readiness,
   "automations.would_run": wouldRun,
+  "automations.stage_offers": stageOffers,
   "automations.why_not": whyNot,
   "automations.validate": validate,
   "automations.versions": versions,

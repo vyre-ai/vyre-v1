@@ -32,7 +32,7 @@ const journey = {
   ],
 } as unknown as Journey;
 
-const open = async (call: (cap: string, i: any) => unknown) => {
+const open = async (call: (cap: string, i: any) => unknown, canDesign = false) => {
   installDom();
   const calls: { cap: string; input: any }[] = [];
   const data = {
@@ -58,7 +58,19 @@ const open = async (call: (cap: string, i: any) => unknown) => {
   const root = await mount(
     createRoot,
     <AutomationsDataProvider value={data as never}>
-      <PathTab journey={journey} counts={[{ stage: "lead", count: 3, overLimit: 1 }]} />
+      <PathTab
+        journey={journey}
+        counts={[{ stage: "lead", count: 3, overLimit: 1 }]}
+        canDesign={canDesign}
+        design={
+          {
+            design: async (next: unknown) => {
+              await data.call("journeys.design", { stages: next });
+              return true;
+            },
+          } as never
+        }
+      />
     </AutomationsDataProvider>,
   );
   await flush();
@@ -118,4 +130,29 @@ test("a test that cannot start says why, and can be run again", async () => {
   await press(find(root, "path-test"));
   await flush();
   assert.match(textOf(find(root, "path-test-bar")!), /No stage has an Automation to try yet\./);
+});
+
+test("an Automation that already starts on a stage is offered in that column; pressing Add puts it in the stage through journeys.design", async () => {
+  const { root, calls } = await open((cap) => {
+    if (cap === "automations.stage_offers") return { offers: [{ automationId: "aut_x", name: "Welcome new customers", stage: "won", on: true }] };
+    return { journey: {} };
+  }, true);
+  const offer = find(root, "path-offer-won-aut_x");
+  assert.ok(offer, "the offer is under its stage");
+  assert.match(textOf(offer!), /Welcome new customers\s+It already starts when the stage becomes Active\./);
+  assert.deepEqual(calls.find((c) => c.cap === "automations.stage_offers")!.input, {
+    recordType: "client",
+    stages: ["lead", "won"],
+    members: ["aut_a", "aut_b"],
+  });
+  await press(find(root, "path-take-aut_x"));
+  await flush();
+  const saved = calls.find((c) => c.cap === "journeys.design")!.input as { stages: { key: string; automations: string[] }[] };
+  assert.deepEqual(saved.stages.find((s) => s.key === "won")!.automations, ["aut_b", "aut_x"]);
+});
+
+test("without the right to design the offer is shown and cannot be taken", async () => {
+  const { root } = await open((cap) => (cap === "automations.stage_offers" ? { offers: [{ automationId: "aut_x", name: "W", stage: "lead", on: true }] } : {}), false);
+  assert.ok(find(root, "path-offer-lead-aut_x"));
+  assert.equal(find(root, "path-take-aut_x"), null);
 });

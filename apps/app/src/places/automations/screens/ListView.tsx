@@ -35,32 +35,8 @@ export function ListView({
   const q = query ?? own;
   const setQ = setOwn;
   const v = listView(rows, q);
-  return (
-    <View style={s.col} testID="auto-list">
-      {query !== undefined ? null : (
-        <>
-          <Pressable testID="al-home" accessibilityRole="button" onPress={onHome} style={s.head}>
-            <Text style={s.title}>{v.head.title}</Text>
-            {v.head.count > 0 ? <Text style={s.count}>{`${v.head.count} need you`}</Text> : null}
-            <View style={{ flex: 1 }} />
-            {onNew ? (
-              <Pressable testID="al-new" accessibilityRole="button" accessibilityLabel="New automation" onPress={onNew}>
-                <Text style={s.plus}>+</Text>
-              </Pressable>
-            ) : null}
-          </Pressable>
-          <TextInput
-            value={q}
-            onChangeText={setQ}
-            placeholder="Search"
-            placeholderTextColor="var(--ink-3)"
-            accessibilityLabel="Search automations"
-            testID="al-search"
-            style={s.search}
-          />
-        </>
-      )}
-      {v.rows.map((r) => (
+  const row = (r: (typeof v.rows)[number]): ReactElement => (
+
         // ui-rows-lint: not a list (each item is a ui/Row; the View only carries the row's menu trigger)
         <View key={r.id} {...(onMenu ? menuTrigger((x, y) => onMenu(r.id, x, y)) : {})}>
           <Row
@@ -89,13 +65,47 @@ export function ListView({
                     </Pressable>
                   ),
                 }
-              : r.scope
+              : r.scope && r.scope !== "Journey"
                 ? { trailing: <Text style={s.quiet}>{r.scope}</Text> }
                 : {})}
             onPress={() => onOpen(r.id)}
           />
         </View>
-      ))}
+  );
+  const journeys = v.rows.filter((r) => r.scope === "Journey");
+  return (
+    <View style={s.col} testID="auto-list">
+      {query !== undefined ? null : (
+        <>
+          <Pressable testID="al-home" accessibilityRole="button" onPress={onHome} style={s.head}>
+            <Text style={s.title}>{v.head.title}</Text>
+            {v.head.count > 0 ? <Text style={s.count}>{`${v.head.count} need you`}</Text> : null}
+            <View style={{ flex: 1 }} />
+            {onNew ? (
+              <Pressable testID="al-new" accessibilityRole="button" accessibilityLabel="New automation" onPress={onNew}>
+                <Text style={s.plus}>+</Text>
+              </Pressable>
+            ) : null}
+          </Pressable>
+
+          <TextInput
+            value={q}
+            onChangeText={setQ}
+            placeholder="Search"
+            placeholderTextColor="var(--ink-3)"
+            accessibilityLabel="Search automations"
+            testID="al-search"
+            style={s.search}
+          />
+        </>
+      )}
+      {journeys.length > 0 ? (
+        <View style={s.group} testID="al-journeys">
+          <Text style={s.groupCap}>Journeys</Text>
+          {journeys.map(row)}
+        </View>
+      ) : null}
+      {v.rows.filter((r) => r.scope !== "Journey").map(row)}
       {/* the empty line sits under the list's own heading, never beside the page's Needs you block */}
       {v.empty && query !== undefined ? <Text style={s.title}>Automations</Text> : null}
       {v.empty ? <Text style={s.quiet}>{v.empty}</Text> : null}
@@ -104,6 +114,8 @@ export function ListView({
 }
 
 const s = StyleSheet.create({
+  group: { gap: 2, paddingBottom: 6 },
+  groupCap: { fontSize: 11, fontWeight: "600", letterSpacing: 0.4, textTransform: "uppercase", color: "var(--ink-3)" as string, paddingHorizontal: 8, paddingTop: 2, paddingBottom: 4 },
   col: { gap: 2, padding: 8 },
   head: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 8, height: 40 },
   title: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },

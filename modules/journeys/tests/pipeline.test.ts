@@ -673,3 +673,39 @@ test("a subject cannot have two Journey records in one Journey, so a move never 
       ),
   );
 });
+
+test("two different merges of the same size are two different schema changes (the idempotency key is the content)", async () => {
+  const keys: string[] = [];
+  for (const extra of ["one", "two"]) {
+    const h = harness();
+    withField(h, existing({ options: { stages: [{ key: "open", title: "Open" }, { key: extra, title: extra }] } }));
+    await pipe(h, { useExisting: true });
+    keys.push(h.only("schema.apply")[0]!.input.idempotencyKey);
+  }
+  assert.notEqual(keys[0], keys[1]);
+  const h = harness();
+  withField(h, existing());
+  await pipe(h, { useExisting: true });
+  const again = harness();
+  withField(again, existing());
+  await pipe(again, { useExisting: true });
+  assert.equal(h.only("schema.apply")[0]!.input.idempotencyKey, again.only("schema.apply")[0]!.input.idempotencyKey, "the same merge gives the same key");
+});
+
+test("move_stage with expectedVersion: a card that changed first is refused with a plain reason and nothing is written; the right version moves", async () => {
+  const h = harness();
+  const j = await pipe(h);
+  await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_c1" }, alice);
+  h.callee("records.get", () => ({ record: { version: 5 } }));
+  h.reset();
+  await assert.rejects(h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c1", toStage: "won", reason: "x", expectedVersion: 4 }, alice), (e) => {
+    assert.equal(codeOf(e), "validation.version_conflict");
+    assert.match((e as { error: { message: string } }).error.message, /^It changed first\. Look at the card and try again\.$/);
+    return true;
+  });
+  assert.equal(h.only("records.update").length, 0, "nothing was written");
+  const ok = await h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c1", toStage: "won", reason: "x", expectedVersion: 5 }, alice);
+  assert.equal(ok.stage, "won");
+  await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_c2", idempotencyKey: "k2" }, alice);
+  assert.equal((await h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c2", toStage: "won", reason: "x" }, alice)).stage, "won", "without a version it is as before");
+});

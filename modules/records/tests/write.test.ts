@@ -158,16 +158,30 @@ test("delete and restore bump the version; a protected type and a hold cannot be
   assert.equal((await rec.store.get("item", held.id))?.version, 1);
 });
 
-test("records.update says a write is quiet in its event only when asked, so a system move can keep Automations out", async () => {
+test("quiet is for the server's own Journey moves only: a person, an agent, a script or an Automation's step that asks for it is refused and its edit is not made", async () => {
   const rec = openRecords({ space: "sp_quiet" });
   await rec.store.define({ add_types: [ITEM] });
   const id = mintRecordId();
   await rec.store.create("item", id, { name: "A", qty: 1, status: "open", code: "q1" });
   const seen: Record<string, unknown>[] = [];
-  const c = { ...ctx, emit: (_n: string, _s: string, p: Record<string, unknown>) => void seen.push(p) };
-  await rec.handlers["records.update"](c as never, { type: "item", recordId: id, patch: { qty: 2 } });
-  await rec.handlers["records.update"](c as never, { type: "item", recordId: id, patch: { qty: 3 }, quiet: true });
-  assert.equal(seen[0]!["quiet"], undefined);
+  const as = (callerCap?: string) =>
+    ({ ...ctx, ...(callerCap ? { callerCap } : {}), emit: (_n: string, _s: string, p: Record<string, unknown>) => void seen.push(p) }) as never;
+  const update = (c: never, patch: Record<string, unknown>, quiet?: boolean) =>
+    rec.handlers["records.update"](c, { type: "item", recordId: id, patch, ...(quiet === undefined ? {} : { quiet }) });
+  await update(as(), { qty: 2 });
+  assert.equal(seen[0]!["quiet"], undefined, "an ordinary edit is announced as one");
+  // a person, an API client, an agent: no calling capability at all
+  await assert.rejects(update(as(), { qty: 9 }, true), vcode("validation.bad_input"));
+  // an Automation's step and any other module
+  for (const cap of ["automations.run", "steps.run", "records.bulk_upsert", "sync.apply"])
+    await assert.rejects(update(as(cap), { qty: 9 }, true), vcode("validation.bad_input"), cap);
+  assert.equal((await rec.store.get("item", id))?.data.qty, 2, "nothing was written by a refused quiet edit");
+  assert.equal(seen.length, 1, "and nothing was announced");
+  // the Journey migration
+  await update(as("journeys.to_pipeline"), { qty: 3 }, true);
   assert.equal(seen[1]!["quiet"], true);
-  assert.deepEqual(seen[1]!["fields"], { qty: 3 }, "the change itself is announced in full; only Automations skip it");
+  assert.deepEqual(seen[1]!["fields"], { qty: 3 }, "the change is announced in full; only Automations skip it");
+  // quiet:false is an ordinary edit for anyone
+  await update(as(), { qty: 4 }, false);
+  assert.equal(seen[2]!["quiet"], undefined);
 });

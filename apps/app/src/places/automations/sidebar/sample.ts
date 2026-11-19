@@ -9,6 +9,7 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import type { AutomationsData, AutomationsNav } from "../canvas/data.tsx";
 import { check, type Automation, type Definition, type Issue, type KeyChoice } from "../canvas/model.ts";
 import type { AutoRow, GroupRow, JourneyRow } from "./model.ts";
+import { flowSentence } from "../../../../../../lib/flow-sentence.ts";
 
 export const SAMPLE_NOW = Date.UTC(2025, 9, 24, 10, 0, 0);
 const DAY = 86_400_000;
@@ -590,6 +591,10 @@ export function createSampleAutomations(space: SampleSpace = northwind): SampleA
       updatedAt,
       ...(lastRun ? { lastRun } : {}),
       failedRuns,
+      // what it does, in one sentence, as the server writes it from the steps
+      ...((r as { definition?: Definition }).definition
+        ? { sentence: flowSentence((r as { definition?: Definition }).definition as never) }
+        : {}),
     };
   };
 

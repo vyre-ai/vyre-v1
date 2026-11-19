@@ -335,6 +335,19 @@ async function createPipeline(ctx: JourneysCtx, input: In, name: string, stages:
   return { journey: out(j, 0) };
 }
 
+/** A short stable key for a value: the same content gives the same key, a different one gives another. */
+export function contentKey(v: unknown): string {
+  const text = JSON.stringify(v);
+  let h1 = 5381;
+  let h2 = 52711;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = ((h1 * 33) ^ c) >>> 0;
+    h2 = ((h2 * 31) ^ c) >>> 0;
+  }
+  return `${h1.toString(36)}${h2.toString(36)}${text.length.toString(36)}`;
+}
+
 interface FieldNow {
   type?: string;
   options?: { stages?: { key: string; title: string }[] };
@@ -406,7 +419,8 @@ export async function bindStageField(ctx: JourneysCtx, j: Journey, o: { useExist
       },
     ],
     reason: `Journey ${j.name}`,
-    idempotencyKey: `jrn-field-up:${j.id}:${merged.length}`,
+    // keyed on what it writes, so two different merges of the same size are two different changes
+    idempotencyKey: `jrn-field-up:${j.id}:${contentKey({ stages: merged, writers: [...new Set([...writers, ...STAGE_WRITERS])] })}`,
   });
 }
 
@@ -1028,6 +1042,14 @@ export async function moveStage(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
   refuseWhileMigrating(ctx, j);
   const rec = getRecord(ctx, j.id, input.recordId);
+  // a move made on a card that changed under the mover is refused, and nothing is written (the board sends the record's version it was looking at)
+  if (typeof input.expectedVersion === "number" && ctx.call) {
+    const now = (await ctx.call("records.get", { type: j.recordType, recordId: input.recordId }).catch(() => null)) as {
+      record?: { version?: number };
+    } | null;
+    if (typeof now?.record?.version === "number" && now.record.version !== input.expectedVersion)
+      raise(ctx, "validation.version_conflict", "It changed first. Look at the card and try again.", { reason: "stale" });
+  }
   const reason = String(input.reason).trim();
   if (!reason)
     raise(ctx, "validation.precondition_failed", "Say why the record is moving.", { reason: "reason_required" });

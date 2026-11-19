@@ -58,6 +58,7 @@ export function harness(over: { now?: number; calls?: Record<string, Callee> } =
   const world: Record<string, Callee> = {
     "schema.apply": () => ({ changeId: id("sch"), applied: 1, items: [] }),
     "schema.types.get": (i) => ({ type: { key: i.type, fields: [] } }),
+    "records.get": () => ({ record: { version: 1 } }),
     "records.create": () => ({ record: { id: id("rec") } }),
     "records.update": () => ({ record: {} }),
     "channels.create": () => ({ channel: { channelId: id("chn"), mainThreadId: id("thr") } }),
