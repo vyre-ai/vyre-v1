@@ -13,6 +13,7 @@ import { UrlSync } from "../shell/session/UrlSync.tsx";
 import type { ShellHub } from "../shell/spaces/hub.ts";
 import { loadTwilioDevice } from "../shell/session/voice.ts";
 import { registerShellPlaces } from "../shell/places.ts";
+import { warmSignedIn } from "./warm.ts";
 import { StartupUpdate } from "./update/StartupUpdate.tsx";
 import { WhatsNewOnce } from "./update/WhatsNewSheet.tsx";
 
@@ -76,6 +77,7 @@ function AppRoute(): ReactElement {
   useEffect(() => {
     const p = currentPath();
     setPath(p);
+    warmSignedIn(p);
     const item = parseOpenPath(p);
     if (item) holdOpen(item);
   }, []);

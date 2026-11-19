@@ -5,7 +5,7 @@ import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { TalkHost } from "../talk/TalkHost.tsx";
 import { ZonesHost } from "../zones/ZonesHost.tsx";
 import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
-import type { ComponentType, ErrorInfo, LazyExoticComponent, ReactElement, ReactNode } from "react";
+import type { ComponentType, ErrorInfo, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
 import { screenFromHash, screenOfAsk, setScreenContext } from "../ask/screen.ts";
@@ -15,21 +15,46 @@ import type { PlaceHash } from "../hash/context.tsx";
 import { mark, takeStartupMs } from "../../startup/marks.ts";
 import { speed } from "../../speed/recorder.ts";
 import { webUiStateStore } from "../../startup/persisted.ts";
-import { loaderFor } from "../../startup/places.ts";
+import { loadPlace, loadedPlace } from "../../startup/places.ts";
+import { AfterLoad } from "../../startup/after-load.tsx";
 import { SHELL_PLACES, registerShellPlaces } from "../places.ts";
 import { ShellRuntimeProvider } from "../providers/runtime.tsx";
 import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 
-type PlaceComponent = LazyExoticComponent<ComponentType<{ place: string }>>;
+type PlaceComponent = ComponentType<{ place: string }>;
 const lazies = new Map<string, PlaceComponent>();
 
 function lazyFor(routeId: string): PlaceComponent {
   let c = lazies.get(routeId);
   if (!c) {
     registerShellPlaces();
-    c = lazy(loaderFor(routeId));
+    c = lazy(() => loadPlace(routeId));
     lazies.set(routeId, c);
+  }
+  return c;
+}
+
+const placeComponents = new Map<string, PlaceComponent>();
+
+/**
+ * One component per place for the life of the page, so the place is never remounted when its module finishes loading (a remount threw away what a person had just pressed). It draws the loaded module directly,
+ * with no Suspense frame, and the lazy one until then.
+ */
+function placeFor(routeId: string): PlaceComponent {
+  registerShellPlaces();
+  let c = placeComponents.get(routeId);
+  if (!c) {
+    const Lazy = lazyFor(routeId);
+    c = function Place(props: { place: string }): ReactElement {
+      const loaded = loadedPlace(routeId);
+      if (loaded) {
+        const Loaded = loaded.default;
+        return <Loaded {...props} />;
+      }
+      return <Lazy {...props} />;
+    };
+    placeComponents.set(routeId, c);
   }
   return c;
 }
@@ -111,17 +136,23 @@ export function PlaceHost({
   const stable = useCallback<PlaceHash["opened"]>((t) => latest.current?.(t), []);
   const routeId = routeIdOf(place);
   if (!routeId) return null;
-  const Place = lazyFor(routeId);
+  const Place = placeFor(routeId);
   const body = (
     <PlaceHashProvider hash={hash} opened={stable}>
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={<Quiet />}>
-          <ScreenSignal place={place} hash={hash} />
-          {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
-          <AskPaneHost place={place} rt={runtime}>
-            <Place place={routeId} />
-          </AskPaneHost>
-          <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
+          <AfterLoad
+            load={() => loadPlace(routeId)}
+            ready={() => loadedPlace(routeId) !== undefined}
+            fallback={<Quiet />}
+          >
+            <ScreenSignal place={place} hash={hash} />
+            {/* Ask Vyre opens beside the place, in it (shell/ask/pane.ts): never a trip to Chats */}
+            <AskPaneHost place={place} rt={runtime}>
+              <Place place={routeId} />
+            </AskPaneHost>
+            <Usable place={routeId} spaceId={runtime?.space.id ?? null} />
+          </AfterLoad>
         </Suspense>
       </PlaceBoundary>
     </PlaceHashProvider>
