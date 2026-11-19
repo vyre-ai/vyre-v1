@@ -34,7 +34,14 @@ export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
   let serverOk: boolean | null = null;
   const smtp = domains.some((d) => str(d, "provider") === "smtp");
   // the mail server is tested once for every domain that uses it; the failure is counted per domain below, not twice
-  if (smtp) serverOk = (await smtpVerify(ctx, {}, { strike: false }).catch(() => ({ ok: false }))).ok;
+  // only an answer counts: a test that could not run (the Vault or the host is unavailable) says nothing about the server, so the SMTP domains are left alone this time
+  let serverUnknown = false;
+  if (smtp)
+    try {
+      serverOk = (await smtpVerify(ctx, {}, { strike: false })).ok;
+    } catch {
+      serverUnknown = true;
+    }
   for (const d of domains) {
     const id = str(d, "id");
     // read now, not from the list taken before the loop: a person may have changed the default while an earlier domain was being checked
@@ -46,6 +53,10 @@ export async function recheckDomains(ctx: MailCtx): Promise<RecheckOut> {
     // a domain whose check finished within the day is left alone; one whose check could not run has no new time on it, so the next run (this job runs every hour) tries it again
     if (typeof fresh.checkedAt === "number" && ctx.now() - fresh.checkedAt < DAY_MS) {
       out.skipped += 1;
+      continue;
+    }
+    if (serverUnknown && str(d, "provider") === "smtp") {
+      out.unknown.push(id);
       continue;
     }
     out.checked += 1;

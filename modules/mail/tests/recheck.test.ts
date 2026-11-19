@@ -185,3 +185,34 @@ test("a dead mail server fails the check even when DNS passes, and counts agains
   assert.deepEqual((await recheckDomains(h.ctx)).stopped, ["dom_s"]);
   setSmtpSecret(null);
 });
+
+test("a server test that cannot run (the Vault is unavailable) says nothing about the server: SMTP domains are left alone, not struck", async () => {
+  const h = harness();
+  setSmtpSecret(async () => "pw");
+  h.ctx.call = ((base) => async (cap: string, input: unknown) =>
+    cap === "vault.items.list" ? { items: [{ handle: "#Smtp_Password" }] } : base(cap, input))(h.ctx.call.bind(h.ctx));
+  bindSmtp(h.ctx, { verify: async () => undefined, send: async () => ({ rejected: [] }) });
+  const { smtpSet } = await import("../handlers/smtp.ts");
+  await smtpSet(h.ctx, {
+    host: "smtp.northwind.example",
+    port: 587,
+    username: "hello@northwind.example",
+    passwordHandle: "#Smtp_Password",
+  });
+  seedDomain(h, { id: "dom_s", name: "northwind.example", provider: "smtp", isDefault: true, ...dom });
+  h.ctx.db.run(`UPDATE mail_smtp SET state = ? WHERE id = ?`, "ok", "space");
+  setSmtpSecret(null); // the Vault is gone: the test throws instead of answering
+  for (let i = 0; i < 3; i++) {
+    h.advance(DAY);
+    const out = await recheckDomains(h.ctx);
+    assert.deepEqual([out.unknown, out.failed, out.stopped], [["dom_s"], 0, []]);
+  }
+  assert.equal(allWatches(h.ctx).length, 0, "no strike for a test that never ran");
+  assert.deepEqual(
+    [
+      Number(h.rows(`SELECT verified FROM mail_domain WHERE id = ?`, "dom_s")[0]?.verified),
+      Number(h.rows(`SELECT "isDefault" FROM mail_domain WHERE id = ?`, "dom_s")[0]?.isDefault),
+    ],
+    [1, 1],
+  );
+});

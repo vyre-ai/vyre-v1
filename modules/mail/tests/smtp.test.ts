@@ -20,6 +20,7 @@ import {
 } from "../handlers/smtp.ts";
 import type { SmtpConn, SmtpMail, SmtpTransport } from "../handlers/smtp.ts";
 import { ensureWatch } from "../handlers/watch.ts";
+import { recheckDomains } from "../handlers/recheck.ts";
 import { codeOf, contractErrors, harness, NOW, seedMailbox } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { rig, row, sendIn } from "./send.rig.test.ts";
@@ -860,5 +861,30 @@ test("two quick send failures stop only the domain whose server failed, and clea
     [Number(row("dom_other")?.verified), Number(row("dom_other")?.isDefault)],
     [1, 0],
     "the other domain is untouched",
+  );
+});
+
+test("a passing server test does not lose a stopped domain's place as the default sender: the next domain check that finds it verified makes it the default again", async () => {
+  const { r, w } = await smtpSpace();
+  ensureWatch(r.ctx);
+  const row = () => r.h.rows(`SELECT verified, "isDefault" FROM mail_domain WHERE id = ?`, "dom_vyretest")[0]!;
+  w.fail = err("ECONNREFUSED");
+  await smtpVerify(r.ctx, {});
+  r.h.advance(2 * 60 * 60_000);
+  w.fail = err("ECONNREFUSED");
+  await smtpVerify(r.ctx, {});
+  assert.deepEqual([Number(row().verified), Number(row().isDefault)], [0, 0], "two failures in a row stopped it");
+  // the server is well again: the test passes, and the record of what the domain was is kept
+  assert.equal((await smtpVerify(r.ctx, {})).ok, true);
+  assert.equal(
+    Number(r.h.rows(`SELECT strikes FROM mail_domain_watch WHERE "domainId" = ?`, "dom_vyretest")[0]?.strikes),
+    2,
+  );
+  r.h.advance(24 * 60 * 60_000);
+  await recheckDomains(r.ctx);
+  assert.deepEqual(
+    [Number(row().verified), Number(row().isDefault)],
+    [1, 1],
+    "verified again and the default sender again",
   );
 });

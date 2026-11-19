@@ -1,6 +1,7 @@
 // mail.setup.status: the Space's email setup in one read, for the Email page and for agents and MCP (owner, 19 Nov 2026: one place for provider, domain, DNS and a test).
 // It answers three questions in plain words: which way does this Space send, what is still missing, and what is the next step.
 // It reads only: the provider setting, the saved mail server (SMTP), and the sending domains with their DNS state.
+import { createHash } from "node:crypto";
 import { ensureAll, preconditionFailed } from "./extra/common.ts";
 import { domainList } from "./extra/domains.ts";
 import type { DomainOut } from "./extra/domains.ts";
@@ -178,6 +179,15 @@ const fieldsOf = (shape: string): { name: string; required: boolean }[] =>
     .filter(Boolean)
     .map((x) => ({ name: x.replace(/\?$/, ""), required: !x.endsWith("?") }));
 
+/** The same call asked twice is one call: the key is a hash of the action and its fields in a fixed order (field order and length never change it). A test email also carries the hour, so a test sent again later is sent again. */
+function repeatKey(ctx: MailCtx, action: string, rest: Record<string, unknown>): string {
+  const canonical = JSON.stringify(
+    Object.fromEntries(Object.entries(rest).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))),
+  );
+  const bucket = action === "test" ? Math.floor(ctx.now() / 3_600_000) : "";
+  return `tool-${createHash("sha256").update(`${action}|${bucket}|${canonical}`).digest("hex").slice(0, 40)}`;
+}
+
 /** Routes to the capability behind the screen, so its permission, Gate and audit apply exactly as when a person presses the button. Nothing is decided here. */
 export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ result: unknown }> {
   const cap = ROUTE[input.action];
@@ -194,7 +204,7 @@ export async function setupTool(ctx: MailCtx, input: SetupToolIn): Promise<{ res
     );
   // a call that needs a key to be safe to repeat gets one made from what it asks, so asking twice is one call
   const keyed = ["test", "address_add", "address_move"].includes(input.action)
-    ? { ...rest, idempotencyKey: `tool:${input.action}:${JSON.stringify(rest)}`.slice(0, 200) }
+    ? { ...rest, idempotencyKey: repeatKey(ctx, input.action, rest) }
     : rest;
   return { result: await ctx.call(cap, keyed) };
 }

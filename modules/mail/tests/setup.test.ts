@@ -271,3 +271,51 @@ test("mail.configure answers a wrong or short call with that action's exact shap
     "one line",
   );
 });
+
+test("a deliberately wrong first call to mail.configure is answered with the shape, and the corrected call then succeeds", async () => {
+  const h = harness();
+  script(h, {
+    "mail.address.add": (i: Record<string, unknown>) => ({
+      address: { address: `${String(i.localPart)}@northwind.example` },
+    }),
+  });
+  const wrong = await setupTool(h.ctx, { action: "address_add", domain: "dom_1", name: "billing" } as never).then(
+    () => "",
+    (e: unknown) => (e as { error: { message: string } }).error.message,
+  );
+  assert.equal(
+    wrong,
+    "mail.configure address_add takes {domainId, localPart, mailboxId?, title?}; missing domainId, localPart; not used: domain, name.",
+  );
+  assert.ok(!wrong.includes("\n"));
+  const out = await setupTool(h.ctx, { action: "address_add", domainId: "dom_1", localPart: "billing" });
+  assert.deepEqual(out, { result: { address: { address: "billing@northwind.example" } } });
+});
+
+test("the key a repeated call gets is the same whatever the field order or length, differs when the call differs, and a test email's changes with the hour", async () => {
+  const h = harness();
+  const keys: string[] = [];
+  script(
+    h,
+    Object.fromEntries(
+      ["mail.address.add", "mail.setup.test_send"].map((cap) => [
+        cap,
+        (i: Record<string, unknown>) => (keys.push(String(i.idempotencyKey)), {}),
+      ]),
+    ),
+  );
+  const long = "x".repeat(400);
+  await setupTool(h.ctx, { action: "address_add", title: long, domainId: "dom_1", localPart: "a" });
+  await setupTool(h.ctx, { action: "address_add", localPart: "a", domainId: "dom_1", title: long });
+  await setupTool(h.ctx, { action: "address_add", title: long, domainId: "dom_1", localPart: "b" });
+  assert.equal(keys[0], keys[1], "field order does not change the key");
+  assert.notEqual(keys[0], keys[2], "two long calls that differ late do not share a key");
+  assert.ok(keys.every((k) => k.length < 60));
+  await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
+  const first = keys.at(-1);
+  await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
+  assert.equal(keys.at(-1), first, "the same hour is the same test");
+  h.advance(2 * 3_600_000);
+  await setupTool(h.ctx, { action: "test", to: "maya@example.com" });
+  assert.notEqual(keys.at(-1), first, "a test asked for later is sent again");
+});

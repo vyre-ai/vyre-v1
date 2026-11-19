@@ -126,7 +126,13 @@ export function strikeSmtpDomains(ctx: MailCtx, why: string): void {
     strike(ctx, str(d, "id"), why, { minGapMs: SAME_FAILURE_MS });
 }
 
+/**
+ * A server test that passes clears the warnings. A domain that is already stopped keeps its record (and the memory of having been the default sender) until a domain check finds it verified again:
+ * that is where it is made the default again, so a passing server test alone never loses the place it held.
+ */
 export function clearSmtpStrikes(ctx: MailCtx): void {
-  for (const d of rowsOf(ctx.db.all(`SELECT id FROM mail_domain WHERE provider = ? AND deleted_at IS NULL`, "smtp")))
+  for (const d of rowsOf(ctx.db.all(`SELECT id FROM mail_domain WHERE provider = ? AND deleted_at IS NULL`, "smtp"))) {
+    if (watchOf(ctx, str(d, "id")).failures >= STRIKES_TO_STOP) continue;
     clearStrikes(ctx, str(d, "id"));
+  }
 }
