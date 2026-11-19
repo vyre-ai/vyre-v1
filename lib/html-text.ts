@@ -49,7 +49,7 @@ export function tagsNamed(html: string, name: string, max = 4096): string[] {
       i = at + key.length;
       continue;
     }
-    const gt = html.indexOf(">", at);
+    const gt = scanTag(html, at).end;
     if (gt < 0) break;
     if (gt - at <= max) out.push(html.slice(at, gt + 1));
     i = gt + 1;
@@ -296,21 +296,72 @@ export function cutBlocks(
   return i === 0 ? s : out + s.slice(i);
 }
 
-/** The ">" that ends the tag opened at s[at], skipping ">" inside a quoted value (read within 1 KB; beyond that, or with an unclosed quote, the first ">"). `first` is the first ">" after `at`. */
-function openTagEnd(s: string, at: number, first: number): number {
-  if (first - at > 1024) return first;
-  let p = at;
-  const stop = Math.min(s.length, at + 1024);
-  while (p < stop) {
-    const c = s.charCodeAt(p);
-    if (c === 34 || c === 39) {
-      const e = s.indexOf(String.fromCharCode(c), p + 1);
-      if (e < 0 || e >= stop) return first;
-      p = e + 1;
-    } else if (c === 62) return p;
-    else p += 1;
+/** One attribute of a tag read by scanTag. `start` is the separator just before the name (a space or "/"), else the name's start. */
+export interface TagAttr {
+  start: number;
+  name: string;
+  /** index just past the value; equal to the name's end when there is no value */
+  end: number;
+  hasValue: boolean;
+}
+export interface TagScan {
+  /** the ">" that ends the tag, or -1 when it never ends (an open quote runs to the end of the text, as a browser reads it) */
+  end: number;
+  attrs: TagAttr[];
+}
+
+/**
+ * Reads the tag that opens at s[at] ("<" and a name) the way a browser does: a quote that starts a value ends only at its own
+ * matching quote, so a ">" inside it does not end the tag; an unquoted value ends at whitespace or ">". One forward pass, so
+ * linear in the tag's own length. A tag that never ends reports end -1 (and its attributes up to the end of the text).
+ */
+export function scanTag(s: string, at: number): TagScan {
+  const n = s.length;
+  const attrs: TagAttr[] = [];
+  let p = at + 1;
+  if (s.charCodeAt(p) === 47) p += 1;
+  while (p < n && !isWs(s.charCodeAt(p)) && s.charCodeAt(p) !== 47 && s.charCodeAt(p) !== 62) p += 1;
+  for (;;) {
+    let sep = -1;
+    while (p < n && (isWs(s.charCodeAt(p)) || s.charCodeAt(p) === 47)) {
+      sep = p;
+      p += 1;
+    }
+    if (p >= n) return { end: -1, attrs };
+    if (s.charCodeAt(p) === 62) return { end: p, attrs };
+    const ns = p;
+    // a name may start with "=" (the browser keeps it); then it runs to whitespace, "/", "=" or ">"
+    p += 1;
+    while (p < n) {
+      const c = s.charCodeAt(p);
+      if (isWs(c) || c === 47 || c === 61 || c === 62) break;
+      p += 1;
+    }
+    const name = s.slice(ns, p);
+    let q = p;
+    while (q < n && isWs(s.charCodeAt(q))) q += 1;
+    let hasValue = false;
+    let end = p;
+    if (s.charCodeAt(q) === 61) {
+      hasValue = true;
+      q += 1;
+      while (q < n && isWs(s.charCodeAt(q))) q += 1;
+      const v = s.charCodeAt(q);
+      if (v === 34 || v === 39) {
+        const e = s.indexOf(String.fromCharCode(v), q + 1);
+        if (e < 0) {
+          attrs.push({ start: sep >= 0 && sep === ns - 1 ? sep : ns, name, end: n, hasValue });
+          return { end: -1, attrs };
+        }
+        end = e + 1;
+      } else {
+        end = q;
+        while (end < n && !isWs(s.charCodeAt(end)) && s.charCodeAt(end) !== 62) end += 1;
+      }
+      p = end;
+    }
+    attrs.push({ start: sep >= 0 && sep === ns - 1 ? sep : ns, name, end, hasValue });
   }
-  return first;
 }
 
 /**
@@ -326,7 +377,6 @@ export function replaceAnchors(
   let out = "";
   let i = 0;
   let from = 0;
-  let firstGt = -1; // the next ">" is found once and reused until it is passed
   let closeAt = -1; // start of the cached "</a>"
   let closeEnd = -1;
   for (;;) {
@@ -335,9 +385,9 @@ export function replaceAnchors(
     from = at + 2;
     const b = low.charCodeAt(at + 2);
     if (isNameChar(b) && b !== 45 && b !== 58) continue;
-    if (firstGt < at) firstGt = s.indexOf(">", at);
-    if (firstGt < 0) break;
-    const gt = openTagEnd(s, at, firstGt);
+    const gt = scanTag(s, at).end;
+    if (gt < 0) break;
+    from = gt + 1; // what is inside this tag is attribute text, not another tag
     if (gt - at > 4096) continue;
     const tag = s.slice(at, gt + 1);
     if (!accept(tag)) continue;
@@ -358,7 +408,6 @@ export function cutTags(s: string, names: string[], accept?: (name: string, tag:
   let out = "";
   let i = 0;
   let from = 0;
-  let gt = -2;
   for (;;) {
     const at = low.indexOf("<", from);
     if (at < 0) break;
@@ -369,11 +418,16 @@ export function cutTags(s: string, names: string[], accept?: (name: string, tag:
     while (isNameStart(low.charCodeAt(p))) p += 1;
     if (!names.includes(low.slice(ns, p))) continue;
     if (isNameChar(low.charCodeAt(p))) continue; // "<inputs", "<form-x": another name
-    if (gt !== -1 && gt < p) gt = low.indexOf(">", p);
-    if (gt < 0) break;
-    if (accept && !accept(low.slice(ns, p), s.slice(at, Math.min(gt + 1, at + 4096)))) continue;
+    const gt = scanTag(s, at).end;
+    if (accept && !accept(low.slice(ns, p), s.slice(at, Math.min(gt < 0 ? s.length : gt + 1, at + 4096)))) {
+      if (gt < 0) break;
+      from = gt + 1;
+      continue;
+    }
+    // a tag that never ends (an open quote) takes the rest of the text with it, as a browser would read it
     out += s.slice(i, at);
-    i = from = gt + 1;
+    i = from = gt < 0 ? s.length : gt + 1;
+    if (gt < 0) break;
   }
   return i === 0 ? s : out + s.slice(i);
 }
@@ -433,4 +487,24 @@ export function replaceMdLinks(s: string, fn: (m: MdLink) => string): string {
     i = m.end;
   }
   return i === 0 ? s : out + s.slice(i);
+}
+
+/** Removes every on* attribute (with a value) from every tag, wherever it sits in the tag and whatever quotes come before it. Linear. */
+export function stripEventAttrs(s: string): string {
+  let out = "";
+  let i = 0;
+  let from = 0;
+  for (;;) {
+    let at = s.indexOf("<", from);
+    while (at >= 0 && !isNameStart(s.charCodeAt(at + 1))) at = s.indexOf("<", at + 1);
+    if (at < 0) break;
+    const tag = scanTag(s, at);
+    for (const a of tag.attrs) {
+      if (!a.hasValue || !/^on[a-z]+$/i.test(a.name)) continue;
+      out += s.slice(i, a.start);
+      i = a.end;
+    }
+    from = tag.end < 0 ? s.length : tag.end + 1;
+  }
+  return out + s.slice(i);
 }

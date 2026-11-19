@@ -178,6 +178,39 @@ test("the safe output of the HTML guards is unchanged on fixed hostile samples",
   fast("<a href=' N then >", () => htmlToText("<a href='".repeat(N / 9) + ">"));
 });
 
+test("a > inside a quoted value does not hide an event handler (stripEventAttrs, rc.39 left these in)", () => {
+  const bad = [
+    `<a title='>' onclick=alert(1)>k</a>`,
+    `<img title=">" onerror="alert(1)" src=x>`,
+    `<a title="a>b" data-x='c>d' onmouseover=alert(1)>k</a>`,
+    `<img src=x title='>' onerror='alert(">")'>`,
+    `<img/onerror=alert(1) src=x>`,
+    `<a ${"x ".repeat(5000)}title=">" onclick=alert(1)>k</a>`,
+  ];
+  for (const h of bad) assert.doesNotMatch(cleanHtml(h), /on(click|error|mouseover)\s*=/i, h);
+  assert.equal(cleanHtml(`<a title='>' onclick=alert(1) href=x>k</a>`), `<a title='>' href=x>k</a>`);
+  assert.equal(cleanHtml(`<p title="o'k" class=a>t</p>`), `<p title="o'k" class=a>t</p>`);
+  assert.equal(cleanHtml(`<input title='>' name=a>x`), "x");
+  assert.equal(cleanHtml(`<a title="a>b">k</a> on=1 onclick=2`), `<a title="a>b">k</a> on=1 onclick=2`);
+  assert.equal(cleanHtml(`<script>var a = "<b onclick=x>";</script>t`), "t");
+  fast("<a title=' N", () => cleanHtml(`<a title='`.repeat(N / 10)));
+  fast('<a x=" N then >', () => cleanHtml('<a x="'.repeat(N / 6) + ">"));
+  fast("<a x='> N", () => cleanHtml(`<a x='>`.repeat(N / 7)));
+  fast("<a onx=' N", () => cleanHtml(`<a onx='>' `.repeat(N / 11)));
+  fast("many attrs", () => cleanHtml("<a " + 'a="1" '.repeat(N / 6) + ">"));
+  fast("<a  N tags", () => htmlToText(`<a href="x" title='>'>`.repeat(N / 22)));
+});
+
+test("cutBlocks and quotes: nested same-name tags, a refused open before a real one, an unclosed quote", () => {
+  assert.equal(cleanHtml("<form><form>x</form>y</form>z"), "y</form>z");
+  assert.equal(cleanHtml('<link href=a><link rel="import" href=b></link>t'), "<link href=a>t");
+  assert.equal(cleanHtml('<link rel="import" href=b>x</link><script>alert(1)</script>'), "");
+  // an open quote runs to the end of the text in a browser, so the handler after it is text, not an attribute
+  assert.equal(cleanHtml(`<a title="unclosed onclick=alert(1)>k</a>`), `<a title="unclosed onclick=alert(1)>k</a>`);
+  assert.ok(redact("k".repeat(300) + "_password=hunter2hunter2").hits.length >= 1);
+  assert.ok(redact('{"my.password": "hunter2hunter2"}').hits.length >= 1);
+});
+
 test("asked: an address pattern reads a long word once (lib/asked.ts)", () => {
   assert.deepEqual(
     askedIn("Please email the report to lee@acme.test").map((a) => `${a.act}:${a.target}`),
