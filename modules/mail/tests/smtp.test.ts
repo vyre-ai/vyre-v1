@@ -788,3 +788,24 @@ test("a domain whose mail server fails stops saying verified, after a failed tes
   await smtpSet(r.ctx, { host: "smtp.moved.example", passwordHandle: "#Smtp_Password" });
   assert.equal(verified(), 0);
 });
+
+test("the Vault list is read page by page, so a short name that matches many items still finds the exact one", async () => {
+  const h = harness();
+  vault({ "#Smtp_Password": PASSWORD, "#Smtp_Wanted": "wanted password" });
+  wire(h.ctx);
+  const pages = [
+    { items: Array.from({ length: 50 }, (_, i) => ({ handle: `#Smtp_Decoy${i}` })), next: "p2" },
+    { items: [{ handle: "#Smtp_Wanted" }], next: "" },
+  ];
+  const seen: (string | undefined)[] = [];
+  const base = h.ctx.call.bind(h.ctx);
+  h.ctx.call = async (cap, input) => {
+    if (cap !== "vault.items.list") return base(cap, input);
+    const cursor = (input as { cursor?: string }).cursor;
+    seen.push(cursor);
+    return cursor === "p2" ? pages[1] : (input as { kind?: string }).kind === "login" ? pages[0] : { items: [] };
+  };
+  const out = await smtpSet(h.ctx, { ...SERVER, passwordHandle: "#Smtp_Wanted" });
+  assert.equal(out.configured, true);
+  assert.ok(seen.includes("p2"), "the second page was read");
+});

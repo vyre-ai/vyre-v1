@@ -194,7 +194,13 @@ export async function addressAdd(ctx: MailCtx, input: AddressAddIn): Promise<{ a
     } catch (e) {
       // the inbox made a moment ago must not be left behind: it goes through the module's own removal (event and audit), and its idempotency ref is dropped, so the same name can be added again with any key
       if (created) {
-        await mailboxDisconnect(ctx, { mailboxId });
+        // the route's own error is the one the person needs: a failed clean-up is logged, never allowed to replace it
+        await mailboxDisconnect(ctx, { mailboxId }).catch((c: unknown) =>
+          ctx.log.warn("mail.address.add: the unfinished inbox was not removed", {
+            mailboxId,
+            error: c instanceof Error ? c.name : "unknown",
+          }),
+        );
         ctx.db.run(
           `DELETE FROM mail_idem WHERE "idemKey" = ? AND kind = ?`,
           `${input.idempotencyKey}:mailbox`,

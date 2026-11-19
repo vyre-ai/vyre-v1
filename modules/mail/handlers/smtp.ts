@@ -275,19 +275,29 @@ const MAIL_KINDS = ["login", "api_key"] as const;
 
 /** The handle names a Vault item of a mail kind that this person can see. The Vault lists only what the asker may open, so this is also the read check. */
 async function ensureMailCredential(ctx: MailCtx, handle: string): Promise<void> {
-  const name = handle.replace(/^#/, "").split(".")[0] ?? "";
+  const want = handle.replace(/^#/, "");
+  const name = want.split(".")[0] ?? "";
   for (const kind of MAIL_KINDS) {
-    let items: unknown;
-    try {
-      items = (await ctx.call("vault.items.list", { kind, q: name, limit: 50 })) as { items?: unknown };
-    } catch {
-      throw fail("provider.auth_failed", ctx.trace.traceId, {
-        message: "The Vault could not be read just now. Try again.",
-      });
+    let cursor: string | undefined;
+    // the list searches by part of a name, so a short name can match many items: read every page (up to 20) before saying there is no such item
+    for (let page = 0; page < 20; page++) {
+      let got: { items?: { handle?: unknown }[]; next?: unknown } | null;
+      try {
+        got = (await ctx.call("vault.items.list", {
+          kind,
+          q: name,
+          limit: 50,
+          ...(cursor ? { cursor } : {}),
+        })) as typeof got;
+      } catch {
+        throw fail("provider.auth_failed", ctx.trace.traceId, {
+          message: "The Vault could not be read just now. Try again.",
+        });
+      }
+      if ((got?.items ?? []).some((i) => typeof i.handle === "string" && i.handle.replace(/^#/, "") === want)) return;
+      cursor = typeof got?.next === "string" && got.next !== "" ? got.next : undefined;
+      if (!cursor) break;
     }
-    const list = ((items as { items?: unknown } | null)?.items ?? []) as { handle?: unknown }[];
-    if (list.some((i) => typeof i.handle === "string" && i.handle.replace(/^#/, "") === handle.replace(/^#/, "")))
-      return;
   }
   bad(
     ctx,
