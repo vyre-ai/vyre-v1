@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { probeDirectSpace, spaceHealth } from "./space-probe.ts";
+import { probeDirectSpace, spaceHealth, spaceIdAt } from "./space-probe.ts";
 
 const routes = async () => [
   { method: "POST", path: "/v1/identity/sign_in_options", cap: "identity.sign_in_options", v: 1 },
@@ -116,4 +116,20 @@ test("an address that is not http(s) is never probed", async () => {
   for (const a of ["javascript:alert(1)", "not a url", "file:///healthz"])
     assert.equal(await probeDirectSpace(a, { fetch: f.fetch, routes }), false);
   assert.deepEqual(f.asked, []);
+});
+
+test("spaceIdAt names the Space a server answers as, and nothing for anything else", async () => {
+  const ok = async () =>
+    new Response(JSON.stringify({ ok: true, roles: ["space"], space: "spc_01A" }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  assert.equal(await spaceIdAt("https://a.example", { fetch: ok as typeof fetch }), "spc_01A");
+  const html = async () => new Response("<html>", { status: 200, headers: { "content-type": "text/html" } });
+  assert.equal(await spaceIdAt("https://a.example", { fetch: html as typeof fetch }), null);
+  const down = async (): Promise<Response> => {
+    throw new TypeError("Failed to fetch");
+  };
+  assert.equal(await spaceIdAt("https://a.example", { fetch: down as typeof fetch }), null);
+  assert.equal(await spaceIdAt("not an address"), null);
 });

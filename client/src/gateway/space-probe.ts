@@ -105,3 +105,25 @@ export async function probeDirectSpace(address: string, o: ProbeOptions = {}): P
     return false;
   }
 }
+
+/** The Space id a server at this address names in its /healthz, or null (nothing there, not a Space, unreadable). Asked before a saved sign-in is handed to an address that is not the one it was made for. */
+export async function spaceIdAt(address: string, o: ProbeOptions = {}): Promise<string | null> {
+  try {
+    const base = new URL(address).origin;
+    const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
+    return await withTimeout(o.timeoutMs ?? PROBE_TIMEOUT_MS, async (signal) => {
+      const res = await doFetch(`${base}/healthz`, {
+        method: "GET",
+        headers: { accept: "application/json" },
+        cache: "no-store",
+        redirect: "error",
+        signal,
+      });
+      if (res.status !== 200 || !/^application\/json\b/i.test(res.headers.get("content-type") ?? "")) return null;
+      const body: unknown = await res.json();
+      return spaceHealth(body) ? (body as { space: string }).space : null;
+    });
+  } catch {
+    return null;
+  }
+}

@@ -61,7 +61,15 @@ import { ensureMacServer, ensurePersonalSpace } from "../../../../../client/src/
 import type { Invoke } from "../../../../../client/src/connection/desktop-link.ts";
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
-import { CapError, clearOldData, createCapCaller, findSpaceQuietly, hasOldData, healStaleWorker } from "./caps.ts";
+import {
+  CapError,
+  clearOldData,
+  createCapCaller,
+  findSpaceQuietly,
+  hasOldData,
+  healStaleWorker,
+  spaceIdAt,
+} from "./caps.ts";
 import type { Found } from "./caps.ts";
 import {
   JoinRefused,
@@ -1334,6 +1342,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
     if (!activateAddress(chosen, true)) return;
     setConnectedAddress(chosen.baseUrl);
+    // the same Space again (Your Spaces over its failed screen, then its row): the shell opens afresh instead of staying on the failure
+    if (phaseNow.current.kind === "shell" && phaseNow.current.stored.baseUrl === chosen.baseUrl)
+      setShellTry((n) => n + 1);
     phaseDo({ e: "in", stored: chosen });
   };
   // One saved Space, entered as it was left: this computer's Personal Space is verified at the port it runs on now; any other opens at its own address.
@@ -1585,19 +1596,31 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     }
   };
   /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
-  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, and opened when it does. Each address is tried once per press, so two flaky ones never trade places. */
-  const nearbyTried = useRef(new Set<string>());
+  /** A Space with two saved addresses whose used-last one does not answer: the other is asked, checked to be the same Space, and opened when it answers. An address is tried at most once a minute, so two flaky ones never trade places, and a later failure tries it again. The person may have moved on while it was asked: then nothing opens. */
+  const [underShell, setUnderShell] = useState<string | null>(null);
+  useEffect(() => {
+    if (!home) setUnderShell(null);
+  }, [home]);
+  const nearbyTried = useRef(new Map<string, number>());
+  const homeNow = useRef(home);
+  homeNow.current = home;
   const tryNearby = async (stored: StoredSession): Promise<boolean> => {
-    nearbyTried.current.add(stored.baseUrl);
+    const still = (): boolean =>
+      phaseNow.current.kind === "shell" && phaseNow.current.stored.baseUrl === stored.baseUrl && !homeNow.current;
+    const now = Date.now();
+    nearbyTried.current.set(stored.baseUrl, now);
     for (const other of siblingSessions(stored)) {
-      if (nearbyTried.current.has(other.baseUrl)) continue;
-      nearbyTried.current.add(other.baseUrl);
+      if (now - (nearbyTried.current.get(other.baseUrl) ?? 0) < 60_000) continue;
+      nearbyTried.current.set(other.baseUrl, now);
       const found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
-      if (found.kind === "direct") {
-        shellRetried.current.delete(other.baseUrl);
-        await enterSaved(other);
-        return true;
-      }
+      if (!still()) return true;
+      if (found.kind !== "direct") continue;
+      // a reused address may be another Space now: the saved sign-in goes only to the Space it was made for
+      if ((await spaceIdAt(other.baseUrl)) !== stored.def.spaceId) continue;
+      if (!still()) return true;
+      shellRetried.current.delete(other.baseUrl);
+      await enterSaved(other);
+      return true;
     }
     return false;
   };
@@ -1907,7 +1930,10 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onHub={onHub}
           voice={props.voice}
           onSwitchSpace={(id) => void switchSpace(id)}
-          onYourSpaces={() => giDo({ e: "list" })}
+          onYourSpaces={() => {
+            setUnderShell(phase.stored.baseUrl);
+            giDo({ e: "list" });
+          }}
           onAddSpace={() => {
             setReturnSession(phase.stored);
             setEntryStart("choice");
@@ -1919,7 +1945,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   );
   // Your Spaces over a shell that is open (from the screen for a Space that would not load): the shell stays mounted underneath, so Back returns to the same tabs, drafts and place
   if (home && rows.length > 0) {
-    if (phase.kind === "shell" && !forgot)
+    if (phase.kind === "shell" && !forgot && underShell === phase.stored.baseUrl)
       return (
         <>
           <View style={{ display: "none" }}>{renderShell(phase)}</View>
