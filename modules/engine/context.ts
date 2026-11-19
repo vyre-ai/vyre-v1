@@ -1,7 +1,7 @@
 // The turn context builder (CHAT-DESIGN "The turn"): before each turn it asks the capabilities that know, as the person who is asking, and puts the answers in one ordered context
 // (agent/src/turn-engine/context.ts). Every read runs as the asker, so a thing the asker may not see never reaches the agent through here. Every read is also optional: a capability that is
 // slow, off or refuses leaves its section out and the turn goes on. Nothing in the context is a secret value; the Vault appears by item name only.
-import { frameCode } from "../../lib/helper-result.ts";
+import { frameCode, nameTag } from "../../lib/helper-result.ts";
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { SECTION_ORDER, parseScreen, screenText } from "../../agent/src/turn-engine/context.ts";
 import type { ContextSection, ScreenContext, TurnContext } from "../../agent/src/turn-engine/context.ts";
@@ -245,7 +245,8 @@ const SEAT: Readonly<Record<string, string>> = {
 type Who = { kind?: string; id?: string };
 const whoLabel = (w: Who | undefined, names: Readonly<Record<string, string>>): string =>
   w?.id
-    ? (names[w.id] ?? (w.kind === "agent" ? "an agent" : w.kind === "person" ? "a teammate" : `a ${w.kind ?? "team"}`))
+    ? (names[w.id] === undefined ? undefined : nameTag(names[w.id]!)) ||
+      (w.kind === "agent" ? "an agent" : w.kind === "person" ? "a teammate" : `a ${w.kind ?? "team"}`)
     : "nobody";
 const parseList = (v: unknown): string[] => {
   try {

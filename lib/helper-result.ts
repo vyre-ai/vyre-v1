@@ -70,9 +70,9 @@ export function splitResult(text: string): Split {
  * The words the parent agent reads for a finished helper. What the helper wrote (summary and fields) sits between two marker lines and is its own words, never instructions: a helper that read untrusted content may
  * have written anything, including a line that looks like a reference. The real reference is built here from `ref` and comes after the closing marker.
  */
-/** A fresh eight-character code for one message. The helper never sees it (it is made when the message is built, after the helper has finished), so nothing the helper writes can carry it. */
+/** A fresh sixteen-character code (64 bits) for one message. The helper never sees it (it is made when the message is built, after the helper has finished), so nothing the helper writes can carry it. */
 export function frameCode(): string {
-  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(4)), (b) => b.toString(16).padStart(2, "0")).join(
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join(
     "",
   );
 }
@@ -83,6 +83,14 @@ export function frameCode(): string {
  * guessed code inside the helper's words are all just helper text. Nothing of the helper's is rewritten or quoted. `code` is for tests; callers leave it out.
  */
 /** A title is the parent's own words on the thread, but it is one quoted line in a header: control characters and line breaks become spaces, a double quote becomes a single one, and it is cut. */
+/** A person's or agent's chosen name where Vyre's own line mentions it: one line, no colon or bracket to build a "Vyre:" or a marker from, and short. */
+export const nameTag = (n: string): string =>
+  n
+    .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029:\[\]<>"\u201c\u201d]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+
 export const oneLineTitle = (t: string): string =>
   t
     .replace(/[\u0000-\u001f\u007f\u0085\u2028\u2029]+/g, " ")
@@ -144,7 +152,7 @@ export function teammateBody(o: {
   code?: string;
 }): string {
   const text = (o.text ?? "").trim();
-  const name = oneLineTitle(o.name);
+  const name = nameTag(o.name);
   const first =
     o.state === "failed"
       ? `${name} could not finish "${oneLineTitle(o.title)}".`
