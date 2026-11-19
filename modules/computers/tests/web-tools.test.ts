@@ -257,3 +257,26 @@ test("an address that is not a web address is refused with its reason, not held 
     );
   assert.deepEqual(asked, []);
 });
+
+test("a search or an address that looks like a secret is refused with what it looked like, and asks nothing of the web", async () => {
+  const w = await world();
+  const asked = net({});
+  const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_shapes" } };
+  for (const query of [
+    "why does sk-live-abcdef0123456789abcd fail",
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789 clone",
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123",
+  ])
+    await assert.rejects(
+      tool["computers.chrome.search"]!(ctx, { query }),
+      (e: any) => codeOf(e) === "validation.bad_input" && /looks like it contains/.test(e?.error?.message ?? ""),
+      query,
+    );
+  await assert.rejects(
+    tool["computers.chrome.read"]!(ctx, {
+      url: "https://docs.example.com/a?token=ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+    }),
+    (e: any) => codeOf(e) === "validation.bad_input" && /looks like it carries/.test(e?.error?.message ?? ""),
+  );
+  assert.deepEqual(asked, []);
+});

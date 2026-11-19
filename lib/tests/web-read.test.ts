@@ -312,3 +312,15 @@ test("a hidden div with a div inside ends at its own close, a character that cha
   assert.ok(q.text.includes("visible"));
   assert.ok(pageText("<embed src=x><p>still here</p>").text.includes("still here"));
 });
+
+test("an unclosed head followed by a header is not ended by the header's closing tag", () => {
+  const p = pageText("<head><title>T</title><header>nav</header><p>body text</p>");
+  assert.ok(
+    !p.text.includes("body text") && !p.text.includes("nav"),
+    "the head was never closed: the rest is inside it",
+  );
+  const q = pageText("<head><title>T</title></head><header>nav</header><p>body text</p>");
+  assert.ok(q.text.includes("nav") && q.text.includes("body text"));
+  const r = pageText("<script>x</scripts>y</script>after");
+  assert.ok(r.text.includes("after") && !r.text.includes("y"), "</scripts> does not end a script");
+});

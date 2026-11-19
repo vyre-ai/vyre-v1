@@ -67,6 +67,18 @@ const HTML_CAP = 1_000_000;
 
 /** Lower case for ASCII letters only, so every position in the folded text is the same position in the original (a full lower-casing can change a string's length). */
 const asciiLower = (s: string): string => s.replace(/[A-Z]+/g, (m) => m.toLowerCase());
+/** The next closing tag `</name` at or after `from` whose name ends there (`</head` is not `</header`); -1 when there is none. */
+function closeTagAt(low: string, name: string, from: number): number {
+  const needle = `</${name}`;
+  let at = low.indexOf(needle, from);
+  while (at >= 0) {
+    const next = low.charCodeAt(at + needle.length);
+    if (Number.isNaN(next) || next === 62 /* > */ || next === 47 /* / */ || next === 32 || (next >= 9 && next <= 13))
+      return at;
+    at = low.indexOf(needle, at + needle.length);
+  }
+  return -1;
+}
 const VOID = new Set([
   "br",
   "hr",
@@ -136,7 +148,7 @@ export function pageText(input: string): { title: string; text: string } {
     }
     if (!closing && SKIP.has(name)) {
       // a script, style or similar: its content is not tags, so the pass jumps to its closing tag; a name whose closing tag was not found once is not looked for again
-      const end = unclosed.has(name) ? -1 : low.indexOf(`</${name}`, i);
+      const end = unclosed.has(name) ? -1 : closeTagAt(low, name, i);
       if (end < 0) {
         unclosed.add(name);
         break; // an unclosed script or style: the rest of the page is inside it

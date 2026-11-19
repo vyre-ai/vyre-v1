@@ -11,6 +11,7 @@ import { searchHost } from "../../search-host.ts";
 import { rememberSearchUrls, webTurnKey } from "../../../../lib/web-turns.ts";
 import type { FetchDeps } from "../../../../lib/public-fetch.ts";
 import { holdsHandedOutSecret } from "../../projections.ts";
+import { secretShape } from "../../../../lib/secret-shapes.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
@@ -172,6 +173,13 @@ export async function readWeb(ctx: CompCtx, input: { url: string }) {
       "validation.bad_input",
       "That address carries a value from the Vault. Secrets are never sent in an address.",
     );
+  const shaped = secretShape(String(input.url ?? ""));
+  if (shaped)
+    raise(
+      ctx,
+      "validation.bad_input",
+      `That address looks like it carries ${shaped}. Secrets are never sent in an address.`,
+    );
   const r = await readPage(String(input.url ?? ""), await webNet(ctx));
   if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
   return { url: r.url, title: r.title, text: r.text, truncated: r.truncated, source: r.source };
@@ -215,6 +223,14 @@ export async function searchWebTool(ctx: CompCtx, input: { query: string; site?:
       ctx,
       "validation.bad_input",
       "That search carries a value from the Vault. Secrets are never sent to a search service.",
+    );
+  // a query goes to the search service: nothing that looks like a secret leaves in it, and the reason says what it looked like
+  const shaped = secretShape(String(input.query ?? ""), { free: true });
+  if (shaped)
+    raise(
+      ctx,
+      "validation.bad_input",
+      `That search looks like it contains ${shaped}. Secrets are never sent to a search service.`,
     );
   const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
   if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);

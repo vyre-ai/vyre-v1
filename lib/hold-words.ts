@@ -86,12 +86,26 @@ export function verbPhrase(words: string): string {
 }
 
 /** The address a link points at, as a person says it: "example.com". */
+/** For a held `chrome_read`: the host, and the whole address as the card shows it (control and bidi characters written out). Null when it is not a web address. */
+export function webReadParts(input: Obj | undefined): { host: string; address: string } | null {
+  const url = str(obj(input)["url"]);
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return { host: u.hostname.replace(/^www\./, ""), address: visibleAddress(url) };
+  } catch {
+    return null;
+  }
+}
+
 /** An address as a card shows it: every control, zero-width and bidi-direction character is written out as its code, so it can neither hide nor reorder what is read. */
 export function visibleAddress(raw: string): string {
-  return raw.replace(
-    /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u2028-\u202e\u2060-\u206f\ufeff]/g,
-    (c) => `[U+${c.charCodeAt(0).toString(16).toUpperCase().padStart(4, "0")}]`,
-  );
+  // every control and format character (Unicode Cc and Cf: bidi marks and overrides, zero-width, the Arabic letter mark, tag characters), line and paragraph separators, private-use characters and variation
+  // selectors is written out as its code, so none of them can hide or reorder what is read
+  return raw.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\u180e\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu, (c) => {
+    const code = c.codePointAt(0) ?? 0;
+    return `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+  });
 }
 
 export function hostOfLink(raw: string): string {

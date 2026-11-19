@@ -95,3 +95,12 @@ test("a held read of a web page names the host, then the whole address: never cu
     );
   assert.equal(HOLD_PHRASES["computers.chrome.read"], "read a web page it chose itself");
 });
+
+test("every control and format character is written out on a card: bidi marks, the Arabic letter mark, tag characters, variation selectors, separators", () => {
+  const nasty = "https://a.example/p\u061Cq\u2066r\u2069s\u{E0041}t\uFE0Fu\u2028v\u{E0100}w\u00ADx\uE000y";
+  const shown = wantsFromInput("computers.chrome.read", { url: nasty })!;
+  assert.ok(!/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\uFE0F\u{E0100}]/u.test(shown), "none reaches the card as itself");
+  for (const code of ["061C", "2066", "2069", "E0041", "FE0F", "2028", "E0100", "00AD", "E000"])
+    assert.ok(shown.includes(`[U+${code}]`), code);
+  assert.ok(shown.includes("pqrs") === false && shown.includes("p[U+061C]q"), shown);
+});
