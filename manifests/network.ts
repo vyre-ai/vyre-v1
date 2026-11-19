@@ -95,6 +95,7 @@ export default defineManifest({
       {
         in: { mode: t.enm("own_domain", "relay") },
         out: { address: t.str() },
+        gate: { act: "send", when: "actor.kind != 'person'" },
         perm: "server.network",
         level: "manage",
         risk: "high",

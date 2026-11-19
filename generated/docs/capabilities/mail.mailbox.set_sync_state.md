@@ -1,6 +1,6 @@
 # mail.mailbox.set_sync_state
 
-A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings
+A connection reports its sign-in lost (error) or working again (syncing)
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ A connection reports that its sign-in was lost (Needs attention) or works again 
 | Grant level | use |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | none |
+| Gate | send when mail.non_sync_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

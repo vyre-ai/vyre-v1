@@ -37,7 +37,7 @@ type Out = {
   domains: Array<{
       id: string;
       name: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
       spf: "pass" | "fail" | "pending";
       dkim: "pass" | "fail" | "pending";
       dmarc: "pass" | "fail" | "pending";

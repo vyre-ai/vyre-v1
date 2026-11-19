@@ -11,7 +11,7 @@ Set the hours of a number and what happens outside them
 | Grant level | manage |
 | Risk | medium |
 | Resource | number (/numberId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

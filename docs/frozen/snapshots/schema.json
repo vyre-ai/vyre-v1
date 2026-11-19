@@ -15,6 +15,7 @@
     "schema.restore_field@1": "b3eff9f33b43705479e80fee82d37bc99fde83440da2d28e3126c40915019fa4",
     "schema.sensitivity.scan@1": "fd7e4d52835fde7ebb8a9bcaab1a8c72b52019f03a220b05772d6af0ee3f7137",
     "schema.set_label@1": "4fda783c9af552e55e9684026235883dc19688a0c239df83eb80d5496ce6f856",
+    "schema.set_mergeable@1": "bf7065d2a20ac4cf741c9eeec333302e3eba4e3b02235889d1c529bb4798f0a9",
     "schema.trash.list@1": "31657a99e2f8e62812976b610245df2e1fd56aef059a0439e4aac3cc4858e58f",
     "schema.types.get@1": "3f506dddbcf654abe9d708807a67a2f94033464217cfadd5de692e6b105edd59",
     "schema.types.list@1": "401ea2d45ed576406007aba750d73ab1f642278cd29b10357650baa3e13386cb",

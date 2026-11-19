@@ -71,10 +71,10 @@ export default defineManifest({
       "Contacts",
       "user",
       [
-        field("name", "text", "Name", { required: true }),
-        field("title", "text", "Job title"),
-        field("email", "email", "Email"),
-        field("phone", "phone", "Phone"),
+        field("name", "text", "Name", { required: true, options: { mergeable: true } }),
+        field("title", "text", "Job title", { options: { mergeable: true } }),
+        field("email", "email", "Email", { options: { mergeable: true } }),
+        field("phone", "phone", "Phone", { options: { mergeable: true } }),
         field("company", "relation", "Company", { options: { target: "company", inverse: "contacts" } }),
         field("owner", "person", "Owner", { default: { expr: "actor.id" } }),
         field("deliverability", "choice", "Deliverability", {
@@ -129,9 +129,9 @@ export default defineManifest({
       "Companies",
       "building",
       [
-        field("name", "text", "Name", { required: true }),
-        field("website", "url", "Website"),
-        field("phone", "phone", "Phone"),
+        field("name", "text", "Name", { required: true, options: { mergeable: true } }),
+        field("website", "url", "Website", { options: { mergeable: true } }),
+        field("phone", "phone", "Phone", { options: { mergeable: true } }),
         field("address", "address", "Address"),
         field("owner", "person", "Owner", { default: { expr: "actor.id" } }),
         field("contacts", "relation", "People", { options: { target: "contact", inverse: "company" } }),

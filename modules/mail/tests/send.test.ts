@@ -519,7 +519,8 @@ test("a Personal Automation runs as its owner and sends from their own Gmail; a 
 });
 
 test("sending needs use of the mailbox and comms.shared_send on a shared inbox; an agent needs what its person needs", async () => {
-  const shared = rig({ deniedPerms: ["comms.shared_send"] });
+  // without comms.shared_send and with no share of the inbox: refused (a share of it is enough: send.sender.test.ts)
+  const shared = rig({ deniedPerms: ["comms.shared_send"], denied: new Set(["mbx_hello"]) });
   await refused(send(shared.ctx, sendIn({ mailboxId: "mbx_hello" })), "permission.no_grant");
   assert.equal((await send(shared.ctx, sendIn({ mailboxId: "mbx_maya", route: "space_domain" }))).status, "sent");
 

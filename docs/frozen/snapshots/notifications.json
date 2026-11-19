@@ -8,7 +8,7 @@
     "notifications.counts@1": "2d7560bb69e5be98a645fbd90e7fddd00f8e51b6aeee345023c45f50b9c1d423",
     "notifications.delegate.get@1": "75875596657feaf2a1095c80efe94d1cc5e71bfd68d2bd2910821caf302530ee",
     "notifications.delegate.resolve@1": "18633405b9a2207db64e778bd8a1e820056e2444295469447cb324432221563d",
-    "notifications.delegate.set@1": "fb2148ab0e325c7f7d00fcbdfcc506234374a6cd6be6c221252e75cc2772ff32",
+    "notifications.delegate.set@1": "77e7d05cda500a5d1e27e1a9d3f7788bb694eac303d1555a659ec1cc636eac70",
     "notifications.digest.collect@1": "28e2253ffc6d674849db008128c8f48b5515293f6b2f22fb37028bafb67454c9",
     "notifications.kind.set_level@1": "dd903414ae87c6e20c679241b78dc51dacbd293fa82c180144c0d14a5891fb01",
     "notifications.kinds.list@1": "80e7e47c6ad33cc6851fa97c2242f308648c325cb24dd669857fd94c329207a8",

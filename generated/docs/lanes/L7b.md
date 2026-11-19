@@ -143,7 +143,7 @@ Capabilities:
 - network.phone_claim (write, grant only, level use)
 - network.phone_release (write, grant only, level use)
 - network.public_hostnames (read, server.network, level view)
-- network.relay_set (write, server.network, level manage)
+- network.relay_set (write, server.network, level manage, gate send)
 - network.server_approve (write, server.network, level manage, gate enroll_node)
 - network.server_decline (write, server.network, level manage)
 - network.server_join_code (write, server.network, level manage)

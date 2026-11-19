@@ -1,6 +1,6 @@
 # inbox.thread_conversation
 
-The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)
+The conversation of an email thread, from its provider thread id
 
 | | |
 |---|---|

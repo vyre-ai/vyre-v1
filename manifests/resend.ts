@@ -70,7 +70,7 @@ const capabilities = [
     in: { name: t.str(), region: t.opt(t.str()) },
     out: { domain: domainRow, records: t.arr(dnsRecord) },
     perm: "comms.domains",
-    gate: quiet("Adds a domain to the Space Resend account; nothing is sent to anyone"),
+    gate: { act: "send", when: "actor.kind != 'person'" },
   }),
   outward("resend.domains.verify", "Ask Resend to verify the published DNS records", {
     in: { providerDomainId: t.str() },

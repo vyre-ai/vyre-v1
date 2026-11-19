@@ -11,7 +11,7 @@ Set who rings, for how long, and whether voicemail with a transcript follows
 | Grant level | manage |
 | Risk | medium |
 | Resource | number (/numberId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

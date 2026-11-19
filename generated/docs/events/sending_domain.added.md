@@ -20,6 +20,6 @@ A sending domain was added
 type Payload = {
   domainId: string;
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
 };
 ```
