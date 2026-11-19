@@ -12,7 +12,15 @@ import type { LayoutChangeEvent } from "react-native";
 import { MenuIcon, useMenu } from "../Menu/index.tsx";
 import { Row } from "../Row/index.tsx";
 import { MarkdownText } from "../stream/MarkdownText.tsx";
-import { blockOfLine, dedentPaste, docToMarkdown, looksLikeMarkdown, markdownToDoc } from "./mdtree.ts";
+import {
+  blockOfLine,
+  dedentPaste,
+  docToMarkdown,
+  looksLikeMarkdown,
+  markdownToDoc,
+  textStyle,
+  withStyle,
+} from "./mdtree.ts";
 import type { PMNode } from "./mdtree.ts";
 import { ChangeCard, DocBar } from "./doc/DocBar.tsx";
 import { chipNode, matchFields } from "./doc/fields.ts";
@@ -701,6 +709,8 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
   const host = useRef<unknown>(null);
   const wrap = useRef<{ getBoundingClientRect?: () => { left: number; top: number } } | null>(null);
   const last = useRef(props.value);
+  // how the file ends its lines and whether it ends with one: written back the same way
+  const fileStyle = useRef(textStyle(props.value));
   // the text the file last held, as far as the other side is concerned (what arrived as `value`): what an incoming change is merged against
   const base = useRef(props.value);
   const cb = useRef(props);
@@ -964,7 +974,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
               cb.current.doc.controller?.set(list);
               cb.current.doc.onChanges?.(list.length);
             }
-            const md = docToMarkdown(e2.getJSON(), mdo());
+            const md = withStyle(docToMarkdown(e2.getJSON(), mdo()), fileStyle.current);
             if (md === last.current) return;
             last.current = md;
             if (!clean) {
@@ -1060,6 +1070,7 @@ function MarkdownEditorEdit(given: MarkdownEditorProps): ReactElement {
     const was = base.current;
     base.current = props.value;
     if (props.value === last.current) return;
+    fileStyle.current = textStyle(props.value);
     const ed = editorRef.current as unknown as {
       state: Parameters<typeof mergeRemote>[0];
       view: { dispatch(tr: unknown): void };

@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { getSchema } from "@tiptap/core";
 import { Plugin, EditorState, TextSelection } from "@tiptap/pm/state";
-import { docToMarkdown, markdownToDoc, nodesToInline, inlineToNodes } from "../ui/src/RichEditor/mdtree.ts";
+import { docToMarkdown, markdownToDoc, nodesToInline, inlineToNodes, textStyle, withStyle } from "../ui/src/RichEditor/mdtree.ts";
 import { markdownExtensions } from "../ui/src/RichEditor/extensions.ts";
 import { chipLook, fieldLabel, missingTags, matchFields, tagsIn } from "../ui/src/RichEditor/doc/fields.ts";
 import {
@@ -25,6 +25,8 @@ const who = { author: "Imran", now: () => T };
 const meta = (a = "Imran"): string => `{>>${a}|${T}<<}`;
 
 const roundtrip = (md: string): string => docToMarkdown(markdownToDoc(md, D), D);
+/** What the page writes back for a file it opened and did not touch: the text in the style it was found. */
+const styled = (md: string): string => withStyle(roundtrip(md), textStyle(md));
 const stateOf = (md: string, track = true): EditorState =>
   EditorState.create({
     schema,
@@ -429,14 +431,14 @@ const HOSTILE: Record<string, string> = {
   "who-and-when never closed": "{++a++}{>>".repeat(10000),
   braces: "{{{{".repeat(25000),
   "a long run of spaces": `a${" ".repeat(100000)}b`,
-  "unclosed bold": `${"**a ".repeat(25000)}b`,
-  "unclosed underscore bold": `x${" __a ".repeat(20000)}y`,
-  "unclosed strike": `${"~~a ".repeat(25000)}b`,
-  "unclosed italic": `${"*a ".repeat(33000)}b`,
-  "unclosed underscore italic": `x${" _a ".repeat(25000)}y`,
+  "unclosed bold": "**a ".repeat(25000),
+  "unclosed underscore bold": " __a ".repeat(20000),
+  "unclosed strike": "~~a ".repeat(25000),
+  "unclosed italic": "*a ".repeat(33000),
+  "unclosed underscore italic": " _a ".repeat(25000),
   "unclosed links": "[a".repeat(50000),
   "links with no end": "[a](x".repeat(20000),
-  "links ending in a space": `${"[a](x".repeat(15000)} y`,
+  "links ending in a space": `${"[a](x".repeat(15000)} `,
   "images with no end": "![a](x".repeat(15000),
   "titles never closed": '[a](x "'.repeat(12000),
   backticks: "`a".repeat(50000),
@@ -444,11 +446,12 @@ const HOSTILE: Record<string, string> = {
   "a long list item": `- a${" ".repeat(100000)}b`,
   "a long quote": `> a${" ".repeat(100000)}b`,
   "a long numbered item": `1. a${" ".repeat(100000)}b`,
-  "a long fence line": `\`\`\`${"a".repeat(100000)}\nx\n\`\`\``,
+  "a long fence line": `\`\`\`${" ".repeat(100000)}x`,
   "a table cell": `| a |\n| --- |\n| ${" ".repeat(100000)}x |`,
   "table separators": `| ${"- |".repeat(30000)}`,
   "openers before a fence, closer after": `${"{++a".repeat(25000)}\n\`\`\`\nx\n\`\`\`\n++}`,
   "a rule": `${"- ".repeat(50000)}x`,
+  "a long fence line, never closed": `\`\`\`js\n${"x ".repeat(50000)}`,
   pipes: "|".repeat(100000),
   "a tag with a long gap": `{${" ".repeat(100000)}x}`,
 };
@@ -730,17 +733,25 @@ test("what the writer keeps exactly, and what it has always normalised, in ordin
     "",
   ];
   for (const t of same) assert.equal(roundtrip(t), t, JSON.stringify(t));
-  // these have always been written in one form: spaces at the ends of a line, CRLF, a tab before indented code, a missing last newline, underscore emphasis
-  const normalised: Array<[string, string]> = [
-    ["a  \nb\n", "a\nb\n"],
-    [" lead\n", "lead\n"],
-    ["trail \n", "trail\n"],
-    ["a\r\nb\r\n", "a\nb\n"],
-    ["last line", "last line\n"],
-    ["*a* **b** _c_ __d__\n", "*a* **b** *c* **d**\n"],
-  ];
+  // a file is written back as it was found, in these ways too
+  const kept = ["a  \nb\n", " lead\n", "trail \n", "a\r\nb\r\n", "a\tb\n\n\tindented\n", "last line", "*a* **b** _c_ __d__\n", "## Title ##\n", "#  Title\n", "- [ ] a\r\n- [x] b\r\n", "a\n\n\nb\n"];
+  for (const t of kept) assert.equal(styled(t), t, JSON.stringify(t));
+  const normalised: Array<[string, string]> = [];
   for (const [from, to] of normalised) {
     assert.equal(roundtrip(from), to, JSON.stringify(from));
     assert.equal(docToMarkdown(markdownToDoc(from)), to, `plain ${JSON.stringify(from)}`);
   }
+});
+
+test("sent texts are kept by size: a long document is not held, the ids still are", () => {
+  const sent: string[] = [];
+  const ids = new Set<string>();
+  noteSent(sent, ids, "x".repeat(150_000), "s1");
+  assert.equal(sent.length, 0);
+  assert.equal(ids.has("s1"), true);
+  noteSent(sent, ids, "a".repeat(90_000), "s2");
+  noteSent(sent, ids, "b".repeat(90_000), "s3");
+  noteSent(sent, ids, "c".repeat(90_000), "s4");
+  assert.ok(sent.reduce((n, t) => n + t.length, 0) <= 200_000);
+  assert.equal(sent[sent.length - 1]?.startsWith("c"), true);
 });

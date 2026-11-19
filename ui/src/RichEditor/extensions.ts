@@ -67,9 +67,16 @@ const Keeps = Extension.create({
           "mdTable",
           "liveBlock",
         ],
-        attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } },
+        attributes: {
+          tight: quiet(false),
+          blanks: { default: 0, rendered: false, keepOnSplit: false },
+          blockId: { default: null, rendered: false, keepOnSplit: false },
+        },
       },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
+      // the text a paragraph or heading was read from, and a fingerprint of its words (mdtree.ts keeps it while the words are unchanged)
+      { types: ["paragraph", "heading"], attributes: { src: quiet(null), ck: quiet(null) } },
+      { types: ["codeBlock"], attributes: { line: quiet(null), lang0: quiet(null), open: quiet(false) } },
       {
         types: ["listItem", "taskItem"],
         attributes: { gap: quiet(false), inline: { default: false, rendered: false, keepOnSplit: false } },

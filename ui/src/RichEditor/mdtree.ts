@@ -477,6 +477,74 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
   return out;
 }
 
+/* ---------- keeping a block as it was written ---------- */
+
+// A paragraph or heading remembers the text it was read from (`src`) and a fingerprint of what it said (`ck`). While the words and marks are still the ones that were read, the block is written back
+// exactly as it was found, so a file is never rewritten by opening it and editing somewhere else: spaces at the ends of lines, hard breaks, `_emphasis_`, a tab, a heading's closing marks all stay.
+// A block that was edited is written in the editor's own form.
+const MARK_KEYS = ["suggestAdd", "suggestDel", "link", "bold", "italic", "strike", "code"];
+function marksKey(marks: readonly PMMark[] | undefined): string {
+  if (!marks || marks.length === 0) return "";
+  return marks
+    .filter((m) => MARK_KEYS.includes(m.type))
+    .map(
+      (m) =>
+        `${m.type}:${String(m.attrs?.["href"] ?? "")}|${String(m.attrs?.["title"] ?? "")}|${String(m.attrs?.["author"] ?? "")}|${String(m.attrs?.["at"] ?? "")}|${m.attrs?.["sub"] === true ? 1 : 0}`,
+    )
+    .sort()
+    .join(";");
+}
+/** A fingerprint of inline content: the same for what the reader produced and what the editor holds after the same words were typed. */
+export function contentKey(nodes: readonly PMNode[] | undefined): string {
+  let h1 = 0x811c9dc5;
+  let h2 = 0x01000193;
+  const add = (str: string): void => {
+    for (let i = 0; i < str.length; i += 1) {
+      const c = str.charCodeAt(i);
+      h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0;
+      h2 = Math.imul(h2 + c, 0x5bd1e995) >>> 0;
+      h2 ^= h2 >>> 15;
+    }
+  };
+  for (const n of nodes ?? []) {
+    add(
+      n.type === "text"
+        ? `t${marksKey(n.marks)}\u0001`
+        : n.type === "fieldChip"
+          ? `c${marksKey(n.marks)}\u0001${String(n.attrs?.["raw"] ?? "")}\u0001`
+          : `b${n.type}\u0001`,
+    );
+    if (n.type === "text") add(n.text ?? "");
+    add("\u0002");
+  }
+  return `${h1.toString(36)}${h2.toString(36)}`;
+}
+/** The text a block was read from, when it is still the words that were read. */
+const asRead = (b: PMNode, extra = ""): string | null =>
+  typeof b.attrs?.["src"] === "string" && b.attrs["ck"] === `${contentKey(b.content)}${extra}`
+    ? (b.attrs["src"] as string)
+    : null;
+
+/** How a file ends its lines and whether it ends with one: the editor writes a file back in the style it found. */
+export interface TextStyle {
+  crlf: boolean;
+  finalNewline: boolean;
+}
+export function textStyle(md: string): TextStyle {
+  let crlfCount = 0;
+  let total = 0;
+  for (let i = md.indexOf("\n"); i >= 0; i = md.indexOf("\n", i + 1)) {
+    total += 1;
+    if (i > 0 && md.charAt(i - 1) === "\r") crlfCount += 1;
+  }
+  return { crlf: crlfCount > total - crlfCount, finalNewline: md === "" || md.endsWith("\n") };
+}
+export function withStyle(md: string, st: TextStyle): string {
+  let out = md;
+  if (!st.finalNewline && out.endsWith("\n")) out = out.slice(0, -1);
+  return st.crlf ? out.replace(/\n/g, "\r\n") : out;
+}
+
 /* ---------- blocks: markdown to document ---------- */
 
 const FENCE_RE = /^(\s{0,3})(`{3,}|~{3,})([^`]*)$/;
@@ -832,6 +900,15 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
   const out: PMNode[] = [];
   let i = 0;
   let blank = false;
+  // blank lines between this block and the one before (kept when there is more than one)
+  let blankLines = 0;
+  let pendingBlanks: { at: number; n: number } | null = null;
+  const placeBlanks = (): void => {
+    if (pendingBlanks === null || out.length <= pendingBlanks.at) return;
+    const n = out[pendingBlanks.at] as PMNode;
+    n.attrs = { ...(n.attrs ?? {}), blanks: pendingBlanks.n };
+    pendingBlanks = null;
+  };
   const tightNow = (): boolean => !blank && out.length > 0;
   // a block-id comment line leads the block after it; the id is attached once that block exists, and the block keeps how it sat against the one before the comment
   let lead: { id: string; at: number; tight: boolean } | null = null;
@@ -843,9 +920,11 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
   };
   while (i < lines.length) {
     attach();
+    placeBlanks();
     const line = lines[i] ?? "";
     if (isBlank(line)) {
       blank = true;
+      blankLines += 1;
       i += 1;
       continue;
     }
@@ -860,6 +939,8 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
     }
     const tight = tightNow();
     blank = false;
+    if (blankLines > 1 && out.length > 0) pendingBlanks = { at: out.length, n: blankLines };
+    blankLines = 0;
     if (depth === 0) {
       const lv = LIVE_LINE.exec(line);
       if (lv) {
@@ -874,6 +955,7 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
     const fence = FENCE.exec(line);
     if (fence) {
       const ind = (fence[1] ?? "").length;
+      const openLine = line;
       const closer = new RegExp(
         `^\\s{0,3}${(fence[2] ?? "```").charAt(0) === "`" ? "`" : "~"}{${(fence[2] ?? "```").length},}\\s*$`,
       );
@@ -891,7 +973,15 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
       i += closed ? 1 : 0;
       out.push({
         type: "codeBlock",
-        attrs: { language: fence[3] ?? "", tight, fence: fence[2] ?? "```" },
+        attrs: {
+          language: fence[3] ?? "",
+          tight,
+          fence: fence[2] ?? "```",
+          // the opening line as written (spaces between the fence and the language) and whether the fence was ever closed: kept while the language is the same
+          line: openLine === `${fence[2] ?? "```"}${fence[3] ?? ""}` ? null : openLine,
+          lang0: fence[3] ?? "",
+          open: !closed,
+        },
         content: body.length === 0 ? [] : [{ type: "text", text: body.join("\n") }],
       });
       continue;
@@ -907,11 +997,9 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
     }
     const heading = HEADING.exec(line);
     if (heading && !RULE.test(line)) {
-      out.push({
-        type: "heading",
-        attrs: { level: (heading[1] ?? "#").length, tight },
-        content: inlineToNodes(heading[2] ?? ""),
-      });
+      const content = inlineToNodes(heading[2] ?? "");
+      const level = (heading[1] ?? "#").length;
+      out.push({ type: "heading", attrs: { level, tight, src: line, ck: `${contentKey(content)}|${level}` }, content });
       i += 1;
       continue;
     }
@@ -1003,20 +1091,24 @@ function parseBlocks(lines: readonly string[], depth: number): PMNode[] {
       continue;
     }
     const para: string[] = [];
+    const rawLines: string[] = [];
     while (
       i < lines.length &&
       !isBlank(lines[i]) &&
       (para.length === 0 || !startsBlock(lines[i] ?? "", lines[i + 1]))
     ) {
+      rawLines.push(lines[i] ?? "");
       para.push(
         // leading spaces go; trailing spaces go (a closing backslash stays). Written without a pattern: a long run of spaces made the old one cost its length squared
         (lines[i] ?? "").trim(),
       );
       i += 1;
     }
-    out.push({ type: "paragraph", attrs: { tight }, content: inlineToNodes(para.join("\n")) });
+    const content = inlineToNodes(para.join("\n"));
+    out.push({ type: "paragraph", attrs: { tight, src: rawLines.join("\n"), ck: contentKey(content) }, content });
   }
   attach();
+  placeBlanks();
   // a comment with no block after it is kept as it was written
   const left = lead as { id: string; tight: boolean } | null;
   if (left !== null) out.push(raw("html", `<!--b:${left.id}-->`, left.tight));
@@ -1054,9 +1146,12 @@ function indentLines(text: string, pad: string, first: string): string {
 function blockText(b: PMNode): string {
   switch (b.type) {
     case "paragraph":
-      return nodesToInline(b.content);
+      return asRead(b) ?? nodesToInline(b.content);
     case "heading":
-      return `${"#".repeat(Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1))))} ${nodesToInline(b.content)}`.trimEnd();
+      return (
+        asRead(b, `|${Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1)))}`) ??
+        `${"#".repeat(Math.min(6, Math.max(1, Number(b.attrs?.["level"] ?? 1))))} ${nodesToInline(b.content)}`.trimEnd()
+      );
     case "horizontalRule":
       return String(b.attrs?.["mark"] ?? "---");
     case "rawBlock":
@@ -1070,7 +1165,13 @@ function blockText(b: PMNode): string {
       const longest = (body.match(/`{3,}/g) ?? []).reduce((a, x) => Math.max(a, x.length), 2);
       const fence = String(b.attrs?.["fence"] ?? "```");
       const f = fence.startsWith("~") ? fence : "`".repeat(Math.max(fence.length, longest + 1));
-      return `${f}${String(b.attrs?.["language"] ?? "")}\n${body}${body === "" ? "" : "\n"}${f}`;
+      const lang = String(b.attrs?.["language"] ?? "");
+      const head =
+        typeof b.attrs?.["line"] === "string" && b.attrs["lang0"] === lang && f === fence
+          ? b.attrs["line"]
+          : `${f}${lang}`;
+      if (b.attrs?.["open"] === true) return `${head}${body === "" ? "" : `\n${body}`}`;
+      return `${head}\n${body}${body === "" ? "" : "\n"}${f}`;
     }
     case "blockquote":
       return blocksToMarkdownBody(b.content ?? [])
@@ -1107,7 +1208,8 @@ function blockText(b: PMNode): string {
 function blocksToMarkdownBody(blocks: readonly PMNode[]): string {
   let out = "";
   for (const [i, b] of blocks.entries()) {
-    if (i > 0) out += b.attrs?.["tight"] === true ? "\n" : "\n\n";
+    if (i > 0)
+      out += b.attrs?.["tight"] === true ? "\n" : "\n".repeat(Math.max(2, Number(b.attrs?.["blanks"] ?? 0) + 1));
     const id = b.attrs?.["blockId"];
     if (typeof id === "string" && id !== "") out += `<!--b:${id}-->\n`;
     out += blockText(b);

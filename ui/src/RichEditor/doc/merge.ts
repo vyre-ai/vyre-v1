@@ -285,11 +285,18 @@ export function isOwnEcho(
 /** The ids the page gave its saves (a few dozen of them are small), and the last two texts sent: whole documents are not kept in numbers. */
 export const IDS_KEEP = 64;
 export const TEXTS_KEEP = 2;
+/** The most characters of sent text kept in all: a long document is not held twice over; the ids still tell its echo from news. */
+export const TEXTS_CHARS = 200_000;
 export function noteSent(sent: string[], ids: Set<string>, text: string, id: string): void {
-  sent.push(text);
   ids.add(id);
-  if (sent.length > TEXTS_KEEP) sent.shift();
   if (ids.size > IDS_KEEP) ids.delete(ids.values().next().value as string);
+  if (text.length > TEXTS_CHARS / 2) {
+    sent.length = 0;
+    return;
+  }
+  sent.push(text);
+  let total = sent.reduce((n, t) => n + t.length, 0);
+  while (sent.length > TEXTS_KEEP || (total > TEXTS_CHARS && sent.length > 1)) total -= (sent.shift() as string).length;
 }
 
 /** The editor's last save as a host remembers it: the text and the id the editor gave it. */
