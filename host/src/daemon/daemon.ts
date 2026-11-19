@@ -1,3 +1,4 @@
+import { sitesAsHost } from "../seams/sites-as-host.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
@@ -5565,7 +5566,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             for (const a of autos) {
               const r = await invoke(
                 "sites.deploy",
-                { siteId: a.siteId, onlyIfChanged: true },
+                { siteId: a.siteId, onlyIfChanged: true, ...(a.head ? { commit: a.head } : {}) },
                 {
                   space: spaceId,
                   principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
@@ -5621,17 +5622,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             deploy: {
               ...(runnerLink ? { runnerLink } : {}),
               take: takeSiteSecret,
-              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item and shares) is done as the host
-              asHost: async (cap, input) => {
-                const r = (await invoke(cap, input, {
+              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item, shares and the owner's task) is done as the host, and only that (seams/sites-as-host.ts)
+              asHost: sitesAsHost((cap, input) =>
+                invoke(cap, input, {
                   space: spaceId,
                   principal: { ...SYSTEM_PRINCIPAL },
                   preAuth: true,
                   origin: "seam",
-                })) as { status?: string; output?: unknown };
-                if (r.status !== "ok") throw new Error(`${cap}: ${r.status ?? "failed"}`);
-                return r.output;
-              },
+                }),
+              ),
               tmp: path.join(paths.root, "site-builds"),
               sitesDomain,
               domainOf: (id) =>

@@ -1,6 +1,6 @@
 # sites.ship
 
-Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on
+Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix
 
 | | |
 |---|---|

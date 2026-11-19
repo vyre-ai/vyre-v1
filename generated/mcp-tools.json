@@ -57416,6 +57416,12 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "fp": {
+            "type": "string"
+          },
           "onlyIfChanged": {
             "type": "boolean"
           },
@@ -58200,7 +58206,7 @@
       "blocks": [],
       "cap": "sites.ship",
       "deferred": false,
-      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
+      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
       "effects": "write",
       "inputSchema": {
         "properties": {

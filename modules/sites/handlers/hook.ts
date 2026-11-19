@@ -482,10 +482,11 @@ function cleanFollow(ctx: Ctx, raw: unknown): string[] {
 
 /**
  * Put a webhook secret in the Vault for this site alone: a folder and an item made for it, found by their ids (kept on the site) and never by a name another member could have taken first. They are shared at View with the site's owner and the person
- * the call works for, and with nobody else (not Everyone): those two can read it to give GitHub, and an agent of theirs can use it by its handle; another member's agent has no grant on it. The handle comes back.
- * Nothing is changed when the Vault cannot take it, or when it cannot be shared with them.
+ * the call works for, and with nobody else (not Everyone). The item is written first, its ids are kept at once, the shares are made on every call (they are the same each time), and only then does the caller seal the site with the same secret: so a retry
+ * after a failure at any step takes the update path and leaves the item and the site agreeing. The item's key carries a digest of the secret, so a replay never brings back another secret.
+ * The owner is asked, in a task, to paste it into GitHub: reading a shared value takes the Reveal permission, which the owner and the admins hold. The handle comes back.
  */
-async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Promise<string> {
+async function keepSecret(ctx: Ctx, site: Row, secret: string, _now: number): Promise<string> {
   const siteId = str(site.id);
   // the folder, the item and the shares are part of the site's action, made by the host (an agent's own vault.share would wait for a person); the audit line names who asked
   const host = routesHost()?.asHost;
@@ -504,29 +505,41 @@ async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Pro
     } catch {
       kept = {};
     }
-    if (kept.itemId && kept.handle) {
+    let folder = kept.folderId;
+    let handle = kept.handle;
+    if (kept.itemId && kept.handle && folder) {
       await call("vault.item.update", {
         itemId: kept.itemId,
         fieldsSet: [{ key: "secret", value: secret, secret: true }],
       });
-      return kept.handle;
+    } else {
+      folder = (
+        (await call("vault.folders.create", {
+          name: `Webhook secret ${siteId}`,
+          scope: "shared",
+          idempotencyKey: `site-hook-folder:${siteId}`,
+        })) as { folder: { id: string } }
+      ).folder.id;
+      const digest = hex(
+        new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret))),
+      ).slice(0, 16);
+      const made = (
+        (await call("vault.item.put", {
+          folderId: folder,
+          name: `${str(site.name)} webhook secret`,
+          kind: "other",
+          fields: [{ key: "secret", value: secret, secret: true }],
+          idempotencyKey: `site-hook-secret:${siteId}:${digest}`,
+        })) as { item: { id: string; handle: string } }
+      ).item;
+      handle = made.handle;
+      // kept at once: a retry after any later failure updates this item and does not make another
+      ctx.db.run(
+        "UPDATE sites_site SET hook_vault = ? WHERE id = ?",
+        JSON.stringify({ folderId: folder, itemId: made.id, handle: made.handle }),
+        siteId,
+      );
     }
-    const folder = (
-      (await call("vault.folders.create", {
-        name: `Webhook secret ${siteId}`,
-        scope: "shared",
-        idempotencyKey: `site-hook-folder:${siteId}`,
-      })) as { folder: { id: string } }
-    ).folder.id;
-    const made = (
-      (await call("vault.item.put", {
-        folderId: folder,
-        name: `${str(site.name)} webhook secret`,
-        kind: "other",
-        fields: [{ key: "secret", value: secret, secret: true }],
-        idempotencyKey: `site-hook-secret:${siteId}`,
-      })) as { item: { id: string; handle: string } }
-    ).item;
     for (const person of new Set([str(site.owner), ctx.actingFor ?? ""].filter((x) => x.startsWith("usr_"))))
       await call("vault.share", {
         resource: { type: "vault_folder", id: folder },
@@ -534,17 +547,21 @@ async function keepSecret(ctx: Ctx, site: Row, secret: string, now: number): Pro
         level: "view",
         idempotencyKey: `site-hook-share:${siteId}:${person}`,
       });
-    ctx.db.run(
-      "UPDATE sites_site SET hook_vault = ? WHERE id = ?",
-      JSON.stringify({ folderId: folder, itemId: made.id, handle: made.handle }),
-      siteId,
-    );
-    return made.handle;
+    // someone has to give GitHub the new secret: the owner can open the item and read it
+    if (str(site.owner).startsWith("usr_"))
+      await call("tasks.create", {
+        title: `Paste the new webhook secret into GitHub for ${visibleText(str(site.name), 60)}`,
+        summary: `An agent set up the webhook for this site. Open the Vault item "${visibleText(str(site.name), 60)} webhook secret", copy the secret, and paste it into the webhook's settings on GitHub.`,
+        assigned: { kind: "person", id: str(site.owner) },
+        source: { kind: "manual", id: siteId },
+        idempotencyKey: `site-hook-task:${siteId}:${hex(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret)))).slice(0, 16)}`,
+      }).catch(() => undefined);
+    return handle as string;
   } catch {
     return fail(
       ctx,
       "validation.precondition_failed",
-      "The new secret could not be kept in the Vault for this site, so nothing was changed. A person can make it.",
+      "The new secret could not be kept in the Vault for this site. Nothing was turned on. Try again, or ask a person to make it.",
     );
   }
 }

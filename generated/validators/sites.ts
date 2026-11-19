@@ -788,6 +788,8 @@ if ("siteId" in o6080) lf(o6080["siteId"], p + "/siteId", e, L53);
 if ("source" in o6080) d_s_f29133e1e5(o6080["source"], p + "/source", e);
 if ("wait" in o6080) lf(o6080["wait"], p + "/wait", e, L3);
 if ("onlyIfChanged" in o6080) lf(o6080["onlyIfChanged"], p + "/onlyIfChanged", e, L3);
+if ("commit" in o6080) lf(o6080["commit"], p + "/commit", e, L1);
+if ("fp" in o6080) lf(o6080["fp"], p + "/fp", e, L1);
 }
 }
 }

@@ -37800,6 +37800,8 @@ export type SitesDeployIn = {
   };
   wait?: boolean;
   onlyIfChanged?: boolean;
+  commit?: string;
+  fp?: string;
 };
 export type SitesDeployOut = {
   deployment: {

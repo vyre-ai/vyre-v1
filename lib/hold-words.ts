@@ -287,9 +287,12 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
   // a production deploy held for a person: the reason for this hold, with the site's branch and the keys' names. Uploaded files are held for being other files; a repo for the branch that anyone who can push to can use.
   if (cap === "sites.deploy" && n.site && !obj(obj(input)["source"])["repo"]) {
     const keys = n.site.keys.length > 0 ? listNames(n.site.keys) : "its keys";
+    // a card made over a commit says which: the yes deploys that commit
+    const sha = obj(input)["commit"];
+    const at = typeof sha === "string" && /^[0-9a-f]{40}$/.test(sha) ? ` at ${sha.slice(0, 7)}` : "";
     return n.site.upload
       ? `deploy the files now in ${n.site.name}, which holds ${keys}`
-      : `deploy ${n.site.name}: anyone who can push to ${n.site.branch || "its branch"} can use ${keys}. Protect the branch to deploy without asking`;
+      : `deploy ${n.site.name}${at}: anyone who can push to ${n.site.branch || "its branch"} can use ${keys}. Protect the branch to deploy without asking`;
   }
   if (cap === "sites.webhook_set" && n.site && obj(input)["rotate"] === true)
     return `rotate the webhook secret for ${n.site.name}; GitHub must be given the new one`;

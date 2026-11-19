@@ -377,7 +377,14 @@ export default defineManifest({
       "sites.deploy",
       "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       {
-        in: { siteId: id.site, source: t.opt(source), wait: t.opt(t.bool()), onlyIfChanged: t.opt(t.bool()) },
+        in: {
+          siteId: id.site,
+          source: t.opt(source),
+          wait: t.opt(t.bool()),
+          onlyIfChanged: t.opt(t.bool()),
+          commit: t.opt(t.str()),
+          fp: t.opt(t.str()),
+        },
         out: { deployment: dep },
         on: ["site", "/siteId"],
         gate: { act: "send", when: "sites.deploy_gate(input)" },
@@ -390,7 +397,7 @@ export default defineManifest({
     ),
     write(
       "sites.ship",
-      "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on",
+      "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
       {
         in: {
           siteId: t.opt(id.site),

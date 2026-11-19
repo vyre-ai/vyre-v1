@@ -2012,9 +2012,14 @@ test("a new webhook secret an agent makes goes into the Vault item made for that
     const rotated = await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
     assert.equal(rotated.secret, undefined);
     assert.equal(rotated.vault, "#Hooked_webhook_secret");
-    assert.deepEqual(
-      calls.map((c) => c.cap),
-      ["vault.item.update"],
+    assert.equal(calls[0]!.cap, "vault.item.update");
+    assert.ok(
+      calls.slice(1).every((c) => c.cap === "vault.share"),
+      "then the same shares again",
+    );
+    assert.equal(
+      calls.some((c) => c.cap === "vault.folders.create" || c.cap === "vault.item.put"),
+      false,
     );
     assert.equal(calls[0]!.input["itemId"], "vit_site");
     // a person is shown it, and nothing goes to the Vault
@@ -2038,7 +2043,10 @@ test("a new webhook secret an agent makes goes into the Vault item made for that
       if (cap === "vault.share") throw new Error("held for a person");
       return vault(cap, {});
     };
-    await assert.rejects(() => h["sites.webhook_set"]!(agent, { siteId: fresh, enabled: true }), /nothing was changed/);
+    await assert.rejects(
+      () => h["sites.webhook_set"]!(agent, { siteId: fresh, enabled: true }),
+      /Nothing was turned on/,
+    );
     assert.equal(
       (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", fresh)[0] as { hook_secret: unknown }).hook_secret,
       null,
@@ -2349,10 +2357,36 @@ test("when the task of a waiting deploy is answered its row goes: a yes and an e
     recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_z");
     await resolve("gate.expired", "tsk_z");
     assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_z").length, 0, "an expiry clears it");
-    // what is older than 30 days is forgotten, and a branch written with hiding characters is shown escaped
-    w.sdb.run("UPDATE sites_push SET failed_at = ? WHERE delivery_id = ?", Date.now() - 31 * 86_400_000, "tsk_x");
-    await autoDeployTargets(w.ctx, headOf);
-    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_x").length, 0);
+    // a failure older than 30 days is forgotten; a commit a person denied stays denied for good
+    recordDeployFailure(
+      w.ctx,
+      siteId,
+      "main",
+      "The deploy could not run. The log says more.",
+      "1".repeat(40),
+      "tsk_old",
+    );
+    w.sdb.run(
+      "UPDATE sites_push SET failed_at = ? WHERE delivery_id IN (?, ?)",
+      Date.now() - 31 * 86_400_000,
+      "tsk_old",
+      "tsk_x",
+    );
+    head = X;
+    assert.equal(await asked(), 0, "the denied commit is still denied after a month");
+    assert.equal(
+      w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_old").length,
+      0,
+      "an old failure is forgotten",
+    );
+    assert.equal(w.sdb.all("SELECT 1 FROM sites_push WHERE delivery_id = ?", "tsk_x").length, 1);
+    // a head that cannot be read blocks only a card that still waits, never a later commit
+    await resolve("gate.expired", "tsk_y");
+    head = Y;
+    recordDeployFailure(w.ctx, siteId, "main", why, Y, "tsk_u");
+    await resolve("gate.denied", "tsk_u");
+    const unreadable = async () => (await autoDeployTargets(w.ctx, async () => ({ head: null, changed: true }))).length;
+    assert.equal(await unreadable(), 1, "a denied card does not block a head nobody could read");
     recordDeployFailure(w.ctx, siteId, `main${String.fromCodePoint(0x202e)}x\n`, why, X, "tsk_w");
     assert.equal(
       (w.sdb.all("SELECT branch FROM sites_push WHERE delivery_id = ?", "tsk_w")[0] as { branch: string }).branch,
@@ -2393,9 +2427,12 @@ test("the webhook secret's Vault folder, item and shares are made by the host as
     const on = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
     assert.equal(on.vault, "#Hooked_webhook_secret", "an agent's first enable is not stopped by its own share hold");
     assert.deepEqual(
-      hostCalls.map((c) => c.cap),
-      ["vault.folders.create", "vault.item.put", "vault.share", "vault.share"].slice(0, hostCalls.length),
+      hostCalls.map((c) => c.cap).filter((c, i, all) => all.indexOf(c) === i),
+      ["vault.folders.create", "vault.item.put", "vault.share", "tasks.create"],
     );
+    const task = hostCalls.find((c) => c.cap === "tasks.create")!.input;
+    assert.match(String(task["title"]), /^Paste the new webhook secret into GitHub for Hooked$/);
+    assert.deepEqual((task["assigned"] as { kind: string }).kind, "person");
     const shared = hostCalls
       .filter((c) => c.cap === "vault.share")
       .map((c) => (c.input["subject"] as { id: string }).id);
@@ -2428,5 +2465,153 @@ test("a branch with a slash in its name is read under its own encoded name in th
     assert.ok(asked.includes("/branches/release%2F2026-11/protection"), asked.join(" "));
   } finally {
     w.done();
+  }
+});
+
+test("a failure at any step of keeping the webhook secret leaves the Vault item and the site agreeing once it is tried again", async () => {
+  const items: Record<string, string> = {};
+  let failAt: string | null = null;
+  let putKeys: string[] = [];
+  const w = world({
+    asHost: async (cap, input) => {
+      const i = input as Record<string, unknown>;
+      if (failAt === cap) {
+        failAt = null;
+        throw new Error(`${cap} failed`);
+      }
+      if (cap === "vault.folders.create") return { folder: { id: "vfd_site" } };
+      if (cap === "vault.item.put") {
+        putKeys.push(String(i["idempotencyKey"]));
+        const field = (i["fields"] as { value: string }[])[0]!;
+        items["vit_site"] = field.value;
+        return { item: { id: "vit_site", handle: "#Hooked_webhook_secret" } };
+      }
+      if (cap === "vault.item.update") {
+        items[String(i["itemId"])] = (i["fieldsSet"] as { value: string }[])[0]!.value;
+        return {};
+      }
+      return {};
+    },
+  });
+  try {
+    const agent = { ...w.ctx, principal: { kind: "agent", id: "agt_x" }, actingFor: "usr_boss" } as typeof w.ctx;
+    const agree = (siteId: string): void => {
+      const sealed = (
+        w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: string | null }
+      ).hook_secret;
+      assert.ok(sealed, "the site has a secret");
+      assert.equal(
+        items["vit_site"],
+        new TextDecoder().decode(w.ctx.seal.unseal(JSON.parse(sealed))),
+        "the item and the site hold one secret",
+      );
+    };
+    for (const step of ["vault.folders.create", "vault.item.put", "vault.share", "tasks.create"]) {
+      for (const k of Object.keys(items)) delete items[k];
+      putKeys = [];
+      const siteId = await w.makeRepo(`Hooked ${step}`);
+      failAt = step;
+      // the first try either fails (steps before the site is sealed) or goes through (the task is only a request)
+      const first = await h["sites.webhook_set"]!(agent, { siteId, enabled: true }).then(
+        () => "ok",
+        () => "failed",
+      );
+      assert.equal(first, step === "tasks.create" ? "ok" : "failed", step);
+      if (first === "failed")
+        assert.equal(
+          (w.sdb.all("SELECT hook_secret FROM sites_site WHERE id = ?", siteId)[0] as { hook_secret: unknown })
+            .hook_secret,
+          null,
+          "the site was not turned on with a secret the item does not hold",
+        );
+      // the retry
+      const again = await h["sites.webhook_set"]!(agent, { siteId, enabled: true });
+      assert.equal(again.enabled, true, step);
+      agree(siteId);
+      // and a rotation after it
+      await h["sites.webhook_set"]!(agent, { siteId, rotate: true });
+      agree(siteId);
+    }
+    assert.ok(
+      putKeys.every((k) => /^site-hook-secret:[^:]+:[0-9a-f]{16}$/.test(k)),
+      "the item's key carries a digest of its secret",
+    );
+  } finally {
+    w.done();
+  }
+});
+
+test("a named commit is built only when it is on the branch, against a real git remote: the commit the card named, not the branch's newest; a commit of another branch is refused", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-pin-"));
+  const bare = path.join(base, "remote.git");
+  const work = path.join(base, "work");
+  const git = (cwd: string, ...a: string[]): string =>
+    execFileSync("git", a, {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "t",
+        GIT_AUTHOR_EMAIL: "t@e.x",
+        GIT_COMMITTER_NAME: "t",
+        GIT_COMMITTER_EMAIL: "t@e.x",
+      },
+    }).trim();
+  const saved = {
+    c: process.env["GIT_CONFIG_COUNT"],
+    k: process.env["GIT_CONFIG_KEY_0"],
+    v: process.env["GIT_CONFIG_VALUE_0"],
+  };
+  try {
+    fs.mkdirSync(bare);
+    git(bare, "init", "--bare", "-b", "main", ".");
+    fs.mkdirSync(work);
+    git(work, "init", "-b", "main", ".");
+    const commit = (name: string): string => {
+      fs.writeFileSync(path.join(work, "index.html"), `<p>${name}</p>`);
+      git(work, "add", ".");
+      git(work, "commit", "-m", name);
+      return git(work, "rev-parse", "HEAD");
+    };
+    const x = commit("x");
+    const y = commit("y");
+    const z = commit("z");
+    git(work, "checkout", "-b", "feature", x);
+    const other = commit("only on feature");
+    git(work, "push", bare, "main", "feature");
+    // the address the site names is served from this local remote
+    process.env["GIT_CONFIG_COUNT"] = "1";
+    process.env["GIT_CONFIG_KEY_0"] = `url.file://${bare}.insteadOf`;
+    process.env["GIT_CONFIG_VALUE_0"] = "https://github.com/acme/app.git";
+    const deps = { call: async () => ({}), token: async () => null, contained: true };
+    // the branch's newest is built when no commit is named
+    const newest = await fetchSource({ repo: "acme/app", branch: "main" }, deps);
+    assert.equal(newest.commit, z);
+    newest.cleanup();
+    // the commit the card named, though the branch has moved past it
+    const pinned = await fetchSource({ repo: "acme/app", branch: "main", commit: y }, deps);
+    assert.equal(pinned.commit, y, "the commit named, not the newest");
+    assert.equal(fs.readFileSync(path.join(pinned.dir, "index.html"), "utf8"), "<p>y</p>");
+    pinned.cleanup();
+    // a commit that is only on another branch is not this branch's reviewed code
+    await assert.rejects(
+      () => fetchSource({ repo: "acme/app", branch: "main", commit: other }, deps),
+      /not on the branch/,
+    );
+    // a commit that does not exist
+    await assert.rejects(
+      () => fetchSource({ repo: "acme/app", branch: "main", commit: "9".repeat(40) }, deps),
+      /not on the branch/,
+    );
+  } finally {
+    for (const [k, v] of [
+      ["GIT_CONFIG_COUNT", saved.c],
+      ["GIT_CONFIG_KEY_0", saved.k],
+      ["GIT_CONFIG_VALUE_0", saved.v],
+    ] as const)
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    fs.rmSync(base, { recursive: true, force: true });
   }
 });

@@ -37,6 +37,8 @@ type In = {
   };
   wait?: boolean;
   onlyIfChanged?: boolean;
+  commit?: string;
+  fp?: string;
 };
 ```
 
@@ -86,6 +88,8 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "commit": "example",
+    "fp": "example",
     "onlyIfChanged": true,
     "siteId": "sit_a1b2c3",
     "source": {

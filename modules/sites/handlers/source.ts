@@ -145,13 +145,23 @@ async function fromRepo(
     r = await git(["clone", "--single-branch", ...(branch ? ["--branch", branch] : []), "--", url, "."], dir, token);
   }
   if (r.code !== 0) throw new SourceError(gitWhy(r.out));
-  // a commit a person approved: the branch may have moved on since, and what they saw is what is built
+  // a commit the call names (the one a card was made over, which a person approved): the branch may have moved on since. It is built only if it is on the branch, within its newest 200 commits: a commit of another branch, or of a pull request, is not
+  // the reviewed code of this one, and the production keys do not go to it.
   if (s.commit) {
     const have = (await git(["rev-parse", "HEAD"], dir, null, 10_000)).out.trim();
     if (have !== s.commit) {
-      const f = await git(["fetch", "--depth", "1", "origin", s.commit], dir, token);
-      const c = f.code === 0 ? await git(["checkout", "--detach", "FETCH_HEAD"], dir, null, 30_000) : f;
-      if (c.code !== 0) throw new SourceError("The commit that was approved can no longer be fetched. Ask again.");
+      const deep = await git(
+        ["fetch", "--depth", "200", "origin", branch ? `refs/heads/${branch}` : "HEAD"],
+        dir,
+        token,
+      );
+      const on =
+        deep.code === 0 &&
+        (await git(["cat-file", "-e", `${s.commit}^{commit}`], dir, null, 10_000)).code === 0 &&
+        (await git(["merge-base", "--is-ancestor", s.commit, "FETCH_HEAD"], dir, null, 10_000)).code === 0;
+      if (!on) throw new SourceError("That commit is not on the branch, or is too far back to build. Ask again.");
+      const c = await git(["checkout", "--detach", s.commit], dir, null, 30_000);
+      if (c.code !== 0) throw new SourceError("That commit could not be built. Ask again.");
     }
   }
   const head = await git(["log", "-1", "--format=%H%n%s"], dir, null, 10_000);

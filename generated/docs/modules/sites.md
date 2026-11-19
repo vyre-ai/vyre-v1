@@ -40,7 +40,7 @@ Requires: nothing.
 - [sites.publish](../capabilities/sites.publish.md): Serve a site that is not public: space or private access, or a password on its own domain
 - [sites.rollback](../capabilities/sites.rollback.md): Serve an earlier build again (the previous, or the one named). Nothing is built
 - [sites.service_identity](../capabilities/sites.service_identity.md): The site service identity and its grants (capped by the owner)
-- [sites.ship](../capabilities/sites.ship.md): Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix. Call again with the siteId to go on
+- [sites.ship](../capabilities/sites.ship.md): Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix
 - [sites.signin_link](../capabilities/sites.signin_link.md): A short-lived link that signs the person asking in to a Space-only site at its own address
 - [sites.staging_password_set](../capabilities/sites.staging_password_set.md): Choose the sealed Vault key that protects staging (shared across a site previews)
 - [sites.status](../capabilities/sites.status.md): Is the port answering? Where it runs, the address, and what is wrong when something is

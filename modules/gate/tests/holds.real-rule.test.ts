@@ -1,10 +1,8 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
-import { wantsFromInput } from "../../../lib/hold-words.ts";
+import { holdShort, wantsFromInput } from "../../../lib/hold-words.ts";
 import {
-  heldGateCommit,
   heldGateFp,
-  peekGateCommit,
   noteGateFp,
   peekGateFp,
   sourceKeyHost,
@@ -1757,33 +1755,34 @@ test("an agent's rotate or enable of a webhook secret that is live is held for a
   );
 });
 
-test("a card pins the commit the hold was made over: hold on X, push Y, the yes deploys X, and Y then gets a card of its own", async () => {
+test("a card carries the commit it was made over in the held input: hold on X, hold on Z, the yes on X builds X (nothing in memory), and Z keeps its own card", async () => {
   const s = siteWorld();
   const X = "b".repeat(40);
-  const Y = "c".repeat(40);
+  const Z = "d".repeat(40);
   s.github("open");
   const siteId = await s.site("App", { repo: "https://github.com/acme/app.git", branch: "main" });
   s.store(siteId, STORED.name, STORED.handle);
-  const call = { siteId, wait: true };
+  const callX = { siteId, onlyIfChanged: false, commit: X };
+  const callZ = { siteId, onlyIfChanged: false, commit: Z };
   const t1 = { traceId: "f1".repeat(16), spanId: "01".repeat(8) };
-  s.state.head = X;
-  assert.equal((await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t1 } as never)).status, "held");
-  assert.equal(peekGateCommit(t1, siteId), X, "the card pins the head it was made over");
-  // the branch moves while the card waits
-  s.state.head = Y;
-  const who = [asAgent(), seed("usr_admin")];
+  assert.equal((await rig(s.opts).invoke("sites.deploy", callX, { ...asAgent(), trace: t1 } as never)).status, "held");
+  assert.equal((await rig(s.opts).invoke("sites.deploy", callZ, { ...asAgent(), trace: t1 } as never)).status, "held");
   const def = rig(s.opts).defOf("sites.deploy");
-  const hash = who.map((x) => payloadHash(def, call, x)).find((x) => heldGateCommit(x) !== null);
-  assert.ok(hash, "the hold kept the commit");
-  assert.equal(heldGateCommit(hash!), X);
-  const runner = who.find((x) => payloadHash(def, call, x) === hash)!;
+  const hashes = [callX, callZ].map((c) => payloadHash(def, c, asAgent()));
+  assert.notEqual(hashes[0], hashes[1], "each commit is its own hold");
+  // the card says which commit
+  assert.match(
+    holdShort("sites.deploy", callX, { site: { name: "App", branch: "main", keys: ["Crm_Key"] } }),
+    /deploy App at bbbbbbb:/,
+  );
+  // the yes on X: the resumed call carries X in its input and builds exactly X, with no note left in memory for it
   const token = `apv_${Buffer.from(JSON.stringify({ keyId: "k", nonce: "n", bytes: "b" })).toString("base64url")}`;
   const resumed = rig({
     ...s.opts,
-    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash })),
+    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash: hashes[0] })),
   });
   const t2 = { traceId: "f2".repeat(16), spanId: "02".repeat(8) };
-  const yes = await resumed.invoke("sites.deploy", call, { ...runner, trace: t2, approval: token } as never);
+  const yes = await resumed.invoke("sites.deploy", callX, { ...asAgent(), trace: t2, approval: token } as never);
   assert.equal(yes.status, "ok");
   const lastCommit = () =>
     (
@@ -1792,9 +1791,36 @@ test("a card pins the commit the hold was made over: hold on X, push Y, the yes 
         siteId,
       )[0] as { commit_sha: string }
     ).commit_sha;
-  assert.equal(lastCommit(), X, "the commit the card was made over is the one deployed");
-  // Y is a commit nobody saw: it holds again, with a card pinned to Y
-  const t3 = { traceId: "f3".repeat(16), spanId: "03".repeat(8) };
-  assert.equal((await rig(s.opts).invoke("sites.deploy", call, { ...asAgent(), trace: t3 } as never)).status, "held");
-  assert.equal(peekGateCommit(t3, siteId), Y);
+  assert.equal(lastCommit(), X, "the commit the card named is the one deployed");
+  // Z's yes does not come from X's: its token is for another hash
+  const wrong = rig({
+    ...s.opts,
+    unseal: () => new TextEncoder().encode(JSON.stringify({ v: 1, exp: Date.now() + 60_000, hash: hashes[0] })),
+  });
+  assert.equal(
+    (await wrong.invoke("sites.deploy", callZ, { ...asAgent(), trace: t2, approval: token } as never)).status,
+    "held",
+    "X's approval does not let Z through",
+  );
+});
+
+test("a non-person's deploy names the files it is for: a claim that is not what the Gate reads is held, one that is builds exactly those files", async () => {
+  const s = siteWorld();
+  const siteId = await s.site("Up", { folderId: "fld_up" }, false);
+  await s.deployUpload(siteId);
+  s.store(siteId, STORED.name, STORED.handle);
+  const real = await s.fp();
+  s.state.fetchFp = real;
+  const out = (r: unknown) =>
+    (r as { output?: { deployment?: { state?: string; problem?: string } } }).output?.deployment;
+  // the claim is what the Gate reads: free, and built
+  const ok = await rig(s.opts).invoke("sites.deploy", { siteId, wait: true, fp: real }, asAgent());
+  assert.equal(out(ok)?.state, "ready", String(out(ok)?.problem));
+  // a claim of other files is held, whatever the files are
+  assert.equal(
+    (await rig(s.opts).invoke("sites.deploy", { siteId, wait: true, fp: "0".repeat(32) }, asAgent())).status,
+    "held",
+  );
+  // a person's own call says nothing the Gate checks
+  assert.equal((await rig(s.opts).invoke("sites.deploy", { siteId, wait: true }, seed("usr_admin"))).status, "ok");
 });

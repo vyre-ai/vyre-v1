@@ -31,7 +31,7 @@ import {
   reqStr,
   str,
 } from "./deploy.ts";
-import { takeGateCommit, takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
+import { takeGateFp, uploadFingerprint, wasApproved } from "../../../lib/key-target.ts";
 import { looksSecret } from "./secrets.ts";
 import { sitePlan } from "./plan.ts";
 import type { SitePlan } from "./plan.ts";
@@ -1166,11 +1166,15 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
     ).length;
   // uploaded files: the files the Gate judged for this call when it read them, else (a person's call, or a site with no key) what they are now, read as the caller; the build checks what it fetches against it
   const gateFp = takeGateFp(ctx.trace, siteId);
-  // the commit the card was made over, when a person approved a held deploy: that is what is built, not whatever the branch has become
-  const pinned = takeGateCommit(ctx.trace, siteId);
+  // the files the call names (the Gate checked a non-person's against what it reads, so a caller cannot name others); a card made over them carries it in the held input
+  const inputFp = ((f) => (typeof f === "string" && /^[0-9a-f]{32}$/.test(f) ? f : null))(o["fp"]);
+  // the commit the call names (a tick asks for the commit it saw, and a card made over it carries it in the held input, so it survives a restart): that commit is built, and a caller cannot name one that is not on the branch (the fetch refuses)
+  const pinned = ((c) => (typeof c === "string" && /^[0-9a-f]{40}$/.test(c) ? c : null))(o["commit"]);
   const expectFp =
     source.folderId || source.fileId
-      ? (gateFp ?? (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
+      ? (inputFp ??
+        gateFp ??
+        (strict ? null : await uploadFingerprint(source, (cap, inp) => ctx.call(cap as never, inp))))
       : null;
   if (optBool(ctx, o, "onlyIfChanged") === true && source.repo) {
     const last = one(
@@ -2452,8 +2456,17 @@ export async function autoDeployTargets(
   }),
 ): Promise<{ siteId: string; as: string; branch: string; head: string | null }[]> {
   const now = Date.now();
-  // what is older than 30 days is forgotten
-  ctx.db.run("DELETE FROM sites_push WHERE action = 'deploy' AND failed_at < ?", now - 30 * 24 * 60 * 60 * 1000);
+  // a failure older than 30 days is forgotten, but a commit a person denied stays denied: only the newest 20 of those per site are kept
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE action = 'deploy' AND error NOT LIKE ? AND failed_at < ?",
+    `${DENIED_PREFIX}%`,
+    now - 30 * 24 * 60 * 60 * 1000,
+  );
+  ctx.db.run(
+    "DELETE FROM sites_push WHERE action = 'deploy' AND error LIKE ? AND id NOT IN (SELECT id FROM sites_push p2 WHERE p2.site_id = sites_push.site_id AND p2.action = 'deploy' AND p2.error LIKE ? ORDER BY p2.failed_at DESC LIMIT 20)",
+    `${DENIED_PREFIX}%`,
+    `${DENIED_PREFIX}%`,
+  );
   const out: { siteId: string; as: string; branch: string; head: string | null }[] = [];
   for (const a of autoDeploySites(ctx)) {
     const site = (ctx.db.all("SELECT * FROM sites_site WHERE id = ?", a.siteId) as Row[])[0];
@@ -2466,14 +2479,20 @@ export async function autoDeployTargets(
       }),
     );
     if (!seen.changed) continue;
-    const rows = ctx.db.all(
-      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND (error LIKE ? OR error LIKE ?) AND failed_at > ?",
+    // a card that waits holds its commit for a day; a commit a person denied stays denied for good; a head that cannot be read blocks only a card that still waits, never a later commit
+    const waiting = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ? AND failed_at > ?",
       a.siteId,
       `${WAITING_PREFIX}%`,
-      `${DENIED_PREFIX}%`,
       now - WAITING_MS,
     ) as Row[];
-    if (rows.length > 0 && (seen.head === null || rows.some((w) => str(w.sha) === seen.head))) continue;
+    const denied = ctx.db.all(
+      "SELECT sha FROM sites_push WHERE site_id = ? AND action = 'deploy' AND error LIKE ?",
+      a.siteId,
+      `${DENIED_PREFIX}%`,
+    ) as Row[];
+    if (waiting.length > 0 && (seen.head === null || waiting.some((w) => str(w.sha) === seen.head))) continue;
+    if (seen.head !== null && denied.some((w) => str(w.sha) === seen.head)) continue;
     out.push({ ...a, head: seen.head });
   }
   return out;
