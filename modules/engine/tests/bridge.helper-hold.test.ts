@@ -274,3 +274,13 @@ test("a helper that waits for nothing starts as before, and its node is not made
   assert.equal(calls.length, 0);
   assert.ok(s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent"));
 });
+
+test("a helper whose dependency had already failed when its brief arrived is kept and never woken", async () => {
+  const { s, state } = waitingRig("failed");
+  state.dep = "failed";
+  state.me = "failed";
+  await s.say("Write the docs from the numbers.", HELPER);
+  await new Promise((r) => setTimeout(r, 1800));
+  await s.bridge.flush();
+  assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0);
+});
