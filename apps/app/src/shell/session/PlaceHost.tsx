@@ -4,7 +4,7 @@ import { LinkPolicyProvider } from "../../../../../ui/src/reach/index.tsx";
 import { ConnectInlineHost } from "../connect/ConnectInline.tsx";
 import { TalkHost } from "../talk/TalkHost.tsx";
 import { ZonesHost } from "../zones/ZonesHost.tsx";
-import { Component, Suspense, lazy, useCallback, useEffect, useRef } from "react";
+import { Component, Suspense, useCallback, useEffect, useRef } from "react";
 import type { ComponentType, ErrorInfo, ReactElement, ReactNode } from "react";
 import { States } from "../../../../../ui/src/States/index.tsx";
 import { Quiet } from "../../../../../ui/src/States/Quiet.tsx";
@@ -23,36 +23,29 @@ import type { ShellRuntime } from "../providers/runtime.tsx";
 import type { PlaceId } from "../rail/kits.ts";
 
 type PlaceComponent = ComponentType<{ place: string }>;
-const lazies = new Map<string, PlaceComponent>();
-
-function lazyFor(routeId: string): PlaceComponent {
-  let c = lazies.get(routeId);
-  if (!c) {
-    registerShellPlaces();
-    c = lazy(() => loadPlace(routeId));
-    lazies.set(routeId, c);
-  }
-  return c;
-}
-
 const placeComponents = new Map<string, PlaceComponent>();
+/** A place whose module failed to load: the place throws it to its boundary (which offers Try again) instead of asking again in a loop. Cleared by Try again. */
+const failedLoads = new Map<string, unknown>();
 
 /**
- * One component per place for the life of the page, so the place is never remounted when its module finishes loading (a remount threw away what a person had just pressed). It draws the loaded module directly,
- * with no Suspense frame, and the lazy one until then.
+ * One component per place for the life of the page, so the place is never remounted when its module finishes loading (a remount threw away what a person had just pressed). Its element tree is the same
+ * whether the module has arrived or not (Place > the place), so nothing remounts when it does: until then it suspends (the Suspense above draws the quiet mark), and it draws the loaded module directly after.
  */
-function placeFor(routeId: string): PlaceComponent {
+export function placeFor(routeId: string): PlaceComponent {
   registerShellPlaces();
   let c = placeComponents.get(routeId);
   if (!c) {
-    const Lazy = lazyFor(routeId);
     c = function Place(props: { place: string }): ReactElement {
       const loaded = loadedPlace(routeId);
-      if (loaded) {
-        const Loaded = loaded.default;
-        return <Loaded {...props} />;
+      if (!loaded) {
+        if (failedLoads.has(routeId)) throw failedLoads.get(routeId);
+        throw loadPlace(routeId).then(
+          () => undefined,
+          (e: unknown) => void failedLoads.set(routeId, e ?? new Error("place failed to load")),
+        );
       }
-      return <Lazy {...props} />;
+      const Loaded = loaded.default;
+      return <Loaded {...props} />;
     };
     placeComponents.set(routeId, c);
   }
@@ -92,7 +85,10 @@ class PlaceBoundary extends Component<{ place: string; children?: ReactNode }, {
         message="Couldn't draw this page"
         cause="Something went wrong here. The rest of Vyre is fine."
         retryable
-        onRetry={() => this.setState({ failed: false })}
+        onRetry={() => {
+          failedLoads.delete(this.props.place);
+          this.setState({ failed: false });
+        }}
       />
     );
   }
