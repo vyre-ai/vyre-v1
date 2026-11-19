@@ -184,7 +184,9 @@ test("a soft bounce is retried by the host's own schedule, as the host service, 
     await d.schedule!.tick();
     assert.equal(p.emails().length, 2, JSON.stringify(db.all(`SELECT * FROM host_schedule`)));
     assert.deepEqual((JSON.parse(p.emails()[1]!.body ?? "{}") as { to: string[] }).to, ["pat@acme.test"]);
-    const child = (db.all(`SELECT "childId" FROM mail_delivery_child WHERE "rootId" = ?`, original)[0] as { childId: string }).childId;
+    const childRows = db.all(`SELECT "childId" FROM mail_delivery_child WHERE "rootId" = ?`, original) as { childId: string }[];
+    assert.equal(childRows.length, 1, JSON.stringify({ retry: db.all(`SELECT * FROM mail_delivery_retry`), jobs: db.all(`SELECT cap, tries, last_error, state FROM host_schedule`), msgs: db.all(`SELECT id, status, "providerId" FROM mail_message`) }));
+    const child = childRows[0]!.childId;
     const childProvider = String((db.all(`SELECT "providerId" FROM mail_message WHERE id = ?`, child)[0] as { providerId: string }).providerId);
 
     // 4. the provider delivers the retry: the message the person sent is delivered; ticking again sends nothing more
