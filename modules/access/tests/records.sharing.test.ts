@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { putPrincipal } from "../handlers/roles.ts";
-import { audienceSet, recordMarks, share, sharesOf, unshare } from "../handlers/share.ts";
+import { audienceSet, folderNarrow, recordMarks, share, sharesOf, unshare } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
 import { EVERYONE, storeOf } from "../projections.ts";
@@ -398,6 +398,47 @@ test("hanging a folder under a record needs Manage on the folder from any caller
       `${id} is refused`,
     );
   await audienceSet(asService("svc_host"), { resource: folder, follows: "rec_one" });
+});
+
+test("a folder that could not follow its record: the refused caller cannot narrow it either, the host's own service can, and then it is no wider than the people added", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: folder, follows: "rec_one" })), "permission.no_grant");
+  assert.equal(
+    await code(audienceSet(tenant, { resource: folder, audience: "added" })),
+    "permission.no_grant",
+    "the refused caller has no Manage to narrow with",
+  );
+  assert.ok(r.can("usr_dee", folder), "so it stays open to the Space until the host steps in");
+  assert.equal(
+    await code(folderNarrow(tenant, { folderId: "fld_deal" })),
+    "permission.no_grant",
+    "only the host's own service has the safety step",
+  );
+  await folderNarrow({ ...r.ctx, principal: { kind: "service", id: "svc_host" } }, { folderId: "fld_deal" });
+  assert.ok(!r.can("usr_dee", folder), "the host's narrowing closes it to a member who was not added");
+  assert.ok(r.can("usr_ada", folder), "the owner still opens it");
+  assert.equal(
+    await code(
+      audienceSet(
+        { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } },
+        { resource: folder, audience: "space" },
+      ),
+    ),
+    "validation.not_found",
+    "and a tenant's service cannot widen it again: it cannot even see it now",
+  );
 });
 
 test("an agent changes who a type is open to on behalf of an admin, and is refused on behalf of a member without manage; with no one behind it it is refused", async () => {

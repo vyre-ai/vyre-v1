@@ -40,6 +40,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("access.exceptions.remove"),
         set: call("access.exceptions.set"),
       },
+      folder_narrow: call("access.folder_narrow"),
       grants: {
         list: call("access.grants.list"),
         update: call("access.grants.update"),

@@ -608,3 +608,22 @@ test("a hold an agent parked for Alice is Alice's through that agent: Bob asking
   assert.deepEqual(await ids(via(alice.id)), [mine.holdId], "Alice through the agent");
   assert.deepEqual(await ids(via()), [mine.holdId], "the agent's own turn for nobody");
 });
+
+test("an access or admit hold with no person behind it (a service, an Automation step, no actingFor) goes to the Space's admins, never to nobody", async () => {
+  for (const act of ["access", "admit"])
+    for (const who of [
+      { kind: "service" as const, id: "svc_form_x" },
+      { kind: "service" as const, id: `svc_${"a1".repeat(16)}` },
+      { kind: "service" as const, id: "aut_9" },
+    ]) {
+      const h = harness();
+      const r = await park(h, { act, principal: who, actingFor: undefined, decisionId: `dec_${act}_${who.id}` });
+      const row = findHold(h.db, r.holdId)!;
+      assert.deepEqual(row.approver, { kind: "role", id: "rol_admin" }, `${act} by ${who.id}`);
+      assert.ok(r.taskId, "and a task exists for them");
+    }
+  // with a person behind it, the person decides
+  const h = harness();
+  const r = await park(h, { act: "access", principal: bot, actingFor: alice.id });
+  assert.deepEqual(findHold(h.db, r.holdId)!.approver, { kind: "person", id: alice.id });
+});

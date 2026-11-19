@@ -119,7 +119,7 @@ test("every mail capability that writes is held at the Gate for an agent, or is 
 });
 
 test("the host live test names exactly the capabilities mail.configure routes to (it imports no module, so this keeps the two the same)", () => {
-  const text = fs.readFileSync(new URL("../../../host/tests/mail.configure.live.test.ts", import.meta.url), "utf8");
+  const text = fs.readFileSync(new URL("../../gate/tests/holds.real-rule.test.ts", import.meta.url), "utf8");
   const block = /const CALLEES = \[([^\]]*)\]/.exec(text)?.[1] ?? "";
   const named = [...block.matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(named, CALLEES.filter((n) => n !== "mail.setup.test_send").sort());

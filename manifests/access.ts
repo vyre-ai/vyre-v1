@@ -821,6 +821,18 @@ export default defineManifest({
         errors: ["permission.not_contained", "validation.precondition_failed"],
       },
     ),
+    write(
+      "access.folder_narrow",
+      "System: the server closes a Files folder to the people added when it could not follow its record; only the host's own services call it",
+      {
+        ...V,
+        in: { folderId: id.folder },
+        out: { audience },
+        emits: ["grant.created", "grant.revoked", "access.changed"],
+        audit: "always",
+        errors: ["permission.no_grant"],
+      },
+    ),
     read(
       "access.record_marks",
       "For the rows of one record type: which differ from the type (their own audience or direct grants), and whether the caller was given the type or a row by name",

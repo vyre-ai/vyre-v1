@@ -138,15 +138,11 @@ export async function tolerant<T>(ctx: ProjectsCtx, cap: string, input: unknown,
   }
 }
 /**
- * A files folder follows its record: it is open to exactly who may see the record. When the call is refused (a caller without Manage on the folder, a tenant's service) the folder must not stay wider than its record:
- * it is narrowed to the people already added, the refusal is logged, and the person at the record gets a task saying the folder could not follow and why, so it is never a quiet gap. Returns whether it follows.
+ * A files folder follows its record: it is open to exactly who may see the record. When the call is refused (a caller without Manage on the folder, a tenant's service) the folder must not stay wider than
+ * its record, and the caller's own rights cannot narrow it either (the same Manage is needed). So the refusal is written as an event, and the host's own consumer (projects.folder_unfollowed, which
+ * runs as svc_host) narrows the folder, names the original caller in its log line, and tells the owner. Returns whether it follows.
  */
-export async function followRecord(
-  ctx: ProjectsCtx,
-  folderId: string,
-  recordId: string,
-  owner?: string,
-): Promise<boolean> {
+export async function followRecord(ctx: ProjectsCtx, folderId: string, recordId: string): Promise<boolean> {
   if (!ctx.call) return false;
   try {
     await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
@@ -154,31 +150,12 @@ export async function followRecord(
   } catch (e) {
     const why = e instanceof Error ? e.message.slice(0, 200) : codeOf(e);
     ctx.log.warn("projects: a folder could not follow its record", { folderId, recordId, error: why });
-    let narrowed = true;
-    try {
-      await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, audience: "added" });
-    } catch {
-      narrowed = false;
-    }
-    const who = owner ?? (ctx.principal.kind === "person" ? ctx.principal.id : ctx.actingFor);
-    if (who)
-      await tolerant(
-        ctx,
-        "tasks.create",
-        {
-          title: "A files folder could not follow its record",
-          assigned: { kind: "person", id: who },
-          recordId,
-          idempotencyKey: `fld-follow:${folderId}`,
-        },
-        {},
-      );
-    ctx.log.warn(
-      narrowed ? "projects: the folder was narrowed to the people added" : "projects: the folder could not be narrowed",
-      {
-        folderId,
-      },
-    );
+    ctx.emit("project.folder_unfollowed", `folder/${folderId}`, {
+      folderId,
+      recordId,
+      by: ctx.principal.id,
+      why: `${codeOf(e)}: ${why}`.slice(0, 200),
+    });
     return false;
   }
 }

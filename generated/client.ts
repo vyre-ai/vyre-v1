@@ -40,6 +40,7 @@ export function createClient(transport: Transport) {
         remove: call("access.exceptions.remove", 1),
         set: call("access.exceptions.set", 1),
       },
+      folder_narrow: call("access.folder_narrow", 1),
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),
