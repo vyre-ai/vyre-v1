@@ -161,10 +161,11 @@ export async function nodeControl(ctx: RunsCtx, input: In): Promise<unknown> {
           });
         }
       }
-      moved =
-        input.subtree === false
-          ? [moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by }).node]
-          : stopSubtree(ctx, n.id, reason, by);
+      const live = scope.filter((x) => !isTerminal(x.status)).map((x) => x.id);
+      if (input.subtree === false) moveNode(ctx, n.id, "stopped", { why: "stopped", stopReason: reason, by });
+      else stopSubtree(ctx, n.id, reason, by);
+      // the engine's own end of a turn (turn.cancelled, mirrored) may have closed a node before this did: the answer is where each node stands now
+      moved = live.map((id) => getNode(ctx, id));
     }
   } else if (input.action === "pause") {
     if (n.status === "paused") moved = [n];
