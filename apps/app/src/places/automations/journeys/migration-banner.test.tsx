@@ -38,6 +38,10 @@ test("the line: nothing for a Journey that has moved, how far while it moves, wh
     text: "Moving this Journey to its new form: 2 of 5 records done.",
     retry: false,
   });
+  assert.equal(
+    migrationLine({ mode: "migrating", total: 5, done: 2, failed: [{ recordId: "rec_1", error: "x" }] })?.text,
+    "Moving this Journey to its new form: 2 of 5 records done. 1 will be tried again.",
+  );
   assert.deepEqual(migrationLine({ mode: "migrating", total: 5, done: 2, failed: [] }, "the records module is down"), {
     text: "Moving this Journey to its new form stopped: the records module is down",
     retry: true,

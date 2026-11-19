@@ -196,6 +196,7 @@ export default defineManifest({
           stages: t.opt(t.arr(stage)),
           startRule: t.opt(startRule),
           mode: t.opt(t.enm("subject", "pipeline")),
+          useExisting: t.opt(t.bool()),
           recordType: t.opt(id.recordType),
           stageField: t.opt(t.str()),
           variables: t.opt(t.arr(t.obj({ key: t.str(), title: t.str() }))),
@@ -352,7 +353,7 @@ export default defineManifest({
       "journeys.to_pipeline",
       "Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted",
       {
-        in: { ...target, stageField: t.opt(t.str()) },
+        in: { ...target, stageField: t.opt(t.str()), useExisting: t.opt(t.bool()) },
         out: {
           journey: journeyRow,
           total: t.int(),

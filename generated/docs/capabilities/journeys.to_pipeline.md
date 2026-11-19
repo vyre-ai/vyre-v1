@@ -27,6 +27,7 @@ Move a Journey onto its subject type as a pipeline; run again after a stop, noth
 type In = {
   journeyId: string;
   stageField?: string;
+  useExisting?: boolean;
 };
 ```
 
@@ -128,7 +129,8 @@ type Out = {
   "name": "example",
   "input": {
     "journeyId": "jrn_a1b2c3",
-    "stageField": "example"
+    "stageField": "example",
+    "useExisting": true
   },
   "output": {
     "done": 1,

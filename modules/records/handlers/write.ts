@@ -37,7 +37,7 @@ export interface WriteHandlers {
   ): Promise<{ record: RecordRow }>;
   "records.update"(
     ctx: WriteCtx,
-    input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number },
+    input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number; quiet?: boolean },
   ): Promise<{ record: RecordRow }>;
   "records.delete"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ deleted: boolean }>;
   "records.restore"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ record: RecordRow }>;
@@ -175,6 +175,8 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
           fields: changed(keys, rec.data),
           prev: before(keys, prior?.data ?? {}),
           version: rec.version,
+          // a system move (a Journey migration) says so: Automations do not start for it
+          ...(input.quiet === true ? { quiet: true } : {}),
         });
         return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
       }),

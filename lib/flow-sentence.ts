@@ -186,11 +186,21 @@ const quiet = (n: SentenceNode): boolean =>
   (n.key === "code" && !(Array.isArray(n.input?.["hosts"]) && n.input["hosts"].length > 0)) ||
   (n.key === "http_request" && /^(GET|HEAD)$/i.test(String(n.input?.["method"] ?? "GET")));
 
+/** A title without a trailing "(...)" with no ")" inside: one scan from the end, and a title is cut to 400 characters first (a pattern for this was quadratic on a long run of "(" : 15 s for 200 KB). */
+export function withoutTrailingParens(title: string): string {
+  let t = title.length > 400 ? title.slice(0, 400) : title;
+  t = t.trimEnd();
+  if (!t.endsWith(")")) return t;
+  const open = t.lastIndexOf("(");
+  if (open < 0 || t.slice(open + 1, -1).includes(")")) return t;
+  return t.slice(0, open).trimEnd();
+}
+
 /** What one step does, as the middle of a sentence: "email the customer", "create a task for Lena". */
 function doOf(n: SentenceNode, names: SentenceNames): string {
   const title = (n.title ?? "").trim();
   if (title !== "" && !idLike(title)) {
-    const short = title.replace(/\s*\([^)]*\)\s*$/, "").replace(/[.:;]+$/, "");
+    const short = withoutTrailingParens(title).replace(/[.:;]+$/, "");
     return lower(short.length > 64 ? `${short.slice(0, 61).trimEnd()}…` : short);
   }
   const i = n.input ?? {};

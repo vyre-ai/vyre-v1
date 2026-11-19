@@ -48,6 +48,7 @@ test("only what repeats and is large is shared: small properties and the first o
   const d = (name: string, p: unknown) => ({ name, inputSchema: { type: "object", properties: p } }) as never;
   const big = {
     type: "object",
+    required: ["field_0", "field_1"],
     properties: Object.fromEntries(Array.from({ length: 60 }, (_, i) => [`field_${i}`, { type: "string" }])),
   };
   const small = { type: "string" };
@@ -63,6 +64,11 @@ test("only what repeats and is large is shared: small properties and the first o
   assert.deepEqual((out[0]!.inputSchema as { properties: unknown }).properties, { x: big, y: small });
   const b = (out[1]!.inputSchema as { properties: Record<string, { description?: string }> }).properties;
   assert.match(b["x"]!.description!, /same x as a/);
+  assert.deepEqual(
+    (b["x"] as { required?: string[] }).required,
+    ["field_0", "field_1"],
+    "the required names stay on the pointer",
+  );
   assert.deepEqual(b["y"], small);
   assert.deepEqual(
     (out[2]!.inputSchema as { properties: unknown }).properties,

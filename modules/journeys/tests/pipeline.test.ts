@@ -53,20 +53,6 @@ test("a record type has one pipeline", async () => {
   await refused(pipe(h, { name: "Another" }), "validation.duplicate", "type_has_journey");
 });
 
-test("a field that is there already is updated when it cannot be added", async () => {
-  const h = harness();
-  let n = 0;
-  h.callee("schema.apply", (i) => {
-    if (i.ops[0].op === "field.add" && ++n) throw new Error("field exists");
-    return { changeId: "x", applied: 1, items: [] };
-  });
-  await pipe(h, { stageField: "status" });
-  assert.deepEqual(
-    h.only("schema.apply").map((c) => c.input.ops[0].op),
-    ["field.add", "field.update"],
-  );
-});
-
 test("a record enters the pipeline without a Journey record or a channel and moves by writing its own stage field", async () => {
   const h = harness();
   const j = await pipe(h);
@@ -344,7 +330,7 @@ test("after an upgrade the old Journeys move by themselves, one a tick, and then
   assert.deepEqual(await tick(h), []);
 });
 
-test("a Journey that cannot move keeps the reason and is left alone until Retry, which finishes it and clears the reason", async () => {
+test("records that would not move are tried again each tick; after five in a row the reason is kept and the Journey waits for Retry, which finishes it and clears the reason", async () => {
   const h = harness();
   let down = true;
   h.callee("records.update", (i) => {
@@ -352,6 +338,14 @@ test("a Journey that cannot move keeps the reason and is left alone until Retry,
     return { record: {} };
   });
   const { j } = await old(h, 2);
+  for (let n = 1; n < 5; n++) {
+    assert.deepEqual(await tick(h), [j.id], `tick ${n} tries again`);
+    assert.equal(
+      (await h.call("journeys.get", { journeyId: j.id }, alice)).journey.migrateNote,
+      undefined,
+      `no reason after ${n}`,
+    );
+  }
   assert.deepEqual(await tick(h), [j.id]);
   const g = (await h.call("journeys.get", { journeyId: j.id }, alice)).journey;
   assert.equal(g.mode, "migrating");
@@ -362,6 +356,21 @@ test("a Journey that cannot move keeps the reason and is left alone until Retry,
   assert.equal(r.finished, true);
   assert.equal(r.journey.migrateNote, undefined);
   assert.deepEqual(await tick(h), []);
+});
+
+test("a failure that may pass is tried again up to five ticks; a refusal that will not change is kept at once", async () => {
+  const h = harness();
+  const { j } = await old(h, 1);
+  h.callee("schema.apply", () => {
+    throw new Error("the schema module is busy");
+  });
+  for (let n = 1; n <= 4; n++) await tick(h);
+  assert.equal((await h.call("journeys.get", { journeyId: j.id }, alice)).journey.migrateNote, undefined);
+  await tick(h);
+  assert.match(
+    (await h.call("journeys.get", { journeyId: j.id }, alice)).journey.migrateNote,
+    /the schema module is busy \(tried 5 times\)/,
+  );
 });
 
 test("a type that already has a Journey is a reason, not a loop", async () => {
@@ -460,4 +469,207 @@ test("stage_since: when each record entered the stage it is in; a move restarts 
   await h.call("journeys.move_stage", { journeyId: j.id, recordId: "rec_c1", toStage: "won", reason: "Signed" }, alice);
   const b = await h.call("journeys.stage_since", { journeyId: j.id, recordIds: ["rec_c1"] }, alice);
   assert.equal(b.since.rec_c1, t0 + 5 * 86_400_000);
+});
+
+// ---- r-review, 19 Nov: migration safety ----
+
+test("the migration's record writes say they are quiet, so no Automation starts for them", async () => {
+  const h = harness();
+  const { j } = await old(h, 2);
+  await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  const writes = h.only("records.update").filter((c) => c.input.type === "contact");
+  assert.equal(writes.length, 2);
+  assert.ok(
+    writes.every((c) => c.input.quiet === true),
+    "every migration write is quiet",
+  );
+  // a real move is not quiet: Automations that listen for a stage change run for it
+  const pj = await pipe(h, { name: "Live", recordType: "client", subjectType: "client" });
+  await h.call("journeys.start", { journeyId: pj.id, subjectRecordId: "rec_c9" }, alice);
+  await h.call("journeys.move_stage", { journeyId: pj.id, recordId: "rec_c9", toStage: "won", reason: "x" }, alice);
+  assert.ok(
+    h
+      .only("records.update")
+      .filter((c) => c.input.type === "client")
+      .every((c) => c.input.quiet === undefined),
+  );
+});
+
+const existing = (over: Record<string, unknown> = {}) => ({
+  type: "status",
+  options: {
+    stages: [
+      { key: "open", title: "Open" },
+      { key: "lead", title: "Lead (mine)" },
+    ],
+  },
+  ...over,
+});
+const withField = (h: Harness, def: unknown) =>
+  h.callee("schema.types.get", (i) => ({ type: { key: i.type, fields: [{ key: "stage", ...(def as object) }] } }));
+
+test("an existing stage field is never replaced: another kind of field is refused, one people edit needs a yes, and a yes keeps every option it has", async () => {
+  const h = harness();
+  withField(h, { type: "text" });
+  await refused(pipe(h), "validation.precondition_failed", "stage_field_type");
+  assert.equal(h.only("schema.apply").length, 0, "nothing was changed");
+  const g = harness();
+  withField(g, existing());
+  await refused(pipe(g), "validation.precondition_failed", "field_in_use");
+  assert.equal(g.only("schema.apply").length, 0);
+  await pipe(g, { useExisting: true });
+  const op = g.only("schema.apply")[0]!.input.ops[0];
+  assert.equal(op.op, "field.update");
+  assert.deepEqual(
+    op.def.options.stages.map((s: any) => s.key),
+    ["open", "lead", "won"],
+    "its own options first and in order, then the Journey's missing stage",
+  );
+  assert.equal(op.def.options.stages[1].title, "Lead (mine)", "an option it has keeps its own title");
+  assert.ok(op.def.writeOnlyBy.includes("journeys.move_stage"));
+});
+
+test("a field the Journey already owns is left as it is, and a later design only adds stages", async () => {
+  const h = harness();
+  withField(
+    h,
+    existing({
+      writeOnlyBy: [
+        "journeys.move_stage",
+        "journeys.advance",
+        "journeys.migrate",
+        "journeys.start",
+        "journeys.to_pipeline",
+      ],
+      options: {
+        stages: [
+          { key: "lead", title: "Lead" },
+          { key: "won", title: "Won" },
+        ],
+      },
+    }),
+  );
+  const j = await pipe(h);
+  assert.equal(h.only("schema.apply").length, 0, "nothing to change");
+  withField(
+    h,
+    existing({
+      writeOnlyBy: ["journeys.move_stage"],
+      options: {
+        stages: [
+          { key: "lead", title: "Lead" },
+          { key: "won", title: "Won" },
+          { key: "extra", title: "Extra" },
+        ],
+      },
+    }),
+  );
+  await h.call(
+    "journeys.design",
+    {
+      journeyId: j.id,
+      stages: [
+        stage("lead", 0, { exit: { requireTasks: false } }),
+        stage("review", 1, { exit: { requireTasks: false } }),
+        stage("won", 2, { final: true, exit: { requireTasks: false } }),
+      ],
+    },
+    alice,
+  );
+  const keys = h
+    .only("schema.apply")
+    .at(-1)!
+    .input.ops[0].def.options.stages.map((s: any) => s.key);
+  assert.deepEqual(keys, ["lead", "review", "won", "extra"], "an option the field has is never dropped");
+});
+
+test("while the Journey is being moved nothing redesigns it, removes it, migrates its version or keeps a value for it", async () => {
+  const h = harness();
+  const { j, ids } = await old(h, 1);
+  h.callee("records.update", (i) => {
+    if (i.type === "contact") throw new Error("down");
+    return { record: {} };
+  });
+  await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  await refused(
+    h.call("journeys.design", { journeyId: j.id, stages: noTasks() }, alice),
+    "validation.precondition_failed",
+    "migrating",
+  );
+  await refused(h.call("journeys.delete", { journeyId: j.id }, alice), "validation.precondition_failed", "migrating");
+  await refused(
+    h.call("journeys.migrate", { journeyId: j.id, toVersion: 1, stageMap: {} }, alice),
+    "validation.precondition_failed",
+    "migrating",
+  );
+  await refused(
+    h.call("journeys.values.set", { recordId: ids[0], key: "plan", value: 1 }, alice),
+    "validation.precondition_failed",
+    "migrating",
+  );
+});
+
+test("values follow the record to its own id when the Journey moves onto the pipeline", async () => {
+  const h = harness();
+  const j = (await h.call("journeys.create", newJourney({ stages: noTasks() }), alice)).journey;
+  const id = (await h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_s0" }, alice)).recordId;
+  h.ctxFor("journeys.to_pipeline", alice).db.run(
+    "INSERT INTO journeys_values (record_id, key, value, at, by_who) VALUES (?, 'plan', ?, 1, 'usr_a')",
+    id,
+    JSON.stringify("Gold"),
+  );
+  await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  const rows = h.db.all("SELECT record_id, key FROM journeys_values") as any[];
+  assert.deepEqual(
+    rows.map((r) => [r.record_id, r.key]),
+    [["rec_s0", "plan"]],
+  );
+});
+
+test("a Retry that arrives while the background move is stepping the Journey does not step it twice", async () => {
+  const h = harness();
+  const { j } = await old(h, 2);
+  let inside = 0;
+  let overlap = false;
+  let release: () => void = () => undefined;
+  const gate = new Promise<void>((r) => (release = r));
+  h.callee("records.update", async (i) => {
+    if (i.type !== "contact") return { record: {} };
+    inside++;
+    if (inside > 1) overlap = true;
+    await gate;
+    inside--;
+    return { record: {} };
+  });
+  const first = h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  await new Promise((r) => setTimeout(r, 20));
+  const second = await h.call("journeys.to_pipeline", { journeyId: j.id }, alice);
+  assert.equal(second.finished, false, "the second answers without stepping");
+  release();
+  const done = await first;
+  assert.equal(done.finished, true);
+  assert.equal(overlap, false);
+  assert.equal(
+    h.only("records.update").filter((c) => c.input.type === "contact").length,
+    2,
+    "each record written once",
+  );
+});
+
+test("a subject cannot have two Journey records in one Journey, so a move never meets two for one record", async () => {
+  const h = harness();
+  const { j } = await old(h, 1);
+  await refused(
+    h.call("journeys.start", { journeyId: j.id, subjectRecordId: "rec_s0", idempotencyKey: "again" }, alice),
+    "validation.duplicate",
+    "already_enrolled",
+  );
+  assert.throws(() =>
+    h
+      .ctxFor("journeys.start", alice)
+      .db.run(
+        "INSERT INTO journeys_records (record_id, journey_id, subject_record_id, version, stage, start_stage, entered_at, owner_id, start_key, started_at) VALUES ('rec_dup', ?, 'rec_s0', 1, 'lead', 'lead', 1, 'u', 'k_dup', 1)",
+        j.id,
+      ),
+  );
 });

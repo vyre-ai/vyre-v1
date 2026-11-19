@@ -5446,11 +5446,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -5596,6 +5596,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -5638,7 +5644,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -5897,11 +5903,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -6047,6 +6053,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -6089,7 +6101,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -6226,11 +6238,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -6376,6 +6388,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -6418,7 +6436,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -8022,11 +8040,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -8172,6 +8190,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -8214,7 +8238,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -8346,11 +8370,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -8496,6 +8520,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -8538,7 +8568,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -34628,6 +34658,9 @@
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
+          "useExisting": {
+            "type": "boolean"
+          },
           "variables": {
             "items": {
               "properties": {
@@ -52927,6 +52960,9 @@
           "patch": {
             "additionalProperties": true,
             "type": "object"
+          },
+          "quiet": {
+            "type": "boolean"
           },
           "recordId": {
             "examples": [

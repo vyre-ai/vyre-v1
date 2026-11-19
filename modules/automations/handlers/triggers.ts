@@ -850,6 +850,8 @@ export async function consumeEvent(
   const policy = readPolicy(ctx.db);
   const out: { automationId: string; result: { runId: string } | { dropped: DropReason } }[] = [];
   if (ev.imported && !policy.runOnImport) return out;
+  // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
+  if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // one read of the record per trigger kind, however many Automations listen
   const read = new Map<string, Promise<unknown>>();
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported

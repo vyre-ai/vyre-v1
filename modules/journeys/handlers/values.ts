@@ -2,6 +2,7 @@
 // A record that is in no Journey has none: reading answers empty, writing is refused (there is nowhere to keep it).
 import { findRecord, getJourney, getValues, me, putValue, raise } from "../projections.ts";
 import type { JourneysCtx } from "../projections.ts";
+import { refuseWhileMigrating } from "./stages.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 /** The longest value one key keeps: a carried value is a small fact (a plan, a date, a name), not a document. */
@@ -22,6 +23,7 @@ export async function valuesSet(ctx: JourneysCtx, input: In): Promise<unknown> {
       { reason: "not_on_journey" },
     );
   const j = getJourney(ctx, rec.journeyId);
+  refuseWhileMigrating(ctx, j);
   const key = String(input.key);
   const declared = j.variables ?? [];
   if (!declared.some((v) => v.key === key))

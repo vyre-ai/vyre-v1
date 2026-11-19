@@ -2865,6 +2865,7 @@ export type AutomationsCreateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2938,6 +2939,7 @@ export type AutomationsCreateOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3059,6 +3061,7 @@ export type AutomationsDraftDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3145,6 +3148,7 @@ export type AutomationsDraftDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3212,6 +3216,7 @@ export type AutomationsDraftProposeIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3283,6 +3288,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3369,6 +3375,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3433,6 +3440,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3503,6 +3511,7 @@ export type AutomationsDraftSaveIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3575,6 +3584,7 @@ export type AutomationsDraftSaveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3661,6 +3671,7 @@ export type AutomationsDraftSaveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3862,6 +3873,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3949,6 +3961,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4013,6 +4026,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4297,6 +4311,7 @@ export type AutomationsMakeLiveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4383,6 +4398,7 @@ export type AutomationsMakeLiveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4463,6 +4479,7 @@ export type AutomationsMakePersonalCopyOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4594,6 +4611,7 @@ export type AutomationsMoveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4738,6 +4756,7 @@ export type AutomationsPackagesImportOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4891,6 +4910,7 @@ export type AutomationsPromoteOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5005,6 +5025,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5091,6 +5112,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5155,6 +5177,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5235,6 +5258,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5321,6 +5345,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5385,6 +5410,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5539,6 +5565,7 @@ export type AutomationsRestoreVersionOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5705,6 +5732,7 @@ export type AutomationsSetEnabledOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5806,6 +5834,7 @@ export type AutomationsSetOwnerOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5958,6 +5987,7 @@ export type AutomationsTemplatesUseOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -6110,6 +6140,7 @@ export type AutomationsUndeleteOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -6200,6 +6231,7 @@ export type AutomationsUpdateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -6271,6 +6303,7 @@ export type AutomationsUpdateOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -6358,6 +6391,7 @@ export type AutomationsValidateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -23956,6 +23990,7 @@ export type JourneysCreateIn = {
     enabled: boolean;
   };
   mode?: "subject" | "pipeline";
+  useExisting?: boolean;
   recordType?: string;
   stageField?: string;
   variables?: Array<{
@@ -24525,6 +24560,7 @@ export type JourneysTestPathOut = {
 export type JourneysToPipelineIn = {
   journeyId: string;
   stageField?: string;
+  useExisting?: boolean;
 };
 export type JourneysToPipelineOut = {
   journey: {
@@ -35096,6 +35132,7 @@ export type RecordsUpdateIn = {
   recordId: string;
   patch: Record<string, unknown>;
   baseVersion?: number;
+  quiet?: boolean;
 };
 export type RecordsUpdateOut = {
   record: {
@@ -53816,6 +53853,7 @@ export type RecordUpdatedPayload = {
   fields: Record<string, unknown>;
   prev: Record<string, unknown>;
   version: number;
+  quiet?: boolean;
 };
 export type RecordValueProposedPayload = {
   recordId: string;

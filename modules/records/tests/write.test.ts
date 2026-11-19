@@ -157,3 +157,17 @@ test("delete and restore bump the version; a protected type and a hold cannot be
   );
   assert.equal((await rec.store.get("item", held.id))?.version, 1);
 });
+
+test("records.update says a write is quiet in its event only when asked, so a system move can keep Automations out", async () => {
+  const rec = openRecords({ space: "sp_quiet" });
+  await rec.store.define({ add_types: [ITEM] });
+  const id = mintRecordId();
+  await rec.store.create("item", id, { name: "A", qty: 1, status: "open", code: "q1" });
+  const seen: Record<string, unknown>[] = [];
+  const c = { ...ctx, emit: (_n: string, _s: string, p: Record<string, unknown>) => void seen.push(p) };
+  await rec.handlers["records.update"](c as never, { type: "item", recordId: id, patch: { qty: 2 } });
+  await rec.handlers["records.update"](c as never, { type: "item", recordId: id, patch: { qty: 3 }, quiet: true });
+  assert.equal(seen[0]!["quiet"], undefined);
+  assert.equal(seen[1]!["quiet"], true);
+  assert.deepEqual(seen[1]!["fields"], { qty: 3 }, "the change itself is announced in full; only Automations skip it");
+});
