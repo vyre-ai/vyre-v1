@@ -5288,6 +5288,12 @@
     },
     {
       "deferred": false,
+      "name": "mail_inbox_monitor",
+      "summary": "Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_mailbox_create",
       "summary": "Create a shared, agent or service mailbox (hello@, support@, an agent address)",
       "toolset": "inbox"

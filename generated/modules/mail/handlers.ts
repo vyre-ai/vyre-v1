@@ -20,6 +20,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.drafts.discard": Handler<"mail.drafts.discard", X>;
   "mail.drafts.list": Handler<"mail.drafts.list", X>;
   "mail.health": Handler<"mail.health", X>;
+  "mail.inbox.monitor": Handler<"mail.inbox.monitor", X>;
   "mail.ingest": Handler<"mail.ingest", X>;
   "mail.mailbox.create": Handler<"mail.mailbox.create", X>;
   "mail.mailbox.disconnect": Handler<"mail.mailbox.disconnect", X>;

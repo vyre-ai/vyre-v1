@@ -25367,6 +25367,32 @@ export type MailHealthOut = {
   detail?: string;
   latencyMs?: number;
 };
+export type MailInboxMonitorIn = {
+  mailboxId?: string;
+};
+export type MailInboxMonitorOut = {
+  inboxes: Array<{
+      mailboxId: string;
+      address: string;
+      kind: "personal" | "shared" | "agent" | "service";
+      how: "imap" | "google" | "microsoft" | "provider_webhook";
+      state: "ok" | "late" | "failing" | "paused";
+      lastReceivedAt?: number;
+      lastSyncAt?: number;
+      receivedToday: number;
+      problem?: {
+        reason: string;
+        fix: string;
+        at: number;
+      };
+    }>;
+  unrouted: Array<{
+      address: string;
+      reason: string;
+      fix: string;
+      at: number;
+    }>;
+};
 export type MailIngestIn = {
   source: "google" | "microsoft" | "imap" | "resend" | "mailgun";
   mailboxId?: string;
@@ -49682,6 +49708,7 @@ export interface CapMap {
   "mail.drafts.discard": { in: MailDraftsDiscardIn; out: MailDraftsDiscardOut };
   "mail.drafts.list": { in: MailDraftsListIn; out: MailDraftsListOut };
   "mail.health": { in: MailHealthIn; out: MailHealthOut };
+  "mail.inbox.monitor": { in: MailInboxMonitorIn; out: MailInboxMonitorOut };
   "mail.ingest": { in: MailIngestIn; out: MailIngestOut };
   "mail.mailbox.create": { in: MailMailboxCreateIn; out: MailMailboxCreateOut };
   "mail.mailbox.disconnect": { in: MailMailboxDisconnectIn; out: MailMailboxDisconnectOut };
@@ -52656,6 +52683,7 @@ export type MailReceivedPayload = {
   from: string;
   subject: string;
   contactId?: string;
+  auto?: boolean;
 };
 export type MailDraftDiscardedPayload = {
   draftId: string;

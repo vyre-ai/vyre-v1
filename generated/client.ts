@@ -1654,6 +1654,9 @@ export function createClient(transport: Transport) {
         list: call("mail.drafts.list", 1),
       },
       health: call("mail.health", 1),
+      inbox: {
+        monitor: call("mail.inbox.monitor", 1),
+      },
       ingest: call("mail.ingest", 1),
       mailbox: {
         create: call("mail.mailbox.create", 1),

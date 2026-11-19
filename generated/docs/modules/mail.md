@@ -4,7 +4,7 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (49)
+## Capabilities (50)
 
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
@@ -21,6 +21,7 @@ Requires: nothing.
 - [mail.drafts.discard](../capabilities/mail.drafts.discard.md): Discard a draft
 - [mail.drafts.list](../capabilities/mail.drafts.list.md): List drafts for a mailbox or contact
 - [mail.health](../capabilities/mail.health.md): Mail sync health: age of the last successful sync per mailbox (worst state wins)
+- [mail.inbox.monitor](../capabilities/mail.inbox.monitor.md): Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to
 - [mail.ingest](../capabilities/mail.ingest.md): Land one inbound or synced message: dedupe on provider id, one record across inboxes, link to a contact (sure matches link, unsure go to Needs you)
 - [mail.mailbox.create](../capabilities/mail.mailbox.create.md): Create a shared, agent or service mailbox (hello@, support@, an agent address)
 - [mail.mailbox.disconnect](../capabilities/mail.mailbox.disconnect.md): Remove a mailbox connection (mail already filed to records stays)

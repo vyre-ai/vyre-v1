@@ -1654,6 +1654,9 @@ export function stubs(ctx: CallCtx) {
         list: call("mail.drafts.list"),
       },
       health: call("mail.health"),
+      inbox: {
+        monitor: call("mail.inbox.monitor"),
+      },
       ingest: call("mail.ingest"),
       mailbox: {
         create: call("mail.mailbox.create"),

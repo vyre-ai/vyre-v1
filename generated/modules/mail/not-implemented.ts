@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.drafts.discard": async (ctx) => { throw new VyreErr(notImplemented("mail.drafts.discard", ctx.trace)); },
   "mail.drafts.list": async (ctx) => { throw new VyreErr(notImplemented("mail.drafts.list", ctx.trace)); },
   "mail.health": async (ctx) => { throw new VyreErr(notImplemented("mail.health", ctx.trace)); },
+  "mail.inbox.monitor": async (ctx) => { throw new VyreErr(notImplemented("mail.inbox.monitor", ctx.trace)); },
   "mail.ingest": async (ctx) => { throw new VyreErr(notImplemented("mail.ingest", ctx.trace)); },
   "mail.mailbox.create": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.create", ctx.trace)); },
   "mail.mailbox.disconnect": async (ctx) => { throw new VyreErr(notImplemented("mail.mailbox.disconnect", ctx.trace)); },

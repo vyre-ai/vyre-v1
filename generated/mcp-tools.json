@@ -36978,6 +36978,29 @@
     },
     {
       "blocks": [],
+      "cap": "mail.inbox.monitor",
+      "deferred": false,
+      "description": "Each inbox you may see: how it is fed, when it last received, whether it is working, what failed and the one thing to do; and mail that arrived for an address no inbox answers to",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "mail_inbox_monitor",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.mailbox.create",
       "deferred": false,
       "description": "Create a shared, agent or service mailbox (hello@, support@, an agent address)",
