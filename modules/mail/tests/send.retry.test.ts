@@ -28,7 +28,8 @@ test("a retry delivers after the person who sent has lost every right, sends onl
   assert.deepEqual(calls[0]!.input.to, ["pat@acme.test"]);
   assert.equal(calls[0]!.input.subject, "Hello");
   assert.doesNotMatch(JSON.stringify(calls[0]!.input), /Evil|mallory/);
-  // credited to the person who asked, on the original and on the retry
+  // credited to the person who asked, on the original and on the retry (read by someone who may see the mailbox)
+  r.h.denied.delete("mbx_hello");
   assert.deepEqual((await trail(r.ctx, { messageId: "eml_m1" })).sentBy, { kind: "person", id: "usr_gone01" });
   const child = r.h.rows(`SELECT "childId" FROM mail_delivery_child`)[0]!.childId as string;
   assert.deepEqual((await trail(r.ctx, { messageId: child })).sentBy, { kind: "person", id: "usr_gone01" });
