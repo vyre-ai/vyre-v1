@@ -61434,6 +61434,15 @@
           "crew": {
             "type": "boolean"
           },
+          "dependsOn": {
+            "description": "Helpers of this chat to wait for: their titles or thread ids. This one starts when each of them has finished, and fails if one of them does not",
+            "items": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
           "effort": {
             "enum": [
               "low",

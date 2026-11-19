@@ -114,7 +114,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
             const call = d.call!;
             void (async () => {
               const got = (await call("agents.get", { agentId: n.agentId }, n.asker).catch(() => undefined)) as
-                { agent?: { name?: string } } | undefined;
+                | { agent?: { name?: string } }
+                | undefined;
               await agentRefusedNeedsYou((cap, input) => call(cap, input, n.asker), {
                 ...n,
                 ...(got?.agent?.name ? { agentName: got.agent.name } : {}),
@@ -174,7 +175,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       ),
     );
     const tz = (await d.call!("settings.get", { key: "profile.timezone" }, t.asker).catch(() => undefined)) as
-      { row?: { value?: unknown } } | undefined;
+      | { row?: { value?: unknown } }
+      | undefined;
     if (typeof tz?.row?.value === "string" && tz.row.value !== "") zones.set(t.asker, tz.row.value);
     modes.set(t.asker, { terminal: modePair(terminalMode?.row, d.space), chrome: modePair(chromeMode?.row, d.space) });
     const a = agent?.agent;
@@ -202,7 +204,8 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
     });
     if (th?.kind === "ask" && scope) {
       const lvl = (await d.call("chat.ask_level", { threadId: t.threadId }, t.asker).catch(() => undefined)) as
-        { level?: Level | null } | undefined;
+        | { level?: Level | null }
+        | undefined;
       levels.set(levelKey(t.asker, scope), lvl?.level ?? null);
     }
   };

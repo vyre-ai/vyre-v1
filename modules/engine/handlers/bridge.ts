@@ -295,8 +295,9 @@ export function testLines(output: string): string {
     .map((l) => l.trim())
     .filter(
       (l) =>
-        /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(l) ||
-        /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l),
+        /^(?:ℹ\s+(?:pass|fail)\s+\d+|✖\s+\S|not ok\b|FAIL\b|Tests:|\d+\s+(?:passed|passing|failed|failing))/i.test(
+          l,
+        ) || /\b\d+\s+(?:passed|passing|failed|failing)\b/i.test(l),
     )
     .slice(-12)
     .join("\n")
@@ -1533,15 +1534,18 @@ export function createBridge(o: BridgeOptions): Bridge {
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
+    // a helper told to wait for others (chat.helper.start dependsOn) is not woken until each of them is done: its brief is kept, its node stands queued meanwhile
+    const waiting = (await helperWaiting(ctx, threadId, readAs)) === "waiting";
     const hold =
-      a.kind === "agent"
+      waiting ||
+      (a.kind === "agent"
         ? await othersStillWorking(
             ctx,
             readAs,
             threadId,
             (got.message as { blocks?: Array<{ type?: string; data?: unknown }> }).blocks,
           )
-        : false;
+        : false);
     const res = withMessageId(messageId, () =>
       eng.receive({
         ...(hold ? { hold: true } : {}),
@@ -1559,7 +1563,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       }),
     );
     // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
-    if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
+    if (waiting) scheduleWaitRelease(ctx, threadId, readAs, res.messageId);
+    else if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
     else if (res.responders.length > 0) heldNow.delete(threadId); // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
     if (a.kind === "person" && res.responders.length > 0) {
@@ -1617,6 +1622,88 @@ export function createBridge(o: BridgeOptions): Bridge {
           return;
         }
         heldNow.delete(threadId);
+        try {
+          if (engine) engine.wakeHeld(threadId, messageId);
+        } catch {
+          /* the thread is closed: nothing to wake */
+        }
+      })();
+    }, 1500);
+    (t as { unref?: () => void }).unref?.();
+  }
+
+  /** "waiting": this thread is a helper whose node is queued behind others that are not done; "dead": one of them did not finish, so it never starts; "free": anything else. */
+  const helperChecked = new Set<string>();
+  /** The first time a helper thread is heard from: if the helper was told to wait for others (the helper block in the chat that started it names them), its node is made now, queued behind theirs. */
+  async function ensureHelperNode(ctx: EngineCtx, threadId: string, readAs: string): Promise<void> {
+    if (helperChecked.has(threadId)) return;
+    if (helperChecked.size > 2000) helperChecked.delete(helperChecked.values().next().value as string);
+    const g = (await reader(ctx, readAs, threadId)("threads.get", { threadId })) as {
+      thread?: { kind?: string; starter?: string; title?: string; parentThreadId?: string; parentMessageId?: string };
+    };
+    const t = g.thread;
+    if (!t || t.kind !== "helper" || !t.parentThreadId || !t.parentMessageId) {
+      helperChecked.add(threadId);
+      return;
+    }
+    const line = (await reader(
+      ctx,
+      readAs,
+      t.parentThreadId,
+    )("chat.message.get", {
+      threadId: t.parentThreadId,
+      messageId: t.parentMessageId,
+    })) as { message?: { blocks?: Array<{ type?: string; data?: Record<string, unknown> }> } };
+    const block = line.message?.blocks?.find((b) => b.type === "helper" && b.data?.["helperThreadId"] === threadId);
+    const deps = Array.isArray(block?.data?.["dependsOn"]) ? (block!.data!["dependsOn"] as unknown[]).map(String) : [];
+    helperChecked.add(threadId);
+    if (deps.length === 0 || !t.starter) return;
+    await ctx.call("runs.node.start", {
+      kind: "helper",
+      owner: t.starter,
+      threadId,
+      parentThread: t.parentThreadId,
+      ...(t.title ? { name: t.title } : {}),
+      whoKind: "agent",
+      whoId: str(block?.data?.["agentId"]),
+      dependsOnThreads: deps,
+      idemKey: `helper:${threadId}`,
+    });
+  }
+
+  async function helperWaiting(ctx: EngineCtx, threadId: string, readAs = ""): Promise<"waiting" | "dead" | "free"> {
+    try {
+      await ensureHelperNode(ctx, threadId, readAs);
+      const f = (await ctx.call("runs.node.find", { keys: [`helper:${threadId}`] })) as {
+        byKey?: Record<string, string>;
+      };
+      const id = f.byKey?.[`helper:${threadId}`];
+      if (!id) return "free";
+      const n = (
+        (await ctx.call("runs.node.get", { runId: id })) as { node?: { status: string; dependsOn?: string[] } }
+      ).node;
+      if (!n || n.status !== "queued") return n && (n.status === "failed" || n.status === "stopped") ? "dead" : "free";
+      for (const d of n.dependsOn ?? []) {
+        const on = ((await ctx.call("runs.node.get", { runId: d })) as { node?: { status: string } }).node;
+        if (on && (on.status === "failed" || on.status === "stopped")) return "dead";
+        if (!on || on.status !== "succeeded") return "waiting";
+      }
+      return "free";
+    } catch {
+      return "free"; // a node that cannot be read holds nobody back
+    }
+  }
+
+  /** Look again until what it waits for is done, then wake it once. If one of them did not finish, it is not woken. */
+  function scheduleWaitRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
+    const t = setTimeout(() => {
+      void (async () => {
+        const st = await helperWaiting(ctx, threadId, readAs);
+        if (st === "waiting") {
+          if (tries < 2000) scheduleWaitRelease(ctx, threadId, readAs, messageId, tries + 1);
+          return;
+        }
+        if (st === "dead") return;
         try {
           if (engine) engine.wakeHeld(threadId, messageId);
         } catch {

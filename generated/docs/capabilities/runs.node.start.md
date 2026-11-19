@@ -35,6 +35,8 @@ type In = {
   whoId?: string;
   whoName?: string;
   dependsOn?: Array<string>;
+  dependsOnThreads?: Array<string>;
+  adoptKey?: string;
   engine?: string;
   model?: string;
   brief?: unknown;
@@ -128,10 +130,14 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "adoptKey": "example",
     "brief": {},
     "budget": {},
     "dependsOn": [
       "run_a1b2c3"
+    ],
+    "dependsOnThreads": [
+      "thr_a1b2c3"
     ],
     "engine": "example",
     "idemKey": "example",

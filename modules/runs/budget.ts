@@ -128,7 +128,8 @@ export async function setBudget(ctx: RunsCtx, id: string, b: Budget | null): Pro
       try {
         // a paused turn starts again as a turn of its own; a turn held at its next call is let go (it was never stopped)
         const r = (await ctx.call?.("engine.resume_paused", { threadId: x.threadId, agentId: x.whoId })) as
-          { resumed?: number; released?: number } | undefined;
+          | { resumed?: number; released?: number }
+          | undefined;
         resumed += (r?.resumed ?? 0) + (r?.released ?? 0);
         if (x.status === "paused") {
           // the turn goes on as a turn of its own (its own node); the one that waited has done its part

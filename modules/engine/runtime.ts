@@ -698,7 +698,8 @@ export async function spaceRule(call: EngineHostSeam["call"]): Promise<EgressRul
  */
 export async function engineAccessFor(call: EngineHostSeam["call"], asker: string): Promise<AccessAsked> {
   const out = (await call("spaces.get", {}, asker)) as
-    { space?: { kind?: string; owner?: string; address?: { mode?: string } } } | undefined;
+    | { space?: { kind?: string; owner?: string; address?: { mode?: string } } }
+    | undefined;
   const s = out?.space;
   const own = s !== undefined && s.owner === asker && (s.kind === "personal" || s.address?.mode === "device");
   if (!own) return { where: "server", folders: [] };

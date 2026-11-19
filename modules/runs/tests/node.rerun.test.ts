@@ -101,7 +101,7 @@ test("save as agent: a helper with no stored brief uses what it was told in its 
     "not_finished",
   );
   const w = await h.call("runs.node.save_as_agent", { runId: n.id, name: "X" }, watcher).catch((e) => e);
-  assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(w)), "a watcher cannot");
+  assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(w) ?? ""), "a watcher cannot");
   assert.equal(seen.created.length, 1, "nothing more was made");
 });
 
@@ -199,7 +199,7 @@ test("re-run is refused when nothing changed, when the work is still going, when
     "not_a_helper",
   );
   const w = await h.call("runs.node.rerun", { runId: n.id, instructions: "other" }, watcher).catch((e) => e);
-  assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(w)));
+  assert.ok(["permission.not_found", "permission.role_lacks_permission"].includes(codeOf(w) ?? ""));
   const wc = await h.call("runs.node.compare", { runId: n.id }, watcher).catch((e) => e);
   assert.equal(codeOf(wc), "permission.not_found");
   assert.equal(seen.started.length, 0, "nothing was started");

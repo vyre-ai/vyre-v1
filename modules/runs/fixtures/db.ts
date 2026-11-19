@@ -178,6 +178,7 @@ export function hold(
   runId: string,
 ): { holder?: string; attempt: number } {
   const r = h.sqlite.prepare("SELECT lease_holder, attempt FROM runs_node WHERE run_id = ?").get(runId) as
-    { lease_holder: string | null; attempt: number } | undefined;
+    | { lease_holder: string | null; attempt: number }
+    | undefined;
   return { ...(r?.lease_holder ? { holder: r.lease_holder } : {}), attempt: r?.attempt ?? 1 };
 }
