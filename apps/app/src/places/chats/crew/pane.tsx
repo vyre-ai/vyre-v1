@@ -11,6 +11,7 @@ import { accountName, modelName } from "../../../../../../lib/model-names.ts";
 import { blockLine } from "../helper/model.ts";
 import { HelperHooksSection } from "../helper/HelperHooks.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { FolderMovePicker } from "../../files/tree/FolderMovePicker.tsx";
 import { HelperChip, MemberRing, timeOf, useNow } from "./strip.tsx";
 import {
   clock,
@@ -484,6 +485,8 @@ export function CrewPeek({
   // what a finished result can become: a task for the person looking (a title to confirm, then made once)
   const [draft, setDraft] = useState<string | null>(null);
   const [made, setMade] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState<string | null>(null);
   // a different helper opens on its transcript, never on the tab the last one was left on
   useEffect(() => setTab("transcript"), [member.id]);
   const live = member.state === "working" || member.state === "needs_you";
@@ -570,6 +573,33 @@ export function CrewPeek({
         setDraft(null);
       },
       () => setErr("The task could not be made. Try again."),
+    );
+  };
+  // the result as a file: in a folder the person picks (never the top of Files, which holds no file), named for the helper, one key per helper
+  const saveTo = (folderId: string | null): void => {
+    if (folderId === null) {
+      setErr("Pick a folder to save in.");
+      return;
+    }
+    const name = `${nameOf(member)} result.md`;
+    setErr(null);
+    void Promise.resolve(
+      call("files.create", {
+        folderId,
+        name,
+        content: { text: member.answer ?? member.found ?? "" },
+        kind: "markdown",
+        idempotencyKey: `helper-file-${member.id}`,
+      }),
+    ).then(
+      () => {
+        setSaved(name);
+        setSaving(false);
+      },
+      () => {
+        setSaving(false);
+        setErr("It could not be saved. Try again.");
+      },
     );
   };
   const send = (): void => {
@@ -745,7 +775,31 @@ export function CrewPeek({
                     </Pressable>
                   </View>
                 )}
+                {saved !== null ? (
+                  <Text testID="crew-result-saved" style={st.hint}>
+                    Saved: {saved}
+                  </Text>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    testID="crew-result-file"
+                    onPress={() => setSaving(true)}
+                    style={st.pill}
+                  >
+                    <Text style={st.pillText}>Save to Files</Text>
+                  </Pressable>
+                )}
               </View>
+            ) : null}
+            {saving ? (
+              <FolderMovePicker
+                moving={{ id: "", name: "" }}
+                title="Save to Files"
+                verb="Save"
+                call={call}
+                onClose={() => setSaving(false)}
+                onMove={saveTo}
+              />
             ) : null}
           </>
         ) : null}

@@ -169,3 +169,44 @@ test("no Make a task without a person to give it to, and none while it still wor
   assert.ok(find(root, "crew-result-task-title"), "the sheet stays so it can be tried again");
   assert.equal(find(root, "crew-result-made"), null);
 });
+
+test("Save to Files opens the folder picker, saves the result as a markdown file in the chosen folder once, and never into the top of Files", async () => {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const rec = async (cap: string, input: unknown): Promise<unknown> => {
+    calls.push({ cap, input: input as Record<string, unknown> });
+    if (cap === "files.list") return { folders: [{ folderId: "fld_bids", name: "Bids" }] };
+    if (cap === "files.create") return { file: { fileId: "fil_1", folderId: "fld_bids", name: "Tess result.md" } };
+    return cap === "chat.helper.notes" ? { notes: [] } : {};
+  };
+  const root = await mount(
+    createRoot,
+    <CrewPeek
+      member={M()}
+      call={rec}
+      meId="usr_me"
+      onBack={() => undefined}
+      onOpenChat={() => undefined}
+      onRefresh={() => undefined}
+    />,
+  );
+  await press(find(root, "crew-result-file"));
+  await flush();
+  assert.ok(find(root, "folder-move"), "the shared folder picker opens");
+  await press(find(root, "folder-move-go"));
+  await flush();
+  assert.equal(calls.filter((c) => c.cap === "files.create").length, 0, "the top of Files holds no file");
+  assert.match(textOf(find(root, "crew-peek-error")), /Pick a folder/);
+  await press(find(root, "folder-move-fld_bids"));
+  await flush();
+  await press(find(root, "folder-move-go"));
+  await flush();
+  const made = calls.filter((c) => c.cap === "files.create");
+  assert.equal(made.length, 1);
+  assert.deepEqual(
+    [made[0]!.input.folderId, made[0]!.input.name, made[0]!.input.kind, made[0]!.input.idempotencyKey],
+    ["fld_bids", "Tess result.md", "markdown", "helper-file-thr_a"],
+  );
+  assert.equal((made[0]!.input.content as { text: string }).text, "74 tests pass");
+  assert.match(textOf(find(root, "crew-result-saved")), /Saved:\s+Tess result\.md/);
+  assert.equal(find(root, "folder-move"), null, "the picker closes");
+});
