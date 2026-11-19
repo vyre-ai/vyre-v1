@@ -100,12 +100,15 @@ export function webReadParts(input: Obj | undefined): { host: string; address: s
 
 /** An address as a card shows it: every control, zero-width and bidi-direction character is written out as its code, so it can neither hide nor reorder what is read. */
 export function visibleAddress(raw: string): string {
-  // every control and format character (Unicode Cc and Cf: bidi marks and overrides, zero-width, the Arabic letter mark, tag characters), line and paragraph separators, private-use characters and variation
-  // selectors is written out as its code, so none of them can hide or reorder what is read
-  return raw.replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\u180e\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu, (c) => {
-    const code = c.codePointAt(0) ?? 0;
-    return `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
-  });
+  // every control and format character (Unicode Cc and Cf: bidi marks and overrides, zero-width, the Arabic letter mark, tag characters), unassigned code points, lone surrogates, combining and enclosing marks, line and
+  // paragraph separators, private-use characters and variation selectors is written out as its code, so none of them can hide, combine with or reorder what is read
+  return raw.replace(
+    /[\p{Cc}\p{Cf}\p{Cn}\p{Cs}\p{Mn}\p{Me}\p{Zl}\p{Zp}\p{Co}\u180e\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu,
+    (c) => {
+      const code = c.codePointAt(0) ?? 0;
+      return `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+    },
+  );
 }
 
 export function hostOfLink(raw: string): string {
@@ -190,7 +193,8 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   if (cap === "automations.key_hosts.allow" || cap === "automations.key_hosts.remove") {
     const raw = str(obj(input)["host"]).trim();
     const host = raw === "" ? "" : hostOfLink(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`).slice(0, 80);
-    if (cap === "automations.key_hosts.allow") return host ? `let a key be sent to ${host}` : "let a key be sent to another host";
+    if (cap === "automations.key_hosts.allow")
+      return host ? `let a key be sent to ${host}` : "let a key be sent to another host";
     return host ? `stop a key being sent to ${host}` : "stop a key being sent to a host";
   }
   if (cap === "automations.read_docs") return "read the documentation";

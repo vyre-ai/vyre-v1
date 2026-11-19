@@ -331,11 +331,21 @@ test(
     const srv = await site({ "/otp": OTP_PAGE });
     try {
       await provisionAccount(
-        { space: "spc_core", trace: { traceId: "t".repeat(32) }, now: () => Date.now(), db: d.db, emit: () => undefined } as unknown as IdentityCtx,
+        {
+          space: "spc_core",
+          trace: { traceId: "t".repeat(32) },
+          now: () => Date.now(),
+          db: d.db,
+          emit: () => undefined,
+        } as unknown as IdentityCtx,
         { personId: "usr_olivia", username: "otpwalker", name: "Olivia", secret: "correct horse battery staple 9" },
       );
       const owner = signIn(d, "usr_olivia", "otp01");
-      const folder = await call(d, owner, "vault.folders.create", { idempotencyKey: "o-f", name: "Logins", scope: "shared" });
+      const folder = await call(d, owner, "vault.folders.create", {
+        idempotencyKey: "o-f",
+        name: "Logins",
+        scope: "shared",
+      });
       assert.equal(folder.status, 200, JSON.stringify(folder.error));
       const put = await call(d, owner, "vault.item.put", {
         idempotencyKey: "o-i",
@@ -366,18 +376,25 @@ test(
         await boxOf(page, "button", "Acme Login");
         await press(page, "button", "Acme Login");
         const answer = "badge";
-        for (let i = 0; i < 60 && (await page.inputValue("#code")) === ""; i++) await new Promise((x) => setTimeout(x, 100));
+        for (let i = 0; i < 60 && (await page.inputValue("#code")) === ""; i++)
+          await new Promise((x) => setTimeout(x, 100));
         const typed = await page.inputValue("#code");
         const p = parseSeed(SEED)!;
         const t = Date.now();
         assert.match(typed, /^\d{6}$/, `what was typed: ${typed} :: ${JSON.stringify(answer)}`);
-        assert.ok([t - 30_000, t, t + 30_000].some((x) => codeAt(p, x).code === typed), "the current RFC 6238 code");
+        assert.ok(
+          [t - 30_000, t, t + 30_000].some((x) => codeAt(p, x).code === typed),
+          "the current RFC 6238 code",
+        );
         assert.notEqual(typed, SEED);
         // the seed is nowhere the extension, the page or the answer can see
         const everything = JSON.stringify([
           answer,
           await page.content(),
-          await r.worker.evaluate(async () => [await (globalThis as any).chrome.storage.local.get(null), await (globalThis as any).chrome.storage.session.get(null)]),
+          await r.worker.evaluate(async () => [
+            await (globalThis as any).chrome.storage.local.get(null),
+            await (globalThis as any).chrome.storage.session.get(null),
+          ]),
         ]);
         assert.ok(!everything.includes(SEED), "no seed in the answer, the page or the extension's storage");
         assert.ok(!everything.includes("pw-not-the-seed-1"));

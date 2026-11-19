@@ -17,10 +17,15 @@ const SEED = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // secret-scan: fake
 const OTPAUTH = `otpauth://totp/Acme:dana?secret=${SEED}&issuer=Acme&algorithm=SHA256&digits=8&period=60`; // secret-scan: fake
 
 async function folder(h: Harness): Promise<string> {
-  return String(out(out(await v.foldersCreate(h.ctx, { name: `shared ${key()}`, scope: "shared", idempotencyKey: key() })).folder).id);
+  return String(
+    out(out(await v.foldersCreate(h.ctx, { name: `shared ${key()}`, scope: "shared", idempotencyKey: key() })).folder)
+      .id,
+  );
 }
 async function put(h: Harness, name: string, kind: string, fields: { key: string; value: string }[]): Promise<void> {
-  await v.itemPut(h.ctx, { folderId: await folder(h), name, kind, fields, idempotencyKey: key() } as Parameters<typeof v.itemPut>[1]);
+  await v.itemPut(h.ctx, { folderId: await folder(h), name, kind, fields, idempotencyKey: key() } as Parameters<
+    typeof v.itemPut
+  >[1]);
 }
 function sink() {
   const got: { value: string; field: string }[] = [];
@@ -31,7 +36,7 @@ function sink() {
 function windowLeft(h: Harness, periodS: number, leftMs: number): void {
   const periodMs = periodS * 1000;
   const into = h.ctx.now() % periodMs;
-  h.advance(((periodMs - leftMs - into) % periodMs + periodMs) % periodMs);
+  h.advance((((periodMs - leftMs - into) % periodMs) + periodMs) % periodMs);
 }
 
 test("filling a totp item gives the current code, not the seed: nothing of the seed reaches the sink, the answer, an event, a row or a log", async () => {
@@ -44,7 +49,10 @@ test("filling a totp item gives the current code, not the seed: nothing of the s
     const r = out(await u.fill(h.ctx, { handle: "#Acme_TOTP", target: { kind: "env", ref: "ref-1" } }));
     assert.equal(r.filled, true);
     const expected = codeAt(parseSeed(SEED)!, h.ctx.now()).code;
-    assert.deepEqual(got.map((g) => g.value), [expected]);
+    assert.deepEqual(
+      got.map((g) => g.value),
+      [expected],
+    );
     assert.match(got[0]!.value, /^\d{6}$/);
     assert.ok(!JSON.stringify(r).includes(SEED) && !h.everything().includes(SEED), "the seed is nowhere");
   } finally {
@@ -61,7 +69,9 @@ test("a login's totp field is a seed too; the code follows the otpauth algorithm
     { key: "totp", value: OTPAUTH },
   ]);
   windowLeft(h, 60, 30_000);
-  const r = out(await u.fill(h.ctx, { handle: "#Acme_Login.totp", target: { kind: "env", ref: "ref-2" }, returnValue: true }));
+  const r = out(
+    await u.fill(h.ctx, { handle: "#Acme_Login.totp", target: { kind: "env", ref: "ref-2" }, returnValue: true }),
+  );
   const expected = codeAt(parseSeed(OTPAUTH)!, h.ctx.now()).code;
   assert.equal(expected.length, 8);
   assert.deepEqual([got[0]!.value, r.value], [expected, expected]);
@@ -98,7 +108,10 @@ test("an item whose secret is not a seed refuses with words and fills nothing", 
   const h = harness();
   const got = sink();
   await put(h, "Broken TOTP", "totp", [{ key: "secret", value: "this is not base32 !!" }]);
-  assert.equal(await refusedWith(u.fill(h.ctx, { handle: "#Broken_TOTP", target: { kind: "env", ref: "r" } })), "validation.bad_input");
+  assert.equal(
+    await refusedWith(u.fill(h.ctx, { handle: "#Broken_TOTP", target: { kind: "env", ref: "r" } })),
+    "validation.bad_input",
+  );
   assert.deepEqual(got, []);
 });
 

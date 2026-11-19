@@ -344,7 +344,13 @@ function parseHandle(ctx: VaultCtx, handle: unknown): { name: string; field?: st
 }
 
 /** The text to type or send for one field: the value, except for a one-time-code seed, whose value is never handed out. Its current code is, with at least five seconds of its window left (with less, the next window's code after the wait), so the seed stays in the Vault and only six digits leave. */
-async function valueToUse(kind: string, key: string, stored: string, nowMs: number, sleep: (ms: number) => Promise<void>): Promise<string> {
+async function valueToUse(
+  kind: string,
+  key: string,
+  stored: string,
+  nowMs: number,
+  sleep: (ms: number) => Promise<void>,
+): Promise<string> {
   if (!isSeedField(kind, key)) return stored;
   const made = codeToType(stored, nowMs);
   if (!made) throw new Error("That item's secret is not a one-time-code seed, so no code can be made from it.");

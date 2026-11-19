@@ -62,6 +62,9 @@ const GENERIC: readonly Rule[] = [
     "secret",
     2,
   ],
+  // A long bare token with no name, no prefix and no key in front of it: 40 or more token characters in one run, with letters and digits both in it, that is not a hash (all hex) and not words joined by hyphens.
+  // The run is read once from where it starts (the lookbehind is one character) and the checks that tell a token from prose are made on the match, so nothing here backtracks over a long run.
+  ["long-token", /(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{40,}(?![A-Za-z0-9_-])/g, "token"],
 ];
 
 export const PATTERNS: readonly Rule[] = [...VENDOR, ...GENERIC];
@@ -124,6 +127,11 @@ export function redact(input: unknown): Redacted {
       }
       if (group === 2 && NOT_SECRET_NAME.test(String(rest[0] ?? ""))) return m;
       const secret = group ? String(rest[group - 1] ?? m) : m;
+      if (name === "long-token") {
+        // letters and digits both, not a hash (all hex), not a slug of words (a hyphen or underscore every few characters)
+        if (!/\d/.test(m) || !/[A-Za-z]/.test(m) || /^[A-Fa-f0-9]+$/.test(m)) return m;
+        if ((m.match(/[-_]/g)?.length ?? 0) * 10 > m.length) return m;
+      }
       if (!secret || secret.length < 8) return m;
       // Placeholders help nobody when redacted, and markers must never be redacted again, or every re-index would chew further into the text.
       if (/^(\[|x{4,}|\*{4,}|<[^>]+>|\$\{?\w+\}?|redacted|changeme|your[-_])/i.test(secret)) return m;
@@ -153,13 +161,18 @@ export const scan = (text: unknown): string[] => redact(text).hits;
 // over the result, and cuts to the limit last, at a word boundary, so a key is never split by the cut.
 
 // A secret word ends the name. snake_case, kebab-case and dotted names in any letter case (api_key, API_KEY, x-api-key, db.password); camelCase after a lower-case letter or digit (accessToken, authToken, secretKey, clientSecret, apiKey).
-const SECRET_WORDS = "pass(?:word|wd|phrase)?|pw|pwd|jwt|otp|session[-_]?id|secret|token|apikey|api[-_]?key|key|auth|authorization|credentials?|session|sid|cookie|signature";
+const SECRET_WORDS =
+  "pass(?:word|wd|phrase)?|pw|pwd|jwt|otp|session[-_]?id|secret|token|apikey|api[-_]?key|key|auth|authorization|credentials?|session|sid|cookie|signature";
 const SECRET_SNAKE = new RegExp(`(?:^|[-_.])(?:${SECRET_WORDS})$`, "i");
-const SECRET_CAMEL = /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Pwd|Jwt|Otp|SessionId|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$/;
+const SECRET_CAMEL =
+  /[a-z0-9](?:Pass(?:word|wd|phrase)?|Pw|Pwd|Jwt|Otp|SessionId|Secret|Token|Apikey|ApiKey|Key|Auth|Authorization|Credentials?|Session|Sid|Cookie|Signature)$/;
 // run together in one case (AUTHTOKEN, dbpassword): the words that are never anything else need no boundary; "key" does (monkey)
 const SECRET_STRONG = /(?:token|secret|password|passwd|passphrase|apikey|credentials?)$/i;
-const SECRET_NAME = { test: (w: string): boolean => SECRET_SNAKE.test(w) || SECRET_CAMEL.test(w) || SECRET_STRONG.test(w) };
-const LINE_HEADER = /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):$/i; // the colon is required: "Authorization failed for bob" and "the cookie banner" are prose
+const SECRET_NAME = {
+  test: (w: string): boolean => SECRET_SNAKE.test(w) || SECRET_CAMEL.test(w) || SECRET_STRONG.test(w),
+};
+const LINE_HEADER =
+  /^(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key|x-auth-token|x-amz-security-token):$/i; // the colon is required: "Authorization failed for bob" and "the cookie banner" are prose
 const FLAG = /^-{1,2}(?:password|passwd|pass|token|secret|api-?key|auth)$/i;
 // -p and -u mean a secret only after a client that takes one (a database client or curl); elsewhere they are "make parents" and "set upstream"
 const SHORT_FLAG = /^-(?:p|u)$/;
@@ -203,7 +216,8 @@ function inlineSecret(word: string): { text: string; open: string; scheme: boole
     hit = true;
     const first = value[0] ?? "";
     // a quoted value that goes on in the next words ("Basic dXNl...") is removed to its closing quote; a Bearer or Basic value takes the word after it
-    if ((first === '"' || first === "'" || first === "`") && (value.length === 1 || !value.endsWith(first))) open = first;
+    if ((first === '"' || first === "'" || first === "`") && (value.length === 1 || !value.endsWith(first)))
+      open = first;
     if (SCHEME_WORD.test(value.replace(/^["'`]/, ""))) scheme = true;
     out += word.slice(pos, m.index) + `${q}${name}${q}${sep}${REMOVED}`;
     pos = m.index + full.length;

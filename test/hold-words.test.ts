@@ -106,15 +106,41 @@ test("every control and format character is written out on a card: bidi marks, t
 });
 
 test("a held approval of where a key may be sent always names the host", () => {
-  assert.equal(holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "api.fathom.video" }), "Let a key be sent to api.fathom.video");
-  assert.equal(holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "https://www.Example.com/x" }).includes("example.com"), true);
-  assert.equal(holdTitle("automations.key_hosts.remove", { itemId: "vit_1", host: "api.fathom.video" }), "Stop a key being sent to api.fathom.video");
+  assert.equal(
+    holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "api.fathom.video" }),
+    "Let a key be sent to api.fathom.video",
+  );
+  assert.equal(
+    holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "https://www.Example.com/x" }).includes(
+      "example.com",
+    ),
+    true,
+  );
+  assert.equal(
+    holdTitle("automations.key_hosts.remove", { itemId: "vit_1", host: "api.fathom.video" }),
+    "Stop a key being sent to api.fathom.video",
+  );
   assert.match(holdTitle("automations.key_hosts.allow", {}), /another host/);
-  assert.ok(holdTitle("automations.key_hosts.allow", { host: "h".repeat(300) + ".com" }).length < 120, "a long host is cut");
+  assert.ok(
+    holdTitle("automations.key_hosts.allow", { host: "h".repeat(300) + ".com" }).length < 120,
+    "a long host is cut",
+  );
 });
 
 test("a host written with a user name, a port or an address in brackets is read as its host, never the part before the @", () => {
   assert.match(holdTitle("automations.key_hosts.allow", { host: "ok.com@evil.example/x" }), /evil\.example/);
   assert.ok(!holdTitle("automations.key_hosts.allow", { host: "ok.com@evil.example/x" }).includes("ok.com"));
   assert.match(holdTitle("automations.key_hosts.allow", { host: "[::1]:8080" }), /::1|\[::1\]/);
+});
+
+test("unassigned code points, lone surrogates and combining marks are written out on a card too, so a path cannot look different from what is read", () => {
+  const url = "https://a.example/p\u034Fq\u0378r\uD800s\u20DDt";
+  const shown = wantsFromInput("computers.chrome.read", { url })!;
+  for (const code of ["034F", "0378", "D800", "20DD"]) assert.ok(shown.includes(`[U+${code}]`), `${code}: ${shown}`);
+  assert.ok(!/[\u034F\u0378\uD800\u20DD]/.test(shown), "none reaches the card as itself");
+  assert.equal(
+    wantsFromInput("computers.chrome.read", { url: "https://a.example/plain/path?x=1&y=%C3%A9" }),
+    "read a web page on a.example: https://a.example/plain/path?x=1&y=%C3%A9",
+    "ordinary addresses are shown as they are",
+  );
 });

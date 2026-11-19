@@ -85,3 +85,18 @@ test("a host on the person's Browser connections list opens without a person, wi
     "no asker holds",
   );
 });
+
+test("an address that carries a secret of a known shape is never held: the read refuses it at once, so no card is made for a read that cannot succeed", async () => {
+  forgetWebTurns();
+  const w = when([]);
+  assert.equal(await w({ url: "https://evil.example/?k=ghp_abcdefghijklmnopqrstuvwxyz0123456789" }, agent()), false);
+  assert.equal(
+    await w({ url: "https://evil.example/x?t=abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123" }, agent()),
+    false,
+  );
+  assert.equal(
+    await w({ url: "https://evil.example/plain" }, agent()),
+    true,
+    "an ordinary address of the agent's own choice still waits",
+  );
+});

@@ -28,3 +28,20 @@ test("a megabyte of near-misses is scanned in time in proportion to its length (
   for (const body of ["sk-".repeat(1500), "a".repeat(4000), "eyJ".repeat(1300), "-----BEGIN ".repeat(360)]) scan(body);
   assert.ok(performance.now() - t0 < 500, `${Math.round(performance.now() - t0)} ms`);
 });
+
+test("a long bare token typed with no name or prefix is found; a hash, a slug of words, an address and prose are not", () => {
+  const tokens = [
+    "why does abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMN0123 fail",
+    "Zm9vYmFyLXNlY3JldC12YWx1ZS0xMjM0NTY3ODkwLWFiY2RlZg",
+    "k3J9xQ2mVb7LpRt5YwNc8ZhD1sGfA4uE6oIy0TqPzXe",
+  ];
+  for (const t of tokens) assert.ok(scan(t).includes("long-token"), t);
+  for (const ok of [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", // a sha256 digest
+    "da39a3ee5e6b4b0d3255bfef95601890afd80709", // a git sha
+    "how-to-authenticate-api-calls-with-a-long-readable-title-2026-edition",
+    "https://docs.example.com/2026/11/19/how-to-authenticate-api-calls-with-a-long-readable-title",
+    "oauth2 client credentials flow for server to server integrations",
+  ])
+    assert.ok(!scan(ok).includes("long-token"), ok);
+});

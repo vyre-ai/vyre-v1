@@ -6,6 +6,7 @@
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
 //            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
+import { scan } from "../../../lib/secret-scrub.ts";
 import { exactUrl, hostOf, searchShowed, webTurnKey } from "../../../lib/web-turns.ts";
 import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
@@ -492,6 +493,8 @@ export function moduleWhens(
     const host = hostOf(String((input as { url?: unknown } | null)?.url ?? ""));
     // an address that is not a web address is refused by the read itself with its reason; it is never held for a person to approve
     if (host === null || exactUrl(String((input as { url?: unknown } | null)?.url ?? "")) === null) return false;
+    // an address that carries a secret of a known shape is refused by the read itself too: no card is made for a read that cannot succeed
+    if (scan(String((input as { url?: unknown } | null)?.url ?? "").slice(0, 4000)).length > 0) return false;
     if (
       searchShowed(webTurnKey(seed.principal.id, seed.thread), String((input as { url?: unknown } | null)?.url ?? ""))
     )
