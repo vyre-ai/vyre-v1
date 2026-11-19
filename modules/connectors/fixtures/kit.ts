@@ -58,6 +58,8 @@ export function kit(o: { builtins?: BuiltinRow[] } = {}) {
   /** the Space as the directory answers it: a team Space with admins, unless a test says otherwise */
   const space = { row: { kind: "team", owner: "usr_owner" } as { kind: string; owner: string }, adminHolders: 2 };
   /** people who left the Space (the directory says not found) and people who are suspended */
+  /** the Space as the directory answers it: a team Space with admins, unless a test says otherwise */
+  const space = { row: { kind: "team", owner: "usr_owner" } as { kind: string; owner: string }, adminHolders: 2 };
   const people = { left: new Set<string>(), suspended: new Set<string>() };
   const mk = (actor: string): ConnectorsCtx => ({
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
