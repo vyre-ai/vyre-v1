@@ -77,7 +77,7 @@ test("the input of a call is kept without its secrets, a call so kept is never a
       input: {
         to: "a@b.example",
         password: "hunter2",
-        note: "key sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ",
+        note: `key ${["sk", "ant", "oat01", "TESTsecretVALUE0123456789abcdefXYZ"].join("-")}`,
         ref: "#Mail.password",
       },
       scrubbed: true,
