@@ -45,6 +45,12 @@ test("a projection pass over a backlog of heavy events never holds the loop past
     tx: <T>(fn: () => T): T => fn(),
     close: () => raw.close(),
   } as unknown as HostDb;
+  let cursorWrites = 0;
+  const run = db.run.bind(db);
+  (db as { run: unknown }).run = (sql: string, ...a: never[]) => {
+    if (/INSERT INTO host_projection_cursor/.test(sql)) cursorWrites++;
+    return (run as (q: string, ...x: never[]) => unknown)(sql, ...a);
+  };
   const events = Array.from({ length: 1000 }, (_, i) => ({ seq: i + 1, type: "record.created" }) as unknown as StoredEvent);
   let handled = 0;
   const p: AsyncConsumer = {
@@ -74,6 +80,8 @@ test("a projection pass over a backlog of heavy events never holds the loop past
   await runner.pump();
   const max = await w.stop();
   assert.equal(handled, 1000);
+  assert.equal(db.all("SELECT seq FROM host_projection_cursor WHERE name = 'test.heavy'").map((r) => (r as { seq: number }).seq)[0], 1000, "the cursor ends at the last event");
+  assert.ok(cursorWrites <= 200, `${cursorWrites} cursor writes for 1,000 events: one each slice, not one each event`);
   assert.ok(max <= BUDGET_MS, `the loop was held for ${max} ms (budget ${BUDGET_MS} ms)`);
 });
 

@@ -120,7 +120,15 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
   async function passFor(p: AsyncConsumer): Promise<void> {
     const c = row(p.name);
     if (!c) return; // start() has not run for it yet
-    let at = c.seq;
+    let at = c.seq,
+      stored = c.seq;
+    // The cursor is written when the pass lets the loop run (at most every YIELD_EVERY_MS of work), when a page ends and when an event is kept for the next try, not after every event: one write for
+    // each event, on a Space that makes hundreds of thousands of them, was a third of this pass's time and a commit each. A crash repeats the events since the last write; a projection is idempotent
+    // (the contract of AsyncConsumer), as it already is for the one event in flight.
+    const store = (): void => {
+      if (at !== stored) setCursor(p, at);
+      stored = at;
+    };
     const size = p.batch ?? PAGE;
     let since = performance.now();
     for (;;) {
@@ -128,16 +136,17 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
       if (!page.length) return;
       for (const e of page) {
         if (!(await handle(p, e))) {
-          setCursor(p, at);
+          store();
           return;
         } // this event is tried again on the next pass, before any later one
         at = e.seq;
-        setCursor(p, at);
         if (performance.now() - since >= YIELD_EVERY_MS) {
+          store();
           await yieldLoop();
           since = performance.now();
         }
       }
+      store();
       if (page.length < size) return;
       await yieldLoop();
     }
