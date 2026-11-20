@@ -3,8 +3,8 @@
 // a task into a fresh Space (a folder that could not follow its record, a setup nag, a seed side effect) fails here.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bootFreshSpace } from "../apps/app/tests/real-app-harness.test.ts";
-import type { Space } from "../apps/app/tests/real-app-harness.test.ts";
+import { bootFreshSpace } from "../apps/app/tests/support/fresh-space.ts";
+import type { Space } from "../apps/app/tests/support/fresh-space.ts";
 
 const KEYS = {
   personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
@@ -81,6 +81,10 @@ for (const kind of ["personal", "team"] as const) {
       for (; rounds < 120 && (still < 4 || rounds < 12); rounds++) {
         await new Promise((r) => setTimeout(r, 100));
         const now = await marks();
+        assert.ok(
+          now >= 0,
+          `${kind}: the events probe answered (a failed probe is a failed test, not a settled Space)`,
+        );
         still = now === seen ? still + 1 : 0;
         seen = now;
       }
