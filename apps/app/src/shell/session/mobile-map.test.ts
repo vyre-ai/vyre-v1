@@ -4,6 +4,7 @@ import {
   chatAboutOf,
   desktopLine,
   desktopOnly,
+  TAB_VIEW,
   entryFor,
   headerBack,
   isAskEntry,
@@ -12,7 +13,7 @@ import {
   subjectEntry,
   tabOf,
 } from "./mobile-map.ts";
-import { formatHash, parseHash } from "../hash/hash.ts";
+import { formatHash, parseHash, placeForSubject, subjectTypes } from "../hash/hash.ts";
 import { openAsk } from "../providers/ask.ts";
 
 test("phone: a tab's place is its first screen, an opened item is <type>:<id> under that tab", () => {
@@ -180,4 +181,34 @@ test("phone: a link to a view of a tab's place keeps its hash (the Inbox's Unmat
   // a subject still opens its item, and the Replies link its own screen
   assert.equal(entryFor("inbox", "subject=conversation%3Acnv_1").screen, "conversation:cnv_1");
   assert.equal(entryFor("inbox", "screen=inbox.replies").screen, "replies:list");
+});
+
+test("phone: the tab-view screen kind collides with no subject type, so no opened item can be mistaken for a link to a view, and every item still round-trips", () => {
+  const types = subjectTypes();
+  assert.ok(types.length > 20, "the list of subject types is read");
+  assert.ok(!types.includes(TAB_VIEW), "no subject type is called the tab-view prefix");
+  for (const type of types) {
+    assert.ok(!`${type}:x`.startsWith(`${TAB_VIEW}:`), `${type}:id is not a tab-view screen`);
+    const place = placeForSubject(type);
+    if (place === null || !["chats", "inbox", "records", "files"].includes(place)) continue;
+    const e = entryFor(place as never, `subject=${type}%3A${type}_1`);
+    assert.ok(e.screen.startsWith(`${type}:`), `${type}: the screen is the item's (${e.screen})`);
+    const back = placeOf(e);
+    assert.ok(back !== null, `${type}: the phone has a place to draw it (${e.screen})`);
+    assert.equal(back!.place, place, `${type} comes back to its own place`);
+  }
+  // the three the reviewer named
+  assert.deepEqual(placeOf({ tab: "records", screen: "view:vw_123" }), {
+    place: "records",
+    hash: "subject=view%3Avw_123",
+  });
+  for (const [place, hash] of [
+    ["records", "screen=records.table&type=company"],
+    ["chats", "screen=chats.goals"],
+    ["files", "screen=files.list&folder=fld_1"],
+  ] as const) {
+    const e = entryFor(place, hash);
+    assert.ok(e.screen.startsWith(`${TAB_VIEW}:${place}:`), `${hash} is a tab view`);
+    assert.deepEqual(placeOf(e), { place, hash }, `${hash} comes back whole`);
+  }
 });
