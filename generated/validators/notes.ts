@@ -21,15 +21,15 @@ if ("owner" in o92) lf(o92["owner"], p + "/owner", e, L16);
 
 function d_s_bc82ea4792(v: unknown, p: string, e: string[]): void {
 {
-const x931 = v;
-const g931 = typeOf(x931);
-const b931: string[] = []; lf(x931, p, b931, L0); if (b931.length) e.push(...b931);
-if (g931 === "object") {
-if (g931 === 'object') { const o931 = x931 as Record<string, unknown>;
-if (!("data" in o931)) e.push(p + "/data" + ': required');
-if (!("contentType" in o931)) e.push(p + "/contentType" + ': required');
-if ("data" in o931) lf(o931["data"], p + "/data", e, L388);
-if ("contentType" in o931) lf(o931["contentType"], p + "/contentType", e, L389);
+const x929 = v;
+const g929 = typeOf(x929);
+const b929: string[] = []; lf(x929, p, b929, L0); if (b929.length) e.push(...b929);
+if (g929 === "object") {
+if (g929 === 'object') { const o929 = x929 as Record<string, unknown>;
+if (!("data" in o929)) e.push(p + "/data" + ': required');
+if (!("contentType" in o929)) e.push(p + "/contentType" + ': required');
+if ("data" in o929) lf(o929["data"], p + "/data", e, L388);
+if ("contentType" in o929) lf(o929["contentType"], p + "/contentType", e, L389);
 }
 }
 }
@@ -37,13 +37,13 @@ if ("contentType" in o931) lf(o931["contentType"], p + "/contentType", e, L389);
 
 function d_s_ee7e2574b9(v: unknown, p: string, e: string[]): void {
 {
-const x1206 = v;
-const g1206 = typeOf(x1206);
-const b1206: string[] = []; lf(x1206, p, b1206, L0); if (b1206.length) e.push(...b1206);
-if (g1206 === "object") {
-if (g1206 === 'object') { const o1206 = x1206 as Record<string, unknown>;
-if (!("note" in o1206)) e.push(p + "/note" + ': required');
-if ("note" in o1206) d_s_fb6c8d9ae0(o1206["note"], p + "/note", e);
+const x1205 = v;
+const g1205 = typeOf(x1205);
+const b1205: string[] = []; lf(x1205, p, b1205, L0); if (b1205.length) e.push(...b1205);
+if (g1205 === "object") {
+if (g1205 === 'object') { const o1205 = x1205 as Record<string, unknown>;
+if (!("note" in o1205)) e.push(p + "/note" + ': required');
+if ("note" in o1205) d_s_fb6c8d9ae0(o1205["note"], p + "/note", e);
 }
 }
 }

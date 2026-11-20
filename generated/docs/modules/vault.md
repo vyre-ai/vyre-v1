@@ -53,7 +53,7 @@ Requires: access.
 - [vault.items.export_mine](../capabilities/vault.items.export_mine.md): A person exports their own Mine items (also for 30 days after removal); one pull link, audited
 - [vault.items.list](../capabilities/vault.items.list.md): List items (names and metadata only, never values) by section, folder, kind or text
 - [vault.items.match](../capabilities/vault.items.match.md): Items that fit a website address (the Chrome extension offers them to fill)
-- [vault.login.check](../capabilities/vault.login.check.md): Is a login a page just submitted already saved? The password is compared inside the Vault: known, changed or new
+- [vault.login.check](../capabilities/vault.login.check.md): Is a submitted login already saved? Compared inside the Vault: known, changed or new
 - [vault.policy.get](../capabilities/vault.policy.get.md): The Space vault policy: who may export, longest pull link, Restricted never exported, reveal reasons
 - [vault.policy.set](../capabilities/vault.policy.set.md): Set the Space vault policy
 - [vault.report_scrub_miss](../capabilities/vault.report_scrub_miss.md): System: the filler reports a value it could not scrub from an output stream

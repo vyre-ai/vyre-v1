@@ -5,34 +5,34 @@ import type { Check } from './core.ts';
 
 function d_s_5430c2af6e(v: unknown, p: string, e: string[]): void {
 {
-const x421 = v;
-const g421 = typeOf(x421);
-const b421: string[] = []; lf(x421, p, b421, L0); if (b421.length) e.push(...b421);
-if (g421 === "object") {
-if (g421 === 'object') { const o421 = x421 as Record<string, unknown>;
-if (!("sid" in o421)) e.push(p + "/sid" + ': required');
-if (!("e164" in o421)) e.push(p + "/e164" + ': required');
-if (!("capabilities" in o421)) e.push(p + "/capabilities" + ': required');
-if ("sid" in o421) lf(o421["sid"], p + "/sid", e, L1);
-if ("e164" in o421) lf(o421["e164"], p + "/e164", e, L213);
-if ("friendlyName" in o421) lf(o421["friendlyName"], p + "/friendlyName", e, L1);
-if ("capabilities" in o421) {
+const x419 = v;
+const g419 = typeOf(x419);
+const b419: string[] = []; lf(x419, p, b419, L0); if (b419.length) e.push(...b419);
+if (g419 === "object") {
+if (g419 === 'object') { const o419 = x419 as Record<string, unknown>;
+if (!("sid" in o419)) e.push(p + "/sid" + ': required');
+if (!("e164" in o419)) e.push(p + "/e164" + ': required');
+if (!("capabilities" in o419)) e.push(p + "/capabilities" + ': required');
+if ("sid" in o419) lf(o419["sid"], p + "/sid", e, L1);
+if ("e164" in o419) lf(o419["e164"], p + "/e164", e, L213);
+if ("friendlyName" in o419) lf(o419["friendlyName"], p + "/friendlyName", e, L1);
+if ("capabilities" in o419) {
 {
-const x422 = o421["capabilities"];
-const g422 = typeOf(x422);
-const b422: string[] = []; lf(x422, p + "/capabilities", b422, L4); if (b422.length) e.push(...b422);
-if (g422 === "array") {
-if (g422 === 'array') { const a422 = x422 as unknown[];
-for (let i422 = 0; i422 < a422.length; i422++) {
-lf(a422[i422], p + "/capabilities" + '/' + i422, e, L1);
+const x420 = o419["capabilities"];
+const g420 = typeOf(x420);
+const b420: string[] = []; lf(x420, p + "/capabilities", b420, L4); if (b420.length) e.push(...b420);
+if (g420 === "array") {
+if (g420 === 'array') { const a420 = x420 as unknown[];
+for (let i420 = 0; i420 < a420.length; i420++) {
+lf(a420[i420], p + "/capabilities" + '/' + i420, e, L1);
 }
 }
 }
 }
 }
-if ("voiceUrl" in o421) lf(o421["voiceUrl"], p + "/voiceUrl", e, L1);
-if ("smsUrl" in o421) lf(o421["smsUrl"], p + "/smsUrl", e, L1);
-if ("statusUrl" in o421) lf(o421["statusUrl"], p + "/statusUrl", e, L1);
+if ("voiceUrl" in o419) lf(o419["voiceUrl"], p + "/voiceUrl", e, L1);
+if ("smsUrl" in o419) lf(o419["smsUrl"], p + "/smsUrl", e, L1);
+if ("statusUrl" in o419) lf(o419["statusUrl"], p + "/statusUrl", e, L1);
 }
 }
 }
@@ -40,13 +40,13 @@ if ("statusUrl" in o421) lf(o421["statusUrl"], p + "/statusUrl", e, L1);
 
 function d_s_f0dc4dc53a(v: unknown, p: string, e: string[]): void {
 {
-const x1224 = v;
-const g1224 = typeOf(x1224);
-const b1224: string[] = []; lf(x1224, p, b1224, L0); if (b1224.length) e.push(...b1224);
-if (g1224 === "object") {
-if (g1224 === 'object') { const o1224 = x1224 as Record<string, unknown>;
-if (!("number" in o1224)) e.push(p + "/number" + ': required');
-if ("number" in o1224) d_s_5430c2af6e(o1224["number"], p + "/number", e);
+const x1223 = v;
+const g1223 = typeOf(x1223);
+const b1223: string[] = []; lf(x1223, p, b1223, L0); if (b1223.length) e.push(...b1223);
+if (g1223 === "object") {
+if (g1223 === 'object') { const o1223 = x1223 as Record<string, unknown>;
+if (!("number" in o1223)) e.push(p + "/number" + ': required');
+if ("number" in o1223) d_s_5430c2af6e(o1223["number"], p + "/number", e);
 }
 }
 }

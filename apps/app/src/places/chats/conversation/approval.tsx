@@ -476,10 +476,10 @@ export function ApprovalCard({
   const headline = webRead
     ? `${agent} wants to read a web page on ${webRead.host}`
     : held.plain
-    ? `${agent} asks: ${task.title}`
-    : held.what
-      ? askLine(agent, held.what)
-      : (keyLine ?? wantsLine(agent, held.cap, subject, held.input));
+      ? `${agent} asks: ${task.title}`
+      : held.what
+        ? askLine(agent, held.what)
+        : (keyLine ?? wantsLine(agent, held.cap, subject, held.input));
   return (
     <Card
       kind="decision"
@@ -510,7 +510,9 @@ export function ApprovalCard({
         </View>
       ) : webRead ? (
         <View testID={`approval-address-${taskId}`} style={st.excerpt}>
-          <Text style={st.label}>{`Address${webRead.address.length > 120 ? ` (${webRead.address.length} characters)` : ""}`}</Text>
+          <Text
+            style={st.label}
+          >{`Address${webRead.address.length > 120 ? ` (${webRead.address.length} characters)` : ""}`}</Text>
           <ScrollView style={st.address} nestedScrollEnabled>
             <Text selectable style={st.mono} {...({ dataSet: { vyreAddress: "1" } } as object)}>
               {webRead.address}

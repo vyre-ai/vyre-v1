@@ -1,0 +1,1 @@
+Internal: the chrome lane's boundary, formatting and tool-size reds are cleared (live tests under test/, the one-time-code module in the Vault, the pairing check on the platform digest, shorter chrome tool words).

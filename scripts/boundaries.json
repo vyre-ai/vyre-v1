@@ -172,13 +172,14 @@
       ]
     },
     "B4": {
-      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it)",
+      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it); allowFetchIn names the sanctioned others: the service worker, and apps/chrome/src/worker/link.js, the extension's one connection (to the Space the person typed in; the guard in apps/chrome/tests/ext-core.test.ts pins it to that address and two requests)",
       "noFetchIn": [
         "ui",
         "apps"
       ],
       "allowFetchIn": [
-        "apps/app/public/"
+        "apps/app/public/",
+        "apps/chrome/src/worker/link.js"
       ]
     },
     "B5": {

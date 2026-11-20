@@ -3,12 +3,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
-import { createEngineSessionHost } from "../src/seams/engine-session.ts";
-import { createFillService, fillHttp } from "../../modules/computers/handlers/fill.ts";
-import * as v from "../../modules/vault/handlers/index.ts";
-import * as u from "../../modules/vault/handlers/use.ts";
-import { codeAt, parseSeed } from "../../lib/totp.ts";
-import { AGENT, harness } from "../../modules/vault/fixtures/harness.ts";
+import { createEngineSessionHost } from "../host/src/seams/engine-session.ts";
+import { createFillService, fillHttp } from "../modules/computers/handlers/fill.ts";
+import * as v from "../modules/vault/handlers/index.ts";
+import * as u from "../modules/vault/handlers/use.ts";
+import { codeAt, parseSeed } from "../modules/vault/totp.ts";
+import { AGENT, harness } from "../modules/vault/fixtures/harness.ts";
 
 const SEED = "JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP"; // secret-scan: fake
 type Json = Record<string, unknown>;
