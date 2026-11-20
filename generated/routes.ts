@@ -21923,9 +21923,7 @@ const routes3: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "entity",
-      "entity": "mail_message",
-      "id": "/messageId"
+      "type": "space"
     },
     "idempotency": "natural",
     "risk": "low",

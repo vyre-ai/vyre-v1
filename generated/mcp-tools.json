@@ -36704,7 +36704,7 @@
       "blocks": [],
       "cap": "mail.delivery_state",
       "deferred": false,
-      "description": "A sent message's delivery trail: events, retries, blocked addresses",
+      "description": "A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -36716,9 +36716,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "messageId"
-        ],
         "type": "object"
       },
       "name": "mail_delivery_state",

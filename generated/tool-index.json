@@ -5235,7 +5235,7 @@
     {
       "deferred": false,
       "name": "mail_delivery_state",
-      "summary": "A sent message's delivery trail: events, retries, blocked addresses",
+      "summary": "A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried",
       "toolset": "inbox"
     },
     {

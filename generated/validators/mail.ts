@@ -908,7 +908,6 @@ const g4383 = typeOf(x4383);
 const b4383: string[] = []; lf(x4383, p, b4383, L0); if (b4383.length) e.push(...b4383);
 if (g4383 === "object") {
 if (g4383 === 'object') { const o4383 = x4383 as Record<string, unknown>;
-if (!("messageId" in o4383)) e.push(p + "/messageId" + ': required');
 if ("messageId" in o4383) lf(o4383["messageId"], p + "/messageId", e, L31);
 }
 }

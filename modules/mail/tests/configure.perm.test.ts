@@ -127,7 +127,9 @@ test("the host live test names exactly the capabilities mail.configure routes to
 });
 
 test("the template and inbox-health actions of mail.configure keep the permission of the capability behind them: reads are open to members, changing wording asks for comms.templates and is held for an agent", () => {
-  const routes = Object.fromEntries(Object.entries(CONFIGURE_ROUTE).filter(([a]) => (OWN_PERMISSION_ROUTES as readonly string[]).includes(a)));
+  const routes = Object.fromEntries(
+    Object.entries(CONFIGURE_ROUTE).filter(([a]) => (OWN_PERMISSION_ROUTES as readonly string[]).includes(a)),
+  );
   for (const [action, cap] of Object.entries(routes)) {
     const c = def(cap);
     assert.ok(c, `${action} routes to ${cap}, which is in the registry`);

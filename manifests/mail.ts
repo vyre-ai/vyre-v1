@@ -991,12 +991,16 @@ const manifest = defineManifest({
       errors: ["validation.bad_input", "validation.not_found"],
     }),
     // the tool for a sent message's delivery: its trail (mail.delivery.trail). The retry behind it is the host's own follow-up and is not reachable by a person or an agent
-    read("mail.delivery_state", "A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried", {
-      in: { messageId: t.opt(emlId) },
-      out: { result: t.json() },
-      tool: "inbox",
-      errors: ["validation.bad_input", "validation.not_found"],
-    }),
+    read(
+      "mail.delivery_state",
+      "A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried",
+      {
+        in: { messageId: t.opt(emlId) },
+        out: { result: t.json() },
+        tool: "inbox",
+        errors: ["validation.bad_input", "validation.not_found"],
+      },
+    ),
     write(
       "mail.unsubscribe",
       "Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list",
@@ -1324,8 +1328,15 @@ const manifest = defineManifest({
     screen("mail.templates", "console", "ui:EmailTemplates", {
       q: { templates: ["mail.configure", { action: "template_list" }, true] },
       a: {
-        save: ["mail.configure", { action: "template_save", key: "/state/key", subject: "/state/subject", text: "/state/text" }],
-        reset: ["mail.configure", { action: "template_reset", key: "/state/key" }, "Use the template that ships with Vyre?"],
+        save: [
+          "mail.configure",
+          { action: "template_save", key: "/state/key", subject: "/state/subject", text: "/state/text" },
+        ],
+        reset: [
+          "mail.configure",
+          { action: "template_reset", key: "/state/key" },
+          "Use the template that ships with Vyre?",
+        ],
       },
       empty: "No templates yet",
       needs: ["comms.templates"],

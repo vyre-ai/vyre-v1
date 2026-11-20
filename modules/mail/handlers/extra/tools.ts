@@ -14,9 +14,18 @@ export async function delivery(ctx: MailCtx, input: { messageId?: string }): Pro
   ensureDelivery(ctx);
   const ids = new Set<string>();
   for (const status of NEEDS_A_LOOK)
-    for (const r of rowsOf(ctx.db.all(`SELECT id FROM mail_message WHERE direction = ? AND status = ? AND deleted_at IS NULL`, "out", status))) ids.add(str(r, "id"));
-  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "pending"))) ids.add(str(r, "messageId"));
-  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "held"))) ids.add(str(r, "messageId"));
+    for (const r of rowsOf(
+      ctx.db.all(
+        `SELECT id FROM mail_message WHERE direction = ? AND status = ? AND deleted_at IS NULL`,
+        "out",
+        status,
+      ),
+    ))
+      ids.add(str(r, "id"));
+  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "pending")))
+    ids.add(str(r, "messageId"));
+  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "held")))
+    ids.add(str(r, "messageId"));
   const messages: { messageId: string; to: string[]; subject: string; status: string; at: number }[] = [];
   for (const id of ids) {
     const m = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND deleted_at IS NULL`, id))[0];
@@ -33,5 +42,10 @@ export async function delivery(ctx: MailCtx, input: { messageId?: string }): Pro
     });
   }
   messages.sort((a, b) => b.at - a.at);
-  return { result: { messages: messages.slice(0, LIMIT), next: "Call again with a messageId from this list for its whole trail." } };
+  return {
+    result: {
+      messages: messages.slice(0, LIMIT),
+      next: "Call again with a messageId from this list for its whole trail.",
+    },
+  };
 }

@@ -25258,7 +25258,7 @@ export type MailDeliveryTrailOut = {
   };
 };
 export type MailDeliveryStateIn = {
-  messageId: string;
+  messageId?: string;
 };
 export type MailDeliveryStateOut = {
   result: unknown;

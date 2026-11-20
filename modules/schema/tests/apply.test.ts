@@ -1027,8 +1027,13 @@ test("a system field's options accept the Can go in emails switch and nothing el
 test("schema.apply takes a field.mergeable op: the same switch, through the one schema tool, with every rule of a field update", async () => {
   const k = kit();
   await base(k);
-  const mergeable = async (field: string) => (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.["mergeable"];
-  const op = (field: string, on: unknown) => ({ ops: [{ op: "field.mergeable" as const, type: "acme_person", field, def: { mergeable: on } }] });
+  const mergeable = async (field: string) =>
+    (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.[
+      "mergeable"
+    ];
+  const op = (field: string, on: unknown) => ({
+    ops: [{ op: "field.mergeable" as const, type: "acme_person", field, def: { mergeable: on } }],
+  });
   await k.h["schema.apply"](k.ctx, op("name", true));
   assert.equal(await mergeable("name"), true);
   await k.h["schema.apply"](k.ctx, op("name", false));

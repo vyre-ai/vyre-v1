@@ -396,7 +396,22 @@ test("the template actions of mail.configure route to the template capabilities 
   const h = setup();
   const seen: { cap: string; input: Record<string, unknown> }[] = [];
   const routed = (cap: string) => (i: Record<string, unknown>) => (seen.push({ cap, input: i }), { ok: cap });
-  script(h, Object.fromEntries(["mail.template.list", "mail.template.get", "mail.template.preview", "mail.template.save", "mail.template.reset", "mail.template.for_document.get", "mail.template.for_document.set", "mail.template.for_document.clear", "mail.inbox.monitor"].map((c) => [c, routed(c)])));
+  script(
+    h,
+    Object.fromEntries(
+      [
+        "mail.template.list",
+        "mail.template.get",
+        "mail.template.preview",
+        "mail.template.save",
+        "mail.template.reset",
+        "mail.template.for_document.get",
+        "mail.template.for_document.set",
+        "mail.template.for_document.clear",
+        "mail.inbox.monitor",
+      ].map((c) => [c, routed(c)]),
+    ),
+  );
   const first = async (input: Record<string, unknown>) => (await setupTool(h.ctx, input as never)).result;
   await first({ action: "template_list" });
   await first({ action: "template_get", key: "signature.request" });
@@ -409,23 +424,58 @@ test("the template actions of mail.configure route to the template capabilities 
   await first({ action: "doc_template_clear", documentId: DOC, key: "signature.reminder" });
   await first({ action: "monitor" });
   await first({ action: "monitor", mailboxId: "mbx_maya" });
-  assert.deepEqual(seen.map((s) => s.cap), ["mail.template.list", "mail.template.get", "mail.template.get", "mail.template.preview", "mail.template.save", "mail.template.reset", "mail.template.for_document.get", "mail.template.for_document.set", "mail.template.for_document.clear", "mail.inbox.monitor", "mail.inbox.monitor"]);
+  assert.deepEqual(
+    seen.map((s) => s.cap),
+    [
+      "mail.template.list",
+      "mail.template.get",
+      "mail.template.get",
+      "mail.template.preview",
+      "mail.template.save",
+      "mail.template.reset",
+      "mail.template.for_document.get",
+      "mail.template.for_document.set",
+      "mail.template.for_document.clear",
+      "mail.inbox.monitor",
+      "mail.inbox.monitor",
+    ],
+  );
   assert.deepEqual(seen[2]!.input, { key: "signature.request", documentId: DOC });
   assert.deepEqual(seen[10]!.input, { mailboxId: "mbx_maya" });
   // a wrong first call is answered with the shape, in one line, and reaches nothing
-  const said = (input: Record<string, unknown>) => setupTool(h.ctx, input as never).then(() => "", (e: unknown) => (e as { error: { message: string } }).error.message);
-  assert.equal(await said({ action: "template_save", key: "a.b" }), "mail.configure template_save takes {key, subject, text, recordType?}; missing subject, text.");
-  assert.equal(await said({ action: "template_get" }), "mail.configure template_get takes {key, documentId?}; missing key.");
-  assert.equal(await said({ action: "monitor", box: "x" }), "mail.configure monitor takes {mailboxId?}; not used: box.");
+  const said = (input: Record<string, unknown>) =>
+    setupTool(h.ctx, input as never).then(
+      () => "",
+      (e: unknown) => (e as { error: { message: string } }).error.message,
+    );
+  assert.equal(
+    await said({ action: "template_save", key: "a.b" }),
+    "mail.configure template_save takes {key, subject, text, recordType?}; missing subject, text.",
+  );
+  assert.equal(
+    await said({ action: "template_get" }),
+    "mail.configure template_get takes {key, documentId?}; missing key.",
+  );
+  assert.equal(
+    await said({ action: "monitor", box: "x" }),
+    "mail.configure monitor takes {mailboxId?}; not used: box.",
+  );
   assert.equal(seen.length, 11);
   // delivery: a message id gives its trail; none is asked for
   // no id (a first call that knows nothing): the sent messages that need a look, so the next call can name one
   seedSent(h, { id: "eml_b1", mailboxId: "mbx_maya", providerId: "re_b1", status: "bounced" });
   seedSent(h, { id: "eml_ok", mailboxId: "mbx_maya", providerId: "re_ok", status: "delivered" });
   const listed = (await delivery(h.ctx, {})).result as { messages: { messageId: string }[] };
-  assert.deepEqual(listed.messages.map((m) => m.messageId), ["eml_b1"]);
+  assert.deepEqual(
+    listed.messages.map((m) => m.messageId),
+    ["eml_b1"],
+  );
   assert.deepEqual(contractErrors("mail.delivery_state", "out", { result: listed }), []);
   h.denied.add("mbx_maya");
-  assert.deepEqual(((await delivery(h.ctx, {})).result as { messages: unknown[] }).messages, [], "a message the caller may not see is not listed");
+  assert.deepEqual(
+    ((await delivery(h.ctx, {})).result as { messages: unknown[] }).messages,
+    [],
+    "a message the caller may not see is not listed",
+  );
   await assert.rejects(delivery(h.ctx, { messageId: "eml_none" }), (e) => codeOf(e) === "validation.not_found");
 });

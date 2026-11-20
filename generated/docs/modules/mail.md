@@ -15,7 +15,7 @@ Requires: nothing.
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own Gmail, Outlook or IMAP mailbox
 - [mail.delivery.retry](../capabilities/mail.delivery.retry.md): Vyre-only: resend a soft-bounced message to that address
 - [mail.delivery.trail](../capabilities/mail.delivery.trail.md): Delivery trail of a sent message: events, retries, blocked addresses
-- [mail.delivery_state](../capabilities/mail.delivery_state.md): A sent message's delivery trail: events, retries, blocked addresses
+- [mail.delivery_state](../capabilities/mail.delivery_state.md): A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried
 - [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish
 - [mail.domain.check](../capabilities/mail.domain.check.md): Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify
 - [mail.domain.get](../capabilities/mail.domain.get.md): Read one sending domain with the DNS records to publish

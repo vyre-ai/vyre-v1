@@ -1,6 +1,6 @@
 # mail.delivery_state
 
-A sent message's delivery trail: events, retries, blocked addresses
+A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@ A sent message's delivery trail: events, retries, blocked addresses
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | entity (/messageId) |
+| Resource | space |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
@@ -25,7 +25,7 @@ A sent message's delivery trail: events, retries, blocked addresses
 
 ```ts
 type In = {
-  messageId: string;
+  messageId?: string;
 };
 ```
 
