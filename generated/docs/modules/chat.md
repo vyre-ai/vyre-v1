@@ -44,7 +44,7 @@ Requires: engine, hooks, mcp, members.
 - [chat.flow_card](../capabilities/chat.flow_card.md): Leave the card of a drafted Flow in its chat: its name, what it does in plain words and Turn on and Test buttons. Written by the server from the draft itself; only a draft gets one
 - [chat.fork](../capabilities/chat.fork.md): Branch a chat at one message: a new private chat that holds a copy of everything up to there, with the same agents and a line that links back
 - [chat.handoff](../capabilities/chat.handoff.md): Hand work to another agent: opens that agent thread linked from this one, counted against the hop limit
-- [chat.helper.note](../capabilities/chat.helper.note.md): Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer
+- [chat.helper.note](../capabilities/chat.helper.note.md): Note between a helper and the agent that started it: a follow-up down, or progress, a result or a question up. Set needsPerson only when no one but the person can answer
 - [chat.helper.note_seen](../capabilities/chat.helper.note_seen.md): Mark the notes waiting for a helper as read
 - [chat.helper.notes](../capabilities/chat.helper.notes.md): The notes in a helper chat with who sent each: the person, the agent that started it, or the helper
 - [chat.helper.restart](../capabilities/chat.helper.restart.md): Start a helper again on another model: the person it works for picks an account and a model, and it does its brief again from the start

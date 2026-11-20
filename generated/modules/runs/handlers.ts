@@ -34,6 +34,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.node.rerun": Handler<"runs.node.rerun", X>;
   "runs.node.save_as_agent": Handler<"runs.node.save_as_agent", X>;
   "runs.node.start": Handler<"runs.node.start", X>;
+  "runs.ops": Handler<"runs.ops", X>;
   "runs.people_counts": Handler<"runs.people_counts", X>;
   "runs.pin_version": Handler<"runs.pin_version", X>;
   "runs.preview_undo": Handler<"runs.preview_undo", X>;

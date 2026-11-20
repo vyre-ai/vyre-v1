@@ -47,6 +47,7 @@ import {
 import { previewUndo, undo } from "./undo.ts";
 import { erase, purge } from "./purge.ts";
 import { compare, rerun, saveAsAgent } from "./rerun.ts";
+import { toolHandlers as opsTool } from "./ops-tool.ts";
 import { agentsOfRun, withReversals } from "../../../lib/reversal.ts";
 
 const base = {
@@ -69,6 +70,7 @@ const base = {
   "runs.node.label": nodeLabel,
   "runs.node.move": nodeMove,
   "runs.node.reclaim": nodeReclaim,
+  ...opsTool,
   "runs.node.rerun": rerun,
   "runs.node.save_as_agent": saveAsAgent,
   "runs.node.compare": compare,

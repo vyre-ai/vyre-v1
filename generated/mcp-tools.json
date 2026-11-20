@@ -18233,7 +18233,7 @@
       "blocks": [],
       "cap": "engine.crew.merge",
       "deferred": false,
-      "description": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed",
+      "description": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local until pushed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18297,7 +18297,7 @@
       "blocks": [],
       "cap": "engine.crew.push",
       "deferred": false,
-      "description": "Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
+      "description": "Push the project repository's base branch, with a teammate's merged work, to its remote. A person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18329,7 +18329,7 @@
       ],
       "cap": "engine.crew.start",
       "deferred": false,
-      "description": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
+      "description": "Start a teammate on a brief in any chat. It works on its own branch of its own copy of the repository: the chat's project's, else the chat's work folder on this computer. Nothing to set up first",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18441,7 +18441,7 @@
       "blocks": [],
       "cap": "engine.crew.wait",
       "deferred": false,
-      "description": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "description": "Wake me when the checks of a pull request end: the host watches them, not the model, shows the progress in the Crew tab, and posts one message that wakes the lead",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -19954,7 +19954,7 @@
       "blocks": [],
       "cap": "engine.accounts.list",
       "deferred": false,
-      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
+      "description": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says if it can run there and why not",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20187,7 +20187,7 @@
       "blocks": [],
       "cap": "engine.drop_queued",
       "deferred": false,
-      "description": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "description": "Take a message waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -20576,7 +20576,7 @@
       "blocks": [],
       "cap": "engine.live_turns",
       "deferred": false,
-      "description": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
+      "description": "The turns being written in a thread now, with the text so far: what a chat opened mid-turn shows before it follows the live stream",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20650,7 +20650,7 @@
       "blocks": [],
       "cap": "engine.now",
       "deferred": false,
-      "description": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "description": "Which agents are working now: the agent, the person it works for, where it runs and since when; the chat is named only to someone who may read it",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -20665,7 +20665,7 @@
       "blocks": [],
       "cap": "engine.placement.options",
       "deferred": false,
-      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)",
+      "description": "What the runs-on chip of a chat offers: this computer, the Space (Team Space) and each of your servers, whether each is on and why not; where the chat runs now and whether it is pinned",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20987,7 +20987,7 @@
       "blocks": [],
       "cap": "engine.reviewer.set",
       "deferred": false,
-      "description": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task",
+      "description": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent is asked in the chat after each lead turn, a person gets a Review task",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -21043,7 +21043,7 @@
       "blocks": [],
       "cap": "engine.rewind.points",
       "deferred": false,
-      "description": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "description": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first) and the rewinds in force: messages folded, who went back, the point that undoes it",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -21100,7 +21100,7 @@
       "blocks": [],
       "cap": "engine.round.get",
       "deferred": false,
-      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue",
+      "description": "Who is on each message now, for the row under a message that asked several agents: each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the queue",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -21583,7 +21583,7 @@
       "blocks": [],
       "cap": "engine.thread_states",
       "deferred": false,
-      "description": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "description": "The latest turn of up to 200 chats in one call: running, waiting, failed or done, with the words why for a failed one; chats the asker may not open are left out",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -32837,7 +32837,7 @@
       "blocks": [],
       "cap": "chat.helper.note",
       "deferred": true,
-      "description": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "description": "Note between a helper and the agent that started it: a follow-up down, or progress, a result or a question up. Set needsPerson only when no one but the person can answer",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -55450,6 +55450,35 @@
     },
     {
       "blocks": [],
+      "cap": "runs.ops",
+      "deferred": false,
+      "description": "Agent work: look, tell, steer; read the runs skill",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "args": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "runs_ops",
+      "planMode": "blocked",
+      "toolset": "agents",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "runs.people_counts",
       "deferred": false,
       "description": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
@@ -55508,7 +55537,7 @@
       "blocks": [],
       "cap": "runs.replay",
       "deferred": false,
-      "description": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
+      "description": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer is cleared",
       "effects": "write",
       "inputSchema": {
         "properties": {

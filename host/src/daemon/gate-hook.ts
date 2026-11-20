@@ -740,6 +740,9 @@ export function moduleWhens(
     if (action === "job_update") return argsOf(input)["command"] !== undefined && storesKeys(input);
     return false;
   };
+  // saving work as an agent makes a new agent from it: an agent asking waits for a person's yes (the same hold runs.node.save_as_agent has on its own)
+  out["runs.ops_gate"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { action?: unknown } | null)?.action === "save_as_agent";
   out["vault.after_approved_key_use"] = async (input, seed) => {
     const use = keySendOf(input);
     const h = db();

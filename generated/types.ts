@@ -36806,6 +36806,14 @@ export type RunsNodeStartOut = {
   };
   created: boolean;
 };
+export type RunsOpsIn = {
+  action: string;
+  id?: string;
+  args?: Record<string, unknown>;
+};
+export type RunsOpsOut = {
+  result: unknown;
+};
 export type RunsPeopleCountsIn = {
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
 };
@@ -52896,6 +52904,7 @@ export interface CapMap {
   "runs.node.rerun": { in: RunsNodeRerunIn; out: RunsNodeRerunOut };
   "runs.node.save_as_agent": { in: RunsNodeSaveAsAgentIn; out: RunsNodeSaveAsAgentOut };
   "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };
+  "runs.ops": { in: RunsOpsIn; out: RunsOpsOut };
   "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };

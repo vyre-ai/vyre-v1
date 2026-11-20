@@ -4520,6 +4520,9 @@
   "runs_list": {
     "scope": "mine"
   },
+  "runs_ops": {
+    "action": "Quarterly planning"
+  },
   "runs_people_counts": {},
   "runs_preview_undo": {
     "runId": "run_a1b2c3"

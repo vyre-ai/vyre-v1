@@ -344,7 +344,7 @@ export default defineManifest({
     ),
     write(
       "engine.crew.start",
-      "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
+      "Start a teammate on a brief in any chat. It works on its own branch of its own copy of the repository: the chat's project's, else the chat's work folder on this computer. Nothing to set up first",
       {
         in: {
           ...threadT,
@@ -414,7 +414,7 @@ export default defineManifest({
     ),
     write(
       "engine.crew.merge",
-      "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed",
+      "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local until pushed",
       {
         in: { jobId: t.str() },
         out: { job: crewJob, landed: t.bool(), ref: t.str(), note: t.opt(t.str()) },
@@ -431,7 +431,7 @@ export default defineManifest({
     ),
     write(
       "engine.crew.wait",
-      "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "Wake me when the checks of a pull request end: the host watches them, not the model, shows the progress in the Crew tab, and posts one message that wakes the lead",
       {
         in: { ...threadT, repo: t.str({ examples: ["acme/site"] }), number: t.int({ minimum: 1 }) },
         out: { wait: crewWait },
@@ -447,7 +447,7 @@ export default defineManifest({
     ),
     write(
       "engine.crew.push",
-      "Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
+      "Push the project repository's base branch, with a teammate's merged work, to its remote. A person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
       {
         in: { jobId: t.str() },
         out: { job: crewJob, pushed: t.bool(), note: t.opt(t.str()) },
@@ -585,7 +585,7 @@ export default defineManifest({
     ),
     write(
       "engine.drop_queued",
-      "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "Take a message waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
       {
         in: { ...threadT, messageId: id.message },
         out: { dropped: t.bool() },
@@ -676,7 +676,7 @@ export default defineManifest({
     }),
     write(
       "engine.reviewer.set",
-      "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task",
+      "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent is asked in the chat after each lead turn, a person gets a Review task",
       {
         in: {
           ...threadT,
@@ -857,7 +857,7 @@ export default defineManifest({
     // caller: a chat the caller may not open is simply absent, the same answer as a chat with no turn yet, so it never says that a chat exists. `failedLine` is the plain words the turn failed with, never a code or a trace id.
     read(
       "engine.thread_states",
-      "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "The latest turn of up to 200 chats in one call: running, waiting, failed or done, with the words why for a failed one; chats the asker may not open are left out",
       {
         in: { threadIds: t.arr(id.thread, { maxItems: 200 }) },
         out: {
@@ -1130,7 +1130,7 @@ export default defineManifest({
     ),
     read(
       "engine.placement.options",
-      "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)",
+      "What the runs-on chip of a chat offers: this computer, the Space (Team Space) and each of your servers, whether each is on and why not; where the chat runs now and whether it is pinned",
       {
         in: { ...threadT, agentId: t.opt(id.agent) },
         out: {
@@ -1299,7 +1299,7 @@ export default defineManifest({
     // ---- accounts and models
     read(
       "engine.accounts.list",
-      "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
+      "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says if it can run there and why not",
       {
         in: {
           place: t.opt(t.enm("chat", "automation", "agent", "space")),
@@ -1844,7 +1844,7 @@ export default defineManifest({
     }),
     read(
       "engine.now",
-      "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "Which agents are working now: the agent, the person it works for, where it runs and since when; the chat is named only to someone who may read it",
       {
         in: {},
         out: {
@@ -1868,7 +1868,7 @@ export default defineManifest({
     ),
     read(
       "engine.live_turns",
-      "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
+      "The turns being written in a thread now, with the text so far: what a chat opened mid-turn shows before it follows the live stream",
       {
         in: { threadId: id.thread },
         out: {
@@ -1999,7 +1999,7 @@ export default defineManifest({
     ),
     read(
       "engine.round.get",
-      "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue",
+      "Who is on each message now, for the row under a message that asked several agents: each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the queue",
       {
         in: { ...threadT, messageIds: t.arr(id.message, { maxItems: 50 }) },
         out: {
@@ -2022,7 +2022,7 @@ export default defineManifest({
     ),
     read(
       "engine.rewind.points",
-      "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first) and the rewinds in force: messages folded, who went back, the point that undoes it",
       {
         in: { ...threadT },
         out: {

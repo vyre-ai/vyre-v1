@@ -1,6 +1,6 @@
 # engine.crew.wait
 
-Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish
+Wake me when the checks of a pull request end: the host watches them, not the model, shows the progress in the Crew tab, and posts one message that wakes the lead
 
 | | |
 |---|---|
