@@ -157,6 +157,8 @@ export async function followRecord(
     } catch (e) {
       const code = codeOf(e);
       const why = e instanceof Error ? e.message.slice(0, 200) : code;
+      // a Personal Space has no sharing at all (access.audience_set answers permission.needs_team there): there is nothing for a folder to follow, which is not a refusal and closes nothing
+      if (code === "permission.needs_team") return false;
       // anything but a refusal of rights (a neighbour down, a busy database, a record gone) is tried again with a short backoff, then left for the next sweep: the folder is never changed for it
       if (!code.startsWith("permission.")) {
         const wait = FOLLOW_BACKOFF_MS[attempt];
