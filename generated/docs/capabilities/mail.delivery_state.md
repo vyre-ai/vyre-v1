@@ -1,6 +1,6 @@
 # mail.delivery_state
 
-A message's delivery trail (messageId), else inbox health
+A sent message's delivery trail: events, retries, blocked addresses
 
 | | |
 |---|---|
@@ -10,7 +10,7 @@ A message's delivery trail (messageId), else inbox health
 | Permission | grant only |
 | Grant level | view |
 | Risk | low |
-| Resource | space |
+| Resource | entity (/messageId) |
 | Gate | none |
 | Idempotency | natural |
 | Offline | online |
@@ -25,8 +25,7 @@ A message's delivery trail (messageId), else inbox health
 
 ```ts
 type In = {
-  messageId?: string;
-  mailboxId?: string;
+  messageId: string;
 };
 ```
 
@@ -52,7 +51,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "mailboxId": "mbx_a1b2c3",
     "messageId": "eml_a1b2c3"
   },
   "output": {

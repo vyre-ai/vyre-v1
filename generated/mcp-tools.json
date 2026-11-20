@@ -36472,7 +36472,7 @@
       "blocks": [],
       "cap": "mail.configure",
       "deferred": false,
-      "description": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "description": "Email setup, templates and inbox health: action status|test|smtp_*|address_*|monitor|template_*|doc_template_*",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -36485,8 +36485,24 @@
               "smtp_verify",
               "address_list",
               "address_add",
-              "address_move"
+              "address_move",
+              "monitor",
+              "template_list",
+              "template_get",
+              "template_preview",
+              "template_save",
+              "template_reset",
+              "doc_template_get",
+              "doc_template_set",
+              "doc_template_clear"
             ],
+            "type": "string"
+          },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
           "domainId": {
@@ -36504,6 +36520,14 @@
             "type": "string"
           },
           "host": {
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
             "type": "string"
           },
           "localPart": {
@@ -36531,11 +36555,31 @@
             "minimum": 1,
             "type": "integer"
           },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
           "security": {
             "enum": [
               "starttls",
               "tls"
             ],
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
             "type": "string"
           },
           "title": {
@@ -36550,6 +36594,10 @@
           },
           "username": {
             "type": "string"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "required": [
@@ -36656,17 +36704,10 @@
       "blocks": [],
       "cap": "mail.delivery_state",
       "deferred": false,
-      "description": "A message's delivery trail (messageId), else inbox health",
+      "description": "A sent message's delivery trail: events, retries, blocked addresses",
       "effects": "read",
       "inputSchema": {
         "properties": {
-          "mailboxId": {
-            "examples": [
-              "mbx_a1b2c3"
-            ],
-            "pattern": "^mbx_[a-z0-9]+$",
-            "type": "string"
-          },
           "messageId": {
             "examples": [
               "eml_a1b2c3"
@@ -36675,6 +36716,9 @@
             "type": "string"
           }
         },
+        "required": [
+          "messageId"
+        ],
         "type": "object"
       },
       "name": "mail_delivery_state",
@@ -37982,74 +38026,6 @@
         "type": "object"
       },
       "name": "mail_sync_now",
-      "planMode": "blocked",
-      "toolset": "inbox",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "mail.templates",
-      "deferred": false,
-      "description": "Email templates: list|get|set|preview|reset; documentId = one document's",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "action": {
-            "enum": [
-              "list",
-              "get",
-              "set",
-              "preview",
-              "reset"
-            ],
-            "type": "string"
-          },
-          "documentId": {
-            "examples": [
-              "fil_a1b2c3"
-            ],
-            "pattern": "^fil_[a-z0-9]+$",
-            "type": "string"
-          },
-          "key": {
-            "examples": [
-              "signature.request"
-            ],
-            "maxLength": 60,
-            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
-            "type": "string"
-          },
-          "recordId": {
-            "examples": [
-              "rec_a1b2c3"
-            ],
-            "pattern": "^rec_[a-z0-9]+$",
-            "type": "string"
-          },
-          "recordType": {
-            "examples": [
-              "contact"
-            ],
-            "pattern": "^[a-z][a-z0-9_]*$",
-            "type": "string"
-          },
-          "subject": {
-            "type": "string"
-          },
-          "text": {
-            "type": "string"
-          },
-          "vars": {
-            "additionalProperties": true,
-            "type": "object"
-          }
-        },
-        "required": [
-          "action"
-        ],
-        "type": "object"
-      },
-      "name": "mail_templates",
       "planMode": "blocked",
       "toolset": "inbox",
       "v": 1
@@ -54610,6 +54586,7 @@
                     "type.drop",
                     "field.add",
                     "field.update",
+                    "field.mergeable",
                     "field.retype",
                     "field.rename",
                     "field.drop",
@@ -54762,6 +54739,7 @@
                     "type.drop",
                     "field.add",
                     "field.update",
+                    "field.mergeable",
                     "field.retype",
                     "field.rename",
                     "field.drop",

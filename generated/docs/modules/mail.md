@@ -4,18 +4,18 @@ Lane L5. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (61)
+## Capabilities (60)
 
 - [mail.address.add](../capabilities/mail.address.add.md): Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)
 - [mail.address.list](../capabilities/mail.address.list.md): Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in
 - [mail.address.move](../capabilities/mail.address.move.md): Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox
 - [mail.attachment.save](../capabilities/mail.attachment.save.md): Save an attachment into Files
 - [mail.auto_connect_members](../capabilities/mail.auto_connect_members.md): Create Pending mail connections for every mapped member when delegation is set and auto-connect is on (one notice each)
-- [mail.configure](../capabilities/mail.configure.md): Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move
+- [mail.configure](../capabilities/mail.configure.md): Email setup, templates and inbox health: action status|test|smtp_*|address_*|monitor|template_*|doc_template_*
 - [mail.connect](../capabilities/mail.connect.md): Connect the caller's own Gmail, Outlook or IMAP mailbox
 - [mail.delivery.retry](../capabilities/mail.delivery.retry.md): Vyre-only: resend a soft-bounced message to that address
 - [mail.delivery.trail](../capabilities/mail.delivery.trail.md): Delivery trail of a sent message: events, retries, blocked addresses
-- [mail.delivery_state](../capabilities/mail.delivery_state.md): A message's delivery trail (messageId), else inbox health
+- [mail.delivery_state](../capabilities/mail.delivery_state.md): A sent message's delivery trail: events, retries, blocked addresses
 - [mail.domain.add](../capabilities/mail.domain.add.md): Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish
 - [mail.domain.check](../capabilities/mail.domain.check.md): Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify
 - [mail.domain.get](../capabilities/mail.domain.get.md): Read one sending domain with the DNS records to publish
@@ -64,7 +64,6 @@ Requires: nothing.
 - [mail.template.preview](../capabilities/mail.template.preview.md): Preview a template or draft filled from a record and values; names blank fields
 - [mail.template.reset](../capabilities/mail.template.reset.md): Reset a template to the one that ships with Vyre
 - [mail.template.save](../capabilities/mail.template.save.md): Save the Space's email template; text may hold {{field}} or {{field|fallback}}
-- [mail.templates](../capabilities/mail.templates.md): Email templates: list|get|set|preview|reset; documentId = one document's
 - [mail.thread.get](../capabilities/mail.thread.get.md): Read one email thread whole, oldest first, with your role in it
 - [mail.unsubscribe](../capabilities/mail.unsubscribe.md): Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list
 

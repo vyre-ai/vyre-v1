@@ -37,7 +37,7 @@ type In = {
 ```ts
 type Out = {
   ops: Array<{
-      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
+      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.mergeable" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
       type: string;
       field?: string;
       def?: Record<string, unknown>;

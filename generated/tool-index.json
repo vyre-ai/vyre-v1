@@ -5223,7 +5223,7 @@
     {
       "deferred": false,
       "name": "mail_configure",
-      "summary": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "summary": "Email setup, templates and inbox health: action status|test|smtp_*|address_*|monitor|template_*|doc_template_*",
       "toolset": "inbox"
     },
     {
@@ -5235,7 +5235,7 @@
     {
       "deferred": false,
       "name": "mail_delivery_state",
-      "summary": "A message's delivery trail (messageId), else inbox health",
+      "summary": "A sent message's delivery trail: events, retries, blocked addresses",
       "toolset": "inbox"
     },
     {
@@ -5404,12 +5404,6 @@
       "deferred": false,
       "name": "mail_sync_now",
       "summary": "Sync a mailbox now",
-      "toolset": "inbox"
-    },
-    {
-      "deferred": false,
-      "name": "mail_templates",
-      "summary": "Email templates: list|get|set|preview|reset; documentId = one document's",
       "toolset": "inbox"
     },
     {

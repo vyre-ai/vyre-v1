@@ -63,7 +63,6 @@ export const handlers: Handlers<HandlerCtx> = {
   "mail.template.preview": async (ctx) => { throw new VyreErr(notImplemented("mail.template.preview", ctx.trace)); },
   "mail.template.reset": async (ctx) => { throw new VyreErr(notImplemented("mail.template.reset", ctx.trace)); },
   "mail.template.save": async (ctx) => { throw new VyreErr(notImplemented("mail.template.save", ctx.trace)); },
-  "mail.templates": async (ctx) => { throw new VyreErr(notImplemented("mail.templates", ctx.trace)); },
   "mail.thread.get": async (ctx) => { throw new VyreErr(notImplemented("mail.thread.get", ctx.trace)); },
   "mail.unsubscribe": async (ctx) => { throw new VyreErr(notImplemented("mail.unsubscribe", ctx.trace)); },
 };

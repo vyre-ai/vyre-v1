@@ -21923,7 +21923,9 @@ const routes3: Route[] = [
     "permission": null,
     "level": "view",
     "resource": {
-      "type": "space"
+      "type": "entity",
+      "entity": "mail_message",
+      "id": "/messageId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -22813,24 +22815,6 @@ const routes4: Route[] = [
     "module": "mail",
     "effects": "write",
     "permission": "comms.templates",
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": "send"
-  },
-  {
-    "method": "POST",
-    "path": "/v1/mail/templates",
-    "cap": "mail.templates",
-    "v": 1,
-    "module": "mail",
-    "effects": "write",
-    "permission": null,
     "level": "edit",
     "resource": {
       "type": "space"
@@ -27654,10 +27638,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/endpoints",
@@ -27675,7 +27656,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/network/enroll",
@@ -33172,10 +33156,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/schema/restore_field",
@@ -33194,7 +33175,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/schema/sensitivity/scan",
@@ -38678,10 +38662,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "send"
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/number/buy",
@@ -38699,7 +38680,10 @@ const routes7: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": "pay"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/number/get",
