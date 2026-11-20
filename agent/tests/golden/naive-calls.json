@@ -1551,9 +1551,6 @@
   "documents_preview_fill": {
     "templateFileId": "fil_a1b2c3"
   },
-  "documents_signing": {
-    "fileId": "fil_a1b2c3"
-  },
   "documents_templates_list": {},
   "dropbox_files_create_folder": {
     "connectionId": "con_a1b2c3",
