@@ -94,8 +94,11 @@ const PRESS = "Answering a held card, or a card's own button, is the person's pr
 const NOTES = "A note's labels are the person's own filing; an agent edits the note (notes_update).";
 const LOW =
   "A reading no agent needs to write a call (a quota number, a teammate's profile line, a policy it cannot act on): the person sees it in Settings or the Console.";
-const BUDGET =
-  "Reachable through the capability API and the CLI today; its agent tool waits for the next release, because the tool list is at its size limit (scripts/tool-tokens-baseline.json) and a tool must come in with a cut of the same size.";
+const APP = "App plumbing: the app's own screen reads it to draw a card or a tile; an agent has no use for it.";
+const VIA_MAIL_CONFIGURE =
+  "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move); the Gate, permission and audit apply as when a person presses the button.";
+const VIA_SITES_OPS =
+  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's lock, ownership checks and the Gate apply as for a person.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -127,13 +130,15 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^records\.reveal$/, SEALED],
   [/^browser\.chrome\.act$|^conflicts\.(log_binary|propose)$/, PRESS],
   [/^computers\.|^terminal\./, COMPUTER],
-  // classified 20 Nov 2026 (rc.43 integration): calls the server and the host's workers make, a person's own card, and the rest, whose tools wait for the token budget
-  [/^access\.folder_narrow$|^runs\.node\.(beat|claim|reclaim|event|label|move)$|^runs\.message\.(seen|take)$/, SYSTEM],
-  [/^tasks\.(still_answer|still_needed)$/, PRESS],
+  // classified 20 Nov 2026 (rc.43 integration), each from what the code does: the server's own calls, a person's card, app plumbing, and the calls an agent already reaches through a grouped tool
   [
-    /^(mail\.(address|delivery|inbox|setup|smtp|template)\.|documents\.signing$|runs\.(activity|board|budget|events|message|node|tree)\.|schema\.set_mergeable$|sites\.(backups?_|head_check$|jobs?_|logs_read$|metrics$|services?_)|tasks\.changes$)/,
-    BUDGET,
+    /^access\.folder_narrow$|^sites\.head_check$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$|^documents\.signing$/,
+    SYSTEM,
   ],
+  [/^tasks\.(still_answer|still_needed)$/, PRESS],
+  [/^tasks\.changes$/, APP],
+  [/^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move))$/, VIA_MAIL_CONFIGURE],
+  [/^sites\.(logs_read|metrics|jobs?_[a-z]+|services?_[a-z]+|backups?_[a-z]+)$/, VIA_SITES_OPS],
 ];
 
 /** Why a capability has no tool, or null when it is a tool or has none and no reason (a gap the parity test fails on). */
