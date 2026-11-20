@@ -1606,16 +1606,24 @@ function announceName(ctx: AgentsCtx, agentId: string, fields: readonly string[]
  */
 export async function announceNames(ctx: AgentsCtx): Promise<string[]> {
   ensure(ctx.db);
-  const told: string[] = [];
-  for (const a of allAgents(ctx.db)) {
-    const got = await tolerant<{ principal?: { name?: string } }>(
+  // one list of the agents' principals (a page at a time), not one read per agent; a list that cannot be read tells nothing, so nothing is emitted
+  const have = new Map<string, string>();
+  let cursor: string | undefined;
+  for (let page = 0; page < 50; page++) {
+    const got = await tolerant<{ principals?: Array<{ id: string; name?: string }>; next?: string }>(
       ctx,
-      "access.principals.get",
-      { principal: { kind: "agent", id: a.id } },
+      "access.principals.list",
+      { kind: "agent", limit: 500, ...(cursor ? { cursor } : {}) },
       {},
     );
-    const have = got.principal?.name;
-    if (have === undefined || have === a.name) continue;
+    for (const p of got.principals ?? []) if (typeof p.name === "string") have.set(p.id, p.name);
+    cursor = got.next;
+    if (!cursor) break;
+  }
+  const told: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    const name = have.get(a.id);
+    if (name === undefined || name === a.name) continue;
     ctx.emit("agent.renamed", a.id, { agentId: a.id, name: a.name });
     told.push(a.id);
   }

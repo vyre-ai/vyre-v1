@@ -27,22 +27,22 @@ test("the boot job tells access the current name of an agent whose principal is 
   // renamed before access heard of renames: the agent has its new name, the principal still has the old one
   hn.db.run(`UPDATE agents_agent SET name = ?, nameKey = ? WHERE id = ?`, "Front Desk", "front desk", id);
   let principalName = "Intake";
-  hn.world.answer("access.principals.get", (i) => {
-    const who = String((i["principal"] as { id: string }).id);
+  let lists = 0;
+  let gets = 0;
+  hn.world.answer("access.principals.list", () => {
+    lists++;
     return {
-      principal: {
-        id: who,
-        kind: "agent",
-        name: who === id ? principalName : who,
-        status: "active",
-        roles: [],
-        groups: [],
-        createdAt: 0,
-      },
+      principals: [{ id, kind: "agent", name: principalName, status: "active", roles: [], groups: [], createdAt: 0 }],
     };
+  });
+  hn.world.answer("access.principals.get", () => {
+    gets++;
+    throw new Error("one read per agent");
   });
   hn.clear();
   assert.deepEqual(await announceNames(hn.ctx), [id]);
+  assert.equal(lists, 1, "one list of the agents' principals");
+  assert.equal(gets, 0, "no read per agent");
   assert.deepEqual(hn.named("agent.renamed")[0]!.payload, { agentId: id, name: "Front Desk" });
   principalName = "Front Desk"; // access folded it
   hn.clear();
