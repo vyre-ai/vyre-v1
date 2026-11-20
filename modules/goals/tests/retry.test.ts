@@ -74,6 +74,28 @@ test("every way an AI account can arrive asks the waiting check-in again: a past
     assert.ok(impl.consumers["goals.cleared"]!.on.includes(name), `goals.cleared listens to ${name}`);
 });
 
+test("a shared subscription turned OFF clears nothing and asks nothing again; turned on it does", async () => {
+  const off = await failedGoal();
+  const before = off.w.woken().length;
+  assert.deepEqual(
+    await onCleared(off.w.ctx(host), { name: "engine.subscription_share_changed", payload: { enabled: false } }),
+    [],
+  );
+  assert.deepEqual(
+    await onCleared(off.w.ctx(host), { name: "engine.subscription_share_changed", payload: {} }),
+    [],
+    "no flag is not an on",
+  );
+  assert.equal(off.w.woken().length, before);
+  assert.deepEqual(lines(off.w, off.goal.id), []);
+  const on = await failedGoal();
+  assert.deepEqual(
+    await onCleared(on.w.ctx(host), { name: "engine.subscription_share_changed", payload: { enabled: true } }),
+    [on.goal.id],
+  );
+  assert.match(lines(on.w, on.goal.id)[0]!, /an AI account was connected/);
+});
+
 const lines = (w: World, goalId: string): string[] =>
   (
     w.db.all(

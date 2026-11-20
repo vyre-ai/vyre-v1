@@ -21,6 +21,7 @@ import {
   threadsOf,
 } from "../projections.ts";
 import type { Goal, GoalsCtx, Who } from "../projections.ts";
+import { accountMayHaveArrived } from "../../../lib/account-arrival.ts";
 import { whoToken } from "../../../lib/words/time.ts";
 import { failureClause, failureWhy } from "../../../lib/words/failure.ts";
 import {
@@ -205,6 +206,8 @@ export function accountArrival(ev: Ev): string | null {
 
 /** Something that may have cleared what holds a goal's check-ins back (a turn of its lead ended well, a sign-in was saved): the held wake-up is asked again, once. */
 export async function onCleared(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
+  // a share turned off takes an account away: it clears nothing and asks nothing again
+  if (!accountMayHaveArrived(ev)) return [];
   ensure(ctx.db);
   const held = blocksWhere(ctx.db, "wake_id IN (SELECT id FROM goals_wake WHERE state = 'waiting')");
   const woken: string[] = [];

@@ -13,3 +13,17 @@ test("engine.signin_resume listens to every way an AI account can arrive", () =>
   ])
     assert.ok(on.includes(name), `engine.signin_resume listens to ${name}`);
 });
+
+test("a subscription share turned off resumes nothing; one turned on, or a provider added, reaches the engine", async () => {
+  const run = (consumers["engine.signin_resume"] as { run: (c: unknown, e: unknown) => Promise<{ skipped?: string }> })
+    .run;
+  assert.equal(
+    (await run({}, { name: "engine.subscription_share_changed", payload: { enabled: false } })).skipped,
+    "share_turned_off",
+  );
+  assert.notEqual(
+    (await run({}, { name: "engine.subscription_share_changed", payload: { enabled: true } })).skipped,
+    "share_turned_off",
+  );
+  assert.notEqual((await run({}, { name: "provider.added", payload: {} })).skipped, "share_turned_off");
+});
