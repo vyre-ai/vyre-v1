@@ -98,15 +98,17 @@ const APP = "App plumbing: the app's own screen reads it to draw a card or a til
 const VIA_MAIL_CONFIGURE =
   "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move); the Gate, permission and audit apply as when a person presses the button.";
 const VIA_SITES_OPS =
-  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's lock, ownership checks and the Gate apply as for a person.";
+  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's ownership checks apply, and sites.ops_gate holds an agent's backup_restore and backup_download, and its job_create, job_update and worker_add on a site with keys or a database.";
 const DOC_SIGNING =
-  "System call: esign.send asks it for a PDF's signing places and exact-copy state; agents get the roles from documents_make (signers) and esign_send.";
+  "A read esign.send makes (where a PDF's signers sign, and whether the copy is exact); agents get the roles from documents_make (signers) and esign_send.";
 const SERVICES_LIST =
   "Its answer is part of the sites_ops jobs action: the workers come back beside the jobs, so an agent reads them there.";
 const VIA_TASKS_UPDATE =
   "An agent sets, changes or clears what proves a task done through tasks_update (doneWhen, kind:name); the app's own card calls this one.";
 const VIA_TASKS_ARCHIVE =
   "An agent puts an archived task back through tasks_archive (back: true); the app's Put back calls this one.";
+const HEAD_CHECK =
+  "A read the host's deploy makes (it reads a branch's head with the site's token before it asks the Gate); agents get its answer through sites_deploy.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -140,17 +142,21 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^computers\.|^terminal\./, COMPUTER],
   // classified 20 Nov 2026 (rc.43 integration), each from what the code does: the server's own calls, a person's card, app plumbing, and the calls an agent already reaches through a grouped tool
   [
-    /^access\.folder_narrow$|^sites\.head_check$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$/,
+    /^access\.folder_narrow$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$/,
     SYSTEM,
   ],
   [/^documents\.signing$/, DOC_SIGNING],
+  [/^sites\.head_check$/, HEAD_CHECK],
   [/^sites\.services_list$/, SERVICES_LIST],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],
   [/^tasks\.unarchive$/, VIA_TASKS_ARCHIVE],
   [/^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move))$/, VIA_MAIL_CONFIGURE],
-  [/^sites\.(logs_read|metrics|jobs?_[a-z]+|service_(add|restart|stop|remove)|backups?_[a-z]+)$/, VIA_SITES_OPS],
+  [
+    /^sites\.(logs_read|metrics|jobs_list|job_(create|update|delete|run|cancel|runs)|service_(add|restart|stop|remove)|backups_list|backup_(create|pin|delete|download|restore))$/,
+    VIA_SITES_OPS,
+  ],
 ];
 
 /** Why a capability has no tool, or null when it is a tool or has none and no reason (a gap the parity test fails on). */
