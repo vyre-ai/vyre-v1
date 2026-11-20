@@ -293,3 +293,22 @@ test("an address whose sign-in options answer is an empty 200 or a page of HTML 
     done();
   }
 });
+
+test("a loopback address typed in the desktop app is asked like any other: a port nothing answers on is said under the box, not opened as this computer's Space", async () => {
+  installDom();
+  storage();
+  const back = setQuietWaitsForTests([1, 1]);
+  network(() => null);
+  try {
+    desktopShell();
+    const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+    await press(await until(root, "door-invited"));
+    await typeInto(await until(root, "space-entry-address"), "http://127.0.0.1:1");
+    await press(find(root, "space-entry-continue"));
+    assert.match(textOf(await until(root, "space-entry-error")), /127\.0\.0\.1 is not answering/);
+    assert.equal(find(root, "si-user"), null, "no sign-in for a port nothing answers on");
+  } finally {
+    back();
+    done();
+  }
+});

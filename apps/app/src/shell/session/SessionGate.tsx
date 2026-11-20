@@ -1504,7 +1504,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
    * The one address box (and every link handed to the app): find what is at the address, quietly asking again before saying anything, then go the way that fits. It rejects with the line
    * the box shows when the fix is the box itself (a wrong name, nothing answering); every other outcome is a screen of its own.
    */
-  const chooseEntry = async (target: EntryTarget, onRetry?: () => void): Promise<void> => {
+  const chooseEntry = async (target: EntryTarget, onRetry?: () => void, ownSpace = false): Promise<void> => {
     const away = elsewhere(target.kind === "claim" ? target.url : target.address);
     if (!away && target.kind === "signin") {
       const have =
@@ -1520,8 +1520,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         return;
       }
     }
-    // this computer's own Space (the app started it) is not asked across the network first: its screen reaches it and says so if it cannot
-    const own = !!bridge && isLoopbackUrl(target.address);
+    // this computer's own Space (the app just started it: the flows that make or claim it say so) is not asked across the network first: its screen reaches it and says so if it cannot. An address a
+    // person types or pastes is asked, loopback or not: nothing says a loopback port is this computer's Space, and "not answering" belongs under the box
+    const own = ownSpace && !!bridge && isLoopbackUrl(target.address);
     const found: Found = own
       ? { kind: "direct" }
       : await findSpaceQuietly(target.address, onRetry ? { onRetry } : {}).catch(() => OFFLINE);
@@ -1689,7 +1690,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         const stored = await resumePersonal(local, old, open);
         setConnectedAddress(local.address);
         signedIn(stored);
-      } else await chooseEntry({ kind: "signin", address: local.address });
+      } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
     }
   };
   const createMacServer = async (): Promise<void> => {
@@ -1699,7 +1700,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       const link = new URL(local.claimUrl);
       setPersonalClaim({ address: local.address, token: link.pathname.slice("/claim/".length), fragment: link.hash });
       setEntry(false);
-    } else await chooseEntry({ kind: "signin", address: local.address });
+    } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
   };
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen = (back?: () => void): ReactElement => (
@@ -1743,7 +1744,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         } catch {
           /* the sign-in screen says why */
         }
-        await chooseEntry({ kind: "signin", address: local.address });
+        await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
@@ -1760,7 +1761,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onLocal={(address) => {
             const saved = readStoredPersonal();
             if (saved) void enterSaved(saved);
-            else void chooseEntry({ kind: "signin", address });
+            else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       )
@@ -1839,12 +1840,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             if (stored) {
               setConnectedAddress(address);
               signedIn(stored);
-            } else void chooseEntry({ kind: "signin", address });
+            } else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
           onSignIn={() => {
             const address = personalClaim.address;
             setPersonalClaim(null);
-            void chooseEntry({ kind: "signin", address });
+            void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       </Suspense>

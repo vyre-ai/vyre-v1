@@ -124,7 +124,8 @@ test("a Space that moves between the relay and its own address is found where it
         await page.goto(`${origin}/#box=${SPACE_KEY}`);
         await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
         assert.equal(await worker(page), "/__vyre/sw.js");
-        assert.match(await page.getByTestId("step-sign-in").innerText(), /Sign in to Fresh Co/);
+        // the Space's name arrives with its sign-in options: the screen is up first (the route table ships in the app), so wait for the name rather than read the title at once
+      await page.getByTestId("step-sign-in").getByText(/Sign in to Fresh Co/).waitFor({ timeout: 15_000 });
 
         await t.test(
           "2 the Space moves to its own address: the next load ends on the sign-in, direct, with no relay worker",
@@ -205,7 +206,8 @@ test("a Space that moves between the relay and its own address is found where it
         await page.getByRole("button", { name: "Continue" }).click();
         await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
         assert.equal(await worker(page), "/__vyre/sw.js", "the Space is reached through the relay now");
-        assert.match(await page.getByTestId("step-sign-in").innerText(), /Sign in to Fresh Co/);
+        // the Space's name arrives with its sign-in options: the screen is up first (the route table ships in the app), so wait for the name rather than read the title at once
+      await page.getByTestId("step-sign-in").getByText(/Sign in to Fresh Co/).waitFor({ timeout: 15_000 });
         await shoot(page, "32-moved-to-relay");
         await ctx.close();
       },
