@@ -306,3 +306,13 @@ test("a way-in hold is never under an outward act, so a turn's grant to email or
     assert.equal(def(name).gate?.act, "access", `${name}: a Vault key always stops for an agent`);
   assert.equal(def("spaces.transfer_ownership").gate?.act, "transfer");
 });
+
+test("every door that runs an agent's command with a site's keys is held by the key-class rule for a site that stores Vault keys (sites.ops, job_create, job_update, service_add); the conditions are evaluated in modules/gate/tests/sites-ops-holds.test.ts", () => {
+  const when = (n: string): string => def(n).gate?.when ?? "";
+  assert.equal(when("sites.ops"), "sites.ops_gate(input)");
+  assert.equal(when("sites.job_create"), "sites.run_gate(input)");
+  assert.equal(when("sites.service_add"), "sites.run_gate(input)");
+  assert.equal(when("sites.job_update"), "sites.run_update_gate(input)");
+  for (const n of ["sites.ops", "sites.job_create", "sites.job_update", "sites.service_add"])
+    assert.ok(held(def(n).gate), `${n} is held for an agent`);
+});

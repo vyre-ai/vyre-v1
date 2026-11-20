@@ -703,6 +703,30 @@ export function moduleWhens(
     if (seed.principal.kind === "person") return false;
     return out["vault.key_host_unapproved"]!(input, seed);
   };
+  // A command an agent writes (a scheduled job, a worker) runs in the site's image with the site's production env: the Vault keys it stores. So it is held for a person under the same rule as a deploy of
+  // that site's code: only a site that stores Vault keys (a site that cannot be read as stored is held too), and only for a non-person. A person's own job is one step. Pausing a job, running it, or
+  // restarting a worker changes no command and is never held. Putting a backup back replaces the live database, which no key rule can bound: held for any non-person.
+  const storesKeys = (input: unknown): boolean => {
+    const f = siteFactsOf(input);
+    return f === null || f.env.length > 0;
+  };
+  const argsOf = (input: unknown): Record<string, unknown> => {
+    const a = (input as { args?: unknown } | null)?.args;
+    return a !== null && typeof a === "object" ? (a as Record<string, unknown>) : {};
+  };
+  out["sites.run_gate"] = (input, seed) => seed.principal.kind !== "person" && storesKeys(input);
+  out["sites.run_update_gate"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    (input as { command?: unknown } | null)?.command !== undefined &&
+    storesKeys(input);
+  out["sites.ops_gate"] = (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const action = (input as { action?: unknown } | null)?.action;
+    if (action === "backup_restore") return true;
+    if (action === "job_create" || action === "worker_add") return storesKeys(input);
+    if (action === "job_update") return argsOf(input)["command"] !== undefined && storesKeys(input);
+    return false;
+  };
   out["vault.after_approved_key_use"] = async (input, seed) => {
     const use = keySendOf(input);
     const h = db();

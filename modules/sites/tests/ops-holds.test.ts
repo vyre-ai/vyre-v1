@@ -38,29 +38,20 @@ test("every held site-operation call has words in the table", () => {
     assert.ok(HOLD_PHRASES[n], n);
 });
 
-test("sites.ops holds an agent for exactly the actions that run its code or replace the database, and a person is never held", () => {
-  const g = gate("sites.ops");
-  assert.equal(g?.act, "delete");
-  const w = g?.when ?? "";
-  assert.match(w, /^actor\.kind != 'person' and \(/);
-  for (const a of ["backup_restore", "job_create", "job_update", "worker_add"])
-    assert.ok(w.includes(`input.action == '${a}'`), a);
-  for (const a of [
-    "logs",
-    "metrics",
-    "jobs",
-    "job_run",
-    "job_cancel",
-    "worker_restart",
-    "backups",
-    "backup_create",
-    "backup_pin",
-  ])
-    assert.ok(!w.includes(`'${a}'`), `${a} is not held`);
-});
-
-test("the plain calls behind the held actions are held for a non-person too, so no other door runs agent text with the site's keys", () => {
-  for (const n of ["sites.job_create", "sites.job_update", "sites.service_add"])
-    assert.equal(gate(n)?.when, "actor.kind != 'person'", n);
+test("sites.ops, and the plain calls behind its held actions, name the key-class Gate conditions (evaluated in modules/gate/tests/sites-ops-holds.test.ts)", () => {
+  assert.deepEqual(gate("sites.ops"), { act: "delete", when: "sites.ops_gate(input)" });
+  assert.deepEqual(gate("sites.job_create"), { act: "send", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.service_add"), { act: "send", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.job_update"), { act: "send", when: "sites.run_update_gate(input)" });
   assert.equal(gate("sites.backup_restore")?.when, "actor.kind != 'person'");
+  // the calls that change no command are not held
+  for (const n of [
+    "sites.job_run",
+    "sites.job_cancel",
+    "sites.job_delete",
+    "sites.service_restart",
+    "sites.service_stop",
+    "sites.backup_create",
+  ])
+    assert.equal(gate(n), undefined, n);
 });

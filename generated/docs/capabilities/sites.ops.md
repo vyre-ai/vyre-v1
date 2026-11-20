@@ -11,7 +11,7 @@ Site ops: logs, metrics, jobs, workers, backups; read the sites skill
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | delete when actor.kind != 'person' and (input.action == 'backup_restore' or input.action == 'job_create' or input.action == 'job_update' or input.action == 'worker_add') |
+| Gate | delete when sites.ops_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
