@@ -26,7 +26,7 @@ import {
   seedManifestTypes,
   toStoreType,
 } from "../projections.ts";
-import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
+import type { CardFaceT, FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
 import { SEALABLE_FROM, openJob, putInVault, writeRefsMany } from "./seal.ts";
 import type { Move } from "./seal.ts";
@@ -466,6 +466,17 @@ function checkType(st: Map<string, TypeDefT>, t: TypeDefT): void {
   }
   if (t.statusField && !["status", "choice"].includes(t.fields.find((f) => f.key === t.statusField)?.type ?? ""))
     no(`${t.key}: the status field must be a status or choice`);
+  if (t.card !== undefined) {
+    const c = t.card as unknown as { preset?: unknown; fields?: unknown; mark?: unknown };
+    if (!c || typeof c !== "object" || !["simple", "detail", "visual"].includes(String(c.preset)))
+      no(`${t.key}: a card is simple, detail or visual`);
+    if (!Array.isArray(c.fields) || c.fields.length > 6) no(`${t.key}: a card shows at most six fields`);
+    for (const f of c.fields as unknown[])
+      if (typeof f !== "string" || !keys.has(f)) no(`${t.key}: card field ${String(f)} is not a field`);
+    if (new Set(c.fields as string[]).size !== (c.fields as string[]).length)
+      no(`${t.key}: a card names a field twice`);
+    if (c.mark !== undefined && typeof c.mark !== "boolean") no(`${t.key}: a card's mark is on or off`);
+  }
   for (const f of t.fields)
     if (f.type === "relation" && !st.has(String(f.options?.["target"])))
       no(`${t.key}.${f.key}: relation target ${String(f.options?.["target"])} no longer exists`);
@@ -483,6 +494,7 @@ const TYPE_PATCH = [
   "ownerField",
   "retention",
   "attribution",
+  "card",
 ] as const;
 const FIELD_PATCH = [
   "title",
@@ -618,6 +630,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of ["group", "summaryField", "statusField", "ownerField", "retention", "scope"] as const)
             if (typeof d[k] === "string") t[k] = d[k] as string;
           if (typeof d["attribution"] === "boolean") t.attribution = d["attribution"];
+          if (d["card"] && typeof d["card"] === "object") t.card = d["card"] as CardFaceT;
           if (typeof d["workspace"] === "boolean") t.workspace = d["workspace"];
           if (!LABELS.includes(t.label)) no(`${String(t.label)} is not a sensitivity label`);
           st.set(t.key, t);
@@ -635,7 +648,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           const touched: string[] = [];
           for (const k of Object.keys(patch)) {
             if (!(TYPE_PATCH as readonly string[]).includes(k)) no(`${k} cannot be changed with type.update`);
-            if (t.system && !["title", "plural", "icon", "group", "label"].includes(k))
+            if (t.system && !["title", "plural", "icon", "group", "label", "card"].includes(k))
               no(`${t.key} is a system type: only its name, icon, group and label can change`);
             const prev = (t as unknown as Record<string, unknown>)[k];
             const v = patch[k];

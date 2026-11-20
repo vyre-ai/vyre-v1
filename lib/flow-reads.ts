@@ -23,7 +23,7 @@ export interface Shape {
 const MAX_TEXT = 1_000_000;
 const WORDS = new Set(["true", "false", "null", "in", "contains"]);
 /** The roots a `{{ }}` can start with (the same list the expression language reads). */
-export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "item", "index", "run"];
+export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "journey", "item", "index", "run"];
 
 /** The texts between `{{` and `}}`. One pass over the text, so a text of nothing but `{{` costs no more than its length. */
 export function bodiesOf(text: string): string[] {
@@ -211,6 +211,10 @@ export interface Held {
   declared?: Shape;
   /** false for a single step tried by itself, which has no earlier steps to read */
   checkSteps: boolean;
+  /** The values the Journey carries for the record this Run is about; undefined when the Run is not about a record on a Journey (then nothing is said about {{journey.x}}). */
+  journey?: Record<string, unknown>;
+  /** The keys the Journey carries, said in the line when one is missing. */
+  journeyKeys?: readonly string[];
 }
 
 /**
@@ -227,6 +231,13 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
         const have = held.steps ?? {};
         if (!Object.hasOwn(have, r.segs[0]))
           return `{{${r.text}}} reads the step "${r.segs[0]}", which has no result in this run: it did not run, or there is no step with that id.`;
+      }
+      if (r.root === "journey" && r.segs[0] !== undefined && held.journey !== undefined) {
+        const key = r.segs[0];
+        if (!Object.hasOwn(held.journey, key))
+          return held.journeyKeys?.includes(key)
+            ? `{{${r.text}}} has no value yet: nothing has kept "${key}" for this record. A step before this one has to remember it.`
+            : `{{${r.text}}} is not a value this Journey carries.${held.journeyKeys && held.journeyKeys.length ? ` It carries ${held.journeyKeys.join(", ")}.` : ""}`;
       }
       if ((r.root === "trigger" || r.root === "input") && r.segs[0] !== undefined) {
         const payload = held.trigger;

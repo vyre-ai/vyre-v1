@@ -55,9 +55,22 @@ export interface Journey {
   stages: Stage[];
   startRule?: StartRule;
   startAutomationId?: string;
+  /** subject: a Journey record per subject (before rc.41). migrating: journeys.to_pipeline is moving them. pipeline: the records of recordType move through stageField themselves. */
+  mode?: JourneyMode;
+  /** The field of recordType whose options are the stages (pipeline and migrating). */
+  stageField?: string;
+  /** Values the Journey carries from stage to stage: a key and a title each. */
+  variables?: { key: string; title: string }[];
+  /** The record type that held the Journey records before the move onto a pipeline. */
+  legacyType?: string;
+  /** Why the automatic move onto a pipeline stopped; cleared when it finishes. */
+  migrateNote?: string;
+  /** Ticks in a row the automatic move failed for a reason that may pass. */
+  migrateTries?: number;
   createdAt: number;
   updatedAt: number;
 }
+export type JourneyMode = "subject" | "migrating" | "pipeline";
 export interface VersionRow {
   versionId: string;
   n: number;
@@ -79,6 +92,8 @@ export interface JRecord {
   startKey: string;
   channelId?: string;
   threadId?: string;
+  /** The Journey record this one replaced when the Journey moved onto a pipeline. */
+  legacyRecordId?: string;
   startedAt: number;
 }
 
@@ -156,12 +171,24 @@ function rowToJourney(r: Raw): Journey {
   if (sr) j.startRule = sr;
   const sa = str(r.start_automation_id);
   if (sa !== undefined) j.startAutomationId = sa;
+  const mode = str(r.mode);
+  if (mode === "subject" || mode === "migrating" || mode === "pipeline") j.mode = mode;
+  const sf = str(r.stage_field);
+  if (sf !== undefined) j.stageField = sf;
+  const mt = num(r.migrate_tries);
+  if (mt !== undefined && mt > 0) j.migrateTries = mt;
+  const mn = str(r.migrate_note);
+  if (mn !== undefined) j.migrateNote = mn;
+  const lt = str(r.legacy_type);
+  if (lt !== undefined) j.legacyType = lt;
+  const vars = json<{ key: string; title: string }[] | null>(r.variables, null);
+  if (vars) j.variables = vars;
   return j;
 }
 export function saveJourney(db: Db, j: Journey): void {
   db.run(
-    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+    `INSERT OR REPLACE INTO journeys_defs (id, name, subject_type, record_type, version, stages, start_rule, start_automation_id, created_at, updated_at, deleted_at, mode, stage_field, variables, legacy_type, migrate_note, migrate_tries)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?)`,
     j.id,
     j.name,
     j.subjectType,
@@ -172,6 +199,12 @@ export function saveJourney(db: Db, j: Journey): void {
     nul(j.startAutomationId),
     j.createdAt,
     j.updatedAt,
+    j.mode ?? "subject",
+    nul(j.stageField),
+    j.variables ? js(j.variables) : null,
+    nul(j.legacyType),
+    nul(j.migrateNote),
+    j.migrateTries ?? 0,
   );
 }
 export function findJourney(db: Db, id: string): Journey | undefined {
@@ -246,7 +279,13 @@ export function allVersionStages(db: Db, id: string): Stage[] {
 }
 /** A record type some Journey uses or used: a deleted Journey keeps its type, with its records in it. */
 export const recordTypeTaken = (db: Db, recordType: string): boolean =>
-  (db.all("SELECT 1 AS hit FROM journeys_defs WHERE record_type = ? LIMIT 1", recordType) as Raw[]).length > 0;
+  (
+    db.all(
+      "SELECT 1 AS hit FROM journeys_defs WHERE record_type = ? OR legacy_type = ? LIMIT 1",
+      recordType,
+      recordType,
+    ) as Raw[]
+  ).length > 0;
 export const byOrder = (stages: readonly Stage[]): Stage[] => [...stages].sort((a, b) => a.order - b.order);
 
 export function out(j: Journey, inFlight: number): Record<string, unknown> {
@@ -259,6 +298,11 @@ export function out(j: Journey, inFlight: number): Record<string, unknown> {
     stages: j.stages,
     startRule: j.startRule,
     startAutomationId: j.startAutomationId,
+    mode: j.mode ?? "subject",
+    stageField: j.stageField,
+    variables: j.variables,
+    legacyType: j.legacyType,
+    migrateNote: j.migrateNote,
     inFlight,
     createdAt: j.createdAt,
     updatedAt: j.updatedAt,
@@ -286,12 +330,14 @@ function rowToRecord(r: Raw): JRecord {
   if (ch !== undefined) x.channelId = ch;
   const th = str(r.thread_id);
   if (th !== undefined) x.threadId = th;
+  const lg = str(r.legacy_record_id);
+  if (lg !== undefined) x.legacyRecordId = lg;
   return x;
 }
 export function saveRecord(db: Db, x: JRecord): void {
   db.run(
-    `INSERT OR REPLACE INTO journeys_records (record_id, journey_id, subject_record_id, version, stage, start_stage, entered_at, completed_at, owner_id, start_key, channel_id, thread_id, started_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO journeys_records (record_id, journey_id, subject_record_id, version, stage, start_stage, entered_at, completed_at, owner_id, start_key, channel_id, thread_id, started_at, legacy_record_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     x.recordId,
     x.journeyId,
     x.subjectRecordId,
@@ -305,6 +351,7 @@ export function saveRecord(db: Db, x: JRecord): void {
     nul(x.channelId),
     nul(x.threadId),
     x.startedAt,
+    nul(x.legacyRecordId),
   );
 }
 export function findRecord(db: Db, recordId: string): JRecord | undefined {
@@ -454,4 +501,83 @@ export function page<T>(
   const res: { rows: T[]; next?: string; total: number } = { rows, total: all.length };
   if (start + rows.length < all.length) res.next = String(start + rows.length);
   return res;
+}
+
+// ---- the pipeline model and its migration ----
+
+/** The Journey that runs a record type as a pipeline (or is moving onto one). One per type: a record has one place in one Journey. */
+export function pipelineOfType(db: Db, recordType: string): Journey | undefined {
+  const r = (
+    db.all(
+      "SELECT * FROM journeys_defs WHERE deleted_at IS NULL AND record_type = ? AND mode IN ('pipeline', 'migrating') LIMIT 1",
+      recordType,
+    ) as Raw[]
+  )[0];
+  return r ? rowToJourney(r) : undefined;
+}
+export type MigrationState = "planned" | "wrote_stage" | "moved_links" | "done" | "failed";
+export interface MigrationRow {
+  journeyId: string;
+  legacyRecordId: string;
+  subjectRecordId: string;
+  state: MigrationState;
+  error?: string;
+  at: number;
+}
+export function saveMigration(db: Db, m: MigrationRow): void {
+  db.run(
+    "INSERT OR REPLACE INTO journeys_migration (journey_id, legacy_record_id, subject_record_id, state, error, at) VALUES (?, ?, ?, ?, ?, ?)",
+    m.journeyId,
+    m.legacyRecordId,
+    m.subjectRecordId,
+    m.state,
+    nul(m.error),
+    m.at,
+  );
+}
+export function migrationRows(db: Db, journeyId: string): MigrationRow[] {
+  return (
+    db.all("SELECT * FROM journeys_migration WHERE journey_id = ? ORDER BY legacy_record_id", journeyId) as Raw[]
+  ).map((r) =>
+    clean({
+      journeyId: r.journey_id as string,
+      legacyRecordId: r.legacy_record_id as string,
+      subjectRecordId: r.subject_record_id as string,
+      state: r.state as MigrationState,
+      error: str(r.error),
+      at: num(r.at) ?? 0,
+    }),
+  );
+}
+/** The record keeps its tasks and its time limits: they were filed under the Journey record's id, now they are filed under the record itself. Each statement can run again. */
+export function refileLinks(db: Db, fromId: string, toId: string): void {
+  db.run("UPDATE journeys_tasks SET record_id = ? WHERE record_id = ?", toId, fromId);
+  db.run("UPDATE journeys_breaches SET record_id = ? WHERE record_id = ?", toId, fromId);
+  // the values the Journey carried follow the record; a key the record already has keeps its own value (the new id's) and the old one is dropped
+  const kept = new Set(
+    (db.all("SELECT key FROM journeys_values WHERE record_id = ?", toId) as Raw[]).map((r) => r.key as string),
+  );
+  for (const r of db.all("SELECT key FROM journeys_values WHERE record_id = ?", fromId) as Raw[])
+    if (!kept.has(r.key as string))
+      db.run("UPDATE journeys_values SET record_id = ? WHERE record_id = ? AND key = ?", toId, fromId, r.key);
+  db.run("DELETE FROM journeys_values WHERE record_id = ?", fromId);
+}
+
+// ---- carried values ----
+
+export function getValues(db: Db, recordId: string): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const r of db.all("SELECT key, value FROM journeys_values WHERE record_id = ? ORDER BY key", recordId) as Raw[])
+    out[r.key as string] = json<unknown>(r.value, null);
+  return out;
+}
+export function putValue(db: Db, recordId: string, key: string, value: unknown, at: number, by: string): void {
+  db.run(
+    "INSERT OR REPLACE INTO journeys_values (record_id, key, value, at, by_who) VALUES (?, ?, ?, ?, ?)",
+    recordId,
+    key,
+    js(value ?? null),
+    at,
+    by,
+  );
 }

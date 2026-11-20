@@ -15,6 +15,7 @@ import { cellText, hueOf } from "../table/model.ts";
 import { moveCard, moveError } from "./actions.ts";
 import {
   cardFields,
+  cardFaceOf,
   chosenOf,
   each,
   isLaneField,
@@ -65,7 +66,8 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
   const names = data.nameOf;
   const tf = ctx.def.fields.find((f) => f.key === ctx.def.titleField);
   const title = (tf ? cellText(tf, row.fields[tf.key], names) : "") || "Untitled";
-  const shown = cardFields(ctx.def, st.v.hidden, field.key);
+  const face = cardFaceOf(ctx.def, ctx.saved);
+  const shown = cardFields(ctx.def, st.v.hidden, field.key, 3, face);
   const selected = board.selected === row.id;
   const entries = (): MenuEntry[] => [
     { label: "Open", onSelect: () => board.open(row.id) },
@@ -99,7 +101,15 @@ function Card({ row, board, lane }: { row: RecordRow; board: Board; lane: Lane }
         selected && c.cardOn,
       ]}
     >
-      <Text numberOfLines={2} style={c.title}>
+      {face.preset === "visual" ? (
+        <View
+          testID={`cover-${row.id}`}
+          style={[c.cover, { backgroundColor: `hsl(${hueOf(title)} 38% 44%)` as string }]}
+        >
+          <Text style={c.coverText}>{title.charAt(0).toUpperCase()}</Text>
+        </View>
+      ) : null}
+      <Text numberOfLines={2} style={[c.title, face.preset !== "simple" ? c.titleBold : null]}>
         {title}
       </Text>
       {shown.length > 0 ? (
@@ -459,6 +469,17 @@ const c = StyleSheet.create({
     paddingHorizontal: 11,
     gap: 8,
   },
+  cover: {
+    height: 52,
+    marginTop: -10,
+    marginHorizontal: -11,
+    borderTopLeftRadius: 10,
+    borderTopRightRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  coverText: { fontSize: 24, fontWeight: "700", color: "rgba(255,255,255,0.92)" },
+  titleBold: { fontSize: 14, fontWeight: "600" },
   cardOn: { backgroundColor: "var(--sel)" as string },
   title: { fontSize: 13, lineHeight: 18, fontWeight: "500", color: "var(--ink)" as string },
   meta: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 8 },

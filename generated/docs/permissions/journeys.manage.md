@@ -14,6 +14,7 @@ Area: automations. Risk: medium. Applies to: space.
 
 ## Capabilities that need it
 
+- journeys.adopt
 - journeys.create
 - journeys.delete
 - journeys.design
@@ -22,3 +23,5 @@ Area: automations. Risk: medium. Applies to: space.
 - journeys.preview_migrate
 - journeys.rename
 - journeys.rules.set
+- journeys.test_path
+- journeys.to_pipeline

@@ -55,6 +55,7 @@ type Out = {
         at: number;
       };
       failedRuns: number;
+      sentence?: string;
     }>;
   next?: string;
   total?: number;
@@ -96,6 +97,7 @@ type Out = {
         },
         "name": "example",
         "ownerId": "example",
+        "sentence": "example",
         "status": "on",
         "triggers": [
           "example"

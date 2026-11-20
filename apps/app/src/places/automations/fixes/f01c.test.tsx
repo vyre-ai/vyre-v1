@@ -28,7 +28,7 @@ const at = (s: string, needle: string): number => {
 const nw = (): ConfigSample => createConfigSample(northwind);
 
 test("detail header: the Journey name, its record count and late count, Open board, and the Stages, Fields and Settings tabs with their counts", () => {
-  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.ok(
     has(out, 'data-testid="journey-designer"') &&
       has(out, "Client onboarding") &&
@@ -49,7 +49,7 @@ test("detail header: the Journey name, its record count and late count, Open boa
 });
 
 test("Stages tab: the records-per-stage bar, then the numbered stages with their record counts, tasks and the automations that run on entering", () => {
-  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" />);
+  const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" initialTab="stages" />);
   assert.ok(
     has(out, "Where the records are now") && has(out, "Records per stage") && has(out, 'data-testid="funnel-intake"'),
   );
@@ -60,9 +60,9 @@ test("Stages tab: the records-per-stage bar, then the numbered stages with their
     "stages in order",
   );
   for (const [i, label] of [
-    "Stage 1, Consult booked",
+    "Stage 1, First call booked",
     "Stage 2, Intake",
-    "Stage 3, Engagement letter",
+    "Stage 3, Proposal sent",
     "Stage 4, Kickoff",
     "Stage 5, Onboarded",
   ].entries())
@@ -93,7 +93,7 @@ test("Fields tab: the template's seven fields with the template mark, then its o
     7,
     "every inherited field carries the template mark",
   );
-  const own = ["Matter type", "Referral source", "Engagement signed", "ID verified"].map((n) => at(out, `own-${n}`));
+  const own = ["Project type", "Referral source", "Proposal signed", "ID verified"].map((n) => at(out, `own-${n}`));
   assert.deepEqual(
     [...own].sort((a, b) => a - b),
     own,

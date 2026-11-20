@@ -76,6 +76,7 @@ type In = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -152,6 +153,7 @@ type Out = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -241,6 +243,9 @@ type Out = {
               "id": "usr_a1b2c3",
               "kind": "person"
             },
+            "skills": [
+              "example"
+            ],
             "timeoutMinutes": 1
           },
           "askBeforeSending": true,
@@ -346,6 +351,9 @@ type Out = {
                 "id": "usr_a1b2c3",
                 "kind": "person"
               },
+              "skills": [
+                "example"
+              ],
               "timeoutMinutes": 1
             },
             "askBeforeSending": true,

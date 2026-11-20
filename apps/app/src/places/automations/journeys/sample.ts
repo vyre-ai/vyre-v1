@@ -1,5 +1,5 @@
 // The sample Journeys behind the designer's tests and screenshots: Client onboarding as the prototype draws it (five stages, their tasks with Assigned, Reviewer and Approver, the key and backup
-// for the agent tasks, the Automations on Send intake form and Onboarded), and Matter intake; Harbor Studio gets Client project. They are attached to a fake replica that already holds the
+// for the agent tasks, the Automations on Send intake form and Onboarded), and Project intake; Harbor Studio gets Client project. They are attached to a fake replica that already holds the
 // Automations sample: each capability the designer reads is registered with a resolver over those rows, and the writes it makes change the rows, so every control in a mount really works.
 import type { FakeReplica, Row } from "../../../../../../client/src/index.ts";
 import type { CapMap } from "../../../../../../generated/types.ts";
@@ -52,7 +52,7 @@ const lena = person("usr_lena"),
 export const ONBOARDING: Stage[] = [
   stage(
     "consult",
-    "Consult booked",
+    "First call booked",
     0,
     [
       task("t_confirm", { title: "Confirm the consult time", who: lena, hours: 24 }),
@@ -85,7 +85,7 @@ export const ONBOARDING: Stage[] = [
     ],
     { timeLimit: { hours: 72, escalateTo: { kind: "person", id: "usr_lena" } } },
   ),
-  stage("letter", "Engagement letter", 2, [
+  stage("letter", "Proposal sent", 2, [
     task("t_draft", {
       title: "Draft the engagement letter",
       who: agent("agt_docs"),
@@ -120,7 +120,7 @@ export const ONBOARDING: Stage[] = [
 
 const MATTER: Stage[] = [
   stage("new", "New", 0, [task("m_open", { title: "Open the matter", who: lena, hours: 24 })]),
-  stage("conflicts", "Conflict check", 1, [
+  stage("conflicts", "Fit check", 1, [
     task("m_check", {
       title: "Run the conflict check",
       who: agent("agt_research"),
@@ -202,9 +202,9 @@ export function fixtures(space: "northwind" | "harbor"): JourneyFixture[] {
     {
       journey: {
         id: "jrn_matter",
-        name: "Matter intake",
+        name: "Project intake",
         subjectType: "person",
-        recordType: "Matter intake",
+        recordType: "Project intake",
         version: 2,
         stages: MATTER,
         inFlight: 7,

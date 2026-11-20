@@ -21,6 +21,12 @@ const fieldDef = t.obj({
   options: t.opt(t.rec()),
 });
 
+const cardFace = t.obj({
+  preset: t.enm("simple", "detail", "visual"),
+  fields: t.arr(fieldKey, { maxItems: 6 }),
+  mark: t.opt(t.bool()),
+});
+
 const typeDef = t.obj({
   key: id.recordType,
   title: t.str(),
@@ -34,6 +40,7 @@ const typeDef = t.obj({
   group: t.opt(t.str()),
   retention: t.opt(t.str()),
   attribution: t.opt(t.bool()),
+  card: t.opt(cardFace),
   fields: t.arr(fieldDef),
 });
 
@@ -55,6 +62,7 @@ const typeDetail = t.obj({
   syncedFrom: t.opt(t.str({ description: "Connector key when the type is a synced type" })),
   attribution: t.opt(t.bool()),
   retention: t.opt(t.str()),
+  card: t.opt(cardFace),
   fields: t.arr(fieldDef),
   version: t.int(),
 });
