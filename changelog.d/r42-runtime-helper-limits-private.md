@@ -1,0 +1,1 @@
+- Internal: a helper's run node records its agent's tool limits also when the agent is private to the person it works for.
