@@ -11,7 +11,7 @@ Set, raise or clear the limit of a node and everything under it (money, tokens o
 | Grant level | manage |
 | Risk | medium |
 | Resource | run (/runId) |
-| Gate | none |
+| Gate | spend_raise when runs.budget_raise_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

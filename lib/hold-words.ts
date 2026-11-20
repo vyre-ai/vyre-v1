@@ -186,6 +186,20 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const host = keyReadHost(input);
     return host ? `send a key to ${host}` : "send a key to an app";
   }
+  // raising the limit of some work: the card says how much more it may spend (the tool for agent work calls runs.budget.set for it, so this is the card for both doors); saving work as an agent says what it makes
+  if (cap === "runs.ops" && obj(input)["action"] === "save_as_agent") return "make an agent from finished work";
+  if (cap === "runs.budget.set") {
+    const a = obj(input);
+    const usd = typeof a["usdMicros"] === "number" ? a["usdMicros"] : undefined;
+    const tokens = typeof a["tokens"] === "number" ? a["tokens"] : undefined;
+    const parts = [
+      ...(usd === undefined ? [] : [`spend up to $${(usd / 1_000_000).toFixed(2)}`]),
+      ...(tokens === undefined ? [] : [`use up to ${tokens.toLocaleString("en-US")} tokens`]),
+    ];
+    return parts.length > 0 && a["clear"] !== true
+      ? `let this work ${parts.join(" and ")}`
+      : "let this work spend without a limit";
+  }
   // the one call for a site's operations: the held actions read as what they do, so a person sees "put back a site's database" and not a call name
   if (cap === "sites.ops") {
     const a = obj(input)["action"];

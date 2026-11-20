@@ -741,6 +741,19 @@ export function moduleWhens(
     return false;
   };
   // saving work as an agent makes a new agent from it: an agent asking waits for a person's yes (the same hold runs.node.save_as_agent has on its own)
+  // an agent raising a limit (or taking it away) is an agent giving itself more of the Space's money: held. Lowering one, or setting the first, goes through. A limit this cannot read holds.
+  const budgetRaises = (input: unknown): boolean => {
+    const fn = exports.get("runs")?.["budgetRaise"];
+    const h = db();
+    if (typeof fn !== "function" || !h) return true;
+    try {
+      return (fn as (c: { db: ScopedDb }, i: unknown) => boolean)({ db: h }, input);
+    } catch {
+      return true;
+    }
+  };
+  out["runs.budget_raise_gate"] = (input, seed) => seed.principal.kind !== "person" && budgetRaises(input);
+  // saving work as an agent makes a new agent. A limit raised through the tool is not held here: the tool calls runs.budget.set, which holds it under the spend act, so both doors have one rule
   out["runs.ops_gate"] = (input, seed) =>
     seed.principal.kind !== "person" && (input as { action?: unknown } | null)?.action === "save_as_agent";
   out["vault.after_approved_key_use"] = async (input, seed) => {

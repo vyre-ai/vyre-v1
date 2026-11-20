@@ -26,6 +26,7 @@ export type {
   StepResult,
 } from "./handlers/engine.ts";
 export { planUndo, ruleFor, RULES } from "./handlers/undo.ts";
+export { budgetRaise } from "./budget.ts";
 export * from "./handlers/alerts.ts";
 
 // The executor (P-L6_24): a Run that was started is driven, and driven again when a wait ends.

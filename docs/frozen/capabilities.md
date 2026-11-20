@@ -988,3 +988,7 @@ Signed: lead, 19 Nov 2026
 - Snapshots: docs/frozen/snapshots/terminal.json.
 
 Signed: lead, 19 Nov 2026
+
+20 Nov 2026, lane r42-runtime, the one agent call for agent work: new capability `runs.ops` (tool `runs_ops`: `action`, `id`, `args`; the shapes are in the runs skill). Actions: tree, tree_find, node, node_find, compare, events, messages, activity, board, message_send, board_put, board_answer, control, rerun, budget, save_as_agent. Each reaches the same handler as the capability of its own name, so who may see a tree, who speaks for a node, who may stop or limit it, the spend permission and the owner-or-manager rule of compare, rerun and save_as_agent are the same; a wrong first call is answered with the exact shape of that action. `save_as_agent` through it is held at the Gate for an agent (`runs.ops_gate`, act approve), as the capability of its own name is. Signed: lead, 2026-11-20.
+
+20 Nov 2026, lane r42-runtime, an agent raising a limit is held: `runs.budget.set` waits for a person's yes (act spend_raise) when the caller is not a person and the new limit is higher than the one the work has, or takes it away. The `budget` action of `runs.ops` asks `runs.budget.set` itself, so a raise has one rule, one approver and one card whichever door an agent used. Lowering a limit, setting the first one on work that has none, and a person's own change go straight through. The card reads "let this work spend up to $X" (and "use up to N tokens"). A limit the Gate cannot read holds. Signed: pending, lead.

@@ -490,7 +490,11 @@ export default defineManifest({
     write("runs.ops", "Agent work: look, tell, steer; read the runs skill", {
       in: { action: t.str(), id: t.opt(t.str()), args: t.opt(t.rec()) },
       out: { result: t.json() },
-      gate: { act: "approve", when: "runs.ops_gate(input)", reason: "Makes a new agent from this work" },
+      gate: {
+        act: "approve",
+        when: "runs.ops_gate(input)",
+        reason: "Makes a new agent from this work",
+      },
       emits: ["run.node_state", "run.node_ended", "run.stopped"],
       tool: "agents",
       offline: "online",
@@ -635,6 +639,7 @@ export default defineManifest({
         out: { node: nodeRow, resumed: t.int({ minimum: 0 }) },
         on: ["run", "/runId"],
         level: "manage",
+        gate: { act: "spend_raise", when: "runs.budget_raise_gate(input)", reason: "Lets this work spend more" },
         offline: "online",
       },
     ),

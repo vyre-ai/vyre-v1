@@ -94,7 +94,8 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
     shape: "{action:'rerun', id:<finished helper's run id>, args:{goal?, instructions?, model?}} (change at least one)",
   },
   budget: {
-    h: budgetSet,
+    // through the pipeline, not the handler: the call is then held and approved exactly as runs.budget.set is (act spend_raise, the same approver and card), whichever door an agent used
+    h: (ctx, input) => (ctx.call ? ctx.call("runs.budget.set", input) : budgetSet(ctx, input)),
     id: { as: "runId", shape: "run" },
     may: { usdMicros: "int", tokens: "int", clear: "bool" },
     shape: "{action:'budget', id:<run id>, args:{usdMicros?, tokens?, clear?}}",
