@@ -235,6 +235,7 @@ export function createAgentControl(ext, o = {}) {
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.
+  cdp.onInput((tabId) => sessions.ownInput(tabId));
   cdp.onDetach((tabId, reason) => {
     const agent = sessions.driverOf(tabId);
     if (!agent) return;

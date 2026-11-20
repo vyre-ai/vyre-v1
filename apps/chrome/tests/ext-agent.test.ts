@@ -2288,6 +2288,7 @@ test("a touch during a call is not lost: the bar says Pausing after this step, t
   };
   const step = w.call("chrome_click", { x: 5, y: 5 });
   await w.advance(0);
+  await w.advance(500); // the step is slow: a touch this long after the agent sent its input is the person's, not the agent's own event
   port.send({ type: "touch" });
   await w.advance(0);
   assert.match(w.overlay.get(7).goal, /Pausing after this step/);
@@ -2314,6 +2315,7 @@ test("a queued pause belongs to its task: when the agent lets go of the tab, the
   };
   const step = w.call("chrome_click", { x: 5, y: 5 });
   await w.advance(0);
+  await w.advance(500); // the step is slow: a touch this long after the agent sent its input is the person's, not the agent's own event
   port.send({ type: "touch" });
   await w.advance(0);
   release();

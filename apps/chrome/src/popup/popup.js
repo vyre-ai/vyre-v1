@@ -133,7 +133,7 @@ async function doFill(i, how) {
     type: "popup.fill",
     itemId: row.id,
     kind: how.code || row.kind === "totp" ? "otp" : row.kind === "card" ? "card" : "login",
-    itemKind: row.kind === "totp" ? "totp" : undefined,
+    ...(row.kind === "totp" ? { itemKind: "totp" } : {}),
     signIn: row.kind === "card" ? false : how.signIn,
     usernameField: login && login.usernameField ? login.usernameField : undefined,
   });

@@ -36,7 +36,11 @@ test("every chrome tool, and every computer tool whose computerId is optional, c
     surfaces: { mcp?: { name?: string } };
   };
   const caps = registry.capabilities as unknown as Cap[];
-  const chrome = caps.filter((c) => c.surfaces.mcp?.name?.startsWith("chrome_"));
+  // chrome_read and chrome_search are answered by the Space itself and name no computer, so they carry no computer binding at all
+  const spaceAnswered = new Set(["chrome_read", "chrome_search"]);
+  const chrome = caps.filter(
+    (c) => c.surfaces.mcp?.name?.startsWith("chrome_") && !spaceAnswered.has(c.surfaces.mcp.name),
+  );
   assert.ok(chrome.length >= 20);
   for (const c of chrome) assert.equal(c.resource.self, "agent", c.name);
   const defs = (registry as unknown as { $defs: Record<string, { required?: string[]; $ref?: string }> }).$defs;

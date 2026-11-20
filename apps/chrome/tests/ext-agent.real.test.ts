@@ -143,7 +143,21 @@ async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?:
   let nextId = 1;
   let fillCalls = 0;
 
+  // current Chrome gives a web page its own window.chrome (loadTimes, csi, app; no runtime) after the init script has run, and the page then has no runtime: put the stand-in on once the page has loaded
+  const putRuntime = `(() => {
+    const w = window;
+    if (!w.chrome) w.chrome = {};
+    w.chrome.runtime = {
+      connect: () => ({ postMessage: (m) => void w.__vyreOverlay(JSON.stringify(m)), disconnect: () => {} }),
+    };
+  })()`;
   async function register(page: any) {
+    const goto = page.goto.bind(page);
+    page.goto = async (...a: any[]) => {
+      const res = await goto(...a);
+      await page.evaluate(putRuntime);
+      return res;
+    };
     const id = nextId++;
     const cdp = await context.newCDPSession(page);
     for (const ev of EVENTS)
