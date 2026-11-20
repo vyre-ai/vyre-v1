@@ -164,3 +164,35 @@ test("a version the server saved is marked checked; a version saved before the c
   assert.equal(isChecked(h.db, id, edited.automation.version), true, "the edit passed the check");
   assert.equal(isChecked(h.db, id, made.automation.version), false, "the old version stays as it was");
 });
+
+test("a version made from a checked one stays checked, whether it came from a restore, a copy, a promote or a schedule-limit change; one made from an unchecked one stays unchecked", async () => {
+  const { isChecked } = await import("../projections.ts");
+  const h = harness();
+  const made = await h.call("automations.create", create(), alice);
+  const id = made.automation.id as string;
+  // a copy of a checked Space automation is checked
+  await h.call("automations.promote", { automationId: id, confirm: true }, alice);
+  const copy = await h.call("automations.make_personal_copy", { automationId: id, name: "Copy" }, alice);
+  assert.equal(isChecked(h.db, copy.automation.id, copy.automation.version), true, "copy of a checked one");
+  // a restore of a checked version is checked; of an unchecked one is not
+  await h.call(
+    "automations.update",
+    {
+      automationId: id,
+      definition: goodDefinition({
+        nodes: [node("a", "records.update", { type: "contact", recordId: "rec_x", patch: {} })],
+      }),
+    },
+    alice,
+  );
+  const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions as {
+    versionId: string;
+    n: number;
+  }[];
+  const first = versions.find((v) => v.n === 1)!;
+  const restored = await h.call("automations.restore_version", { automationId: id, versionId: first.versionId }, alice);
+  assert.equal(isChecked(h.db, id, restored.automation.version), true, "restore of a checked version");
+  h.db.run("DELETE FROM automations_checked WHERE automation_id = ?", id);
+  const again = await h.call("automations.restore_version", { automationId: id, versionId: first.versionId }, alice);
+  assert.equal(isChecked(h.db, id, again.automation.version), false, "restore of an unchecked version");
+});

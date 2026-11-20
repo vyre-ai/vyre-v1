@@ -19,6 +19,7 @@ import {
   isOwner,
   listGroups,
   listVersions,
+  carryChecked,
   markChecked,
   markDeleted,
   markRestored,
@@ -1281,6 +1282,7 @@ export async function restoreVersion(ctx: AutoCtx, input: In): Promise<unknown> 
   if (a.status === "on") noteRunsAs(ctx, a); // restoring a version of a live automation publishes it: the person who did is who it runs as
   touch(ctx, a);
   const row = saveVersion(ctx, a, `Restored version ${v.n}`);
+  carryChecked(ctx.db, a.id, v.n, a.id, a.version);
   await regrant(ctx, a, "save", before);
   emitAuto(ctx, "automation.version_restored", a.id, { versionId: row.versionId, version: a.version });
   emitAuto(ctx, "automation.updated", a.id, { version: a.version, fields: ["definition"] });
@@ -1628,6 +1630,7 @@ export async function promote(ctx: AutoCtx, input: In): Promise<unknown> {
   touch(ctx, a);
   if (replaced > 0) {
     saveVersion(ctx, a, "Promoted to the Space: shared keys");
+    carryChecked(ctx.db, a.id, a.version - 1, a.id, a.version);
     await regrant(ctx, a, "save", a.definition);
   }
   ctx.db.run("DELETE FROM automations_access WHERE automation_id = ?", a.id);
@@ -1680,6 +1683,7 @@ export async function makePersonalCopy(ctx: AutoCtx, input: In): Promise<unknown
   });
   saveAutomation(ctx.db, copy);
   saveVersion(ctx, copy, `Copied from ${src.name}`);
+  carryChecked(ctx.db, src.id, src.version, copy.id, copy.version);
   emitAuto(ctx, "automation.copied", copy.id, { fromId: src.id });
   emitAuto(ctx, "automation.created", copy.id, { name: copy.name, kind: copy.kind });
   return { automation: out(copy) };
