@@ -249,7 +249,7 @@ if ("site" in o2005) d_s_9ffb25563a(o2005["site"], p + "/site", e);
 }
 }
 
-function e77_payload(v: unknown, p: string, e: string[]): void {
+function e78_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7428 = v;
 const g7428 = typeOf(x7428);
@@ -278,7 +278,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "browser.site_changed": e77_payload,
+  "browser.site_changed": e78_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

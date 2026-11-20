@@ -597,7 +597,7 @@ if ("total" in o7278) lf(o7278["total"], p + "/total", e, L2);
 }
 }
 
-function e753_payload(v: unknown, p: string, e: string[]): void {
+function e754_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8045 = v;
 const g8045 = typeOf(x8045);
@@ -611,7 +611,7 @@ if ("requestId" in o8045) lf(o8045["requestId"], p + "/requestId", e, L61);
 }
 }
 
-function e754_payload(v: unknown, p: string, e: string[]): void {
+function e755_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8046 = v;
 const g8046 = typeOf(x8046);
@@ -632,7 +632,7 @@ if ("asker" in o8046) lf(o8046["asker"], p + "/asker", e, L1);
 }
 }
 
-function e755_payload(v: unknown, p: string, e: string[]): void {
+function e756_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8047 = v;
 const g8047 = typeOf(x8047);
@@ -654,7 +654,7 @@ if ("asker" in o8047) lf(o8047["asker"], p + "/asker", e, L1);
 }
 }
 
-function e756_payload(v: unknown, p: string, e: string[]): void {
+function e757_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8048 = v;
 const g8048 = typeOf(x8048);
@@ -709,10 +709,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "vault.request_canceled": e753_payload,
-  "vault.request_declined": e754_payload,
-  "vault.request_fulfilled": e755_payload,
-  "vault.requested": e756_payload,
+  "vault.request_canceled": e754_payload,
+  "vault.request_declined": e755_payload,
+  "vault.request_fulfilled": e756_payload,
+  "vault.requested": e757_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

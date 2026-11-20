@@ -545,7 +545,7 @@ if ("entity" in o4395) lf(o4395["entity"], p + "/events" + '/' + i4394 + "/entit
 }
 }
 
-function e122_payload(v: unknown, p: string, e: string[]): void {
+function e123_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7469 = v;
 const g7469 = typeOf(x7469);
@@ -561,7 +561,7 @@ if ("sizeBytes" in o7469) lf(o7469["sizeBytes"], p + "/sizeBytes", e, L2);
 }
 }
 
-function e325_payload(v: unknown, p: string, e: string[]): void {
+function e326_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7650 = v;
 const g7650 = typeOf(x7650);
@@ -587,7 +587,7 @@ if (g7651 === 'object') { const o7651 = x7651 as Record<string, unknown>;
 }
 }
 
-function e326_payload(v: unknown, p: string, e: string[]): void {
+function e327_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7652 = v;
 const g7652 = typeOf(x7652);
@@ -601,7 +601,7 @@ if ("removed" in o7652) lf(o7652["removed"], p + "/removed", e, L11);
 }
 }
 
-function e527_payload(v: unknown, p: string, e: string[]): void {
+function e528_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7831 = v;
 const g7831 = typeOf(x7831);
@@ -617,7 +617,7 @@ if ("recordedOutward" in o7831) lf(o7831["recordedOutward"], p + "/recordedOutwa
 }
 }
 
-function e528_payload(v: unknown, p: string, e: string[]): void {
+function e529_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7832 = v;
 const g7832 = typeOf(x7832);
@@ -649,11 +649,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "client_log.uploaded": e122_payload,
-  "log.accessed": e325_payload,
-  "logs.purged": e326_payload,
-  "replay.finished": e527_payload,
-  "replay.started": e528_payload,
+  "client_log.uploaded": e123_payload,
+  "log.accessed": e326_payload,
+  "logs.purged": e327_payload,
+  "replay.finished": e528_payload,
+  "replay.started": e529_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

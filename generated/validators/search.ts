@@ -474,7 +474,7 @@ if ("hit" in o6111) d_s_ba6adca8f3(o6111["hit"], p + "/hit", e);
 }
 }
 
-function e565_payload(v: unknown, p: string, e: string[]): void {
+function e566_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7868 = v;
 const g7868 = typeOf(x7868);
@@ -507,7 +507,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "search.reindexed": e565_payload,
+  "search.reindexed": e566_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

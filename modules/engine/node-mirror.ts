@@ -126,22 +126,23 @@ export function createNodeMirror(h: MirrorHost) {
   async function toolLimits(
     agentId: string,
     asker: string,
-  ): Promise<{ tools: { allowed: string[]; denied: string[] } } | undefined> {
+  ): Promise<{ tools: { allowed: string[]; denied: string[] } } | { toolsUnknown: true } | undefined> {
     try {
       const a = (await h.call("agents.get", { agentId }, asker)) as {
         agent?: { toolsAllowed?: unknown; toolsDenied?: unknown };
       } | null;
+      if (!a?.agent) return { toolsUnknown: true };
       const list = (v: unknown): string[] =>
         Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
       const allowed = list(a?.agent?.toolsAllowed);
       const denied = list(a?.agent?.toolsDenied);
       return allowed.length + denied.length > 0 ? { tools: { allowed, denied } } : undefined;
     } catch (err) {
-      h.log?.("a helper's tool limits could not be read, so none are recorded on its node", {
+      h.log?.("a helper's tool limits could not be read, so the node says they are unknown", {
         agentId,
         error: err instanceof Error ? err.message : String(err),
       });
-      return undefined; // the node is made all the same
+      return { toolsUnknown: true }; // the node is made all the same, saying the limits are unknown (nothing recorded would mean "no limits"): a save or a re-run reads them again and refuses if it still cannot
     }
   }
 

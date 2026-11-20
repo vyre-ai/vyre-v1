@@ -1233,7 +1233,7 @@ if ("relayOlder" in o5285) lf(o5285["relayOlder"], p + "/relayOlder", e, L3);
 }
 }
 
-function e417_payload(v: unknown, p: string, e: string[]): void {
+function e418_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7742 = v;
 const g7742 = typeOf(x7742);
@@ -1249,7 +1249,7 @@ if ("reason" in o7742) lf(o7742["reason"], p + "/reason", e, L1);
 }
 }
 
-function e418_payload(v: unknown, p: string, e: string[]): void {
+function e419_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7743 = v;
 const g7743 = typeOf(x7743);
@@ -1265,7 +1265,7 @@ if ("expiresAt" in o7743) lf(o7743["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e419_payload(v: unknown, p: string, e: string[]): void {
+function e420_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7744 = v;
 const g7744 = typeOf(x7744);
@@ -1281,7 +1281,7 @@ if ("mode" in o7744) lf(o7744["mode"], p + "/mode", e, L928);
 }
 }
 
-function e420_payload(v: unknown, p: string, e: string[]): void {
+function e421_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7745 = v;
 const g7745 = typeOf(x7745);
@@ -1297,7 +1297,7 @@ if ("name" in o7745) lf(o7745["name"], p + "/name", e, L1);
 }
 }
 
-function e421_payload(v: unknown, p: string, e: string[]): void {
+function e422_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7746 = v;
 const g7746 = typeOf(x7746);
@@ -1311,7 +1311,7 @@ if ("serverId" in o7746) lf(o7746["serverId"], p + "/serverId", e, L915);
 }
 }
 
-function e422_payload(v: unknown, p: string, e: string[]): void {
+function e423_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7747 = v;
 const g7747 = typeOf(x7747);
@@ -1365,12 +1365,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "network.certificate_failed": e417_payload,
-  "network.certificate_renewed": e418_payload,
-  "network.domain_changed": e419_payload,
-  "network.server_added": e420_payload,
-  "network.server_removed": e421_payload,
-  "network.server_requested": e422_payload,
+  "network.certificate_failed": e418_payload,
+  "network.certificate_renewed": e419_payload,
+  "network.domain_changed": e420_payload,
+  "network.server_added": e421_payload,
+  "network.server_removed": e422_payload,
+  "network.server_requested": e423_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

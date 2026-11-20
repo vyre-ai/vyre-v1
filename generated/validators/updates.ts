@@ -262,7 +262,7 @@ if ("lastResult" in o7173) lf(o7173["lastResult"], p + "/lastResult", e, L1083);
 }
 }
 
-function e738_payload(v: unknown, p: string, e: string[]): void {
+function e739_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8030 = v;
 const g8030 = typeOf(x8030);
@@ -291,7 +291,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "update.completed": d_s_c0084dac30,
-  "update.failed": e738_payload,
+  "update.failed": e739_payload,
   "update.rolled_back": d_s_c0084dac30,
   "update.started": d_s_c0084dac30,
 };

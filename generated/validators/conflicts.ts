@@ -470,7 +470,7 @@ if ("state" in o2562) lf(o2562["state"], p + "/state", e, L405);
 }
 }
 
-function e135_payload(v: unknown, p: string, e: string[]): void {
+function e136_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7480 = v;
 const g7480 = typeOf(x7480);
@@ -488,7 +488,7 @@ if ("versionId" in o7480) lf(o7480["versionId"], p + "/versionId", e, L165);
 }
 }
 
-function e136_payload(v: unknown, p: string, e: string[]): void {
+function e137_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7481 = v;
 const g7481 = typeOf(x7481);
@@ -506,7 +506,7 @@ if ("plainChoice" in o7481) lf(o7481["plainChoice"], p + "/plainChoice", e, L3);
 }
 }
 
-function e138_payload(v: unknown, p: string, e: string[]): void {
+function e139_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7483 = v;
 const g7483 = typeOf(x7483);
@@ -524,7 +524,7 @@ if ("protectedField" in o7483) lf(o7483["protectedField"], p + "/protectedField"
 }
 }
 
-function e140_payload(v: unknown, p: string, e: string[]): void {
+function e141_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7484 = v;
 const g7484 = typeOf(x7484);
@@ -561,11 +561,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "conflict.binary_logged": e135_payload,
-  "conflict.confirmation_needed": e136_payload,
-  "conflict.proposed": e138_payload,
+  "conflict.binary_logged": e136_payload,
+  "conflict.confirmation_needed": e137_payload,
+  "conflict.proposed": e139_payload,
   "conflict.redone": d_s_b01f8a6222,
-  "conflict.resolved": e140_payload,
+  "conflict.resolved": e141_payload,
   "conflict.undone": d_s_b01f8a6222,
 };
 

@@ -695,7 +695,7 @@ if ("by" in o2916) lf(o2916["by"], p + "/versions" + '/' + i2915 + "/by", e, L1)
 }
 }
 
-function e186_payload(v: unknown, p: string, e: string[]): void {
+function e187_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7521 = v;
 const g7521 = typeOf(x7521);
@@ -710,7 +710,7 @@ if ("folderId" in o7521) lf(o7521["folderId"], p + "/folderId", e, L51);
 }
 }
 
-function e187_payload(v: unknown, p: string, e: string[]): void {
+function e188_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7522 = v;
 const g7522 = typeOf(x7522);
@@ -726,7 +726,7 @@ if ("shared" in o7522) lf(o7522["shared"], p + "/shared", e, L3);
 }
 }
 
-function e189_payload(v: unknown, p: string, e: string[]): void {
+function e190_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7523 = v;
 const g7523 = typeOf(x7523);
@@ -761,10 +761,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "email.created": e186_payload,
-  "email_block.saved": e187_payload,
+  "email.created": e187_payload,
+  "email_block.saved": e188_payload,
   "email_template.saved": d_s_cb6eb7675e,
-  "email_template.test_sent": e189_payload,
+  "email_template.test_sent": e190_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

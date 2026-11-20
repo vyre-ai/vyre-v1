@@ -531,7 +531,7 @@ if ("providerId" in o4600) lf(o4600["providerId"], p + "/providerId", e, L1);
 }
 }
 
-function e341_payload(v: unknown, p: string, e: string[]): void {
+function e342_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7667 = v;
 const g7667 = typeOf(x7667);
@@ -549,7 +549,7 @@ if ("providerId" in o7667) lf(o7667["providerId"], p + "/providerId", e, L1);
 }
 }
 
-function e342_payload(v: unknown, p: string, e: string[]): void {
+function e343_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7668 = v;
 const g7668 = typeOf(x7668);
@@ -582,8 +582,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "mailgun.event_received": e341_payload,
-  "mailgun.inbound_received": e342_payload,
+  "mailgun.event_received": e342_payload,
+  "mailgun.inbound_received": e343_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -2785,7 +2785,7 @@ lf(a6338[i6338], p + "/follow" + '/' + i6338, e, L1);
 }
 }
 
-function e594_payload(v: unknown, p: string, e: string[]): void {
+function e595_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7892 = v;
 const g7892 = typeOf(x7892);
@@ -2801,7 +2801,7 @@ if ("access" in o7892) lf(o7892["access"], p + "/access", e, L490);
 }
 }
 
-function e595_payload(v: unknown, p: string, e: string[]): void {
+function e596_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7893 = v;
 const g7893 = typeOf(x7893);
@@ -2819,7 +2819,7 @@ if ("reason" in o7893) lf(o7893["reason"], p + "/reason", e, L1);
 }
 }
 
-function e596_payload(v: unknown, p: string, e: string[]): void {
+function e597_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7894 = v;
 const g7894 = typeOf(x7894);
@@ -2836,7 +2836,7 @@ if ("private" in o7894) lf(o7894["private"], p + "/private", e, L3);
 }
 }
 
-function e597_payload(v: unknown, p: string, e: string[]): void {
+function e598_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7895 = v;
 const g7895 = typeOf(x7895);
@@ -2854,7 +2854,7 @@ if ("env" in o7895) lf(o7895["env"], p + "/env", e, L1132);
 }
 }
 
-function e598_payload(v: unknown, p: string, e: string[]): void {
+function e599_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7896 = v;
 const g7896 = typeOf(x7896);
@@ -2870,7 +2870,7 @@ if ("domain" in o7896) lf(o7896["domain"], p + "/domain", e, L1);
 }
 }
 
-function e599_payload(v: unknown, p: string, e: string[]): void {
+function e600_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7897 = v;
 const g7897 = typeOf(x7897);
@@ -2888,7 +2888,7 @@ if ("url" in o7897) lf(o7897["url"], p + "/url", e, L1);
 }
 }
 
-function e600_payload(v: unknown, p: string, e: string[]): void {
+function e601_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7898 = v;
 const g7898 = typeOf(x7898);
@@ -2904,7 +2904,7 @@ if ("branch" in o7898) lf(o7898["branch"], p + "/branch", e, L1);
 }
 }
 
-function e601_payload(v: unknown, p: string, e: string[]): void {
+function e602_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7899 = v;
 const g7899 = typeOf(x7899);
@@ -2920,7 +2920,7 @@ if ("deploymentId" in o7899) lf(o7899["deploymentId"], p + "/deploymentId", e, L
 }
 }
 
-function e602_payload(v: unknown, p: string, e: string[]): void {
+function e603_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7900 = v;
 const g7900 = typeOf(x7900);
@@ -2937,7 +2937,7 @@ if ("access" in o7900) lf(o7900["access"], p + "/access", e, L490);
 }
 }
 
-function e603_payload(v: unknown, p: string, e: string[]): void {
+function e604_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7901 = v;
 const g7901 = typeOf(x7901);
@@ -2953,7 +2953,7 @@ if ("toDeploymentId" in o7901) lf(o7901["toDeploymentId"], p + "/toDeploymentId"
 }
 }
 
-function e604_payload(v: unknown, p: string, e: string[]): void {
+function e605_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7902 = v;
 const g7902 = typeOf(x7902);
@@ -2967,7 +2967,7 @@ if ("siteId" in o7902) lf(o7902["siteId"], p + "/siteId", e, L1);
 }
 }
 
-function e605_payload(v: unknown, p: string, e: string[]): void {
+function e606_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7903 = v;
 const g7903 = typeOf(x7903);
@@ -2984,7 +2984,7 @@ if ("fields" in o7903) d_s_3550bb561b(o7903["fields"], p + "/fields", e);
 }
 }
 
-function e606_payload(v: unknown, p: string, e: string[]): void {
+function e607_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7904 = v;
 const g7904 = typeOf(x7904);
@@ -3070,19 +3070,19 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "site.access_changed": e594_payload,
-  "site.build_failed": e595_payload,
-  "site.created": e596_payload,
-  "site.deployed": e597_payload,
-  "site.domain_changed": e598_payload,
-  "site.preview_created": e599_payload,
-  "site.preview_removed": e600_payload,
-  "site.promoted": e601_payload,
-  "site.published": e602_payload,
-  "site.rolled_back": e603_payload,
-  "site.stopped": e604_payload,
-  "site.table_created": e605_payload,
-  "site.table_promoted": e606_payload,
+  "site.access_changed": e595_payload,
+  "site.build_failed": e596_payload,
+  "site.created": e597_payload,
+  "site.deployed": e598_payload,
+  "site.domain_changed": e599_payload,
+  "site.preview_created": e600_payload,
+  "site.preview_removed": e601_payload,
+  "site.promoted": e602_payload,
+  "site.published": e603_payload,
+  "site.rolled_back": e604_payload,
+  "site.stopped": e605_payload,
+  "site.table_created": e606_payload,
+  "site.table_promoted": e607_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

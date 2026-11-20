@@ -1122,7 +1122,7 @@ if ("ownPlace" in o7056) lf(o7056["ownPlace"], p + "/ownPlace", e, L3);
 }
 }
 
-function e700_payload(v: unknown, p: string, e: string[]): void {
+function e701_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7992 = v;
 const g7992 = typeOf(x7992);
@@ -1138,7 +1138,7 @@ if ("by" in o7992) lf(o7992["by"], p + "/by", e, L1);
 }
 }
 
-function e701_payload(v: unknown, p: string, e: string[]): void {
+function e702_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7993 = v;
 const g7993 = typeOf(x7993);
@@ -1168,7 +1168,7 @@ if ("runId" in o7993) lf(o7993["runId"], p + "/runId", e, L39);
 }
 }
 
-function e702_payload(v: unknown, p: string, e: string[]): void {
+function e703_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7995 = v;
 const g7995 = typeOf(x7995);
@@ -1187,7 +1187,7 @@ if ("agentOwner" in o7995) lf(o7995["agentOwner"], p + "/agentOwner", e, L1);
 }
 }
 
-function e703_payload(v: unknown, p: string, e: string[]): void {
+function e704_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7996 = v;
 const g7996 = typeOf(x7996);
@@ -1206,7 +1206,7 @@ if ("by" in o7996) lf(o7996["by"], p + "/by", e, L1);
 }
 }
 
-function e705_payload(v: unknown, p: string, e: string[]): void {
+function e706_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7997 = v;
 const g7997 = typeOf(x7997);
@@ -1220,7 +1220,7 @@ if ("personId" in o7997) lf(o7997["personId"], p + "/personId", e, L22);
 }
 }
 
-function e706_payload(v: unknown, p: string, e: string[]): void {
+function e707_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7998 = v;
 const g7998 = typeOf(x7998);
@@ -1269,13 +1269,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "terminal.closed": e700_payload,
-  "terminal.command_finished": e701_payload,
-  "terminal.given_back": e702_payload,
-  "terminal.opened": e703_payload,
+  "terminal.closed": e701_payload,
+  "terminal.command_finished": e702_payload,
+  "terminal.given_back": e703_payload,
+  "terminal.opened": e704_payload,
   "terminal.renamed": d_s_2842806102,
-  "terminal.rules_changed": e705_payload,
-  "terminal.taken": e706_payload,
+  "terminal.rules_changed": e706_payload,
+  "terminal.taken": e707_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

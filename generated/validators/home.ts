@@ -491,7 +491,7 @@ if ("digestId" in o4060) lf(o4060["digestId"], p + "/digestId", e, L800);
 }
 }
 
-function e112_payload(v: unknown, p: string, e: string[]): void {
+function e113_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7458 = v;
 const g7458 = typeOf(x7458);
@@ -507,7 +507,7 @@ if ("reason" in o7458) lf(o7458["reason"], p + "/reason", e, L1110);
 }
 }
 
-function e174_payload(v: unknown, p: string, e: string[]): void {
+function e175_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7512 = v;
 const g7512 = typeOf(x7512);
@@ -523,7 +523,7 @@ if ("person" in o7512) lf(o7512["person"], p + "/person", e, L1);
 }
 }
 
-function e175_payload(v: unknown, p: string, e: string[]): void {
+function e176_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7513 = v;
 const g7513 = typeOf(x7513);
@@ -558,9 +558,9 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "checklist.dismissed": e112_payload,
-  "digest.seen": e174_payload,
-  "digest.written": e175_payload,
+  "checklist.dismissed": e113_payload,
+  "digest.seen": e175_payload,
+  "digest.written": e176_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

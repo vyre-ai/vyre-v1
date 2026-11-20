@@ -898,7 +898,7 @@ if ("removed" in o2748) lf(o2748["removed"], p + "/removed", e, L3);
 }
 }
 
-function e160_payload(v: unknown, p: string, e: string[]): void {
+function e161_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7497 = v;
 const g7497 = typeOf(x7497);
@@ -917,7 +917,7 @@ if ("refused" in o7497) lf(o7497["refused"], p + "/refused", e, L2);
 }
 }
 
-function e161_payload(v: unknown, p: string, e: string[]): void {
+function e162_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7498 = v;
 const g7498 = typeOf(x7498);
@@ -972,8 +972,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 export const eventValidators: Record<string, Check> = {
   "contact.address_added": d_s_fbf2f36af1,
   "contact.address_removed": d_s_fbf2f36af1,
-  "contact.dnd_screened": e160_payload,
-  "contact.preferences_changed": e161_payload,
+  "contact.dnd_screened": e161_payload,
+  "contact.preferences_changed": e162_payload,
   "suppression.added": d_s_b4d375add9,
   "suppression.removed": d_s_b4d375add9,
 };

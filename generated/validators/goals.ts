@@ -1775,7 +1775,7 @@ if ("owner" in o3764) lf(o3764["owner"], p + "/owner", e, L22);
 }
 }
 
-function e265_payload(v: unknown, p: string, e: string[]): void {
+function e266_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7591 = v;
 const g7591 = typeOf(x7591);
@@ -1797,7 +1797,7 @@ if ("budget" in o7591) d_s_ff5387d52c(o7591["budget"], p + "/budget", e);
 }
 }
 
-function e266_payload(v: unknown, p: string, e: string[]): void {
+function e267_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7592 = v;
 const g7592 = typeOf(x7592);
@@ -1821,7 +1821,7 @@ if ("status" in o7592) lf(o7592["status"], p + "/status", e, L384);
 }
 }
 
-function e267_payload(v: unknown, p: string, e: string[]): void {
+function e268_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7593 = v;
 const g7593 = typeOf(x7593);
@@ -1841,7 +1841,7 @@ if ("summary" in o7593) lf(o7593["summary"], p + "/summary", e, L1);
 }
 }
 
-function e268_payload(v: unknown, p: string, e: string[]): void {
+function e269_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7594 = v;
 const g7594 = typeOf(x7594);
@@ -1861,7 +1861,7 @@ if ("by" in o7594) lf(o7594["by"], p + "/by", e, L1);
 }
 }
 
-function e269_payload(v: unknown, p: string, e: string[]): void {
+function e270_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7595 = v;
 const g7595 = typeOf(x7595);
@@ -1883,7 +1883,7 @@ if ("error" in o7595) lf(o7595["error"], p + "/error", e, L1);
 }
 }
 
-function e270_payload(v: unknown, p: string, e: string[]): void {
+function e271_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7596 = v;
 const g7596 = typeOf(x7596);
@@ -1902,7 +1902,7 @@ if ("by" in o7596) lf(o7596["by"], p + "/by", e, L1);
 }
 }
 
-function e271_payload(v: unknown, p: string, e: string[]): void {
+function e272_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7597 = v;
 const g7597 = typeOf(x7597);
@@ -1935,7 +1935,7 @@ if ("by" in o7597) lf(o7597["by"], p + "/by", e, L1);
 }
 }
 
-function e272_payload(v: unknown, p: string, e: string[]): void {
+function e273_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7599 = v;
 const g7599 = typeOf(x7599);
@@ -1953,7 +1953,7 @@ if ("by" in o7599) lf(o7599["by"], p + "/by", e, L1);
 }
 }
 
-function e273_payload(v: unknown, p: string, e: string[]): void {
+function e274_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7600 = v;
 const g7600 = typeOf(x7600);
@@ -1974,7 +1974,7 @@ if ("reason" in o7600) lf(o7600["reason"], p + "/reason", e, L1);
 }
 }
 
-function e274_payload(v: unknown, p: string, e: string[]): void {
+function e275_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7601 = v;
 const g7601 = typeOf(x7601);
@@ -1994,7 +1994,7 @@ if ("by" in o7601) lf(o7601["by"], p + "/by", e, L1);
 }
 }
 
-function e275_payload(v: unknown, p: string, e: string[]): void {
+function e276_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7602 = v;
 const g7602 = typeOf(x7602);
@@ -2027,7 +2027,7 @@ if ("by" in o7602) lf(o7602["by"], p + "/by", e, L1);
 }
 }
 
-function e276_payload(v: unknown, p: string, e: string[]): void {
+function e277_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7604 = v;
 const g7604 = typeOf(x7604);
@@ -2084,18 +2084,18 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "goal.budget_warned": e265_payload,
-  "goal.created": e266_payload,
-  "goal.ended": e267_payload,
-  "goal.extended": e268_payload,
-  "goal.progress": e269_payload,
-  "goal.reported": e270_payload,
-  "goal.resumed": e271_payload,
-  "goal.started": e272_payload,
-  "goal.status_changed": e273_payload,
-  "goal.step_done": e274_payload,
-  "goal.updated": e275_payload,
-  "goal.woken": e276_payload,
+  "goal.budget_warned": e266_payload,
+  "goal.created": e267_payload,
+  "goal.ended": e268_payload,
+  "goal.extended": e269_payload,
+  "goal.progress": e270_payload,
+  "goal.reported": e271_payload,
+  "goal.resumed": e272_payload,
+  "goal.started": e273_payload,
+  "goal.status_changed": e274_payload,
+  "goal.step_done": e275_payload,
+  "goal.updated": e276_payload,
+  "goal.woken": e277_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

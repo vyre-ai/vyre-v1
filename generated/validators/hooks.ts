@@ -595,7 +595,7 @@ if ("paused" in o4087) lf(o4087["paused"], p + "/paused", e, L3);
 }
 }
 
-function e292_payload(v: unknown, p: string, e: string[]): void {
+function e293_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7621 = v;
 const g7621 = typeOf(x7621);
@@ -617,7 +617,7 @@ if ("note" in o7621) lf(o7621["note"], p + "/note", e, L1);
 }
 }
 
-function e293_payload(v: unknown, p: string, e: string[]): void {
+function e294_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7622 = v;
 const g7622 = typeOf(x7622);
@@ -643,7 +643,7 @@ if ("by" in o7622) lf(o7622["by"], p + "/by", e, L1);
 }
 }
 
-function e294_payload(v: unknown, p: string, e: string[]): void {
+function e295_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7623 = v;
 const g7623 = typeOf(x7623);
@@ -685,9 +685,9 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "hook.admin_asked": e292_payload,
-  "hook.blocked": e293_payload,
-  "hook.changed": e294_payload,
+  "hook.admin_asked": e293_payload,
+  "hook.blocked": e294_payload,
+  "hook.changed": e295_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

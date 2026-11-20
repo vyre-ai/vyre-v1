@@ -3320,7 +3320,7 @@ if ("state" in o3949) lf(o3949["state"], p + "/state", e, L1);
 }
 }
 
-function e277_payload(v: unknown, p: string, e: string[]): void {
+function e278_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7605 = v;
 const g7605 = typeOf(x7605);
@@ -3340,7 +3340,7 @@ if ("autoConnect" in o7605) lf(o7605["autoConnect"], p + "/autoConnect", e, L3);
 }
 }
 
-function e278_payload(v: unknown, p: string, e: string[]): void {
+function e279_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7606 = v;
 const g7606 = typeOf(x7606);
@@ -3372,7 +3372,7 @@ lf(a7607[i7607], p + "/scopesMissing" + '/' + i7607, e, L1);
 }
 }
 
-function e279_payload(v: unknown, p: string, e: string[]): void {
+function e280_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7608 = v;
 const g7608 = typeOf(x7608);
@@ -3388,7 +3388,7 @@ if ("by" in o7608) lf(o7608["by"], p + "/by", e, L1);
 }
 }
 
-function e280_payload(v: unknown, p: string, e: string[]): void {
+function e281_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7609 = v;
 const g7609 = typeOf(x7609);
@@ -3498,10 +3498,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "google.dwd_configured": e277_payload,
-  "google.dwd_probed": e278_payload,
-  "google.dwd_revoked": e279_payload,
-  "google.push_received": e280_payload,
+  "google.dwd_configured": e278_payload,
+  "google.dwd_probed": e279_payload,
+  "google.dwd_revoked": e280_payload,
+  "google.push_received": e281_payload,
   "google.user_connected": d_s_e6d65cc314,
 };
 

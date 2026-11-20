@@ -1130,7 +1130,7 @@ if ("session" in o6134) d_s_8a40ef0907(o6134["session"], p + "/session", e);
 }
 }
 
-function e296_payload(v: unknown, p: string, e: string[]): void {
+function e297_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7625 = v;
 const g7625 = typeOf(x7625);
@@ -1160,7 +1160,7 @@ if ("ranAutomations" in o7625) lf(o7625["ranAutomations"], p + "/ranAutomations"
 }
 }
 
-function e297_payload(v: unknown, p: string, e: string[]): void {
+function e298_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7626 = v;
 const g7626 = typeOf(x7626);
@@ -1180,7 +1180,7 @@ if ("error" in o7626) lf(o7626["error"], p + "/error", e, L1);
 }
 }
 
-function e298_payload(v: unknown, p: string, e: string[]): void {
+function e299_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7627 = v;
 const g7627 = typeOf(x7627);
@@ -1202,7 +1202,7 @@ if ("rows" in o7627) lf(o7627["rows"], p + "/rows", e, L2);
 }
 }
 
-function e572_payload(v: unknown, p: string, e: string[]): void {
+function e573_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7875 = v;
 const g7875 = typeOf(x7875);
@@ -1218,7 +1218,7 @@ if ("archived" in o7875) lf(o7875["archived"], p + "/archived", e, L3);
 }
 }
 
-function e573_payload(v: unknown, p: string, e: string[]): void {
+function e574_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7876 = v;
 const g7876 = typeOf(x7876);
@@ -1234,7 +1234,7 @@ if ("threadId" in o7876) lf(o7876["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e574_payload(v: unknown, p: string, e: string[]): void {
+function e575_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7877 = v;
 const g7877 = typeOf(x7877);
@@ -1248,7 +1248,7 @@ if ("conversationId" in o7877) lf(o7877["conversationId"], p + "/conversationId"
 }
 }
 
-function e575_payload(v: unknown, p: string, e: string[]): void {
+function e576_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7878 = v;
 const g7878 = typeOf(x7878);
@@ -1273,7 +1273,7 @@ if ("messages" in o7878) lf(o7878["messages"], p + "/messages", e, L2);
 }
 }
 
-function e576_payload(v: unknown, p: string, e: string[]): void {
+function e577_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7879 = v;
 const g7879 = typeOf(x7879);
@@ -1310,14 +1310,14 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "import.completed": e296_payload,
-  "import.failed": e297_payload,
-  "import.started": e298_payload,
-  "sessions.archived": e572_payload,
-  "sessions.continued": e573_payload,
-  "sessions.deleted": e574_payload,
-  "sessions.imported": e575_payload,
-  "sessions.renamed": e576_payload,
+  "import.completed": e297_payload,
+  "import.failed": e298_payload,
+  "import.started": e299_payload,
+  "sessions.archived": e573_payload,
+  "sessions.continued": e574_payload,
+  "sessions.deleted": e575_payload,
+  "sessions.imported": e576_payload,
+  "sessions.renamed": e577_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -404,7 +404,7 @@ if ("firstBadSeq" in o1663) lf(o1663["firstBadSeq"], p + "/firstBadSeq", e, L11)
 }
 }
 
-function e39_payload(v: unknown, p: string, e: string[]): void {
+function e40_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7391 = v;
 const g7391 = typeOf(x7391);
@@ -422,7 +422,7 @@ if ("file" in o7391) lf(o7391["file"], p + "/file", e, L1);
 }
 }
 
-function e40_payload(v: unknown, p: string, e: string[]): void {
+function e41_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7392 = v;
 const g7392 = typeOf(x7392);
@@ -438,7 +438,7 @@ if ("hash" in o7392) lf(o7392["hash"], p + "/hash", e, L1);
 }
 }
 
-function e41_payload(v: unknown, p: string, e: string[]): void {
+function e42_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7393 = v;
 const g7393 = typeOf(x7393);
@@ -456,7 +456,7 @@ if ("fileId" in o7393) lf(o7393["fileId"], p + "/fileId", e, L40);
 }
 }
 
-function e42_payload(v: unknown, p: string, e: string[]): void {
+function e43_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7394 = v;
 const g7394 = typeOf(x7394);
@@ -489,10 +489,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "audit.archived": e39_payload,
-  "audit.checkpointed": e40_payload,
-  "audit.exported": e41_payload,
-  "audit.verified": e42_payload,
+  "audit.archived": e40_payload,
+  "audit.checkpointed": e41_payload,
+  "audit.exported": e42_payload,
+  "audit.verified": e43_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

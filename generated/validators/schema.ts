@@ -1499,7 +1499,7 @@ if ("idempotencyKey" in o7309) lf(o7309["idempotencyKey"], p + "/idempotencyKey"
 }
 }
 
-function e561_payload(v: unknown, p: string, e: string[]): void {
+function e562_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7862 = v;
 const g7862 = typeOf(x7862);
@@ -1560,7 +1560,7 @@ if ("destructive" in o7862) lf(o7862["destructive"], p + "/destructive", e, L3);
 }
 }
 
-function e563_payload(v: unknown, p: string, e: string[]): void {
+function e564_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7866 = v;
 const g7866 = typeOf(x7866);
@@ -1579,7 +1579,7 @@ if ("to" in o7866) lf(o7866["to"], p + "/to", e, L142);
 }
 }
 
-function e564_payload(v: unknown, p: string, e: string[]): void {
+function e565_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7867 = v;
 const g7867 = typeOf(x7867);
@@ -1595,7 +1595,7 @@ if ("changeId" in o7867) lf(o7867["changeId"], p + "/changeId", e, L418);
 }
 }
 
-function e762_payload(v: unknown, p: string, e: string[]): void {
+function e763_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8055 = v;
 const g8055 = typeOf(x8055);
@@ -1640,11 +1640,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "schema.changed": e561_payload,
+  "schema.changed": e562_payload,
   "schema.field_restored": d_s_e9169018ef,
-  "schema.label_changed": e563_payload,
-  "schema.type_dropped": e564_payload,
-  "view.deleted": e762_payload,
+  "schema.label_changed": e564_payload,
+  "schema.type_dropped": e565_payload,
+  "view.deleted": e763_payload,
   "view.published": d_s_8b95056de4,
   "view.saved": d_s_8b95056de4,
 };

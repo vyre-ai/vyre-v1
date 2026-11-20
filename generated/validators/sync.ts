@@ -1101,7 +1101,7 @@ if ("mode" in o6689) lf(o6689["mode"], p + "/mode", e, L1030);
 }
 }
 
-function e137_payload(v: unknown, p: string, e: string[]): void {
+function e138_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7482 = v;
 const g7482 = typeOf(x7482);
@@ -1127,7 +1127,7 @@ if ("traceId" in o7482) lf(o7482["traceId"], p + "/traceId", e, L85);
 }
 }
 
-function e177_payload(v: unknown, p: string, e: string[]): void {
+function e178_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7514 = v;
 const g7514 = typeOf(x7514);
@@ -1146,7 +1146,7 @@ if ("named" in o7514) lf(o7514["named"], p + "/named", e, L1);
 }
 }
 
-function e178_payload(v: unknown, p: string, e: string[]): void {
+function e179_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7515 = v;
 const g7515 = typeOf(x7515);
@@ -1166,7 +1166,7 @@ if ("seq" in o7515) lf(o7515["seq"], p + "/seq", e, L2);
 }
 }
 
-function e652_payload(v: unknown, p: string, e: string[]): void {
+function e653_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7952 = v;
 const g7952 = typeOf(x7952);
@@ -1185,7 +1185,7 @@ if ("deviceId" in o7952) lf(o7952["deviceId"], p + "/deviceId", e, L260);
 }
 }
 
-function e653_payload(v: unknown, p: string, e: string[]): void {
+function e654_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7953 = v;
 const g7953 = typeOf(x7953);
@@ -1207,7 +1207,7 @@ if ("code" in o7953) lf(o7953["code"], p + "/code", e, L1);
 }
 }
 
-function e658_payload(v: unknown, p: string, e: string[]): void {
+function e659_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7956 = v;
 const g7956 = typeOf(x7956);
@@ -1244,12 +1244,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "conflict.opened": e137_payload,
-  "doc.compacted": e177_payload,
-  "doc.updated": e178_payload,
-  "sync.epoch_bumped": e652_payload,
-  "sync.op_rejected": e653_payload,
-  "sync.scope_changed": e658_payload,
+  "conflict.opened": e138_payload,
+  "doc.compacted": e178_payload,
+  "doc.updated": e179_payload,
+  "sync.epoch_bumped": e653_payload,
+  "sync.op_rejected": e654_payload,
+  "sync.scope_changed": e659_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

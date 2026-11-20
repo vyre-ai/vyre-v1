@@ -4430,7 +4430,7 @@ if ("nightlyReconcile" in o6800) lf(o6800["nightlyReconcile"], p + "/nightlyReco
 }
 }
 
-function e145_payload(v: unknown, p: string, e: string[]): void {
+function e146_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7485 = v;
 const g7485 = typeOf(x7485);
@@ -4444,7 +4444,7 @@ if ("connectionId" in o7485) lf(o7485["connectionId"], p + "/connectionId", e, L
 }
 }
 
-function e147_payload(v: unknown, p: string, e: string[]): void {
+function e148_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7486 = v;
 const g7486 = typeOf(x7486);
@@ -4458,7 +4458,7 @@ if ("connectionId" in o7486) lf(o7486["connectionId"], p + "/connectionId", e, L
 }
 }
 
-function e148_payload(v: unknown, p: string, e: string[]): void {
+function e149_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7487 = v;
 const g7487 = typeOf(x7487);
@@ -4472,7 +4472,7 @@ if ("connectionId" in o7487) lf(o7487["connectionId"], p + "/connectionId", e, L
 }
 }
 
-function e149_payload(v: unknown, p: string, e: string[]): void {
+function e150_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7488 = v;
 const g7488 = typeOf(x7488);
@@ -4488,7 +4488,7 @@ if ("draftId" in o7488) lf(o7488["draftId"], p + "/draftId", e, L251);
 }
 }
 
-function e150_payload(v: unknown, p: string, e: string[]): void {
+function e151_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7489 = v;
 const g7489 = typeOf(x7489);
@@ -4502,7 +4502,7 @@ if ("key" in o7489) lf(o7489["key"], p + "/key", e, L1);
 }
 }
 
-function e151_payload(v: unknown, p: string, e: string[]): void {
+function e152_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7490 = v;
 const g7490 = typeOf(x7490);
@@ -4518,7 +4518,7 @@ if ("failed" in o7490) lf(o7490["failed"], p + "/failed", e, L2);
 }
 }
 
-function e152_payload(v: unknown, p: string, e: string[]): void {
+function e153_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7491 = v;
 const g7491 = typeOf(x7491);
@@ -4536,7 +4536,7 @@ if ("tests" in o7491) lf(o7491["tests"], p + "/tests", e, L2);
 }
 }
 
-function e153_payload(v: unknown, p: string, e: string[]): void {
+function e154_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7492 = v;
 const g7492 = typeOf(x7492);
@@ -4550,7 +4550,7 @@ if ("key" in o7492) lf(o7492["key"], p + "/key", e, L1);
 }
 }
 
-function e154_payload(v: unknown, p: string, e: string[]): void {
+function e155_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7493 = v;
 const g7493 = typeOf(x7493);
@@ -4566,7 +4566,7 @@ if ("version" in o7493) lf(o7493["version"], p + "/version", e, L1);
 }
 }
 
-function e649_payload(v: unknown, p: string, e: string[]): void {
+function e650_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7949 = v;
 const g7949 = typeOf(x7949);
@@ -4598,7 +4598,7 @@ if ("removed" in o7949) lf(o7949["removed"], p + "/removed", e, L2);
 }
 }
 
-function e650_payload(v: unknown, p: string, e: string[]): void {
+function e651_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7950 = v;
 const g7950 = typeOf(x7950);
@@ -4622,7 +4622,7 @@ if ("rule" in o7950) lf(o7950["rule"], p + "/rule", e, L79);
 }
 }
 
-function e651_payload(v: unknown, p: string, e: string[]): void {
+function e652_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7951 = v;
 const g7951 = typeOf(x7951);
@@ -4642,7 +4642,7 @@ if ("percent" in o7951) lf(o7951["percent"], p + "/percent", e, L92);
 }
 }
 
-function e654_payload(v: unknown, p: string, e: string[]): void {
+function e655_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7954 = v;
 const g7954 = typeOf(x7954);
@@ -4666,7 +4666,7 @@ if ("attempts" in o7954) lf(o7954["attempts"], p + "/attempts", e, L2);
 }
 }
 
-function e657_payload(v: unknown, p: string, e: string[]): void {
+function e658_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7955 = v;
 const g7955 = typeOf(x7955);
@@ -4684,7 +4684,7 @@ if ("changes" in o7955) lf(o7955["changes"], p + "/changes", e, L2);
 }
 }
 
-function e659_payload(v: unknown, p: string, e: string[]): void {
+function e660_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7957 = v;
 const g7957 = typeOf(x7957);
@@ -4702,7 +4702,7 @@ if ("connector" in o7957) lf(o7957["connector"], p + "/connector", e, L1);
 }
 }
 
-function e660_payload(v: unknown, p: string, e: string[]): void {
+function e661_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7958 = v;
 const g7958 = typeOf(x7958);
@@ -4718,7 +4718,7 @@ if ("type" in o7958) lf(o7958["type"], p + "/type", e, L9);
 }
 }
 
-function e661_payload(v: unknown, p: string, e: string[]): void {
+function e662_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7959 = v;
 const g7959 = typeOf(x7959);
@@ -4732,7 +4732,7 @@ if ("syncTypeId" in o7959) lf(o7959["syncTypeId"], p + "/syncTypeId", e, L76);
 }
 }
 
-function e662_payload(v: unknown, p: string, e: string[]): void {
+function e663_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7960 = v;
 const g7960 = typeOf(x7960);
@@ -4746,7 +4746,7 @@ if ("syncTypeId" in o7960) lf(o7960["syncTypeId"], p + "/syncTypeId", e, L76);
 }
 }
 
-function e663_payload(v: unknown, p: string, e: string[]): void {
+function e664_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7961 = v;
 const g7961 = typeOf(x7961);
@@ -4847,28 +4847,28 @@ export const eventValidators: Record<string, Check> = {
   "connection.created": d_s_fc0405d407,
   "connection.deleted": d_s_9a83e8042f,
   "connection.needs_reconnect": d_s_9a83e8042f,
-  "connection.paused": e145_payload,
+  "connection.paused": e146_payload,
   "connection.pending": d_s_fc0405d407,
-  "connection.reconnected": e147_payload,
-  "connection.resumed": e148_payload,
-  "connector.built": e149_payload,
-  "connector.created": e150_payload,
-  "connector.publish_failed": e151_payload,
-  "connector.published": e152_payload,
-  "connector.removed": e153_payload,
-  "connector.rolled_back": e154_payload,
-  "sync.completed": e649_payload,
-  "sync.conflict": e650_payload,
-  "sync.deletes_paused": e651_payload,
-  "sync.push_failed": e654_payload,
+  "connection.reconnected": e148_payload,
+  "connection.resumed": e149_payload,
+  "connector.built": e150_payload,
+  "connector.created": e151_payload,
+  "connector.publish_failed": e152_payload,
+  "connector.published": e153_payload,
+  "connector.removed": e154_payload,
+  "connector.rolled_back": e155_payload,
+  "sync.completed": e650_payload,
+  "sync.conflict": e651_payload,
+  "sync.deletes_paused": e652_payload,
+  "sync.push_failed": e655_payload,
   "sync.push_undone": d_s_da7b85997a,
   "sync.pushed": d_s_da7b85997a,
-  "sync.schema_changed": e657_payload,
-  "sync.type_bound": e659_payload,
-  "sync.type_native": e660_payload,
-  "sync.type_paused": e661_payload,
-  "sync.type_resumed": e662_payload,
-  "sync.type_updated": e663_payload,
+  "sync.schema_changed": e658_payload,
+  "sync.type_bound": e660_payload,
+  "sync.type_native": e661_payload,
+  "sync.type_paused": e662_payload,
+  "sync.type_resumed": e663_payload,
+  "sync.type_updated": e664_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

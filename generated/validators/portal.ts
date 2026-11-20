@@ -318,7 +318,7 @@ if ("session" in o5509) lf(o5509["session"], p + "/session", e, L1);
 }
 }
 
-function e467_payload(v: unknown, p: string, e: string[]): void {
+function e468_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7782 = v;
 const g7782 = typeOf(x7782);
@@ -336,7 +336,7 @@ if ("messageId" in o7782) lf(o7782["messageId"], p + "/messageId", e, L109);
 }
 }
 
-function e468_payload(v: unknown, p: string, e: string[]): void {
+function e469_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7783 = v;
 const g7783 = typeOf(x7783);
@@ -365,8 +365,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "portal.account_created": d_s_e1c2ea017d,
-  "portal.message_posted": e467_payload,
-  "portal.record_linked": e468_payload,
+  "portal.message_posted": e468_payload,
+  "portal.record_linked": e469_payload,
   "portal.signed_in": d_s_e1c2ea017d,
 };
 

@@ -616,7 +616,7 @@ if ("bySpace" in o3257) lf(o3257["bySpace"], p + "/bySpace", e, L3);
 }
 }
 
-function e587_payload(v: unknown, p: string, e: string[]): void {
+function e588_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7886 = v;
 const g7886 = typeOf(x7886);
@@ -634,7 +634,7 @@ if ("recordId" in o7886) lf(o7886["recordId"], p + "/recordId", e, L34);
 }
 }
 
-function e589_payload(v: unknown, p: string, e: string[]): void {
+function e590_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7887 = v;
 const g7887 = typeOf(x7887);
@@ -651,7 +651,7 @@ if ("provider" in o7887) lf(o7887["provider"], p + "/provider", e, L746);
 }
 }
 
-function e590_payload(v: unknown, p: string, e: string[]): void {
+function e591_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7888 = v;
 const g7888 = typeOf(x7888);
@@ -668,7 +668,7 @@ if ("recordId" in o7888) lf(o7888["recordId"], p + "/recordId", e, L34);
 }
 }
 
-function e591_payload(v: unknown, p: string, e: string[]): void {
+function e592_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7889 = v;
 const g7889 = typeOf(x7889);
@@ -704,11 +704,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "signature.cancelled": d_s_785f48c110,
-  "signature.declined": e587_payload,
+  "signature.declined": e588_payload,
   "signature.expired": d_s_785f48c110,
-  "signature.sent": e589_payload,
-  "signature.signed": e590_payload,
-  "signature.viewed": e591_payload,
+  "signature.sent": e590_payload,
+  "signature.signed": e591_payload,
+  "signature.viewed": e592_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

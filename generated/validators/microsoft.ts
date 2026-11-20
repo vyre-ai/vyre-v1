@@ -2732,7 +2732,7 @@ if ("updatedCells" in o5204) lf(o5204["updatedCells"], p + "/updatedCells", e, L
 }
 }
 
-function e404_payload(v: unknown, p: string, e: string[]): void {
+function e405_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7730 = v;
 const g7730 = typeOf(x7730);
@@ -2752,7 +2752,7 @@ if ("autoConnect" in o7730) lf(o7730["autoConnect"], p + "/autoConnect", e, L3);
 }
 }
 
-function e405_payload(v: unknown, p: string, e: string[]): void {
+function e406_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7731 = v;
 const g7731 = typeOf(x7731);
@@ -2768,7 +2768,7 @@ if ("by" in o7731) lf(o7731["by"], p + "/by", e, L1);
 }
 }
 
-function e406_payload(v: unknown, p: string, e: string[]): void {
+function e407_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7732 = v;
 const g7732 = typeOf(x7732);
@@ -2799,7 +2799,7 @@ lf(a7733[i7733], p + "/missingPermissions" + '/' + i7733, e, L1);
 }
 }
 
-function e407_payload(v: unknown, p: string, e: string[]): void {
+function e408_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7734 = v;
 const g7734 = typeOf(x7734);
@@ -2900,10 +2900,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "microsoft.consent_configured": e404_payload,
-  "microsoft.consent_revoked": e405_payload,
-  "microsoft.consent_verified": e406_payload,
-  "microsoft.notification_received": e407_payload,
+  "microsoft.consent_configured": e405_payload,
+  "microsoft.consent_revoked": e406_payload,
+  "microsoft.consent_verified": e407_payload,
+  "microsoft.notification_received": e408_payload,
   "microsoft.user_connected": d_s_e6d65cc314,
 };
 

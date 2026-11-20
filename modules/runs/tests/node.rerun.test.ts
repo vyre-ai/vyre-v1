@@ -422,3 +422,24 @@ test("saving as an agent: the same words twice is one save, other words are anot
   assert.equal(keys[0], keys[1], "the same words: the same key, so one agent");
   assert.notEqual(keys[0], keys[2], "other words: another agent");
 });
+
+test("a node whose limits were unknown when it began is not saved as an unrestricted agent: the limits are read again as the person, and it is refused when they still cannot be", async () => {
+  const { h, seen } = rig();
+  const { n } = await helper(h, {
+    brief: { goal: "Price the Calder bid", instructions: "Use the 2025 sheet." },
+    policy: { toolsUnknown: true },
+  });
+  h.callee("agents.get", () => {
+    throw Object.assign(new Error("That agent is private."), { code: "validation.not_found" });
+  });
+  const refused = await h.call("runs.node.save_as_agent", { runId: n.id, name: "Pricer" }, owner).catch((e) => e);
+  assert.equal(reasonOf(refused), "limits_unknown");
+  assert.equal(seen.created.length, 0, "no agent was made");
+  const again = await h.call("runs.node.rerun", { runId: n.id, goal: "Price it again" }, owner).catch((e) => e);
+  assert.equal(reasonOf(again), "limits_unknown");
+  assert.equal(seen.started.length, 0, "nothing was started");
+
+  h.callee("agents.get", () => ({ agent: { toolsAllowed: ["web_search"], toolsDenied: ["mail_send"] } }));
+  await h.call("runs.node.save_as_agent", { runId: n.id, name: "Pricer" }, owner);
+  assert.deepEqual(seen.created[0]!["tools"], { allowed: ["web_search"], denied: ["mail_send"] });
+});

@@ -393,7 +393,7 @@ if ("checkedEvents" in o1981) lf(o1981["checkedEvents"], p + "/checkedEvents", e
 }
 }
 
-function e67_payload(v: unknown, p: string, e: string[]): void {
+function e68_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7419 = v;
 const g7419 = typeOf(x7419);
@@ -411,7 +411,7 @@ if ("sizeBytes" in o7419) lf(o7419["sizeBytes"], p + "/sizeBytes", e, L2);
 }
 }
 
-function e68_payload(v: unknown, p: string, e: string[]): void {
+function e69_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7420 = v;
 const g7420 = typeOf(x7420);
@@ -427,7 +427,7 @@ if ("schedule" in o7420) lf(o7420["schedule"], p + "/schedule", e, L1);
 }
 }
 
-function e69_payload(v: unknown, p: string, e: string[]): void {
+function e70_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7421 = v;
 const g7421 = typeOf(x7421);
@@ -442,7 +442,7 @@ if ("reason" in o7421) lf(o7421["reason"], p + "/reason", e, L1);
 }
 }
 
-function e70_payload(v: unknown, p: string, e: string[]): void {
+function e71_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7422 = v;
 const g7422 = typeOf(x7422);
@@ -458,7 +458,7 @@ if ("tombstonesReplayed" in o7422) lf(o7422["tombstonesReplayed"], p + "/tombsto
 }
 }
 
-function e71_payload(v: unknown, p: string, e: string[]): void {
+function e72_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7423 = v;
 const g7423 = typeOf(x7423);
@@ -487,11 +487,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "backup.completed": e67_payload,
-  "backup.config_changed": e68_payload,
-  "backup.failed": e69_payload,
-  "backup.restored": e70_payload,
-  "backup.verified": e71_payload,
+  "backup.completed": e68_payload,
+  "backup.config_changed": e69_payload,
+  "backup.failed": e70_payload,
+  "backup.restored": e71_payload,
+  "backup.verified": e72_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

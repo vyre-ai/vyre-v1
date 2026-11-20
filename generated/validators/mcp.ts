@@ -700,7 +700,7 @@ if ("allowed" in o4641) lf(o4641["allowed"], p + "/toolsets" + '/' + i4640 + "/a
 }
 }
 
-function e343_payload(v: unknown, p: string, e: string[]): void {
+function e344_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7669 = v;
 const g7669 = typeOf(x7669);
@@ -719,7 +719,7 @@ if ("redirectHost" in o7669) lf(o7669["redirectHost"], p + "/redirectHost", e, L
 }
 }
 
-function e344_payload(v: unknown, p: string, e: string[]): void {
+function e345_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7670 = v;
 const g7670 = typeOf(x7670);
@@ -737,7 +737,7 @@ if ("clientName" in o7670) lf(o7670["clientName"], p + "/clientName", e, L1);
 }
 }
 
-function e347_payload(v: unknown, p: string, e: string[]): void {
+function e348_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7671 = v;
 const g7671 = typeOf(x7671);
@@ -752,7 +752,7 @@ if ("calls" in o7671) lf(o7671["calls"], p + "/calls", e, L2);
 }
 }
 
-function e348_payload(v: unknown, p: string, e: string[]): void {
+function e349_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7672 = v;
 const g7672 = typeOf(x7672);
@@ -772,7 +772,7 @@ if ("threadId" in o7672) lf(o7672["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e349_payload(v: unknown, p: string, e: string[]): void {
+function e350_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7673 = v;
 const g7673 = typeOf(x7673);
@@ -813,13 +813,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "mcp.client_allowed": e343_payload,
-  "mcp.client_declined": e344_payload,
+  "mcp.client_allowed": e344_payload,
+  "mcp.client_declined": e345_payload,
   "mcp.client_removed": d_s_02b7591c93,
   "mcp.client_replayed": d_s_c282f10646,
-  "mcp.session_ended": e347_payload,
-  "mcp.session_started": e348_payload,
-  "mcp.setup_changed": e349_payload,
+  "mcp.session_ended": e348_payload,
+  "mcp.session_started": e349_payload,
+  "mcp.setup_changed": e350_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

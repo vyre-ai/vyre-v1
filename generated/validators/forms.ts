@@ -1301,7 +1301,7 @@ if ("ok" in o6433) lf(o6433["ok"], p + "/ok", e, L3);
 }
 }
 
-function e75_payload(v: unknown, p: string, e: string[]): void {
+function e76_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7426 = v;
 const g7426 = typeOf(x7426);
@@ -1317,7 +1317,7 @@ if ("formId" in o7426) lf(o7426["formId"], p + "/formId", e, L86);
 }
 }
 
-function e76_payload(v: unknown, p: string, e: string[]): void {
+function e77_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7427 = v;
 const g7427 = typeOf(x7427);
@@ -1335,7 +1335,7 @@ if ("recordId" in o7427) lf(o7427["recordId"], p + "/recordId", e, L34);
 }
 }
 
-function e236_payload(v: unknown, p: string, e: string[]): void {
+function e237_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7563 = v;
 const g7563 = typeOf(x7563);
@@ -1353,7 +1353,7 @@ if ("count" in o7563) lf(o7563["count"], p + "/count", e, L2);
 }
 }
 
-function e237_payload(v: unknown, p: string, e: string[]): void {
+function e238_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7564 = v;
 const g7564 = typeOf(x7564);
@@ -1371,7 +1371,7 @@ if ("kind" in o7564) lf(o7564["kind"], p + "/kind", e, L1);
 }
 }
 
-function e238_payload(v: unknown, p: string, e: string[]): void {
+function e239_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7565 = v;
 const g7565 = typeOf(x7565);
@@ -1388,7 +1388,7 @@ if ("expiresAt" in o7565) lf(o7565["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e239_payload(v: unknown, p: string, e: string[]): void {
+function e240_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7566 = v;
 const g7566 = typeOf(x7566);
@@ -1404,7 +1404,7 @@ if ("slug" in o7566) lf(o7566["slug"], p + "/slug", e, L89);
 }
 }
 
-function e240_payload(v: unknown, p: string, e: string[]): void {
+function e241_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7567 = v;
 const g7567 = typeOf(x7567);
@@ -1456,13 +1456,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "booking.cancelled": e75_payload,
-  "booking.created": e76_payload,
-  "form.choices_changed": e236_payload,
-  "form.created": e237_payload,
-  "form.link_created": e238_payload,
-  "form.published": e239_payload,
-  "form.submitted": e240_payload,
+  "booking.cancelled": e76_payload,
+  "booking.created": e77_payload,
+  "form.choices_changed": e237_payload,
+  "form.created": e238_payload,
+  "form.link_created": e239_payload,
+  "form.published": e240_payload,
+  "form.submitted": e241_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

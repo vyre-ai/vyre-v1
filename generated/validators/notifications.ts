@@ -1174,7 +1174,7 @@ if ("capped" in o5398) lf(o5398["capped"], p + "/capped", e, L3);
 }
 }
 
-function e65_payload(v: unknown, p: string, e: string[]): void {
+function e66_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7416 = v;
 const g7416 = typeOf(x7416);
@@ -1192,7 +1192,7 @@ if ("waitedDigest" in o7416) lf(o7416["waitedDigest"], p + "/waitedDigest", e, L
 }
 }
 
-function e66_payload(v: unknown, p: string, e: string[]): void {
+function e67_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7417 = v;
 const g7417 = typeOf(x7417);
@@ -1223,7 +1223,7 @@ if ("id" in o7418) lf(o7418["id"], p + "/delegate" + "/id", e, L1);
 }
 }
 
-function e431_payload(v: unknown, p: string, e: string[]): void {
+function e432_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7753 = v;
 const g7753 = typeOf(x7753);
@@ -1243,7 +1243,7 @@ if ("perHour" in o7753) lf(o7753["perHour"], p + "/perHour", e, L2);
 }
 }
 
-function e432_payload(v: unknown, p: string, e: string[]): void {
+function e433_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7754 = v;
 const g7754 = typeOf(x7754);
@@ -1259,7 +1259,7 @@ if ("chain" in o7754) d_s_016bcd45aa(o7754["chain"], p + "/chain", e);
 }
 }
 
-function e433_payload(v: unknown, p: string, e: string[]): void {
+function e434_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7755 = v;
 const g7755 = typeOf(x7755);
@@ -1287,7 +1287,7 @@ if ("device" in o7755) lf(o7755["device"], p + "/device", e, L260);
 }
 }
 
-function e434_payload(v: unknown, p: string, e: string[]): void {
+function e435_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7756 = v;
 const g7756 = typeOf(x7756);
@@ -1305,7 +1305,7 @@ if ("until" in o7756) lf(o7756["until"], p + "/until", e, L11);
 }
 }
 
-function e435_payload(v: unknown, p: string, e: string[]): void {
+function e436_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7757 = v;
 const g7757 = typeOf(x7757);
@@ -1323,7 +1323,7 @@ if ("platform" in o7757) lf(o7757["platform"], p + "/platform", e, L941);
 }
 }
 
-function e436_payload(v: unknown, p: string, e: string[]): void {
+function e437_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7758 = v;
 const g7758 = typeOf(x7758);
@@ -1352,7 +1352,7 @@ lf(a7759[i7759], p + "/fields" + '/' + i7759, e, L1);
 }
 }
 
-function e437_payload(v: unknown, p: string, e: string[]): void {
+function e438_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7760 = v;
 const g7760 = typeOf(x7760);
@@ -1382,7 +1382,7 @@ if ("place" in o7760) lf(o7760["place"], p + "/place", e, L938);
 }
 }
 
-function e438_payload(v: unknown, p: string, e: string[]): void {
+function e439_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7762 = v;
 const g7762 = typeOf(x7762);
@@ -1424,16 +1424,16 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "away.cleared": e65_payload,
-  "away.set": e66_payload,
-  "notification.capped": e431_payload,
-  "notification.delegate_changed": e432_payload,
-  "notification.delivered": e433_payload,
-  "notification.muted": e434_payload,
-  "notification.push_registered": e435_payload,
-  "notification.rules_changed": e436_payload,
-  "notification.seen": e437_payload,
-  "notification.unmuted": e438_payload,
+  "away.cleared": e66_payload,
+  "away.set": e67_payload,
+  "notification.capped": e432_payload,
+  "notification.delegate_changed": e433_payload,
+  "notification.delivered": e434_payload,
+  "notification.muted": e435_payload,
+  "notification.push_registered": e436_payload,
+  "notification.rules_changed": e437_payload,
+  "notification.seen": e438_payload,
+  "notification.unmuted": e439_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

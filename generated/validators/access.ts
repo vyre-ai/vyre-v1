@@ -3508,7 +3508,7 @@ if ("items" in o7366) lf(o7366["items"], p + "/items", e, L2);
 }
 }
 
-function e233_payload(v: unknown, p: string, e: string[]): void {
+function e234_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7562 = v;
 const g7562 = typeOf(x7562);
@@ -3527,7 +3527,7 @@ if ("removed" in o7562) lf(o7562["removed"], p + "/removed", e, L3);
 }
 }
 
-function e282_payload(v: unknown, p: string, e: string[]): void {
+function e283_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7610 = v;
 const g7610 = typeOf(x7610);
@@ -3548,7 +3548,7 @@ if ("source" in o7610) lf(o7610["source"], p + "/source", e, L1);
 }
 }
 
-function e283_payload(v: unknown, p: string, e: string[]): void {
+function e284_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7611 = v;
 const g7611 = typeOf(x7611);
@@ -3567,7 +3567,7 @@ if ("reason" in o7611) lf(o7611["reason"], p + "/reason", e, L1);
 }
 }
 
-function e284_payload(v: unknown, p: string, e: string[]): void {
+function e285_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7612 = v;
 const g7612 = typeOf(x7612);
@@ -3584,7 +3584,7 @@ if ("expiresAt" in o7612) lf(o7612["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e308_payload(v: unknown, p: string, e: string[]): void {
+function e309_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7632 = v;
 const g7632 = typeOf(x7632);
@@ -3618,7 +3618,7 @@ if (![t7634_0, t7634_1].some((x) => x.length === 0)) e.push(p + "/toFolderId" + 
 }
 }
 
-function e465_payload(v: unknown, p: string, e: string[]): void {
+function e466_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7781 = v;
 const g7781 = typeOf(x7781);
@@ -3638,7 +3638,7 @@ if ("by" in o7781) lf(o7781["by"], p + "/by", e, L1);
 }
 }
 
-function e472_payload(v: unknown, p: string, e: string[]): void {
+function e473_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7787 = v;
 const g7787 = typeOf(x7787);
@@ -3656,7 +3656,7 @@ if ("owner" in o7787) lf(o7787["owner"], p + "/owner", e, L376);
 }
 }
 
-function e473_payload(v: unknown, p: string, e: string[]): void {
+function e474_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7788 = v;
 const g7788 = typeOf(x7788);
@@ -3670,7 +3670,7 @@ if ("principalId" in o7788) lf(o7788["principalId"], p + "/principalId", e, L376
 }
 }
 
-function e474_payload(v: unknown, p: string, e: string[]): void {
+function e475_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7789 = v;
 const g7789 = typeOf(x7789);
@@ -3685,7 +3685,7 @@ if ("reason" in o7789) lf(o7789["reason"], p + "/reason", e, L1);
 }
 }
 
-function e720_payload(v: unknown, p: string, e: string[]): void {
+function e721_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8012 = v;
 const g8012 = typeOf(x8012);
@@ -3701,7 +3701,7 @@ if ("by" in o8012) lf(o8012["by"], p + "/by", e, L1);
 }
 }
 
-function e765_payload(v: unknown, p: string, e: string[]): void {
+function e766_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8056 = v;
 const g8056 = typeOf(x8056);
@@ -3808,17 +3808,17 @@ export const eventValidators: Record<string, Check> = {
   "access.shared_with": e7_payload,
   "access_review.closed": e8_payload,
   "access_review.opened": e9_payload,
-  "folder.shared": e233_payload,
-  "grant.created": e282_payload,
-  "grant.revoked": e283_payload,
-  "grant.updated": e284_payload,
-  "item.moved": e308_payload,
-  "policy.changed": e465_payload,
-  "principal.created": e472_payload,
-  "principal.reactivated": e473_payload,
-  "principal.suspended": e474_payload,
-  "token.revoked": e720_payload,
-  "view_as.started": e765_payload,
+  "folder.shared": e234_payload,
+  "grant.created": e283_payload,
+  "grant.revoked": e284_payload,
+  "grant.updated": e285_payload,
+  "item.moved": e309_payload,
+  "policy.changed": e466_payload,
+  "principal.created": e473_payload,
+  "principal.reactivated": e474_payload,
+  "principal.suspended": e475_payload,
+  "token.revoked": e721_payload,
+  "view_as.started": e766_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -1338,7 +1338,7 @@ if ("name" in o5056) lf(o5056["name"], p + "/name", e, L1);
 }
 }
 
-function e227_payload(v: unknown, p: string, e: string[]): void {
+function e228_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7555 = v;
 const g7555 = typeOf(x7555);
@@ -1358,7 +1358,7 @@ if ("by" in o7555) lf(o7555["by"], p + "/by", e, L1);
 }
 }
 
-function e409_payload(v: unknown, p: string, e: string[]): void {
+function e410_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7735 = v;
 const g7735 = typeOf(x7735);
@@ -1379,7 +1379,7 @@ if ("keptAs" in o7735) lf(o7735["keptAs"], p + "/keptAs", e, L1);
 }
 }
 
-function e410_payload(v: unknown, p: string, e: string[]): void {
+function e411_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7736 = v;
 const g7736 = typeOf(x7736);
@@ -1397,7 +1397,7 @@ if ("error" in o7736) lf(o7736["error"], p + "/error", e, L1);
 }
 }
 
-function e411_payload(v: unknown, p: string, e: string[]): void {
+function e412_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7737 = v;
 const g7737 = typeOf(x7737);
@@ -1420,7 +1420,7 @@ if ("by" in o7737) lf(o7737["by"], p + "/by", e, L1);
 }
 }
 
-function e413_payload(v: unknown, p: string, e: string[]): void {
+function e414_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7738 = v;
 const g7738 = typeOf(x7738);
@@ -1438,7 +1438,7 @@ if ("keptCopy" in o7738) lf(o7738["keptCopy"], p + "/keptCopy", e, L3);
 }
 }
 
-function e415_payload(v: unknown, p: string, e: string[]): void {
+function e416_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7739 = v;
 const g7739 = typeOf(x7739);
@@ -1462,7 +1462,7 @@ if ("ms" in o7739) lf(o7739["ms"], p + "/ms", e, L2);
 }
 }
 
-function e416_payload(v: unknown, p: string, e: string[]): void {
+function e417_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7740 = v;
 const g7740 = typeOf(x7740);
@@ -1524,15 +1524,15 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "folder.mounted": e227_payload,
-  "mount.conflict": e409_payload,
-  "mount.failed": e410_payload,
-  "mount.file_sent": e411_payload,
+  "folder.mounted": e228_payload,
+  "mount.conflict": e410_payload,
+  "mount.failed": e411_payload,
+  "mount.file_sent": e412_payload,
   "mount.paused": d_s_204145a796,
-  "mount.removed": e413_payload,
+  "mount.removed": e414_payload,
   "mount.resumed": d_s_204145a796,
-  "mount.synced": e415_payload,
-  "mount.updated": e416_payload,
+  "mount.synced": e416_payload,
+  "mount.updated": e417_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

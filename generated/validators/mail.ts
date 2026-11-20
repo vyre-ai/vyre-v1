@@ -2665,7 +2665,7 @@ if ("ok" in o4570) lf(o4570["ok"], p + "/ok", e, L3);
 }
 }
 
-function e300_payload(v: unknown, p: string, e: string[]): void {
+function e301_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7628 = v;
 const g7628 = typeOf(x7628);
@@ -2685,7 +2685,7 @@ if ("mailboxId" in o7628) lf(o7628["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 
-function e329_payload(v: unknown, p: string, e: string[]): void {
+function e330_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7656 = v;
 const g7656 = typeOf(x7656);
@@ -2699,7 +2699,7 @@ if ("messageId" in o7656) lf(o7656["messageId"], p + "/messageId", e, L31);
 }
 }
 
-function e330_payload(v: unknown, p: string, e: string[]): void {
+function e331_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7657 = v;
 const g7657 = typeOf(x7657);
@@ -2721,7 +2721,7 @@ if ("auto" in o7657) lf(o7657["auto"], p + "/auto", e, L3);
 }
 }
 
-function e331_payload(v: unknown, p: string, e: string[]): void {
+function e332_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7658 = v;
 const g7658 = typeOf(x7658);
@@ -2735,7 +2735,7 @@ if ("draftId" in o7658) lf(o7658["draftId"], p + "/draftId", e, L31);
 }
 }
 
-function e332_payload(v: unknown, p: string, e: string[]): void {
+function e333_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7659 = v;
 const g7659 = typeOf(x7659);
@@ -2753,7 +2753,7 @@ if ("contactId" in o7659) lf(o7659["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e333_payload(v: unknown, p: string, e: string[]): void {
+function e334_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7660 = v;
 const g7660 = typeOf(x7660);
@@ -2773,7 +2773,7 @@ if ("private" in o7660) lf(o7660["private"], p + "/private", e, L3);
 }
 }
 
-function e334_payload(v: unknown, p: string, e: string[]): void {
+function e335_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7661 = v;
 const g7661 = typeOf(x7661);
@@ -2791,7 +2791,7 @@ if ("address" in o7661) lf(o7661["address"], p + "/address", e, L6);
 }
 }
 
-function e335_payload(v: unknown, p: string, e: string[]): void {
+function e336_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7662 = v;
 const g7662 = typeOf(x7662);
@@ -2805,7 +2805,7 @@ if ("mailboxId" in o7662) lf(o7662["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 
-function e336_payload(v: unknown, p: string, e: string[]): void {
+function e337_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7663 = v;
 const g7663 = typeOf(x7663);
@@ -2819,7 +2819,7 @@ if ("mailboxId" in o7663) lf(o7663["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 
-function e338_payload(v: unknown, p: string, e: string[]): void {
+function e339_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7664 = v;
 const g7664 = typeOf(x7664);
@@ -2833,7 +2833,7 @@ if ("mailboxId" in o7664) lf(o7664["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 
-function e339_payload(v: unknown, p: string, e: string[]): void {
+function e340_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7665 = v;
 const g7665 = typeOf(x7665);
@@ -2851,7 +2851,7 @@ if ("sent" in o7665) lf(o7665["sent"], p + "/sent", e, L2);
 }
 }
 
-function e340_payload(v: unknown, p: string, e: string[]): void {
+function e341_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7666 = v;
 const g7666 = typeOf(x7666);
@@ -2867,7 +2867,7 @@ if ("reason" in o7666) lf(o7666["reason"], p + "/reason", e, L1);
 }
 }
 
-function e389_payload(v: unknown, p: string, e: string[]): void {
+function e390_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7716 = v;
 const g7716 = typeOf(x7716);
@@ -2888,7 +2888,7 @@ if ("reason" in o7716) lf(o7716["reason"], p + "/reason", e, L1);
 }
 }
 
-function e390_payload(v: unknown, p: string, e: string[]): void {
+function e391_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7717 = v;
 const g7717 = typeOf(x7717);
@@ -2903,7 +2903,7 @@ if ("url" in o7717) lf(o7717["url"], p + "/url", e, L1);
 }
 }
 
-function e391_payload(v: unknown, p: string, e: string[]): void {
+function e392_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7718 = v;
 const g7718 = typeOf(x7718);
@@ -2921,7 +2921,7 @@ if ("address" in o7718) lf(o7718["address"], p + "/address", e, L1);
 }
 }
 
-function e393_payload(v: unknown, p: string, e: string[]): void {
+function e394_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7719 = v;
 const g7719 = typeOf(x7719);
@@ -2937,7 +2937,7 @@ if ("channel" in o7719) lf(o7719["channel"], p + "/channel", e, L824);
 }
 }
 
-function e396_payload(v: unknown, p: string, e: string[]): void {
+function e397_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7721 = v;
 const g7721 = typeOf(x7721);
@@ -2955,7 +2955,7 @@ if ("reason" in o7721) lf(o7721["reason"], p + "/reason", e, L1);
 }
 }
 
-function e398_payload(v: unknown, p: string, e: string[]): void {
+function e399_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7723 = v;
 const g7723 = typeOf(x7723);
@@ -2969,7 +2969,7 @@ if ("messageId" in o7723) lf(o7723["messageId"], p + "/messageId", e, L1);
 }
 }
 
-function e402_payload(v: unknown, p: string, e: string[]): void {
+function e403_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7728 = v;
 const g7728 = typeOf(x7728);
@@ -2987,7 +2987,7 @@ if ("contactId" in o7728) lf(o7728["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e403_payload(v: unknown, p: string, e: string[]): void {
+function e404_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7729 = v;
 const g7729 = typeOf(x7729);
@@ -3005,7 +3005,7 @@ if ("reason" in o7729) lf(o7729["reason"], p + "/reason", e, L1);
 }
 }
 
-function e566_payload(v: unknown, p: string, e: string[]): void {
+function e567_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7869 = v;
 const g7869 = typeOf(x7869);
@@ -3023,7 +3023,7 @@ if ("provider" in o7869) lf(o7869["provider"], p + "/provider", e, L15);
 }
 }
 
-function e567_payload(v: unknown, p: string, e: string[]): void {
+function e568_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7870 = v;
 const g7870 = typeOf(x7870);
@@ -3043,7 +3043,7 @@ if ("dmarc" in o7870) lf(o7870["dmarc"], p + "/dmarc", e, L16);
 }
 }
 
-function e568_payload(v: unknown, p: string, e: string[]): void {
+function e569_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7871 = v;
 const g7871 = typeOf(x7871);
@@ -3124,30 +3124,30 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "inbound_route.removed": d_s_d75675a98a,
-  "inbound_route.saved": e300_payload,
-  "mail.message_erased": e329_payload,
-  "mail.received": e330_payload,
-  "mail_draft.discarded": e331_payload,
-  "mail_draft.saved": e332_payload,
-  "mailbox.connected": e333_payload,
-  "mailbox.created": e334_payload,
-  "mailbox.disconnected": e335_payload,
-  "mailbox.paused": e336_payload,
+  "inbound_route.saved": e301_payload,
+  "mail.message_erased": e330_payload,
+  "mail.received": e331_payload,
+  "mail_draft.discarded": e332_payload,
+  "mail_draft.saved": e333_payload,
+  "mailbox.connected": e334_payload,
+  "mailbox.created": e335_payload,
+  "mailbox.disconnected": e336_payload,
+  "mailbox.paused": e337_payload,
   "mailbox.privacy_changed": d_s_3f7cb695ae,
-  "mailbox.resumed": e338_payload,
-  "mailbox.sync_completed": e339_payload,
-  "mailbox.sync_failed": e340_payload,
-  "message.bounced": e389_payload,
-  "message.clicked": e390_payload,
-  "message.complained": e391_payload,
-  "message.delivered": e393_payload,
-  "message.failed": e396_payload,
-  "message.opened": e398_payload,
-  "message.sent": e402_payload,
-  "message.suppressed": e403_payload,
-  "sending_domain.added": e566_payload,
-  "sending_domain.checked": e567_payload,
-  "sending_domain.removed": e568_payload,
+  "mailbox.resumed": e339_payload,
+  "mailbox.sync_completed": e340_payload,
+  "mailbox.sync_failed": e341_payload,
+  "message.bounced": e390_payload,
+  "message.clicked": e391_payload,
+  "message.complained": e392_payload,
+  "message.delivered": e394_payload,
+  "message.failed": e397_payload,
+  "message.opened": e399_payload,
+  "message.sent": e403_payload,
+  "message.suppressed": e404_payload,
+  "sending_domain.added": e567_payload,
+  "sending_domain.checked": e568_payload,
+  "sending_domain.removed": e569_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

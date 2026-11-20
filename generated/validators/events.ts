@@ -700,7 +700,7 @@ if ("active" in o7329) lf(o7329["active"], p + "/active", e, L3);
 }
 }
 
-function e770_payload(v: unknown, p: string, e: string[]): void {
+function e771_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8061 = v;
 const g8061 = typeOf(x8061);
@@ -731,7 +731,7 @@ lf(a8062[i8062], p + "/eventTypes" + '/' + i8062, e, L1);
 }
 }
 
-function e771_payload(v: unknown, p: string, e: string[]): void {
+function e772_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8063 = v;
 const g8063 = typeOf(x8063);
@@ -745,7 +745,7 @@ if ("webhookId" in o8063) lf(o8063["webhookId"], p + "/webhookId", e, L118);
 }
 }
 
-function e772_payload(v: unknown, p: string, e: string[]): void {
+function e773_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8064 = v;
 const g8064 = typeOf(x8064);
@@ -767,7 +767,7 @@ if ("attempts" in o8064) lf(o8064["attempts"], p + "/attempts", e, L2);
 }
 }
 
-function e773_payload(v: unknown, p: string, e: string[]): void {
+function e774_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8065 = v;
 const g8065 = typeOf(x8065);
@@ -792,7 +792,7 @@ if ("willRetry" in o8065) lf(o8065["willRetry"], p + "/willRetry", e, L3);
 }
 }
 
-function e774_payload(v: unknown, p: string, e: string[]): void {
+function e775_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8066 = v;
 const g8066 = typeOf(x8066);
@@ -808,7 +808,7 @@ if ("reason" in o8066) lf(o8066["reason"], p + "/reason", e, L1);
 }
 }
 
-function e775_payload(v: unknown, p: string, e: string[]): void {
+function e776_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8067 = v;
 const g8067 = typeOf(x8067);
@@ -824,7 +824,7 @@ if ("by" in o8067) lf(o8067["by"], p + "/by", e, L1);
 }
 }
 
-function e776_payload(v: unknown, p: string, e: string[]): void {
+function e777_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8068 = v;
 const g8068 = typeOf(x8068);
@@ -873,13 +873,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "webhook.created": e770_payload,
-  "webhook.deleted": e771_payload,
-  "webhook.delivered": e772_payload,
-  "webhook.delivery_failed": e773_payload,
-  "webhook.disabled": e774_payload,
-  "webhook.secret_rotated": e775_payload,
-  "webhook.updated": e776_payload,
+  "webhook.created": e771_payload,
+  "webhook.deleted": e772_payload,
+  "webhook.delivered": e773_payload,
+  "webhook.delivery_failed": e774_payload,
+  "webhook.disabled": e775_payload,
+  "webhook.secret_rotated": e776_payload,
+  "webhook.updated": e777_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

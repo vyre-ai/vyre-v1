@@ -422,7 +422,7 @@ if ("sentToVyre" in o5810) lf(o5810["sentToVyre"], p + "/sentToVyre", e, L3);
 }
 }
 
-function e531_payload(v: unknown, p: string, e: string[]): void {
+function e532_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7834 = v;
 const g7834 = typeOf(x7834);
@@ -437,7 +437,7 @@ if ("issueNumber" in o7834) lf(o7834["issueNumber"], p + "/issueNumber", e, L2);
 }
 }
 
-function e532_payload(v: unknown, p: string, e: string[]): void {
+function e533_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7835 = v;
 const g7835 = typeOf(x7835);
@@ -482,8 +482,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "report.resolved": d_s_63dee7bf35,
-  "report.sent_to_vyre": e531_payload,
-  "report.submitted": e532_payload,
+  "report.sent_to_vyre": e532_payload,
+  "report.submitted": e533_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

@@ -275,7 +275,7 @@ lf(a2684[i2684], p + "/steps" + '/' + i2684, e, L1);
 }
 }
 
-function e155_payload(v: unknown, p: string, e: string[]): void {
+function e156_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7494 = v;
 const g7494 = typeOf(x7494);
@@ -294,7 +294,7 @@ if ("onBehalfOf" in o7494) lf(o7494["onBehalfOf"], p + "/onBehalfOf", e, L17);
 }
 }
 
-function e156_payload(v: unknown, p: string, e: string[]): void {
+function e157_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7495 = v;
 const g7495 = typeOf(x7495);
@@ -312,7 +312,7 @@ if ("threadId" in o7495) lf(o7495["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e157_payload(v: unknown, p: string, e: string[]): void {
+function e158_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7496 = v;
 const g7496 = typeOf(x7496);
@@ -339,9 +339,9 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "console.change_applied": e155_payload,
-  "console.change_proposed": e156_payload,
-  "console.change_rejected": e157_payload,
+  "console.change_applied": e156_payload,
+  "console.change_proposed": e157_payload,
+  "console.change_rejected": e158_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

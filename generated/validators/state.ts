@@ -894,7 +894,7 @@ if ("repaired" in o6572) lf(o6572["repaired"], p + "/repaired", e, L11);
 }
 }
 
-function e639_payload(v: unknown, p: string, e: string[]): void {
+function e640_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7939 = v;
 const g7939 = typeOf(x7939);
@@ -947,7 +947,7 @@ if ("count" in o7939) d_s_3063e4ff68(o7939["count"], p + "/count", e);
 }
 }
 
-function e640_payload(v: unknown, p: string, e: string[]): void {
+function e641_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7942 = v;
 const g7942 = typeOf(x7942);
@@ -970,7 +970,7 @@ if ("by" in o7942) lf(o7942["by"], p + "/by", e, L1);
 }
 }
 
-function e641_payload(v: unknown, p: string, e: string[]): void {
+function e642_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7943 = v;
 const g7943 = typeOf(x7943);
@@ -1013,9 +1013,9 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "state.changed": e639_payload,
-  "state.layout_changed": e640_payload,
-  "state.scope_read": e641_payload,
+  "state.changed": e640_payload,
+  "state.layout_changed": e641_payload,
+  "state.scope_read": e642_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

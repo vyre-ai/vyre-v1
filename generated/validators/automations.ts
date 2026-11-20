@@ -5265,7 +5265,7 @@ if ("url" in o1957) lf(o1957["url"], p + "/url", e, L1);
 }
 }
 
-function e43_payload(v: unknown, p: string, e: string[]): void {
+function e44_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7395 = v;
 const g7395 = typeOf(x7395);
@@ -5279,7 +5279,7 @@ if ("automationId" in o7395) lf(o7395["automationId"], p + "/automationId", e, L
 }
 }
 
-function e44_payload(v: unknown, p: string, e: string[]): void {
+function e45_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7396 = v;
 const g7396 = typeOf(x7396);
@@ -5295,7 +5295,7 @@ if ("fromId" in o7396) lf(o7396["fromId"], p + "/fromId", e, L141);
 }
 }
 
-function e45_payload(v: unknown, p: string, e: string[]): void {
+function e46_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7397 = v;
 const g7397 = typeOf(x7397);
@@ -5313,7 +5313,7 @@ if ("kind" in o7397) lf(o7397["kind"], p + "/kind", e, L145);
 }
 }
 
-function e46_payload(v: unknown, p: string, e: string[]): void {
+function e47_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7398 = v;
 const g7398 = typeOf(x7398);
@@ -5327,7 +5327,7 @@ if ("automationId" in o7398) lf(o7398["automationId"], p + "/automationId", e, L
 }
 }
 
-function e47_payload(v: unknown, p: string, e: string[]): void {
+function e48_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7399 = v;
 const g7399 = typeOf(x7399);
@@ -5342,7 +5342,7 @@ if ("reason" in o7399) lf(o7399["reason"], p + "/reason", e, L1);
 }
 }
 
-function e48_payload(v: unknown, p: string, e: string[]): void {
+function e49_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7400 = v;
 const g7400 = typeOf(x7400);
@@ -5356,7 +5356,7 @@ if ("automationId" in o7400) lf(o7400["automationId"], p + "/automationId", e, L
 }
 }
 
-function e52_payload(v: unknown, p: string, e: string[]): void {
+function e53_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7401 = v;
 const g7401 = typeOf(x7401);
@@ -5370,7 +5370,7 @@ if ("groupId" in o7401) lf(o7401["groupId"], p + "/groupId", e, L254);
 }
 }
 
-function e55_payload(v: unknown, p: string, e: string[]): void {
+function e56_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7402 = v;
 const g7402 = typeOf(x7402);
@@ -5390,7 +5390,7 @@ if ("keysReplaced" in o7402) lf(o7402["keysReplaced"], p + "/keysReplaced", e, L
 }
 }
 
-function e56_payload(v: unknown, p: string, e: string[]): void {
+function e57_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7403 = v;
 const g7403 = typeOf(x7403);
@@ -5404,7 +5404,7 @@ if ("automationId" in o7403) lf(o7403["automationId"], p + "/automationId", e, L
 }
 }
 
-function e57_payload(v: unknown, p: string, e: string[]): void {
+function e58_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7404 = v;
 const g7404 = typeOf(x7404);
@@ -5429,7 +5429,7 @@ if ("origin" in o7404) lf(o7404["origin"], p + "/origin", e, L1);
 }
 }
 
-function e58_payload(v: unknown, p: string, e: string[]): void {
+function e59_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7405 = v;
 const g7405 = typeOf(x7405);
@@ -5469,7 +5469,7 @@ if ("why" in o7405) lf(o7405["why"], p + "/why", e, L1105);
 }
 }
 
-function e59_payload(v: unknown, p: string, e: string[]): void {
+function e60_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7408 = v;
 const g7408 = typeOf(x7408);
@@ -5500,7 +5500,7 @@ lf(a7409[i7409], p + "/runIds" + '/' + i7409, e, L39);
 }
 }
 
-function e60_payload(v: unknown, p: string, e: string[]): void {
+function e61_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7410 = v;
 const g7410 = typeOf(x7410);
@@ -5518,7 +5518,7 @@ if ("reason" in o7410) lf(o7410["reason"], p + "/reason", e, L1106);
 }
 }
 
-function e61_payload(v: unknown, p: string, e: string[]): void {
+function e62_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7411 = v;
 const g7411 = typeOf(x7411);
@@ -5549,7 +5549,7 @@ lf(a7412[i7412], p + "/fields" + '/' + i7412, e, L1);
 }
 }
 
-function e62_payload(v: unknown, p: string, e: string[]): void {
+function e63_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7413 = v;
 const g7413 = typeOf(x7413);
@@ -5567,7 +5567,7 @@ if ("version" in o7413) lf(o7413["version"], p + "/version", e, L2);
 }
 }
 
-function e63_payload(v: unknown, p: string, e: string[]): void {
+function e64_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7414 = v;
 const g7414 = typeOf(x7414);
@@ -5585,7 +5585,7 @@ if ("changes" in o7414) lf(o7414["changes"], p + "/changes", e, L10);
 }
 }
 
-function e64_payload(v: unknown, p: string, e: string[]): void {
+function e65_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7415 = v;
 const g7415 = typeOf(x7415);
@@ -5689,28 +5689,28 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "automation.alerts_changed": e43_payload,
-  "automation.copied": e44_payload,
-  "automation.created": e45_payload,
-  "automation.deleted": e46_payload,
-  "automation.disabled": e47_payload,
-  "automation.enabled": e48_payload,
+  "automation.alerts_changed": e44_payload,
+  "automation.copied": e45_payload,
+  "automation.created": e46_payload,
+  "automation.deleted": e47_payload,
+  "automation.disabled": e48_payload,
+  "automation.enabled": e49_payload,
   "automation.follower_added": d_s_db7111c041,
   "automation.follower_removed": d_s_db7111c041,
   "automation.group_created": d_s_b42eca41fa,
-  "automation.group_deleted": e52_payload,
+  "automation.group_deleted": e53_payload,
   "automation.group_renamed": d_s_b42eca41fa,
   "automation.moved": d_s_5ed6975d4d,
-  "automation.promoted": e55_payload,
-  "automation.restored": e56_payload,
-  "automation.run_started": e57_payload,
-  "automation.runs_as_changed": e58_payload,
-  "automation.runs_migrated": e59_payload,
-  "automation.trigger_dropped": e60_payload,
-  "automation.updated": e61_payload,
-  "automation.version_restored": e62_payload,
-  "automations.watch_changed": e63_payload,
-  "automations.watch_saved": e64_payload,
+  "automation.promoted": e56_payload,
+  "automation.restored": e57_payload,
+  "automation.run_started": e58_payload,
+  "automation.runs_as_changed": e59_payload,
+  "automation.runs_migrated": e60_payload,
+  "automation.trigger_dropped": e61_payload,
+  "automation.updated": e62_payload,
+  "automation.version_restored": e63_payload,
+  "automations.watch_changed": e64_payload,
+  "automations.watch_saved": e65_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

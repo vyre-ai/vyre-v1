@@ -707,7 +707,7 @@ if ("appSid" in o7155) lf(o7155["appSid"], p + "/appSid", e, L1);
 }
 }
 
-function e733_payload(v: unknown, p: string, e: string[]): void {
+function e734_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8026 = v;
 const g8026 = typeOf(x8026);
@@ -723,7 +723,7 @@ if ("sid" in o8026) lf(o8026["sid"], p + "/sid", e, L1);
 }
 }
 
-function e734_payload(v: unknown, p: string, e: string[]): void {
+function e735_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8027 = v;
 const g8027 = typeOf(x8027);
@@ -739,7 +739,7 @@ if ("sid" in o8027) lf(o8027["sid"], p + "/sid", e, L1);
 }
 }
 
-function e735_payload(v: unknown, p: string, e: string[]): void {
+function e736_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8028 = v;
 const g8028 = typeOf(x8028);
@@ -755,7 +755,7 @@ if ("sid" in o8028) lf(o8028["sid"], p + "/sid", e, L1);
 }
 }
 
-function e736_payload(v: unknown, p: string, e: string[]): void {
+function e737_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8029 = v;
 const g8029 = typeOf(x8029);
@@ -796,10 +796,10 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "twilio.recording_received": e733_payload,
-  "twilio.sms_received": e734_payload,
-  "twilio.status_received": e735_payload,
-  "twilio.voice_received": e736_payload,
+  "twilio.recording_received": e734_payload,
+  "twilio.sms_received": e735_payload,
+  "twilio.status_received": e736_payload,
+  "twilio.voice_received": e737_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

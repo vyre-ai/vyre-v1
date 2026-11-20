@@ -19,7 +19,7 @@ Change an agent: name, model, fallback, account, tools, vault key names, limits,
 | HTTP | POST /v1/agents/update |
 | MCP tool | agents_update (agents) |
 | CLI | none |
-| Emits | agent.config_changed, agent.config_error |
+| Emits | agent.config_changed, agent.config_error, agent.renamed |
 
 ## Input
 

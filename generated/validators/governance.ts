@@ -712,7 +712,7 @@ if ("count" in o3993) lf(o3993["count"], p + "/count", e, L11);
 }
 }
 
-function e194_payload(v: unknown, p: string, e: string[]): void {
+function e195_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7527 = v;
 const g7527 = typeOf(x7527);
@@ -728,7 +728,7 @@ if ("tombstones" in o7527) lf(o7527["tombstones"], p + "/tombstones", e, L11);
 }
 }
 
-function e195_payload(v: unknown, p: string, e: string[]): void {
+function e196_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7528 = v;
 const g7528 = typeOf(x7528);
@@ -746,7 +746,7 @@ if ("overrodeHold" in o7528) lf(o7528["overrodeHold"], p + "/overrodeHold", e, L
 }
 }
 
-function e290_payload(v: unknown, p: string, e: string[]): void {
+function e291_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7619 = v;
 const g7619 = typeOf(x7619);
@@ -764,7 +764,7 @@ if ("by" in o7619) lf(o7619["by"], p + "/by", e, L1);
 }
 }
 
-function e291_payload(v: unknown, p: string, e: string[]): void {
+function e292_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7620 = v;
 const g7620 = typeOf(x7620);
@@ -780,7 +780,7 @@ if ("by" in o7620) lf(o7620["by"], p + "/by", e, L1);
 }
 }
 
-function e535_payload(v: unknown, p: string, e: string[]): void {
+function e536_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7839 = v;
 const g7839 = typeOf(x7839);
@@ -798,7 +798,7 @@ if ("skippedOnHold" in o7839) lf(o7839["skippedOnHold"], p + "/skippedOnHold", e
 }
 }
 
-function e721_payload(v: unknown, p: string, e: string[]): void {
+function e722_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8013 = v;
 const g8013 = typeOf(x8013);
@@ -831,12 +831,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "erase.completed": e194_payload,
-  "erase.started": e195_payload,
-  "hold.placed": e290_payload,
-  "hold.released": e291_payload,
-  "retention.purged": e535_payload,
-  "tombstones.reapplied": e721_payload,
+  "erase.completed": e195_payload,
+  "erase.started": e196_payload,
+  "hold.placed": e291_payload,
+  "hold.released": e292_payload,
+  "retention.purged": e536_payload,
+  "tombstones.reapplied": e722_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

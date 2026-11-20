@@ -53842,6 +53842,10 @@ export type AgentPrivacySetPayload = {
   private: boolean;
   assistant?: boolean;
 };
+export type AgentRenamedPayload = {
+  agentId: string;
+  name: string;
+};
 export type AgentRestoredPayload = {
   agentId: string;
   by: string;
@@ -58068,6 +58072,7 @@ export interface EventMap {
   "agent.owner_changed": AgentOwnerChangedPayload;
   "agent.paused": AgentPausedPayload;
   "agent.privacy_set": AgentPrivacySetPayload;
+  "agent.renamed": AgentRenamedPayload;
   "agent.restored": AgentRestoredPayload;
   "agent.resumed": AgentResumedPayload;
   "agent.routine_changed": AgentRoutineChangedPayload;

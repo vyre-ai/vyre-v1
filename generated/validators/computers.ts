@@ -2994,7 +2994,7 @@ if ("computerId" in o2538) lf(o2538["computerId"], p + "/computerId", e, L27);
 }
 }
 
-function e123_payload(v: unknown, p: string, e: string[]): void {
+function e124_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7470 = v;
 const g7470 = typeOf(x7470);
@@ -3023,7 +3023,7 @@ lf(a7471[i7471], p + "/fields" + '/' + i7471, e, L1);
 }
 }
 
-function e126_payload(v: unknown, p: string, e: string[]): void {
+function e127_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7472 = v;
 const g7472 = typeOf(x7472);
@@ -3054,7 +3054,7 @@ if ("taskId" in o7472) lf(o7472["taskId"], p + "/taskId", e, L65);
 }
 }
 
-function e127_payload(v: unknown, p: string, e: string[]): void {
+function e128_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7474 = v;
 const g7474 = typeOf(x7474);
@@ -3072,7 +3072,7 @@ if ("durationMs" in o7474) lf(o7474["durationMs"], p + "/durationMs", e, L2);
 }
 }
 
-function e128_payload(v: unknown, p: string, e: string[]): void {
+function e129_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7475 = v;
 const g7475 = typeOf(x7475);
@@ -3090,7 +3090,7 @@ if ("personId" in o7475) lf(o7475["personId"], p + "/personId", e, L22);
 }
 }
 
-function e130_payload(v: unknown, p: string, e: string[]): void {
+function e131_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7476 = v;
 const g7476 = typeOf(x7476);
@@ -3108,7 +3108,7 @@ if ("by" in o7476) lf(o7476["by"], p + "/by", e, L1);
 }
 }
 
-function e131_payload(v: unknown, p: string, e: string[]): void {
+function e132_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7477 = v;
 const g7477 = typeOf(x7477);
@@ -3126,7 +3126,7 @@ if ("taskId" in o7477) lf(o7477["taskId"], p + "/taskId", e, L65);
 }
 }
 
-function e132_payload(v: unknown, p: string, e: string[]): void {
+function e133_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7478 = v;
 const g7478 = typeOf(x7478);
@@ -3144,7 +3144,7 @@ if ("reason" in o7478) lf(o7478["reason"], p + "/reason", e, L1114);
 }
 }
 
-function e133_payload(v: unknown, p: string, e: string[]): void {
+function e134_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7479 = v;
 const g7479 = typeOf(x7479);
@@ -3240,17 +3240,17 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "computer.configured": e123_payload,
+  "computer.configured": e124_payload,
   "computer.given_back": d_s_e272d7475d,
   "computer.provisioned": d_s_1317c15021,
-  "computer.recording_processed": e126_payload,
-  "computer.recording_saved": e127_payload,
-  "computer.recording_started": e128_payload,
+  "computer.recording_processed": e127_payload,
+  "computer.recording_saved": e128_payload,
+  "computer.recording_started": e129_payload,
   "computer.removed": d_s_1317c15021,
-  "computer.session_signed_out": e130_payload,
-  "computer.skill_requested": e131_payload,
-  "computer.slept": e132_payload,
-  "computer.started": e133_payload,
+  "computer.session_signed_out": e131_payload,
+  "computer.skill_requested": e132_payload,
+  "computer.slept": e133_payload,
+  "computer.started": e134_payload,
   "computer.takeover": d_s_e272d7475d,
 };
 

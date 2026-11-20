@@ -2544,7 +2544,7 @@ lf(a7298[i7298], p + "/fields" + '/' + i7298, e, L35);
 }
 }
 
-function e502_payload(v: unknown, p: string, e: string[]): void {
+function e503_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7809 = v;
 const g7809 = typeOf(x7809);
@@ -2564,7 +2564,7 @@ if ("scope" in o7809) lf(o7809["scope"], p + "/scope", e, L365);
 }
 }
 
-function e504_payload(v: unknown, p: string, e: string[]): void {
+function e505_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7810 = v;
 const g7810 = typeOf(x7810);
@@ -2578,7 +2578,7 @@ if ("providerId" in o7810) lf(o7810["providerId"], p + "/providerId", e, L413);
 }
 }
 
-function e505_payload(v: unknown, p: string, e: string[]): void {
+function e506_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7811 = v;
 const g7811 = typeOf(x7811);
@@ -2594,7 +2594,7 @@ if ("state" in o7811) lf(o7811["state"], p + "/state", e, L472);
 }
 }
 
-function e741_payload(v: unknown, p: string, e: string[]): void {
+function e742_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8031 = v;
 const g8031 = typeOf(x8031);
@@ -2610,7 +2610,7 @@ if ("folderId" in o8031) lf(o8031["folderId"], p + "/folderId", e, L364);
 }
 }
 
-function e742_payload(v: unknown, p: string, e: string[]): void {
+function e743_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8032 = v;
 const g8032 = typeOf(x8032);
@@ -2630,7 +2630,7 @@ if ("expiresAt" in o8032) lf(o8032["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e743_payload(v: unknown, p: string, e: string[]): void {
+function e744_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8033 = v;
 const g8033 = typeOf(x8033);
@@ -2646,7 +2646,7 @@ if ("scope" in o8033) lf(o8033["scope"], p + "/scope", e, L365);
 }
 }
 
-function e744_payload(v: unknown, p: string, e: string[]): void {
+function e745_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8034 = v;
 const g8034 = typeOf(x8034);
@@ -2660,7 +2660,7 @@ if ("folderId" in o8034) lf(o8034["folderId"], p + "/folderId", e, L364);
 }
 }
 
-function e745_payload(v: unknown, p: string, e: string[]): void {
+function e746_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8035 = v;
 const g8035 = typeOf(x8035);
@@ -2676,7 +2676,7 @@ if ("exportRuleChanged" in o8035) lf(o8035["exportRuleChanged"], p + "/exportRul
 }
 }
 
-function e746_payload(v: unknown, p: string, e: string[]): void {
+function e747_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8036 = v;
 const g8036 = typeOf(x8036);
@@ -2698,7 +2698,7 @@ if ("skipped" in o8036) lf(o8036["skipped"], p + "/skipped", e, L11);
 }
 }
 
-function e747_payload(v: unknown, p: string, e: string[]): void {
+function e748_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8037 = v;
 const g8037 = typeOf(x8037);
@@ -2719,7 +2719,7 @@ if ("name" in o8037) lf(o8037["name"], p + "/name", e, L1);
 }
 }
 
-function e748_payload(v: unknown, p: string, e: string[]): void {
+function e749_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8038 = v;
 const g8038 = typeOf(x8038);
@@ -2733,7 +2733,7 @@ if ("itemId" in o8038) lf(o8038["itemId"], p + "/itemId", e, L64);
 }
 }
 
-function e749_payload(v: unknown, p: string, e: string[]): void {
+function e750_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8039 = v;
 const g8039 = typeOf(x8039);
@@ -2751,7 +2751,7 @@ if ("toFolderId" in o8039) lf(o8039["toFolderId"], p + "/toFolderId", e, L364);
 }
 }
 
-function e750_payload(v: unknown, p: string, e: string[]): void {
+function e751_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8040 = v;
 const g8040 = typeOf(x8040);
@@ -2765,7 +2765,7 @@ if ("itemId" in o8040) lf(o8040["itemId"], p + "/itemId", e, L64);
 }
 }
 
-function e751_payload(v: unknown, p: string, e: string[]): void {
+function e752_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8041 = v;
 const g8041 = typeOf(x8041);
@@ -2779,7 +2779,7 @@ if ("itemId" in o8041) lf(o8041["itemId"], p + "/itemId", e, L64);
 }
 }
 
-function e752_payload(v: unknown, p: string, e: string[]): void {
+function e753_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8042 = v;
 const g8042 = typeOf(x8042);
@@ -2823,7 +2823,7 @@ lf(a8044[i8044], p + "/settingsChanged" + '/' + i8044, e, L1);
 }
 }
 
-function e757_payload(v: unknown, p: string, e: string[]): void {
+function e758_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8050 = v;
 const g8050 = typeOf(x8050);
@@ -2852,7 +2852,7 @@ lf(a8051[i8051], p + "/fields" + '/' + i8051, e, L35);
 }
 }
 
-function e758_payload(v: unknown, p: string, e: string[]): void {
+function e759_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8052 = v;
 const g8052 = typeOf(x8052);
@@ -2868,7 +2868,7 @@ if ("dueSince" in o8052) lf(o8052["dueSince"], p + "/dueSince", e, L11);
 }
 }
 
-function e760_payload(v: unknown, p: string, e: string[]): void {
+function e761_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8053 = v;
 const g8053 = typeOf(x8053);
@@ -2888,7 +2888,7 @@ if ("neverSave" in o8053) lf(o8053["neverSave"], p + "/neverSave", e, L3);
 }
 }
 
-function e761_payload(v: unknown, p: string, e: string[]): void {
+function e762_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8054 = v;
 const g8054 = typeOf(x8054);
@@ -2969,27 +2969,27 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "provider.added": e502_payload,
+  "provider.added": e503_payload,
   "provider.keeps_nothing_changed": d_s_bcb7cd0f5a,
-  "provider.removed": e504_payload,
-  "provider.updated": e505_payload,
-  "vault.export_revoked": e741_payload,
-  "vault.exported": e742_payload,
-  "vault.folder_created": e743_payload,
-  "vault.folder_deleted": e744_payload,
-  "vault.folder_updated": e745_payload,
-  "vault.imported": e746_payload,
-  "vault.item_created": e747_payload,
-  "vault.item_deleted": e748_payload,
-  "vault.item_moved": e749_payload,
-  "vault.item_restored": e750_payload,
-  "vault.item_rotated": e751_payload,
-  "vault.item_updated": e752_payload,
-  "vault.revealed": e757_payload,
-  "vault.rotation_due": e758_payload,
+  "provider.removed": e505_payload,
+  "provider.updated": e506_payload,
+  "vault.export_revoked": e742_payload,
+  "vault.exported": e743_payload,
+  "vault.folder_created": e744_payload,
+  "vault.folder_deleted": e745_payload,
+  "vault.folder_updated": e746_payload,
+  "vault.imported": e747_payload,
+  "vault.item_created": e748_payload,
+  "vault.item_deleted": e749_payload,
+  "vault.item_moved": e750_payload,
+  "vault.item_restored": e751_payload,
+  "vault.item_rotated": e752_payload,
+  "vault.item_updated": e753_payload,
+  "vault.revealed": e758_payload,
+  "vault.rotation_due": e759_payload,
   "vault.scrub_miss": d_s_1ea9f5ebb0,
-  "vault.site_rule_changed": e760_payload,
-  "vault.used": e761_payload,
+  "vault.site_rule_changed": e761_payload,
+  "vault.used": e762_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

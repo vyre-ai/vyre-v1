@@ -518,7 +518,7 @@ if ("skewMs" in o4030) lf(o4030["skewMs"], p + "/skewMs", e, L2);
 }
 }
 
-function e285_payload(v: unknown, p: string, e: string[]): void {
+function e286_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7613 = v;
 const g7613 = typeOf(x7613);
@@ -537,7 +537,7 @@ if ("detail" in o7613) lf(o7613["detail"], p + "/detail", e, L1);
 }
 }
 
-function e286_payload(v: unknown, p: string, e: string[]): void {
+function e287_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7614 = v;
 const g7614 = typeOf(x7614);
@@ -568,7 +568,7 @@ if ("reason" in o7614) lf(o7614["reason"], p + "/reason", e, L1);
 }
 }
 
-function e287_payload(v: unknown, p: string, e: string[]): void {
+function e288_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7616 = v;
 const g7616 = typeOf(x7616);
@@ -582,7 +582,7 @@ if ("key" in o7616) lf(o7616["key"], p + "/key", e, L1);
 }
 }
 
-function e569_payload(v: unknown, p: string, e: string[]): void {
+function e570_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7872 = v;
 const g7872 = typeOf(x7872);
@@ -596,7 +596,7 @@ if ("service" in o7872) lf(o7872["service"], p + "/service", e, L1);
 }
 }
 
-function e646_payload(v: unknown, p: string, e: string[]): void {
+function e647_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7948 = v;
 const g7948 = typeOf(x7948);
@@ -633,11 +633,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "health.changed": e285_payload,
-  "health.paused": e286_payload,
-  "health.resumed": e287_payload,
-  "service.restarted": e569_payload,
-  "support_bundle.created": e646_payload,
+  "health.changed": e286_payload,
+  "health.paused": e287_payload,
+  "health.resumed": e288_payload,
+  "service.restarted": e570_payload,
+  "support_bundle.created": e647_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

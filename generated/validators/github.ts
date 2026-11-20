@@ -1910,7 +1910,7 @@ lf(o3689[k], p + "/permissions" + '/' + k, e, L1);
 }
 }
 
-function e256_payload(v: unknown, p: string, e: string[]): void {
+function e257_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7582 = v;
 const g7582 = typeOf(x7582);
@@ -1926,7 +1926,7 @@ if ("slug" in o7582) lf(o7582["slug"], p + "/slug", e, L1);
 }
 }
 
-function e257_payload(v: unknown, p: string, e: string[]): void {
+function e258_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7583 = v;
 const g7583 = typeOf(x7583);
@@ -1947,7 +1947,7 @@ if ("number" in o7583) lf(o7583["number"], p + "/number", e, L2);
 }
 }
 
-function e258_payload(v: unknown, p: string, e: string[]): void {
+function e259_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7584 = v;
 const g7584 = typeOf(x7584);
@@ -1965,7 +1965,7 @@ if ("repo" in o7584) lf(o7584["repo"], p + "/repo", e, L108);
 }
 }
 
-function e259_payload(v: unknown, p: string, e: string[]): void {
+function e260_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7585 = v;
 const g7585 = typeOf(x7585);
@@ -1983,7 +1983,7 @@ if ("attempt" in o7585) lf(o7585["attempt"], p + "/attempt", e, L2);
 }
 }
 
-function e260_payload(v: unknown, p: string, e: string[]): void {
+function e261_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7586 = v;
 const g7586 = typeOf(x7586);
@@ -2001,7 +2001,7 @@ if ("agentId" in o7586) lf(o7586["agentId"], p + "/agentId", e, L17);
 }
 }
 
-function e262_payload(v: unknown, p: string, e: string[]): void {
+function e263_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7588 = v;
 const g7588 = typeOf(x7588);
@@ -2019,7 +2019,7 @@ if ("source" in o7588) lf(o7588["source"], p + "/source", e, L773);
 }
 }
 
-function e263_payload(v: unknown, p: string, e: string[]): void {
+function e264_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7589 = v;
 const g7589 = typeOf(x7589);
@@ -2035,7 +2035,7 @@ if ("login" in o7589) lf(o7589["login"], p + "/login", e, L1);
 }
 }
 
-function e529_payload(v: unknown, p: string, e: string[]): void {
+function e530_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7833 = v;
 const g7833 = typeOf(x7833);
@@ -2055,7 +2055,7 @@ if ("sha" in o7833) lf(o7833["sha"], p + "/sha", e, L1);
 }
 }
 
-function e777_payload(v: unknown, p: string, e: string[]): void {
+function e778_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8070 = v;
 const g8070 = typeOf(x8070);
@@ -2075,7 +2075,7 @@ if ("sha" in o8070) lf(o8070["sha"], p + "/sha", e, L1);
 }
 }
 
-function e778_payload(v: unknown, p: string, e: string[]): void {
+function e779_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8071 = v;
 const g8071 = typeOf(x8071);
@@ -2113,7 +2113,7 @@ if ("runnerName" in o8071) lf(o8071["runnerName"], p + "/runnerName", e, L1);
 }
 }
 
-function e779_payload(v: unknown, p: string, e: string[]): void {
+function e780_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8073 = v;
 const g8073 = typeOf(x8073);
@@ -2197,21 +2197,21 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "github.app_created": e256_payload,
-  "github.check_completed": e257_payload,
-  "github.event_received": e258_payload,
-  "github.fix_requested": e259_payload,
-  "github.issue_assigned": e260_payload,
-  "github.me_connected": e262_payload,
-  "github.me_disconnected": e263_payload,
+  "github.app_created": e257_payload,
+  "github.check_completed": e258_payload,
+  "github.event_received": e259_payload,
+  "github.fix_requested": e260_payload,
+  "github.issue_assigned": e261_payload,
+  "github.me_connected": e263_payload,
+  "github.me_disconnected": e264_payload,
   "issue.opened": d_s_8887548e27,
   "pull_request.closed": d_s_7f6588b65b,
   "pull_request.merged": d_s_7f6588b65b,
   "pull_request.opened": d_s_8887548e27,
-  "repo.pushed": e529_payload,
-  "workflow.completed": e777_payload,
-  "workflow_job.completed": e778_payload,
-  "workflow_job.queued": e779_payload,
+  "repo.pushed": e530_payload,
+  "workflow.completed": e778_payload,
+  "workflow_job.completed": e779_payload,
+  "workflow_job.queued": e780_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

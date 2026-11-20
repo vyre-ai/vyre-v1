@@ -1767,7 +1767,7 @@ if ("ok" in o4794) lf(o4794["ok"], p + "/ok", e, L3);
 }
 }
 
-function e360_payload(v: unknown, p: string, e: string[]): void {
+function e361_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7686 = v;
 const g7686 = typeOf(x7686);
@@ -1781,7 +1781,7 @@ if ("inviteId" in o7686) lf(o7686["inviteId"], p + "/inviteId", e, L123);
 }
 }
 
-function e361_payload(v: unknown, p: string, e: string[]): void {
+function e362_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7687 = v;
 const g7687 = typeOf(x7687);
@@ -1799,7 +1799,7 @@ if ("expiresAt" in o7687) lf(o7687["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e362_payload(v: unknown, p: string, e: string[]): void {
+function e363_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7688 = v;
 const g7688 = typeOf(x7688);
@@ -1817,7 +1817,7 @@ if ("by" in o7688) lf(o7688["by"], p + "/by", e, L22);
 }
 }
 
-function e363_payload(v: unknown, p: string, e: string[]): void {
+function e364_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7689 = v;
 const g7689 = typeOf(x7689);
@@ -1831,7 +1831,7 @@ if ("requestId" in o7689) lf(o7689["requestId"], p + "/requestId", e, L879);
 }
 }
 
-function e364_payload(v: unknown, p: string, e: string[]): void {
+function e365_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7690 = v;
 const g7690 = typeOf(x7690);
@@ -1849,7 +1849,7 @@ if ("role" in o7690) lf(o7690["role"], p + "/role", e, L181);
 }
 }
 
-function e365_payload(v: unknown, p: string, e: string[]): void {
+function e366_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7691 = v;
 const g7691 = typeOf(x7691);
@@ -1869,7 +1869,7 @@ if ("tries" in o7691) lf(o7691["tries"], p + "/tries", e, L11);
 }
 }
 
-function e366_payload(v: unknown, p: string, e: string[]): void {
+function e367_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7692 = v;
 const g7692 = typeOf(x7692);
@@ -1889,7 +1889,7 @@ if ("invitedBy" in o7692) lf(o7692["invitedBy"], p + "/invitedBy", e, L22);
 }
 }
 
-function e367_payload(v: unknown, p: string, e: string[]): void {
+function e368_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7693 = v;
 const g7693 = typeOf(x7693);
@@ -1932,7 +1932,7 @@ if ("count" in o7695) lf(o7695["count"], p + "/kinds" + '/' + i7694 + "/count", 
 }
 }
 
-function e368_payload(v: unknown, p: string, e: string[]): void {
+function e369_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7696 = v;
 const g7696 = typeOf(x7696);
@@ -1996,15 +1996,15 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "member.invite_revoked": e360_payload,
-  "member.invited": e361_payload,
-  "member.join_link_changed": e362_payload,
-  "member.join_request_declined": e363_payload,
-  "member.join_requested": e364_payload,
-  "member.join_stuck": e365_payload,
-  "member.joined": e366_payload,
-  "member.removal_plan_applied": e367_payload,
-  "member.removed": e368_payload,
+  "member.invite_revoked": e361_payload,
+  "member.invited": e362_payload,
+  "member.join_link_changed": e363_payload,
+  "member.join_request_declined": e364_payload,
+  "member.join_requested": e365_payload,
+  "member.join_stuck": e366_payload,
+  "member.joined": e367_payload,
+  "member.removal_plan_applied": e368_payload,
+  "member.removed": e369_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

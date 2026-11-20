@@ -3615,7 +3615,7 @@ if ("noteId" in o4974) lf(o4974["noteId"], p + "/noteId", e, L130);
 }
 }
 
-function e369_payload(v: unknown, p: string, e: string[]): void {
+function e370_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7697 = v;
 const g7697 = typeOf(x7697);
@@ -3631,7 +3631,7 @@ if ("days" in o7697) lf(o7697["days"], p + "/days", e, L2);
 }
 }
 
-function e370_payload(v: unknown, p: string, e: string[]): void {
+function e371_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7698 = v;
 const g7698 = typeOf(x7698);
@@ -3649,7 +3649,7 @@ if ("merged" in o7698) lf(o7698["merged"], p + "/merged", e, L2);
 }
 }
 
-function e371_payload(v: unknown, p: string, e: string[]): void {
+function e372_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7699 = v;
 const g7699 = typeOf(x7699);
@@ -3667,7 +3667,7 @@ if ("by" in o7699) lf(o7699["by"], p + "/by", e, L1);
 }
 }
 
-function e372_payload(v: unknown, p: string, e: string[]): void {
+function e373_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7700 = v;
 const g7700 = typeOf(x7700);
@@ -3684,7 +3684,7 @@ if ("scope" in o7700) lf(o7700["scope"], p + "/scope", e, L1);
 }
 }
 
-function e373_payload(v: unknown, p: string, e: string[]): void {
+function e374_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7701 = v;
 const g7701 = typeOf(x7701);
@@ -3698,7 +3698,7 @@ if ("by" in o7701) lf(o7701["by"], p + "/by", e, L1);
 }
 }
 
-function e374_payload(v: unknown, p: string, e: string[]): void {
+function e375_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7702 = v;
 const g7702 = typeOf(x7702);
@@ -3716,7 +3716,7 @@ if ("auto" in o7702) lf(o7702["auto"], p + "/auto", e, L3);
 }
 }
 
-function e375_payload(v: unknown, p: string, e: string[]): void {
+function e376_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7703 = v;
 const g7703 = typeOf(x7703);
@@ -3734,7 +3734,7 @@ if ("by" in o7703) lf(o7703["by"], p + "/by", e, L1);
 }
 }
 
-function e376_payload(v: unknown, p: string, e: string[]): void {
+function e377_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7704 = v;
 const g7704 = typeOf(x7704);
@@ -3757,7 +3757,7 @@ if ("sourceRef" in o7704) lf(o7704["sourceRef"], p + "/sourceRef", e, L1);
 }
 }
 
-function e377_payload(v: unknown, p: string, e: string[]): void {
+function e378_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7705 = v;
 const g7705 = typeOf(x7705);
@@ -3773,7 +3773,7 @@ if ("by" in o7705) lf(o7705["by"], p + "/by", e, L1);
 }
 }
 
-function e378_payload(v: unknown, p: string, e: string[]): void {
+function e379_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7706 = v;
 const g7706 = typeOf(x7706);
@@ -3804,7 +3804,7 @@ if ("from" in o7706) lf(o7706["from"], p + "/from", e, L1);
 }
 }
 
-function e379_payload(v: unknown, p: string, e: string[]): void {
+function e380_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7707 = v;
 const g7707 = typeOf(x7707);
@@ -3820,7 +3820,7 @@ if ("lines" in o7707) lf(o7707["lines"], p + "/lines", e, L2);
 }
 }
 
-function e380_payload(v: unknown, p: string, e: string[]): void {
+function e381_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7708 = v;
 const g7708 = typeOf(x7708);
@@ -3838,7 +3838,7 @@ if ("by" in o7708) lf(o7708["by"], p + "/by", e, L1);
 }
 }
 
-function e381_payload(v: unknown, p: string, e: string[]): void {
+function e382_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7709 = v;
 const g7709 = typeOf(x7709);
@@ -3856,7 +3856,7 @@ if ("by" in o7709) lf(o7709["by"], p + "/by", e, L1);
 }
 }
 
-function e382_payload(v: unknown, p: string, e: string[]): void {
+function e383_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7710 = v;
 const g7710 = typeOf(x7710);
@@ -3878,7 +3878,7 @@ if ("by" in o7710) lf(o7710["by"], p + "/by", e, L1);
 }
 }
 
-function e384_payload(v: unknown, p: string, e: string[]): void {
+function e385_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7711 = v;
 const g7711 = typeOf(x7711);
@@ -3899,7 +3899,7 @@ if ("by" in o7711) lf(o7711["by"], p + "/by", e, L1);
 }
 }
 
-function e386_payload(v: unknown, p: string, e: string[]): void {
+function e387_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7712 = v;
 const g7712 = typeOf(x7712);
@@ -3928,7 +3928,7 @@ if ("by" in o7712) lf(o7712["by"], p + "/by", e, L1);
 }
 }
 
-function e387_payload(v: unknown, p: string, e: string[]): void {
+function e388_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7714 = v;
 const g7714 = typeOf(x7714);
@@ -3946,7 +3946,7 @@ if ("by" in o7714) lf(o7714["by"], p + "/by", e, L1);
 }
 }
 
-function e388_payload(v: unknown, p: string, e: string[]): void {
+function e389_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7715 = v;
 const g7715 = typeOf(x7715);
@@ -3979,7 +3979,7 @@ if ("stopped" in o7715) lf(o7715["stopped"], p + "/stopped", e, L1);
 }
 }
 
-function e423_payload(v: unknown, p: string, e: string[]): void {
+function e424_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7748 = v;
 const g7748 = typeOf(x7748);
@@ -4069,27 +4069,27 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "memory.archived": e369_payload,
-  "memory.captured": e370_payload,
-  "memory.chat_learning_changed": e371_payload,
-  "memory.erased": e372_payload,
-  "memory.everything_viewed": e373_payload,
-  "memory.fact_accepted": e374_payload,
-  "memory.fact_corrected": e375_payload,
-  "memory.fact_proposed": e376_payload,
-  "memory.fact_rejected": e377_payload,
-  "memory.learned": e378_payload,
-  "memory.map_rewritten": e379_payload,
-  "memory.note_restored": e380_payload,
-  "memory.page_restored": e381_payload,
-  "memory.promoted": e382_payload,
+  "memory.archived": e370_payload,
+  "memory.captured": e371_payload,
+  "memory.chat_learning_changed": e372_payload,
+  "memory.erased": e373_payload,
+  "memory.everything_viewed": e374_payload,
+  "memory.fact_accepted": e375_payload,
+  "memory.fact_corrected": e376_payload,
+  "memory.fact_proposed": e377_payload,
+  "memory.fact_rejected": e378_payload,
+  "memory.learned": e379_payload,
+  "memory.map_rewritten": e380_payload,
+  "memory.note_restored": e381_payload,
+  "memory.page_restored": e382_payload,
+  "memory.promoted": e383_payload,
   "memory.promotion_rejected": d_s_f0a4ccc5fc,
-  "memory.promotion_requested": e384_payload,
+  "memory.promotion_requested": e385_payload,
   "memory.promotion_undone": d_s_f0a4ccc5fc,
-  "memory.removed": e386_payload,
-  "memory.restored": e387_payload,
-  "memory.upkeep_ran": e388_payload,
-  "note.erased": e423_payload,
+  "memory.removed": e387_payload,
+  "memory.restored": e388_payload,
+  "memory.upkeep_ran": e389_payload,
+  "note.erased": e424_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

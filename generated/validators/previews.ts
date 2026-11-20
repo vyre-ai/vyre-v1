@@ -266,7 +266,7 @@ if ("height" in o5526) lf(o5526["height"], p + "/items" + '/' + i5525 + "/height
 }
 }
 
-function e470_payload(v: unknown, p: string, e: string[]): void {
+function e471_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7784 = v;
 const g7784 = typeOf(x7784);
@@ -284,7 +284,7 @@ if ("reason" in o7784) lf(o7784["reason"], p + "/reason", e, L1125);
 }
 }
 
-function e471_payload(v: unknown, p: string, e: string[]): void {
+function e472_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7785 = v;
 const g7785 = typeOf(x7785);
@@ -326,8 +326,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "preview.failed": e470_payload,
-  "preview.ready": e471_payload,
+  "preview.failed": e471_payload,
+  "preview.ready": e472_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

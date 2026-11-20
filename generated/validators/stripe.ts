@@ -857,7 +857,7 @@ if ("nextPageToken" in o6625) lf(o6625["nextPageToken"], p + "/nextPageToken", e
 }
 }
 
-function e642_payload(v: unknown, p: string, e: string[]): void {
+function e643_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7944 = v;
 const g7944 = typeOf(x7944);
@@ -875,7 +875,7 @@ if ("objectId" in o7944) lf(o7944["objectId"], p + "/objectId", e, L1);
 }
 }
 
-function e643_payload(v: unknown, p: string, e: string[]): void {
+function e644_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7945 = v;
 const g7945 = typeOf(x7945);
@@ -894,7 +894,7 @@ if ("subscriptionId" in o7945) lf(o7945["subscriptionId"], p + "/subscriptionId"
 }
 }
 
-function e644_payload(v: unknown, p: string, e: string[]): void {
+function e645_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7946 = v;
 const g7946 = typeOf(x7946);
@@ -914,7 +914,7 @@ if ("priceId" in o7946) lf(o7946["priceId"], p + "/priceId", e, L1);
 }
 }
 
-function e645_payload(v: unknown, p: string, e: string[]): void {
+function e646_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7947 = v;
 const g7947 = typeOf(x7947);
@@ -965,10 +965,10 @@ export const eventValidators: Record<string, Check> = {
   "payment.failed": d_s_0c4c35954e,
   "payment.succeeded": d_s_0c4c35954e,
   "refund.created": d_s_0c4c35954e,
-  "stripe.event_received": e642_payload,
-  "subscription.canceled": e643_payload,
-  "subscription.created": e644_payload,
-  "subscription.updated": e645_payload,
+  "stripe.event_received": e643_payload,
+  "subscription.canceled": e644_payload,
+  "subscription.created": e645_payload,
+  "subscription.updated": e646_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

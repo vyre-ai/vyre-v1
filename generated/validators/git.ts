@@ -779,7 +779,7 @@ if ("sha" in o3581) lf(o3581["sha"], p + "/sha", e, L368);
 }
 }
 
-function e248_payload(v: unknown, p: string, e: string[]): void {
+function e249_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7577 = v;
 const g7577 = typeOf(x7577);
@@ -797,7 +797,7 @@ if ("action" in o7577) lf(o7577["action"], p + "/action", e, L768);
 }
 }
 
-function e249_payload(v: unknown, p: string, e: string[]): void {
+function e250_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7578 = v;
 const g7578 = typeOf(x7578);
@@ -821,7 +821,7 @@ if ("message" in o7578) lf(o7578["message"], p + "/message", e, L1);
 }
 }
 
-function e250_payload(v: unknown, p: string, e: string[]): void {
+function e251_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7579 = v;
 const g7579 = typeOf(x7579);
@@ -837,7 +837,7 @@ if ("branch" in o7579) lf(o7579["branch"], p + "/branch", e, L1);
 }
 }
 
-function e252_payload(v: unknown, p: string, e: string[]): void {
+function e253_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7580 = v;
 const g7580 = typeOf(x7580);
@@ -858,7 +858,7 @@ if ("conflicts" in o7580) lf(o7580["conflicts"], p + "/conflicts", e, L2);
 }
 }
 
-function e253_payload(v: unknown, p: string, e: string[]): void {
+function e254_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7581 = v;
 const g7581 = typeOf(x7581);
@@ -899,12 +899,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "git.branch_changed": e248_payload,
-  "git.committed": e249_payload,
-  "git.initialized": e250_payload,
+  "git.branch_changed": e249_payload,
+  "git.committed": e250_payload,
+  "git.initialized": e251_payload,
   "git.protection_changed": d_s_90ff7d13ee,
-  "git.pulled": e252_payload,
-  "git.pushed": e253_payload,
+  "git.pulled": e253_payload,
+  "git.pushed": e254_payload,
   "git.remote_added": d_s_0c3e093520,
   "git.remote_removed": d_s_0c3e093520,
 };

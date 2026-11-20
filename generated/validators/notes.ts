@@ -820,7 +820,7 @@ if ("expectedVersion" in o5326) lf(o5326["expectedVersion"], p + "/expectedVersi
 }
 }
 
-function e427_payload(v: unknown, p: string, e: string[]): void {
+function e428_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7749 = v;
 const g7749 = typeOf(x7749);
@@ -840,7 +840,7 @@ if ("id" in o7749) lf(o7749["id"], p + "/id", e, L1);
 }
 }
 
-function e429_payload(v: unknown, p: string, e: string[]): void {
+function e430_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7750 = v;
 const g7750 = typeOf(x7750);
@@ -873,7 +873,7 @@ if ("space" in o7750) lf(o7750["space"], p + "/space", e, L521);
 }
 }
 
-function e430_payload(v: unknown, p: string, e: string[]): void {
+function e431_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7752 = v;
 const g7752 = typeOf(x7752);
@@ -913,10 +913,10 @@ export const eventValidators: Record<string, Check> = {
   "notes.clipped": d_s_14ab71805a,
   "notes.created": d_s_14ab71805a,
   "notes.deleted": d_s_14ab71805a,
-  "notes.linked": e427_payload,
+  "notes.linked": e428_payload,
   "notes.restored": d_s_14ab71805a,
-  "notes.shared": e429_payload,
-  "notes.updated": e430_payload,
+  "notes.shared": e430_payload,
+  "notes.updated": e431_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

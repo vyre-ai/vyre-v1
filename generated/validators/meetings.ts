@@ -1411,7 +1411,7 @@ if ("newMeetingId" in o4719) lf(o4719["newMeetingId"], p + "/newMeetingId", e, L
 }
 }
 
-function e350_payload(v: unknown, p: string, e: string[]): void {
+function e351_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7674 = v;
 const g7674 = typeOf(x7674);
@@ -1425,7 +1425,7 @@ if ("meetingId" in o7674) lf(o7674["meetingId"], p + "/meetingId", e, L34);
 }
 }
 
-function e351_payload(v: unknown, p: string, e: string[]): void {
+function e352_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7675 = v;
 const g7675 = typeOf(x7675);
@@ -1466,7 +1466,7 @@ if ("id" in o7677) lf(o7677["id"], p + "/made" + '/' + i7676 + "/id", e, L1);
 }
 }
 
-function e352_payload(v: unknown, p: string, e: string[]): void {
+function e353_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7678 = v;
 const g7678 = typeOf(x7678);
@@ -1482,7 +1482,7 @@ if ("items" in o7678) lf(o7678["items"], p + "/items", e, L2);
 }
 }
 
-function e353_payload(v: unknown, p: string, e: string[]): void {
+function e354_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7679 = v;
 const g7679 = typeOf(x7679);
@@ -1513,7 +1513,7 @@ lf(a7680[i7680], p + "/attendeeIds" + '/' + i7680, e, L34);
 }
 }
 
-function e354_payload(v: unknown, p: string, e: string[]): void {
+function e355_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7681 = v;
 const g7681 = typeOf(x7681);
@@ -1531,7 +1531,7 @@ if ("by" in o7681) lf(o7681["by"], p + "/by", e, L1122);
 }
 }
 
-function e355_payload(v: unknown, p: string, e: string[]): void {
+function e356_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7682 = v;
 const g7682 = typeOf(x7682);
@@ -1549,7 +1549,7 @@ if ("source" in o7682) lf(o7682["source"], p + "/source", e, L868);
 }
 }
 
-function e356_payload(v: unknown, p: string, e: string[]): void {
+function e357_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7683 = v;
 const g7683 = typeOf(x7683);
@@ -1565,7 +1565,7 @@ if ("provider" in o7683) lf(o7683["provider"], p + "/provider", e, L407);
 }
 }
 
-function e357_payload(v: unknown, p: string, e: string[]): void {
+function e358_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7684 = v;
 const g7684 = typeOf(x7684);
@@ -1580,7 +1580,7 @@ if ("byAgent" in o7684) lf(o7684["byAgent"], p + "/byAgent", e, L17);
 }
 }
 
-function e358_payload(v: unknown, p: string, e: string[]): void {
+function e359_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7685 = v;
 const g7685 = typeOf(x7685);
@@ -1625,15 +1625,15 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "meeting.canceled": e350_payload,
-  "meeting.closed": e351_payload,
-  "meeting.closeout_ready": e352_payload,
-  "meeting.ended": e353_payload,
-  "meeting.merged": e354_payload,
-  "meeting.recording_attached": e355_payload,
-  "meeting.started": e356_payload,
-  "meeting.summary_ready": e357_payload,
-  "meeting.transcript_ready": e358_payload,
+  "meeting.canceled": e351_payload,
+  "meeting.closed": e352_payload,
+  "meeting.closeout_ready": e353_payload,
+  "meeting.ended": e354_payload,
+  "meeting.merged": e355_payload,
+  "meeting.recording_attached": e356_payload,
+  "meeting.started": e357_payload,
+  "meeting.summary_ready": e358_payload,
+  "meeting.transcript_ready": e359_payload,
   "meeting.unmerged": d_s_42b93a75d4,
 };
 

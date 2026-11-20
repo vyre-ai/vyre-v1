@@ -814,7 +814,7 @@ if ("following" in o6523) lf(o6523["following"], p + "/following", e, L3);
 }
 }
 
-function e443_payload(v: unknown, p: string, e: string[]): void {
+function e444_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7765 = v;
 const g7765 = typeOf(x7765);
@@ -828,7 +828,7 @@ if ("person" in o7765) lf(o7765["person"], p + "/person", e, L22);
 }
 }
 
-function e444_payload(v: unknown, p: string, e: string[]): void {
+function e445_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7766 = v;
 const g7766 = typeOf(x7766);
@@ -844,7 +844,7 @@ if ("step" in o7766) lf(o7766["step"], p + "/step", e, L1017);
 }
 }
 
-function e627_payload(v: unknown, p: string, e: string[]): void {
+function e628_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7928 = v;
 const g7928 = typeOf(x7928);
@@ -861,7 +861,7 @@ if ("by" in o7928) lf(o7928["by"], p + "/by", e, L1);
 }
 }
 
-function e628_payload(v: unknown, p: string, e: string[]): void {
+function e629_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7929 = v;
 const g7929 = typeOf(x7929);
@@ -875,7 +875,7 @@ if ("by" in o7929) lf(o7929["by"], p + "/by", e, L22);
 }
 }
 
-function e629_payload(v: unknown, p: string, e: string[]): void {
+function e630_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7930 = v;
 const g7930 = typeOf(x7930);
@@ -889,7 +889,7 @@ if ("by" in o7930) lf(o7930["by"], p + "/by", e, L22);
 }
 }
 
-function e630_payload(v: unknown, p: string, e: string[]): void {
+function e631_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7931 = v;
 const g7931 = typeOf(x7931);
@@ -905,7 +905,7 @@ if ("at" in o7931) lf(o7931["at"], p + "/at", e, L11);
 }
 }
 
-function e631_payload(v: unknown, p: string, e: string[]): void {
+function e632_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7932 = v;
 const g7932 = typeOf(x7932);
@@ -921,7 +921,7 @@ if ("to" in o7932) lf(o7932["to"], p + "/to", e, L22);
 }
 }
 
-function e632_payload(v: unknown, p: string, e: string[]): void {
+function e633_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7933 = v;
 const g7933 = typeOf(x7933);
@@ -980,14 +980,14 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 export const eventValidators: Record<string, Check> = {
   "follow.added": d_s_ffeaa590a2,
   "follow.removed": d_s_ffeaa590a2,
-  "onboarding.dismissed": e443_payload,
-  "onboarding.step_completed": e444_payload,
-  "space.address_changed": e627_payload,
-  "space.deleted": e628_payload,
-  "space.deletion_cancelled": e629_payload,
-  "space.deletion_scheduled": e630_payload,
-  "space.ownership_transferred": e631_payload,
-  "space.updated": e632_payload,
+  "onboarding.dismissed": e444_payload,
+  "onboarding.step_completed": e445_payload,
+  "space.address_changed": e628_payload,
+  "space.deleted": e629_payload,
+  "space.deletion_cancelled": e630_payload,
+  "space.deletion_scheduled": e631_payload,
+  "space.ownership_transferred": e632_payload,
+  "space.updated": e633_payload,
   "star.added": d_s_ffeaa590a2,
   "star.removed": d_s_ffeaa590a2,
 };

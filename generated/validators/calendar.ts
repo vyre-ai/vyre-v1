@@ -894,7 +894,7 @@ if ("notice" in o2047) lf(o2047["notice"], p + "/notice", e, L1);
 }
 }
 
-function e78_payload(v: unknown, p: string, e: string[]): void {
+function e79_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7429 = v;
 const g7429 = typeOf(x7429);
@@ -914,7 +914,7 @@ if ("private" in o7429) lf(o7429["private"], p + "/private", e, L3);
 }
 }
 
-function e79_payload(v: unknown, p: string, e: string[]): void {
+function e80_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7430 = v;
 const g7430 = typeOf(x7430);
@@ -932,7 +932,7 @@ if ("removed" in o7430) lf(o7430["removed"], p + "/removed", e, L2);
 }
 }
 
-function e80_payload(v: unknown, p: string, e: string[]): void {
+function e81_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7431 = v;
 const g7431 = typeOf(x7431);
@@ -954,7 +954,7 @@ if ("source" in o7431) lf(o7431["source"], p + "/source", e, L1109);
 }
 }
 
-function e82_payload(v: unknown, p: string, e: string[]): void {
+function e83_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7432 = v;
 const g7432 = typeOf(x7432);
@@ -972,7 +972,7 @@ if ("response" in o7432) lf(o7432["response"], p + "/response", e, L590);
 }
 }
 
-function e84_payload(v: unknown, p: string, e: string[]): void {
+function e85_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7433 = v;
 const g7433 = typeOf(x7433);
@@ -1027,13 +1027,13 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "calendar.created": e78_payload,
-  "calendar.synced": e79_payload,
-  "calendar_event.created": e80_payload,
+  "calendar.created": e79_payload,
+  "calendar.synced": e80_payload,
+  "calendar_event.created": e81_payload,
   "calendar_event.deleted": d_s_3a79e91fdd,
-  "calendar_event.response_changed": e82_payload,
+  "calendar_event.response_changed": e83_payload,
   "calendar_event.restored": d_s_3a79e91fdd,
-  "calendar_event.updated": e84_payload,
+  "calendar_event.updated": e85_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

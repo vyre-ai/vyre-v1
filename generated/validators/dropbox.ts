@@ -540,7 +540,7 @@ if ("accepted" in o2869) lf(o2869["accepted"], p + "/accepted", e, L3);
 }
 }
 
-function e183_payload(v: unknown, p: string, e: string[]): void {
+function e184_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7518 = v;
 const g7518 = typeOf(x7518);
@@ -569,7 +569,7 @@ lf(a7519[i7519], p + "/accounts" + '/' + i7519, e, L1);
 }
 }
 
-function e184_payload(v: unknown, p: string, e: string[]): void {
+function e185_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7520 = v;
 const g7520 = typeOf(x7520);
@@ -610,8 +610,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "dropbox.changes_received": e183_payload,
-  "dropbox.connected": e184_payload,
+  "dropbox.changes_received": e184_payload,
+  "dropbox.connected": e185_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

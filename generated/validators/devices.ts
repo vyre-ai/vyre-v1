@@ -557,7 +557,7 @@ if ("back" in o2781) lf(o2781["back"], p + "/back", e, L3);
 }
 }
 
-function e171_payload(v: unknown, p: string, e: string[]): void {
+function e172_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7509 = v;
 const g7509 = typeOf(x7509);
@@ -573,7 +573,7 @@ if ("person" in o7509) lf(o7509["person"], p + "/person", e, L22);
 }
 }
 
-function e172_payload(v: unknown, p: string, e: string[]): void {
+function e173_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7510 = v;
 const g7510 = typeOf(x7510);
@@ -593,7 +593,7 @@ if ("name" in o7510) lf(o7510["name"], p + "/name", e, L1);
 }
 }
 
-function e173_payload(v: unknown, p: string, e: string[]): void {
+function e174_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7511 = v;
 const g7511 = typeOf(x7511);
@@ -611,7 +611,7 @@ if ("by" in o7511) lf(o7511["by"], p + "/by", e, L1);
 }
 }
 
-function e193_payload(v: unknown, p: string, e: string[]): void {
+function e194_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7526 = v;
 const g7526 = typeOf(x7526);
@@ -630,7 +630,7 @@ if ("reason" in o7526) lf(o7526["reason"], p + "/reason", e, L690);
 }
 }
 
-function e570_payload(v: unknown, p: string, e: string[]): void {
+function e571_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7873 = v;
 const g7873 = typeOf(x7873);
@@ -648,7 +648,7 @@ if ("by" in o7873) lf(o7873["by"], p + "/by", e, L1);
 }
 }
 
-function e571_payload(v: unknown, p: string, e: string[]): void {
+function e572_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7874 = v;
 const g7874 = typeOf(x7874);
@@ -685,12 +685,12 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "device.purged": e171_payload,
-  "device.registered": e172_payload,
-  "device.revoked": e173_payload,
-  "epoch.bumped": e193_payload,
-  "session.revoked": e570_payload,
-  "session.started": e571_payload,
+  "device.purged": e172_payload,
+  "device.registered": e173_payload,
+  "device.revoked": e174_payload,
+  "epoch.bumped": e194_payload,
+  "session.revoked": e571_payload,
+  "session.started": e572_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

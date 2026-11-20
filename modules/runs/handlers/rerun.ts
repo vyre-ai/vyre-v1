@@ -79,6 +79,39 @@ async function briefOf(ctx: RunsCtx, n: Node): Promise<Brief | undefined> {
 
 const textOf = (b: Brief): string => [b.goal, b.instructions].filter((x) => x && x.trim() !== "").join("\n\n");
 
+/**
+ * The limits the work's tools had. The engine records them when a helper begins; when it could not read them it records `toolsUnknown` instead of nothing (nothing means "no limits"), and what is made of the work
+ * must not start without limits it never checked: they are read again now, as the person who asks, and when they still cannot be read the save or the re-run is refused.
+ */
+async function knownLimits(ctx: RunsCtx, n: Node): Promise<Record<string, unknown> | undefined> {
+  const policy = n.policy as Record<string, unknown> | undefined;
+  if (policy?.["toolsUnknown"] !== true) return policy;
+  const { toolsUnknown: _u, ...rest } = policy;
+  const refuse = (): never =>
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "The limits that agent's tools had when this work began cannot be read now, so this cannot be made into another agent or started again without them. Try again, or ask someone who manages the agent.",
+      { reason: "limits_unknown" },
+    );
+  if (n.whoId === undefined) return refuse();
+  let a: { agent?: { toolsAllowed?: unknown; toolsDenied?: unknown } } | null | undefined;
+  try {
+    a = (await ctx.call?.("agents.get", { agentId: n.whoId })) as typeof a;
+  } catch {
+    return refuse();
+  }
+  if (!a?.agent) return refuse();
+  const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  const allowed = list(a.agent.toolsAllowed);
+  const denied = list(a.agent.toolsDenied);
+  return allowed.length + denied.length > 0
+    ? { ...rest, tools: { allowed, denied } }
+    : Object.keys(rest).length > 0
+      ? rest
+      : undefined;
+}
+
 /** A node's brief, model and tools become a new agent. */
 export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = fullNode(ctx, input.runId, true);
@@ -92,7 +125,8 @@ export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
   if (name === "") raise(ctx, "validation.bad_input", "Give the agent a name.");
   // the limits the helper's tools had when it began (recorded by the engine at its start). Only someone who manages the agent it ran as may carry them over: its allowed list is what it was given, so it is copied only for them, and
   // a person with fewer rights gets the default tools. What it was denied is always carried (it only narrows).
-  const tools = (n.policy as { tools?: { allowed?: unknown; denied?: unknown } } | undefined)?.tools;
+  const limits = await knownLimits(ctx, n);
+  const tools = (limits as { tools?: { allowed?: unknown; denied?: unknown } } | undefined)?.tools;
   const strs = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
   const mayCarry =
     n.whoId !== undefined &&
@@ -134,6 +168,7 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.precondition_failed", "Only a helper can be started again with another brief.", {
       reason: "not_a_helper",
     });
+  const limits = await knownLimits(ctx, n); // refused here, before anything is started, when the limits are unknown and still cannot be read
   const was = (await briefOf(ctx, n)) ?? {};
   const next: Brief = {
     ...(typeof input.goal === "string" && input.goal.trim() !== ""
@@ -199,7 +234,7 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
   // its node stands from now. A re-run's tools are those of the first one's agent (chat.helper.start is given that agent and no tools of its own, and this capability takes no tool input), so it has what the first had and no more;
   // the node also carries the first one's recorded policy (the limits its tools had), so a save from the re-run says the same
   const have = nodesOfThread(ctx.db, threadId!, false, 1)[0];
-  const carried = { brief: next, policy: n.policy ?? null, origin: { rerunOf: n.id } };
+  const carried = { brief: next, policy: limits ?? null, origin: { rerunOf: n.id } };
   if (have) {
     ctx.db.run(
       "UPDATE runs_node SET brief_json = COALESCE(brief_json, ?), policy_json = COALESCE(policy_json, ?), origin_json = COALESCE(origin_json, ?) WHERE run_id = ?",

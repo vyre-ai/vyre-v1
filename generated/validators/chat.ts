@@ -5644,7 +5644,7 @@ if ("depth" in o7375) lf(o7375["depth"], p + "/depth", e, L2);
 }
 }
 
-function e72_payload(v: unknown, p: string, e: string[]): void {
+function e73_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7424 = v;
 const g7424 = typeOf(x7424);
@@ -5662,7 +5662,7 @@ if ("by" in o7424) lf(o7424["by"], p + "/by", e, L1);
 }
 }
 
-function e73_payload(v: unknown, p: string, e: string[]): void {
+function e74_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7425 = v;
 const g7425 = typeOf(x7425);
@@ -5680,7 +5680,7 @@ if ("blockType" in o7425) lf(o7425["blockType"], p + "/blockType", e, L1108);
 }
 }
 
-function e102_payload(v: unknown, p: string, e: string[]): void {
+function e103_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7450 = v;
 const g7450 = typeOf(x7450);
@@ -5698,7 +5698,7 @@ if ("mode" in o7450) lf(o7450["mode"], p + "/mode", e, L1);
 }
 }
 
-function e104_payload(v: unknown, p: string, e: string[]): void {
+function e105_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7451 = v;
 const g7451 = typeOf(x7451);
@@ -5718,7 +5718,7 @@ if ("by" in o7451) lf(o7451["by"], p + "/by", e, L1);
 }
 }
 
-function e105_payload(v: unknown, p: string, e: string[]): void {
+function e106_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7452 = v;
 const g7452 = typeOf(x7452);
@@ -5732,7 +5732,7 @@ if ("channelId" in o7452) lf(o7452["channelId"], p + "/channelId", e, L236);
 }
 }
 
-function e106_payload(v: unknown, p: string, e: string[]): void {
+function e107_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7453 = v;
 const g7453 = typeOf(x7453);
@@ -5751,7 +5751,7 @@ if ("recordId" in o7453) lf(o7453["recordId"], p + "/recordId", e, L34);
 }
 }
 
-function e107_payload(v: unknown, p: string, e: string[]): void {
+function e108_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7454 = v;
 const g7454 = typeOf(x7454);
@@ -5765,7 +5765,7 @@ if ("channelId" in o7454) lf(o7454["channelId"], p + "/channelId", e, L236);
 }
 }
 
-function e110_payload(v: unknown, p: string, e: string[]): void {
+function e111_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7455 = v;
 const g7455 = typeOf(x7455);
@@ -5779,7 +5779,7 @@ if ("channelId" in o7455) lf(o7455["channelId"], p + "/channelId", e, L236);
 }
 }
 
-function e111_payload(v: unknown, p: string, e: string[]): void {
+function e112_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7456 = v;
 const g7456 = typeOf(x7456);
@@ -5808,7 +5808,7 @@ lf(a7457[i7457], p + "/fields" + '/' + i7457, e, L1);
 }
 }
 
-function e288_payload(v: unknown, p: string, e: string[]): void {
+function e289_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7617 = v;
 const g7617 = typeOf(x7617);
@@ -5828,7 +5828,7 @@ if ("messageId" in o7617) lf(o7617["messageId"], p + "/messageId", e, L109);
 }
 }
 
-function e289_payload(v: unknown, p: string, e: string[]): void {
+function e290_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7618 = v;
 const g7618 = typeOf(x7618);
@@ -5847,7 +5847,7 @@ if ("model" in o7618) lf(o7618["model"], p + "/model", e, L1);
 }
 }
 
-function e394_payload(v: unknown, p: string, e: string[]): void {
+function e395_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7720 = v;
 const g7720 = typeOf(x7720);
@@ -5867,7 +5867,7 @@ if ("author" in o7720) d_s_6c1eb10d98(o7720["author"], p + "/author", e);
 }
 }
 
-function e397_payload(v: unknown, p: string, e: string[]): void {
+function e398_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7722 = v;
 const g7722 = typeOf(x7722);
@@ -5889,7 +5889,7 @@ if ("inThread" in o7722) lf(o7722["inThread"], p + "/inThread", e, L3);
 }
 }
 
-function e399_payload(v: unknown, p: string, e: string[]): void {
+function e400_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7724 = v;
 const g7724 = typeOf(x7724);
@@ -5907,7 +5907,7 @@ if ("pinned" in o7724) lf(o7724["pinned"], p + "/pinned", e, L3);
 }
 }
 
-function e400_payload(v: unknown, p: string, e: string[]): void {
+function e401_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7725 = v;
 const g7725 = typeOf(x7725);
@@ -5927,7 +5927,7 @@ if ("removed" in o7725) lf(o7725["removed"], p + "/removed", e, L3);
 }
 }
 
-function e401_payload(v: unknown, p: string, e: string[]): void {
+function e402_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7726 = v;
 const g7726 = typeOf(x7726);
@@ -5976,7 +5976,7 @@ if ("outside" in o7727) lf(o7727["outside"], p + "/poke" + "/outside", e, L3);
 }
 }
 
-function e449_payload(v: unknown, p: string, e: string[]): void {
+function e450_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7769 = v;
 const g7769 = typeOf(x7769);
@@ -5996,7 +5996,7 @@ if ("by" in o7769) lf(o7769["by"], p + "/by", e, L1);
 }
 }
 
-function e450_payload(v: unknown, p: string, e: string[]): void {
+function e451_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7770 = v;
 const g7770 = typeOf(x7770);
@@ -6014,7 +6014,7 @@ if ("steps" in o7770) lf(o7770["steps"], p + "/steps", e, L2);
 }
 }
 
-function e451_payload(v: unknown, p: string, e: string[]): void {
+function e452_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7771 = v;
 const g7771 = typeOf(x7771);
@@ -6032,7 +6032,7 @@ if ("by" in o7771) lf(o7771["by"], p + "/by", e, L1);
 }
 }
 
-function e452_payload(v: unknown, p: string, e: string[]): void {
+function e453_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7772 = v;
 const g7772 = typeOf(x7772);
@@ -6050,7 +6050,7 @@ if ("stepId" in o7772) lf(o7772["stepId"], p + "/stepId", e, L135);
 }
 }
 
-function e664_payload(v: unknown, p: string, e: string[]): void {
+function e665_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7963 = v;
 const g7963 = typeOf(x7963);
@@ -6072,7 +6072,7 @@ if ("agentId" in o7963) lf(o7963["agentId"], p + "/agentId", e, L17);
 }
 }
 
-function e708_payload(v: unknown, p: string, e: string[]): void {
+function e709_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7999 = v;
 const g7999 = typeOf(x7999);
@@ -6086,7 +6086,7 @@ if ("threadId" in o7999) lf(o7999["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e710_payload(v: unknown, p: string, e: string[]): void {
+function e711_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8000 = v;
 const g8000 = typeOf(x8000);
@@ -6100,7 +6100,7 @@ if ("threadId" in o8000) lf(o8000["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e711_payload(v: unknown, p: string, e: string[]): void {
+function e712_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8001 = v;
 const g8001 = typeOf(x8001);
@@ -6118,7 +6118,7 @@ if ("by" in o8001) lf(o8001["by"], p + "/by", e, L1);
 }
 }
 
-function e712_payload(v: unknown, p: string, e: string[]): void {
+function e713_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8002 = v;
 const g8002 = typeOf(x8002);
@@ -6136,7 +6136,7 @@ if ("personId" in o8002) lf(o8002["personId"], p + "/personId", e, L22);
 }
 }
 
-function e713_payload(v: unknown, p: string, e: string[]): void {
+function e714_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8003 = v;
 const g8003 = typeOf(x8003);
@@ -6150,7 +6150,7 @@ if ("threadId" in o8003) lf(o8003["threadId"], p + "/threadId", e, L19);
 }
 }
 
-function e714_payload(v: unknown, p: string, e: string[]): void {
+function e715_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8004 = v;
 const g8004 = typeOf(x8004);
@@ -6169,7 +6169,7 @@ if ("personId" in o8004) lf(o8004["personId"], p + "/personId", e, L22);
 }
 }
 
-function e717_payload(v: unknown, p: string, e: string[]): void {
+function e718_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8008 = v;
 const g8008 = typeOf(x8008);
@@ -6191,7 +6191,7 @@ if ("scopeId" in o8008) lf(o8008["scopeId"], p + "/scopeId", e, L1);
 }
 }
 
-function e718_payload(v: unknown, p: string, e: string[]): void {
+function e719_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8009 = v;
 const g8009 = typeOf(x8009);
@@ -6209,7 +6209,7 @@ if ("reason" in o8009) lf(o8009["reason"], p + "/reason", e, L1143);
 }
 }
 
-function e719_payload(v: unknown, p: string, e: string[]): void {
+function e720_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8010 = v;
 const g8010 = typeOf(x8010);
@@ -6239,7 +6239,7 @@ if ("starter" in o8010) lf(o8010["starter"], p + "/starter", e, L22);
 }
 }
 
-function e722_payload(v: unknown, p: string, e: string[]): void {
+function e723_payload(v: unknown, p: string, e: string[]): void {
 {
 const x8014 = v;
 const g8014 = typeOf(x8014);
@@ -6398,46 +6398,46 @@ export const eventValidators: Record<string, Check> = {
   "agent.disengaged": e16_payload,
   "agent.engaged": d_s_540168f373,
   "agent.handoff": e20_payload,
-  "block.answered": e72_payload,
-  "block.waiting": e73_payload,
+  "block.answered": e73_payload,
+  "block.waiting": e74_payload,
   "block.withdrawn": d_s_c0c421f88f,
-  "channel.agent_added": e102_payload,
+  "channel.agent_added": e103_payload,
   "channel.agent_removed": d_s_dbaf158797,
-  "channel.agent_watch_changed": e104_payload,
-  "channel.archived": e105_payload,
-  "channel.created": e106_payload,
-  "channel.erased": e107_payload,
+  "channel.agent_watch_changed": e105_payload,
+  "channel.archived": e106_payload,
+  "channel.created": e107_payload,
+  "channel.erased": e108_payload,
   "channel.member_added": d_s_c6ddba1711,
   "channel.member_removed": d_s_c6ddba1711,
-  "channel.unarchived": e110_payload,
-  "channel.updated": e111_payload,
-  "helper.note": e288_payload,
-  "helper.started": e289_payload,
+  "channel.unarchived": e111_payload,
+  "channel.updated": e112_payload,
+  "helper.note": e289_payload,
+  "helper.started": e290_payload,
   "message.deleted": d_s_1e7d706a53,
-  "message.direct": e394_payload,
+  "message.direct": e395_payload,
   "message.edited": d_s_1e7d706a53,
-  "message.mentioned": e397_payload,
-  "message.pinned": e399_payload,
-  "message.reacted": e400_payload,
-  "message.received": e401_payload,
-  "plan.approved": e449_payload,
-  "plan.proposed": e450_payload,
-  "plan.rejected": e451_payload,
-  "plan.step_done": e452_payload,
-  "tab.opened": e664_payload,
+  "message.mentioned": e398_payload,
+  "message.pinned": e400_payload,
+  "message.reacted": e401_payload,
+  "message.received": e402_payload,
+  "plan.approved": e450_payload,
+  "plan.proposed": e451_payload,
+  "plan.rejected": e452_payload,
+  "plan.step_done": e453_payload,
+  "tab.opened": e665_payload,
   "thread.archived": d_s_f86fc4b1fa,
-  "thread.closed": e708_payload,
+  "thread.closed": e709_payload,
   "thread.deleted": d_s_f86fc4b1fa,
-  "thread.erased": e710_payload,
-  "thread.plan_mode_changed": e711_payload,
-  "thread.promoted": e712_payload,
-  "thread.reopened": e713_payload,
-  "thread.replied": e714_payload,
+  "thread.erased": e711_payload,
+  "thread.plan_mode_changed": e712_payload,
+  "thread.promoted": e713_payload,
+  "thread.reopened": e714_payload,
+  "thread.replied": e715_payload,
   "thread.restored": d_s_f86fc4b1fa,
-  "thread.started": e717_payload,
-  "thread.unarchived": e718_payload,
-  "thread.updated": e719_payload,
-  "transcripts.purged": e722_payload,
+  "thread.started": e718_payload,
+  "thread.unarchived": e719_payload,
+  "thread.updated": e720_payload,
+  "transcripts.purged": e723_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

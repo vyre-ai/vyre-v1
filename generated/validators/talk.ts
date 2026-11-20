@@ -364,7 +364,7 @@ if (g6813 === "object") {
 }
 }
 
-function e665_payload(v: unknown, p: string, e: string[]): void {
+function e666_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7964 = v;
 const g7964 = typeOf(x7964);
@@ -388,7 +388,7 @@ if ("by" in o7964) lf(o7964["by"], p + "/by", e, L1);
 }
 }
 
-function e668_payload(v: unknown, p: string, e: string[]): void {
+function e669_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7965 = v;
 const g7965 = typeOf(x7965);
@@ -404,7 +404,7 @@ if ("by" in o7965) lf(o7965["by"], p + "/by", e, L1);
 }
 }
 
-function e669_payload(v: unknown, p: string, e: string[]): void {
+function e670_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7966 = v;
 const g7966 = typeOf(x7966);
@@ -433,11 +433,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "talk.configured": e665_payload,
+  "talk.configured": e666_payload,
   "talk.connected": d_s_0980d8c930,
   "talk.disconnected": d_s_0980d8c930,
-  "talk.space_changed": e668_payload,
-  "talk.space_checked": e669_payload,
+  "talk.space_changed": e669_payload,
+  "talk.space_checked": e670_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

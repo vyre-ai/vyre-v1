@@ -149,7 +149,7 @@ if ("portalId" in o4099) lf(o4099["portalId"], p + "/portalId", e, L1);
 }
 }
 
-function e295_payload(v: unknown, p: string, e: string[]): void {
+function e296_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7624 = v;
 const g7624 = typeOf(x7624);
@@ -175,7 +175,7 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "hubspot.webhook_received": e295_payload,
+  "hubspot.webhook_received": e296_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

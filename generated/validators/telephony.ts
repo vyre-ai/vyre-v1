@@ -1318,7 +1318,7 @@ if ("expiresAt" in o6984) lf(o6984["expiresAt"], p + "/expiresAt", e, L11);
 }
 }
 
-function e85_payload(v: unknown, p: string, e: string[]): void {
+function e86_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7435 = v;
 const g7435 = typeOf(x7435);
@@ -1339,7 +1339,7 @@ if ("contactId" in o7435) lf(o7435["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e86_payload(v: unknown, p: string, e: string[]): void {
+function e87_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7436 = v;
 const g7436 = typeOf(x7436);
@@ -1353,7 +1353,7 @@ if ("callId" in o7436) lf(o7436["callId"], p + "/callId", e, L357);
 }
 }
 
-function e87_payload(v: unknown, p: string, e: string[]): void {
+function e88_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7437 = v;
 const g7437 = typeOf(x7437);
@@ -1372,7 +1372,7 @@ if ("contactId" in o7437) lf(o7437["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e88_payload(v: unknown, p: string, e: string[]): void {
+function e89_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7438 = v;
 const g7438 = typeOf(x7438);
@@ -1390,7 +1390,7 @@ if ("consentLogged" in o7438) lf(o7438["consentLogged"], p + "/consentLogged", e
 }
 }
 
-function e90_payload(v: unknown, p: string, e: string[]): void {
+function e91_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7439 = v;
 const g7439 = typeOf(x7439);
@@ -1411,7 +1411,7 @@ if ("ringing" in o7439) d_s_aed3f8b568(o7439["ringing"], p + "/ringing", e);
 }
 }
 
-function e91_payload(v: unknown, p: string, e: string[]): void {
+function e92_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7440 = v;
 const g7440 = typeOf(x7440);
@@ -1430,7 +1430,7 @@ if ("contactId" in o7440) lf(o7440["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e92_payload(v: unknown, p: string, e: string[]): void {
+function e93_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7441 = v;
 const g7441 = typeOf(x7441);
@@ -1445,7 +1445,7 @@ if ("contactId" in o7441) lf(o7441["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e93_payload(v: unknown, p: string, e: string[]): void {
+function e94_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7442 = v;
 const g7442 = typeOf(x7442);
@@ -1463,7 +1463,7 @@ if ("mode" in o7442) lf(o7442["mode"], p + "/mode", e, L1063);
 }
 }
 
-function e94_payload(v: unknown, p: string, e: string[]): void {
+function e95_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7443 = v;
 const g7443 = typeOf(x7443);
@@ -1480,7 +1480,7 @@ if ("contactId" in o7443) lf(o7443["contactId"], p + "/contactId", e, L34);
 }
 }
 
-function e442_payload(v: unknown, p: string, e: string[]): void {
+function e443_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7763 = v;
 const g7763 = typeOf(x7763);
@@ -1509,7 +1509,7 @@ lf(a7764[i7764], p + "/fields" + '/' + i7764, e, L1);
 }
 }
 
-function e525_payload(v: unknown, p: string, e: string[]): void {
+function e526_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7829 = v;
 const g7829 = typeOf(x7829);
@@ -1525,7 +1525,7 @@ if ("state" in o7829) lf(o7829["state"], p + "/state", e, L1129);
 }
 }
 
-function e526_payload(v: unknown, p: string, e: string[]): void {
+function e527_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7830 = v;
 const g7830 = typeOf(x7830);
@@ -1539,7 +1539,7 @@ if ("registrationId" in o7830) lf(o7830["registrationId"], p + "/registrationId"
 }
 }
 
-function e614_payload(v: unknown, p: string, e: string[]): void {
+function e615_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7913 = v;
 const g7913 = typeOf(x7913);
@@ -1553,7 +1553,7 @@ if ("smsId" in o7913) lf(o7913["smsId"], p + "/smsId", e, L1058);
 }
 }
 
-function e615_payload(v: unknown, p: string, e: string[]): void {
+function e616_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7914 = v;
 const g7914 = typeOf(x7914);
@@ -1612,24 +1612,24 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "call.ended": e85_payload,
-  "call.erased": e86_payload,
-  "call.missed": e87_payload,
-  "call.recording_changed": e88_payload,
+  "call.ended": e86_payload,
+  "call.erased": e87_payload,
+  "call.missed": e88_payload,
+  "call.recording_changed": e89_payload,
   "call.recording_ready": d_s_f9a7628479,
-  "call.ringing": e90_payload,
-  "call.started": e91_payload,
-  "call.transcript_ready": e92_payload,
-  "call.transferred": e93_payload,
-  "call.voicemail_left": e94_payload,
+  "call.ringing": e91_payload,
+  "call.started": e92_payload,
+  "call.transcript_ready": e93_payload,
+  "call.transferred": e94_payload,
+  "call.voicemail_left": e95_payload,
   "number.assigned": d_s_3f4f72f11c,
   "number.purchased": d_s_98c786d7d8,
   "number.released": d_s_98c786d7d8,
-  "number.route_changed": e442_payload,
-  "registration.status_changed": e525_payload,
-  "registration.submitted": e526_payload,
-  "sms.erased": e614_payload,
-  "sms.received": e615_payload,
+  "number.route_changed": e443_payload,
+  "registration.status_changed": e526_payload,
+  "registration.submitted": e527_payload,
+  "sms.erased": e615_payload,
+  "sms.received": e616_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

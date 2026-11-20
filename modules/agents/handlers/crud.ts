@@ -575,6 +575,7 @@ export async function update(ctx: AgentsCtx, input: { agentId: string; patch: Re
     ...(versionId !== undefined ? { versionId } : {}),
     by: by(ctx),
   });
+  announceName(ctx, a.id, res.fields);
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
 
@@ -1098,6 +1099,7 @@ export async function restoreVersion(ctx: AgentsCtx, input: { agentId: string; v
       at: now,
     });
   ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields, versionId: restoredId, by: by(ctx) });
+  announceName(ctx, a.id, fields);
   return { agent: agentOut(agentBy(ctx.db, a.id)!, now) };
 }
 
@@ -1379,6 +1381,7 @@ export async function onFileVersion(ctx: AgentsCtx, event: FileVersionEvent): Pr
   const fields = changedFields(a.config, checked.config);
   storeConfig(ctx.db, a.id, { name: checked.config.name, text, config: checked.config, versionId, at: ctx.now() });
   ctx.emit("agent.config_changed", a.id, { agentId: a.id, fields, versionId, by: who });
+  announceName(ctx, a.id, fields);
   return [a.id];
 }
 
@@ -1588,6 +1591,35 @@ export async function upgradeStarterAgentMd(ctx: AgentsCtx): Promise<string[]> {
     }
   }
   return done;
+}
+
+/** The agent's name changed: access gives its principal the new name (agent.renamed), so the people directory never shows an old one. */
+function announceName(ctx: AgentsCtx, agentId: string, fields: readonly string[]): void {
+  if (!fields.includes("name")) return;
+  const a = agentBy(ctx.db, agentId);
+  if (a) ctx.emit("agent.renamed", a.id, { agentId: a.id, name: a.name });
+}
+
+/**
+ * At boot and every 15 minutes: an agent whose access principal still carries an older name (renamed before access heard of renames, or by a path that did not announce it) is told its current name.
+ * The principal is read as the server sees it, so a private agent's own name is compared, never the "<Person> (Agent)" its other readers see. Safe to repeat: nothing is emitted when the names agree.
+ */
+export async function announceNames(ctx: AgentsCtx): Promise<string[]> {
+  ensure(ctx.db);
+  const told: string[] = [];
+  for (const a of allAgents(ctx.db)) {
+    const got = await tolerant<{ principal?: { name?: string } }>(
+      ctx,
+      "access.principals.get",
+      { principal: { kind: "agent", id: a.id } },
+      {},
+    );
+    const have = got.principal?.name;
+    if (have === undefined || have === a.name) continue;
+    ctx.emit("agent.renamed", a.id, { agentId: a.id, name: a.name });
+    told.push(a.id);
+  }
+  return told;
 }
 
 /** At boot: every private agent made before access learnt of privacy (agent.privacy_set) is told once, so it is named as its person to everyone else. Safe to repeat. */

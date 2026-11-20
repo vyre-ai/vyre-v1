@@ -758,7 +758,7 @@ if ("channel" in o4367) lf(o4367["channel"], p + "/versions" + '/' + i4366 + "/c
 }
 }
 
-function e321_payload(v: unknown, p: string, e: string[]): void {
+function e322_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7647 = v;
 const g7647 = typeOf(x7647);
@@ -776,7 +776,7 @@ if ("failures" in o7647) lf(o7647["failures"], p + "/failures", e, L2);
 }
 }
 
-function e323_payload(v: unknown, p: string, e: string[]): void {
+function e324_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7648 = v;
 const g7648 = typeOf(x7648);
@@ -792,7 +792,7 @@ if ("to" in o7648) lf(o7648["to"], p + "/to", e, L1);
 }
 }
 
-function e324_payload(v: unknown, p: string, e: string[]): void {
+function e325_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7649 = v;
 const g7649 = typeOf(x7649);
@@ -810,7 +810,7 @@ if ("to" in o7649) lf(o7649["to"], p + "/to", e, L1);
 }
 }
 
-function e554_payload(v: unknown, p: string, e: string[]): void {
+function e555_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7855 = v;
 const g7855 = typeOf(x7855);
@@ -848,11 +848,11 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 
 export const eventValidators: Record<string, Check> = {
   "kit.installed": d_s_157c2c9b95,
-  "kit.publish_blocked": e321_payload,
+  "kit.publish_blocked": e322_payload,
   "kit.published": d_s_157c2c9b95,
-  "kit.rolled_back": e323_payload,
-  "kit.updated": e324_payload,
-  "sandbox.denied": e554_payload,
+  "kit.rolled_back": e324_payload,
+  "kit.updated": e325_payload,
+  "sandbox.denied": e555_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);

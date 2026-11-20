@@ -834,7 +834,7 @@ if ("machine" in o4433) d_s_0437d902d0(o4433["machine"], p + "/machine", e);
 }
 }
 
-function e327_payload(v: unknown, p: string, e: string[]): void {
+function e328_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7653 = v;
 const g7653 = typeOf(x7653);
@@ -856,7 +856,7 @@ if ("detail" in o7653) lf(o7653["detail"], p + "/detail", e, L1);
 }
 }
 
-function e328_payload(v: unknown, p: string, e: string[]): void {
+function e329_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7654 = v;
 const g7654 = typeOf(x7654);
@@ -898,8 +898,8 @@ export const validators: Record<string, { in: Check; out: Check }> = {
 };
 
 export const eventValidators: Record<string, Check> = {
-  "machine.alert": e327_payload,
-  "machine.changed": e328_payload,
+  "machine.alert": e328_payload,
+  "machine.changed": e329_payload,
 };
 
 export const validateInput = (cap: string, v: number, input: unknown): string[] => checkIn(validators, 'in', cap, v, input);
