@@ -65569,6 +65569,7 @@
             "type": "string"
           },
           "why": {
+            "maxLength": 300,
             "type": "string"
           }
         },
@@ -65822,6 +65823,7 @@
             "examples": [
               "vault_item:Hosting key"
             ],
+            "maxLength": 200,
             "pattern": "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
             "type": "string"
           },
@@ -66833,6 +66835,7 @@
             "examples": [
               "vault_item:Hosting key"
             ],
+            "maxLength": 200,
             "pattern": "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
             "type": "string"
           },

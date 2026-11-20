@@ -50,6 +50,7 @@ const doneWhenKind = t.enm("vault_item", "message_sent", "meeting_ended", "conne
 const ms = () => t.ts({ description: "Unix ms" });
 const doneWhenText = t.str({
   pattern: "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
+  maxLength: 200,
   examples: ["vault_item:Hosting key"],
 });
 const doneWhen = t.obj({
@@ -879,7 +880,7 @@ export default defineManifest({
       errors: ["validation.precondition_failed"],
     }),
     write("tasks.archive", "Put away a task that no longer matters, with why; back: true puts it back. Not deleted", {
-      in: { ...target, why: t.opt(t.str()), back: t.opt(t.bool()) },
+      in: { ...target, why: t.opt(t.str({ maxLength: 300 })), back: t.opt(t.bool()) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
       level: "use",

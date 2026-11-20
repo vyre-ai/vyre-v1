@@ -570,7 +570,7 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
   // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
-  if (typeof input.doneWhen === "string") {
+  if (typeof input.doneWhen === "string" && input.doneWhen !== "") {
     // "kind:name", for example "vault_item:Hosting key"
     const at = input.doneWhen.indexOf(":");
     const kind = input.doneWhen.slice(0, at),
@@ -830,7 +830,11 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("start" in input && input.start !== undefined) set("start", input.start ?? undefined);
   if ("recur" in input && input.recur !== undefined) set("recur", input.recur ?? undefined);
   if ("doneWhen" in input && input.doneWhen !== undefined) {
-    // what proves the task done, "kind:name"; empty clears it. The same refusals as at creation
+    // what proves the task done, "kind:name"; empty clears it. The same permission as tasks.done_when (someone who may let the task go), not the wider right to edit, and the same refusals as at creation
+    if (!isTrustedService(whoIs(ctx)) && !mayLetGo(ctx, t))
+      raise(ctx, "validation.precondition_failed", "Only someone on this task can say what proves it done.", {
+        reason: "wrong_actor",
+      });
     const text = String(input.doneWhen);
     if (text === "") {
       if (t.doneWhen !== undefined) {

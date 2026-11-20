@@ -190,3 +190,24 @@ test("tasks.update sets, changes and clears what proves a task done, with the sa
     "someone not on the task cannot",
   );
 });
+
+test("tasks.update takes doneWhen only from someone who may let the task go, not from someone who can merely edit it; create treats an empty doneWhen as no proof; the key and why have a length limit", async () => {
+  const h = harness({ authorize: (who, _a, r) => who.id === "usr_granted" && r.type === "task" });
+  h.callee("meetings.get", () => ({}));
+  const id = (await h.call("tasks.create", newTask({ title: "Put the key in the Vault" }), me)).task.id as string;
+  const granted = { id: "usr_granted" };
+  // someone with edit on the task may change its title ...
+  await h.call("tasks.update", { taskId: id, title: "Put the hosting key in the Vault" }, granted);
+  // ... but not say what proves it done
+  await assert.rejects(h.call("tasks.update", { taskId: id, doneWhen: "vault_item:k" }, granted), (e) => {
+    assert.equal(reasonOf(e), "wrong_actor");
+    return true;
+  });
+  assert.equal((await h.call("tasks.get", { taskId: id }, me)).task.doneWhen, undefined);
+  // an empty doneWhen at creation is no proof, the same as on update
+  const none = (await h.call("tasks.create", newTask({ title: "No proof", doneWhen: "" }), me)).task.id as string;
+  assert.equal((await h.call("tasks.get", { taskId: none }, me)).task.doneWhen, undefined);
+  // lengths
+  await assert.rejects(h.call("tasks.update", { taskId: id, doneWhen: `vault_item:${"x".repeat(250)}` }, me));
+  await assert.rejects(h.call("tasks.archive", { taskId: id, why: "y".repeat(301) }, me));
+});
