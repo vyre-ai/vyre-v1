@@ -136,6 +136,7 @@ test("a refreshed Codex sign-in is saved over its item, with a history line and 
       itemId: s.itemId,
       fieldsChanged: ["credentials"],
       settingsChanged: [],
+      kind: "ai_subscription",
     });
     // the next turn's fill gets the refreshed file, and the same handle and row still lead to it
     assert.equal(JSON.parse(await held(h, s.handle))[".codex/auth.json"], back[".codex/auth.json"]);

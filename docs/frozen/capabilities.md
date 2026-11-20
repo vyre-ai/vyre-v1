@@ -752,3 +752,5 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/runs.json.
 
 Signed: lead, 2026-11-20
+
+20 Nov 2026, lane r42-alive, `vault.item_updated` also carries `kind` (the item kind, optional): the Vault names it at the three places that emit the event (an item edit, a Mine item set by the host, a refreshed sign-in), so a listener that needs to know whether an AI sign-in or key changed does not have to read the item back (a read as the host is refused for another person's Mine item). Additive; an event from an older build has no kind and listeners treat that as not an account. Snapshot: docs/frozen/snapshots/vault.json. Signed: pending, lead.
