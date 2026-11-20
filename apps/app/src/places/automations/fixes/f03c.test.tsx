@@ -119,7 +119,7 @@ test("On leaving: a person without the Design Journeys role reads it with None a
 test("the one list: each Journey is a row with its name and the quiet word Journey, beside the Automations", () => {
   const s = nw();
   const out = page(s, <AutomationsList selectedId="jrn_onboard" query="" onChoose={() => undefined} />);
-  assert.ok(has(out, "Client onboarding") && has(out, "Matter intake"));
+  assert.ok(has(out, "Client onboarding") && has(out, "Project intake"));
   assert.ok(has(out, "Journey"));
   assert.ok(has(out, "New lead follow-up"), "the Automations are in the same list");
 });
@@ -127,6 +127,6 @@ test("the one list: each Journey is a row with its name and the quiet word Journ
 test("the Fields tab: the template's fields with their types, then the Journey's own", () => {
   const out = page(nw(), <JourneyDesigner journeyId="jrn_onboard" initialTab="fields" />);
   assert.ok(has(out, 'data-testid="journey-fields"') && has(out, "From the Projects template") && has(out, "Its own"));
-  for (const f of ["Lead", "Budget", "Matter type", "ID verified"]) assert.ok(has(out, f), f);
+  for (const f of ["Lead", "Budget", "Project type", "ID verified"]) assert.ok(has(out, f), f);
   assert.ok(has(out, 'data-testid="subtab-fields"'));
 });

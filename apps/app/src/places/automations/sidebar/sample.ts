@@ -136,6 +136,33 @@ const SIMPLE: Definition = {
   ],
 };
 
+/**
+ * A sample Automation that names no steps of its own gets its own trigger and action from what its row says, so no two rows read alike: the trigger from the row's trigger words, the action from its name.
+ */
+function variantOf(s: { name: string; triggers: string[] }): Definition {
+  const t = (s.triggers[0] ?? "").toLowerCase();
+  const trigger = /form|submit/.test(t)
+    ? { key: "form_submit" }
+    : /email|inbox|mail/.test(t)
+      ? { key: "email_received" }
+      : /stage|record|lead|created|added|changes?/.test(t)
+        ? { key: "record_change", filter: { type: "lead" } }
+        : { key: "schedule", config: { cron: s.triggers[0] ?? "Every day 8:00" } };
+  const name = s.name.toLowerCase();
+  const key = /invoice|bill|task|follow|nurture|score/.test(name)
+    ? "create_task"
+    : /alert|flag|digest|report|brief|summary|backup/.test(name)
+      ? "post_message"
+      : "send_email";
+  const input =
+    key === "create_task"
+      ? { title: s.name, assigned: { kind: "person", id: "usr_me" } }
+      : key === "post_message"
+        ? { channelId: "#general", text: s.name }
+        : { to: "{{trigger.email}}", subject: s.name, body: "Hello" };
+  return { triggers: [trigger], start: ["step"], nodes: [n("step", key, { title: s.name, input })] } as Definition;
+}
+
 interface Spec {
   id: string;
   name: string;
@@ -325,7 +352,7 @@ export const northwind: SampleSpace = {
     },
     {
       id: "aut_intake2",
-      name: "Conflict check",
+      name: "Fit check",
       kind: "space",
       owner: "usr_omar",
       group: "agr_intake",
@@ -349,7 +376,7 @@ export const northwind: SampleSpace = {
     },
     {
       id: "aut_intake4",
-      name: "Engagement letter",
+      name: "Proposal sent",
       kind: "space",
       owner: "usr_omar",
       group: "agr_intake",
@@ -384,7 +411,7 @@ export const northwind: SampleSpace = {
     },
     {
       id: "jrn_matter",
-      name: "Matter intake",
+      name: "Project intake",
       subjectType: "person",
       recordType: "rt_matter",
       version: 2,
@@ -482,7 +509,7 @@ const rowOf = (s: Spec, space: SampleSpace): Row => ({
   ...(s.group ? { groupId: s.group } : {}),
   ...(s.last ? { lastRun: s.last } : {}),
   ...(s.status === "paused" && space.reasons[s.id] ? { pausedReason: space.reasons[s.id] } : {}),
-  definition: s.def ?? SIMPLE,
+  definition: s.def ?? variantOf(s),
   createdAt: at(30),
   followers: [],
   alerts: {

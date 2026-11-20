@@ -41,6 +41,9 @@ import {
 } from "../projections.ts";
 import { rememberAccountPicks } from "../accounts.ts";
 import { buttonType, noButtonLine } from "../button.ts";
+import { namesFor } from "../names.ts";
+import { flowSentence } from "../../../lib/flow-sentence.ts";
+import { readsOf, textsIn } from "../../../lib/flow-reads.ts";
 import { shapeIssues } from "../shape.ts";
 import { readIssues } from "../reads.ts";
 import { regrant, sendersOf, shareSenders } from "../grants.ts";
@@ -259,7 +262,13 @@ export function validateDefinition(def: Definition, policy: Policy): Issue[] {
     if (n.key === "connector_request" && containsSecret(have["input"]))
       out.push(issue("error", "An authenticated request cannot hold a secret. Use the connection.", n.id));
     if (n.key === "http_request") out.push(...httpIssues(n.id, have));
-    if (n.key === "ai" && n.ai?.mode !== "task" && have["mode"] !== "task" && asksForSkill(have["prompt"]))
+    if (
+      n.key === "ai" &&
+      n.ai?.mode !== "task" &&
+      have["mode"] !== "task" &&
+      !(n.ai?.skills?.length ?? 0) &&
+      asksForSkill(have["prompt"])
+    )
       out.push(issue("warning", SKILL_NEEDS_TASK, n.id));
     if (n.key === "loop") {
       const max = have["maxIterations"];
@@ -373,7 +382,7 @@ async function supportOf(ctx: AutoCtx): Promise<Support> {
 }
 
 /** The apps whose steps are listed only when the app is connected: the step key's start, the app's name in words, and how connected is read. */
-const APP_STEPS = [
+export const APP_STEPS = [
   { start: "google.", connector: "google" },
   { start: "ms.", connector: "microsoft" },
   { start: "github.", connector: "github" },
@@ -384,7 +393,7 @@ const APP_STEPS = [
  * list of connections is the product's own access check (a person sees the Space's connections and their own, nobody else's), and a connection still waiting to be finished is not connected. GitHub is
  * the caller's own GitHub, or the Space's app when the caller may read it. A check that cannot be made counts as not connected: nothing is listed that could not be used.
  */
-async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
+export async function connectedApps(ctx: AutoCtx): Promise<{ apps: Set<string>; checked: boolean }> {
   const out = new Set<string>();
   if (!ctx.call) return { apps: out, checked: false };
   const call = ctx.call;
@@ -449,7 +458,7 @@ const nameOf = (p: AccountLite): string => p.name ?? p.title;
 const paysForAutomations = (p: AccountLite): boolean => !p.mine && p.usable === true;
 
 /** Why the AI steps of this definition cannot pay for their turns when it goes live, one issue per step. */
-async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
+export async function aiAccountIssues(ctx: AutoCtx, kind: Automation["kind"], def: Definition): Promise<Issue[]> {
   const nodes = def.nodes.filter((n) => n.key === "ai");
   if (nodes.length === 0) return [];
   // an account the step itself names is the person's own choice for it, so a Space account is not checked against what it is kept for; the automation's own account and Automatic are
@@ -660,7 +669,7 @@ function draftedActionIssues(def: Definition, db: Db): Issue[] {
 }
 
 /** Turn on says it plainly when a send step has nothing to send from, in the words the Inbox uses for the same sender. A person's own list decides: their access is what the Automation will get. */
-async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+export async function senderIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
   const steps = def.nodes.filter(
     (n) => (n.key === "send_email" && n.input?.["draftOnly"] !== true) || n.key === "send_sms",
   );
@@ -838,6 +847,11 @@ async function runStats(
   }
 }
 
+/** Does the sentence of this definition name a record type or a field? Only then are the Space's record types read for it. */
+const namesRecords = (def: Definition): boolean =>
+  def.triggers.some((t) => typeof (t.filter as { type?: unknown } | null | undefined)?.type === "string") ||
+  def.nodes.some((n) => n.key === "records.create" || n.key === "records.update");
+
 export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   const who = me(ctx);
   let rows = allAutomations(ctx.db).filter((a) => canView(ctx, a));
@@ -853,6 +867,8 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
   }
   const p = page(rows, input.cursor, input.limit);
   const automations = [];
+  // what each one does, in one sentence, with the Space's own names for its record types and fields (one read for the whole list)
+  const names = p.rows.some((a) => namesRecords(a.definition)) ? await namesFor(ctx) : undefined;
   for (const a of p.rows) {
     const s = await runStats(ctx, a.id);
     automations.push(
@@ -868,6 +884,7 @@ export async function list(ctx: AutoCtx, input: In): Promise<unknown> {
         updatedAt: a.updatedAt,
         lastRun: s.lastRun,
         failedRuns: s.failedRuns,
+        sentence: flowSentence(a.definition, names),
       }),
     );
   }
@@ -897,6 +914,85 @@ async function buttonIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
   return line ? [issue("error", line)] : [];
 }
 
+/** A `{{journey.x}}` has to be a value some Journey carries: said at save, before the Run that would fail on it. Nothing is asked when no step reads one. */
+export async function journeyValueIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const reads = def.nodes.flatMap((n) =>
+    [...textsIn(n.input), ...textsIn(n.ai ?? {})].flatMap((t) =>
+      readsOf(t)
+        .filter((r) => r.root === "journey" && r.segs[0] !== undefined)
+        .map((r) => ({ nodeId: n.id, text: r.text, key: r.segs[0]! })),
+    ),
+  );
+  if (reads.length === 0 || !ctx.call) return [];
+  let carried: { key: string; title: string }[];
+  try {
+    const got = (await ctx.call("journeys.list", {})) as {
+      journeys?: { variables?: { key: string; title: string }[] }[];
+    };
+    carried = (got.journeys ?? []).flatMap((j) => j.variables ?? []);
+  } catch {
+    return [];
+  }
+  const keys = new Set(carried.map((v) => v.key));
+  const seen = new Set<string>();
+  const out: Issue[] = [];
+  for (const r of reads) {
+    if (keys.has(r.key) || seen.has(`${r.nodeId}:${r.text}`)) continue;
+    seen.add(`${r.nodeId}:${r.text}`);
+    out.push(
+      issue(
+        "error",
+        carried.length
+          ? `{{${r.text}}} is not a value any Journey carries. They carry ${[...new Set(carried.map((v) => v.title))].join(", ")}.`
+          : `{{${r.text}}} reads a Journey value, and no Journey carries any yet.`,
+        r.nodeId,
+      ),
+    );
+  }
+  return out;
+}
+
+/** A skill an AI step names has to be in the Space (or the step's agent): said at save, with the names that are. */
+export async function skillIssues(ctx: AutoCtx, def: Definition): Promise<Issue[]> {
+  const named = def.nodes.filter((n) => n.key === "ai" && (n.ai?.skills?.length ?? 0) > 0);
+  if (named.length === 0 || !ctx.call) return [];
+  const out: Issue[] = [];
+  const have = new Map<string, Set<string>>();
+  for (const n of named) {
+    if (n.ai!.skills!.length > 5) out.push(issue("error", "A step can be given up to five skills.", n.id));
+    const agent = n.ai?.agentId ?? "";
+    if (!have.has(agent)) {
+      try {
+        const r = (await ctx.call("skills.list", agent ? { agentId: agent } : {})) as {
+          skills?: { name: string; shadowedBy?: unknown; broken?: unknown; enabled?: boolean }[];
+        };
+        have.set(
+          agent,
+          new Set((r.skills ?? []).filter((s) => !s.shadowedBy && !s.broken && s.enabled !== false).map((s) => s.name)),
+        );
+      } catch {
+        return [];
+      }
+    }
+    const names = have.get(agent)!;
+    for (const k of n.ai!.skills!)
+      if (!names.has(k))
+        out.push(
+          issue(
+            "error",
+            `The skill "${k}" is not in this Space${names.size ? `. Skills: ${[...names].sort().slice(0, 8).join(", ")}` : ""}.`,
+            n.id,
+          ),
+        );
+  }
+  return out;
+}
+
+async function refuseJourneyValues(ctx: AutoCtx, def: Definition): Promise<void> {
+  const bad = [...(await journeyValueIssues(ctx, def)), ...(await skillIssues(ctx, def))];
+  if (bad.length) raise(ctx, "validation.bad_input", bad[0]!.message, { issues: bad });
+}
+
 export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const def = input.definition as Definition;
   // a key-bearing step whose host was taken off its key's list shows before the next Run, with the line that Run would fail with
@@ -906,7 +1002,17 @@ export async function validate(ctx: AutoCtx, input: In): Promise<unknown> {
   const useBlocked = Array.isArray(def?.nodes) ? await accountUseIssues(ctx, def) : [];
   const gone = Array.isArray(def?.nodes) ? await goneAgentIssues(ctx, def) : [];
   const button = Array.isArray(def?.triggers) ? await buttonIssues(ctx, def) : [];
-  const issues = [...validateDefinition(def, readPolicy(ctx.db)), ...keyBlocked, ...useBlocked, ...gone, ...button];
+  const journeyValues = Array.isArray(def?.nodes)
+    ? [...(await journeyValueIssues(ctx, def)), ...(await skillIssues(ctx, def))]
+    : [];
+  const issues = [
+    ...validateDefinition(def, readPolicy(ctx.db)),
+    ...keyBlocked,
+    ...useBlocked,
+    ...gone,
+    ...button,
+    ...journeyValues,
+  ];
   return { ok: !hasErrors(issues), issues };
 }
 export async function triggersList(): Promise<unknown> {
@@ -988,6 +1094,7 @@ export async function create(ctx: AutoCtx, input: In): Promise<unknown> {
       reason: "agent_not_yours",
       issues: [agentIssue],
     });
+  await refuseJourneyValues(ctx, def);
   await guardKeySteps(ctx, undefined, def);
   if (input.groupId && !findGroup(ctx.db, input.groupId))
     raise(ctx, "validation.not_found", "That Group does not exist.", { reason: "no_group" });
@@ -1045,6 +1152,7 @@ export async function update(ctx: AutoCtx, input: In): Promise<unknown> {
   if (input.definition !== undefined && !same(input.definition, a.definition)) {
     checkStructure(ctx, input.definition);
     refuseSecret(ctx, input.definition);
+    await refuseJourneyValues(ctx, input.definition);
     await guardKeySteps(ctx, a.definition, input.definition);
     const policy = readPolicy(ctx.db);
     // an agent the saver may not give work to is refused at once, on or off: it is not a draft to finish later but someone else's (lead 12 Nov, rule 4)
