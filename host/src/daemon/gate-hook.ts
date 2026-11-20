@@ -704,11 +704,21 @@ export function moduleWhens(
     return out["vault.key_host_unapproved"]!(input, seed);
   };
   // A command an agent writes (a scheduled job, a worker) runs in the site's image with the site's production env: the Vault keys it stores. So it is held for a person under the same rule as a deploy of
-  // that site's code: only a site that stores Vault keys (a site that cannot be read as stored is held too), and only for a non-person. A person's own job is one step. Pausing a job, running it, or
+  // that site's code: only a site that stores Vault keys or has a database addon (a site that cannot be read as stored is held too), and only for a non-person. A person's own job is one step. Pausing a job, running it, or
   // restarting a worker changes no command and is never held. Putting a backup back replaces the live database, which no key rule can bound: held for any non-person.
+  // The site's own database (a Postgres or Redis addon) puts its password in the production env too (DATABASE_URL, PGPASSWORD, REDIS_URL), from a sealed row that is not a Vault key: it counts as a key.
+  const hasAddon = (input: unknown): boolean => {
+    const id = (input as { siteId?: unknown } | null)?.siteId;
+    const h = db();
+    return (
+      typeof id === "string" &&
+      h !== null &&
+      h.all("SELECT 1 AS x FROM sites_addon WHERE site_id = ? LIMIT 1", id).length > 0
+    );
+  };
   const storesKeys = (input: unknown): boolean => {
     const f = siteFactsOf(input);
-    return f === null || f.env.length > 0;
+    return f === null || f.env.length > 0 || hasAddon(input);
   };
   const argsOf = (input: unknown): Record<string, unknown> => {
     const a = (input as { args?: unknown } | null)?.args;
