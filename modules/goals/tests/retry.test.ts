@@ -48,3 +48,28 @@ test("a held goal and a goal that is not live are not touched by a saved account
   assert.deepEqual(await saved(w), []);
   assert.equal(w.woken().length, before, "a paused goal is not asked");
 });
+
+test("every way an AI account can arrive asks the waiting check-in again: a pasted key, a subscription sign-in and a Space key (provider.added), a shared subscription, a saved vault item", async () => {
+  for (const name of [
+    "provider.added",
+    "engine.subscription_share_changed",
+    "vault.item_created",
+    "vault.item_updated",
+  ]) {
+    const w = world({ count: 10 });
+    const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
+    await claim(w, w.woken()[0]!);
+    await w.turn("turn.failed", { turnId: "trn_a", threadId: goal.threadId, agentId: LEAD, code: "host_lost" });
+    const before = w.woken().length;
+    assert.deepEqual(await onCleared(w.ctx(host), { name, payload: {} }), [goal.id], name);
+    assert.equal(w.woken().length, before + 1, name);
+  }
+  const impl = (await import("../impl.ts")) as { consumers: Record<string, { on: string[] }> };
+  for (const name of [
+    "provider.added",
+    "engine.subscription_share_changed",
+    "vault.item_created",
+    "vault.item_updated",
+  ])
+    assert.ok(impl.consumers["goals.cleared"]!.on.includes(name), `goals.cleared listens to ${name}`);
+});
