@@ -49,3 +49,11 @@ Roll back with `sites_rollback`. A repo deploys again on each push. The app must
 - Update with git: commit, restart, then `sites_status`. The address stays.
 - Roll back with git: check out the last good commit and restart. Tag what you publish so you can.
 - `sites_stop` takes the address down. The process keeps running until you stop it.
+
+## Run it: logs, metrics, jobs, workers, backups
+One call, `sites_ops`: `{ siteId, action, id?, args? }`. `id` is the job, run, worker or backup the action is about; `args` holds the other fields. The answer is in `result`.
+- `logs`: args `q` (words; `-word` leaves one out), `source` (app, requests, build, jobs), `level` (error, warn, info), `scope` (a deploy, worker or run id from an earlier read), `from` (time), `after` (the `lastSeq` of the read before, to follow it), `limit`. A key the app printed is hidden.
+- `metrics`: args `window` (1h, 6h, 24h). CPU, memory, requests and response time, and right now against the limits.
+- `jobs` lists jobs and workers. "job_create" args `name`, `schedule` (cron: `0 2 * * *`, or @hourly, @daily), `command`, optional `zone`, `timeoutSec`. "job_update" (id, any of those and `enabled`), "job_delete", "job_run", "job_cancel" (id is a run), "job_runs". A job runs in the site's image with its variables, so on a site that stores Vault keys "job_create", "job_update" (when the command changes) and "worker_add" wait for a person's yes: say what is waiting; a run that comes while the last one goes is skipped. Read a run's output with `logs`, `source: "jobs"`, `scope: <run id>`.
+- "worker_add" args `name`, `command`: stays up, restarts itself when it crashes (waiting longer each time, and stopping after eight crashes in ten minutes), moves to the newest deploy. "worker_restart", "worker_stop", "worker_remove".
+- `backups` lists with the database size. "backup_create" runs in the background. "backup_pin", "backup_delete", "backup_download". "backup_restore" makes a backup of what is there first, loads the dump into a new database and swaps it in; it waits for a person's yes.

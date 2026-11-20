@@ -1,6 +1,6 @@
 # sites.publish
 
-Serve a non-public site: space or private access, or a password on its own domain
+Serve a non-public site: space or private access, or a password on its domain
 
 | | |
 |---|---|

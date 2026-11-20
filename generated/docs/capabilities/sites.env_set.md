@@ -1,6 +1,6 @@
 # sites.env_set
 
-Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all
+Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all
 
 | | |
 |---|---|

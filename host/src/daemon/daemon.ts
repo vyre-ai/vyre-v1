@@ -60,7 +60,9 @@ import {
 } from "../routes/site-host.ts";
 import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
-import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf, startAccessSink } from "../caddy/index.ts";
+import type { AccessSink } from "../caddy/index.ts";
+import { blobReadCheck } from "../routes/blobs.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -669,6 +671,7 @@ export interface DaemonOptions {
     hooks?: number;
     sweep?: number;
     sitesPush?: number;
+    sitesOps?: number;
   };
 }
 
@@ -1115,6 +1118,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  /** site logs, CPU and memory, jobs and workers (modules/sites/ops): a short tick of its own, since a log is followed live */
+  let sitesOps: () => Promise<void> = () => Promise.resolve();
   let sitesTickRunning = false;
   let sitesTickAgain = false;
   /** Run the sites tick now. One at a time: a call while one runs asks for one more run after it, however many calls came. */
@@ -5503,6 +5508,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
+            await ensureAccessLog().catch((e: unknown) =>
+              sink.log({
+                space: spaceId,
+                level: 40,
+                msg: "sites.access_log_pending",
+                place: "sites",
+                attrs: { why: e instanceof Error ? e.message.slice(0, 160) : "" },
+              }),
+            );
             if (sitesCaddy)
               for (const x of hostsOf()) {
                 try {
@@ -5636,6 +5650,53 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 });
               }
             }
+            // a database with no backup for a day gets one, as the site's owner (kept seven days, a Keep never goes)
+            const owed =
+              (
+                sitesExports?.["dueBackupSites"] as
+                  | ((c: { db: unknown }, now: number) => { siteId: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }, Date.now()) ?? [];
+            for (const o2 of owed)
+              await invoke(
+                "sites.backup_create",
+                { siteId: o2.siteId, scheduled: true },
+                { space: spaceId, principal: { kind: "person", id: o2.as }, origin: "sites-backup" },
+              ).catch((e: unknown) => {
+                (
+                  sitesExports?.["recordSkippedBackup"] as
+                    | ((c: { db: unknown }, id: string, now: number, why: string) => void)
+                    | undefined
+                )?.(
+                  { db: db! },
+                  o2.siteId,
+                  Date.now(),
+                  e instanceof Error ? e.message : "the site's owner can no longer make backups",
+                );
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.backup_skipped",
+                  place: "sites",
+                  attrs: { site: o2.siteId },
+                });
+              });
+          };
+          // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
+          let accessSink: AccessSink | null = null;
+          closers.push(() => accessSink?.close());
+          const ensureAccessLog = async (): Promise<void> => {
+            if (!sitesCaddy) return;
+            accessSink ??= await startAccessSink((line) =>
+              (sitesExports?.["accessLine"] as ((c: { db: unknown }, l: string) => void) | undefined)?.(
+                { db: db! },
+                line,
+              ),
+            );
+            await sitesCaddy.ensureAccessLog(accessSink.port);
+          };
+          sitesOps = async () => {
+            await (sitesExports?.["opsTick"] as ((c: { db: unknown }) => Promise<void>) | undefined)?.({ db: db! });
           };
           const made = createSitesHost({
             containerAddress: (c) =>
@@ -7001,8 +7062,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           authorize(access.snap, {
             principal: c.principal.id,
             ...(c.actingFor ? { actingFor: c.actingFor } : {}),
-            action: { perm: null, level: "view" },
-            resource: { type: r.type, id: r.id },
+            ...blobReadCheck(r),
+            now: Date.now(),
           }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) =>
@@ -7640,6 +7701,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       schedule: { everyMs: o.intervals?.slow ?? 60_000 },
       run: async () => {
         await refreshDomains();
+      },
+    });
+    scheduler.add({
+      name: "sites.ops",
+      schedule: { everyMs: o.intervals?.sitesOps ?? 2_000 },
+      run: async () => {
+        await sitesOps();
       },
     });
     scheduler.add({

@@ -4765,6 +4765,10 @@
   "sites_logs": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_ops": {
+    "siteId": "sit_a1b2c3",
+    "action": "Quarterly planning"
+  },
   "sites_plan": {},
   "sites_preview_promote": {
     "siteId": "sit_a1b2c3",

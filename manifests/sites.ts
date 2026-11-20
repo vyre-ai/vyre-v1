@@ -124,6 +124,82 @@ const siteRow = t.obj({
   autoDeploy: t.opt(t.bool()),
   passwordSet: t.opt(t.bool()),
 });
+const logLine = t.obj({
+  seq: t.int(),
+  at: t.ts(),
+  source: t.enm("app", "requests", "build", "jobs"),
+  scope: t.str(),
+  text: t.str(),
+  level: t.enm("error", "warn", "info"),
+});
+const logScope = t.obj({
+  scope: t.str(),
+  source: t.enm("app", "requests", "build", "jobs"),
+  title: t.str(),
+  at: t.ts(),
+  lines: t.int(),
+});
+const sample = t.obj({
+  at: t.ts(),
+  cpu: t.num({ description: "Percent of one CPU" }),
+  memMb: t.num(),
+  requests: t.int(),
+  errors: t.int(),
+  p50: t.int(),
+  p95: t.int(),
+});
+const jobRun = t.obj({
+  runId: t.id("jrx"),
+  jobId: t.id("job"),
+  state: t.enm("queued", "running", "succeeded", "failed", "timed_out", "canceled", "skipped", "interrupted"),
+  at: t.ts(),
+  startedAt: t.opt(t.ts()),
+  endedAt: t.opt(t.ts()),
+  exitCode: t.opt(t.int()),
+  note: t.opt(t.str({ description: "One plain sentence for any end that is not a success" })),
+  by: t.enm("schedule", "person"),
+});
+const jobRow = t.obj({
+  jobId: t.id("job"),
+  siteId: id.site,
+  name: t.str(),
+  schedule: t.str({
+    description: "Five cron fields (minute hour day-of-month month day-of-week) or @hourly, @daily, @weekly, @monthly",
+    examples: ["0 2 * * *"],
+  }),
+  when: t.str({ description: "The schedule in words" }),
+  command: t.str(),
+  zone: t.str(),
+  enabled: t.bool(),
+  timeoutSec: t.int(),
+  nextAt: t.opt(t.ts()),
+  last: t.opt(jobRun),
+});
+const serviceRow = t.obj({
+  serviceId: t.id("wkr"),
+  siteId: id.site,
+  name: t.str(),
+  kind: t.enm("worker", "web"),
+  command: t.str(),
+  state: t.enm("stopped", "starting", "running", "backoff", "failed"),
+  note: t.opt(t.str()),
+  startedAt: t.opt(t.ts()),
+  restartAt: t.opt(t.ts()),
+});
+const backupRow = t.obj({
+  backupId: t.id("bkp"),
+  siteId: id.site,
+  state: t.enm("queued", "running", "ready", "failed"),
+  by: t.enm("schedule", "person"),
+  at: t.ts(),
+  endedAt: t.opt(t.ts()),
+  bytes: t.opt(t.int()),
+  note: t.opt(t.str()),
+  pinned: t.opt(t.bool()),
+  keepUntil: t.opt(
+    t.ts({ description: "Kept until then whatever the clean-up rule says (the backup made before a restore)" }),
+  ),
+});
 const target = {
   computerId: t.opt(id.computer),
   port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
@@ -232,7 +308,7 @@ export default defineManifest({
   capabilities: [
     create(
       "sites.create",
-      "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
+      "Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed",
       {
         in: {
           name: t.str(),
@@ -265,7 +341,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read("sites.list", "List the sites and artifacts you can see, by section, kind, folder", {
+    read("sites.list", "List sites and artifacts you can see, by section, kind, folder", {
       in: {
         section: t.opt(t.enm("personal", "shared", "space")),
         folderId: t.opt(id.folder),
@@ -300,7 +376,7 @@ export default defineManifest({
         errors: ["validation.version_conflict"],
       },
     ),
-    write("sites.publish", "Serve a non-public site: space or private access, or a password on its own domain", {
+    write("sites.publish", "Serve a non-public site: space or private access, or a password on its domain", {
       in: deployTarget,
       out: { site: siteRow },
       on: ["site", "/siteId"],
@@ -316,7 +392,7 @@ export default defineManifest({
       emits: ["site.stopped"],
       tool: "sites",
     }),
-    read("sites.status", "Is the port answering? Where it runs, the address, and what is wrong when something is", {
+    read("sites.status", "Is the port answering? Where it runs, its address, what is wrong if not", {
       in: deployTarget,
       out: { answering: t.bool(), detail: t.opt(t.str()), url: t.opt(t.str()), live: t.bool(), blocked: t.bool() },
       on: ["site", "/siteId"],
@@ -324,7 +400,7 @@ export default defineManifest({
     }),
     read(
       "sites.host",
-      "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
+      "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       {
         in: {},
         out: {
@@ -355,7 +431,7 @@ export default defineManifest({
       gate: { act: "delete", when: "actor.kind != 'person'" },
       tool: "sites",
     }),
-    write("sites.build", "Build the site from its repo (the site agent runs in the repo); test and verify", {
+    write("sites.build", "Build the site from its repo (the agent runs in it); test, verify", {
       in: { siteId: id.site, branch: t.opt(t.str()) },
       out: { runId: id.run, deploymentId: t.id("dpl") },
       on: ["site", "/siteId"],
@@ -367,7 +443,7 @@ export default defineManifest({
     }),
     write(
       "sites.deploy",
-      "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
+      "Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers",
       {
         in: {
           siteId: id.site,
@@ -389,7 +465,7 @@ export default defineManifest({
     ),
     write(
       "sites.ship",
-      "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
+      "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address or the failed step and fix",
       {
         in: {
           siteId: t.opt(id.site),
@@ -418,7 +494,7 @@ export default defineManifest({
     ),
     read(
       "sites.webhook_get",
-      "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
+      "A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again",
       {
         in: deployTarget,
         out: hookOut,
@@ -445,7 +521,7 @@ export default defineManifest({
         errors: ["validation.precondition_failed", "validation.bad_input"],
       },
     ),
-    write("sites.deploy_cancel", "Cancel the running deploy. The last good build keeps serving", {
+    write("sites.deploy_cancel", "Cancel the running deploy; the last good build keeps serving", {
       in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
       out: { deployment: dep },
       on: ["site", "/siteId"],
@@ -460,7 +536,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read("sites.previews", "List previews (one per branch and pull request, on their own staging address)", {
+    read("sites.previews", "List previews (one per branch and pull request, each at its address)", {
       in: deployTarget,
       out: { previews: t.arr(dep) },
       on: ["site", "/siteId"],
@@ -468,7 +544,7 @@ export default defineManifest({
     }),
     write(
       "sites.preview_rebuild",
-      "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
+      "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -481,7 +557,7 @@ export default defineManifest({
     ),
     write(
       "sites.preview_promote",
-      "Serve a preview's build as production without a rebuild, with the production variables",
+      "Serve a preview's build as production without a rebuild, with production variables",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -512,7 +588,7 @@ export default defineManifest({
       tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
-    outward("sites.rollback", "Serve an earlier build again (the previous, or the one named). Nothing is built", {
+    outward("sites.rollback", "Serve an earlier build again (the previous or the one named); nothing is built", {
       in: { siteId: id.site, toDeploymentId: t.opt(t.id("dpl")) },
       out: { deployment: dep },
       on: ["site", "/siteId"],
@@ -531,7 +607,7 @@ export default defineManifest({
       tool: "sites",
       level: "edit",
     }),
-    read("sites.tables", "List site tables of a site", {
+    read("sites.tables", "List a site's tables", {
       in: deployTarget,
       out: { tables: t.arr(t.obj({ type: t.str(), rows: t.int() })) },
       on: ["site", "/siteId"],
@@ -549,7 +625,7 @@ export default defineManifest({
     }),
     write(
       "sites.env_set",
-      "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
+      "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all",
       {
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
@@ -563,7 +639,7 @@ export default defineManifest({
     ),
     read(
       "sites.env_list",
-      "A site's env var names and sources (never values), and names the app looks for that are not set",
+      "A site's env var names and sources (never values), plus names the app wants that are unset",
       {
         in: deployTarget,
         out: {
@@ -583,7 +659,7 @@ export default defineManifest({
         tool: "sites",
       },
     ),
-    read("sites.domains_get", "Site domains with the DNS check and the Caddy certificate state", {
+    read("sites.domains_get", "A site's domains with DNS check and certificate state", {
       in: deployTarget,
       out: {
         domains: t.arr(t.obj({ domain: t.str(), dnsOk: t.bool(), certificate: t.enm("pending", "issued", "failed") })),
@@ -609,7 +685,7 @@ export default defineManifest({
       tool: "sites",
       level: "edit",
     }),
-    read("sites.domain_check", "The state of a custom domain: waiting for DNS, issuing the certificate, or live", {
+    read("sites.domain_check", "A custom domain's state: waiting for DNS, issuing the certificate, or live", {
       in: { siteId: id.site, domain: t.str() },
       out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
       on: ["site", "/siteId"],
@@ -665,20 +741,16 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write(
-      "sites.artifact_open",
-      "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
-      {
-        in: { artifactId: id.site },
-        out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts(), checked: t.opt(t.bool()) },
-        on: ["site", "/artifactId"],
-        level: "view",
-        tool: "sites",
-      },
-    ),
+    write("sites.artifact_open", "A short-lived address that opens an artifact for the asker", {
+      in: { artifactId: id.site },
+      out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts(), checked: t.opt(t.bool()) },
+      on: ["site", "/artifactId"],
+      level: "view",
+      tool: "sites",
+    }),
     write(
       "sites.artifact_thumb_set",
-      "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
+      "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       {
         in: { artifactId: id.site, thumb: t.str() },
         out: { set: t.bool() },
@@ -690,7 +762,7 @@ export default defineManifest({
     ),
     write(
       "sites.chat_viewing",
-      "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
+      "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       {
         in: { threadId: id.thread },
         out: { ok: t.bool() },
@@ -700,18 +772,14 @@ export default defineManifest({
         offline: "online",
       },
     ),
-    write(
-      "sites.staging_password_set",
-      "Choose the sealed Vault key that protects staging (shared across a site previews)",
-      {
-        in: { siteId: id.site, vaultHandle: id.handle },
-        out: { ok: t.bool() },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        tool: "sites",
-      },
-    ),
-    read("sites.service_identity", "The site service identity and its grants (capped by the owner)", {
+    write("sites.staging_password_set", "Choose the sealed Vault key protecting staging (shared by its previews)", {
+      in: { siteId: id.site, vaultHandle: id.handle },
+      out: { ok: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      tool: "sites",
+    }),
+    read("sites.service_identity", "The site's service identity and grants (capped by the owner)", {
       in: deployTarget,
       out: { principal: t.str(), grants: t.arr(t.obj({ resource: t.str(), level: t.str() })) },
       on: ["site", "/siteId"],
@@ -740,29 +808,292 @@ export default defineManifest({
       tool: "sites",
     }),
     read(
-      "sites.plan",
-      "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
+      "sites.logs_read",
+      "A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content",
       {
-        in: { siteId: t.opt(id.site), source: t.opt(source) },
-        out: {
-          kind: t.str(),
-          note: t.str(),
-          build: t.opt(t.str()),
-          start: t.opt(t.str()),
-          port: t.opt(t.int()),
-          needs: t.arr(t.enm("postgres", "redis")),
-          env: t.arr(t.str()),
-          from: t.arr(t.str()),
+        in: {
+          siteId: id.site,
+          q: t.opt(t.str()),
+          source: t.opt(t.enm("app", "requests", "build", "jobs")),
+          scope: t.opt(
+            t.str({ description: "A deployment, service or job run id from the scopes of an earlier read" }),
+          ),
+          level: t.opt(t.enm("error", "warn", "info")),
+          from: t.opt(t.ts()),
+          after: t.opt(t.int({ description: "lastSeq of the read before" })),
+          limit: t.opt(t.int({ minimum: 1, maximum: 1000 })),
         },
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        out: {
+          lines: t.arr(logLine),
+          leftOut: t.opt(t.str({ description: "Said when older lines of the asked scope fell off the cap" })),
+          lastSeq: t.int(),
+          scopes: t.arr(logScope),
+        },
+        on: ["site", "/siteId"],
         perm: "sites.deploy",
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
+      },
+    ),
+    read(
+      "sites.metrics",
+      "CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits",
+      {
+        in: { siteId: id.site, window: t.opt(t.enm("1h", "6h", "24h")) },
+        out: {
+          window: t.enm("1h", "6h", "24h"),
+          samples: t.arr(t.opt(sample)),
+          now: t.obj({
+            cpu: t.obj({ value: t.num(), of: t.num() }),
+            mem: t.obj({ valueMb: t.num(), ofMb: t.num() }),
+            requestsPerMin: t.int(),
+            p95: t.int(),
+            errorRate: t.num(),
+          }),
+          measured: t.bool(),
+          requests: t.bool(),
+        },
+        on: ["site", "/siteId"],
+      },
+    ),
+    read(
+      "sites.jobs_list",
+      "A site's scheduled jobs (a command run in its own image on a cron schedule) and its workers (processes that stay up), with state and last run",
+      {
+        in: { siteId: id.site },
+        out: { jobs: t.arr(jobRow), services: t.arr(serviceRow) },
+        on: ["site", "/siteId"],
       },
     ),
     create(
+      "sites.job_create",
+      "Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables",
+      {
+        in: {
+          siteId: id.site,
+          name: t.str(),
+          schedule: t.str({ examples: ["0 2 * * *", "*/15 * * * *", "@daily"] }),
+          command: t.str({ examples: ["node scripts/sync-stock.js"] }),
+          zone: t.opt(
+            t.str({
+              description: "The time zone the schedule is read in (default UTC)",
+              examples: ["America/New_York"],
+            }),
+          ),
+          timeoutSec: t.opt(t.int({ minimum: 5, maximum: 21600 })),
+        },
+        out: { job: jobRow },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "edit",
+        audit: "sensitive",
+        gate: { act: "deploy", when: "sites.run_gate(input)" },
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write(
+      "sites.job_update",
+      "Change a scheduled job: its name, schedule, command, time zone, time limit, or pause and resume it. Resuming does not run what was missed",
+      {
+        in: {
+          siteId: id.site,
+          jobId: t.id("job"),
+          name: t.opt(t.str()),
+          schedule: t.opt(t.str()),
+          command: t.opt(t.str()),
+          zone: t.opt(t.str()),
+          timeoutSec: t.opt(t.int({ minimum: 5, maximum: 21600 })),
+          enabled: t.opt(t.bool()),
+        },
+        out: { job: jobRow },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "edit",
+        audit: "sensitive",
+        gate: { act: "deploy", when: "sites.run_update_gate(input)" },
+      },
+    ),
+    write("sites.job_delete", "Delete a scheduled job and its history; a run that is going is stopped", {
+      in: { siteId: id.site, jobId: t.id("job") },
+      out: { removed: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+    }),
+    write("sites.job_run", "Run a scheduled job now (refused while one of its runs goes)", {
+      in: { siteId: id.site, jobId: t.id("job") },
+      out: { run: jobRun },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      errors: ["validation.precondition_failed"],
+    }),
+    write("sites.job_cancel", "Stop a job run that is queued or going", {
+      in: { siteId: id.site, runId: t.id("jrx") },
+      out: { run: jobRun },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      errors: ["validation.precondition_failed"],
+    }),
+    read(
+      "sites.job_runs",
+      "The newest runs of a job (up to 50): when, how long, how it ended and one sentence for any end that is not a success. Its output is in sites_logs_read with source jobs and the run's id as scope",
+      {
+        in: { siteId: id.site, jobId: t.id("job"), limit: t.opt(t.int({ minimum: 1, maximum: 50 })) },
+        out: { runs: t.arr(jobRun) },
+        on: ["site", "/siteId"],
+      },
+    ),
+    read(
+      "sites.services_list",
+      "A site's workers: processes of its image that stay up without a port (a queue consumer, a bot). A crashing one waits longer each time and stops for good after eight crashes in ten minutes",
+      {
+        in: { siteId: id.site },
+        out: { services: t.arr(serviceRow) },
+        on: ["site", "/siteId"],
+      },
+    ),
+    create(
+      "sites.service_add",
+      "Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy",
+      {
+        in: {
+          siteId: id.site,
+          name: t.str(),
+          command: t.str({ examples: ["node worker.js", "python -m app.worker"] }),
+          kind: t.opt(t.enm("worker")),
+        },
+        out: { service: serviceRow },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "edit",
+        audit: "sensitive",
+        gate: { act: "deploy", when: "sites.run_gate(input)" },
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("sites.service_restart", "Restart a worker, clearing a crash loop that stopped it", {
+      in: { siteId: id.site, serviceId: t.id("wkr") },
+      out: { service: serviceRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+    }),
+    write("sites.service_stop", "Stop a worker and keep it stopped until it is restarted", {
+      in: { siteId: id.site, serviceId: t.id("wkr") },
+      out: { service: serviceRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+    }),
+    write("sites.service_remove", "Remove a worker", {
+      in: { siteId: id.site, serviceId: t.id("wkr") },
+      out: { removed: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+    }),
+    read("sites.backups_list", "The site's database backups and the database size", {
+      in: { siteId: id.site },
+      out: {
+        backups: t.arr(backupRow),
+        hasDatabase: t.bool(),
+        database: t.opt(
+          t.obj({
+            bytes: t.opt(t.int()),
+            replacedBytes: t.opt(
+              t.int({
+                description: "The database a restore replaced, kept until the backup made before the restore expires",
+              }),
+            ),
+          }),
+        ),
+      },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+    }),
+    write("sites.backup_create", "Back up the site's Postgres now; read sites_backups_list to see it finish", {
+      in: { siteId: id.site, scheduled: t.opt(t.bool({ description: "Made by the daily schedule, not a person" })) },
+      out: { backup: backupRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      errors: ["validation.precondition_failed"],
+    }),
+    read(
+      "sites.backup_download",
+      "Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site",
+      {
+        in: { siteId: id.site, backupId: t.id("bkp") },
+        out: { files: t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) })), note: t.opt(t.str()) },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("sites.backup_delete", "Delete a backup and its file", {
+      in: { siteId: id.site, backupId: t.id("bkp") },
+      out: { removed: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      errors: ["validation.precondition_failed"],
+    }),
+    write("sites.backup_pin", "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again", {
+      in: { siteId: id.site, backupId: t.id("bkp"), pinned: t.opt(t.bool()) },
+      out: { backup: backupRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+    }),
+    write(
+      "sites.backup_restore",
+      "Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked",
+      {
+        in: { siteId: id.site, backupId: t.id("bkp") },
+        out: { ok: t.bool(), detail: t.str() },
+        on: ["site", "/siteId"],
+        perm: "sites.deploy",
+        level: "manage",
+        risk: "high",
+        audit: "always",
+        gate: { act: "delete", when: "actor.kind != 'person'" },
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("sites.ops", "Site ops: logs, metrics, jobs, workers, backups; read the sites skill", {
+      in: { siteId: id.site, action: t.str(), id: t.opt(t.str()), args: t.opt(t.rec()) },
+      out: { result: t.rec() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      level: "edit",
+      audit: "sensitive",
+      gate: {
+        act: "deploy",
+        when: "sites.ops_gate(input)",
+      },
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
+    read("sites.plan", "What a deploy of this source would do: build, start, port, databases, env names it needs", {
+      in: { siteId: t.opt(id.site), source: t.opt(source) },
+      out: {
+        kind: t.str(),
+        note: t.str(),
+        build: t.opt(t.str()),
+        start: t.opt(t.str()),
+        port: t.opt(t.int()),
+        needs: t.arr(t.enm("postgres", "redis")),
+        env: t.arr(t.str()),
+        from: t.arr(t.str()),
+      },
+      gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+      perm: "sites.deploy",
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
+    create(
       "sites.addon_add",
-      "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
+      "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
       {
         in: { siteId: id.site, kind: t.enm("postgres", "redis") },
         out: { addon },
@@ -786,7 +1117,7 @@ export default defineManifest({
     }),
     write(
       "sites.db_import",
-      "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
+      "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       {
         in: { siteId: id.site, fileId: t.opt(id.file), fromHandle: t.opt(id.handle) },
         out: { ok: t.bool(), detail: t.str() },

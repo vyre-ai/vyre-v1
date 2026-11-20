@@ -1,6 +1,6 @@
 # sites.create
 
-Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed
+Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed
 
 | | |
 |---|---|

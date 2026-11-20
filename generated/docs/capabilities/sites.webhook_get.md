@@ -1,6 +1,6 @@
 # sites.webhook_get
 
-GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again
+A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again
 
 | | |
 |---|---|

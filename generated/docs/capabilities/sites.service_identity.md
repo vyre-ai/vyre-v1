@@ -1,6 +1,6 @@
 # sites.service_identity
 
-The site service identity and its grants (capped by the owner)
+The site's service identity and grants (capped by the owner)
 
 | | |
 |---|---|

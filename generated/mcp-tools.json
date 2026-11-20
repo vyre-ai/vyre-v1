@@ -57270,7 +57270,7 @@
       "blocks": [],
       "cap": "sites.addon_add",
       "deferred": false,
-      "description": "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
+      "description": "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57346,7 +57346,7 @@
       "blocks": [],
       "cap": "sites.artifact_open",
       "deferred": false,
-      "description": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "description": "A short-lived address that opens an artifact for the asker",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57372,7 +57372,7 @@
       "blocks": [],
       "cap": "sites.artifact_thumb_set",
       "deferred": false,
-      "description": "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
+      "description": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57402,7 +57402,7 @@
       "blocks": [],
       "cap": "sites.build",
       "deferred": false,
-      "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
+      "description": "Build the site from its repo (the agent runs in it); test, verify",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57431,7 +57431,7 @@
       "blocks": [],
       "cap": "sites.chat_viewing",
       "deferred": false,
-      "description": "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
+      "description": "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57457,7 +57457,7 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
+      "description": "Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57594,7 +57594,7 @@
       "blocks": [],
       "cap": "sites.db_import",
       "deferred": false,
-      "description": "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
+      "description": "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57660,7 +57660,7 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
+      "description": "Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57736,7 +57736,7 @@
       "blocks": [],
       "cap": "sites.deploy_cancel",
       "deferred": false,
-      "description": "Cancel the running deploy. The last good build keeps serving",
+      "description": "Cancel the running deploy; the last good build keeps serving",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57841,7 +57841,7 @@
       "blocks": [],
       "cap": "sites.domain_check",
       "deferred": false,
-      "description": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "description": "A custom domain's state: waiting for DNS, issuing the certificate, or live",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57904,7 +57904,7 @@
       "blocks": [],
       "cap": "sites.domains_get",
       "deferred": false,
-      "description": "Site domains with the DNS check and the Caddy certificate state",
+      "description": "A site's domains with DNS check and certificate state",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57930,7 +57930,7 @@
       "blocks": [],
       "cap": "sites.env_list",
       "deferred": false,
-      "description": "A site's env var names and sources (never values), and names the app looks for that are not set",
+      "description": "A site's env var names and sources (never values), plus names the app wants that are unset",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57956,7 +57956,7 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
+      "description": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58044,7 +58044,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
+      "description": "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -58059,7 +58059,7 @@
       "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List the sites and artifacts you can see, by section, kind, folder",
+      "description": "List sites and artifacts you can see, by section, kind, folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58142,9 +58142,46 @@
     },
     {
       "blocks": [],
+      "cap": "sites.ops",
+      "deferred": false,
+      "description": "Site ops: logs, metrics, jobs, workers, backups; read the sites skill",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "args": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "sites_ops",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
-      "description": "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
+      "description": "What a deploy of this source would do: build, start, port, databases, env names it needs",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58205,7 +58242,7 @@
       "blocks": [],
       "cap": "sites.preview_promote",
       "deferred": false,
-      "description": "Serve a preview's build as production without a rebuild, with the production variables",
+      "description": "Serve a preview's build as production without a rebuild, with production variables",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58238,7 +58275,7 @@
       "blocks": [],
       "cap": "sites.preview_rebuild",
       "deferred": false,
-      "description": "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
+      "description": "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58301,7 +58338,7 @@
       "blocks": [],
       "cap": "sites.previews",
       "deferred": false,
-      "description": "List previews (one per branch and pull request, on their own staging address)",
+      "description": "List previews (one per branch and pull request, each at its address)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58361,7 +58398,7 @@
       "blocks": [],
       "cap": "sites.publish",
       "deferred": false,
-      "description": "Serve a non-public site: space or private access, or a password on its own domain",
+      "description": "Serve a non-public site: space or private access, or a password on its domain",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58387,7 +58424,7 @@
       "blocks": [],
       "cap": "sites.rollback",
       "deferred": false,
-      "description": "Serve an earlier build again (the previous, or the one named). Nothing is built",
+      "description": "Serve an earlier build again (the previous or the one named); nothing is built",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -58428,7 +58465,7 @@
       "blocks": [],
       "cap": "sites.service_identity",
       "deferred": false,
-      "description": "The site service identity and its grants (capped by the owner)",
+      "description": "The site's service identity and grants (capped by the owner)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58454,7 +58491,7 @@
       "blocks": [],
       "cap": "sites.ship",
       "deferred": false,
-      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
+      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address or the failed step and fix",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58555,7 +58592,7 @@
       "blocks": [],
       "cap": "sites.staging_password_set",
       "deferred": false,
-      "description": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "description": "Choose the sealed Vault key protecting staging (shared by its previews)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58589,7 +58626,7 @@
       "blocks": [],
       "cap": "sites.status",
       "deferred": false,
-      "description": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "description": "Is the port answering? Where it runs, its address, what is wrong if not",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58732,7 +58769,7 @@
       "blocks": [],
       "cap": "sites.tables",
       "deferred": false,
-      "description": "List site tables of a site",
+      "description": "List a site's tables",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58886,7 +58923,7 @@
       "blocks": [],
       "cap": "sites.webhook_get",
       "deferred": false,
-      "description": "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
+      "description": "A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again",
       "effects": "read",
       "inputSchema": {
         "properties": {
