@@ -210,6 +210,30 @@ test(
         () => (document.querySelector("[data-testid=terminal-screen]") as HTMLElement).innerText,
       );
       assert.equal(shown.split("pasted-once-ok").length - 1, 2, "typed once: the line and its output, nothing twice");
+      // a long output scrolls with the wheel (and so the trackpad): the screen sits at the end, a wheel up moves it up, a wheel down brings it back
+      await page.keyboard.type("seq 1 300", { delay: 0 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        () =>
+          /\n300\n/.test(
+            (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+          ),
+        undefined,
+        { timeout: 15_000 },
+      );
+      const top = (): Promise<number> =>
+        page.evaluate(() => (document.querySelector("[data-testid=terminal-screen]") as HTMLElement).scrollTop);
+      const box = await page.getByTestId("terminal-screen").boundingBox();
+      await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+      const atEnd = await top();
+      await page.mouse.wheel(0, -800);
+      await page.waitForTimeout(400);
+      const up = await top();
+      assert.ok(up < atEnd, `a wheel up scrolls the screen up (${atEnd} to ${up})`);
+      await shoot(page, DIR, "xterm-scrolled");
+      await page.mouse.wheel(0, 3000);
+      await page.waitForTimeout(400);
+      assert.ok((await top()) > up, "a wheel down scrolls it back");
       await k.guard.check();
     } finally {
       await k.close();
