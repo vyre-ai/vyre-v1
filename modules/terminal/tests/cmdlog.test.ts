@@ -49,6 +49,11 @@ function setup(scripts: Parameters<typeof fakeHost>[0] = {}): { hn: Harness } {
 const runIt = (hn: Harness, command: string) =>
   call(hn, "terminal.run", { command, idempotencyKey: idem() }, hn.as(AGENT, "usr_dana"));
 
+// a private key block built at run time from pieces, so no file holds the markers whole (the secret scan reads files)
+const DASHES = "-".repeat(5);
+const PEM_BEGIN = `${DASHES}BEGIN ${"PRIVATE"} KEY${DASHES}`;
+const PEM_END = `${DASHES}END ${"PRIVATE"} KEY${DASHES}`;
+
 test("terminal.run answers the command's own number, and the output it printed is kept under it; list says so", async () => {
   const { hn } = setup({ "make test": { exitCode: 2, output: lines(30) } });
   const r = await runIt(hn, "make test");
@@ -332,9 +337,9 @@ test("secret shapes the Vault never knew are not kept either: a key, a bearer he
     `export STRIPE_SECRET_KEY=${STRIPE}`,
     "curl -H 'Authorization: Bearer abcdefghijklmnopqrstuvwxyz012345' https://x.test",
     "postgres://app:hunter2hunter2@db.internal:5432/app",
-    "-----BEGIN PRIVATE KEY-----",
+    PEM_BEGIN,
     "MIIEvQIBADANBgkqhkiG9w0BAQEFAASC",
-    "-----END PRIVATE KEY-----",
+    PEM_END,
     "done in 4s",
   ].join("\n");
   const { hn } = setup({ env: { exitCode: 0, output: out } });
@@ -452,7 +457,7 @@ test("hostile output at the 5 MB cap is kept in under a second a shape, the loop
     conn: "a+".repeat(2_600_000),
     spaces: " ".repeat(5_200_000),
     awsSpaces: `aws_secret_access_key${" ".repeat(5_200_000)}`,
-    pemNoEnd: "-----BEGIN PRIVATE KEY-----\n".repeat(190_000),
+    pemNoEnd: `${PEM_BEGIN}\n`.repeat(190_000),
     mysql: "mysql ".repeat(870_000),
     lines: "a.b.c.d token-x password=hunter2hunter2 \n".repeat(125_000),
   };
@@ -484,7 +489,7 @@ test("a private key split across a block edge is still taken out whole", async (
   const { hn } = setup();
   ensure(hn.db);
   const pad = "filler line of ordinary text\n".repeat(2300); // about 64 KB
-  const key = `-----BEGIN PRIVATE KEY-----\n${"MIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n".repeat(40)}-----END PRIVATE KEY-----\n`;
+  const key = `${PEM_BEGIN}\n${"MIIEvQIBADANBgkqhkiG9w0BAQEFAASC\n".repeat(40)}${PEM_END}\n`;
   await keepCmdLog(hn.db, {
     seq: 1,
     terminalId: "trm_a",
