@@ -73,3 +73,52 @@ test("every way an AI account can arrive asks the waiting check-in again: a past
   ])
     assert.ok(impl.consumers["goals.cleared"]!.on.includes(name), `goals.cleared listens to ${name}`);
 });
+
+const lines = (w: World, goalId: string): string[] =>
+  (
+    w.db.all(
+      "SELECT text FROM goals_activity WHERE goal_id = ? AND kind = 'wake' AND text LIKE '%asked to check in again%'",
+      goalId,
+    ) as { text: string }[]
+  ).map((r) => r.text);
+const failedGoal = async () => {
+  const w = world({ count: 10 });
+  const { goal } = await w.call("goals.create", labGoal({ plan: [step("a", "Remind Lab 7")] }));
+  await claim(w, w.woken()[0]!);
+  await w.turn("turn.failed", { turnId: "trn_a", threadId: goal.threadId, agentId: LEAD, code: "host_lost" });
+  return { w, goal };
+};
+
+test("the activity line says only what is true for the event: an AI account was connected, or a key was saved; an item that is not an account pulls nothing forward", async () => {
+  const cases: [string, Record<string, unknown>, RegExp | null][] = [
+    ["provider.added", { providerId: "prv_1", connection: "subscription" }, /an AI account was connected/],
+    ["engine.subscription_share_changed", {}, /an AI account was connected/],
+    ["vault.item_created", { itemId: "v", kind: "ai_subscription" }, /an AI account was connected/],
+    ["vault.item_created", { itemId: "v", kind: "api_key" }, /a key was saved, so it tried again/],
+    [
+      "vault.item_updated",
+      { itemId: "v", fieldsChanged: ["token"], settingsChanged: [] },
+      /a key was saved, so it tried again/,
+    ],
+    ["vault.item_created", { itemId: "v", kind: "login" }, null],
+    ["vault.item_created", { itemId: "v", kind: "card" }, null],
+    ["vault.item_created", { itemId: "v", kind: "note" }, null],
+  ];
+  for (const [name, payload, words] of cases) {
+    const { w, goal } = await failedGoal();
+    const before = w.woken().length;
+    const out = await onCleared(w.ctx(host), { name, payload });
+    if (words === null) {
+      assert.deepEqual(out, [], `${name} ${JSON.stringify(payload)} is not an account`);
+      assert.equal(w.woken().length, before);
+      assert.deepEqual(lines(w, goal.id), []);
+    } else {
+      assert.deepEqual(out, [goal.id], name);
+      assert.equal(w.woken().length, before + 1);
+      const said = lines(w, goal.id);
+      assert.equal(said.length, 1, "one line");
+      assert.match(said[0]!, words, `${name}: ${said[0]}`);
+      assert.doesNotMatch(said[0]!, /AI account was saved/, "the old claim is gone");
+    }
+  }
+});

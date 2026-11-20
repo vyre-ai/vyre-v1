@@ -234,3 +234,14 @@ test("the pause item and its chat line are keyed by routine and pause time: the 
     "the chat line carries the same key, so a repeat is the same line",
   );
 });
+
+test("a routine that paused itself starts again when an AI account is connected or shared, not only when a Vault item is saved", () => {
+  const on = (consumers["agents.routine_resume"] as { on: string[] }).on;
+  for (const name of [
+    "vault.item_updated",
+    "vault.item_created",
+    "provider.added",
+    "engine.subscription_share_changed",
+  ])
+    assert.ok(on.includes(name), `agents.routine_resume listens to ${name}`);
+});
