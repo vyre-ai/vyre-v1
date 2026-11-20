@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { probeDirectSpace, spaceHealth } from "./space-probe.ts";
+import { probeDirectSpace, spaceHealth, spaceIdAt } from "./space-probe.ts";
 
 const routes = async () => [
   { method: "POST", path: "/v1/identity/sign_in_options", cap: "identity.sign_in_options", v: 1 },
