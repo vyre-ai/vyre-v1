@@ -250,6 +250,11 @@ test("a chat whose record's name cannot be read still says records are shared, i
   }
 });
 
+test("a record whose name is read keeps the exact words: records in its title", async () => {
+  const { line } = await recordFooter(() => ({ hit: { kind: "record", itemId: "rec_x", title: "Client file" } }));
+  assert.match(line, /and records in Client file\.$/);
+});
+
 test("a chat with no linked record says nothing about records", async () => {
   const { line } = await recordFooter(() => ({}), true);
   assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
