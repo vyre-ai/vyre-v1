@@ -76,7 +76,7 @@ export default defineManifest({
   capabilities: [
     outward(
       "esign.send",
-      "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
+      "Send a PDF for signature",
       {
         in: {
           fileId: id.file,

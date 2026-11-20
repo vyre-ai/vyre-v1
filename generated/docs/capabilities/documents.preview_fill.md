@@ -1,6 +1,6 @@
 # documents.preview_fill
 
-Show the filled document as an excerpt with every filled value marked, and what is missing or unused
+Preview a filled template: what is missing or unused
 
 | | |
 |---|---|

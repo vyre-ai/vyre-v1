@@ -1,6 +1,6 @@
 # documents.mark_template
 
-Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it
+Mark a .docx or .md file as a template, or unmark it
 
 | | |
 |---|---|

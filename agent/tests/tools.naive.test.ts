@@ -141,3 +141,13 @@ test("every tool's first call passes: no key, no unknown input, no id shape unsh
   console.log(`first calls: ${loaded.catalog.all.length} tools, ${pass} first calls pass`);
   assert.deepEqual(failures, []);
 });
+
+test("documents_make_pdf is an agent tool, and the naive first call (a file and a folder) is what it takes", () => {
+  const tool = loaded.catalog.byName("documents_make_pdf");
+  assert.ok(tool, "offered to agents");
+  assert.deepEqual(golden["documents_make_pdf"], { fileId: "fil_a1b2c3", intoFolderId: "fld_a1b2c3" });
+  assert.deepEqual((tool.inputSchema as { required?: string[] }).required?.filter((k) => k !== "idempotencyKey").sort(), [
+    "fileId",
+    "intoFolderId",
+  ]);
+});

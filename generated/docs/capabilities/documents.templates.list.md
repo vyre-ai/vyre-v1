@@ -1,6 +1,6 @@
 # documents.templates.list
 
-List files marked as templates the caller can open
+List templates
 
 | | |
 |---|---|

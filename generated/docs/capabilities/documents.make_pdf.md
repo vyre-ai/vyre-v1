@@ -1,6 +1,6 @@
 # documents.make_pdf
 
-Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named
+Make a PDF of a .md document in a folder; names any blank left
 
 | | |
 |---|---|
@@ -17,7 +17,7 @@ Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/documents/make_pdf |
-| MCP tool | none |
+| MCP tool | documents_make_pdf (files) |
 | CLI | none |
 | Emits | file.created, file.version_added |
 

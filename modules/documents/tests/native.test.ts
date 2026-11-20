@@ -136,6 +136,16 @@ test("a Vyre document fills to Markdown to go on editing, and Word asks for Word
   );
 });
 
+test("an agent's first make_pdf call on a plain .md works: a file and a folder is all it needs, no tags, no key, no name", async () => {
+  const w = world();
+  const plain = w.add("Memo.md", enc("# Memo\n\nThe office is closed on Friday.\n"));
+  const out = await handlers["documents.make_pdf"](w.ctx, { fileId: plain, intoFolderId: FOLDER });
+  assert.ok(isPdf(bytesOf(w, out.file.fileId)), "a real PDF");
+  assert.equal(out.file.name, "Memo.pdf");
+  assert.ok(out.pages >= 1);
+  assert.deepEqual(out.signers ?? [], [], "no roles, none claimed");
+});
+
 test("a PDF of a finished document is made beside it; a blank still in the text stops it and is named", async () => {
   const w = world();
   const done = w.add("Letter.md", enc("# Letter\n\nDear Imran,\n\nWelcome.\n\n{sign:client}\n"));

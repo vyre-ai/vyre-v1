@@ -1,6 +1,6 @@
 # documents.make
 
-Make a document for a record from a template; answers the file and what is missing
+Make a document for a record from a template
 
 | | |
 |---|---|

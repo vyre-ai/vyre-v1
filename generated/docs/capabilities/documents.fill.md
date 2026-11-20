@@ -1,6 +1,6 @@
 # documents.fill
 
-Fill a template into a new file in a folder; missing required fields stop the fill and are listed
+Fill a template into a new file in a folder
 
 | | |
 |---|---|
