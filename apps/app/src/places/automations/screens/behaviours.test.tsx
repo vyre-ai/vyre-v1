@@ -32,12 +32,15 @@ test("Test tries the Automation on a real past event and names it in the bar", a
   const { s, root } = await open("aut_lead");
   await press(find(root, "sv-test"));
   await flush();
+  // the pane lists what really happened; one press tries the Automation on it
+  await press(find(root, "row-tp-try-evt_past1"));
+  await flush();
   const t = caps(s, "automations.test");
   assert.equal(t.length, 1);
-  const input = t[0]!.input as { automationId: string; sample?: unknown; eventRunId?: string };
+  const input = t[0]!.input as { automationId: string; sample?: unknown; eventId?: string };
   assert.equal(input.automationId, "aut_lead");
   assert.equal(input.sample, undefined, "no empty sample");
-  assert.equal(input.eventRunId, "run_past1", "the last real event");
+  assert.equal(input.eventId, "evt_past1", "the thing that really happened");
   assert.match(textOf(root), /Test with Sam Reyes/);
   assert.match(textOf(root), /The test sent nothing/);
 });
@@ -90,6 +93,8 @@ test("Test shows each step's real values in words and never Not reached for a st
   );
   await flush();
   await press(find(root, "sv-test"));
+  await flush();
+  await press(find(root, "row-tp-try-evt_past1"));
   await new Promise((r) => setTimeout(r, 300));
   await flush();
   const text = textOf(root);

@@ -51,6 +51,11 @@ type Out = {
     syncedFrom?: string;
     attribution?: boolean;
     retention?: string;
+    card?: {
+      preset: "simple" | "detail" | "visual";
+      fields: Array<string>;
+      mark?: boolean;
+    };
     fields: Array<{
         key: string;
         type: string;
@@ -92,6 +97,13 @@ type Out = {
   "output": {
     "type": {
       "attribution": true,
+      "card": {
+        "fields": [
+          "phone"
+        ],
+        "mark": true,
+        "preset": "simple"
+      },
       "fields": [
         {
           "default": {},

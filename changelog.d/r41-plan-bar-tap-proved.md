@@ -1,0 +1,1 @@
+On a phone, a quick tap on a Timeline bar opens the task, shown now by a real touch in the plan walk. The earlier "tap never arrives" was the walk hitting the assignee's avatar in the middle of a short bar: the avatar has its own pointer-down that stops the press and opens the assign menu, which is meant. A tap at the bar's edge, or on the task's name, opens it.

@@ -256,6 +256,20 @@ export function setDoneMeans(ai: DefNode["ai"], text: string): Ai {
   return withAi(ai, "doneMeans", lines.length > 0 ? lines : undefined);
 }
 
+/** The Space's skills the step is given, one name per line (at most five); a bullet in front is ignored. */
+export const skillsText = (ai: DefNode["ai"]): string => (ai?.skills ?? []).join("\n");
+export function setSkills(ai: DefNode["ai"], text: string): Ai {
+  const names = [
+    ...new Set(
+      text
+        .split(/[\n,]/)
+        .map((l) => l.replace(/^\s*[-*\u2022]\s*/, "").trim())
+        .filter((l) => l !== ""),
+    ),
+  ].slice(0, 5);
+  return withAi(ai, "skills", names.length > 0 ? names : undefined);
+}
+
 /** A task may take hours, so its time limit runs to a day; an answer's limit stays the engine's 30 minutes. */
 export function setTimeLimit(ai: DefNode["ai"], text: string, max: number): Edit<Ai> {
   const t = text.trim();

@@ -28,7 +28,7 @@ const rowIdOf = (root: Node): string => {
   const walk = (n: Node | string): void => {
     if (typeof n === "string" || found) return;
     const t = n.props["data-testid"] ?? n.props["testID"];
-    if (typeof t === "string" && t.startsWith("row-auto-")) found = t;
+    if (typeof t === "string" && t.startsWith("row-auto-aut_")) found = t; // an Automation row: the Journeys group above it has rows of its own
     (n.children ?? []).forEach(walk as never);
   };
   walk(root as never);

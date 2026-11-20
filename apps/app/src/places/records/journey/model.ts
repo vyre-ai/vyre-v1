@@ -87,15 +87,28 @@ export function gateOf(e: unknown): GateError | null {
 export function moveWords(e: unknown): string {
   const msg = e instanceof Error ? e.message.toLowerCase() : "";
   if (/required task|tasks? (are|is) not done|exit/.test(msg)) return "Finish the required tasks in this stage first.";
+  if (/changed first|version_conflict/.test(msg)) return "It changed first. Look at the card and try again.";
   if (/permission|denied|forbidden|not allowed/.test(msg)) return "You do not have permission to move this record.";
   if (/duplicate|already/.test(msg)) return "That record is already in this Journey.";
   return "Could not move it. Try again.";
 }
 
-export async function moveInJourney(call: Call, journeyId: string, row: RecordRow, stage: string): Promise<boolean> {
+export async function moveInJourney(
+  call: Call,
+  journeyId: string,
+  row: RecordRow,
+  stage: string,
+  expectedVersion?: number,
+): Promise<boolean> {
   if (row.fields["stage"] === stage) return false;
   try {
-    await call("journeys.move_stage", { journeyId, recordId: row.id, toStage: stage, reason: "Moved on the board" });
+    await call("journeys.move_stage", {
+      journeyId,
+      recordId: row.id,
+      toStage: stage,
+      reason: "Moved on the board",
+      ...(expectedVersion === undefined ? {} : { expectedVersion }),
+    });
   } catch (e) {
     throw gateOf(e) ?? new Error(moveWords(e));
   }

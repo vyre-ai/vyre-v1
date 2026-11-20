@@ -98,6 +98,7 @@ export function intentOfKey(key: string): string {
       "call_automation",
       "start_journey",
       "journeys.move_stage",
+      "journeys.values.set",
     ].includes(key)
   )
     return "logic";

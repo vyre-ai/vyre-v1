@@ -387,11 +387,16 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
     await unwatch();
     // a wake reads what the engine said by itself; any other turn starts clean (what was held was the engine's reply to a helper, not an answer to this)
     const woken = wake && attach;
+    // the last helper has ended and the engine answers it by itself (or is about to): until it has said so, what it says is not for the message written now
+    const selfWake = attach;
     attach = false;
     if (!woken) held.length = 0;
-    skipEnds = !woken && midTurn ? 1 : 0;
-    // The engine may be answering a helper's end by itself when this message is written: what it says before it echoes this message (--replay-user-messages) is that reply, not this turn
-    let beforeRead = !woken && a.id === "claude_code" && (open.size > 0 || midTurn);
+    // The engine may be answering a helper's end by itself when this message is written, or be about to (a model call takes seconds, and the last helper's end may be seen before any of its words): what it says
+    // before it echoes this message (--replay-user-messages) is that reply, not this turn
+    let beforeRead = !woken && a.id === "claude_code" && (open.size > 0 || midTurn || selfWake);
+    // The end of a reply the engine was part way through is skipped once: by the wait for the echo where there is one (it drops every end before it), by count where there is none. Both together skipped it twice,
+    // so the end of the person's own answer was taken for it and the turn went on reading until the next helper's reply ended (the very instant of a helper's end, under load)
+    skipEnds = !woken && midTurn && !beforeRead ? 1 : 0;
     midTurn = false;
     let r: Run | null = a.persistent && run !== null && run.alive ? run : null;
     if (r === null) r = await start();

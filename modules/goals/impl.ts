@@ -34,9 +34,18 @@ export const consumers = {
     on: ["turn.completed", "turn.failed"],
     run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onTurn(ctx, event),
   },
-  /** What may have cleared a held check-in: a turn of the lead ended well, or an AI sign-in was saved. The held wake-up is asked again, once. */
+  /**
+   * What may have cleared a held check-in: a turn of the lead ended well, or an AI account arrived. A pasted key, a subscription sign-in (by the browser or from a local file) and a Space key each emit provider.added
+   * (not vault.item_created, which the provider paths do not emit), and a person sharing their subscription with the Space makes an account available. The held or waiting wake-up is asked again, once.
+   */
   "goals.cleared": {
-    on: ["turn.completed", "vault.item_created", "vault.item_updated"],
+    on: [
+      "turn.completed",
+      "vault.item_created",
+      "vault.item_updated",
+      "provider.added",
+      "engine.subscription_share_changed",
+    ],
     run: (ctx: GoalsCtx, event: Ev): Promise<string[]> => onCleared(ctx, event),
   },
   /** A turn in a goal's chat parked on a person: the goal waits on them. */

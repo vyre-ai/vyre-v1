@@ -1,10 +1,10 @@
 // Erase one Run, or remove Runs and their step logs past retention (governance; P-CC_39). A Run's words live in its step log (input_json, output_json), its summary and its wait label, so a Run goes whole:
-// the row, the steps, the wait, the extra facts, the alert state, the trigger, the idempotency keys.
+// the row, the steps and their notes, the wait, the extra facts, the alert state, the trigger, the idempotency keys.
 // DECISION: retention removes only Runs that have ended (succeeded, failed or stopped) and ended before the cutoff, oldest first, one batch per call; a Run still queued, running or waiting is never purged.
 // DECISION: the Run module does not know about holds (they are governance's); governance checks the Run's subject and thread before it calls runs.erase, and the age purge reports no skipped count.
 import type { RunsCtx } from "../projections.ts";
 
-const TABLES = ["runs_steps", "runs_waits", "runs_extra", "runs_alerts", "runs_trigger"] as const;
+const TABLES = ["runs_steps", "runs_step_notes", "runs_waits", "runs_extra", "runs_alerts", "runs_trigger"] as const;
 const DEFAULT_LIMIT = 500;
 
 function removeRun(ctx: RunsCtx, id: string): void {

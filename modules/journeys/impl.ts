@@ -7,6 +7,16 @@ import type { JourneysCtx } from "./projections.ts";
 export { handlers };
 export { compileStartRule, moveTo } from "./handlers/stages.ts";
 export { planMigration } from "./handlers/migrate.ts";
+import { autoPipeline } from "./handlers/pipeline.ts";
+
+/** After the rc.41 upgrade the old Journeys move onto the pipeline model by themselves, one a minute (handlers/pipeline.ts). */
+export const periodic = {
+  "journeys.auto_pipeline": {
+    everyMs: 60_000,
+    immediate: true,
+    run: (ctx: JourneysCtx): Promise<string[]> => autoPipeline(ctx),
+  },
+};
 
 // ---- consumers ----
 

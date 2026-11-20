@@ -2865,6 +2865,7 @@ export type AutomationsCreateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -2938,6 +2939,7 @@ export type AutomationsCreateOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3059,6 +3061,7 @@ export type AutomationsDraftDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3145,6 +3148,7 @@ export type AutomationsDraftDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3212,6 +3216,7 @@ export type AutomationsDraftProposeIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3283,6 +3288,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3369,6 +3375,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3433,6 +3440,7 @@ export type AutomationsDraftProposeOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3503,6 +3511,7 @@ export type AutomationsDraftSaveIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -3575,6 +3584,7 @@ export type AutomationsDraftSaveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3661,6 +3671,7 @@ export type AutomationsDraftSaveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3862,6 +3873,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -3949,6 +3961,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4013,6 +4026,7 @@ export type AutomationsGetOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4229,6 +4243,7 @@ export type AutomationsListOut = {
         at: number;
       };
       failedRuns: number;
+      sentence?: string;
     }>;
   next?: string;
   total?: number;
@@ -4296,6 +4311,7 @@ export type AutomationsMakeLiveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4382,6 +4398,7 @@ export type AutomationsMakeLiveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4462,6 +4479,7 @@ export type AutomationsMakePersonalCopyOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4593,6 +4611,7 @@ export type AutomationsMoveOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4737,6 +4756,7 @@ export type AutomationsPackagesImportOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -4890,6 +4910,7 @@ export type AutomationsPromoteOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5004,6 +5025,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5090,6 +5112,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5154,6 +5177,7 @@ export type AutomationsProposalAcceptOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5234,6 +5258,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5320,6 +5345,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5384,6 +5410,7 @@ export type AutomationsProposalDiscardOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5447,6 +5474,24 @@ export type AutomationsReadLinkOut = {
     data: string;
     from: "image" | "icon";
   };
+};
+export type AutomationsReadinessIn = {
+  automationId?: string;
+  draft?: boolean;
+};
+export type AutomationsReadinessOut = {
+  blocked: Array<{
+      automationId?: string;
+      nodeId?: string;
+      short: string;
+      line: string;
+      button: "Connect" | "Fix";
+      fix: {
+        kind: "ai_account" | "mailbox" | "number" | "connection" | "file" | "step";
+        connector?: string;
+      };
+    }>;
+  sentence?: string;
 };
 export type AutomationsReplayIn = {
   automationId: string;
@@ -5520,6 +5565,7 @@ export type AutomationsRestoreVersionOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5686,6 +5732,7 @@ export type AutomationsSetEnabledOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5787,6 +5834,7 @@ export type AutomationsSetOwnerOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5824,6 +5872,29 @@ export type AutomationsSetOwnerOut = {
     updatedAt: number;
     runsAs?: string;
   };
+};
+export type AutomationsStageOffersIn = {
+  recordType: string;
+  stageField?: string;
+  stages: Array<string>;
+  members?: Array<string>;
+};
+export type AutomationsStageOffersOut = {
+  offers: Array<{
+      automationId: string;
+      name: string;
+      stage: string;
+      on: boolean;
+    }>;
+};
+export type AutomationsStepAskIn = {
+  act: "post";
+  threadId?: string;
+  text?: string;
+  idempotencyKey: string;
+};
+export type AutomationsStepAskOut = {
+  ok: boolean;
 };
 export type AutomationsStepsListIn = {
   category?: "data" | "send" | "ai" | "control" | "wait" | "code" | "sheet" | "sign" | "journey";
@@ -5930,6 +6001,7 @@ export type AutomationsTemplatesUseOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -5975,6 +6047,9 @@ export type AutomationsTestIn = {
   version?: number;
   draft?: boolean;
   eventRunId?: string;
+  eventId?: string;
+  recordId?: string;
+  recordType?: string;
 };
 export type AutomationsTestOut = {
   runId: string;
@@ -6079,6 +6154,7 @@ export type AutomationsUndeleteOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -6169,6 +6245,7 @@ export type AutomationsUpdateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -6240,6 +6317,7 @@ export type AutomationsUpdateOut = {
             };
             mode?: "answer" | "task";
             doneMeans?: Array<string>;
+            skills?: Array<string>;
           };
           askBeforeSending?: boolean;
         }>;
@@ -6327,6 +6405,7 @@ export type AutomationsValidateIn = {
           };
           mode?: "answer" | "task";
           doneMeans?: Array<string>;
+          skills?: Array<string>;
         };
         askBeforeSending?: boolean;
       }>;
@@ -6607,6 +6686,65 @@ export type AutomationsWebhookUrlRotateIn = {
 };
 export type AutomationsWebhookUrlRotateOut = {
   url: string;
+};
+export type AutomationsWhyNotIn = {
+  type: string;
+  recordId: string;
+  eventId?: string;
+};
+export type AutomationsWhyNotOut = {
+  record: {
+    id: string;
+    type?: string;
+    typeName?: string;
+    typePlural?: string;
+    title?: string;
+  };
+  changes: Array<{
+      eventId: string;
+      at: number;
+      line: string;
+      by?: string;
+    }>;
+  eventId?: string;
+  automations: Array<{
+      automationId: string;
+      name: string;
+      status: "on" | "off" | "draft" | "paused";
+      verdict: "not_started" | "stopped" | "failed" | "waiting" | "running" | "ran" | "off";
+      line: string;
+      checks: Array<{
+          ok: boolean;
+          line: string;
+          detail?: string;
+        }>;
+      runId?: string;
+    }>;
+};
+export type AutomationsWouldRunIn = {
+  automationId: string;
+  draft?: boolean;
+};
+export type AutomationsWouldRunOut = {
+  supported: boolean;
+  days: number;
+  n: number;
+  of: number;
+  capped: boolean;
+  what?: string;
+  noun?: string;
+  recordType?: string;
+  titleField?: string;
+  starts: Array<{
+      eventId: string;
+      at: number;
+      starts: boolean;
+      name: string;
+      change: string;
+      why?: string;
+      recordId?: string;
+      type?: string;
+    }>;
 };
 export type BackupConfigGetIn = Record<string, unknown>;
 export type BackupConfigGetOut = {
@@ -23795,6 +23933,16 @@ export type InvitesAcceptCreateAccountOut = {
     formerKey?: string;
   };
 };
+export type JourneysAdoptIn = {
+  journeyId: string;
+  cursor?: string;
+  limit?: number;
+};
+export type JourneysAdoptOut = {
+  adopted: number;
+  skipped: number;
+  next?: string;
+};
 export type JourneysAdvanceIn = {
   recordId: string;
 };
@@ -23857,6 +24005,14 @@ export type JourneysCreateIn = {
     filter?: unknown;
     enabled: boolean;
   };
+  mode?: "subject" | "pipeline";
+  useExisting?: boolean;
+  recordType?: string;
+  stageField?: string;
+  variables?: Array<{
+      key: string;
+      title: string;
+    }>;
   idempotencyKey: string;
 };
 export type JourneysCreateOut = {
@@ -23915,6 +24071,14 @@ export type JourneysCreateOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24035,6 +24199,14 @@ export type JourneysDesignOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24100,6 +24272,14 @@ export type JourneysGetOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24118,6 +24298,12 @@ export type JourneysListOut = {
       version: number;
       stages: number;
       inFlight: number;
+      mode?: "subject" | "migrating" | "pipeline";
+      variables?: Array<{
+          key: string;
+          title: string;
+        }>;
+      migrateNote?: string;
       updatedAt: number;
     }>;
   next?: string;
@@ -24132,11 +24318,26 @@ export type JourneysMigrateIn = {
 export type JourneysMigrateOut = {
   runId: string;
 };
+export type JourneysMigrationStateIn = {
+  journeyId: string;
+};
+export type JourneysMigrationStateOut = {
+  mode: "subject" | "migrating" | "pipeline";
+  total: number;
+  done: number;
+  failed: Array<{
+      recordId: string;
+      error: string;
+    }>;
+  states: unknown;
+  pending: number;
+};
 export type JourneysMoveStageIn = {
   journeyId: string;
   recordId: string;
   toStage: string;
   reason: string;
+  expectedVersion?: number;
 };
 export type JourneysMoveStageOut = {
   recordId: string;
@@ -24219,6 +24420,14 @@ export type JourneysRenameOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24295,6 +24504,14 @@ export type JourneysRulesSetOut = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -24309,6 +24526,13 @@ export type JourneysStageCountsOut = {
       count: number;
       overLimit: number;
     }>;
+};
+export type JourneysStageSinceIn = {
+  journeyId: string;
+  recordIds: Array<string>;
+};
+export type JourneysStageSinceOut = {
+  since: Record<string, unknown>;
 };
 export type JourneysStartIn = {
   journeyId: string;
@@ -24338,6 +24562,114 @@ export type JourneysTasksOut = {
       };
     }>;
 };
+export type JourneysTestPathIn = {
+  journeyId: string;
+  recordId?: string;
+};
+export type JourneysTestPathOut = {
+  runs: Array<{
+      stage: string;
+      automationId: string;
+      runId?: string;
+      error?: string;
+    }>;
+};
+export type JourneysToPipelineIn = {
+  journeyId: string;
+  stageField?: string;
+  useExisting?: boolean;
+};
+export type JourneysToPipelineOut = {
+  journey: {
+    id: string;
+    name: string;
+    subjectType: string;
+    recordType: string;
+    version: number;
+    stages: Array<{
+        key: string;
+        title: string;
+        order: number;
+        exit: {
+          requireTasks: boolean;
+          manualOnly?: boolean;
+        };
+        timeLimit?: {
+          hours: number;
+          escalateTo?: {
+            kind: "role" | "person";
+            id: string;
+          };
+        };
+        tasks: Array<{
+            key: string;
+            title: string;
+            description?: string;
+            kind?: "work" | "approve" | "review" | "answer" | "unblock" | "signature";
+            assigned: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            reviewer?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            approver?: {
+              kind: "person" | "agent" | "group" | "role" | "automation";
+              id: string;
+            };
+            required: boolean;
+            dueAfterHours?: number;
+            keyId?: string;
+            backupKeyId?: string;
+            doneByAutomation?: string;
+          }>;
+        automations: Array<string>;
+        final?: boolean;
+        onLeaving?: Array<string>;
+        makesProject?: boolean;
+      }>;
+    startRule?: {
+      event: string;
+      filter?: unknown;
+      enabled: boolean;
+    };
+    startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
+    inFlight: number;
+    createdAt: number;
+    updatedAt: number;
+  };
+  total: number;
+  done: number;
+  failed: Array<{
+      recordId: string;
+      error: string;
+    }>;
+  finished: boolean;
+};
+export type JourneysValuesGetIn = {
+  recordId: string;
+};
+export type JourneysValuesGetOut = {
+  values: Record<string, unknown>;
+};
+export type JourneysValuesSetIn = {
+  recordId: string;
+  key: string;
+  value: unknown;
+};
+export type JourneysValuesSetOut = {
+  recordId: string;
+  key: string;
+};
 export type JourneysVersionsIn = {
   journeyId: string;
 };
@@ -24349,6 +24681,32 @@ export type JourneysVersionsOut = {
       at: number;
       reason?: string;
       name?: string;
+    }>;
+};
+export type JourneysWhereIn = {
+  journeyId: string;
+  recordId: string;
+};
+export type JourneysWhereOut = {
+  journeyId: string;
+  recordId: string;
+  stage: string;
+  stageTitle: string;
+  enteredAt: number;
+  hoursIn: number;
+  completed: boolean;
+  limitHours?: number;
+  overByHours?: number;
+  thenAsks?: {
+    kind: "role" | "person";
+    id: string;
+  };
+  path: Array<{
+      key: string;
+      title: string;
+      state: "done" | "here" | "next";
+      final: boolean;
+      automations: Array<string>;
     }>;
 };
 export type KitsBuilderOpenIn = {
@@ -34791,6 +35149,7 @@ export type RecordsUpdateIn = {
   recordId: string;
   patch: Record<string, unknown>;
   baseVersion?: number;
+  quiet?: boolean;
 };
 export type RecordsUpdateOut = {
   record: {
@@ -36275,6 +36634,11 @@ export type SchemaDescribeOut = {
       syncedFrom?: string;
       attribution?: boolean;
       retention?: string;
+      card?: {
+        preset: "simple" | "detail" | "visual";
+        fields: Array<string>;
+        mark?: boolean;
+      };
       fields: Array<{
           key: string;
           type: string;
@@ -36501,6 +36865,11 @@ export type SchemaTypesGetOut = {
     syncedFrom?: string;
     attribution?: boolean;
     retention?: string;
+    card?: {
+      preset: "simple" | "detail" | "visual";
+      fields: Array<string>;
+      mark?: boolean;
+    };
     fields: Array<{
         key: string;
         type: string;
@@ -48548,6 +48917,7 @@ export interface CapMap {
   "automations.proposal.discard": { in: AutomationsProposalDiscardIn; out: AutomationsProposalDiscardOut };
   "automations.read_docs": { in: AutomationsReadDocsIn; out: AutomationsReadDocsOut };
   "automations.read_link": { in: AutomationsReadLinkIn; out: AutomationsReadLinkOut };
+  "automations.readiness": { in: AutomationsReadinessIn; out: AutomationsReadinessOut };
   "automations.replay": { in: AutomationsReplayIn; out: AutomationsReplayOut };
   "automations.restore_version": { in: AutomationsRestoreVersionIn; out: AutomationsRestoreVersionOut };
   "automations.retry": { in: AutomationsRetryIn; out: AutomationsRetryOut };
@@ -48557,6 +48927,8 @@ export interface CapMap {
   "automations.senders": { in: AutomationsSendersIn; out: AutomationsSendersOut };
   "automations.set_enabled": { in: AutomationsSetEnabledIn; out: AutomationsSetEnabledOut };
   "automations.set_owner": { in: AutomationsSetOwnerIn; out: AutomationsSetOwnerOut };
+  "automations.stage_offers": { in: AutomationsStageOffersIn; out: AutomationsStageOffersOut };
+  "automations.step_ask": { in: AutomationsStepAskIn; out: AutomationsStepAskOut };
   "automations.steps.list": { in: AutomationsStepsListIn; out: AutomationsStepsListOut };
   "automations.stop": { in: AutomationsStopIn; out: AutomationsStopOut };
   "automations.templates.list": { in: AutomationsTemplatesListIn; out: AutomationsTemplatesListOut };
@@ -48577,6 +48949,8 @@ export interface CapMap {
   "automations.watches.save": { in: AutomationsWatchesSaveIn; out: AutomationsWatchesSaveOut };
   "automations.webhook_url.get": { in: AutomationsWebhookUrlGetIn; out: AutomationsWebhookUrlGetOut };
   "automations.webhook_url.rotate": { in: AutomationsWebhookUrlRotateIn; out: AutomationsWebhookUrlRotateOut };
+  "automations.why_not": { in: AutomationsWhyNotIn; out: AutomationsWhyNotOut };
+  "automations.would_run": { in: AutomationsWouldRunIn; out: AutomationsWouldRunOut };
   "backup.config_get": { in: BackupConfigGetIn; out: BackupConfigGetOut };
   "backup.config_set": { in: BackupConfigSetIn; out: BackupConfigSetOut };
   "backup.delete": { in: BackupDeleteIn; out: BackupDeleteOut };
@@ -49483,6 +49857,7 @@ export interface CapMap {
   "install.list": { in: InstallListIn; out: InstallListOut };
   "install.remove": { in: InstallRemoveIn; out: InstallRemoveOut };
   "invites.accept_create_account": { in: InvitesAcceptCreateAccountIn; out: InvitesAcceptCreateAccountOut };
+  "journeys.adopt": { in: JourneysAdoptIn; out: JourneysAdoptOut };
   "journeys.advance": { in: JourneysAdvanceIn; out: JourneysAdvanceOut };
   "journeys.check_limits": { in: JourneysCheckLimitsIn; out: JourneysCheckLimitsOut };
   "journeys.create": { in: JourneysCreateIn; out: JourneysCreateOut };
@@ -49491,14 +49866,21 @@ export interface CapMap {
   "journeys.get": { in: JourneysGetIn; out: JourneysGetOut };
   "journeys.list": { in: JourneysListIn; out: JourneysListOut };
   "journeys.migrate": { in: JourneysMigrateIn; out: JourneysMigrateOut };
+  "journeys.migration_state": { in: JourneysMigrationStateIn; out: JourneysMigrationStateOut };
   "journeys.move_stage": { in: JourneysMoveStageIn; out: JourneysMoveStageOut };
   "journeys.preview_migrate": { in: JourneysPreviewMigrateIn; out: JourneysPreviewMigrateOut };
   "journeys.rename": { in: JourneysRenameIn; out: JourneysRenameOut };
   "journeys.rules.set": { in: JourneysRulesSetIn; out: JourneysRulesSetOut };
   "journeys.stage_counts": { in: JourneysStageCountsIn; out: JourneysStageCountsOut };
+  "journeys.stage_since": { in: JourneysStageSinceIn; out: JourneysStageSinceOut };
   "journeys.start": { in: JourneysStartIn; out: JourneysStartOut };
   "journeys.tasks": { in: JourneysTasksIn; out: JourneysTasksOut };
+  "journeys.test_path": { in: JourneysTestPathIn; out: JourneysTestPathOut };
+  "journeys.to_pipeline": { in: JourneysToPipelineIn; out: JourneysToPipelineOut };
+  "journeys.values.get": { in: JourneysValuesGetIn; out: JourneysValuesGetOut };
+  "journeys.values.set": { in: JourneysValuesSetIn; out: JourneysValuesSetOut };
   "journeys.versions": { in: JourneysVersionsIn; out: JourneysVersionsOut };
+  "journeys.where": { in: JourneysWhereIn; out: JourneysWhereOut };
   "kits.builder_open": { in: KitsBuilderOpenIn; out: KitsBuilderOpenOut };
   "kits.choose": { in: KitsChooseIn; out: KitsChooseOut };
   "kits.denials": { in: KitsDenialsIn; out: KitsDenialsOut };
@@ -53521,6 +53903,7 @@ export type RecordUpdatedPayload = {
   fields: Record<string, unknown>;
   prev: Record<string, unknown>;
   version: number;
+  quiet?: boolean;
 };
 export type RecordValueProposedPayload = {
   recordId: string;
@@ -54815,6 +55198,7 @@ export type VaultItemUpdatedPayload = {
   itemId: string;
   fieldsChanged: Array<string>;
   settingsChanged: Array<string>;
+  kind?: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
 };
 export type VaultRequestCanceledPayload = {
   requestId: string;

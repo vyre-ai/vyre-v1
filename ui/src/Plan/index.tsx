@@ -79,6 +79,8 @@ interface DragState {
   cw: number;
   rh: number;
   moved: boolean;
+  /** When the press began, for telling a tap from a drag. */
+  t0: number;
   deferred: boolean;
   src: { x: number; y: number };
 }
@@ -259,6 +261,10 @@ export function Plan(props: PlanProps): ReactElement {
   };
   // a phone has no double click and no modifier keys: one tap on a task opens it (a row of the list, the board's card or a name beside the timeline used to only select it)
   const phone = isPhoneWidth(useWindowDimensions().width);
+  // a touch screen: a phone width, or a coarse pointer (a tablet): the avatar on a bar or a calendar chip is only a picture there
+  const coarse =
+    phone ||
+    (typeof globalThis.matchMedia === "function" && globalThis.matchMedia("(pointer: coarse)").matches === true);
   const select = (id: string, mod: boolean, shift: boolean): void => {
     const r = clickSelect(order, sel, anchor, id, mod, shift);
     setSel(r.sel);
@@ -466,6 +472,7 @@ export function Plan(props: PlanProps): ReactElement {
       cw: wk ? wk.width / 7 : 1,
       rh: wk ? wk.height : 1,
       moved: false,
+      t0: e.timeStamp ?? Date.now(),
       deferred,
       src: mode === "link" ? sourcePoint(id) : { x: 0, y: 0 },
     };
@@ -505,7 +512,15 @@ export function Plan(props: PlanProps): ReactElement {
       setTmp(null);
       setBand(null);
       if (!D.moved) {
-        if (D.deferred) only(D.id);
+        // a phone's tap on a bar (its ends too) or a calendar chip: released within 300 ms and within 6 px of where it went down, with no drag started. Anything else stays a drag or a press.
+        if (
+          phone &&
+          mode !== "link" &&
+          (ev.timeStamp ?? Date.now()) - D.t0 <= 300 &&
+          Math.hypot(ev.clientX - D.x0, ev.clientY - D.y0) <= 6
+        )
+          open(D.id);
+        else if (D.deferred) only(D.id);
         return;
       }
       if (mode === "link") {
@@ -602,6 +617,7 @@ export function Plan(props: PlanProps): ReactElement {
   if (!web) return <NativeList items={items} />;
 
   const ctx: PlanCtx = {
+    coarse,
     today,
     width,
     filter,

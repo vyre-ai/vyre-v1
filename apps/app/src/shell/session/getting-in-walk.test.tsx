@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { act } from "react";
-import { installDom, find, flush, press, typeInto } from "../../onboarding/test-dom.ts";
+import { installDom, find, flush, press, textOf, typeInto } from "../../onboarding/test-dom.ts";
 import type { Node } from "../../../../../ui/src/testing/dom.ts";
 import { setQuietWaitsForTests } from "../../../../../client/src/gateway/find-space.ts";
 import { SessionGate } from "./SessionGate.tsx";
@@ -201,10 +201,16 @@ test("the real gate, 6 walks of 8 random steps: never a dead end, every Space st
         const gate = await mountGate();
         stop = gate.stop;
         const root = gate.root;
+        // wait until the screen has stopped changing (two looks in a row the same) instead of a fixed count of waits: the fake network answers at once, so most steps settle in three looks
         const settle = async (): Promise<void> => {
-          for (let i = 0; i < 6; i++) await flush();
-          await new Promise((res) => setTimeout(res, 5));
-          for (let i = 0; i < 3; i++) await flush();
+          let last = "";
+          let same = 0;
+          for (let look = 0; look < 14 && same < 2; look++) {
+            await flush();
+            const now = textOf(root);
+            same = now === last ? same + 1 : 0;
+            last = now;
+          }
         };
         const present = (id: string): Node | null => find(root, id);
         await settle();

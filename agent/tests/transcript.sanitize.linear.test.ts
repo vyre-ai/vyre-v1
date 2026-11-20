@@ -4,6 +4,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { redact } from "../src/transcript/index.ts";
+import { timeCpu, wallCeiling } from "../../testkit/src/cpu-time.ts";
 
 const j = (...p: string[]): string => p.join("");
 const BEG = (k: string): string => j("-----BEGIN ", k, "PRIVATE ", "KEY-----");
@@ -362,15 +363,11 @@ const SHAPES: Array<[string, string]> = [
 test("5 MB of each hostile shape takes well under a second in all (the quadratic patterns took 2 to 5 s at 100 KB)", () => {
   let total = 0;
   for (const [label, text] of SHAPES) {
-    // the best of two runs: a busy runner can stall one run, a quadratic pattern is slow in both
-    let best = Infinity;
-    for (let k = 0; k < 2; k += 1) {
-      const t0 = performance.now();
-      redact(text);
-      best = Math.min(best, performance.now() - t0);
-    }
-    if (SHAPES.findIndex(([l]) => l === label) < 4) total += best;
-    assert.ok(best < 700, `${label}: ${Math.round(best)} ms`);
+    // one run in CPU time: a busy runner stretches the clock, not the computation, and a quadratic pattern burns CPU every time
+    const { cpuMs, wallMs } = timeCpu(() => redact(text));
+    if (SHAPES.findIndex(([l]) => l === label) < 4) total += cpuMs;
+    assert.ok(cpuMs < 700, `${label}: ${Math.round(cpuMs)} ms of CPU`);
+    assert.ok(wallMs < wallCeiling(700), `${label}: ${Math.round(wallMs)} ms of wall time (hang guard)`);
   }
   assert.ok(total < 1000, `the four quadratic shapes together: ${Math.round(total)} ms`);
 });

@@ -4,6 +4,7 @@ import { probeIn } from "../../../lib/probe.ts";
 import { fillsThread, forAskerField } from "./fill.ts";
 import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
+import { shareRepeats } from "./share.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
 const EFFECT_RANK: Readonly<Record<Effects, number>> = { read: 0, write: 1, outward: 2 };
@@ -143,8 +144,10 @@ export function buildCatalog(
       ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
-  const byName = new Map(defs.map((d) => [d.name, d] as const));
-  return { all: defs, byName: (n) => byName.get(n) };
+  // a large object several tools take (a SyncSpec) is shown in full by the first and pointed at by the rest
+  const shared = shareRepeats(defs);
+  const byName = new Map(shared.map((d) => [d.name, d] as const));
+  return { all: shared, byName: (n) => byName.get(n) };
 }
 
 /** What a plain key request says once the connect card is on (rc.29): a service the person names goes to the card, not to a request. Added at read time, so the frozen description is the rc.27 one and a switch at 0 shows none. */

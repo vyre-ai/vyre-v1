@@ -4,7 +4,7 @@
 // DECISION: a migration is a Run of kind journey_migrate. It moves records one at a time and looks at the Run between records, so a stop ends it cleanly and the records already moved stay moved.
 import { byOrder, clean, emitJ, getJourney, inFlight, me, raise, saveRecord, stagesOf } from "../projections.ts";
 import type { Journey, JourneysCtx, JRecord, Stage } from "../projections.ts";
-import { moveTo } from "./stages.ts";
+import { moveTo, refuseWhileMigrating } from "./stages.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -69,6 +69,7 @@ export async function previewMigrate(ctx: JourneysCtx, input: In): Promise<unkno
 
 export async function migrate(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
+  refuseWhileMigrating(ctx, j);
   const p = planMigration(ctx, j, input.toVersion, input.stageMap, input.recordIds);
   if (p.blockers.length)
     raise(ctx, "validation.precondition_failed", p.blockers[0]!, { reason: "blocked", blockers: p.blockers });

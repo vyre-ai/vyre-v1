@@ -1,0 +1,1 @@
+A board's column heads show how many cards, against a limit you can set, the value of its cards, the stage's time limit and how many cards are late; each card shows its owner, its amount, how many days it has been in the stage (and how late), and how many of the fields its next stage needs are filled.

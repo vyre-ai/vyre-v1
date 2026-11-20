@@ -321,6 +321,7 @@ test("update sets and removes fields, re-seals with a new revision, and says whi
     itemId: id,
     fieldsChanged: ["api_key", "note", "username"],
     settingsChanged: [],
+    kind: "api_key",
   });
   assert.deepEqual((await reveal(h, id)).fields, [
     { key: "api_key", value: "rotated-value-777" },
@@ -352,6 +353,7 @@ test("update sets and removes fields, re-seals with a new revision, and says whi
     itemId: id,
     fieldsChanged: [],
     settingsChanged: ["name", "spaceOnly", "injectIntoDeployments", "rotateEveryDays"],
+    kind: "api_key",
   });
   assert.equal(
     out(out(await v.itemUpdate(h.ctx, { itemId: id, rotateEveryDays: null })).item).rotateEveryDays,

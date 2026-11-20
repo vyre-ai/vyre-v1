@@ -72,7 +72,7 @@ export async function mineSet(
     ctx.emit(
       "vault.item_updated",
       `vault_item/${id}`,
-      { itemId: id, fieldsChanged: fields.map((f) => f.key), settingsChanged: [] },
+      { itemId: id, fieldsChanged: fields.map((f) => f.key), settingsChanged: [], kind: "api_key" },
       { vis: "participants" },
     );
     return { itemId: id, handle: str(have, "handle") };
