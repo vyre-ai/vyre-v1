@@ -2702,15 +2702,17 @@ test("an id or handle the schema no longer pattern-checks is refused by its hand
       assert.ok(m.length > 10 && m.length < 300, m);
     };
     // a site id that is not one
-    for (const cap of [
-      "sites.get",
-      "sites.deploy",
-      "sites.env_list",
-      "sites.webhook_get",
-      "sites.deploy_cancel",
-      "sites.previews",
-    ])
-      plain(await bad(cap, { siteId: "not a site id" }));
+    // every live sites.* capability that takes a siteId (the ones with none are named here, so a new one has to be placed)
+    const noSiteId = new Set(["sites.create", "sites.ship", "sites.list", "sites.host", "sites.plan"]);
+    const live = Object.keys(all).filter((k) => k.startsWith("sites.") && !noSiteId.has(k));
+    assert.ok(live.length > 20, String(live.length));
+    for (const cap of live) {
+      const m = await bad(cap, { siteId: "not a site id", name: "x" });
+      if (m === "accepted") assert.fail(`${cap} took a site id that is not one`);
+      assert.doesNotMatch(m, /TypeError|undefined|Cannot read|\bat \w/, `${cap}: ${m}`);
+    }
+    // a source's token that is not a Vault key, in plan (head_check takes only a site id and reads the stored source, which update and create already refused)
+    plain(await bad("sites.plan", { source: { repo: "acme/app", tokenHandle: "Stripe_Key" } }));
     // a Vault handle that is not one: in env, in a source's token, in a database import
     for (const h2 of ["Stripe_Key", "#", "# x", "#a.b.c", "../etc", "#ok\nnewline"]) {
       plain(await bad("sites.env_set", { siteId, entries: [{ name: "K", vaultHandle: h2 }] }));
