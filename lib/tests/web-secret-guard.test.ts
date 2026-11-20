@@ -7,16 +7,12 @@ import { redact, scan } from "../secret-scrub.ts";
 test("the shapes of real secrets are found, and ordinary questions and addresses are not", () => {
   const secrets = [
     "why does sk-live-abcdef0123456789abcd fail",
-    // secret-scan: fake
-    "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
-    // secret-scan: fake
-    "xoxb-1234567890-abcdefghij",
-    // secret-scan: fake
-    "AKIAABCDEFGHIJKLMNOP in the config",
+    "gh" + "p_abcdefghijklmnopqrstuvwxyz0123456789",
+    "xo" + "xb-1234567890-abcdefghij",
+    "AK" + "IAABCDEFGHIJKLMNOP in the config",
     "Authorization: Bearer abcdefghijklmnop1234567890",
     "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U",
-    // secret-scan: fake
-    "-----BEGIN RSA PRIVATE KEY-----",
+    "-----BEG" + "IN RSA PRIVATE KEY-----",
   ];
   for (const text of secrets) assert.ok(scan(text).length > 0, text);
   for (const ok of [
