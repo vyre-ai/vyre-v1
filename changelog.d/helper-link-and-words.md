@@ -1,0 +1,1 @@
+- Internal: the link back to the chat in a helper's result note is written by the shared link helper, and the stand-in for a server without the run reads gives a plain sentence with a code instead of a system word.

@@ -2,6 +2,7 @@
 // keys. A row opens that helper's peek: its brief, what it is on, its answer, the notes between it and the agent that started it, cost and time, Ask it something, Open chat and Stop. All of it from engine.crew.status
 // and the helper's own chat; nothing is estimated.
 import { doneWords, stepWords } from "../../../../../../lib/plain-words.ts";
+import { vyreLink } from "../menus/actions-b.ts";
 import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -653,7 +654,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
     const result = resultText;
     let noted = false;
     // the note says the same thing every time (no state of this pane in it), so a retry under the same key is the same payload
-    const note = [result, "", `From ${nameOf(member)} in vyre://chat/${member.parentThreadId}`].join("\n");
+    const note = [result, "", `From ${nameOf(member)} in ${vyreLink("chat", member.parentThreadId)}`].join("\n");
     void Promise.resolve(
       call("records.comments.add", {
         type: r.type,

@@ -27,6 +27,7 @@ import {
 } from "../ui/src/RichEditor/doc/critic.ts";
 import { listChanges, resolveChanges, trackTransaction } from "../ui/src/RichEditor/doc/track.ts";
 import { decideIncoming, isOwnEcho, mergeRemote, noteSent, ownValueId } from "../ui/src/RichEditor/doc/merge.ts";
+import { assertWithinCpu, timeCpu } from "./support/cpu-time.ts";
 
 const D = { doc: true } as const;
 const schema = getSchema(markdownExtensions({ doc: {} }));
@@ -413,22 +414,15 @@ const big = (n: number): string => {
 test("a large document: 4,000 blocks with chips and suggestions load, come back unchanged and merge in a draft within the budget", () => {
   const text = big(4000);
   assert.ok(text.length > 400_000);
-  let t0 = performance.now();
-  const d = markdownToDoc(text, D);
-  const back = docToMarkdown(d, D);
-  const load = performance.now() - t0;
+  const back = assertWithinCpu("load and save", 3000, () => docToMarkdown(markdownToDoc(text, D), D));
   assert.equal(back, text);
-  assert.ok(load < 3000, `load and save took ${Math.round(load)} ms`);
   const s = stateOf(text, false);
-  t0 = performance.now();
-  const r = merged(s, text, `${text}\nOne more paragraph with {client.name}.\n`);
-  const mergeMs = performance.now() - t0;
+  const r = assertWithinCpu("a merge", 3000, () =>
+    merged(s, text, `${text}\nOne more paragraph with {client.name}.\n`),
+  );
   assert.ok(mdOf(r.state).endsWith("One more paragraph with {client.name}.\n"));
-  assert.ok(mergeMs < 3000, `a merge took ${Math.round(mergeMs)} ms`);
-  t0 = performance.now();
-  const list = listChanges(s.doc);
+  const list = assertWithinCpu("listing the changes", 1000, () => listChanges(s.doc));
   assert.equal(list.length, 3900);
-  assert.ok(performance.now() - t0 < 1000);
 });
 
 /* ---------- hostile text and the fill engine's grammar ---------- */
@@ -468,15 +462,9 @@ const HOSTILE: Record<string, string> = {
 for (const [label, text] of Object.entries(HOSTILE)) {
   test(`hostile text, ${label}: read, saved, counted and settled each in under 100 ms`, () => {
     const body = `${text}\n`;
-    // the best of three runs: a shared box has other work on it, and a freeze is a cost every run pays
+    // one run in CPU time: a shared box stretches the clock, not the computation, and a freeze costs CPU every time
     const bound = (what: string, f: () => unknown): void => {
-      let best = Infinity;
-      for (let k = 0; k < 3; k += 1) {
-        const t0 = performance.now();
-        f();
-        best = Math.min(best, performance.now() - t0);
-      }
-      assert.ok(best < 100, `${what} took ${Math.round(best)} ms`);
+      assertWithinCpu(what, 100, f);
     };
     // what is valid Markdown comes back exactly as it went in
     // every hostile case that is valid Markdown comes back exactly as written
@@ -595,11 +583,10 @@ test("many scattered clashes are settled in a pass, not in cubed time", () => {
   const local = Array.from({ length: n }, (_v, i) => (i % 2 === 0 ? `mine ${i}` : `block ${i}`)).join("\n\n") + "\n";
   const remote = Array.from({ length: n }, (_v, i) => (i % 2 === 0 ? `theirs ${i}` : `block ${i}`)).join("\n\n") + "\n";
   const s = EditorState.create({ schema, doc: schema.nodeFromJSON(markdownToDoc(local, D)) });
-  const t0 = performance.now();
-  const m = mergeRemote(s, base, remote, { author: "Agent", now });
-  const ms = performance.now() - t0;
+  const m = assertWithinCpu(`a merge of ${n} clashes`, 1500, () =>
+    mergeRemote(s, base, remote, { author: "Agent", now }),
+  );
   assert.ok(m && m.clashed);
-  assert.ok(ms < 1500, `a merge of ${n} clashes took ${Math.round(ms)} ms`);
 });
 
 test("lists and quotes nested past the reading depth lose nothing and settle after one save", () => {
@@ -636,9 +623,7 @@ test("a list nested 300 levels deep, and a quote 5,000 deep, come back exactly a
   const deep = Array.from({ length: 300 }, (_v, i) => `${"  ".repeat(i)}- level ${i}`).join("\n") + "\n";
   const quotes = `${"> ".repeat(5000)}x\n`;
   for (const t of [deep, quotes]) {
-    const t0 = performance.now();
-    assert.equal(roundtrip(t), t);
-    assert.ok(performance.now() - t0 < 1000, "read and save in under a second");
+    assertWithinCpu("read and save", 1000, () => assert.equal(roundtrip(t), t));
   }
 });
 
@@ -890,16 +875,14 @@ test("a 1 MB document: a keystroke and the write-out after it cost less than a f
   const keys: number[] = [];
   const outs: number[] = [];
   for (let i = 0; i < 40; i += 1) {
-    let t0 = performance.now();
-    s = s.apply(s.tr.insertText("x", pos + i));
-    keys.push(performance.now() - t0);
-    t0 = performance.now();
-    docToMarkdownCached(s.doc, texts, D);
-    outs.push(performance.now() - t0);
+    const keystroke = timeCpu(() => s.apply(s.tr.insertText("x", pos + i)));
+    s = keystroke.out;
+    keys.push(keystroke.cpuMs);
+    outs.push(timeCpu(() => docToMarkdownCached(s.doc, texts, D)).cpuMs);
   }
   const med = (a: number[]): number => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] as number;
-  assert.ok(med(keys) < 8, `a keystroke took ${med(keys).toFixed(2)} ms`);
-  assert.ok(med(outs) < 16, `the write-out took ${med(outs).toFixed(2)} ms`);
+  assert.ok(med(keys) < 8, `a keystroke took ${med(keys).toFixed(2)} ms of CPU`);
+  assert.ok(med(outs) < 16, `the write-out took ${med(outs).toFixed(2)} ms of CPU`);
 });
 
 test("type, an agent writes, the file is reverted: the page keeps its own save, merges the agent, then merges the revert", () => {

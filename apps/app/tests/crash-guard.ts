@@ -12,6 +12,8 @@ export const BOUNDARY_TEXTS = [
 ];
 /** Console and page errors that are not crashes: the Space refusing a read the page then handles, a resize observer notice. */
 const NOISE = /ResizeObserver|Failed to load resource|favicon|net::ERR/i;
+/** A build whose terminal screen (xterm.js) cannot load or start: checked before the noise rule. */
+const XTERM_UNAVAILABLE = /xterm screen unavailable/;
 const CRASH =
   /Minified React error|React error|Invalid hook call|Rendered (more|fewer) hooks|is not defined|Cannot read properties|is not a function|Uncaught|ReferenceError|TypeError/i;
 
@@ -53,7 +55,9 @@ export function guardCrashes(page: PageLike): CrashGuard {
     if (!NOISE.test(e.message)) seen.push(`pageerror: ${e.message.slice(0, 300)}`);
   });
   page.on("console", (m) => {
-    if (m.type() === "error" && !NOISE.test(m.text()) && CRASH.test(m.text()))
+    // the terminal screen that could not load or start is a crash whatever its tail says (a network error in it is the cause, not noise)
+    if (m.type() === "error" && XTERM_UNAVAILABLE.test(m.text())) seen.push(`console: ${m.text().slice(0, 300)}`);
+    else if (m.type() === "error" && !NOISE.test(m.text()) && CRASH.test(m.text()))
       seen.push(`console: ${m.text().slice(0, 300)}`);
   });
   let reported = 0;

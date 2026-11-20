@@ -7,6 +7,7 @@ import { useCrewStatus } from "./status.ts";
 import { useRunData } from "./run/useRun.ts";
 import type { RunData } from "./run/useRun.ts";
 import { nameStandIns } from "./run/model.ts";
+import { ABSENT_CODE } from "./run/reads.ts";
 import type { RunNode } from "./run/model.ts";
 import type { Call } from "./status.ts";
 
@@ -70,7 +71,11 @@ export function CrewProvider({
   const [open, setOpen] = useState(false);
   // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
   // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
-  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("not implemented")), []);
+  const absent = useMemo<Call>(
+    () => async () =>
+      Promise.reject(Object.assign(new Error("This server cannot do that yet."), { code: ABSENT_CODE })),
+    [],
+  );
   const run = useRunData(call ?? absent, threadId, {
     enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open),
   });

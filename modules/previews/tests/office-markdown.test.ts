@@ -12,6 +12,7 @@ import { harness } from "../fixtures/world.ts";
 import { handlers } from "../impl.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { World } from "../fixtures/world.ts";
+import { assertWithinCpu } from "../../../testkit/src/cpu-time.ts";
 
 type Row = Record<string, unknown>;
 const NS = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="x" xmlns:a="x" xmlns:pic="x" xmlns:mc="x" xmlns:v="x" xmlns:o="x"`;
@@ -208,10 +209,7 @@ test("an empty Word file reads as nothing; a large one is read whole and quickly
     p(r(`Clause ${i + 1}. The buyer pays the seller the price on completion.`), i % 50 === 0 ? style("Heading1") : ""),
   );
   const big = word(paras.join(""), { "word/styles.xml": STYLES });
-  const t0 = performance.now();
-  const text = md(big);
-  const ms = performance.now() - t0;
-  assert.ok(ms < 5000, `20,000 paragraphs took ${Math.round(ms)} ms`);
+  const text = assertWithinCpu("20,000 paragraphs", 5000, () => md(big));
   assert.equal(text.split("\n\n").length, 20_000);
   assert.ok(
     text.startsWith("# Clause 1. The buyer") &&

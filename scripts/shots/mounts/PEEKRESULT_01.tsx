@@ -15,7 +15,8 @@ const MEMBER = {
   name: "Research",
   agentId: "agt_research",
   state: "done",
-  found: "Harbor Supply fits best. It costs $260 more than Pine up front, but it is ready two weeks sooner and setup is included.",
+  found:
+    "Harbor Supply fits best. It costs $260 more than Pine up front, but it is ready two weeks sooner and setup is included.",
   startedAt: now - 83_000,
   endedAt: now - 20_000,
   elapsedMs: 63_000,
@@ -26,9 +27,24 @@ const MEMBER = {
 
 const call = async (cap: string): Promise<unknown> => {
   if (cap === "chat.helper.notes")
-    return { notes: [{ messageId: "n1", who: "brief", authorId: "agt_lead", body: "Read the three supplier bids and say which fits best." }] };
+    return {
+      notes: [
+        {
+          messageId: "n1",
+          who: "brief",
+          authorId: "agt_lead",
+          body: "Read the three supplier bids and say which fits best.",
+        },
+      ],
+    };
   if (cap === "files.list")
-    return { folders: [{ folderId: "fld_bids", name: "Bids" }, { folderId: "fld_sup", name: "Supplier review" }, { folderId: "fld_notes", name: "Meeting notes" }] };
+    return {
+      folders: [
+        { folderId: "fld_bids", name: "Bids" },
+        { folderId: "fld_sup", name: "Supplier review" },
+        { folderId: "fld_notes", name: "Meeting notes" },
+      ],
+    };
   if (cap === "search.recent.list")
     return {
       hits: [
@@ -44,7 +60,14 @@ export default function Mount(): ReactNode {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: "var(--win)" as string }}>
       <View testID="peekresult-mount" style={{ padding: 8, maxWidth: 420 }}>
-        <CrewPeek member={MEMBER} call={call} meId="usr_me" onBack={() => undefined} onOpenChat={() => undefined} onRefresh={() => undefined} />
+        <CrewPeek
+          member={MEMBER}
+          call={call}
+          meId="usr_me"
+          onBack={() => undefined}
+          onOpenChat={() => undefined}
+          onRefresh={() => undefined}
+        />
       </View>
     </ScrollView>
   );

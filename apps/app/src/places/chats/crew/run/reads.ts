@@ -68,10 +68,12 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
 }
 
 /** A server that does not have a read answers with an error that says so; any other error is a request that failed this once. */
-export const isAbsent = (e: unknown): boolean =>
-  /unknown (capability|cap)|no such (capability|cap)|unsupported capability|not implemented/i.test(
-    String((e as { message?: unknown } | null)?.message ?? e),
-  );
+/** The code the gateway answers with for a capability this server does not have. The decision is by this code, never by the words of the message. */
+export const ABSENT_CODE = "validation.unknown_capability";
+export const isAbsent = (e: unknown): boolean => {
+  const err = e as { code?: unknown; error?: { code?: unknown } } | null;
+  return (err?.code ?? err?.error?.code) === ABSENT_CODE;
+};
 
 /** Everything of the Space that runs or sleeps: the rows, "absent" when this server has no such read, "failed" when this one request failed (the caller keeps what it had). */
 export async function readActivity(call: Call): Promise<ActivityRow[] | "absent" | "failed"> {

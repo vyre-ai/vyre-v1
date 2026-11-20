@@ -9,6 +9,8 @@ import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { BlobImage } from "../../../../../../ui/src/BlobImage/index.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { Icon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -52,7 +54,7 @@ export function edgesOf(
     };
   const mx = Math.round(win.width * MARGIN),
     my = Math.round(win.height * MARGIN);
-  return { top: my, left: mx, right: mx, bottom: my, radius: win.width < 700 ? 0 : 18 };
+  return { top: my, left: mx, right: mx, bottom: my, radius: belowPhone(win.width) ? 0 : 18 };
 }
 
 const UNKNOWN_VIEW: BrowserView = { state: "starting", canTakeOver: false, sites: [] };
@@ -639,20 +641,16 @@ export function StepRing({
       {open ? (
         <View testID="step-list" style={st.stepList}>
           {shown.map((x, i) => (
-            <Pressable
+            <Row
               key={x.idx}
-              testID={`step-${x.idx}`}
-              accessibilityRole={x.frameFileId && onPick ? "button" : "text"}
-              disabled={!x.frameFileId || !onPick}
+              id={`step-${x.idx}`}
+              title={x.caption || x.tool}
+              selected={picked === x.idx || (picked === undefined && i === shown.length - 1)}
+              inert={!x.frameFileId || !onPick}
+              {...(x.frameFileId && onPick ? { hint: "See the screen after this step" } : {})}
+              leading={<View style={[st.stepDot, i === shown.length - 1 && st.stepDotNow]} />}
               onPress={() => onPick?.(x)}
-              style={[st.stepRow, i === shown.length - 1 && st.stepNow, picked === x.idx && st.stepPicked]}
-              {...(x.frameFileId && onPick ? ({ title: "See the screen after this step" } as object) : {})}
-            >
-              <View style={[st.stepDot, i === shown.length - 1 && st.stepDotNow]} />
-              <Text style={st.stepText} numberOfLines={1}>
-                {x.caption || x.tool}
-              </Text>
-            </Pressable>
+            />
           ))}
         </View>
       ) : null}
@@ -988,16 +986,15 @@ const st = StyleSheet.create({
     borderColor: "var(--accent)" as string,
   },
   stepCountText: { color: "#fff", fontSize: 12, fontWeight: "600" },
-  stepList: { width: 288, padding: 8, borderRadius: 16, backgroundColor: "rgba(24,22,36,.92)", gap: 1 },
-  stepRow: {
-    minHeight: 32,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 8,
-    borderRadius: 10,
+  stepList: {
+    width: 288,
+    padding: 6,
+    borderRadius: 16,
+    backgroundColor: "var(--win)" as string,
+    borderWidth: 1,
+    borderColor: "var(--line-2)" as string,
+    gap: 1,
   },
-  stepPicked: { backgroundColor: "var(--accent)" as string },
   scrub: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "var(--sunk)" as string },
   scrubImg: { flex: 1 },
   scrubEmpty: { flex: 1, alignItems: "center", justifyContent: "center" },
@@ -1026,10 +1023,8 @@ const st = StyleSheet.create({
     backgroundColor: "var(--accent)" as string,
   },
   scrubLiveText: { color: "var(--accent-ink)" as string, fontSize: 12, fontWeight: "600" },
-  stepNow: { backgroundColor: "rgba(255,255,255,.14)" },
-  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "rgba(255,255,255,.35)" },
-  stepDotNow: { backgroundColor: "#fff" },
-  stepText: { flex: 1, color: "rgba(255,255,255,.9)", fontSize: 13 },
+  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--ink-3)" as string },
+  stepDotNow: { backgroundColor: "var(--accent)" as string },
   rooms: {
     flexDirection: "row",
     padding: 3,

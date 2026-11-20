@@ -32,7 +32,14 @@ const page = http.createServer((_q, r) => {
 await new Promise<void>((r) => page.listen(0, "0.0.0.0", r));
 const URL_ = `http://host.docker.internal:${(page.address() as { port: number }).port}/`;
 const http_ = unixSocketHttp();
-const sb = createDockerSpaceBrowser({ api: createDockerApi(http_), http: http_, name: NAME, image: IMAGE, user: { uid: 10001, gid: 10001 }, startTimeoutMs: 90_000 });
+const sb = createDockerSpaceBrowser({
+  api: createDockerApi(http_),
+  http: http_,
+  name: NAME,
+  image: IMAGE,
+  user: { uid: 10001, gid: 10001 },
+  startTimeoutMs: 90_000,
+});
 const open = () => sb.tool({ profileId: PROFILE, tool: "chrome_open", args: { url: URL_ }, timeoutMs: 60_000 });
 const out: Record<string, number | string> = { image: IMAGE, rounds: ROUNDS };
 try {

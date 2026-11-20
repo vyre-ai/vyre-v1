@@ -4,11 +4,20 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { ScrollView, Text, View } from "react-native";
 import { ACTIVITY, BOARD, MESSAGES, NODES } from "../../../apps/app/src/places/chats/crew/run/fixtures.ts";
-import { ActivityList, AtMenu, BoardView, DependencyLine, MessageLines, SleepLine, TokenReport } from "../../../apps/app/src/places/chats/crew/run/views.tsx";
+import {
+  ActivityList,
+  AtMenu,
+  BoardView,
+  DependencyLine,
+  MessageLines,
+  SleepLine,
+  TokenReport,
+} from "../../../apps/app/src/places/chats/crew/run/views.tsx";
 
 export const title = "Around a run";
 
-const when = (ts: number): string => new Date(ts).toLocaleString("en-US", { weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false });
+const when = (ts: number): string =>
+  new Date(ts).toLocaleString("en-US", { weekday: "long", hour: "2-digit", minute: "2-digit", hour12: false });
 const Card = ({ label, children, id }: { label: string; children: ReactNode; id: string }): ReactNode => (
   <View testID={id} style={{ padding: 14, borderRadius: 14, backgroundColor: "var(--raised)" as string, gap: 6 }}>
     <Text style={{ fontSize: 11, color: "var(--ink-4)" as string }}>{label}</Text>
@@ -32,7 +41,11 @@ export default function Mount(): ReactNode {
           <TokenReport nodes={NODES} open={open} onToggle={() => setOpen((o) => !o)} />
         </Card>
         <Card id="rv-sleep" label="Asleep">
-          <SleepLine node={{ status: "waiting", wake: { kind: "process", label: "Until the export finishes", wokeCount: 3 } }} when={when} onOpen={() => undefined} />
+          <SleepLine
+            node={{ status: "waiting", wake: { kind: "process", label: "Until the export finishes", wokeCount: 3 } }}
+            when={when}
+            onOpen={() => undefined}
+          />
         </Card>
         <Card id="rv-activity" label="Everything running or asleep">
           <ActivityList rows={ACTIVITY} when={when} onOpen={() => undefined} onNudge={() => undefined} />
