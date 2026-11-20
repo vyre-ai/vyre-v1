@@ -127,6 +127,8 @@ export type Act =
   | { t: "pane" }
   /** Opens the agent's pane whatever it showed (the message menu's "Show what the agent knew here"). */
   | { t: "pane-open" }
+  /** Shuts the agent's pane (a chat that was left with its pane closed comes back closed). */
+  | { t: "pane-close" }
   | { t: "terminal"; terminalId: string }
   | { t: "terminal-close" }
   | { t: "layer"; layer: Layer }
@@ -243,6 +245,8 @@ export function step(s: Shown, a: Act): Shown {
       return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
     case "pane-open":
       return { ...s, terminalId: null, pane: true };
+    case "pane-close":
+      return { ...s, pane: false };
     case "terminal":
       return {
         ...s,
