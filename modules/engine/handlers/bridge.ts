@@ -1348,14 +1348,20 @@ export function createBridge(o: BridgeOptions): Bridge {
     // an agent that speaks for a person writes in chats that person may not be in (an agent's message to someone else, sent for its person): reading as that person is refused there, and that is not a fault. Nothing routes it,
     // as before, and it is not logged as a problem.
     const forAnother = a.kind === "agent" && readAs !== str(a.id);
-    if (!(await open(ctx, threadId, messageId, readAs, forAnother)))
-      return {
-        skipped: unreadable.delete(threadId)
-          ? forAnother
-            ? "speaker_not_in_thread"
-            : "thread_unreadable"
-          : "no_agents",
-      };
+    if (!(await open(ctx, threadId, messageId, readAs, forAnother))) {
+      const left = unreadable.delete(threadId);
+      // not a problem, but not silent either: an agent's mention of another agent in a chat its person is not in is dropped here, and this is the trace of it (no words of the message)
+      if (left && forAnother)
+        ctx.log.debug?.("the bridge left an agent's message alone: the person it speaks for is not in the chat", {
+          traceId: ctx.trace.traceId,
+          threadId,
+          messageId,
+          author: str(a.id),
+          speaksFor: readAs,
+          reason: "speaker_not_in_thread",
+        });
+      return { skipped: left ? (forAnother ? "speaker_not_in_thread" : "thread_unreadable") : "no_agents" };
+    }
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId: home, messageId })) as {
       message: Row;

@@ -53,7 +53,10 @@ export interface EngineCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold" };
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+    debug?(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 /** Throw the catalogue error for this call. */

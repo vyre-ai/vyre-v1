@@ -12,10 +12,14 @@ const AGENT = "agt_ops";
 function rig() {
   const h = harness();
   const warns: string[] = [];
+  const debugs: Array<{ msg: string; attrs?: Record<string, unknown> }> = [];
   const asked: string[] = [];
   const ctx = {
     ...h.ctx,
-    log: { warn: (m: string) => void warns.push(m) },
+    log: {
+      warn: (m: string) => void warns.push(m),
+      debug: (msg: string, attrs?: Record<string, unknown>) => void debugs.push({ msg, ...(attrs ? { attrs } : {}) }),
+    },
     async call(cap: string, input: unknown) {
       return h.ctx.call(cap, input);
     },
@@ -62,7 +66,7 @@ function rig() {
       depth: 0,
     },
   });
-  return { bridge, ctx, warns, asked, event };
+  return { bridge, ctx, warns, debugs, asked, event };
 }
 
 test("an agent's message for a person who is not in the chat is skipped for that reason, with no warning, and the person is asked nothing more", async () => {
@@ -70,6 +74,17 @@ test("an agent's message for a person who is not in the chat is skipped for that
   const res = await r.bridge.onEvent(r.ctx, r.event("usr_mia"));
   assert.equal(res.skipped, "speaker_not_in_thread");
   assert.deepEqual(r.warns, [], "not logged as a problem");
+  // but traceable: the thread, the message, who wrote it and for whom, and why, never its words
+  assert.equal(r.debugs.length, 1);
+  assert.deepEqual(r.debugs[0]!.attrs, {
+    traceId: r.ctx.trace.traceId,
+    threadId: DM,
+    messageId: "msg_mia",
+    author: AGENT,
+    speaksFor: "usr_mia",
+    reason: "speaker_not_in_thread",
+  });
+  assert.equal(JSON.stringify(r.debugs).includes("figures"), false, "no message text");
   assert.equal(r.asked.filter((x) => x.endsWith("as usr_mia")).length > 0, true, "it did try the person it speaks for");
 });
 
@@ -78,6 +93,7 @@ test("a person who can read the chat is read as before, and a person writing in 
   const res = await r.bridge.onEvent(r.ctx, r.event("usr_noah"));
   assert.notEqual(res.skipped, "speaker_not_in_thread");
   assert.deepEqual(r.warns, []);
+  assert.deepEqual(r.debugs, [], "a message that was read leaves no skip trace");
   // a person's own message in a chat they cannot read is a different matter: that one is still said
   const own = await r.bridge.onEvent(r.ctx, {
     name: "message.received",
