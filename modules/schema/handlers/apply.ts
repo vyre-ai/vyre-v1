@@ -638,7 +638,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
     plan.touched.add(to.key);
   };
 
-    for (const asked of ops) {
+  for (const asked of ops) {
     let op = asked;
     try {
       // "Can go in emails" for one field: def {mergeable: true|false}. It is a field.update of the field's options, so every rule of one (system fields, the never-private check) applies as is.
