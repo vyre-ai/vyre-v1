@@ -133,6 +133,10 @@ export interface AccessCtx {
   space: string;
   principal: { kind: string; id: string };
   actingFor?: string | undefined;
+  /** Where the call came from ("user" for a person at the app or the API); read only to tell a person's own press from the rest. */
+  origin?: string | undefined;
+  /** 0 for a call from outside, above 0 for a call another capability made. */
+  depth?: number | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;

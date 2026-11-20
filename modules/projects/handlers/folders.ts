@@ -318,7 +318,7 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
     `SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`,
   ) as Array<{ recordId: string; folderId: string }>)
     pairs.push({ folder: r.folderId, record: r.recordId });
-  for (const x of pairs) await followRecord(ctx, x.folder, x.record);
+  for (const x of pairs) await followRecord(ctx, x.folder, x.record, { sweep: true });
   FOLLOWED.add(ctx.db);
 }
 
@@ -399,7 +399,15 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
 /**
  * The boot sweep (and the slow repeat): every project record with no project behind it is adopted as a real project (a channel, roles, and a folder when it has none). Returns how many folders it made.
  */
-export async function backfill(ctx: ProjectsCtx): Promise<number> {
+export async function backfill(realCtx: ProjectsCtx): Promise<number> {
+  // the sweep only tries again: whatever it calls, a folder that cannot follow its record is never reported for narrowing from here
+  const ctx: ProjectsCtx = {
+    ...realCtx,
+    emit: ((name: string, ...rest: unknown[]) =>
+      name === "project.folder_unfollowed"
+        ? undefined
+        : (realCtx.emit as (n: string, ...r: unknown[]) => unknown)(name, ...rest)) as ProjectsCtx["emit"],
+  };
   await followRecords(ctx);
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
     ctx,
@@ -533,11 +541,38 @@ export async function fileIntoRecord(
  * Runs as the host's own service (a consumer of project.folder_unfollowed). The folder is narrowed to the people added: the host needs no Manage for this one narrowing and it never widens. The log line names
  * the caller that was refused. The task says whether it was narrowed, and goes to the person who asked, else the record's owner, else the Space's admins.
  */
-export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<string, unknown>): Promise<void> {
+export async function onFolderUnfollowed(
+  ctx: ProjectsCtx,
+  payload: Record<string, unknown>,
+  eventId = "",
+): Promise<void> {
   const folderId = String(payload["folderId"] ?? "");
   const recordId = String(payload["recordId"] ?? "");
   const by = String(payload["by"] ?? "");
   if (!folderId || !recordId) return;
+  // asked again before anything changes: a folder that follows its record by now (a retry or the sweep made it so) is left exactly as it is
+  // (access.shares_of says what a folder follows, from the access store the follow writes; the Files tree's own parent is not that)
+  const now = await tolerant<{ inherits?: string }>(
+    ctx,
+    "access.shares_of",
+    { resource: { type: "folder", id: folderId } },
+    {},
+  );
+  if (now.inherits === recordId) return;
+  // the host's own service may attach any folder to its record: if that works the folder follows after all and nothing is narrowed; only a refusal of rights narrows it
+  try {
+    await call(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
+    return;
+  } catch (e) {
+    if (!codeOf(e).startsWith("permission.")) {
+      ctx.log.warn("projects: a folder that could not follow its record was left as it is (not a refusal of rights)", {
+        folderId,
+        recordId,
+        refusedCaller: by,
+      });
+      return;
+    }
+  }
   let narrowed = true;
   try {
     await call(ctx, "access.folder_narrow", { folderId });
@@ -550,18 +585,15 @@ export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<strin
       : "projects: a folder that could not follow its record could not be narrowed",
     { folderId, recordId, refusedCaller: by, reason: String(payload["why"] ?? "") },
   );
+  // never the caller that was refused (it lacks Manage and cannot act on this): the record's owner, else the Space's admins
   let who: { kind: "person" | "role"; id: string } = { kind: "role", id: "rol_admin" };
-  if (by.startsWith("usr_")) who = { kind: "person", id: by };
-  else {
-    const rec = (
-      await tolerant<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { recordId }, {})
-    ).record;
-    for (const k of ["owner", "ownerId", "assigned", "createdBy"]) {
-      const v = rec?.fields?.[k];
-      if (typeof v === "string" && v.startsWith("usr_")) {
-        who = { kind: "person", id: v };
-        break;
-      }
+  const rec = (await tolerant<{ record?: { fields?: Record<string, unknown> } }>(ctx, "records.get", { recordId }, {}))
+    .record;
+  for (const k of ["owner", "ownerId", "assigned", "createdBy"]) {
+    const v = rec?.fields?.[k];
+    if (typeof v === "string" && v.startsWith("usr_")) {
+      who = { kind: "person", id: v };
+      break;
     }
   }
   await tolerant(
@@ -573,7 +605,7 @@ export async function onFolderUnfollowed(ctx: ProjectsCtx, payload: Record<strin
         : "A files folder could not follow its record and could not be limited: check who can open it",
       assigned: who,
       recordId,
-      idempotencyKey: `fld-follow:${folderId}`,
+      idempotencyKey: `fld-follow:${folderId}:${eventId || String(payload["why"] ?? "")}`,
     },
     {},
   );

@@ -12,6 +12,7 @@ import {
   onRecordEvent,
   syncAccess,
 } from "../handlers/folders.ts";
+import { FOLLOW_BACKOFF_MS } from "../projections.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -452,7 +453,7 @@ test("a record share taken away while the folder's sync is mid-way is not writte
   );
 });
 
-test("a folder that cannot follow its record says so as an event, and the host's consumer narrows it to the people added and tells the person who asked", async () => {
+test("a folder that cannot follow its record says so as an event, and the host's consumer narrows it to the people added and tells the admins when the record has no owner", async () => {
   const h = harness();
   h.world.refuse.follows = true;
   const id = mkRecord(h, { title: "Private deal" });
@@ -474,16 +475,22 @@ test("a folder that cannot follow its record says so as an event, and the host's
   const tasks = h.only("tasks.create").map((c) => c.input as { title: string; assigned: { kind: string; id: string } });
   assert.equal(tasks.length, 1);
   assert.match(tasks[0]!.title, /limited to the people added/);
-  assert.deepEqual(tasks[0]!.assigned, { kind: "person", id: String(ev!.payload["by"]) });
+  assert.deepEqual(
+    tasks[0]!.assigned,
+    { kind: "role", id: "rol_admin" },
+    "never the caller that was refused: no owner here, so the admins",
+  );
 });
 
 test("a refused caller that is a service goes to the record's owner, else the Space's admins; a folder the host could not narrow says so", async () => {
   const h = harness();
+  h.world.refuse.follows = true; // the host's own attempt is refused too
   const id = mkRecord(h, { title: "Owned deal", assigned: "usr_owner1" });
   await onFolderUnfollowed(h.ctx, { folderId: "fld_x", recordId: id, by: "svc_form_x", why: "no_grant" });
   const t1 = h.only("tasks.create").map((c) => c.input as { assigned: { kind: string; id: string } });
   assert.deepEqual(t1[0]!.assigned, { kind: "person", id: "usr_owner1" });
   const h2 = harness();
+  h2.world.refuse.follows = true;
   const id2 = mkRecord(h2, { title: "Nobody's deal" });
   h2.world.down.add("access.folder_narrow");
   await onFolderUnfollowed(h2.ctx, { folderId: "fld_y", recordId: id2, by: `svc_${"a1".repeat(16)}`, why: "no_grant" });
@@ -498,4 +505,97 @@ test("a folder that follows its record makes no task and is not narrowed", async
   await created(h, id);
   assert.equal(h.only("tasks.create").length, 0);
   assert.equal(h.only("access.folder_narrow").length, 0);
+});
+
+test("only a refusal of rights narrows a folder: a neighbour that is down or a record that is gone emits nothing and closes nothing; and a folder the host can attach after all is not narrowed", async () => {
+  for (const code of ["internal.unavailable", "validation.not_found"]) {
+    const h = harness();
+    h.world.refuse.follows = true;
+    h.world.refuse.code = code;
+    const id = mkRecord(h, { title: `Deal ${code}` });
+    await created(h, id);
+    assert.ok(!h.emitted.some((e) => e.name === "project.folder_unfollowed"), `${code}: no event`);
+    assert.equal(h.only("access.folder_narrow").length, 0, `${code}: nothing narrowed`);
+    assert.equal(h.only("tasks.create").length, 0);
+    // even a forged event with such a refusal changes nothing when the host's own follows attempt fails for a non-rights reason
+    await onFolderUnfollowed(h.ctx, { folderId: "fld_z", recordId: id, by: "svc_form_x", why: "x" });
+    assert.equal(h.only("access.folder_narrow").length, 0, `${code}: the consumer narrows nothing either`);
+  }
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Late fix" });
+  await created(h, id);
+  const ev = h.emitted.find((e) => e.name === "project.folder_unfollowed")!;
+  h.world.refuse.follows = false; // the host's own attempt now succeeds: the folder follows, so it is not narrowed
+  await onFolderUnfollowed(h.ctx, ev.payload);
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.equal(h.only("tasks.create").length, 0);
+});
+
+test("a transient error is tried again with a short backoff and the folder follows; it is never narrowed for it", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  h.world.refuse.code = "internal.unavailable";
+  h.world.refuse.times = 1; // down once, then up
+  const id = mkRecord(h, { title: "Flaky" });
+  await created(h, id);
+  assert.equal(
+    h.only("access.audience_set").filter((c) => (c.input as { follows?: string }).follows === id).length,
+    2,
+    "asked again",
+  );
+  assert.ok(!h.emitted.some((e) => e.name === "project.folder_unfollowed"));
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.ok(FOLLOW_BACKOFF_MS.length > 0);
+});
+
+test("the boot sweep never narrows: a transient error across many folders, and even a real refusal, only re-attempt the follows", async () => {
+  for (const code of ["internal.unavailable", "permission.no_grant"]) {
+    const h = harness();
+    const ids = [1, 2, 3, 4, 5].map((n) => mkRecord(h, { title: `Deal ${code} ${n}` }));
+    for (const id of ids) await created(h, id);
+    h.world.refuse.follows = true;
+    h.world.refuse.code = code;
+    await backfill(h.ctx);
+    assert.ok(h.only("access.audience_set").length > 0, `${code}: the sweep tried`);
+    assert.ok(!h.emitted.some((e) => e.name === "project.folder_unfollowed"), `${code}: no event from the sweep`);
+    assert.equal(h.only("access.folder_narrow").length, 0, `${code}: nothing narrowed`);
+    assert.equal(h.only("tasks.create").length, 0);
+  }
+});
+
+test("a real refusal narrows exactly that folder, and only when the host's own attempt is refused too; a folder that already follows is left alone", async () => {
+  const h = harness();
+  const a = mkRecord(h, { title: "Refused deal" });
+  const b = mkRecord(h, { title: "Fine deal" });
+  await created(h, b);
+  h.world.refuse.follows = true;
+  await created(h, a);
+  const evs = h.emitted.filter((e) => e.name === "project.folder_unfollowed");
+  assert.equal(evs.length, 1, "one refusal, one event");
+  await onFolderUnfollowed(h.ctx, evs[0]!.payload, "evt_1");
+  assert.deepEqual(
+    h.only("access.folder_narrow").map((c) => c.input),
+    [{ folderId: named(h, "Refused deal")[0]!.folderId }],
+  );
+  // a folder whose parent is already the record is not touched
+  const h2 = harness();
+  const id2 = mkRecord(h2, { title: "Already" });
+  await created(h2, id2);
+  const f2 = [...h2.world.folders.values()].find((f) => f.name === "Already")!;
+  f2.parentId = id2;
+  h2.world.refuse.follows = true;
+  await onFolderUnfollowed(h2.ctx, { folderId: f2.folderId, recordId: id2, by: "svc_form_x", why: "x" }, "evt_2");
+  assert.equal(h2.only("access.folder_narrow").length, 0);
+  assert.equal(h2.only("tasks.create").length, 0);
+});
+
+test("a later, separate failure for the same folder raises its own task", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Twice" });
+  await onFolderUnfollowed(h.ctx, { folderId: "fld_t", recordId: id, by: "svc_form_x", why: "x" }, "evt_a");
+  await onFolderUnfollowed(h.ctx, { folderId: "fld_t", recordId: id, by: "svc_form_x", why: "x" }, "evt_b");
+  const keys = h.only("tasks.create").map((c) => (c.input as { idempotencyKey: string }).idempotencyKey);
+  assert.equal(new Set(keys).size, 2);
 });

@@ -43,7 +43,7 @@ import {
   storeOf,
   decisionSnapshot,
 } from "../projections.ts";
-import { isHostOwnService, isHostService, isSystemCall } from "../../../lib/trust.ts";
+import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
 import { canonical } from "../../../lib/canonical.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
@@ -1527,8 +1527,18 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;
   const agentsCanCall = res.type === "agent" ? res.row?.["agentsCanCall"] !== false : undefined;
-  if (!RECORDS.has(res.type))
-    return { shares, ...(mine ? { mine } : {}), ...(agentsCanCall === undefined ? {} : { agentsCanCall }) };
+  if (!RECORDS.has(res.type)) {
+    // a Files folder that follows its record says which one (the real signal, read from the access store that audience_set follows writes; files.folder.get's parent is the Files tree's own)
+    // shown only to a caller who may view that record: a viewer of the folder alone learns nothing of the record
+    const parent = res.type === "folder" && res.parentId !== null ? store.resources.get(res.parentId) : undefined;
+    const follows = parent?.type === "record" && callerLevel(ctx, store, parent) !== null ? parent.id : undefined;
+    return {
+      shares,
+      ...(mine ? { mine } : {}),
+      ...(agentsCanCall === undefined ? {} : { agentsCanCall }),
+      ...(follows ? { inherits: follows } : {}),
+    };
+  }
   const audience = audienceOf(res);
   const out: {
     shares: typeof shares;
@@ -1676,7 +1686,16 @@ export async function audienceSet(
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
     // the host's own sweeps (svc_host and the host's other own services, by name) bring old folders in line; any other caller, a tenant's service included, needs Manage on the folder like everyone else
     if (!isHostOwnService(ctx.principal)) must(ctx, store, res, "manage", "attaching the folder to its record");
+    // a person chose who this folder is open to (audience_set by someone with Manage): the host's own sweep and re-attach never undo that choice
+    if (isHostOwnService(ctx.principal) && res.row?.["audienceChosen"] === true)
+      return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
     const wasFresh = isFresh(ctx, store, ss);
+    // a manager who makes the folder follow its record has chosen to follow: an earlier choice of audience no longer stands
+    if (res.row?.["audienceChosen"] === true) {
+      const { audienceChosen: _gone, ...rest } = res.row;
+      if (Object.keys(rest).length > 0) res.row = rest;
+      else delete res.row;
+    }
     res.parentId = rec.id;
     changed(ctx, store, "assignment");
     commit(ctx, store, ss, false && wasFresh, [res.id], false);
@@ -1700,6 +1719,19 @@ export async function audienceSet(
     !(opts?.hostNarrow === true && res.type === "folder")
   )
     must(ctx, store, res, "manage", "changing who it is open to");
+  // a person's own press on a folder's audience (not an agent's, a service's or another capability's call on their behalf) is a choice the host's self-heal never undoes: recorded before anything else, so asking
+  // again for what it already is counts too
+  if (
+    res.type === "folder" &&
+    input.audience !== undefined &&
+    isOwnPress(ctx as never) &&
+    ctx.depth === 0 &&
+    res.row?.["audienceChosen"] !== true
+  ) {
+    res.row = { ...(res.row ?? {}), audienceChosen: true };
+    changed(ctx, store, "assignment");
+    commit(ctx, store, ss, false, [res.id], false);
+  }
   // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
   // its folder is open to the Space from the start, and the maker's own followHome asks for that)
   if (folder && input.audience !== undefined && input.audience === audienceOf(res))
@@ -1713,6 +1745,7 @@ export async function audienceSet(
       if (g.resource.id === res.id && g.source === AUDIENCE_SOURCE) dropGrant(ctx, store, g);
     if (input.audience === "space") delete row["audience"];
     else row["audience"] = input.audience;
+
     if (input.audience === "added")
       for (const role of KEEPERS)
         if (store.roles.has(role)) addGrant(ctx, store, res, { kind: "role", id: role }, "manage");
