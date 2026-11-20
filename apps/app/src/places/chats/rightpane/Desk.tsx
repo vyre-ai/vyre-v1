@@ -10,6 +10,7 @@ import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from
 import { Overlay } from "../../../../../../ui/src/Overlay/index.tsx";
 import { BlobImage } from "../../../../../../ui/src/BlobImage/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
 import { useEscapeLayer } from "../../../../../../ui/src/Overlay/escape.ts";
 import { Icon } from "./parts.tsx";
 import type { IconName } from "./parts.tsx";
@@ -53,7 +54,7 @@ export function edgesOf(
     };
   const mx = Math.round(win.width * MARGIN),
     my = Math.round(win.height * MARGIN);
-  return { top: my, left: mx, right: mx, bottom: my, radius: win.width < 700 ? 0 : 18 };
+  return { top: my, left: mx, right: mx, bottom: my, radius: belowPhone(win.width) ? 0 : 18 };
 }
 
 const UNKNOWN_VIEW: BrowserView = { state: "starting", canTakeOver: false, sites: [] };
