@@ -1,7 +1,7 @@
 // Did an event mean an AI account became available, and what may be said about it truly? One answer for every consumer that goes on when an account arrives (goals, the engine's sign-in resume, the routines' resume).
 //   "account"  an AI account was connected: provider.added (a pasted key, a subscription sign-in, a Space key), a shared subscription turned ON, or a new Vault item of kind ai_subscription.
-//   "saved"    an AI sign-in or key was saved: a new api_key item, or an item of kind ai_subscription or api_key that CHANGED (the update event carries its kind; an event from an older build has none, so the kind is read from the Vault by id, and a Mine item it cannot read counts as not an account).
-//   null       not an account: a share turned off (it takes an account away), a login, a card, a note or an OAuth token refresh, and an update whose kind cannot be read.
+//   "saved"    an AI sign-in or key was saved: a new api_key item, or an item of kind ai_subscription or api_key that CHANGED (the update event carries its kind; an event from an older build has none, so the kind is read from the Vault by id, and a kind that cannot be read counts as saved, so a re-sign-in still resumes).
+//   null       not an account: a share turned off (it takes an account away), a login, a card, a note or an OAuth token refresh (an update whose kind is known).
 export type Arrival = "account" | "saved" | null;
 export type ReadKind = (itemId: string) => Promise<string | undefined>;
 type Ev = { name: string; payload?: Record<string, unknown> | undefined };
@@ -29,10 +29,11 @@ export async function accountArrival(e: Ev, readKind?: ReadKind): Promise<Arriva
   if (e.name === "vault.item_updated") {
     const own = typeof e.payload?.["kind"] === "string" ? (e.payload["kind"] as string) : undefined;
     if (own !== undefined) return keyLike(own) ? "saved" : null;
-    // An event from an older build carries no kind: ask the Vault. A consumer runs as the host, and the Vault answers not_found for a Mine item it does not own, so this fails closed (null) for those.
+    // An event from an older build carries no kind: ask the Vault. A consumer runs as the host, and the Vault refuses a Mine item it does not own, so a kind that cannot be read counts as saved: it fails toward resuming, never toward a turn that stays parked.
     const id = typeof e.payload?.["itemId"] === "string" ? (e.payload["itemId"] as string) : "";
-    if (id === "" || !readKind) return null;
-    return keyLike(await readKind(id).catch(() => undefined)) ? "saved" : null;
+    if (id === "") return null;
+    const read = readKind ? await readKind(id).catch(() => undefined) : undefined;
+    return read === undefined || keyLike(read) ? "saved" : null;
   }
   return null;
 }
