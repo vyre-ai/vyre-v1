@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { DANA, LEO, MAYA, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 import { mkProject } from "../fixtures/seed.ts";
-import { adoptRecord, backfill, folderNameOf, onRecordEvent, syncAccess } from "../handlers/folders.ts";
+import { adoptRecord, backfill, folderNameOf, onRecordEvent, sweepNeeded, syncAccess } from "../handlers/folders.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -443,4 +443,14 @@ test("a record share taken away while the folder's sync is mid-way is not writte
     h.world.grants.some((g) => g.resource.id === folderId && g.subject.id === MAYA),
     "Maya keeps hers",
   );
+});
+
+test("the ten-minute look is two counts: it asks for the full sweep only when a project record has no folder or no project behind it", async () => {
+  const h = harness();
+  mkRecord(h, { title: "Test", folder: "fld_theirs" });
+  assert.equal(await sweepNeeded(h.ctx), true, "a project record with no project behind it");
+  await backfill(h.ctx);
+  assert.equal(await sweepNeeded(h.ctx), false, "everything swept: nothing to do");
+  mkRecord(h, { title: "Bare" });
+  assert.equal(await sweepNeeded(h.ctx), true, "a record that came without a folder");
 });

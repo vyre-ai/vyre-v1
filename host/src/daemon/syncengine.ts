@@ -8,6 +8,7 @@
 // row (`connectors.get`); any name it leaves out keeps the convention, so no connector is forced into HubSpot naming. A list answer is either `{ results: [{ id, properties, archived? }], paging: { next: { after } } }` (HubSpot's shape) or `{ rows: [{ id, data }], next }`. Every call goes
 // through the capability API (`connectors.run`), so the Vault, the egress list, the rate limit and the audit apply as for any other call. Remote records carry no version, so a write
 // never fails on one. A row the app marks archived reads as removed.
+import { turns } from "../../../lib/yield-loop.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
@@ -900,8 +901,12 @@ export function createSyncEngine(o: {
             /* the log is for the Sync page only */
           }
         };
+        // The loops give the event loop a turn every 15 ms (lib/yield-loop.ts): a pass with hundreds of sealed values was one 79 ms stretch of a firm's server. `mine` can grow with the Space (every value
+        // the Vault could not take yet), so the first loop is bounded by time, not by the size of a page.
+        const turn = turns();
         // first the ones that could not be kept before (the record may be visible now, or the Vault open)
         for (const [recordId, patch] of [...mine]) {
+          await turn();
           try {
             await ctx.call("records.update", { type: b.type, recordId, patch });
             mine.delete(recordId);
@@ -910,6 +915,7 @@ export function createSyncEngine(o: {
           }
         }
         for (const [remoteId, got] of remote.held) {
+          await turn();
           const link = tx.get<{ local_id: string }>(
             "SELECT local_id FROM sy_links WHERE sync_type = ? AND remote_id = ? AND (removed_at IS NULL OR removed_at = 0)",
             b.syncTypeId,

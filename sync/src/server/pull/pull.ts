@@ -56,9 +56,18 @@ function ensureDeviceEpoch(db: Tx): void {
 const STAMP_DDL =
   "CREATE TABLE IF NOT EXISTS sync_scope_stamp (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
 const stampReady = new WeakSet<object>();
+/** Where an access rescan of one device stands: the stamp it is for and the last row (entity, id) it has looked at. A rescan of a big Space is done in slices across pulls. */
+const SCAN_DDL =
+  "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
+/** One slice of a rescan holds the event loop at most this long (ms). */
+const SCAN_SLICE_MS = 20;
+const SCAN_ASK_MAX = 150;
+/** A pull stops reading the change feed after this long (ms) and says there is more. */
+const PULL_SLICE_MS = 30;
 function ensureStamp(db: Tx): void {
   if (stampReady.has(db)) return;
   db.exec(STAMP_DDL);
+  db.exec(SCAN_DDL);
   stampReady.add(db);
 }
 
@@ -190,7 +199,7 @@ function rescanChanged(
   cursor: number,
   trace: string,
   onScope?: (entity: string, rows: number) => void,
-): void {
+): boolean {
   const db = d.db;
   ensureStamp(db);
   // the access state plus the person's chat starts: a start that moves is a change of what they may read, though no grant changed
@@ -200,16 +209,25 @@ function rescanChanged(
     who.person,
     who.device,
   )?.stamp;
-  if (had === stamp || !d.append) return;
-  if (had === undefined) {
-    // a device the server has not checked yet holds nothing it has not been sent by the feed: record the stamp and let the scan do the work
-    db.run(
-      "INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp",
-      who.person,
-      who.device,
-      stamp,
-    );
-    return;
+  let scan = db.get<{ stamp: string; ent: string; rid: string }>(
+    "SELECT stamp, ent, rid FROM sync_scope_scan WHERE person = ? AND device = ?",
+    who.person,
+    who.device,
+  );
+  if (!d.append) return false;
+  if (!scan) {
+    if (had === stamp) return false;
+    if (had === undefined) {
+      // a device the server has not checked yet holds nothing it has not been sent by the feed: record the stamp and let the scan do the work
+      db.run(
+        "INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp",
+        who.person,
+        who.device,
+        stamp,
+      );
+      return false;
+    }
+    scan = { stamp, ent: "", rid: "" };
   }
   const sees = (row: RowRec): boolean => {
     const cfg = d.catalog.get(row.entity);
@@ -241,34 +259,67 @@ function rescanChanged(
     asked.set(entity, (asked.get(entity) ?? 0) + 1);
     if (queued.length >= 5000) flush();
   };
-  // `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet)
-  const held = db.all<RowRec>(
-    `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields FROM sync_rows r
-       JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
-      WHERE r.deleted = 0 AND (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) = 1`,
-    who.person,
-    who.device,
-    cursor,
-  );
-  const missing = db.all<RowRec>(
-    `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields FROM sync_rows r
-       LEFT JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
-      WHERE r.deleted = 0 AND (s.id IS NULL OR (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) = 0)`,
-    who.person,
-    who.device,
-    cursor,
-  );
-  for (const row of held) if (!sees(row)) ask(row.entity, row.id);
-  for (const row of missing) if (sees(row)) ask(row.entity, row.id);
+  // The scan goes through the rows in (entity, id) order, at most SCAN_SLICE_MS of work a call, and keeps its place: on a Space of hundreds of thousands of rows one pass held the event loop for
+  // seconds, and every commit with an access change started another. `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet).
+  // A change of the access state while a scan runs is looked at by the next scan, started when this one ends.
+  const t0 = performance.now();
+  let ent = scan.ent,
+    rid = scan.rid,
+    done = false;
+  for (;;) {
+    const rows = db.all<RowRec & { has: number; evis: number | null }>(
+      `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields, (s.id IS NOT NULL) AS has,
+              (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) AS evis
+         FROM sync_rows r LEFT JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
+        WHERE r.deleted = 0 AND (r.entity > ? OR (r.entity = ? AND r.id > ?)) ORDER BY r.entity, r.id LIMIT 100`,
+      cursor,
+      who.person,
+      who.device,
+      ent,
+      ent,
+      rid,
+    );
+    let full = false;
+    for (const row of rows) {
+      const holds = row.has === 1 && row.evis === 1;
+      if (holds !== sees(row)) ask(row.entity, row.id);
+      ent = row.entity;
+      rid = row.id;
+      // each row asked for is an event the log writes and the feed folds: a slice asks for at most this many; the clock is read per row, so a large row cannot carry a slice past its time
+      if (queued.length >= SCAN_ASK_MAX || performance.now() - t0 >= SCAN_SLICE_MS) {
+        full = true;
+        break;
+      }
+    }
+    if (full) break;
+    if (rows.length < 100) {
+      done = true;
+      break;
+    }
+    if (performance.now() - t0 >= SCAN_SLICE_MS) break;
+  }
   flush();
   // the caller announces the range change (sync.scope_changed, on the request's own trace, private): ids and counts only
   for (const [entity, rows] of [...asked].sort(([x], [y]) => (x < y ? -1 : 1))) onScope?.(entity, rows);
+  if (!done) {
+    db.run(
+      "INSERT INTO sync_scope_scan (person, device, stamp, ent, rid) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp, ent = excluded.ent, rid = excluded.rid",
+      who.person,
+      who.device,
+      scan.stamp,
+      ent,
+      rid,
+    );
+    return true;
+  }
   db.run(
     "INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp",
     who.person,
     who.device,
-    stamp,
+    scan.stamp,
   );
+  db.run("DELETE FROM sync_scope_scan WHERE person = ? AND device = ?", who.person, who.device);
+  return scan.stamp !== stamp;
 }
 
 export function pullChanges(
@@ -314,7 +365,8 @@ export function pullChanges(
       serverHlc,
       reset: "purge",
     };
-  rescanChanged(d, who, viewer, window, cursor, trace, onScope);
+  const scanning = rescanChanged(d, who, viewer, window, cursor, trace, onScope);
+  const began = performance.now();
   const scanLimit = limit * 4;
   const scan = db.all<ChangeRec>(
     `SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`,
@@ -410,7 +462,7 @@ export function pullChanges(
         }
       }
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
-      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes)) {
+      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes) || performance.now() - began >= PULL_SLICE_MS) {
         stopped = true;
         break;
       }
@@ -428,6 +480,6 @@ export function pullChanges(
   const exhausted = !stopped && scan.length < scanLimit;
   const head = headSeq(db);
   const next = exhausted ? Math.max(cursor, head) : last;
-  const more = !exhausted && (!stopped || last < head);
+  const more = scanning || (!exhausted && (!stopped || last < head));
   return { epoch, ...settle(out), next, more, serverHlc };
 }
