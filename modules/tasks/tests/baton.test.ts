@@ -459,3 +459,39 @@ test("an agent cannot remove the person its task acts for, and a person who star
   await h.call("tasks.working_notes.delete", { taskId: id, key: "baton.owner" }, boss);
   assert.equal(notes(h, id)["baton.owner"], undefined);
 });
+
+test("a turn that was given a task is refused when it names another task's id, with the right one named; its own id, another kind of chat and a caller who is not an agent go on as before", async () => {
+  const h = withThreads();
+  const make = async (title?: string): Promise<string> =>
+    (await h.call("tasks.create", newTask({ assigned: bot, ...(title ? { title } : {}) }), me)).task.id as string;
+  const own = await make();
+  const other = await make("Another task");
+  let scope: { scopeType?: string; scopeId?: string } = { scopeType: "task", scopeId: own };
+  h.callee("threads.get", () => ({ thread: { threadId: "thr_own", ...scope } }));
+  const inOwn = { ...doer, thread: "thr_own" };
+  await assert.rejects(h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn), (e) => {
+    assert.equal(codeOf(e), "validation.precondition_failed");
+    assert.equal(reasonOf(e), "wrong_task");
+    assert.match(
+      String((e as { error?: { message?: string } }).error?.message),
+      new RegExp(`Use taskId ${own}, not ${other}`),
+    );
+    return true;
+  });
+  assert.equal(state(h, other), "todo", "the other task did not move");
+  for (const fn of ["ask", "block"] as const) {
+    const input = fn === "ask" ? { taskId: other, question: "Which?" } : { taskId: other, reason: "Stuck" };
+    await refused(h.call(`tasks.${fn}`, input, inOwn), "validation.precondition_failed", "wrong_task");
+  }
+  assert.equal(
+    (await h.call("tasks.submit", { taskId: own, summary: "Done" }, inOwn)).next,
+    "done",
+    "its own task goes",
+  );
+  scope = { scopeType: "record", scopeId: "rec_x" };
+  assert.equal(
+    (await h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn)).next,
+    "done",
+    "a chat that is not a task's own chat does not bind the call",
+  );
+});

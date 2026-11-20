@@ -67,6 +67,27 @@ function workTask(ctx: TasksCtx, id: string): Task {
   return t;
 }
 
+/**
+ * A turn that was given a task runs in that task's own chat, and its baton calls are about that task. A model that names another id (the first task id it finds in what it was told is not always this one) is refused here
+ * with the right one, so it can try again with it. A chat of another kind, a caller that is not an agent, and a thread that cannot be read leave the call as it was.
+ */
+async function ownTurn(ctx: TasksCtx, taskId: unknown): Promise<void> {
+  if (ctx.principal.kind !== "agent" || !ctx.thread || !ctx.call) return;
+  let scope: { scopeType?: unknown; scopeId?: unknown } | undefined;
+  try {
+    scope = ((await ctx.call("threads.get", { threadId: ctx.thread })) as { thread?: typeof scope } | null)?.thread;
+  } catch {
+    return;
+  }
+  if (scope?.scopeType !== "task" || typeof scope.scopeId !== "string" || scope.scopeId === taskId) return;
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    `This turn was given task ${scope.scopeId}, and this chat is about it. Use taskId ${scope.scopeId}, not ${String(taskId)}.`,
+    { reason: "wrong_task", taskId: scope.scopeId },
+  );
+}
+
 /** It is not the caller's turn: say whose it is and what the task is waiting for, so the agent stops instead of trying again. */
 function notYourTurn(ctx: TasksCtx, t: Task, want: string): never {
   const holder =
@@ -145,6 +166,7 @@ async function didForLine(ctx: TasksCtx, t: Task): Promise<string> {
 // ---- tasks.submit ----
 
 export async function submit(ctx: TasksCtx, input: In): Promise<unknown> {
+  await ownTurn(ctx, input.taskId);
   const t = workTask(ctx, input.taskId);
   const summary = text(input.summary);
   if (!summary) raise(ctx, "validation.bad_input", "Say in one line what you did.", { errors: ["/summary: required"] });
@@ -224,6 +246,7 @@ async function openChild(
 }
 
 export async function ask(ctx: TasksCtx, input: In): Promise<unknown> {
+  await ownTurn(ctx, input.taskId);
   const t = workTask(ctx, input.taskId);
   const question = text(input.question);
   if (!question) raise(ctx, "validation.bad_input", "Write the question.", { errors: ["/question: required"] });
@@ -260,6 +283,7 @@ export async function ask(ctx: TasksCtx, input: In): Promise<unknown> {
 }
 
 export async function block(ctx: TasksCtx, input: In): Promise<unknown> {
+  await ownTurn(ctx, input.taskId);
   const t = workTask(ctx, input.taskId);
   const reason = text(input.reason);
   if (!reason) raise(ctx, "validation.bad_input", "Say what is in the way.", { errors: ["/reason: required"] });
@@ -291,6 +315,7 @@ export async function block(ctx: TasksCtx, input: In): Promise<unknown> {
 // ---- tasks.review ----
 
 export async function review(ctx: TasksCtx, input: In): Promise<unknown> {
+  await ownTurn(ctx, input.taskId);
   const t = workTask(ctx, input.taskId);
   if (t.state !== "in_review") notYourTurn(ctx, t, "reviewing");
   const verdict = input.verdict;
@@ -363,6 +388,7 @@ export async function review(ctx: TasksCtx, input: In): Promise<unknown> {
 // ---- tasks.decide ----
 
 export async function decide(ctx: TasksCtx, input: In): Promise<unknown> {
+  await ownTurn(ctx, input.taskId);
   const t = workTask(ctx, input.taskId);
   if (t.state !== "awaiting_approval") notYourTurn(ctx, t, "deciding");
   const verdict = input.verdict;
