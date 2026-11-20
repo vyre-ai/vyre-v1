@@ -110,3 +110,24 @@ test("a delivered event is stored at once, and a crash with a stale past-event c
   await b.r.pump();
   assert.deepEqual(got2, [6, 8], "every event after the stored position is handed over");
 });
+
+test("an idle server stores the cursors it held back: they reach the head within about two seconds, with no pass to do it", async () => {
+  const names = ["m.x", "m.none"];
+  const db = new Map(names.map((n) => [n, 0] as const));
+  const events = [ev(1, "other")];
+  const { r, setHead } = make(db, events, [], names);
+  setHead(1);
+  await r.pump(); // the first pass stores the cursors
+  assert.equal(db.get("m.none"), 1);
+  // events the consumers do not take, a pass a moment later: its write is coalesced (under a second since the last)
+  events.push(ev(2, "other"), ev(3, "other"));
+  setHead(3);
+  await r.pump();
+  assert.equal(db.get("m.none"), 1, "the stored cursor is still behind the head: coalesced");
+  // nothing more happens; no pass comes
+  const end = Date.now() + 2_000;
+  while (Date.now() < end && db.get("m.none") !== 3) await new Promise((x) => setTimeout(x, 50));
+  assert.equal(db.get("m.none"), 3, "the idle flush stored the cursor at the head");
+  assert.equal(db.get("m.x"), 3);
+  await r.close();
+});
