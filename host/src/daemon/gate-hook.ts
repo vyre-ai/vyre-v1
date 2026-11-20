@@ -733,6 +733,7 @@ export function moduleWhens(
     if (seed.principal.kind === "person") return false;
     const action = (input as { action?: unknown } | null)?.action;
     if (action === "backup_restore" || action === "backup_download") return true;
+    if (action === "backup_delete" || action === "job_delete" || action === "worker_remove") return true;
     if (action === "job_create" || action === "worker_add") return storesKeys(input);
     if (action === "job_update") return argsOf(input)["command"] !== undefined && storesKeys(input);
     return false;
