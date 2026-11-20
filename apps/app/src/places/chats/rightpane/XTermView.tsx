@@ -5,7 +5,7 @@ import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Terminal } from "@xterm/xterm";
 
-import { frameOf } from "./xterm-frame.ts";
+import { boxTakesWheel, frameOf, rowsThatFit, rowsToDraw } from "./xterm-frame.ts";
 import type { XShot } from "./xterm-frame.ts";
 
 /** The rules xterm.js needs to lay out (from @xterm/xterm/css/xterm.css, MIT, the ones the DOM renderer uses). Put in the page when the first terminal opens, so the page's own stylesheet never carries them. */
@@ -127,6 +127,13 @@ export function XTermView({
       if (text !== "") pasteRef.current?.(text);
     };
     el?.addEventListener("paste", onPasteEvent, true);
+    // the wheel and the trackpad scroll the screen's own box (the whole history is drawn): xterm must not take them for its own empty scrollback, which would swallow them
+    // This screen is display-only: no onData, stdin disabled, every key and paste goes to tmux through TmuxScreen, and a captured frame never turns a mouse mode or the alternate screen on. If xterm ever forwards
+    // input to the program, the wheel must reach it for vim, less or htop: boxTakesWheel says no then.
+    const onWheel = (ev: Event): void => {
+      if (boxTakesWheel(t)) ev.stopPropagation();
+    };
+    el?.addEventListener("wheel", onWheel, { capture: true, passive: true });
     // light or dark mode and the skin change the colours with no new frame: the theme is read again when the page says it changed (never per frame)
     const retheme = (): void => {
       const th = themeNow(host.current);
@@ -139,7 +146,18 @@ export function XTermView({
     let watch: MutationObserver | null = null;
     let media: MediaQueryList | null = null;
     try {
-      watch = new MutationObserver(retheme);
+      // a skin may set its tokens as inline style on the root (the theme controller does, for a custom skin), so `style` stays in the filter; the read is taken once per frame at most, so a scroll lock or
+      // an overlay writing inline style costs one cheap compare, not a probe per write
+      let queued = false;
+      const soon = (): void => {
+        if (queued) return;
+        queued = true;
+        requestAnimationFrame(() => {
+          queued = false;
+          retheme();
+        });
+      };
+      watch = new MutationObserver(soon);
       for (const n of [document.documentElement, document.body])
         watch.observe(n, { attributes: true, attributeFilter: ["class", "data-theme", "data-skin", "style"] });
       media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -151,6 +169,7 @@ export function XTermView({
       watch?.disconnect();
       media?.removeEventListener("change", retheme);
       el?.removeEventListener("paste", onPasteEvent, true);
+      el?.removeEventListener("wheel", onWheel, true);
       term.current = null;
       t.dispose();
     };
@@ -160,7 +179,7 @@ export function XTermView({
   useEffect(() => {
     const t = term.current;
     if (!t) return;
-    const lines = Math.max(shot.text.split("\n").length, fitRows);
+    const lines = rowsToDraw(shot.text.split("\n").length, fitRows);
     const frame = frameOf(shot);
     const key = `${shot.cols}x${lines}|${frame}`;
     if (key === last.current) return;
@@ -185,12 +204,14 @@ export function XTermView({
       host.current?.parentElement?.parentElement;
     if (!pane || typeof ResizeObserver === "undefined") return undefined;
     const measure = (): void => {
+      // the row height is read from xterm's DOM renderer (.xterm-rows > div). With another renderer (a canvas or WebGL addon, a future default) there are no such rows, the height is 0, and the
+      // screen keeps the capture's own line count (rowsThatFit gives 0): it still draws, it only stops filling the pane downwards.
       const row = host.current?.querySelector(".xterm-rows > div") as HTMLElement | null;
       const rowH = row?.offsetHeight ?? 0;
       if (rowH <= 0) return;
       const cs = getComputedStyle(pane);
       const room = pane.clientHeight - parseFloat(cs.paddingTop || "0") - parseFloat(cs.paddingBottom || "0");
-      setFitRows(Math.max(0, Math.floor(room / rowH)));
+      setFitRows(rowsThatFit(room, rowH));
     };
     measure();
     const ro = new ResizeObserver(measure);
