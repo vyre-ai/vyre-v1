@@ -282,3 +282,28 @@ test("a machine that cannot run the script (no sh, an exec that refuses) typed n
     "typed once",
   );
 });
+
+test("a command typed right after a stop waits for the stopped command's answer: the two results are recorded in the order the commands were run", async () => {
+  const events: string[] = [];
+  const { tm, host } = rig(
+    { scripts: { "sleep 999": { hang: true }, ...SCRIPTS } },
+    {
+      wrap: (exec) => async (argv, x) => {
+        if (argv[0] === "sh" && String(argv[2]).startsWith("# vyre-run") && String(argv[5]).includes("git status"))
+          events.push("B typed");
+        return exec(argv, x);
+      },
+    },
+  );
+  await open(host);
+  const ac = new AbortController();
+  const a = run(host, "sleep 999", 60_000, ac.signal).then((r) => (events.push("A answered"), r));
+  setTimeout(() => ac.abort(), 20);
+  await new Promise((r) => setTimeout(r, 40));
+  const b = await run(host, "git status");
+  const ra = await a;
+  assert.equal(ra.exitCode, 130);
+  assert.equal(b.exitCode, 0);
+  assert.deepEqual(events, ["A answered", "B typed"], "the stopped command answered before the next one was typed");
+  void tm;
+});
