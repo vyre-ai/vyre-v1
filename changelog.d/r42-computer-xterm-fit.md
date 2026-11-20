@@ -1,0 +1,1 @@
+- The terminal screen follows the page's light or dark skin and changes with it at once, fills its pane downwards, sits centred in any spare width on the skin's own background, and no longer shows a grey scrollbar.

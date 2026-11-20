@@ -526,6 +526,9 @@ export function TmuxScreen({
             position: "absolute",
             inset: 0,
             overflow: "auto",
+            // the app's thin scrollbar
+            scrollbarWidth: "thin",
+            scrollbarColor: "var(--line, rgba(128,128,128,0.4)) transparent",
             padding: "12px 16px",
             outline: "none",
             fontFamily: "var(--mono, ui-monospace, Menlo, monospace)",

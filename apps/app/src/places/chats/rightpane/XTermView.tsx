@@ -1,7 +1,7 @@
 // The terminal screen drawn by xterm.js (lead go, 19 Nov): the same tmux capture the DOM screen draws, painted by a real terminal renderer (true cell grid, wide characters, selection, the colours a
 // program asked for). Loaded on its own, only after a person has opened a terminal (TmuxScreen asks for it with import()); the first-paint bundle never holds it. It draws and nothing else: keys, paste,
 // the take-over and every number stay in TmuxScreen, and the DOM screen stays on screen until this one is ready and again if it cannot start.
-import { createElement, useEffect, useRef } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Terminal } from "@xterm/xterm";
 
@@ -9,7 +9,7 @@ import { frameOf } from "./xterm-frame.ts";
 import type { XShot } from "./xterm-frame.ts";
 
 /** The rules xterm.js needs to lay out (from @xterm/xterm/css/xterm.css, MIT, the ones the DOM renderer uses). Put in the page when the first terminal opens, so the page's own stylesheet never carries them. */
-const XTERM_CSS = `.xterm{cursor:text;position:relative;user-select:none;-webkit-user-select:none}.xterm.focus,.xterm:focus{outline:none}.xterm .xterm-helpers{position:absolute;top:0;z-index:5}.xterm .xterm-helper-textarea{padding:0;border:0;margin:0;position:absolute;opacity:0;left:-9999em;top:0;width:0;height:0;z-index:-5;white-space:nowrap;overflow:hidden;resize:none}.xterm .composition-view{background:#000;color:#fff;display:none;position:absolute;white-space:nowrap;z-index:1}.xterm .composition-view.active{display:block}.xterm .xterm-viewport{overflow-y:scroll;cursor:default;position:absolute;right:0;left:0;top:0;bottom:0}.xterm .xterm-screen{position:relative}.xterm .xterm-screen canvas{position:absolute;left:0;top:0}.xterm-char-measure-element{display:inline-block;visibility:hidden;position:absolute;top:0;left:-9999em;line-height:normal}.xterm.enable-mouse-events{cursor:default}.xterm .xterm-accessibility:not(.debug),.xterm .xterm-message{position:absolute;left:0;top:0;bottom:0;right:0;z-index:10;color:transparent;pointer-events:none}.xterm .live-region{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}.xterm-dim{opacity:1!important}.xterm-underline-1{text-decoration:underline}.xterm-underline-2{text-decoration:double underline}.xterm-underline-3{text-decoration:wavy underline}.xterm-underline-4{text-decoration:dotted underline}.xterm-underline-5{text-decoration:dashed underline}.xterm-overline{text-decoration:overline}.xterm-strikethrough{text-decoration:line-through}.xterm-screen .xterm-decoration-container .xterm-decoration{z-index:6;position:absolute}`;
+const XTERM_CSS = `.xterm{cursor:text;position:relative;user-select:none;-webkit-user-select:none}.xterm.focus,.xterm:focus{outline:none}.xterm .xterm-helpers{position:absolute;top:0;z-index:5}.xterm .xterm-helper-textarea{padding:0;border:0;margin:0;position:absolute;opacity:0;left:-9999em;top:0;width:0;height:0;z-index:-5;white-space:nowrap;overflow:hidden;resize:none}.xterm .composition-view{background:#000;color:#fff;display:none;position:absolute;white-space:nowrap;z-index:1}.xterm .composition-view.active{display:block}.xterm .xterm-viewport{overflow:hidden!important;cursor:default;position:absolute;right:0;left:0;top:0;bottom:0}.xterm .xterm-screen{position:relative}.xterm .xterm-screen canvas{position:absolute;left:0;top:0}.xterm-char-measure-element{display:inline-block;visibility:hidden;position:absolute;top:0;left:-9999em;line-height:normal}.xterm.enable-mouse-events{cursor:default}.xterm .xterm-accessibility:not(.debug),.xterm .xterm-message{position:absolute;left:0;top:0;bottom:0;right:0;z-index:10;color:transparent;pointer-events:none}.xterm .live-region{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}.xterm-dim{opacity:1!important}.xterm-underline-1{text-decoration:underline}.xterm-underline-2{text-decoration:double underline}.xterm-underline-3{text-decoration:wavy underline}.xterm-underline-4{text-decoration:dotted underline}.xterm-underline-5{text-decoration:dashed underline}.xterm-overline{text-decoration:overline}.xterm-strikethrough{text-decoration:line-through}.xterm .scrollbar,.xterm .xterm-scrollable-element>.scrollbar{display:none!important}.xterm-screen .xterm-decoration-container .xterm-decoration{z-index:6;position:absolute}`;
 function ensureStyle(): void {
   try {
     if (document.getElementById("vyre-xterm-css")) return;
@@ -84,6 +84,8 @@ export function XTermView({
   const told = useRef(false);
   const last = useRef("");
   const lastTheme = useRef("");
+  // how many rows the pane has room for: the screen is drawn on that many at least, so the terminal fills the pane downwards (tmux owns the width)
+  const [fitRows, setFitRows] = useState(0);
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   const failRef = useRef(onFail);
@@ -125,7 +127,29 @@ export function XTermView({
       if (text !== "") pasteRef.current?.(text);
     };
     el?.addEventListener("paste", onPasteEvent, true);
+    // light or dark mode and the skin change the colours with no new frame: the theme is read again when the page says it changed (never per frame)
+    const retheme = (): void => {
+      const th = themeNow(host.current);
+      const k = JSON.stringify(th);
+      if (k === lastTheme.current) return;
+      lastTheme.current = k;
+      t.options.theme = th;
+    };
+    retheme();
+    let watch: MutationObserver | null = null;
+    let media: MediaQueryList | null = null;
+    try {
+      watch = new MutationObserver(retheme);
+      for (const n of [document.documentElement, document.body])
+        watch.observe(n, { attributes: true, attributeFilter: ["class", "data-theme", "data-skin", "style"] });
+      media = window.matchMedia("(prefers-color-scheme: dark)");
+      media.addEventListener("change", retheme);
+    } catch {
+      // no observers here: the colours are read at start
+    }
     return () => {
+      watch?.disconnect();
+      media?.removeEventListener("change", retheme);
       el?.removeEventListener("paste", onPasteEvent, true);
       term.current = null;
       t.dispose();
@@ -136,14 +160,7 @@ export function XTermView({
   useEffect(() => {
     const t = term.current;
     if (!t) return;
-    // a change of light or dark mode or of skin shows on the next frame
-    const theme = themeNow(host.current);
-    const themeKey = JSON.stringify(theme);
-    if (themeKey !== lastTheme.current) {
-      lastTheme.current = themeKey;
-      t.options.theme = theme;
-    }
-    const lines = shot.text.split("\n").length;
+    const lines = Math.max(shot.text.split("\n").length, fitRows);
     const frame = frameOf(shot);
     const key = `${shot.cols}x${lines}|${frame}`;
     if (key === last.current) return;
@@ -160,10 +177,32 @@ export function XTermView({
     } catch {
       failRef.current?.();
     }
-  }, [shot]);
-  return createElement("div", {
-    ref: host,
-    "data-testid": "terminal-xterm",
-    style: { display: "inline-block", minWidth: "100%" },
-  });
+  }, [shot, fitRows]);
+  // the pane's height, now and whenever it changes (a resize of the window, the side pane opening): rows that fit
+  useEffect(() => {
+    const pane =
+      (host.current?.closest('[data-testid="terminal-screen"]') as HTMLElement | null) ??
+      host.current?.parentElement?.parentElement;
+    if (!pane || typeof ResizeObserver === "undefined") return undefined;
+    const measure = (): void => {
+      const row = host.current?.querySelector(".xterm-rows > div") as HTMLElement | null;
+      const rowH = row?.offsetHeight ?? 0;
+      if (rowH <= 0) return;
+      const cs = getComputedStyle(pane);
+      const room = pane.clientHeight - parseFloat(cs.paddingTop || "0") - parseFloat(cs.paddingBottom || "0");
+      setFitRows(Math.max(0, Math.floor(room / rowH)));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(pane);
+    // the first rows exist only after the first frame: their height is read then
+    if (host.current) ro.observe(host.current);
+    return () => ro.disconnect();
+  }, []);
+  // the screen's width is tmux's: any spare width is the skin's own background on both sides, so it reads as one surface
+  return createElement(
+    "div",
+    { style: { display: "flex", justifyContent: "center" } },
+    createElement("div", { ref: host, "data-testid": "terminal-xterm", style: { display: "inline-block" } }),
+  );
 }
