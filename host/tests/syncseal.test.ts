@@ -260,3 +260,87 @@ test("syncengine: the engine takes a sealed value from the connector's own keepi
   assert.equal(store.held.get("1")?.values["ssn"], SSN, "it is held for sealing");
   assert.equal((asked[0] as { input: { __unmask: string } }).input.__unmask, "tok:n9");
 });
+
+test("syncengine: sealing the values that waited for the Vault gives the event loop a turn, never holding it past 100 ms, and every value is kept", async () => {
+  const core = coreOf(await fileExportsImporter(CODE_ROOT)("sources"));
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-syncseal-wait-"));
+  const space = createSpaceStore({ path: path.join(dir, "space.db"), space: "sp_sealwait" });
+  const { store, tx } = space.open();
+  await store.define({
+    add_types: [
+      {
+        name: "contact",
+        label: "Contact",
+        fields: [
+          { name: "name", kind: "text", label: "Name" },
+          { name: "ssn", kind: "sealed", label: "SSN" },
+        ],
+      },
+    ],
+  });
+  const N = 600;
+  let vaultOpen = false;
+  let kept = 0;
+  const busy = (ms: number): void => {
+    const end = performance.now() + ms;
+    while (performance.now() < end);
+  };
+  const ctx: EngineCtx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: () => ({}),
+    call: async (cap, input) => {
+      if (cap === "connectors.get") return { connector: { key: "fakeapp" } };
+      if (cap === "records.update") {
+        // the Vault is locked for the first pass; then each value costs a little synchronous work (a key derivation, a write)
+        if (!vaultOpen) throw new Error("The Vault is locked.");
+        busy(1);
+        const i = input as { type: string; recordId: string; patch: Record<string, unknown> };
+        const cur = (await store.get(i.type, i.recordId))!;
+        await store.update(i.type, i.recordId, { ssn: { sealed: "ssn", ref: `ref_${i.recordId}`, present: true, set_at: Date.now() } }, cur.version);
+        kept++;
+        return { record: { id: i.recordId } };
+      }
+      return {
+        output: {
+          results: Array.from({ length: N }, (_, n) => ({
+            id: `h${n}`,
+            updatedAt: 1000,
+            properties: { full_name: `Person ${n}`, tax: `123-45-${String(1000 + n)}` },
+          })),
+        },
+      };
+    },
+  };
+  const row: BindingRow = {
+    syncTypeId: "syt_wait",
+    type: "contact",
+    connector: "fakeapp",
+    connectionId: "con_1",
+    remote: "contacts",
+    fields: [
+      { key: "name", remote: "full_name", dir: "pull" },
+      { key: "ssn", remote: "tax", dir: "pull", sealed: true },
+    ],
+    match: [],
+    createAtSource: false,
+    deletes: "off",
+    conflict: "newest",
+  };
+  const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) } });
+  await engine.run(ctx, row, { mode: "incremental" });
+  assert.equal(kept, 0, "the Vault was locked: nothing kept, every value waits in memory");
+  vaultOpen = true;
+  let last = performance.now(),
+    worst = 0;
+  const timer = setInterval(() => {
+    const at = performance.now();
+    worst = Math.max(worst, at - last - 2);
+    last = at;
+  }, 2);
+  await engine.run(ctx, row, { mode: "incremental" });
+  await new Promise<void>((r) => setTimeout(r, 10));
+  clearInterval(timer);
+  process.stderr.write(`[sealwait] ${kept} values kept, longest block ${Math.round(worst)} ms\n`);
+  assert.equal(kept, N, "every value that waited is kept");
+  assert.ok(worst <= 100, `the loop was held for ${Math.round(worst)} ms (budget 100 ms)`);
+});
