@@ -195,7 +195,7 @@ function BuyNumber({ onBack, onCreated }: { onBack(): void; onCreated(id: string
                 label="Review purchase"
                 testID="number-review-buy"
                 disabled={!title.trim() || !recipient || action.busy}
-                why={!title.trim() ? "Name the number first" : !recipient ? "Pick who gets it" : undefined}
+                {...(!title.trim() ? { why: "Name the number first" } : !recipient ? { why: "Pick who gets it" } : {})}
                 onPress={() => setReview(true)}
               />
             </ObjectSection>
@@ -360,7 +360,7 @@ function NumberEditor({ number, refresh }: { number: NumberRow; refresh(): void 
           label="Save assignment"
           testID="number-save-assignee"
           disabled={!assignee || action.busy}
-          why={!assignee ? "Pick who answers" : undefined}
+          {...(!assignee ? { why: "Pick who answers" } : {})}
           onPress={() => {
             if (assignee)
               void action.run(

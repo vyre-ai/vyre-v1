@@ -84,7 +84,7 @@ function NewInbox({ onBack, onCreated }: { onBack(): void; onCreated(id: string)
             label="Create inbox"
             testID="inbox-create"
             disabled={!valid || action.busy}
-            why={!valid ? "Fill in the name and address" : undefined}
+            {...(!valid ? { why: "Fill in the name and address" } : {})}
             onPress={() =>
               void action
                 .run<
