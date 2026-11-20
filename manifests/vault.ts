@@ -252,6 +252,7 @@ export default defineManifest({
         fieldsChanged: t.arr(fieldKey),
         settingsChanged: t.arr(t.str()),
         kind: t.opt(itemKind),
+        refreshed: t.opt(t.bool()),
       },
       subject: ["vault_item", "/itemId"],
       vis: "participants",

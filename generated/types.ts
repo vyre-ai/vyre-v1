@@ -57869,6 +57869,7 @@ export type VaultItemUpdatedPayload = {
   fieldsChanged: Array<string>;
   settingsChanged: Array<string>;
   kind?: "login" | "api_key" | "env" | "card" | "note" | "totp" | "ssh_key" | "ai_subscription" | "other";
+  refreshed?: boolean;
 };
 export type VaultRequestCanceledPayload = {
   requestId: string;

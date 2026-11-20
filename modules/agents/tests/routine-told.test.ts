@@ -252,6 +252,11 @@ test("a routine that paused itself starts again only when an AI account arrived:
     [{ name: "engine.subscription_share_changed", payload: { enabled: true } }, undefined, true],
     [{ name: "vault.item_updated", payload: { itemId: "vit_login" } }, "login", false],
     [{ name: "vault.item_updated", payload: { itemId: "vit_key" } }, "api_key", true],
+    [
+      { name: "vault.item_updated", payload: { itemId: "vit_key", kind: "ai_subscription", refreshed: true } },
+      "api_key",
+      false,
+    ],
     [{ name: "provider.added", payload: {} }, undefined, true],
   ];
   for (const [event, kind, comesBack] of cases) {

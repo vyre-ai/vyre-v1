@@ -48,6 +48,16 @@ test("an update carries its own kind; the Vault is asked only when it does not, 
   assert.equal(await accountArrival(up("login"), kinds({ v: "api_key" })), null);
 });
 
+test("a renewal Vyre made on its own is an arrival only for the consumer that waits for a renewed token", async () => {
+  const e = { name: "vault.item_updated", payload: { itemId: "v", kind: "ai_subscription", refreshed: true } };
+  assert.equal(await accountArrival(e), null);
+  assert.equal(await accountArrival(e, undefined, { refresh: true }), "saved");
+  assert.equal(await accountMayHaveArrived(e), false);
+  assert.equal(await accountMayHaveArrived(e, undefined, { refresh: true }), true);
+  // a person's own save of the same kind is an arrival for everyone
+  assert.equal(await accountArrival({ ...e, payload: { itemId: "v", kind: "ai_subscription" } }), "saved");
+});
+
 test("kindReader reads the kind once through vault.item.get and survives a refusal", async () => {
   const calls: unknown[] = [];
   const read = kindReader(async (cap, input) => {
