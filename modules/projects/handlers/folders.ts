@@ -564,6 +564,8 @@ export async function onFolderUnfollowed(
     await call(ctx, "access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
     return;
   } catch (e) {
+    // a Personal Space has no sharing (permission.needs_team): nothing to follow, nothing to narrow
+    if (codeOf(e) === "permission.needs_team") return;
     if (!codeOf(e).startsWith("permission.")) {
       ctx.log.warn("projects: a folder that could not follow its record was left as it is (not a refusal of rights)", {
         folderId,

@@ -599,3 +599,22 @@ test("a later, separate failure for the same folder raises its own task", async 
   const keys = h.only("tasks.create").map((c) => (c.input as { idempotencyKey: string }).idempotencyKey);
   assert.equal(new Set(keys).size, 2);
 });
+
+test("a Personal Space has no sharing: access answers needs_team, which is not a refusal; no event, no narrowing, no task", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  h.world.refuse.code = "permission.needs_team";
+  const id = mkRecord(h, { title: "My own file" });
+  await created(h, id);
+  assert.ok(!h.emitted.some((e) => e.name === "project.folder_unfollowed"), "nothing to report");
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.equal(h.only("tasks.create").length, 0);
+  // and even an event that arrives anyway narrows nothing and files nothing
+  await onFolderUnfollowed(
+    h.ctx,
+    { folderId: "fld_p", recordId: id, by: "svc_host", why: "permission.needs_team" },
+    "evt_p",
+  );
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.equal(h.only("tasks.create").length, 0);
+});
