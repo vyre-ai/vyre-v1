@@ -5,6 +5,7 @@
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 // @reads /modules/connectors/migrations/0005_hosts.sql
+// @reads /modules/connectors/migrations/0006_revisions.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -38,6 +39,8 @@ export interface AuthDef {
   refreshSecret?: string;
   /** Where a token is revoked when a connection is deleted; optional, best effort. */
   revokeUrl?: string;
+  /** api_key only: the header value is this template, filled with `{secret.Name}` (several secrets, any form the app wants: `sso-key {secret.Key}:{secret.Secret}`); it replaces prefix and the single secret. */
+  template?: string;
   /** api_key or bearer only: send HTTP Basic (user:password) instead of a header. Both are templates (`{secret.Name}` or plain words, "api"); the password may be empty. The joined value is scrubbed like a secret. */
   basic?: { user: string; pass?: string };
   /** client_credentials (a server-to-server token): the action that trades the connection's own secrets for a short-lived token, which is sent as a Bearer on every other action. The token is held in memory for the call and never kept. */
@@ -275,6 +278,7 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0006_revisions.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
@@ -311,8 +315,9 @@ export function checkEgress(raw: string, domains: readonly string[]): EgressResu
 
 // ---- templates ----
 
-const PLACEHOLDER = /\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}/g;
-const WHOLE = /^\{(input|secret|connection)\.([A-Za-z0-9_.]+)\}$/;
+// `{input.x?}` is optional: with no value the query key, header, form field or body key it sits in is left out instead of the call failing. Never in an address, never for a secret (connectors/handlers/source.ts says so at define).
+const PLACEHOLDER = /\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}/g;
+const WHOLE = /^\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}$/;
 
 export interface Scope3 {
   input: unknown;
@@ -340,6 +345,7 @@ function lookup(scope: Scope3, kind: string, path: string): unknown {
   let cur: unknown = scope.input;
   for (const k of path.split(".")) {
     if (cur === null || typeof cur !== "object") return undefined;
+    if (k === "__proto__" || k === "constructor" || k === "prototype") return undefined;
     cur = (cur as Record<string, unknown>)[k];
   }
   return cur;
@@ -369,20 +375,56 @@ export function fillString(s: string, scope: Scope3, encode = false): string {
   });
 }
 
+/**
+ * Like fillString, for a place where leaving the thing out is meaningful (a query key, a header, a form field): when an optional `{input.x?}` has no value the answer is undefined and the caller drops the whole
+ * entry. A required placeholder with no value still throws, so a call that forgot its input still stops.
+ */
+export function fillOptional(s: string, scope: Scope3, encode = false): string | undefined {
+  let absent = false;
+  const out = s.replace(PLACEHOLDER, (m, kind: string, path: string, optional: string | undefined) => {
+    const v = lookup(scope, kind, path);
+    if ((v === undefined || v === null) && optional) {
+      absent = true;
+      return "";
+    }
+    return fillString(m.replace("?}", "}"), scope, encode);
+  });
+  return absent ? undefined : out;
+}
+
+/** What fillValue leaves where an optional value had none: the entry (or array item) holding it is dropped. */
+const ABSENT = Symbol("absent");
+
 /** A body template: a string that is one placeholder keeps the value's type, any other string is interpolated, objects and arrays recurse. */
 export function fillValue(t: unknown, scope: Scope3): unknown {
+  const v = fill(t, scope);
+  return v === ABSENT ? undefined : v;
+}
+function fill(t: unknown, scope: Scope3): unknown {
   if (typeof t === "string") {
     const whole = WHOLE.exec(t);
     if (whole) {
       const v = lookup(scope, whole[1]!, whole[2]!);
-      if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`);
+      if (v === undefined || v === null) {
+        if (whole[3]) return ABSENT;
+        if (v === undefined) throw new Error(`${whole[1]}.${whole[2]} has no value`);
+      }
       return v;
     }
-    return fillString(t, scope);
+    const text = fillOptional(t, scope);
+    return text === undefined ? ABSENT : text;
   }
-  if (Array.isArray(t)) return t.map((x) => fillValue(x, scope));
-  if (t && typeof t === "object")
-    return Object.fromEntries(Object.entries(t as Record<string, unknown>).map(([k, v]) => [k, fillValue(v, scope)]));
+  if (Array.isArray(t)) return t.map((x) => fill(x, scope)).filter((x) => x !== ABSENT);
+  if (t && typeof t === "object") {
+    // no prototype: a template key such as __proto__ is an ordinary key, never a way to change what every object inherits
+    const out: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
+    for (const [k, v] of Object.entries(t as Record<string, unknown>)) {
+      const f = fill(v, scope);
+      if (f !== ABSENT)
+        Object.defineProperty(out, k, { value: f, enumerable: true, writable: true, configurable: true });
+    }
+    return out;
+  }
   return t;
 }
 
@@ -626,24 +668,75 @@ export function seedBuiltins(deps: ConnectorsDeps): void {
       );
     }
   }
-  backfillHosts(deps.tx);
+  backfillHosts(deps.tx, now);
   seeded.add(deps.tx);
 }
 
-/** The host record every connection gets when it is made (cn_connection_hosts): a connection from before that table exists gets the same one from its connector's actions, once at start-up (a row that exists is never touched). */
-export function backfillHosts(tx: Tx): void {
-  const rows = tx.all<{ connection_id: string; def: string }>(
-    "SELECT c.connection_id AS connection_id, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
+/**
+ * The host record of a connection from before the table existed, written once, from the connector version that was live when the connection was made (the newest published version at or before its creation; a
+ * connector shipped with the product, which nobody can redefine, uses its current definition). A version that cannot be found records an empty list: no host is allowed until a person approves one. After this pass
+ * (cn_host_backfill) nothing is ever written from a later definition, so no one can approve a host by publishing and waiting for a restart.
+ */
+export function backfillHosts(tx: Tx, now = 0): void {
+  if (tx.get("SELECT 1 AS x FROM cn_host_backfill WHERE id = 1")) return;
+  const rows = tx.all<{ connection_id: string; connector: string; created_at: number; builtin: number; def: string }>(
+    "SELECT c.connection_id AS connection_id, c.connector AS connector, c.created_at AS created_at, k.builtin AS builtin, k.def AS def FROM cn_connections c JOIN cn_connectors k ON k.key = c.connector WHERE NOT EXISTS (SELECT 1 FROM cn_connection_hosts h WHERE h.connection_id = c.connection_id)",
   );
   for (const r of rows) {
-    const def = JSON.parse(r.def) as ConnectorDef;
-    if (hostFromInput(def) || keyHosts(def).length === 0) continue;
+    let def: ConnectorDef | null = null;
+    if (r.builtin === 1) def = JSON.parse(r.def) as ConnectorDef;
+    else {
+      const v = tx.get<{ def: string }>(
+        "SELECT def FROM cn_versions WHERE key = ? AND at <= ? ORDER BY at DESC LIMIT 1",
+        r.connector,
+        r.created_at,
+      );
+      if (v) def = JSON.parse(v.def) as ConnectorDef;
+    }
+    const rec = def === null ? [] : def.auth.type === "none" ? null : recordFor(def);
+    if (rec === null) continue;
     tx.run(
       "INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
       r.connection_id,
-      JSON.stringify(recordHosts(def)),
+      JSON.stringify(rec),
     );
   }
+  tx.run("INSERT OR IGNORE INTO cn_host_backfill (id, at) VALUES (1, ?)", now);
+}
+
+/**
+ * What a connection's host record holds, from its connector as it is at the moment the connection is made: the exact hosts (with ports) its actions call, or, when an action takes its host from the caller's input (a
+ * tenant subdomain), the connector's declared domains as `domain:<pattern>:<port>` entries (the default https port when the pattern names none). A connector with no addresses yet gives an empty list: nothing is allowed until a
+ * person approves a host. Either way a version published later that reaches a host outside the record does not send the key there.
+ */
+export function recordFor(def: ConnectorDef): string[] {
+  if (hostFromInput(def))
+    return def.domains.map((d) => {
+      const m = /^(.*):(\d{1,5})$/.exec(d.toLowerCase());
+      return `domain:${m ? m[1] : d.toLowerCase()}:${m ? m[2] : "443"}`;
+    });
+  return keyHosts(def).length > 0 ? recordHosts(def) : [];
+}
+/** May a connection whose record is this send its key to this address? An exact host and port, or a recorded domain pattern on the port it names. */
+export function recordAllows(record: readonly string[], u: URL): boolean {
+  const port = u.port || (u.protocol === "http:" ? "80" : "443");
+  return (
+    record.includes(originKey(u)) ||
+    record.some((e) => {
+      if (!e.startsWith("domain:")) return false;
+      const m = /^domain:(.*):(\d{1,5})$/.exec(e);
+      const pattern = m ? m[1]! : e.slice("domain:".length);
+      return (m ? m[2] : "443") === port && domainAllowed(u.hostname, [pattern]);
+    })
+  );
+}
+/** A record in plain words for a person: "any address ending in .crm.test", "api.crm.test". */
+export function recordWords(entry: string): string {
+  const m = /^domain:(.*?)(?::(\d{1,5}))?$/.exec(entry);
+  if (!m) return entry.replace(/:443$/, "");
+  const pattern = m[1]!;
+  const port = m[2] && m[2] !== "443" ? ` on port ${m[2]}` : "";
+  return pattern.startsWith("*.") ? `any address ending in ${pattern.slice(1)}${port}` : `${pattern}${port}`;
 }
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */

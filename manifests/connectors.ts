@@ -83,19 +83,22 @@ const connectionRow = t.obj({
   lastSyncAt: t.opt(t.ts()),
   createdAt: t.ts(),
   handles: t.arr(id.handle, { description: "The Vault handles this connection uses. Names only, never a value." }),
-  filled: t.arr(t.str(), {
-    description:
-      "The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.",
-  }),
+  filled: t.arr(t.str(), { description: "Secret slots holding a Vault handle; a declared slot not listed is empty." }),
+  /** The connector's addresses, when not all are allowed yet: what approve_hosts takes */
+  pendingHosts: t.opt(t.arr(t.str())),
 });
 
 const serviceChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+  options: t.arr(
+    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), revision: t.str() }),
+  ),
 });
 const serviceRow = t.obj({
   key: id.connector,
+  /** The server's count of this connector's publishes: changes on every publish, whatever the version text says */
+  revision: t.str(),
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,
@@ -471,6 +474,8 @@ export default defineManifest({
     ),
     create("connectors.init", "Scaffold a connector folder: connector.toml, transforms.js, tests, README", {
       in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()), source: t.opt(t.bool()) },
+      // the key names the new connector, so a repeat names the same thing: it asks for no idempotency key (a repeat is refused as a duplicate, which is what the key was for)
+      idem: "natural",
       out: { key: id.connector, folderId: t.opt(id.folder) },
       // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
       perm: "connectors.manage",
@@ -481,19 +486,24 @@ export default defineManifest({
     }),
     write(
       "connectors.define",
-      "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.",
       {
         in: {
           key: id.connector,
           title: t.opt(t.str()),
           domains: t.arr(t.str(), { minItems: 1 }),
           auth: t.obj({
-            type: t.enm("none", "api_key", "bearer"),
+            // basic: HTTP Basic from declared secrets (user and password); header: one header whose value is a template over declared secrets, such as Token token="{secret.Key}" or sso-key {secret.Key}:{secret.Secret}
+            type: t.enm("none", "api_key", "bearer", "basic", "header"),
             secret: t.opt(t.str()),
             header: t.opt(t.str()),
             prefix: t.opt(t.str()),
+            user: t.opt(t.str()),
+            password: t.opt(t.str()),
+            template: t.opt(t.str()),
           }),
           secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
+          health: t.opt(t.str()),
           actions: t.arr(
             t.obj({
               name: t.str(),
@@ -501,6 +511,20 @@ export default defineManifest({
               url: t.str(),
               headers: t.opt(t.rec(t.str())),
               query: t.opt(t.rec(t.str())),
+              body: t.opt(t.json()),
+              form: t.opt(t.rec(t.str())),
+              basic: t.opt(t.obj({ user: t.str(), pass: t.opt(t.str()) })),
+              paginate: t.opt(
+                t.obj({
+                  kind: t.enm("page", "cursor", "offset", "link"),
+                  param: t.opt(t.str()),
+                  next: t.opt(t.str()),
+                  items: t.str(),
+                  id: t.str(),
+                  size: t.opt(t.int({ minimum: 1 })),
+                  start: t.opt(t.int({ minimum: 0 })),
+                }),
+              ),
               output: t.opt(t.str()),
               write: t.opt(t.bool()),
             }),
@@ -666,6 +690,7 @@ export default defineManifest({
           ownerKind: t.enm("person", "space"),
           secrets: t.opt(t.rec(id.handle)),
           scopes: t.opt(t.arr(t.str())),
+          pin: t.opt(t.arr(t.str())),
         },
         out: { connection: connectionRow, authUrl: t.opt(t.str()) },
         make: ["connection", "/connector"],

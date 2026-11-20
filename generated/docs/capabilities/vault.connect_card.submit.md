@@ -35,6 +35,7 @@ type In = {
   audience?: "asker" | "anyone";
   choice?: string;
   hosts: Array<string>;
+  revision?: string;
 };
 ```
 
@@ -48,6 +49,7 @@ type Out = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -64,6 +66,7 @@ type Out = {
           label: string;
           connector: string;
           hosts: Array<string>;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -121,6 +124,7 @@ type Out = {
       "example"
     ],
     "requestId": "vrq_a1b2c3",
+    "revision": "example",
     "useSaved": true
   },
   "output": {
@@ -142,6 +146,7 @@ type Out = {
               "example"
             ],
             "label": "example",
+            "revision": "example",
             "value": "example"
           }
         ]
@@ -167,6 +172,7 @@ type Out = {
       "requestId": "vrq_a1b2c3",
       "service": {
         "key": "hubspot",
+        "revision": "example",
         "site": "example",
         "title": "example"
       },

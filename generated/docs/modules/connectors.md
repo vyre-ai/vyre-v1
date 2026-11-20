@@ -21,7 +21,7 @@ Requires: records, schema.
 - [connections.update](../capabilities/connections.update.md): Rename a connection or change its scopes
 - [connectors.build](../capabilities/connectors.build.md): Run the build-connector flow: read the app docs, draft the connector, ask for a key through a Vault request, run the harness
 - [connectors.check_key](../capabilities/connectors.check_key.md): Try the key a person typed against the app before it is stored; answers ok, rejected, limited (the key works but may not read what the check needs) or unreachable and never repeats the key
-- [connectors.define](../capabilities/connectors.define.md): Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.
+- [connectors.define](../capabilities/connectors.define.md): Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.
 - [connectors.diff](../capabilities/connectors.diff.md): Diff a draft against the live version of a connector
 - [connectors.export](../capabilities/connectors.export.md): Export a connector as a folder in Files (no public gallery in v1)
 - [connectors.for_service](../capabilities/connectors.for_service.md): Find the connector for a service named in words (Fathom, Slack), the fields it needs, and whether the caller already has it connected

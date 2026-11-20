@@ -65,6 +65,7 @@ const submit = (
 ) =>
   handlers["vault.connect_card.submit"](person(w, who), {
     hosts: ["api.fathom.ai"],
+    revision: "r1",
     requestId,
     fields,
     ...extra,
@@ -100,7 +101,7 @@ test("an agent names the service and gets a short answer; the person gets one ca
   assert.equal(c.state, "ask");
   assert.equal(c.mayFill, true);
   assert.deepEqual(c.fields, FATHOM.fathom.fields);
-  assert.deepEqual(c.service, { key: "fathom", title: "Fathom", site: "https://fathom.video" });
+  assert.deepEqual(c.service, { key: "fathom", revision: "r1", title: "Fathom", site: "https://fathom.video" });
 });
 
 test("asking again for the same service answers with the same card; a service that is already connected needs none", async () => {
@@ -225,6 +226,7 @@ test("a key the person already saved is offered back, and Use it connects withou
   assert.equal(c.state, "have");
   assert.deepEqual(c.have, { itemId: "vit_old", name: "Fathom", keptIn: "Mine" });
   const out = await handlers["vault.connect_card.submit"](person(w), {
+    revision: "r1",
     hosts: ["api.fathom.ai"],
     requestId,
     useSaved: true,
@@ -428,6 +430,7 @@ test("a saved key whose connection fails its probe leaves the connection removed
   const { requestId } = await ask(w);
   stamp(w, requestId!);
   const out = await handlers["vault.connect_card.submit"](person(w), {
+    revision: "r1",
     hosts: ["api.fathom.ai"],
     requestId,
     useSaved: true,
@@ -499,6 +502,7 @@ test("a Space service is kept in the Connections folder even when the admin is t
     "no Mine, no team folders; the folder is made on first use",
   );
   const out = await admin("vault.connect_card.submit", {
+    revision: "r1",
     hosts: ["api.fathom.ai"],
     requestId: r.requestId,
     fields: [{ key: "token", value: KEY }],
@@ -518,11 +522,17 @@ test("an agent cannot connect a person's saved key with no press: submit useSave
   const { requestId } = await ask(w);
   stamp(w, requestId!);
   await assert.rejects(
-    handlers["vault.connect_card.submit"](dex(w), { hosts: ["api.fathom.ai"], requestId, useSaved: true } as never),
+    handlers["vault.connect_card.submit"](dex(w), {
+      revision: "r1",
+      hosts: ["api.fathom.ai"],
+      requestId,
+      useSaved: true,
+    } as never),
     (e: unknown) => (e as { error?: { code?: string } }).error?.code === "permission.no_grant",
   );
   await assert.rejects(
     handlers["vault.connect_card.submit"](dex(w), {
+      revision: "r1",
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: KEY }],
@@ -536,6 +546,7 @@ test("a second key for the same service gets its own item name, never a raw dupl
   const w = room({ saved: [{ id: "vit_old", name: "Fathom", folderId: "vfd_mine", fieldKeys: ["api_key"] }] });
   const { requestId } = await ask(w);
   await handlers["vault.connect_card.submit"](person(w), {
+    revision: "r1",
     hosts: ["api.fathom.ai"],
     requestId,
     useSaved: false,
@@ -695,6 +706,7 @@ for (const def of OFFERED) {
       out: await handlers["vault.connect_card.submit"](
         w.as("usr_admin", "person") as never,
         {
+          revision: "r1",
           hosts: keyHosts(def),
           requestId: asked.requestId!,
           fields: fieldsIn,
@@ -745,3 +757,70 @@ for (const def of OFFERED) {
       assert.equal(JSON.stringify([lim.events, lim.warnings, lim.db.dump(), l.out]).includes(t.value), false, def.key);
   });
 }
+
+test("the card pins the service revision it showed: a republished service is refused before any key is tried or kept", async () => {
+  const w = room();
+  const r = await ask(w);
+  assert.equal((await card(w, r.requestId!)).service.revision, "r1");
+  await assert.rejects(
+    submit(w, r.requestId!, undefined, "usr_asker", { revision: "r0" }),
+    /changed since this card was shown/,
+  );
+  assert.equal(w.called("connectors.check_key").length, 0, "nothing was tried, so no key left");
+  await submit(w, r.requestId!, undefined, "usr_asker", { revision: "r1" });
+  assert.equal(w.called("connectors.check_key").length, 1, "the revision the card showed goes through");
+});
+
+test("a service republished between the key's try and its keeping: nothing is stored and nothing is connected", async () => {
+  let rev = "r1";
+  const w = room({ revision: () => rev, onCheck: () => (rev = "r2") });
+  const r = await ask(w);
+  await assert.rejects(submit(w, r.requestId!), /changed since the card was shown/);
+  assert.equal(w.called("vault.item.put").length, 0, "the key was not kept");
+  assert.equal(w.called("connections.create").length, 0, "nothing was connected");
+});
+
+test("connections.create refusing after the key was stored: the key is taken back, nothing stays, and the person is told in plain words", async () => {
+  const w = room({ createRefuses: "Fathom was published again." });
+  const r = await ask(w);
+  await assert.rejects(
+    submit(w, r.requestId!),
+    /The service changed while you were connecting\. Nothing was saved\. Open it again\./,
+  );
+  assert.equal(w.called("vault.item.put").length, 1, "the key was stored for the try");
+  assert.equal(w.called("vault.item.discard_new").length, 1, "and taken back: no orphan key");
+});
+
+test("a submit without the revision (an app bundle from before the pin) is refused in the words of a changed service, and nothing is tried", async () => {
+  const w = room();
+  const r = await ask(w);
+  await assert.rejects(
+    handlers["vault.connect_card.submit"](person(w), {
+      hosts: ["api.fathom.ai"],
+      requestId: r.requestId,
+      fields: [{ key: "api_key", value: KEY }],
+    } as never),
+    /changed since this card was shown\. Open it again\./,
+  );
+  assert.equal(w.called("connectors.check_key").length, 0);
+});
+
+test("an empty revision is a missing one: refused when the card sends none, and when the service reports none", async () => {
+  const w = room();
+  const r = await ask(w);
+  await assert.rejects(
+    submit(w, r.requestId!, undefined, "usr_asker", { revision: "" }),
+    /changed since this card was shown/,
+  );
+  const none = room({ revision: () => "" });
+  const r2 = await ask(none);
+  await assert.rejects(
+    submit(none, r2.requestId!, undefined, "usr_asker", { revision: "" }),
+    /changed since this card was shown/,
+  );
+  assert.equal(
+    w.called("connectors.check_key").length + none.called("connectors.check_key").length,
+    0,
+    "nothing was tried",
+  );
+});

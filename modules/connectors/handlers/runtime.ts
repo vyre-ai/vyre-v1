@@ -32,8 +32,10 @@ import {
   PACE_TOTAL_MS,
   checkEgress,
   originKey,
-  recordHosts,
+  recordAllows,
+  recordFor,
   fillString,
+  fillOptional,
   withoutSecretValues,
   maskSealed,
   SYNC_PASS_TOKEN,
@@ -83,14 +85,41 @@ export interface DefineInput {
   key: string;
   title?: string;
   domains: string[];
-  auth: { type: "none" | "api_key" | "bearer"; secret?: string; header?: string; prefix?: string };
+  /** none, api_key and bearer as before; basic: HTTP Basic from declared secrets (`user` and `password` are templates such as "{secret.Shop_User}"); header: one header whose value is a template over declared secrets. */
+  auth: {
+    type: "none" | "api_key" | "bearer" | "basic" | "header";
+    secret?: string;
+    header?: string;
+    prefix?: string;
+    user?: string;
+    password?: string;
+    template?: string;
+  };
   secrets?: { name: string; description: string }[];
+  /** The action that stands in for a health check: a declared read (GET). */
+  health?: string;
   actions: {
     name: string;
     method?: string;
     url: string;
     headers?: Record<string, string>;
     query?: Record<string, string>;
+    /** A JSON template filled at run time: `{input.x}`, `{secret.X}`, and `{input.x?}` for a value that may be absent (its key is then left out). Not on a GET. */
+    body?: unknown;
+    /** A form body (instead of body), filled the same way. */
+    form?: Record<string, string>;
+    /** HTTP Basic for this one call: templates like auth.basic. */
+    basic?: { user: string; pass?: string };
+    /** How the app pages a list: the answer becomes rows and the next cursor, and `input.after` asks for the next page. */
+    paginate?: {
+      kind: string;
+      param?: string;
+      next?: string;
+      items: string;
+      id: string;
+      size?: number;
+      start?: number;
+    };
     output?: string;
     write?: boolean;
   }[];
@@ -380,6 +409,7 @@ export async function executeAction(
   ]);
   if (def.auth.type !== "none" && def.auth.type !== "client_credentials" && def.auth.secret)
     needed.add(def.auth.secret);
+  if (def.auth.type === "api_key" && def.auth.template) secretsIn(def.auth.template, needed);
   const values: Record<string, string> = {};
   let keptUsed = false;
   for (const name of needed) {
@@ -442,6 +472,16 @@ export async function executeAction(
       basicHeader = `Basic ${enc}`;
       everySecret.push(cred, enc, basicHeader);
     } catch (e) {
+      return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
+    }
+  }
+  // a header template: any form the app wants, with every secret it names; the filled value is scrubbed from every answer like a secret
+  let templateHeader: string | undefined;
+  if (def.auth.type === "api_key" && def.auth.template && !basicHeader) {
+    try {
+      templateHeader = fillString(def.auth.template, { input: {}, secret: values, connection: { id: "" } });
+      everySecret.push(templateHeader);
+    } catch {
       return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
     }
   }
@@ -524,8 +564,23 @@ export async function executeAction(
   try {
     method = a.method ?? "GET";
     const u = new URL(linked ? after! : fillString(a.url, scope, true));
-    if (!linked) for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    // an optional {input.x?} with no value leaves its key out
+    if (!linked)
+      for (const [k, v] of Object.entries(a.query ?? {})) {
+        const text = fillOptional(v, scope);
+        if (text !== undefined) u.searchParams.set(k, text);
+      }
     if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
+    // the first page of a page or offset list is asked for by its start, as the sync engine's own first request is
+    else if (
+      !linked &&
+      after === undefined &&
+      a.shape?.cursor?.param &&
+      a.shape.cursor.start !== undefined &&
+      (a.shape.cursor.kind === "page" || a.shape.cursor.kind === "offset") &&
+      !u.searchParams.has(a.shape.cursor.param)
+    )
+      u.searchParams.set(a.shape.cursor.param, String(a.shape.cursor.start));
     // what changed since a time: the app's own filter, on every page (a link page already carries it)
     const since = (input as Record<string, unknown>)["since"];
     if (!linked && a.shape?.since && typeof since === "number" && Number.isFinite(since)) {
@@ -552,9 +607,11 @@ export async function executeAction(
         "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
         conn.connection_id,
       );
-      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(originKey(url))) {
+      // a connection that can send a key always has a record; one that somehow has none allows no host, never every host
+      const list = rec ? (JSON.parse(rec.hosts) as string[]) : def.auth.type !== "none" ? [] : null;
+      if (list && !recordAllows(list, url)) {
         // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
-        const gained = recordHosts(def).includes(originKey(url));
+        const gained = recordAllows(recordFor(def), url);
         refuse(
           ctx,
           "permission.no_grant",
@@ -568,17 +625,26 @@ export async function executeAction(
     headers = {};
     if (basicHeader) headers["Authorization"] = basicHeader;
     else if (tokenValue) headers["Authorization"] = `Bearer ${tokenValue}`;
+    else if (templateHeader !== undefined) headers[def.auth.header ?? "Authorization"] = templateHeader;
     else if (def.auth.type === "api_key" && def.auth.secret)
       headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
     else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret)
       headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
-    for (const [k, v] of Object.entries(a.headers ?? {})) headers[k] = fillString(v, scope);
+    for (const [k, v] of Object.entries(a.headers ?? {})) {
+      const text = fillOptional(v, scope);
+      if (text !== undefined) headers[k] = text;
+    }
     if (a.form !== undefined && method !== "GET") {
-      body = new URLSearchParams(Object.entries(a.form).map(([k, v]) => [k, fillString(v, scope)])).toString();
+      const fields: [string, string][] = [];
+      for (const [k, v] of Object.entries(a.form)) {
+        const text = fillOptional(v, scope);
+        if (text !== undefined) fields.push([k, text]);
+      }
+      body = new URLSearchParams(fields).toString();
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/x-www-form-urlencoded";
     } else if (a.body !== undefined && method !== "GET") {
-      body = JSON.stringify(fillValue(a.body, scope));
+      body = JSON.stringify(fillValue(a.body, scope) ?? null);
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/json";
     }
@@ -777,6 +843,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
   const declared = new Set(def.secrets.map((s) => s.name));
   const used = new Set<string>(def.auth.secret ? [def.auth.secret] : []);
   secretsIn(def.auth.basic, used);
+  secretsIn(def.auth.template, used);
   const bad: string[] = [];
   for (const a of def.actions) {
     if (!a.url) continue;
@@ -785,7 +852,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
     secretsIn(a.form, used);
     secretsIn(a.basic, used);
     if (secretsIn(a.url).size || secretsIn(a.query).size) bad.push(`${a.name}: a secret in the address`);
-    const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\}/g, "x");
+    const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\??\}/g, "x");
     const eg = checkEgress(probe, def.domains);
     if (!eg.ok) bad.push(`${a.name}: ${eg.reason}`);
   }
@@ -1174,33 +1241,113 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         );
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
+      const kind = input.auth.type;
+      const templated = kind === "basic" || kind === "header";
+      if (templated && !(input.secrets && input.secrets.length > 0))
+        refuse(ctx, "validation.bad_input", `auth ${kind} reads secrets: declare each one in secrets.`);
       const secrets =
-        input.auth.type === "none"
+        kind === "none"
           ? []
           : input.secrets && input.secrets.length > 0
             ? input.secrets
             : [{ name: slot ?? "Key", description: `API key for ${input.title ?? live.title}` }];
+      // basic and header sign-ins are an api_key connector with a template: the secrets the template names are declared, and the header it fills is the connector's own
+      let authDoc: Record<string, unknown>;
+      if (kind === "basic") {
+        if (typeof input.auth.user !== "string" || typeof input.auth.password !== "string")
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic needs user and password (a secret like {secret.Shop_User}, or plain words).",
+          );
+        const named = secretsIn([input.auth.user, input.auth.password]);
+        const first = [...named][0];
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic reads at least one secret: put {secret.Name} in user or password.",
+          );
+        authDoc = { type: "api_key", secret: first, basic: { user: input.auth.user, pass: input.auth.password } };
+      } else if (kind === "header") {
+        if (typeof input.auth.header !== "string" || input.auth.header.trim() === "")
+          refuse(ctx, "validation.bad_input", "auth header needs the name of the header it fills.");
+        if (typeof input.auth.template !== "string")
+          refuse(ctx, "validation.bad_input", "auth header needs a template over its secrets.");
+        const named = secretsIn(input.auth.template);
+        const first = [...named][0];
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth header's template reads at least one secret: put {secret.Name} in it.",
+          );
+        authDoc = { type: "api_key", secret: first, header: input.auth.header, template: input.auth.template };
+      } else
+        authDoc = {
+          type: kind,
+          ...(kind === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }),
+          ...(input.auth.header ? { header: input.auth.header } : {}),
+          ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}),
+        };
       const main: Record<string, unknown> = {
         title: input.title ?? live.title,
         mode: live.mode,
         scope: live.scope,
         domains: input.domains,
-        auth: {
-          type: input.auth.type,
-          ...(input.auth.type === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }),
-          ...(input.auth.header ? { header: input.auth.header } : {}),
-          ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}),
-        },
+        auth: authDoc,
         secrets,
+        ...(input.health !== undefined ? { health: input.health } : {}),
       };
-      const docs = input.actions.map((a) => ({
-        path: `actions/${a.name}.json`,
-        doc: {
-          ...a,
-          method: (a.method ?? "GET").toUpperCase(),
-          ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}),
-        },
-      }));
+      const PAGE_KINDS = ["page", "cursor", "offset", "link"];
+      const docs = input.actions.map((a) => {
+        const { paginate, ...rest } = a;
+        let shape: Record<string, unknown> | undefined;
+        if (paginate !== undefined) {
+          const at = `${a.name}.paginate`;
+          if (!PAGE_KINDS.includes(paginate.kind))
+            refuse(ctx, "validation.bad_input", `${at}.kind is one of ${PAGE_KINDS.join(", ")}.`);
+          for (const k of ["items", "id"] as const)
+            if (typeof paginate[k] !== "string" || !(paginate[k] === "" || paginate[k].startsWith("/")))
+              refuse(
+                ctx,
+                "validation.bad_input",
+                `${at}.${k} is a JSON pointer into the answer (for example /data${k === "id" ? "" : ""}).`,
+              );
+          if (paginate.kind !== "link" && (typeof paginate.param !== "string" || paginate.param === ""))
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.param names the query parameter that carries the ${paginate.kind}.`,
+            );
+          if (paginate.kind === "cursor" && (typeof paginate.next !== "string" || !paginate.next.startsWith("/")))
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.next is the pointer to the next cursor in the answer: a cursor needs next.`,
+            );
+          shape = {
+            items: paginate.items,
+            id: paginate.id,
+            cursor: {
+              kind: paginate.kind,
+              ...(paginate.param ? { param: paginate.param } : {}),
+              ...(paginate.next ? { next: paginate.next } : {}),
+              ...(paginate.size !== undefined ? { size: paginate.size } : {}),
+              ...(paginate.start !== undefined ? { start: paginate.start } : {}),
+            },
+          };
+        }
+        return {
+          path: `actions/${a.name}.json`,
+          doc: {
+            ...rest,
+            ...(shape ? { shape } : {}),
+            method: (a.method ?? "GET").toUpperCase(),
+            ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}),
+          },
+        };
+      });
       const def = buildDef(ctx, c.key, main, docs, []);
       // an action that is not a GET changes something in the app; it must say so, so a dry run never sends it and the Gate holds it
       for (const a of def.actions)

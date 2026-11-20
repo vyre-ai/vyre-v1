@@ -7,9 +7,8 @@ import { forgetGrantOf } from "./grant-port.ts";
 import {
   checkEgress,
   ensureTables,
-  hostFromInput,
   keyHosts,
-  recordHosts,
+  recordFor,
   probeHost,
   probeOf,
   mintShort,
@@ -108,7 +107,7 @@ export interface ForService {
     choice?: {
       name: string;
       label: string;
-      options: { value: string; label: string; connector: string; hosts: string[] }[];
+      options: { value: string; label: string; connector: string; hosts: string[]; revision: string }[];
     };
     site?: string;
     host?: string;
@@ -147,6 +146,15 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     seedBuiltins(deps);
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
+  /**
+   * The server's revision of a connector: a counter that moves on every change to its stored definition (publish, roll back, sync-spec publish, delete and make again; see migrations/0006_revisions.sql) and
+   * never repeats. A connector shipped with the product carries the hash of its code definition, so a fix without a version bump changes it too.
+   */
+  const revisionOf = (def: ConnectorDef): string => {
+    if (def.builtin === true) return `b${def.shipped ?? def.version}`;
+    const r = tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", def.key);
+    return r ? `n${r.rev}` : "0";
+  };
   /** The Space's built-in connectors: what a connector somebody else published may not overlap (destination.ts). */
   const builtinDefs = (): ConnectorDef[] =>
     tx
@@ -170,7 +178,22 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     createdAt: r.created_at,
     handles: Object.values(JSON.parse(r.secrets) as Record<string, string>).sort(),
     filled: Object.keys(JSON.parse(r.secrets) as Record<string, string>).sort(),
+    ...pendingOf(r),
   });
+  /** When the connector calls an address this connection's record does not allow yet: all of the connector's addresses, exactly what connections.approve_hosts takes. Nothing when all are allowed. */
+  const pendingOf = (r: ConnectionDb): { pendingHosts?: string[] } => {
+    const c = tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", r.connector);
+    if (!c) return {};
+    const def = JSON.parse(c.def) as ConnectorDef;
+    if (def.auth.type === "none") return {};
+    const rec = tx.get<{ hosts: string }>(
+      "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
+      r.connection_id,
+    );
+    const have = new Set(rec ? (JSON.parse(rec.hosts) as string[]) : []);
+    const all = recordFor(def);
+    return all.some((h) => !have.has(h)) ? { pendingHosts: all } : {};
+  };
   /** A person sees their own connections and the Space's (a guest, who does not see the Space, only their own); nobody sees another person's. */
   const visible = (ctx: ConnectorsCtx, r: ConnectionDb): boolean =>
     (r.owner_kind === "space" && (ctx.canViewSpace?.() ?? true)) ||
@@ -272,6 +295,16 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
     "connections.create": async (ctx, input) => {
       ready();
       const def = defOf(ctx, input.connector);
+      // what a card showed is what is connected: a connector published again, or with other addresses, since is refused before anything is made
+      if (
+        input.pin &&
+        (input.pin[0] !== revisionOf(def) ||
+          [...new Set(input.pin.slice(1).map((h) => h.toLowerCase()))].sort().join("\n") !==
+            [...new Set(keyHosts(def).map((h) => h.toLowerCase()))].sort().join("\n"))
+      )
+        refuse(ctx, "validation.precondition_failed", `${def.title} changed since you looked. Open the card again.`, {
+          reason: "service_changed",
+        });
       const c = tx.get<{ state: string }>("SELECT state FROM cn_connectors WHERE key = ?", input.connector)!;
       if (c.state === "draft")
         refuse(
@@ -325,11 +358,12 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       );
       // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
-      if (!hostFromInput(def) && keyHosts(def).length > 0)
+      // always, when a key can travel: an empty list (a connector with no addresses yet) allows no host until a person approves one
+      if (def.auth.type !== "none")
         tx.run(
           "INSERT OR REPLACE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)",
           id,
-          JSON.stringify(recordHosts(def)),
+          JSON.stringify(recordFor(def)),
         );
       const row = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", id)!;
       const authUrl = authUrlFor(def, row, input.scopes ?? [], false, ctx);
@@ -393,6 +427,9 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         state,
         r.connection_id,
       );
+      // a connection that now holds a secret has a host record, even an empty one (nothing allowed until a person approves)
+      if (def.auth.type !== "none")
+        tx.run("INSERT OR IGNORE INTO cn_connection_hosts (connection_id, hosts) VALUES (?, ?)", r.connection_id, "[]");
       return { connection: rowOf(need(ctx, r.connection_id)) };
     },
 
@@ -561,13 +598,11 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
       if (ctx.callerKind !== "person")
         refuse(ctx, "permission.no_grant", "Only a person can allow where a key is sent.");
       const def = defOf(ctx, r.connector);
-      const hosts = recordHosts(def);
+      const hosts = recordFor(def);
       // what the person approves is what they were shown: a connector republished between the card and the press has other addresses, and nothing is recorded
       if (
-        [...input.hosts]
-          .map((h) => h.toLowerCase())
-          .sort()
-          .join("\n") !== [...hosts].sort().join("\n")
+        [...new Set(input.hosts.map((h) => h.toLowerCase()))].sort().join("\n") !==
+        [...new Set(hosts)].sort().join("\n")
       )
         refuse(
           ctx,
@@ -652,6 +687,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
                 label: x.o.label,
                 connector: x.o.connector,
                 hosts: keyHosts(x.def!),
+                revision: revisionOf(x.def!),
               })),
             }
           : undefined;
@@ -673,6 +709,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         found: true,
         connector: {
           key: hit.key,
+          revision: revisionOf(hit),
           title: hit.title,
           scope: hit.scope,
           mode: hit.mode,
