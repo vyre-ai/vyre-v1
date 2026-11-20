@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (58)
+## Capabilities (59)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -48,6 +48,7 @@ Requires: access.
 - [vault.item.put](../capabilities/vault.item.put.md): Add an item: a name plus KEY=value fields (a pasted .env or an app template becomes fields on the client)
 - [vault.item.restore](../capabilities/vault.item.restore.md): Bring an item back from Trash
 - [vault.item.reveal](../capabilities/vault.item.reveal.md): Show the values of an item to a person at View level (asked once, logged per actor)
+- [vault.item.rotate_field](../capabilities/vault.item.rotate_field.md): A connection's own housekeeping: put the new value an app handed back (a rotated refresh token) into one existing secret field of an item the connection holds. Needs use, not edit
 - [vault.item.update](../capabilities/vault.item.update.md): Change fields or settings of an item: set and remove fields, Space only lock, inject into deployments, rotation reminder
 - [vault.item.usage](../capabilities/vault.item.usage.md): Who used a key or sign-in and how much: turns and tokens per agent and per person, and the total, from the turns the engine metered on the item; a person sees their own turns, a manager of AI spend all of them
 - [vault.items.export_mine](../capabilities/vault.items.export_mine.md): A person exports their own Mine items (also for 30 days after removal); one pull link, audited

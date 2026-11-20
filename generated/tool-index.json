@@ -1935,7 +1935,7 @@
     {
       "deferred": false,
       "name": "comms_senders_list",
-      "summary": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "summary": "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       "toolset": "inbox"
     },
     {
@@ -2295,7 +2295,7 @@
     {
       "deferred": false,
       "name": "connectors_define",
-      "summary": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "summary": "Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.",
       "toolset": "automations"
     },
     {
@@ -2571,7 +2571,7 @@
     {
       "deferred": false,
       "name": "crew_merge",
-      "summary": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
+      "summary": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed",
       "toolset": "chats"
     },
     {
@@ -2583,7 +2583,7 @@
     {
       "deferred": false,
       "name": "crew_push",
-      "summary": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
+      "summary": "Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
       "toolset": "chats"
     },
     {
@@ -2667,31 +2667,43 @@
     {
       "deferred": false,
       "name": "documents_fields",
-      "summary": "List the tags a template needs: text, date, money, list, conditions and loops",
+      "summary": "List the fields a template needs (its {blanks})",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_fill",
-      "summary": "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "summary": "Fill a template into a new file in a folder",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "documents_make",
+      "summary": "Make a document for a record from a template",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
+      "name": "documents_make_pdf",
+      "summary": "Make a PDF of a .md document in a folder; names any blank left",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_mark_template",
-      "summary": "Mark a docx file as a template, or unmark it",
+      "summary": "Mark a .docx or .md file as a template, or unmark it",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_preview_fill",
-      "summary": "Show the filled document as an excerpt with every filled value marked, and what is missing or unused",
+      "summary": "Preview a filled template: what is missing or unused",
       "toolset": "files"
     },
     {
       "deferred": false,
       "name": "documents_templates_list",
-      "summary": "List files marked as templates the caller can open",
+      "summary": "List templates",
       "toolset": "files"
     },
     {
@@ -2829,7 +2841,7 @@
     {
       "deferred": false,
       "name": "email_builder_snippets_list",
-      "summary": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "summary": "List composer snippets (reusable reply text), mine and shared",
       "toolset": "inbox"
     },
     {
@@ -2871,7 +2883,7 @@
     {
       "deferred": false,
       "name": "engine_crew_status",
-      "summary": "Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated",
+      "summary": "Everything that works for a chat, in one read: each helper and teammate with its state, current step, model, account, branch, files changed, tokens and cost, and the crew totals. Only what is known",
       "toolset": "chats"
     },
     {
@@ -2979,7 +2991,7 @@
     {
       "deferred": false,
       "name": "engine_placement_options",
-      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)",
       "toolset": "chats"
     },
     {
@@ -3045,25 +3057,25 @@
     {
       "deferred": false,
       "name": "engine_reviewer_set",
-      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_rewind_points",
-      "summary": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "summary": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_rewind_to",
-      "summary": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      "summary": "Put your own agent work folder back to one of your points and fold the chat's messages from that point on out of what the agents read. Never while that agent works. chat.rewind also leaves the line",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_round_get",
-      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue",
       "toolset": "chats"
     },
     {
@@ -3075,7 +3087,7 @@
     {
       "deferred": false,
       "name": "engine_running_here",
-      "summary": "System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)",
+      "summary": "System: the turns running now with the chat each is in and who asked, for the desktop update screen (GET /local/daemon/busy)",
       "toolset": "chats"
     },
     {
@@ -3177,7 +3189,7 @@
     {
       "deferred": false,
       "name": "engine_usage_get",
-      "summary": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "summary": "For a chat and an account: the context used against the model window and the session and week limits as the provider reported them. A provider that reports nothing gives null",
       "toolset": "meta"
     },
     {
@@ -3231,7 +3243,7 @@
     {
       "deferred": false,
       "name": "esign_send",
-      "summary": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
+      "summary": "Send a PDF for signature",
       "toolset": "files"
     },
     {
@@ -4917,13 +4929,13 @@
     {
       "deferred": false,
       "name": "inbox_counts",
-      "summary": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "summary": "Unread conversation counts per inbox and number, and how many need a match",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "inbox_follow_set",
-      "summary": "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "summary": "Follow a contact or set Alert me on replies",
       "toolset": "inbox"
     },
     {
@@ -5001,13 +5013,13 @@
     {
       "deferred": false,
       "name": "inbox_thread_conversation",
-      "summary": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "summary": "The conversation of an email thread, from its provider thread id",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "inbox_threads",
-      "summary": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "summary": "A contact's email threads, newest first, each whole, with what is new and your role",
       "toolset": "inbox"
     },
     {
@@ -5354,14 +5366,26 @@
     },
     {
       "deferred": false,
+      "name": "mail_configure",
+      "summary": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_connect",
-      "summary": "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "summary": "Connect the caller's own Gmail, Outlook or IMAP mailbox",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
+      "name": "mail_delivery_state",
+      "summary": "A message's delivery trail (messageId), else inbox health",
       "toolset": "inbox"
     },
     {
       "deferred": false,
       "name": "mail_domain_add",
-      "summary": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "summary": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "toolset": "inbox"
     },
     {
@@ -5397,7 +5421,7 @@
     {
       "deferred": false,
       "name": "mail_draft",
-      "summary": "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)",
+      "summary": "Create or update a draft (an agent's waits for a person)",
       "toolset": "inbox"
     },
     {
@@ -5457,7 +5481,7 @@
     {
       "deferred": false,
       "name": "mail_mailbox_set_sync_state",
-      "summary": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "summary": "A connection reports its sign-in lost (error) or working again (syncing)",
       "toolset": "inbox"
     },
     {
@@ -5517,7 +5541,7 @@
     {
       "deferred": false,
       "name": "mail_send",
-      "summary": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "summary": "Send an email (suppression, limits and the Gate apply)",
       "toolset": "inbox"
     },
     {
@@ -5540,8 +5564,14 @@
     },
     {
       "deferred": false,
+      "name": "mail_templates",
+      "summary": "Email templates: list|get|set|preview|reset; documentId = one document's",
+      "toolset": "inbox"
+    },
+    {
+      "deferred": false,
       "name": "mail_thread_get",
-      "summary": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "summary": "Read one email thread whole, oldest first, with your role in it",
       "toolset": "inbox"
     },
     {
@@ -8541,7 +8571,7 @@
     {
       "deferred": false,
       "name": "sites_addon_add",
-      "summary": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "summary": "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
       "toolset": "sites"
     },
     {
@@ -8553,37 +8583,37 @@
     {
       "deferred": false,
       "name": "sites_artifact_open",
-      "summary": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "summary": "A short-lived address that opens an artifact for the asker",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_artifact_thumb_set",
-      "summary": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "summary": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_build",
-      "summary": "Build the site from its repo (the site agent runs in the repo); test and verify",
+      "summary": "Build the site from its repo (the agent runs in it); test, verify",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_chat_viewing",
-      "summary": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "summary": "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_create",
-      "summary": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "summary": "Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_db_import",
-      "summary": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "summary": "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       "toolset": "sites"
     },
     {
@@ -8595,7 +8625,13 @@
     {
       "deferred": false,
       "name": "sites_deploy",
-      "summary": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "summary": "Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_deploy_cancel",
+      "summary": "Cancel the running deploy; the last good build keeps serving",
       "toolset": "sites"
     },
     {
@@ -8607,13 +8643,13 @@
     {
       "deferred": false,
       "name": "sites_domain_add",
-      "summary": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "summary": "Add a custom domain: returns the DNS records to set; TLS is automatic",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_domain_check",
-      "summary": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "summary": "A custom domain's state: waiting for DNS, issuing the certificate, or live",
       "toolset": "sites"
     },
     {
@@ -8625,19 +8661,19 @@
     {
       "deferred": false,
       "name": "sites_domains_get",
-      "summary": "Site domains with the DNS check and the Caddy certificate state",
+      "summary": "A site's domains with DNS check and certificate state",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_list",
-      "summary": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "summary": "A site's env var names and sources (never values), plus names the app wants that are unset",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_env_set",
-      "summary": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "summary": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all",
       "toolset": "sites"
     },
     {
@@ -8649,37 +8685,49 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
+      "summary": "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_list",
-      "summary": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "summary": "List sites and artifacts you can see, by section, kind, folder",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_logs",
-      "summary": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "summary": "A site's log: its app, or with build a deploy's build log. Text from the site",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_ops",
+      "summary": "Site ops: logs, metrics, jobs, workers, backups; read the sites skill",
       "toolset": "sites"
     },
     {
       "deferred": true,
       "name": "sites_password_set",
-      "summary": "Set the password visitors type to open a site whose access is password. Kept only as a hash",
+      "summary": "Set the password for a site whose access is password (kept as a hash)",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_plan",
-      "summary": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "summary": "What a deploy of this source would do: build, start, port, databases, env names it needs",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_preview_promote",
+      "summary": "Serve a preview's build as production without a rebuild, with production variables",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Rebuild a preview or bring back a removed one",
+      "summary": "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       "toolset": "sites"
     },
     {
@@ -8691,55 +8739,61 @@
     {
       "deferred": false,
       "name": "sites_previews",
-      "summary": "List previews (one per branch and pull request, on their own staging address)",
+      "summary": "List previews (one per branch and pull request, each at its address)",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_promote",
-      "summary": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "summary": "Put a site on the public internet. Held for approval unless the person asked this turn",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_publish",
-      "summary": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "summary": "Serve a non-public site: space or private access, or a password on its domain",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_rollback",
-      "summary": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
+      "summary": "Serve an earlier build again (the previous or the one named); nothing is built",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_service_identity",
-      "summary": "The site service identity and its grants (capped by the owner)",
+      "summary": "The site's service identity and grants (capped by the owner)",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_ship",
+      "summary": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address or the failed step and fix",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_staging_password_set",
-      "summary": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "summary": "Choose the sealed Vault key protecting staging (shared by its previews)",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_status",
-      "summary": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "summary": "Is the port answering? Where it runs, its address, what is wrong if not",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_stop",
-      "summary": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "summary": "Stop serving a site. Its address answers nothing",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_table_create",
-      "summary": "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
+      "summary": "Create a site table (a site-scoped record type)",
       "toolset": "sites"
     },
     {
@@ -8751,13 +8805,25 @@
     {
       "deferred": false,
       "name": "sites_tables",
-      "summary": "List site tables of a site",
+      "summary": "List a site's tables",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_update",
-      "summary": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "summary": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_webhook_get",
+      "summary": "A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again",
+      "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "sites_webhook_set",
+      "summary": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
       "toolset": "sites"
     },
     {
@@ -9578,6 +9644,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_archive",
+      "summary": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_assign",
       "summary": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "toolset": "tasks"
@@ -9597,7 +9669,7 @@
     {
       "deferred": false,
       "name": "tasks_create",
-      "summary": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "summary": "Create a task (Work by default)",
       "toolset": "tasks"
     },
     {
@@ -9622,6 +9694,12 @@
       "deferred": false,
       "name": "tasks_dependencies_remove",
       "summary": "Remove a dependency",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_done_when",
+      "summary": "What proves a task done; it closes itself. No kind clears",
       "toolset": "tasks"
     },
     {
@@ -9718,6 +9796,12 @@
       "deferred": false,
       "name": "tasks_transition",
       "summary": "Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_unarchive",
+      "summary": "Put an archived task back",
       "toolset": "tasks"
     },
     {
@@ -10041,7 +10125,7 @@
     {
       "deferred": false,
       "name": "terminal_run",
-      "summary": "Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns",
+      "summary": "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       "toolset": "terminal"
     },
     {

@@ -3180,6 +3180,10 @@
             "minLength": 1,
             "type": "string"
           },
+          "instructions": {
+            "maxLength": 20000,
+            "type": "string"
+          },
           "limits": {
             "properties": {
               "dayCostMicros": {
@@ -4449,14 +4453,12 @@
             "examples": [
               "fil_a1b2c3"
             ],
-            "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
           "folderId": {
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "html": {
@@ -14661,7 +14663,7 @@
       "blocks": [],
       "cap": "comms.senders.list",
       "deferred": false,
-      "description": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "description": "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -16112,6 +16114,12 @@
             ],
             "type": "string"
           },
+          "pin": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "scopes": {
             "items": {
               "type": "string"
@@ -16455,13 +16463,36 @@
       "blocks": [],
       "cap": "connectors.define",
       "deferred": false,
-      "description": "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "description": "Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "actions": {
             "items": {
               "properties": {
+                "basic": {
+                  "properties": {
+                    "pass": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "user"
+                  ],
+                  "type": "object"
+                },
+                "body": {
+                  "description": "Any JSON value"
+                },
+                "form": {
+                  "additionalProperties": {
+                    "type": "string"
+                  },
+                  "type": "object"
+                },
                 "headers": {
                   "additionalProperties": {
                     "type": "string"
@@ -16483,6 +16514,45 @@
                 },
                 "output": {
                   "type": "string"
+                },
+                "paginate": {
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "enum": [
+                        "page",
+                        "cursor",
+                        "offset",
+                        "link"
+                      ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "type": "string"
+                    },
+                    "param": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "minimum": 1,
+                      "type": "integer"
+                    },
+                    "start": {
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "kind",
+                    "items",
+                    "id"
+                  ],
+                  "type": "object"
                 },
                 "query": {
                   "additionalProperties": {
@@ -16511,18 +16581,29 @@
               "header": {
                 "type": "string"
               },
+              "password": {
+                "type": "string"
+              },
               "prefix": {
                 "type": "string"
               },
               "secret": {
                 "type": "string"
               },
+              "template": {
+                "type": "string"
+              },
               "type": {
                 "enum": [
                   "none",
                   "api_key",
-                  "bearer"
+                  "bearer",
+                  "basic",
+                  "header"
                 ],
+                "type": "string"
+              },
+              "user": {
                 "type": "string"
               }
             },
@@ -16537,6 +16618,9 @@
             },
             "minItems": 1,
             "type": "array"
+          },
+          "health": {
+            "type": "string"
           },
           "key": {
             "examples": [
@@ -16697,13 +16781,6 @@
           "docsUrl": {
             "type": "string"
           },
-          "idempotencyKey": {
-            "examples": [
-              "idem_1"
-            ],
-            "minLength": 1,
-            "type": "string"
-          },
           "key": {
             "examples": [
               "hubspot"
@@ -16730,8 +16807,7 @@
         "required": [
           "key",
           "title",
-          "mode",
-          "idempotencyKey"
+          "mode"
         ],
         "type": "object"
       },
@@ -18157,7 +18233,7 @@
       "blocks": [],
       "cap": "engine.crew.merge",
       "deferred": false,
-      "description": "Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed",
+      "description": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18221,7 +18297,7 @@
       "blocks": [],
       "cap": "engine.crew.push",
       "deferred": false,
-      "description": "Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate",
+      "description": "Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18676,7 +18752,7 @@
       "blocks": [],
       "cap": "documents.fields",
       "deferred": false,
-      "description": "List the tags a template needs: text, date, money, list, conditions and loops",
+      "description": "List the fields a template needs (its {blanks})",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -18702,14 +18778,15 @@
       "blocks": [],
       "cap": "documents.fill",
       "deferred": false,
-      "description": "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "description": "Fill a template into a new file in a folder",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "format": {
             "enum": [
               "docx",
-              "pdf"
+              "pdf",
+              "md"
             ],
             "type": "string"
           },
@@ -18729,7 +18806,6 @@
           },
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
               "type": "string"
             },
             "type": "object"
@@ -18745,7 +18821,6 @@
             "type": "string"
           },
           "signingDate": {
-            "description": "ISO date",
             "examples": [
               "2026-10-24"
             ],
@@ -18778,9 +18853,109 @@
     },
     {
       "blocks": [],
+      "cap": "documents.make",
+      "deferred": false,
+      "description": "Make a document for a record from a template",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "format": {
+            "enum": [
+              "docx",
+              "pdf",
+              "md"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "signingDate": {
+            "examples": [
+              "2026-10-24"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "template": {
+            "examples": [
+              "Service agreement"
+            ],
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "template",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "documents_make",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "documents.make_pdf",
+      "deferred": false,
+      "description": "Make a PDF of a .md document in a folder; names any blank left",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "intoFolderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "intoFolderId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "documents_make_pdf",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "documents.mark_template",
       "deferred": false,
-      "description": "Mark a docx file as a template, or unmark it",
+      "description": "Mark a .docx or .md file as a template, or unmark it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18793,6 +18968,12 @@
           },
           "isTemplate": {
             "type": "boolean"
+          },
+          "recordType": {
+            "examples": [
+              "customer"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -18810,13 +18991,12 @@
       "blocks": [],
       "cap": "documents.preview_fill",
       "deferred": false,
-      "description": "Show the filled document as an excerpt with every filled value marked, and what is missing or unused",
+      "description": "Preview a filled template: what is missing or unused",
       "effects": "read",
       "inputSchema": {
         "properties": {
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
               "type": "string"
             },
             "type": "object"
@@ -18829,7 +19009,6 @@
             "type": "string"
           },
           "signingDate": {
-            "description": "ISO date",
             "examples": [
               "2026-10-24"
             ],
@@ -18862,7 +19041,7 @@
       "blocks": [],
       "cap": "documents.templates.list",
       "deferred": false,
-      "description": "List files marked as templates the caller can open",
+      "description": "List templates",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -18880,6 +19059,12 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordType": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -19689,7 +19874,7 @@
       "blocks": [],
       "cap": "email_builder.snippets.list",
       "deferred": false,
-      "description": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "description": "List composer snippets (reusable reply text), mine and shared",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -19905,7 +20090,7 @@
       "blocks": [],
       "cap": "engine.crew.status",
       "deferred": false,
-      "description": "Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated",
+      "description": "Everything that works for a chat, in one read: each helper and teammate with its state, current step, model, account, branch, files changed, tokens and cost, and the crew totals. Only what is known",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20480,7 +20665,7 @@
       "blocks": [],
       "cap": "engine.placement.options",
       "deferred": false,
-      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)",
+      "description": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20802,7 +20987,7 @@
       "blocks": [],
       "cap": "engine.reviewer.set",
       "deferred": false,
-      "description": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn (\"Asking Reviewer to check this\"), a person gets a Review task",
+      "description": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -20858,7 +21043,7 @@
       "blocks": [],
       "cap": "engine.rewind.points",
       "deferred": false,
-      "description": "The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "description": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -20884,7 +21069,7 @@
       "blocks": [],
       "cap": "engine.rewind.to",
       "deferred": false,
-      "description": "Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line",
+      "description": "Put your own agent work folder back to one of your points and fold the chat's messages from that point on out of what the agents read. Never while that agent works. chat.rewind also leaves the line",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -20915,7 +21100,7 @@
       "blocks": [],
       "cap": "engine.round.get",
       "deferred": false,
-      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored",
+      "description": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -21005,7 +21190,7 @@
       "blocks": [],
       "cap": "engine.running_here",
       "deferred": false,
-      "description": "System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)",
+      "description": "System: the turns running now with the chat each is in and who asked, for the desktop update screen (GET /local/daemon/busy)",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -21556,7 +21741,7 @@
       "blocks": [],
       "cap": "engine.usage.get",
       "deferred": false,
-      "description": "For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated",
+      "description": "For a chat and an account: the context used against the model window and the session and week limits as the provider reported them. A provider that reports nothing gives null",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -21852,7 +22037,7 @@
       "blocks": [],
       "cap": "esign.send",
       "deferred": false,
-      "description": "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
+      "description": "Send a PDF for signature",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -21881,6 +22066,9 @@
               "description": "Any JSON value"
             },
             "type": "array"
+          },
+          "plainOk": {
+            "type": "boolean"
           },
           "provider": {
             "enum": [
@@ -25472,9 +25660,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25567,9 +25758,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25663,9 +25857,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -31144,6 +31341,26 @@
             "pattern": "^[^@\\s]+@[^@\\s]+$",
             "type": "string"
           },
+          "bcc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cc": {
+            "items": {
+              "examples": [
+                "maya@example.com"
+              ],
+              "pattern": "^[^@\\s]+@[^@\\s]+$",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "connectionId": {
             "examples": [
               "con_a1b2c3"
@@ -34045,7 +34262,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "description": "Unread conversation counts per inbox and number, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -34060,7 +34277,7 @@
       "blocks": [],
       "cap": "inbox.follow_set",
       "deferred": false,
-      "description": "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "description": "Follow a contact or set Alert me on replies",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -34544,7 +34761,7 @@
       "blocks": [],
       "cap": "inbox.thread_conversation",
       "deferred": false,
-      "description": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "description": "The conversation of an email thread, from its provider thread id",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -34570,7 +34787,7 @@
       "blocks": [],
       "cap": "inbox.threads",
       "deferred": false,
-      "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "description": "A contact's email threads, newest first, each whole, with what is new and your role",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -37159,9 +37376,103 @@
     },
     {
       "blocks": [],
+      "cap": "mail.configure",
+      "deferred": false,
+      "description": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "status",
+              "test",
+              "smtp_get",
+              "smtp_set",
+              "smtp_verify",
+              "address_list",
+              "address_add",
+              "address_move"
+            ],
+            "type": "string"
+          },
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fromMailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "localPart": {
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "passwordHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "security": {
+            "enum": [
+              "starttls",
+              "tls"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "mail_configure",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.connect",
       "deferred": false,
-      "description": "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "description": "Connect the caller's own Gmail, Outlook or IMAP mailbox",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37249,9 +37560,39 @@
     },
     {
       "blocks": [],
+      "cap": "mail.delivery_state",
+      "deferred": false,
+      "description": "A message's delivery trail (messageId), else inbox health",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "mail_delivery_state",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.domain.add",
       "deferred": false,
-      "description": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "description": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37271,7 +37612,8 @@
           "provider": {
             "enum": [
               "resend",
-              "mailgun"
+              "mailgun",
+              "smtp"
             ],
             "type": "string"
           }
@@ -37420,7 +37762,7 @@
       "blocks": [],
       "cap": "mail.draft",
       "deferred": false,
-      "description": "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)",
+      "description": "Create or update a draft (an agent's waits for a person)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37900,7 +38242,7 @@
       "blocks": [],
       "cap": "mail.mailbox.set_sync_state",
       "deferred": false,
-      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "description": "A connection reports its sign-in lost (error) or working again (syncing)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -38282,7 +38624,7 @@
       "blocks": [],
       "cap": "mail.send",
       "deferred": false,
-      "description": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "description": "Send an email (suppression, limits and the Gate apply)",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -38359,6 +38701,13 @@
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
           "draftId": {
             "examples": [
               "eml_a1b2c3"
@@ -38381,6 +38730,13 @@
               "mbx_a1b2c3"
             ],
             "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
           "replyToMessageId": {
@@ -38406,13 +38762,21 @@
             "type": "integer"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
             "type": "string"
           },
           "subject": {
+            "type": "string"
+          },
+          "templateKey": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
             "type": "string"
           },
           "text": {
@@ -38449,12 +38813,15 @@
           },
           "unsubscribe": {
             "type": "boolean"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "required": [
           "mailboxId",
           "to",
-          "subject",
           "idempotencyKey"
         ],
         "type": "object"
@@ -38577,7 +38944,7 @@
             "type": "string"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
@@ -38654,7 +39021,7 @@
             "type": "string"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
@@ -38729,9 +39096,77 @@
     },
     {
       "blocks": [],
+      "cap": "mail.templates",
+      "deferred": false,
+      "description": "Email templates: list|get|set|preview|reset; documentId = one document's",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "list",
+              "get",
+              "set",
+              "preview",
+              "reset"
+            ],
+            "type": "string"
+          },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "mail_templates",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.thread.get",
       "deferred": false,
-      "description": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "description": "Read one email thread whole, oldest first, with your role in it",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58194,7 +58629,7 @@
       "blocks": [],
       "cap": "sites.addon_add",
       "deferred": false,
-      "description": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "description": "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58216,7 +58651,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58251,7 +58685,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58270,7 +58703,7 @@
       "blocks": [],
       "cap": "sites.artifact_open",
       "deferred": false,
-      "description": "A short-lived address that opens an artifact for the person asking, in a tab or the browser",
+      "description": "A short-lived address that opens an artifact for the asker",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58296,7 +58729,7 @@
       "blocks": [],
       "cap": "sites.artifact_thumb_set",
       "deferred": false,
-      "description": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "description": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58326,7 +58759,7 @@
       "blocks": [],
       "cap": "sites.build",
       "deferred": false,
-      "description": "Build the site from its repo (the site agent runs in the repo); test and verify",
+      "description": "Build the site from its repo (the agent runs in it); test, verify",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58337,7 +58770,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58355,7 +58787,7 @@
       "blocks": [],
       "cap": "sites.chat_viewing",
       "deferred": false,
-      "description": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "description": "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58381,7 +58813,7 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "description": "Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58405,7 +58837,6 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "idempotencyKey": {
@@ -58428,18 +58859,12 @@
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -58466,48 +58891,33 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -58536,7 +58946,7 @@
       "blocks": [],
       "cap": "sites.db_import",
       "deferred": false,
-      "description": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "description": "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58544,21 +58954,18 @@
             "examples": [
               "fil_a1b2c3"
             ],
-            "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
           "fromHandle": {
             "examples": [
               "#Dana_Lawmatics"
             ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
             "type": "string"
           },
           "siteId": {
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58584,7 +58991,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58602,10 +59008,16 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "description": "Build a site from its source and run it (Dockerfile, Node, Vite, Python, static); the last good build serves until the new one answers",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "fp": {
+            "type": "string"
+          },
           "onlyIfChanged": {
             "type": "boolean"
           },
@@ -58613,54 +59025,38 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -58676,6 +59072,38 @@
         "type": "object"
       },
       "name": "sites_deploy",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.deploy_cancel",
+      "deferred": false,
+      "description": "Cancel the running deploy; the last good build keeps serving",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "deploymentId": {
+            "examples": [
+              "dpl_a1b2c3"
+            ],
+            "pattern": "^dpl_[a-z0-9]+$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_deploy_cancel",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -58700,7 +59128,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58718,7 +59145,7 @@
       "blocks": [],
       "cap": "sites.domain_add",
       "deferred": false,
-      "description": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "description": "Add a custom domain: returns the DNS records to set; TLS is automatic",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58736,7 +59163,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58756,7 +59182,7 @@
       "blocks": [],
       "cap": "sites.domain_check",
       "deferred": false,
-      "description": "The state of a custom domain: waiting for DNS, issuing the certificate, or live",
+      "description": "A custom domain's state: waiting for DNS, issuing the certificate, or live",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58767,7 +59193,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58800,7 +59225,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58819,7 +59243,7 @@
       "blocks": [],
       "cap": "sites.domains_get",
       "deferred": false,
-      "description": "Site domains with the DNS check and the Caddy certificate state",
+      "description": "A site's domains with DNS check and certificate state",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58827,7 +59251,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58845,7 +59268,7 @@
       "blocks": [],
       "cap": "sites.env_list",
       "deferred": false,
-      "description": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "description": "A site's env var names and sources (never values), plus names the app wants that are unset",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58853,7 +59276,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58871,27 +59293,39 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "description": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "entries": {
             "items": {
               "properties": {
+                "confirmPlain": {
+                  "type": "boolean"
+                },
                 "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
                   "type": "string"
                 },
                 "vaultHandle": {
                   "examples": [
                     "#Dana_Lawmatics"
                   ],
-                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                   "type": "string"
                 }
               },
               "required": [
-                "name",
-                "vaultHandle"
+                "name"
               ],
               "type": "object"
             },
@@ -58901,7 +59335,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58928,7 +59361,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58946,7 +59378,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
+      "description": "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -58961,7 +59393,7 @@
       "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "description": "List sites and artifacts you can see, by section, kind, folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58972,7 +59404,6 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "kind": {
@@ -59007,7 +59438,7 @@
       "blocks": [],
       "cap": "sites.logs",
       "deferred": false,
-      "description": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "description": "A site's log: its app, or with build a deploy's build log. Text from the site",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59025,7 +59456,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "tail": {
@@ -59044,9 +59474,46 @@
     },
     {
       "blocks": [],
+      "cap": "sites.ops",
+      "deferred": false,
+      "description": "Site ops: logs, metrics, jobs, workers, backups; read the sites skill",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "args": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "id": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId",
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "sites_ops",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.password_set",
       "deferred": true,
-      "description": "Set the password visitors type to open a site whose access is password. Kept only as a hash",
+      "description": "Set the password for a site whose access is password (kept as a hash)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59059,7 +59526,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59078,7 +59544,7 @@
       "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
-      "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "description": "What a deploy of this source would do: build, start, port, databases, env names it needs",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59092,48 +59558,33 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -59149,9 +59600,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.preview_rebuild",
+      "cap": "sites.preview_promote",
       "deferred": false,
-      "description": "Rebuild a preview or bring back a removed one",
+      "description": "Serve a preview's build as production without a rebuild, with production variables",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59162,8 +59613,42 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "siteId",
+          "branch"
+        ],
+        "type": "object"
+      },
+      "name": "sites_preview_promote",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.preview_rebuild",
+      "deferred": false,
+      "description": "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -59192,7 +59677,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59211,7 +59695,7 @@
       "blocks": [],
       "cap": "sites.previews",
       "deferred": false,
-      "description": "List previews (one per branch and pull request, on their own staging address)",
+      "description": "List previews (one per branch and pull request, each at its address)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59219,7 +59703,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59237,7 +59720,7 @@
       "blocks": [],
       "cap": "sites.promote",
       "deferred": false,
-      "description": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "description": "Put a site on the public internet. Held for approval unless the person asked this turn",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -59252,7 +59735,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59271,7 +59753,7 @@
       "blocks": [],
       "cap": "sites.publish",
       "deferred": false,
-      "description": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "description": "Serve a non-public site: space or private access, or a password on its domain",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59279,7 +59761,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59297,7 +59778,7 @@
       "blocks": [],
       "cap": "sites.rollback",
       "deferred": false,
-      "description": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
+      "description": "Serve an earlier build again (the previous or the one named); nothing is built",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -59312,7 +59793,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "toDeploymentId": {
@@ -59338,7 +59818,7 @@
       "blocks": [],
       "cap": "sites.service_identity",
       "deferred": false,
-      "description": "The site service identity and its grants (capped by the owner)",
+      "description": "The site's service identity and grants (capped by the owner)",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59346,7 +59826,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59362,9 +59841,105 @@
     },
     {
       "blocks": [],
+      "cap": "sites.ship",
+      "deferred": false,
+      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address or the failed step and fix",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "addons": {
+            "items": {
+              "enum": [
+                "postgres",
+                "redis"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "vaultHandle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "repo": {
+                "type": "string"
+              },
+              "root": {
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sites_ship",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "sites.staging_password_set",
       "deferred": false,
-      "description": "Choose the sealed Vault key that protects staging (shared across a site previews)",
+      "description": "Choose the sealed Vault key protecting staging (shared by its previews)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59372,7 +59947,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "vaultHandle": {
@@ -59398,7 +59972,7 @@
       "blocks": [],
       "cap": "sites.status",
       "deferred": false,
-      "description": "Is the port answering? Where it runs, the address, and what is wrong when something is",
+      "description": "Is the port answering? Where it runs, its address, what is wrong if not",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59406,7 +59980,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59424,7 +59997,7 @@
       "blocks": [],
       "cap": "sites.stop",
       "deferred": false,
-      "description": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "description": "Stop serving a site. Its address answers nothing",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59432,7 +60005,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59450,7 +60022,7 @@
       "blocks": [],
       "cap": "sites.table_create",
       "deferred": false,
-      "description": "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
+      "description": "Create a site table (a site-scoped record type)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59490,7 +60062,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59519,7 +60090,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "type": {
@@ -59541,7 +60111,7 @@
       "blocks": [],
       "cap": "sites.tables",
       "deferred": false,
-      "description": "List site tables of a site",
+      "description": "List a site's tables",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -59549,7 +60119,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -59567,7 +60136,7 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "description": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -59591,7 +60160,7 @@
             "type": "string"
           },
           "expectedUpdatedAt": {
-            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "description": "The updatedAt you read; refused if changed since",
             "examples": [
               1760000000000
             ],
@@ -59602,24 +60171,17 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -59645,54 +60207,38 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -59705,6 +60251,68 @@
         "type": "object"
       },
       "name": "sites_update",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_get",
+      "deferred": false,
+      "description": "A site's GitHub webhook: on or off, its address, branches that get a preview. The secret is never shown again",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_get",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_set",
+      "deferred": false,
+      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "follow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rotate": {
+            "type": "boolean"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_set",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -62988,6 +63596,15 @@
           "crew": {
             "type": "boolean"
           },
+          "dependsOn": {
+            "description": "Helpers of this chat (titles or thread ids) to start after; it fails if one of them fails",
+            "items": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
           "effort": {
             "enum": [
               "low",
@@ -63004,6 +63621,13 @@
             "type": "string"
           },
           "provider": {
+            "type": "string"
+          },
+          "retryOf": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           },
           "taskId": {
@@ -63231,8 +63855,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {
@@ -63300,7 +63929,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -63316,7 +63944,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -63325,12 +63952,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -63366,7 +63991,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63397,7 +64021,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63484,7 +64107,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -63574,7 +64196,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -63662,7 +64283,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63685,7 +64305,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63922,8 +64541,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {
@@ -63991,7 +64615,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -64007,7 +64630,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -64016,12 +64638,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -64057,7 +64677,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64088,7 +64707,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64175,7 +64793,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -64265,7 +64882,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -64353,7 +64969,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64376,7 +64991,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -64732,8 +65346,13 @@
                       "header",
                       "basic",
                       "query",
-                      "oauth"
+                      "oauth",
+                      "oauth_refresh"
                     ],
+                    "type": "string"
+                  },
+                  "tokenUrl": {
+                    "description": "oauth_refresh: the https address that trades the refresh token for an access token",
                     "type": "string"
                   },
                   "vaultHandle": {
@@ -64801,7 +65420,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -64817,7 +65435,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -64826,12 +65443,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -64867,7 +65482,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64898,7 +65512,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64985,7 +65598,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -65075,7 +65687,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -65163,7 +65774,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -65186,7 +65796,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -66960,6 +67569,36 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.archive",
+      "deferred": false,
+      "description": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_archive",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.assign",
       "deferred": false,
       "description": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
@@ -67071,7 +67710,7 @@
       "blocks": [],
       "cap": "tasks.create",
       "deferred": false,
-      "description": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "description": "Create a task (Work by default)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67304,6 +67943,14 @@
               "every"
             ],
             "type": "object"
+          },
+          "relevantUntil": {
+            "description": "When it stops mattering",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "reviewer": {
             "properties": {
@@ -67539,6 +68186,45 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.done_when",
+      "deferred": false,
+      "description": "What proves a task done; it closes itself. No kind clears",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "vault_item",
+              "message_sent",
+              "meeting_ended",
+              "connection_on"
+            ],
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_done_when",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.followers.add",
       "deferred": false,
       "description": "Add a follower; plain @mentions become followers, never tasks",
@@ -67671,6 +68357,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "type": "boolean"
+          },
           "done": {
             "type": "boolean"
           },
@@ -68150,6 +68839,32 @@
         "type": "object"
       },
       "name": "tasks_transition",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.unarchive",
+      "deferred": false,
+      "description": "Put an archived task back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_unarchive",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -70392,7 +71107,7 @@
       ],
       "cap": "terminal.run",
       "deferred": false,
-      "description": "Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns",
+      "description": "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -70403,6 +71118,10 @@
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
+          "background": {
+            "description": "Keep a long command running; wait with wait_for on run.node_ended",
+            "type": "boolean"
+          },
           "command": {
             "type": "string"
           },
@@ -70411,7 +71130,7 @@
           },
           "env": {
             "additionalProperties": {
-              "description": "Literal or a #Handle.field reference",
+              "description": "Literal or #Handle.field",
               "type": "string"
             },
             "type": "object"
@@ -70431,7 +71150,7 @@
             "type": "string"
           },
           "session": {
-            "description": "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            "description": "Tab name, made when there is none. Left out: your own tab",
             "maxLength": 80,
             "type": "string"
           },

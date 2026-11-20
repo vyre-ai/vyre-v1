@@ -178,8 +178,7 @@
         "apps"
       ],
       "allowFetchIn": [
-        "apps/app/public/",
-        "apps/chrome/src/worker/link.js"
+        "apps/app/public/"
       ]
     },
     "B5": {
@@ -412,27 +411,6 @@
       "file": "apps/desktop/tests/personal.cors.test.ts",
       "spec": "../../../host/src/daemon/desktop-cors.ts",
       "reason": "test-only: it checks the daemon's real CORS rule against the packaged app's origin. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
-      "until": "2027-01-31"
-    },
-    {
-      "rule": "B1",
-      "file": "modules/gate/tests/sites-ops-holds.test.ts",
-      "spec": "../../sites/impl.ts",
-      "reason": "test-only: the hold tests for sites.ops and the backup restore read a stored site through the real siteFacts the Gate reads, so a Vault row the real read misses cannot pass unseen",
-      "until": "2027-01-31"
-    },
-    {
-      "rule": "B1",
-      "file": "modules/gate/tests/holds.real-rule.test.ts",
-      "spec": "../../sites/impl.ts",
-      "reason": "test-only: the key-and-source Gate tests read a stored site through the real siteFacts the Gate reads, not facts written by hand, so a field the real read drops cannot pass unseen",
-      "until": "2027-01-31"
-    },
-    {
-      "rule": "B1",
-      "file": "modules/gate/tests/holds.real-rule.test.ts",
-      "spec": "../../sites/tests/deploy-world.ts",
-      "reason": "test-only: the same Gate tests create, deploy and preview a site with the real sites handlers over a real SQLite (the runner faked) before an agent calls, under the real invoke and the real Gate rule",
       "until": "2027-01-31"
     }
   ]
