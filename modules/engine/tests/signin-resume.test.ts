@@ -43,6 +43,14 @@ test("only an event that says an AI account arrived reaches the engine: not a sh
     "unreadable counts as saved",
   );
   assert.equal(await skipped(withKind("api_key"), { name: "vault.item_updated", payload: { itemId: "v" } }), false);
+  assert.equal(
+    await skipped(withKind(undefined), {
+      name: "vault.item_updated",
+      payload: { itemId: "v", kind: "ai_subscription", refreshed: true },
+    }),
+    false,
+    "a renewed token resumes a turn parked on engine.signin_missing",
+  );
   // a re-sign-in of a Mine item: the Vault refuses the host, with or without the kind on the event, and the resume still goes
   assert.equal(
     await skipped(withKind(undefined), {

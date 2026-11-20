@@ -139,6 +139,13 @@ test("the activity line says only what is true for the event: an AI account was 
     ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "api_key" }, undefined, saved],
     ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "ai_subscription" }, undefined, saved],
     ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "login" }, undefined, null],
+    // a renewal Vyre made on its own pulls no retry forward
+    [
+      "vault.item_updated",
+      { itemId: "v", fieldsChanged: ["credentials"], kind: "ai_subscription", refreshed: true },
+      undefined,
+      null,
+    ],
   ];
   for (const [name, payload, kind, words] of cases) {
     const { w, goal } = await failedGoal();

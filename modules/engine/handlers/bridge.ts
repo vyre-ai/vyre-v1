@@ -1732,7 +1732,7 @@ export const bridgeConsumers = {
       event?: { name: string; payload?: Record<string, unknown> },
     ): Promise<{ skipped?: string; resumed?: number }> => {
       // only an event that says an account arrived: a share turned off, a login edit or a token refresh does not (an updated item's kind is read once)
-      if (event?.name !== undefined && !(await accountMayHaveArrived(event, kindReader(ctx?.call))))
+      if (event?.name !== undefined && !(await accountMayHaveArrived(event, kindReader(ctx?.call), { refresh: true })))
         return { skipped: "not_an_account" };
       const e = engineIfBound();
       return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" };
