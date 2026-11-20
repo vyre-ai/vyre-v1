@@ -396,12 +396,12 @@ export function KCard({ row, board, lane }: { row: RecordRow; board: Board; lane
           undefined,
           {
             across: () =>
-              (globalThis as { document?: { querySelector(s: string): never } }).document?.querySelector(
+              (globalThis as unknown as { document?: { querySelector(s: string): never } }).document?.querySelector(
                 '[data-testid="board-lanes"] > div, [data-testid="board-lanes"]',
               ) ?? null,
             down: (x, y) =>
               (
-                globalThis as {
+                globalThis as unknown as {
                   document?: {
                     elementFromPoint(
                       x: number,
