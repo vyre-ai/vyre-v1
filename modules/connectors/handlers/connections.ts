@@ -60,6 +60,8 @@ export interface ConnectionsHandlers {
       ownerKind: "person" | "space";
       secrets?: Record<string, string>;
       scopes?: string[];
+      /** What the card showed: the connector's server revision, then its exact hosts. A connect that no longer matches is refused. */
+      pin?: string[];
     },
   ): Promise<{ connection: ConnectionRow; authUrl?: string }>;
   "connections.update"(
@@ -99,6 +101,8 @@ export interface ForService {
   found: boolean;
   connector?: {
     key: string;
+    /** The number the server keeps for the connector's stored definition (it moves on every change); the card pins it. */
+    revision: string;
     title: string;
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
