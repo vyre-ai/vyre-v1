@@ -1431,6 +1431,7 @@ export type AgentsCreateIn = {
     allowed: Array<string>;
     denied: Array<string>;
   };
+  instructions?: string;
   limits?: {
     runCostMicros?: number;
     dayCostMicros?: number;
@@ -8738,6 +8739,8 @@ export type ChatHelperStartIn = {
   why?: string;
   crew?: boolean;
   taskId?: string;
+  retryOf?: string;
+  dependsOn?: Array<string>;
 };
 export type ChatHelperStartOut = {
   helper: {
@@ -13743,6 +13746,7 @@ export type EngineCrewStatusOut = {
   members: Array<{
       kind: "helper" | "teammate" | "subagent";
       id: string;
+      runId?: string;
       jobId?: string;
       parentThreadId: string;
       title: string;
@@ -14335,6 +14339,15 @@ export type EngineNowOut = {
       kind?: string;
     }>;
 };
+export type EnginePauseIn = {
+  threadId: string;
+  agentId?: string;
+  reason?: string;
+};
+export type EnginePauseOut = {
+  paused: number;
+  held: number;
+};
 export type EnginePlacementDecideIn = {
   threadId: string;
   agentId: string;
@@ -14469,6 +14482,15 @@ export type EngineQueuePeekIn = {
 };
 export type EngineQueuePeekOut = {
   messages: Array<string>;
+};
+export type EngineResumePausedIn = {
+  threadId: string;
+  agentId?: string;
+};
+export type EngineResumePausedOut = {
+  resumed: number;
+  lost: number;
+  released: number;
 };
 export type EngineReviewListIn = {
   state?: "waiting" | "ok" | "flagged";
@@ -14714,6 +14736,14 @@ export type EngineStopAllIn = {
 };
 export type EngineStopAllOut = {
   stopped: number;
+};
+export type EngineSubagentStopIn = {
+  threadId: string;
+  runId: string;
+  reason?: string;
+};
+export type EngineSubagentStopOut = {
+  requested: boolean;
 };
 export type EngineSubscriptionShareSetIn = {
   enabled: boolean;
@@ -35835,6 +35865,204 @@ export type RunbooksTargetsOut = {
       online: boolean;
     }>;
 };
+export type RunsActivityListIn = {
+  scope?: "mine" | "all";
+  limit?: number;
+};
+export type RunsActivityListOut = {
+  rows: Array<{
+      runId: string;
+      rootRun: string;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      whoKind: string;
+      whoId?: string;
+      whoName?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      startedAt: number;
+      updatedAt: number;
+      usdMicros: number;
+    }>;
+};
+export type RunsBoardAnswerIn = {
+  runId: string;
+  entryId: string;
+  text: string;
+};
+export type RunsBoardAnswerOut = {
+  entry: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+};
+export type RunsBoardListIn = {
+  runId: string;
+  all?: boolean;
+};
+export type RunsBoardListOut = {
+  entries: Array<{
+      id: string;
+      rootRun: string;
+      kind: "fact" | "decision" | "question";
+      topic?: string;
+      text: string;
+      byRun: string;
+      evidence: Array<string>;
+      at: number;
+      supersededBy?: string;
+      answer?: {
+        byRun: string;
+        text: string;
+        at: number;
+      };
+    }>;
+};
+export type RunsBoardPutIn = {
+  runId: string;
+  kind: "fact" | "decision" | "question";
+  text: string;
+  topic?: string;
+  evidence?: Array<string>;
+};
+export type RunsBoardPutOut = {
+  entry: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+  conflict?: {
+    id: string;
+    rootRun: string;
+    kind: "fact" | "decision" | "question";
+    topic?: string;
+    text: string;
+    byRun: string;
+    evidence: Array<string>;
+    at: number;
+    supersededBy?: string;
+    answer?: {
+      byRun: string;
+      text: string;
+      at: number;
+    };
+  };
+};
+export type RunsBudgetSetIn = {
+  runId: string;
+  usdMicros?: number;
+  tokens?: number;
+  clear?: boolean;
+};
+export type RunsBudgetSetOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    reason?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  resumed: number;
+};
 export type RunsCountIn = {
   scope: "mine" | "all";
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -35848,6 +36076,25 @@ export type RunsEraseIn = {
 };
 export type RunsEraseOut = {
   erased: boolean;
+};
+export type RunsEventsListIn = {
+  runId: string;
+  since?: number;
+  limit?: number;
+  only?: string;
+};
+export type RunsEventsListOut = {
+  events: Array<{
+      rootRun: string;
+      seq: number;
+      runId: string;
+      at: number;
+      type: string;
+      actor?: string;
+      key?: string;
+      payload: unknown;
+    }>;
+  lastSeq: number;
 };
 export type RunsFinishIn = {
   runId: string;
@@ -36003,6 +36250,537 @@ export type RunsMarkWaitingOut = {
       channelId?: string;
     };
   };
+};
+export type RunsMessageListIn = {
+  runId: string;
+  tree?: boolean;
+};
+export type RunsMessageListOut = {
+  messages: Array<{
+      id: string;
+      rootRun: string;
+      fromRun: string;
+      toRun: string;
+      body: string;
+      at: number;
+      deliveredAt?: number;
+      seenAt?: number;
+      fromName?: string;
+    }>;
+};
+export type RunsMessageSeenIn = {
+  messageIds: Array<string>;
+};
+export type RunsMessageSeenOut = {
+  marked: number;
+};
+export type RunsMessageSendIn = {
+  runId: string;
+  to: string;
+  body: string;
+  key?: string;
+};
+export type RunsMessageSendOut = {
+  message: {
+    id: string;
+    rootRun: string;
+    fromRun: string;
+    toRun: string;
+    body: string;
+    at: number;
+    deliveredAt?: number;
+    seenAt?: number;
+    fromName?: string;
+  };
+  duplicate: boolean;
+};
+export type RunsMessageTakeIn = {
+  runId: string;
+};
+export type RunsMessageTakeOut = {
+  messages: Array<{
+      id: string;
+      rootRun: string;
+      fromRun: string;
+      toRun: string;
+      body: string;
+      at: number;
+      deliveredAt?: number;
+      seenAt?: number;
+      fromName?: string;
+    }>;
+};
+export type RunsNodeBeatIn = {
+  runId: string;
+  holder: string;
+};
+export type RunsNodeBeatOut = {
+  held: boolean;
+};
+export type RunsNodeClaimIn = {
+  runId: string;
+  holder: string;
+};
+export type RunsNodeClaimOut = {
+  node?: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    reason?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+};
+export type RunsNodeCompareIn = {
+  runId: string;
+};
+export type RunsNodeCompareOut = {
+  sides: Array<{
+      runId?: string;
+      threadId?: string;
+      status: string;
+      brief?: {
+        goal?: string;
+        instructions?: string;
+      };
+      result?: string;
+      usdMicros: number;
+      tokens: number;
+      seconds?: number;
+      model?: string;
+    }>;
+};
+export type RunsNodeControlIn = {
+  runId: string;
+  action: "pause" | "resume" | "stop";
+  reason?: string;
+  subtree?: boolean;
+};
+export type RunsNodeControlOut = {
+  nodes: Array<{
+      id: string;
+      rootRun: string;
+      parentRun?: string;
+      depth: number;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      owner: string;
+      startedBy: string;
+      whoKind: string;
+      whoId?: string;
+      engine?: string;
+      model?: string;
+      threadId?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      version: number;
+      attempt: number;
+      brief?: unknown;
+      budget?: unknown;
+      spent: {
+        tokensIn: number;
+        tokensOut: number;
+        cacheRead: number;
+        usdMicros: number;
+        calls: number;
+      };
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      can?: {
+        manage: boolean;
+      };
+      result?: unknown;
+      evidence?: unknown;
+      origin?: unknown;
+      summary?: string;
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      whoName?: string;
+      dependsOn?: Array<string>;
+      errorCode?: string;
+      reason?: string;
+      stopReason?: string;
+      leaseHolder?: string;
+      leaseUntil?: number;
+      startedAt: number;
+      endedAt?: number;
+      updatedAt: number;
+    }>;
+};
+export type RunsNodeEventIn = {
+  runId: string;
+  type: string;
+  key?: string;
+  actor?: string;
+  payload?: unknown;
+  at?: number;
+};
+export type RunsNodeEventOut = {
+  seq: number;
+  duplicate: boolean;
+};
+export type RunsNodeFindIn = {
+  threadIds?: Array<string>;
+  keys?: Array<string>;
+};
+export type RunsNodeFindOut = {
+  byThread: Record<string, string>;
+  byKey: Record<string, string>;
+};
+export type RunsNodeGetIn = {
+  runId: string;
+};
+export type RunsNodeGetOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    reason?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+};
+export type RunsNodeLabelIn = {
+  runId: string;
+  name: string;
+};
+export type RunsNodeLabelOut = {
+  ok: boolean;
+};
+export type RunsNodeMoveIn = {
+  runId: string;
+  to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  why: "started" | "claimed" | "slept" | "woke" | "paused" | "resumed" | "done" | "failed" | "stopped" | "worker_lost" | "budget" | "stuck" | "parent_stopped" | "parent_paused" | "retry" | "lease_lost";
+  expectedVersion?: number;
+  expectedFrom?: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  summary?: string;
+  result?: unknown;
+  evidence?: unknown;
+  error?: {
+    code: string;
+    message: string;
+  };
+  stopReason?: string;
+  wake?: {
+    kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+    label?: string;
+    dueAt?: number;
+    on?: unknown;
+    wokeCount?: number;
+  };
+  checkpoint?: unknown;
+  holder?: string;
+  attempt: number;
+};
+export type RunsNodeMoveOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    reason?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  changed: boolean;
+};
+export type RunsNodeReclaimIn = Record<string, unknown>;
+export type RunsNodeReclaimOut = {
+  reclaimed: Array<string>;
+};
+export type RunsNodeRerunIn = {
+  runId: string;
+  goal?: string;
+  instructions?: string;
+  model?: string;
+};
+export type RunsNodeRerunOut = {
+  threadId: string;
+  rerunOf: string;
+};
+export type RunsNodeSaveAsAgentIn = {
+  runId: string;
+  name?: string;
+  role?: string;
+  instructions?: string;
+  sharing?: "me" | "everyone";
+};
+export type RunsNodeSaveAsAgentOut = {
+  agent: unknown;
+  runId: string;
+  toolsCarried: "kept" | "narrowed" | "default";
+};
+export type RunsNodeStartIn = {
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  name?: string;
+  owner: string;
+  parentRun?: string;
+  parentThread?: string;
+  threadId?: string;
+  whoKind?: string;
+  whoId?: string;
+  whoName?: string;
+  dependsOn?: Array<string>;
+  dependsOnThreads?: Array<string>;
+  adoptKey?: string;
+  retriesThread?: string;
+  engine?: string;
+  model?: string;
+  brief?: unknown;
+  budget?: unknown;
+  origin?: unknown;
+  policy?: unknown;
+  running?: boolean;
+  idemKey?: string;
+};
+export type RunsNodeStartOut = {
+  node: {
+    id: string;
+    rootRun: string;
+    parentRun?: string;
+    depth: number;
+    kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+    name?: string;
+    owner: string;
+    startedBy: string;
+    whoKind: string;
+    whoId?: string;
+    engine?: string;
+    model?: string;
+    threadId?: string;
+    status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+    version: number;
+    attempt: number;
+    brief?: unknown;
+    budget?: unknown;
+    spent: {
+      tokensIn: number;
+      tokensOut: number;
+      cacheRead: number;
+      usdMicros: number;
+      calls: number;
+    };
+    wake?: {
+      kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+      label?: string;
+      dueAt?: number;
+      on?: unknown;
+      wokeCount?: number;
+    };
+    can?: {
+      manage: boolean;
+    };
+    result?: unknown;
+    evidence?: unknown;
+    origin?: unknown;
+    summary?: string;
+    step?: {
+      icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+      text: string;
+    };
+    need?: {
+      requestId: string;
+      what: string;
+      why: string;
+    };
+    stuck?: {
+      since: number;
+      reason: string;
+    };
+    whoName?: string;
+    dependsOn?: Array<string>;
+    errorCode?: string;
+    reason?: string;
+    stopReason?: string;
+    leaseHolder?: string;
+    leaseUntil?: number;
+    startedAt: number;
+    endedAt?: number;
+    updatedAt: number;
+  };
+  created: boolean;
 };
 export type RunsPeopleCountsIn = {
   statuses?: Array<"queued" | "running" | "waiting" | "succeeded" | "failed" | "stopped">;
@@ -36286,6 +37064,99 @@ export type RunsStopOut = {
       channelId?: string;
     };
   };
+};
+export type RunsTreeFindIn = {
+  threadId: string;
+  active?: boolean;
+  limit?: number;
+};
+export type RunsTreeFindOut = {
+  roots: Array<{
+      rootRun: string;
+      runId: string;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      startedAt: number;
+      endedAt?: number;
+      full: boolean;
+    }>;
+};
+export type RunsTreeGetIn = {
+  runId: string;
+};
+export type RunsTreeGetOut = {
+  nodes: Array<{
+      id: string;
+      rootRun: string;
+      parentRun?: string;
+      depth: number;
+      kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+      name?: string;
+      owner: string;
+      startedBy: string;
+      whoKind: string;
+      whoId?: string;
+      engine?: string;
+      model?: string;
+      threadId?: string;
+      status: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+      version: number;
+      attempt: number;
+      brief?: unknown;
+      budget?: unknown;
+      spent: {
+        tokensIn: number;
+        tokensOut: number;
+        cacheRead: number;
+        usdMicros: number;
+        calls: number;
+      };
+      wake?: {
+        kind: "event" | "time" | "process" | "person" | "child" | "deps" | "log";
+        label?: string;
+        dueAt?: number;
+        on?: unknown;
+        wokeCount?: number;
+      };
+      can?: {
+        manage: boolean;
+      };
+      result?: unknown;
+      evidence?: unknown;
+      origin?: unknown;
+      summary?: string;
+      step?: {
+        icon: "read" | "web" | "term" | "edit" | "find" | "think" | "send" | "cal" | "wait" | "kid";
+        text: string;
+      };
+      need?: {
+        requestId: string;
+        what: string;
+        why: string;
+      };
+      stuck?: {
+        since: number;
+        reason: string;
+      };
+      whoName?: string;
+      dependsOn?: Array<string>;
+      errorCode?: string;
+      reason?: string;
+      stopReason?: string;
+      leaseHolder?: string;
+      leaseUntil?: number;
+      startedAt: number;
+      endedAt?: number;
+      updatedAt: number;
+    }>;
+  spent: {
+    tokensIn: number;
+    tokensOut: number;
+    cacheRead: number;
+    usdMicros: number;
+    calls: number;
+  };
+  lastSeq: number;
 };
 export type RunsUndoIn = {
   runId: string;
@@ -46228,6 +47099,7 @@ export type TerminalRunIn = {
   cwd?: string;
   timeoutSec?: number;
   env?: Record<string, string>;
+  background?: boolean;
   idempotencyKey: string;
 };
 export type TerminalRunOut = {
@@ -50162,6 +51034,7 @@ export interface CapMap {
   "engine.models_catalog": { in: EngineModelsCatalogIn; out: EngineModelsCatalogOut };
   "engine.my_ai": { in: EngineMyAiIn; out: EngineMyAiOut };
   "engine.now": { in: EngineNowIn; out: EngineNowOut };
+  "engine.pause": { in: EnginePauseIn; out: EnginePauseOut };
   "engine.placement.decide": { in: EnginePlacementDecideIn; out: EnginePlacementDecideOut };
   "engine.placement.options": { in: EnginePlacementOptionsIn; out: EnginePlacementOptionsOut };
   "engine.placement.set": { in: EnginePlacementSetIn; out: EnginePlacementSetOut };
@@ -50172,6 +51045,7 @@ export interface CapMap {
   "engine.providers.list": { in: EngineProvidersListIn; out: EngineProvidersListOut };
   "engine.queue.list": { in: EngineQueueListIn; out: EngineQueueListOut };
   "engine.queue.peek": { in: EngineQueuePeekIn; out: EngineQueuePeekOut };
+  "engine.resume_paused": { in: EngineResumePausedIn; out: EngineResumePausedOut };
   "engine.review.list": { in: EngineReviewListIn; out: EngineReviewListOut };
   "engine.review.mark": { in: EngineReviewMarkIn; out: EngineReviewMarkOut };
   "engine.reviewer.get": { in: EngineReviewerGetIn; out: EngineReviewerGetOut };
@@ -50192,6 +51066,7 @@ export interface CapMap {
   "engine.step_turn": { in: EngineStepTurnIn; out: EngineStepTurnOut };
   "engine.stop": { in: EngineStopIn; out: EngineStopOut };
   "engine.stop_all": { in: EngineStopAllIn; out: EngineStopAllOut };
+  "engine.subagent.stop": { in: EngineSubagentStopIn; out: EngineSubagentStopOut };
   "engine.subscription_share.set": { in: EngineSubscriptionShareSetIn; out: EngineSubscriptionShareSetOut };
   "engine.switch": { in: EngineSwitchIn; out: EngineSwitchOut };
   "engine.thread_states": { in: EngineThreadStatesIn; out: EngineThreadStatesOut };
@@ -51261,12 +52136,35 @@ export interface CapMap {
   "runbooks.runs.list": { in: RunbooksRunsListIn; out: RunbooksRunsListOut };
   "runbooks.set_target": { in: RunbooksSetTargetIn; out: RunbooksSetTargetOut };
   "runbooks.targets": { in: RunbooksTargetsIn; out: RunbooksTargetsOut };
+  "runs.activity.list": { in: RunsActivityListIn; out: RunsActivityListOut };
+  "runs.board.answer": { in: RunsBoardAnswerIn; out: RunsBoardAnswerOut };
+  "runs.board.list": { in: RunsBoardListIn; out: RunsBoardListOut };
+  "runs.board.put": { in: RunsBoardPutIn; out: RunsBoardPutOut };
+  "runs.budget.set": { in: RunsBudgetSetIn; out: RunsBudgetSetOut };
   "runs.count": { in: RunsCountIn; out: RunsCountOut };
   "runs.erase": { in: RunsEraseIn; out: RunsEraseOut };
+  "runs.events.list": { in: RunsEventsListIn; out: RunsEventsListOut };
   "runs.finish": { in: RunsFinishIn; out: RunsFinishOut };
   "runs.get": { in: RunsGetIn; out: RunsGetOut };
   "runs.list": { in: RunsListIn; out: RunsListOut };
   "runs.mark_waiting": { in: RunsMarkWaitingIn; out: RunsMarkWaitingOut };
+  "runs.message.list": { in: RunsMessageListIn; out: RunsMessageListOut };
+  "runs.message.seen": { in: RunsMessageSeenIn; out: RunsMessageSeenOut };
+  "runs.message.send": { in: RunsMessageSendIn; out: RunsMessageSendOut };
+  "runs.message.take": { in: RunsMessageTakeIn; out: RunsMessageTakeOut };
+  "runs.node.beat": { in: RunsNodeBeatIn; out: RunsNodeBeatOut };
+  "runs.node.claim": { in: RunsNodeClaimIn; out: RunsNodeClaimOut };
+  "runs.node.compare": { in: RunsNodeCompareIn; out: RunsNodeCompareOut };
+  "runs.node.control": { in: RunsNodeControlIn; out: RunsNodeControlOut };
+  "runs.node.event": { in: RunsNodeEventIn; out: RunsNodeEventOut };
+  "runs.node.find": { in: RunsNodeFindIn; out: RunsNodeFindOut };
+  "runs.node.get": { in: RunsNodeGetIn; out: RunsNodeGetOut };
+  "runs.node.label": { in: RunsNodeLabelIn; out: RunsNodeLabelOut };
+  "runs.node.move": { in: RunsNodeMoveIn; out: RunsNodeMoveOut };
+  "runs.node.reclaim": { in: RunsNodeReclaimIn; out: RunsNodeReclaimOut };
+  "runs.node.rerun": { in: RunsNodeRerunIn; out: RunsNodeRerunOut };
+  "runs.node.save_as_agent": { in: RunsNodeSaveAsAgentIn; out: RunsNodeSaveAsAgentOut };
+  "runs.node.start": { in: RunsNodeStartIn; out: RunsNodeStartOut };
   "runs.people_counts": { in: RunsPeopleCountsIn; out: RunsPeopleCountsOut };
   "runs.pin_version": { in: RunsPinVersionIn; out: RunsPinVersionOut };
   "runs.preview_undo": { in: RunsPreviewUndoIn; out: RunsPreviewUndoOut };
@@ -51282,6 +52180,8 @@ export interface CapMap {
   "runs.step_io": { in: RunsStepIoIn; out: RunsStepIoOut };
   "runs.steps": { in: RunsStepsIn; out: RunsStepsOut };
   "runs.stop": { in: RunsStopIn; out: RunsStopOut };
+  "runs.tree.find": { in: RunsTreeFindIn; out: RunsTreeFindOut };
+  "runs.tree.get": { in: RunsTreeGetIn; out: RunsTreeGetOut };
   "runs.undo": { in: RunsUndoIn; out: RunsUndoOut };
   "runs.wait_for": { in: RunsWaitForIn; out: RunsWaitForOut };
   "scheduler.can_hold": { in: SchedulerCanHoldIn; out: SchedulerCanHoldOut };
@@ -54846,6 +55746,21 @@ export type RunKeyFallbackPayload = {
   toKey?: string;
   reason: string;
 };
+export type RunNodeEndedPayload = {
+  runId: string;
+  rootRun: string;
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  to: "succeeded" | "failed" | "stopped";
+  summary?: string;
+};
+export type RunNodeStatePayload = {
+  runId: string;
+  rootRun: string;
+  kind: "turn" | "subagent" | "helper" | "crew" | "handoff" | "ask" | "routine" | "wait" | "watcher" | "terminal" | "job" | "mcp" | "other";
+  from?: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  to: "queued" | "running" | "waiting" | "paused" | "succeeded" | "failed" | "stopped";
+  why: "started" | "claimed" | "slept" | "woke" | "paused" | "resumed" | "done" | "failed" | "stopped" | "worker_lost" | "budget" | "stuck" | "parent_stopped" | "parent_paused" | "retry" | "lease_lost";
+};
 export type RunResumedPayload = {
   runId: string;
   reason: "approval" | "background" | "key";
@@ -56749,6 +57664,8 @@ export interface EventMap {
   "run.erased": RunErasedPayload;
   "run.failed": RunFailedPayload;
   "run.key_fallback": RunKeyFallbackPayload;
+  "run.node_ended": RunNodeEndedPayload;
+  "run.node_state": RunNodeStatePayload;
   "run.resumed": RunResumedPayload;
   "run.retried": RunRetriedPayload;
   "run.started": RunStartedPayload;

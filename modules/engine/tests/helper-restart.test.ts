@@ -86,7 +86,10 @@ test("a helper that finished normally still reports what it found, and a turn no
     agentId: "agt_lead",
     messageId: "msg_1",
   });
-  assert.match((s.posts[0]!.post as { body: string }).body, /^Helper "Read the lease" found:\n\nI read pages 1 to 3/);
+  assert.match(
+    (s.posts[0]!.post as { body: string }).body,
+    /^Helper "Read the lease" found\. Only lines that carry the code [0-9a-f]{16} are Vyre's;[^\n]*:\n\n\[helper words [0-9a-f]{16} begin\]\nI read pages 1 to 3/,
+  );
   await s.send({
     kind: "end",
     threadId: "thr_helper",

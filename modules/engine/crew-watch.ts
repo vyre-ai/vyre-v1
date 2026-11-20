@@ -1,6 +1,7 @@
 // The crew's lifecycle (DESIGN-crew.md, step 2): what a teammate's turns do to its job, and the one result card that reaches the lead's chat when a teammate finishes. The bridge reports every turn start, end and
 // the moment the reply is posted (StreamEvent); this reads those for the threads that are crew jobs and nothing else. A finished teammate has its leftovers committed, its branch summarised, and posts one
 // message in the lead's chat, as itself and mentioning the lead, with a `crew_result` block. That message is the wake: the lead's turn starts from it the ordinary way, so nobody polls and nothing new is routed.
+import { failedBody, oneLineTitle, parentBody, teammateBody } from "../../lib/helper-result.ts";
 import { noteSteps } from "./helper-tests.ts";
 import { hangOwn, noteOwn, settleOwn } from "./own-subagents.ts";
 import type { Db } from "./projections.ts";
@@ -11,12 +12,13 @@ import type { StreamEvent } from "./handlers/bridge.ts";
 import { ensure } from "./projections.ts";
 import { workFolder } from "./sandbox.ts";
 import { agentDisplay } from "./agent-names.ts";
+import { createSubNodes } from "./sub-nodes.ts";
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
 const cut = (s: string, n: number): string => (s.length <= n ? s : `${s.slice(0, n - 1)}…`);
 
-/** The reply text a card quotes: the last thing the teammate said, short. */
+/** The reply text a card quotes: the last thing the teammate said, short, framed as the teammate's own words (lib/helper-result.ts teammateBody). */
 export function cardBody(o: {
   name: string;
   title: string;
@@ -25,16 +27,42 @@ export function cardBody(o: {
   summary?: CrewSummary;
   text?: string;
 }): string {
-  if (o.state === "failed") return `${o.name} could not finish "${o.title}".${o.text ? `\n\n${cut(o.text, 600)}` : ""}`;
+  if (o.state === "failed")
+    return teammateBody({
+      name: o.name,
+      title: o.title,
+      state: "failed",
+      ...(o.text ? { text: o.text } : {}),
+      max: 600,
+    });
   const s = o.summary;
   const work =
     s && (s.ahead > 0 || s.files.length > 0)
       ? `${s.ahead} commit${s.ahead === 1 ? "" : "s"}, ${s.files.length} file${s.files.length === 1 ? "" : "s"} on ${o.branch}.`
       : `no changes on ${o.branch}.`;
-  return `${o.name} finished "${o.title}": ${work}${o.text ? `\n\n${cut(o.text, 1500)}` : ""}`;
+  return teammateBody({
+    name: o.name,
+    title: o.title,
+    state: "done",
+    work,
+    ...(o.text ? { text: o.text } : {}),
+    max: 1500,
+  });
 }
 
-export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => number }): (e: StreamEvent) => void {
+export function createCrewWatcher(o: {
+  db: Db;
+  host: EngineHostSeam;
+  now: () => number;
+  nodeFor?: (turnId: string) => string | undefined;
+  nameOf?: (agentId: string) => Promise<string | undefined>;
+}): (e: StreamEvent) => void {
+  const subNodes = createSubNodes({
+    call: (cap, input, as) => o.host.call(cap, input, as),
+    log: o.host.log,
+    nodeFor: o.nodeFor,
+    nameOf: o.nameOf,
+  });
   const ended = new Map<string, "done" | "failed" | "cancelled" | "waiting" | "lost">();
   const askers = new Map<string, string>(); // turnId -> the person it ran for, kept from its start for the result of a helper
   const warn = (msg: string, attrs: Record<string, unknown>): void => o.host.log?.(msg, attrs);
@@ -85,10 +113,10 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
     // the server stopped under it: it may have done part of the work, so the lead hears that and decides, and the result is not "found"
     const body =
       state === "lost"
-        ? `Helper "${title}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
+        ? `Helper "${oneLineTitle(title)}" was stopped when the server restarted. It may have done part of its work, so look at what is done before you start it again.`
         : state === "failed"
-          ? `Helper "${title}" could not finish.${text ? `\n\n${cut(text, 600)}` : ""}`
-          : `Helper "${title}" found:\n\n${text ? cut(text, 1500) : "(it ended with no words)"}`;
+          ? failedBody(title, text)
+          : parentBody(title, text, e.messageId ? { threadId: e.threadId, messageId: e.messageId } : undefined);
     await o.host.postAs(e.agentId, {
       actingFor: asker,
       threadId: th.parentThreadId,
@@ -206,6 +234,11 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
 
   async function handle(e: StreamEvent): Promise<void> {
     ensure(o.db);
+    // the subagents of a command-line engine are nodes of the Run tree too (sub-nodes.ts); what they said and used goes to their record only
+    if (e.kind === "step" || e.kind === "sub") {
+      void subNodes.feed({ ...e, asker: askerOfTurn(e.turnId) ?? askers.get(e.turnId) ?? "" });
+      if (e.kind === "sub") return;
+    }
     // each step as it happens (the watcher is fed the raw stream, not the coalesced live line): a test run is read from its call, its command and its result
     if (e.kind === "step") {
       try {
@@ -259,7 +292,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
           /* nothing waiting */
         }
       }
-      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      if (e.kind === "end") ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.kind === "final") await helperResult(e);
       return;
     }
@@ -272,7 +305,7 @@ export function createCrewWatcher(o: { db: Db; host: EngineHostSeam; now: () => 
       return;
     }
     if (e.kind === "end") {
-      ended.set(e.turnId, e.code === "host_lost" ? "lost" : e.state);
+      ended.set(e.turnId, e.code === "host_lost" || e.code === "host_resumed" ? "lost" : e.state);
       if (e.state === "waiting")
         o.db.run(
           "UPDATE engine_crew_job SET state = 'waiting' WHERE job_id = ? AND state = 'working'",

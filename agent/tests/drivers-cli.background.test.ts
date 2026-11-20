@@ -123,7 +123,9 @@ test("a person writing in the very instant the engine ends an interim reply to a
     const { driver, woken } = rig();
     const session = await driver.open(specOf());
     try {
-      await collect(session.send(turnOf("bg 250 900")));
+      // The second helper ends far after the first (4 s, not 0.65 s): what the stand-in engine says when the LAST helper ends ("All 2 helpers are back.") must not be able to land inside the person's turn however slowly
+      // a loaded machine answers it. The assertion is the same; the test no longer depends on how fast the box is (it failed under load on 17 and 19 Nov with that extra line).
+      await collect(session.send(turnOf("bg 250 4000")));
       // write at (about) the moment the first helper ends and the engine answers it by itself
       await sleep(250 - lead);
       const mine = await collect(session.send(turnOf("how many are done")));

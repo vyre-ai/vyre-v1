@@ -41,7 +41,9 @@ export const consumers = {
       driveFromEvent(ctx, event),
   },
 };
+import { NODE_SWEEP_MS, nodeSweep } from "./handlers/node.ts";
 export const periodic = {
+  "runs.sweep_nodes": { everyMs: NODE_SWEEP_MS, run: (ctx: Parameters<typeof nodeSweep>[0]) => nodeSweep(ctx) },
   "runs.sweep_waits": { everyMs: SWEEP_EVERY_MS, run: (ctx: Parameters<typeof sweep>[0]) => sweep(ctx) },
 };
 export const hostCalls = {

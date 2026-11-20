@@ -18,6 +18,7 @@
 //   screen      what the person has open (ScreenContext)
 //   focus       the focus skill of the place the person is in
 //   about       the about-vyre skill, on a turn whose message asks about Vyre itself (lib/about-vyre.ts)
+//   here        which thread this is (its id, kind, title, scope): the one part of "where" that differs between sibling helpers, kept out of the cached prefix so siblings share it (r42-runtime-tokens)
 //   now         the time, in the person's zone
 //   waiting     what the agent itself is waiting on
 //
@@ -36,6 +37,7 @@ export type SectionId =
   | "memory"
   | "skills"
   | "can"
+  | "here"
   | "task"
   | "goal"
   | "parent"
@@ -61,6 +63,7 @@ export const SECTION_ORDER: readonly SectionId[] = [
   "memory",
   "skills",
   "can",
+  "here",
   "task",
   "goal",
   "parent",
@@ -239,6 +242,7 @@ const TITLE: Readonly<Record<SectionId, string>> = {
   memory: "",
   skills: "",
   can: "What you can do here",
+  here: "This chat",
   task: "Your task",
   goal: "Your goal",
   recent: "",

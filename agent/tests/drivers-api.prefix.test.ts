@@ -1,5 +1,6 @@
 // Prefix cache and request shape (ARCH 6.6): the stable system blocks and the sorted tool list are hashed and marked so a resumed chat's first token reads the provider's cache;
 // compaction at 80% of the window keeps the prompt inside it.
+import { readsEpoch } from "../src/tools/reads-epoch.ts";
 import { reportWindow } from "../src/transcript/windows.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -302,6 +303,7 @@ test("a long thread is compacted inside a send, and the request that goes out fi
   const events: DriverEvent[] = [];
   for await (const e of session.send(turnInput(MODELS.anthropic, history))) events.push(e);
   assert.equal(session.stats().compactions, 1);
+  assert.equal(readsEpoch("turn1") > 0, true, "a compaction forgets what the turn read, so a repeat read is whole");
   const msgs = (f.requests[0]?.body as any).messages as any[];
   assert.ok(msgs.length < 41);
   assert.match(msgs[0].content[0].text, /short summary/);

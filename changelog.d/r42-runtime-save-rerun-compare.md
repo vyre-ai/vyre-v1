@@ -1,0 +1,1 @@
+A finished piece of work can be saved as an agent, and a finished helper can be started again beside the first with an edited brief or another model; the two are read side by side with their briefs, results, cost and time. Saving needs the person's ok when an agent asks.

@@ -924,6 +924,7 @@ export function createClient(transport: Transport) {
       models_catalog: call("engine.models_catalog", 1),
       my_ai: call("engine.my_ai", 1),
       now: call("engine.now", 1),
+      pause: call("engine.pause", 1),
       placement: {
         decide: call("engine.placement.decide", 1),
         options: call("engine.placement.options", 1),
@@ -944,6 +945,7 @@ export function createClient(transport: Transport) {
         list: call("engine.queue.list", 1),
         peek: call("engine.queue.peek", 1),
       },
+      resume_paused: call("engine.resume_paused", 1),
       review: {
         list: call("engine.review.list", 1),
         mark: call("engine.review.mark", 1),
@@ -980,6 +982,9 @@ export function createClient(transport: Transport) {
       step_turn: call("engine.step_turn", 1),
       stop: call("engine.stop", 1),
       stop_all: call("engine.stop_all", 1),
+      subagent: {
+        stop: call("engine.subagent.stop", 1),
+      },
       subscription_share: {
         set: call("engine.subscription_share.set", 1),
       },
@@ -2459,12 +2464,47 @@ export function createClient(transport: Transport) {
       targets: call("runbooks.targets", 1),
     },
     runs: {
+      activity: {
+        list: call("runs.activity.list", 1),
+      },
+      board: {
+        answer: call("runs.board.answer", 1),
+        list: call("runs.board.list", 1),
+        put: call("runs.board.put", 1),
+      },
+      budget: {
+        set: call("runs.budget.set", 1),
+      },
       count: call("runs.count", 1),
       erase: call("runs.erase", 1),
+      events: {
+        list: call("runs.events.list", 1),
+      },
       finish: call("runs.finish", 1),
       get: call("runs.get", 1),
       list: call("runs.list", 1),
       mark_waiting: call("runs.mark_waiting", 1),
+      message: {
+        list: call("runs.message.list", 1),
+        seen: call("runs.message.seen", 1),
+        send: call("runs.message.send", 1),
+        take: call("runs.message.take", 1),
+      },
+      node: {
+        beat: call("runs.node.beat", 1),
+        claim: call("runs.node.claim", 1),
+        compare: call("runs.node.compare", 1),
+        control: call("runs.node.control", 1),
+        event: call("runs.node.event", 1),
+        find: call("runs.node.find", 1),
+        get: call("runs.node.get", 1),
+        label: call("runs.node.label", 1),
+        move: call("runs.node.move", 1),
+        reclaim: call("runs.node.reclaim", 1),
+        rerun: call("runs.node.rerun", 1),
+        save_as_agent: call("runs.node.save_as_agent", 1),
+        start: call("runs.node.start", 1),
+      },
       people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),
@@ -2480,6 +2520,10 @@ export function createClient(transport: Transport) {
       step_io: call("runs.step_io", 1),
       steps: call("runs.steps", 1),
       stop: call("runs.stop", 1),
+      tree: {
+        find: call("runs.tree.find", 1),
+        get: call("runs.tree.get", 1),
+      },
       undo: call("runs.undo", 1),
       wait_for: call("runs.wait_for", 1),
     },

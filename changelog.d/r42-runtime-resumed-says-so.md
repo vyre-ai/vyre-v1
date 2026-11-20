@@ -1,0 +1,1 @@
+When the server restarts under an agent that carried on by itself, the chat now says so plainly instead of saying it failed, and what an agent had sent while working is kept for no more than a day with passwords and keys taken out.

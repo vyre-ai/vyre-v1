@@ -1,0 +1,1 @@
+When the server restarts under an agent that was in the middle of a job, the agent now carries on from the steps it had finished instead of stopping, and a step that may have already gone out is never sent twice.

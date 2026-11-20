@@ -608,6 +608,50 @@ export default defineManifest({
       idem: "natural",
       risk: "low",
     }),
+    write(
+      "engine.subagent.stop",
+      "Ask one subagent of a command-line engine to stop: its next call is refused and it ends (the node that stands for it in the run tree)",
+      {
+        in: { ...threadT, runId: id.run, reason: t.opt(t.str({ maxLength: 120 })) },
+        out: { requested: t.bool() },
+        on: ["thread", "/threadId"],
+        level: "use",
+        offline: "online",
+        idem: "natural",
+        risk: "low",
+      },
+    ),
+    write(
+      "engine.pause",
+      "Pause one agent's turn in a thread at its next safe point, keeping everything it did (a limit was reached)",
+      {
+        in: { ...threadT, agentId: t.opt(id.agent), reason: t.opt(t.str({ maxLength: 120 })) },
+        out: {
+          paused: t.int(),
+          held: t.int({
+            description: "Turns of an engine that runs its own tools: held at their next call, not paused",
+          }),
+        },
+        on: ["thread", "/threadId"],
+        level: "use",
+        offline: "online",
+        idem: "natural",
+        risk: "low",
+      },
+    ),
+    write(
+      "engine.resume_paused",
+      "Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had already done",
+      {
+        in: { ...threadT, agentId: t.opt(id.agent) },
+        out: { resumed: t.int(), lost: t.int(), released: t.int() },
+        on: ["thread", "/threadId"],
+        level: "use",
+        offline: "online",
+        idem: "natural",
+        risk: "low",
+      },
+    ),
     write("engine.stop_all", "Stop every agent working in a thread (Stop all in the conversation header)", {
       // reason update: the desktop app stops its turns to update itself (its kept messages run again after); what those turns ran in a terminal is left running
       in: { ...threadT, reason: t.opt(t.enm("update")) },
@@ -1894,6 +1938,7 @@ export default defineManifest({
             t.obj({
               kind: t.enm("helper", "teammate", "subagent"),
               id: t.str({ description: "A helper or teammate's chat, or a subagent's own id (it has no chat)" }),
+              runId: t.opt(id.run),
               jobId: t.opt(t.str()),
               parentThreadId: id.thread,
               title: t.str(),

@@ -94,6 +94,8 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "engine.helpers.status": "never",
   "engine.helpers.stop_all": "never",
   "engine.interrupt": "never",
+  "engine.pause": "never", // for the server only
+  "engine.resume_paused": "never", // for the server only
   "engine.live_turns": "never",
   "engine.placement.decide": "never",
   "engine.placement.options": "never",
@@ -107,6 +109,7 @@ export const GUEST_CAPS: Readonly<Record<string, GuestWhat>> = Object.freeze({
   "engine.set_model": "never",
   "engine.stop": "never",
   "engine.stop_all": "never",
+  "engine.subagent.stop": "never", // for the server only
   "engine.switch": "never",
   "engine.turn.enqueue": "never",
   "engine.turn.of_message": "never",

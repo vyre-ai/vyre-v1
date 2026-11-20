@@ -1931,6 +1931,14 @@ export default defineManifest({
           ),
           crew: t.opt(t.bool()),
           taskId: t.opt(id.task),
+          retryOf: t.opt(id.thread),
+          dependsOn: t.opt(
+            t.arr(t.str({ maxLength: 120 }), {
+              maxItems: 8,
+              description:
+                "Helpers of this chat to wait for: their titles or thread ids. This one starts when each of them has finished, and fails if one of them does not",
+            }),
+          ),
         },
         out: { helper: threadRow, blockId: id.block },
         on: ["thread", "/threadId"],
@@ -2699,7 +2707,12 @@ export default defineManifest({
       vis: "participants",
     }),
     ev("helper.started", "A helper sub-task thread started under a chat", {
-      p: { helperThreadId: id.thread, parentThreadId: id.thread, agentId: id.agent, model: t.opt(t.str()) },
+      p: {
+        helperThreadId: id.thread,
+        parentThreadId: id.thread,
+        agentId: id.agent,
+        model: t.opt(t.str()),
+      },
       subject: ["thread", "/helperThreadId"],
       vis: "participants",
     }),

@@ -11,7 +11,7 @@ import { createToolSession } from "../tools/call.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
-import { hooksHolder, NO_VERDICT } from "../tools/hooks.ts";
+import { hooksHolder, NO_VERDICT, subagentGateHolder } from "../tools/hooks.ts";
 import type { CallHooks } from "../tools/call.ts";
 import { CLI_EVENT } from "../../../lib/hooks.ts";
 import type { ToolCtx, ToolDef } from "../tools/types.ts";
@@ -682,8 +682,26 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         const event = CLI_EVENT[String(p.event)];
         const body = p.payload ?? {};
         const tool = typeof body["tool_name"] === "string" ? (body["tool_name"] as string) : undefined;
+        // a call made inside one of the engine's own subagents names it (agent_id): if it was asked to stop, this call is its stop; what it was told meanwhile rides back as notes
+        const inside =
+          typeof body["agent_id"] === "string" && body["agent_id"] !== "" ? (body["agent_id"] as string) : undefined;
+        let told: string[] = [];
+        if (event === "tool.before" && subagentGateHolder.gate) {
+          try {
+            const g = await subagentGateHolder.gate({
+              threadId: s.ctx.thread.threadId,
+              agentId: s.ctx.agentId,
+              ...(inside ? { subagent: inside } : {}),
+              ...(tool ? { tool } : {}),
+            });
+            if (g.block) return ok(id, { block: g.block, notes: g.notes });
+            told = g.notes;
+          } catch {
+            /* a gate that cannot answer lets the call go: nothing stops by failing */
+          }
+        }
         if (!event || !hooksHolder.port || (tool?.startsWith("mcp__vyre__") ?? false))
-          return ok(id, { block: null, notes: [] });
+          return ok(id, { block: null, notes: told });
         const v = await hooksHolder.port.fire({
           event,
           agentId: s.ctx.agentId,
@@ -697,7 +715,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
           ...(body["tool_response"] !== undefined ? { output: body["tool_response"] } : {}),
           ...(typeof body["prompt"] === "string" ? { prompt: body["prompt"] as string } : {}),
         });
-        return ok(id, { block: v.block ? v.block.reason : null, notes: v.notes });
+        return ok(id, { block: v.block ? v.block.reason : null, notes: [...told, ...v.notes] });
       }
       default:
         return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);

@@ -60,6 +60,8 @@ export interface ApiTools {
   runner: ToolRunner;
   /** EngineOptions.toolClass: which calls of one step may run together (independent reads). */
   toolClass?: (name: string) => "read" | "other";
+  /** EngineOptions.toolSafety: how safe a call is to ask again after a restart (agent/src/turn-engine/journal.ts). */
+  toolSafety?: (name: string) => "read" | "keyed" | "unsafe";
 }
 
 const view = (t: ToolDef): ApiTool => ({
@@ -100,7 +102,7 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       thread: { threadId, kind: "chat", planMode: false, ...d.thread?.(threadId) },
       ...(rules ? { rules } : {}),
       ...(provider ? { provider } : {}),
-      ...(turnId ? { turnId } : {}),
+      ...(turnId ? { turnId, repeatSafe: true as const } : {}),
       ...(callId ? { callId } : {}),
       ...(startedAt !== undefined ? { turnStartedAt: startedAt } : {}),
     };
@@ -181,7 +183,14 @@ export function createApiTools(d: ApiToolsDeps): ApiTools {
       if (call.name === "tool_batch" && d.isRead) return runBatch(call.input, ctx);
       const out = await d.session.call(
         {
-          ...ctxFor(ctx.threadId, ctx.agentId, ctx.asker, ctx.turnId, nextCallId(ctx.turnId, call.id), ctx.startedAt),
+          ...ctxFor(
+            ctx.threadId,
+            ctx.agentId,
+            ctx.asker,
+            ctx.turnId,
+            ctx.callKey ?? nextCallId(ctx.turnId, call.id),
+            ctx.startedAt,
+          ),
           ...(ctx.said !== undefined ? { said: ctx.said } : {}),
         },
         call.name,

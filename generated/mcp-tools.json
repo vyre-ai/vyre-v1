@@ -3180,6 +3180,11 @@
             "minLength": 1,
             "type": "string"
           },
+          "instructions": {
+            "description": "What the agent is told to do, added to its AGENT.md",
+            "maxLength": 20000,
+            "type": "string"
+          },
           "limits": {
             "properties": {
               "dayCostMicros": {
@@ -62131,6 +62136,15 @@
           "crew": {
             "type": "boolean"
           },
+          "dependsOn": {
+            "description": "Helpers of this chat to wait for: their titles or thread ids. This one starts when each of them has finished, and fails if one of them does not",
+            "items": {
+              "maxLength": 120,
+              "type": "string"
+            },
+            "maxItems": 8,
+            "type": "array"
+          },
           "effort": {
             "enum": [
               "low",
@@ -62147,6 +62161,13 @@
             "type": "string"
           },
           "provider": {
+            "type": "string"
+          },
+          "retryOf": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
             "type": "string"
           },
           "taskId": {
@@ -69482,7 +69503,7 @@
       ],
       "cap": "terminal.run",
       "deferred": false,
-      "description": "Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns",
+      "description": "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -69493,6 +69514,10 @@
             "pattern": "^agt_[a-z0-9]+$",
             "type": "string"
           },
+          "background": {
+            "description": "Keep a long command running; wait with wait_for on run.node_ended",
+            "type": "boolean"
+          },
           "command": {
             "type": "string"
           },
@@ -69501,7 +69526,7 @@
           },
           "env": {
             "additionalProperties": {
-              "description": "Literal or a #Handle.field reference",
+              "description": "Literal or #Handle.field",
               "type": "string"
             },
             "type": "object"
@@ -69521,7 +69546,7 @@
             "type": "string"
           },
           "session": {
-            "description": "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+            "description": "Tab name, made when there is none. Left out: your own tab",
             "maxLength": 80,
             "type": "string"
           },
