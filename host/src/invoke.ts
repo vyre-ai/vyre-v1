@@ -82,6 +82,8 @@ export interface CtxSeed {
   trace?: TraceContext | undefined;
   run?: string | undefined;
   thread?: string | undefined;
+  /** why the engine started the turn this call is made in (message, wake, resume, interrupt, handoff); set only by the tool layer, from the engine's own record */
+  turn?: { kind: string } | undefined;
   origin?: string | undefined;
   depth?: number | undefined;
   /** the capability whose handler made this nested call (set only by ctx.call, never by a caller): a host call one module's path alone may make checks it (consumers.ts MODULE_PATH_CALL) */
@@ -1448,6 +1450,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       trace,
       ...(seed.run ? { run: seed.run } : {}),
       ...(seed.thread ? { thread: seed.thread } : {}),
+      ...(seed.turn ? { turn: seed.turn } : {}),
       origin: seed.origin ?? "user",
       depth,
       ...(seed.forwarded ? { forwarded: true } : {}),

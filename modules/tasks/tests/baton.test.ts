@@ -460,7 +460,7 @@ test("an agent cannot remove the person its task acts for, and a person who star
   assert.equal(notes(h, id)["baton.owner"], undefined);
 });
 
-test("a turn that was given a task is refused when it names another task's id, with the right one named; its own id, another kind of chat and a caller who is not an agent go on as before", async () => {
+test("a baton turn (the engine woke the agent) is refused when it names another task's id, with the right one named; its own id, a chat of another kind and a caller who is not an agent go on as before", async () => {
   const h = withThreads();
   const make = async (title?: string): Promise<string> =>
     (await h.call("tasks.create", newTask({ assigned: bot, ...(title ? { title } : {}) }), me)).task.id as string;
@@ -468,11 +468,8 @@ test("a turn that was given a task is refused when it names another task's id, w
   const other = await make("Another task");
   let scope: { scopeType?: string; scopeId?: string } = { scopeType: "task", scopeId: own };
   h.callee("threads.get", () => ({ thread: { threadId: "thr_own", ...scope } }));
-  // the words that started the turn: the chat's newest message
-  let said = "Get this done please";
-  h.callee("chat.messages.list", () => ({ messages: [{ body: said }] }));
-  const inOwn = { ...doer, thread: "thr_own" };
-  await assert.rejects(h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn), (e) => {
+  const woken = { ...doer, thread: "thr_own", turn: { kind: "wake" } };
+  await assert.rejects(h.call("tasks.submit", { taskId: other, summary: "Done" }, woken), (e) => {
     assert.equal(codeOf(e), "validation.precondition_failed");
     assert.equal(reasonOf(e), "wrong_task");
     assert.match(
@@ -484,53 +481,44 @@ test("a turn that was given a task is refused when it names another task's id, w
   assert.equal(state(h, other), "todo", "the other task did not move");
   for (const fn of ["ask", "block"] as const) {
     const input = fn === "ask" ? { taskId: other, question: "Which?" } : { taskId: other, reason: "Stuck" };
-    await refused(h.call(`tasks.${fn}`, input, inOwn), "validation.precondition_failed", "wrong_task");
+    await refused(h.call(`tasks.${fn}`, input, woken), "validation.precondition_failed", "wrong_task");
   }
   assert.equal(
-    (await h.call("tasks.submit", { taskId: own, summary: "Done" }, inOwn)).next,
+    (await h.call("tasks.submit", { taskId: own, summary: "Done" }, woken)).next,
     "done",
     "its own task goes",
   );
   scope = { scopeType: "record", scopeId: "rec_x" };
   assert.equal(
-    (await h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn)).next,
+    (await h.call("tasks.submit", { taskId: other, summary: "Done" }, woken)).next,
     "done",
     "a chat that is not a task's own chat does not bind the call",
   );
 });
 
-test("a person who writes in a task's chat 'also do that other task for me' has named it, and their Assistant may act on it; a turn whose words do not name it is a baton turn and is refused", async () => {
+test("a turn a person started, a held call answered, an interrupt, a hand-off, a turn of unknown cause and a caller who is not an agent are never refused for naming another task", async () => {
   const h = withThreads();
   const make = async (title: string): Promise<string> =>
     (await h.call("tasks.create", newTask({ assigned: bot, title }), me)).task.id as string;
   const own = await make("Send Noah the figures");
-  const second = await make("Approve the Rivera invoice");
-  const third = await make("File the Harbor quote");
   h.callee("threads.get", () => ({ thread: { threadId: "thr_own", scopeType: "task", scopeId: own } }));
-  let said = "Get this done please";
-  h.callee("chat.messages.list", () => ({ messages: [{ body: "earlier words" }, { body: said }] }));
-  const inOwn = { ...doer, thread: "thr_own" };
-  await refused(
-    h.call("tasks.submit", { taskId: second, summary: "Done" }, inOwn),
-    "validation.precondition_failed",
-    "wrong_task",
-  );
-  said = "Also, finish the approve the rivera invoice task for me";
-  assert.equal(
-    (await h.call("tasks.submit", { taskId: second, summary: "Done" }, inOwn)).next,
-    "done",
-    "named by its title",
-  );
-  said = `and ${third} too`;
-  assert.equal(
-    (await h.call("tasks.submit", { taskId: third, summary: "Done" }, inOwn)).next,
-    "done",
-    "named by its id",
-  );
-  said = "Also finish the approve the rivera invoice task";
-  await refused(
-    h.call("tasks.submit", { taskId: third, summary: "Done" }, inOwn),
-    "validation.precondition_failed",
-    "wrong_task",
-  );
+  const named = async (turn: { kind: string } | undefined, who = doer): Promise<unknown> => {
+    const t = await make(`Other ${Math.random().toString(36).slice(2, 8)}`);
+    return (
+      await h.call(
+        "tasks.submit",
+        { taskId: t, summary: "Done" },
+        { ...who, thread: "thr_own", ...(turn ? { turn } : {}) },
+      )
+    ).next;
+  };
+  for (const kind of ["message", "resume", "interrupt", "handoff"])
+    assert.equal(await named({ kind }), "done", `a ${kind} turn may act on another task`);
+  assert.equal(await named(undefined), "done", "a turn of unknown cause is not refused");
+  // a person is not an agent: the guard does not look at them (their call may fail for its own reasons, never this one)
+  const t = await make("Another for a person");
+  const p = await h
+    .call("tasks.submit", { taskId: t, summary: "Done" }, { id: me.id, thread: "thr_own", turn: { kind: "wake" } })
+    .catch((e) => e);
+  assert.notEqual(reasonOf(p), "wrong_task");
 });
