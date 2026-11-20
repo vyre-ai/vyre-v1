@@ -53,11 +53,29 @@ test("Recipient fallback never prints a raw identity or mailbox id", () => {
   assert.equal(subjectLabel({ kind: "person", id: "usr_fixture", name: "Maya" }), "Maya");
 });
 
-test("a link to the sending-domains screen alone opens Sending domains, not the Email page that draws the same screen", async () => {
-  const { PAGES } = await import("../../shell/nav.ts");
-  assert.equal(PAGES.find((p) => p.screen === "mail.domains")?.id, "domains");
-  assert.ok(
-    PAGES.some((p) => p.id === "email" && p.screen === "mail.domains"),
-    "the Email page is still there, reached by its own name",
-  );
+test("a screen several Console pages draw has its own page named, and a link to the screen alone opens it whatever order the sidebar lists the pages in", async () => {
+  const { PAGES, PRIMARY_PAGE, pageOfScreen } = await import("../../shell/nav.ts");
+  const { adminTarget } = await import("../../../shell/providers/settings-admin.ts");
+  const bySize = new Map<string, string[]>();
+  for (const p of PAGES) bySize.set(p.screen, [...(bySize.get(p.screen) ?? []), p.id]);
+  for (const [screen, ids] of bySize) {
+    if (ids.length < 2) continue;
+    const own = PRIMARY_PAGE[screen];
+    assert.ok(own, `${screen} is drawn by ${ids.join(", ")}: name its own page in PRIMARY_PAGE`);
+    assert.ok(ids.includes(own!), `${screen}'s own page ${own} draws it`);
+    assert.equal(pageOfScreen(screen)?.id, own);
+    assert.equal(
+      pageOfScreen(screen, [...PAGES].reverse())?.id,
+      own,
+      `${screen}: the order of the pages changes nothing`,
+    );
+  }
+  for (const screen of Object.keys(PRIMARY_PAGE)) assert.ok(bySize.has(screen), `${screen} is a real screen`);
+  // the Apps link to add a sending domain, and the deep link to one domain, name the page
+  assert.equal(adminTarget("mail.domains", { create: "true" }).args["page"], "domains");
+  assert.equal(adminTarget("mail.domains", { domainId: "dom_1" }).args["page"], "domains");
+  // the Email page keeps the head of the Comms group and is reached by its own name
+  const comms = PAGES.filter((p) => p.group === "Comms").map((p) => p.id);
+  assert.equal(comms[0], "email");
+  assert.ok(comms.includes("domains"));
 });

@@ -9,7 +9,7 @@ import { createThemeController } from "../../../../../ui/src/theme/controller.ts
 import { ConsoleShell } from "../../console/shell/ConsoleShell.tsx";
 import { ConsoleDataProvider } from "../../console/shell/data.tsx";
 import type { ConsoleData } from "../../console/shell/data.tsx";
-import { PAGES, pageById } from "../../console/shell/nav.ts";
+import { PAGES, pageById, pageOfScreen } from "../../console/shell/nav.ts";
 import { parseConsolePage } from "../../console/shell/route.ts";
 import { Server, Diagnostics, Support } from "../../console/pages/Infrastructure.tsx";
 import { Backups } from "../../console/pages/Backups.tsx";
@@ -345,7 +345,7 @@ export default function ConsolePlace(): ReactElement {
     : target.args.page && pageById(target.args.page)?.screen === target.screen
       ? target.args.page
       : null;
-  const page = requestedPage ?? PAGES.find((entry) => entry.screen === target.screen)?.id ?? "overview";
+  const page = requestedPage ?? pageOfScreen(target.screen ?? "")?.id ?? "overview";
   const pageArgs = { ...target.args, ...(routed?.args ?? {}) };
   return (
     <ConsoleDataProvider value={data}>
