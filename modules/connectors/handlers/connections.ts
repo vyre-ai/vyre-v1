@@ -59,6 +59,8 @@ export interface ConnectionsHandlers {
       ownerKind: "person" | "space";
       secrets?: Record<string, string>;
       scopes?: string[];
+      /** What a connect card showed: the revision first, then the addresses */
+      pin?: string[];
     },
   ): Promise<{ connection: ConnectionRow; authUrl?: string }>;
   "connections.update"(
@@ -98,6 +100,8 @@ export interface ForService {
   found: boolean;
   connector?: {
     key: string;
+    /** The server's count of the connector's changes (see revisionOf): what the card pins */
+    revision: string;
     title: string;
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";

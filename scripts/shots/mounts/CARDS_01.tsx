@@ -104,7 +104,11 @@ function call(state: string) {
         },
       };
     if (cap === "automations.key_hosts.pending_bind")
-      return { found: true, items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }], hosts: ["*.app.n8n.cloud"] };
+      return {
+        found: true,
+        items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+        hosts: ["*.app.n8n.cloud"],
+      };
     if (cap === "files.get") return { file: { name: "Q4 pricing.docx" } };
     if (cap === "files.read") return { text: "Q4 pricing\nBasic 39 a month\nPro 99 a month" };
     if (cap === "access.principals.get") return { principal: { name: "Aliza Rizvi" } };
@@ -146,9 +150,7 @@ const Err = ({ acct }: { acct?: boolean }): ReactNode => (
 const Approval = ({ state = "awaiting_approval" }: { state?: string }): ReactNode => (
   <ApprovalCard taskId="tsk_1" agent="Intake" agentId="agt_1" data={gdata(state)} />
 );
-const HostCard = (): ReactNode => (
-  <ApprovalCard taskId="tsk_1" agent="Scout" agentId="agt_1" data={gdata("host")} />
-);
+const HostCard = (): ReactNode => <ApprovalCard taskId="tsk_1" agent="Scout" agentId="agt_1" data={gdata("host")} />;
 const Held = ({ state = "awaiting_approval" }: { state?: string }): ReactNode => (
   <ApprovalCard
     taskId="tsk_1"
