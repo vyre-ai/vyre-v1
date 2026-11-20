@@ -147,8 +147,10 @@ test("a member who can see the tree but is not its owner and has no runs.manage 
   );
   const entryId = (put as { result: { entry: { id: string } } }).result.entry.id;
   h.callee("runs.budget.set", (i: Record<string, unknown>) => h.call("runs.budget.set", i, watcher));
-  h.callee("agents.create", () => ({ agent: { agentId: `agt_${"d".repeat(32)}`, name: "x" } }));
-  h.callee("chat.helper.start", () => ({ helper: { threadId: `thr_${"e".repeat(32)}` } }));
+  const made: unknown[] = [];
+  const started: unknown[] = [];
+  h.callee("agents.create", (i: unknown) => (made.push(i), { agent: { agentId: `agt_${"d".repeat(32)}`, name: "x" } }));
+  h.callee("chat.helper.start", (i: unknown) => (started.push(i), { helper: { threadId: `thr_${"e".repeat(32)}` } }));
   await h.call("runs.node.move", { ...hold(h, root.id), runId: root.id, to: "succeeded", why: "done" }, engine);
   const calls: Array<[string, Record<string, unknown>]> = [
     ["message_send", { to: root.id, body: "hi" }],
@@ -170,7 +172,16 @@ test("a member who can see the tree but is not its owner and has no runs.manage 
       `${action} is a permission refusal, not a mistake of shape: ${codeOf(r)}`,
     );
   }
-  const asked: unknown[] = [];
-  h.callee("agents.create", (i: unknown) => (asked.push(i), { agent: {} }));
-  assert.equal(asked.length, 0, "nothing was made");
+  assert.equal(made.length, 0, "no agent was made");
+  assert.equal(started.length, 0, "no helper was started");
+});
+
+test("the budget action without a way to ask runs.budget.set fails hard: it never calls the handler around the Gate", async () => {
+  const bare = {
+    principal: { kind: "agent", id: "agt_1" },
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+  } as never;
+  const err = await ACTIONS["budget"]!.h(bare, { runId: "run_a", tokens: 10 }).catch((e: unknown) => e);
+  assert.ok(err instanceof Error, "it throws");
+  assert.equal(codeOf(err), "internal.unexpected");
 });
