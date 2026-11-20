@@ -554,3 +554,62 @@ test("a teammate's plain question is answered with Yes or No, and the line after
   );
   assert.match(textOf(root), /You said yes · Send the notes to Mia/);
 });
+
+test("a held send of a preview copy shows the server's sentence quietly under the title, and the names to apart from it; an ordinary hold shows no note", async () => {
+  const held = (extra: Record<string, unknown>) => ({
+    task: {
+      id: "tsk_9",
+      kind: "approve",
+      title: "Approve: Send a document for signature",
+      state: "awaiting_approval",
+      source: { kind: "gate", id: "gh_1" },
+      payloadHash: "a".repeat(64),
+      blocks: [
+        {
+          type: "file",
+          v: 1,
+          data: {
+            act: "signature_send",
+            cap: "esign.send",
+            input: { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }], plainOk: true },
+            ...extra,
+          },
+        },
+      ],
+      actions: [
+        { key: "approve", label: "Approve" },
+        { key: "reject", label: "Send back", note: "required" },
+      ],
+    },
+  });
+  const make = (t: unknown) =>
+    ({
+      call: async (cap: string) =>
+        cap === "tasks.get" ? t : cap === "files.get" ? { file: { name: "Agreement.pdf" } } : {},
+      nav: { openBeside: () => undefined },
+    }) as never;
+  const root = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_9"
+      agent="Intake"
+      agentId="agt_1"
+      data={make(
+        held({
+          note: "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+          noteSigners: ["Andrea Lindahl"],
+        }),
+      )}
+    />,
+  );
+  assert.match(
+    textOf(find(root, "approval-note-tsk_9")),
+    /preview copy of the file for signature\. It's in the plain page look, not the Word template's layout\. Allow sends it as it is\./,
+  );
+  assert.equal(textOf(find(root, "approval-note-tsk_9-signers")), "To: Andrea Lindahl");
+  const plain = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
+  );
+  assert.equal(find(plain, "approval-note-tsk_9"), null);
+});

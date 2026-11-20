@@ -358,7 +358,7 @@ test("fetch_signed: refuses until everyone signed, then saves the signed PDF as 
   assert.equal(h.created.length, 0, "Documenso embeds its certificate, so there is no second file");
   assert.deepEqual(
     h.events.map((e) => [e.name, e.payload]),
-    [["signature.signed", { envelopeId, fileId: FILE }]],
+    [["signature.signed", { envelopeId, fileId: FILE, recordId: RECORD }]],
   );
   assert.deepEqual(
     h.callsTo("tasks.transition").map((c) => [c.input.taskId, c.input.to]),

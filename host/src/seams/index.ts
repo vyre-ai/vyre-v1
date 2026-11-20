@@ -7,6 +7,7 @@
 import { createComputersHost } from "./computers-host.ts";
 import type { TerminalHostSeamShape } from "./terminal-host.ts";
 import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
+import { createDocumentsHost } from "./documents-pdf.ts";
 import { createDropboxHost } from "./dropbox.ts";
 import type { DropboxHostSeam } from "./dropbox.ts";
 import { createEngineHost } from "./engine.ts";
@@ -32,7 +33,7 @@ import { createTalkHost } from "./talk.ts";
 import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
-export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
+export { createDocumentsHost, createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
 export {
   createComputersHost,
@@ -189,6 +190,8 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setDropboxHost: (d: SeamDriverDeps) =>
     createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
+  /** Word to PDF for the documents module: LibreOffice where this machine has it, nothing where it does not */
+  configureDocuments: () => createDocumentsHost(),
   setPluginsHost: (d: SeamDriverDeps) =>
     createPluginsHost({
       fetch: d.fetch,

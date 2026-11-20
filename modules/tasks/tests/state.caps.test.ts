@@ -330,7 +330,10 @@ test("lists by scope, filter and page", async () => {
   const h = harness();
   const t1 = await mk(h, { title: "one", recordId: "rec_abc" });
   const t2 = await mk(h, { title: "two", assigned: bob, recordId: "rec_abc" });
-  const t3 = await mk(h, { title: "three", kind: "approve", source: { kind: "run", id: "run_1" } });
+  const t3 = await mk(h, { title: "three", kind: "approve", source: { kind: "run", id: "run_1" } }, {
+    ...me,
+    callerCap: "steps-core.run_step",
+  } as never);
   const t4 = await mk(h, { title: "four", assigned: cara }, { id: alice.id });
   await h.call("tasks.followers.add", { taskId: t2, follower: alice.id }, me);
   const list = async (input: Record<string, unknown>, who = me): Promise<string[]> =>

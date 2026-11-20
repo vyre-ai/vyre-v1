@@ -100,6 +100,8 @@ export function harness(o: HarnessOptions = {}) {
       space: "spc_test",
       principal: { kind: who.kind ?? "person", id: who.id },
       ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      // the capability that made a nested call (the pipeline sets it): a Run's step, a gate capability
+      ...((who as { callerCap?: string }).callerCap ? { callerCap: (who as { callerCap?: string }).callerCap } : {}),
       origin: (who as { origin?: string }).origin ?? "user", // a call as from the app, as the gateway makes it
       trace: { traceId: TRACE },
       ...(who.device ? { device: who.device } : {}),

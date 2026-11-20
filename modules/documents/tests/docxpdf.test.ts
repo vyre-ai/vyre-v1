@@ -1,0 +1,459 @@
+// documents: a filled Word file becomes a PDF on a Space with no converter (lane r42-docs). The plain page look keeps the words, headings, bold, lists, tables and page breaks; the same input
+// is the same bytes; a Word file that is not a Word file, or has no text, or has a letter the fonts cannot draw, is refused in plain words and makes no file.
+// @reads /modules/documents/migrations/0001_documents.sql
+
+import test from "node:test";
+import assert from "node:assert/strict";
+import { VyreErr } from "../../../packages/contracts/src/errors.ts";
+import { handlers } from "../impl.ts";
+import { configureDocuments } from "../handlers/fill.ts";
+import { docxBlocks } from "../handlers/docx.ts";
+import { docx, para, world, FOLDER } from "../fixtures/world.ts";
+
+async function expectCode(code: string, run: () => Promise<unknown>): Promise<VyreErr> {
+  try {
+    await run();
+  } catch (e) {
+    assert.ok(e instanceof VyreErr, e instanceof Error ? (e.stack ?? "throw") : "throw");
+    assert.equal(e.error.code, code, e.error.message);
+    return e;
+  }
+  return assert.fail(`expected ${code}`);
+}
+
+const styled = (style: string, text: string): string =>
+  `<w:p><w:pPr><w:pStyle w:val="${style}"/></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+const bold = (text: string): string =>
+  `<w:p><w:r><w:rPr><w:b/></w:rPr><w:t>${text}</w:t></w:r><w:r><w:t xml:space="preserve"> and plain</w:t></w:r></w:p>`;
+const bullet = (text: string): string =>
+  `<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${text}</w:t></w:r></w:p>`;
+const cell = (t: string): string => `<w:tc>${para(t)}</w:tc>`;
+const table = (rows: string[][]): string =>
+  `<w:tbl><w:tblPr/>${rows.map((r) => `<w:tr>${r.map(cell).join("")}</w:tr>`).join("")}</w:tbl>`;
+const pageBreak = `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+const numbering = `<?xml version="1.0"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum><w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>`;
+
+const DOC = (): Buffer =>
+  docx(
+    styled("Heading1", "Service agreement") +
+      bold("Dear {client.name}") +
+      bullet("First term") +
+      bullet("Second term") +
+      table([
+        ["Item", "Fee"],
+        ["Retainer", "{fee}"],
+      ]) +
+      pageBreak +
+      para("Signed: {client.name}"),
+    { "word/numbering.xml": numbering },
+  );
+
+test("a Word file reads as blocks: heading, bold run, bullets, a table with its header row, a page break", () => {
+  const blocks = docxBlocks(DOC());
+  assert.deepEqual(
+    blocks.map((b) => b.t),
+    ["h", "p", "li", "li", "table", "break", "p"],
+  );
+  const p = blocks[1];
+  assert.ok(p && p.t === "p" && p.runs[0]?.b === true && p.runs[1]?.b === undefined);
+  const li = blocks[2];
+  assert.ok(li && li.t === "li" && li.ordered === false && li.marker === "•");
+  const tb = blocks[4];
+  assert.ok(tb && tb.t === "table" && tb.head.length === 2 && tb.rows.length === 1);
+});
+
+test("a filled Word template becomes a PDF with no converter, the same bytes twice, and says the layout is plain", async () => {
+  configureDocuments(null);
+  const bytes: Buffer[] = [];
+  for (let n = 0; n < 2; n++) {
+    const w = world();
+    const id = w.add("Agreement.docx", DOC());
+    const out = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { client: { name: "Imran Ibarra" }, fee: "1,500" },
+      format: "pdf",
+    });
+    assert.equal(out.layout, "simple");
+    assert.equal(out.file.name, "Agreement (filled).pdf");
+    bytes.push(w.files.get(out.file.fileId)!.bytes);
+  }
+  assert.ok(bytes[0]!.equals(bytes[1]!));
+  assert.equal(bytes[0]!.subarray(0, 5).toString("latin1"), "%PDF-");
+});
+
+test("a value with Markdown marks in it is printed as typed, not read as Markdown", () => {
+  const blocks = docxBlocks(docx(para("Fee **1,500** | paid *monthly*")));
+  const p = blocks[0];
+  assert.ok(p && p.t === "p");
+  assert.equal(p.runs.map((r) => r.text).join(""), "Fee **1,500** | paid *monthly*");
+  assert.ok(p.runs.every((r) => r.b === undefined && r.i === undefined));
+});
+
+test("a letter the plain PDF cannot draw refuses the PDF and names it; no file is made", async () => {
+  configureDocuments(null);
+  const w = world();
+  const id = w.add("Greek.docx", docx(para("Hello {name}")));
+  const before = w.files.size;
+  const e = await expectCode("validation.unsupported", () =>
+    handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Ωmega" },
+      format: "pdf",
+    }),
+  );
+  assert.match(e.error.message, /Ω/);
+  assert.equal(w.files.size, before);
+  // the Word file is still available
+  const word = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: { name: "Ωmega" },
+  });
+  assert.match(word.file.name, /\.docx$/);
+});
+
+test("a Word file with no text is refused in plain words", async () => {
+  configureDocuments(null);
+  const w = world();
+  const id = w.add("Empty.docx", docx(`<w:p/>`));
+  await expectCode("validation.unsupported", () =>
+    handlers["documents.fill"](w.ctx, { templateFileId: id, intoFolderId: FOLDER, values: {}, format: "pdf" }),
+  );
+});
+
+test("a PDF set in the plain page look says so to signing; one the converter made does not; a newer version of the file is not ours to call plain", async () => {
+  const w = world();
+  const id = w.add("Agreement.docx", docx(para("Hello {name}")));
+  configureDocuments(null);
+  const plain = await handlers["documents.fill"](w.ctx, {
+    templateFileId: id,
+    intoFolderId: FOLDER,
+    values: { name: "Imran" },
+    format: "pdf",
+  });
+  assert.equal(plain.layout, "simple");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  // the mark follows the bytes: a copy under another id, a move, a re-upload of the same bytes is held too; other bytes are not
+  const bytes = w.files.get(plain.file.fileId)!.bytes;
+  const copy = w.add("Copy of agreement.pdf", Buffer.from(bytes), "fld_other");
+  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: copy })).plain, true, "a copy is held");
+  const edited = w.add("Edited.pdf", Buffer.concat([bytes, Buffer.from("\n%edited")]));
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: edited })).plain,
+    undefined,
+    "other bytes are not held",
+  );
+  w.files.get(plain.file.fileId)!.versions = 2;
+  w.files.get(plain.file.fileId)!.bytes = Buffer.from("%PDF-1.7 a new version");
+  assert.equal(
+    (await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain,
+    undefined,
+    "a new version with other bytes is not held",
+  );
+  configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact") });
+  try {
+    const exact = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+      name: "Exact",
+    });
+    assert.equal(exact.layout, "word");
+    assert.equal((await handlers["documents.signing"](w.ctx, { fileId: exact.file.fileId })).plain, undefined);
+  } finally {
+    configureDocuments(null);
+  }
+});
+
+test("when the exact converter is being fetched the plain copy says why; the exact converter, once ready, makes the exact copy", async () => {
+  const w = world();
+  const id = w.add("Agreement.docx", docx(para("Hello {name}")));
+  let state = "pulling";
+  configureDocuments({
+    pdf: async () => {
+      throw new Error("The converter is being fetched.");
+    },
+    state: () => state,
+  });
+  try {
+    const first = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+    });
+    assert.equal(first.layout, "simple");
+    assert.equal(first.converter, "pulling");
+    assert.equal(
+      (await handlers["documents.signing"](w.ctx, { fileId: first.file.fileId })).plain,
+      true,
+      "held for signature while plain",
+    );
+    state = "ready";
+    configureDocuments({ pdf: async () => Buffer.from("%PDF-1.7 exact"), state: () => "ready" });
+    const exact = await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      values: { name: "Imran" },
+      format: "pdf",
+      name: "Exact copy",
+    });
+    assert.equal(exact.layout, "word");
+    assert.equal(exact.converter, undefined);
+  } finally {
+    configureDocuments(null);
+  }
+});
+
+test("a Word template is checked when it is marked: a file that is not a real .docx, one with macros, one with no document part and one that is too big are refused in plain words and nothing is marked", async () => {
+  const w = world();
+  const refuseMark = async (id: string, code: string, words: RegExp, label: string) => {
+    const e = await expectCode(code, () =>
+      handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true }),
+    );
+    assert.match(e.error.message, words, label);
+    assert.equal(w.marks().length, 0, `${label}: nothing marked`);
+  };
+  await refuseMark(
+    w.add("Notes.docx", Buffer.from("hello, not a zip")),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "plain text named .docx",
+  );
+  await refuseMark(w.add("Macro.docm", docx(para("x"))), "validation.unsupported", /macros \(\.docm\)/, "a .docm");
+  await refuseMark(
+    w.add("Hidden.docx", docx(para("x"), { "word/vbaProject.bin": "binary" })),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "macros in a .docx",
+  );
+  await refuseMark(
+    w.add(
+      "Typed.docx",
+      docx(para("x"), {
+        "[Content_Types].xml":
+          '<Types><Override PartName="/word/document.xml" ContentType="application/vnd.ms-word.document.macroEnabled.main+xml"/></Types>',
+      }),
+    ),
+    "validation.precondition_failed",
+    /macros or embedded programs/,
+    "a macro-enabled content type",
+  );
+  await refuseMark(
+    w.add("Empty.docx", docx("", { "word/document.xml": "<x/>" }).subarray(0, 40)),
+    "validation.unsupported",
+    /not a Word \(\.docx\) file/,
+    "a truncated file",
+  );
+  const big = w.add("Big.docx", Buffer.alloc(11 * 1024 * 1024, 1));
+  await refuseMark(big, "validation.too_large", /at most 10 MB/, "too big");
+  // a real one marks; unmarking never reads the file
+  const good = w.add("Good.docx", docx(para("Hello {name}")));
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: true }), { ok: true });
+  assert.equal(w.marks().length, 1);
+  assert.deepEqual(await handlers["documents.mark_template"](w.ctx, { fileId: good, isTemplate: false }), { ok: true });
+});
+
+test("a hostile Word file does not break the plain PDF: impossible character references are dropped and a self-closing text run does not swallow the next one", () => {
+  const xml = `<w:p><w:r><w:t>a&#x110000;b&#xD800;c&#7;d</w:t></w:r></w:p><w:p><w:r><w:t xml:space="preserve"/></w:r><w:r><w:t>kept</w:t></w:r></w:p>`;
+  const blocks = docxBlocks(docx(xml));
+  const text = blocks.map((b) => (b.t === "p" ? b.runs.map((r) => r.text).join("") : "")).join("|");
+  assert.equal(text, "abcd|kept");
+});
+
+test("hostile input cannot make the readers slow: a tag opened a hundred thousand times and never closed is read in linear time, in Word and in Markdown", async () => {
+  const N = 100_000;
+  const files = [
+    "<w:r ".repeat(N),
+    "<w:p ".repeat(N),
+    "<w:t ".repeat(N),
+    "<w:tbl><w:tr><w:tc>".repeat(N),
+    "<w:pPr>".repeat(N),
+    "<w:r><w:t ".repeat(N / 2),
+  ].map((b) => docx(b));
+  const t0 = Date.now();
+  for (const f of files) {
+    try {
+      docxBlocks(f);
+    } catch {
+      /* a Word file with nothing to read is refused; what matters is how long it took */
+    }
+  }
+  assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
+  // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
+  const { parse, inline } = await import("../handlers/vdoc.ts");
+  const inputs = (n: number): string[] => [
+    `a${" ".repeat(n)}x`,
+    `a${" ".repeat(n)}\\`,
+    `| a |\n-- ${" ".repeat(n)}`,
+    `| a |\n${" ".repeat(n)}-x`,
+    `| a |\n|${" ".repeat(n)}`,
+    `| a |\n${"| -- ".repeat(n / 4)}x`,
+    `${"[a](".repeat(n)})`,
+    `${"[a](x".repeat(n)})`,
+    "[a".repeat(n),
+    "![".repeat(n),
+    "[a](".repeat(n),
+    "{~~a~>".repeat(n),
+    `# a${" ".repeat(n)}x`,
+    `# ${"a #".repeat(n)}`,
+    "# a\n".repeat(n / 10),
+  ];
+  const time = (n: number): number => {
+    const t = Date.now();
+    for (const md of inputs(n)) {
+      parse(md);
+      inline(md);
+    }
+    return Math.max(Date.now() - t, 20);
+  };
+  // the absolute rule as well: each hostile case under 100 ms, the best of five runs, at 25,000 repeats
+  const best = (md: string): number => {
+    let b = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = performance.now();
+      parse(md);
+      inline(md);
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const md of inputs(25_000))
+    assert.ok(
+      best(md) < 100,
+      `a hostile Markdown case of ${md.length} letters took ${best(md).toFixed(0)} ms: ${md.slice(0, 12)}`,
+    );
+  const bestWord = (f: Uint8Array): number => {
+    let b = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = performance.now();
+      try {
+        docxBlocks(f);
+      } catch {
+        /* refused is fine */
+      }
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const f of [
+    "<w:r ".repeat(25_000),
+    "<w:p ".repeat(25_000),
+    "<w:t ".repeat(25_000),
+    "<w:tbl><w:tr><w:tc>".repeat(25_000),
+    "<w:pPr>".repeat(25_000),
+    "<w:r><w:t ".repeat(12_500),
+  ])
+    assert.ok(bestWord(docx(f)) < 100, `a hostile Word case took too long: ${f.slice(0, 20)}`);
+  time(5_000); // warm up
+  const small = time(25_000);
+  const large = time(100_000);
+  assert.ok(
+    large / small < 10,
+    `four times the input took ${(large / small).toFixed(1)} times as long (${small} ms, ${large} ms): quadratic`,
+  );
+  assert.ok(large < 30_000, `the Markdown readers took ${large} ms`);
+});
+
+test("headings read as before: closing hashes and spaces are cut, inner hashes stay, and a line of spaces after a heading word is linear", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const text = (md: string) => {
+    const b = parse(md)[0];
+    return b && b.t === "h" ? `${b.level}:${b.runs.map((r) => r.text).join("")}` : "";
+  };
+  assert.equal(text("# Title"), "1:Title");
+  assert.equal(text("## Title ##"), "2:Title");
+  assert.equal(text("### C# notes #"), "3:C# notes");
+  assert.equal(text("#### Four  \t"), "3:Four");
+  assert.equal(text("# a#"), "1:a");
+  const t0 = Date.now();
+  parse(`# a${" ".repeat(200_000)}x`);
+  assert.ok(Date.now() - t0 < 1500, `a heading of 200 KB took ${Date.now() - t0} ms`);
+});
+
+test("links and pictures keep only their text, exactly as before the linear scan", async () => {
+  const { inline } = await import("../handlers/vdoc.ts");
+  const text = (md: string) =>
+    inline(md)
+      .map((r) => r.text)
+      .join("");
+  assert.equal(text("see [the site](https://x.test/a) now"), "see the site now");
+  assert.equal(text("a ![logo](l.png) b"), "a logo b");
+  assert.equal(text("[a](b) and [c](d)"), "a and c");
+  assert.equal(text("[not a link] and [x]"), "[not a link] and [x]");
+  assert.equal(text("[x]( no close"), "[x]( no close");
+  // text on two lines is not a link text: left as it stands
+  assert.equal(text("[a\nb](c)"), "[a\nb](c)");
+  // a picture inside a link, and two pictures in a row
+  assert.equal(text("![[x](y)](z)"), "x");
+  assert.equal(text("![a](b)![c](d)"), "ac");
+  assert.equal(text("[a](b"), "[a](b");
+  assert.equal(text("x [a] (b)"), "x [a] (b)");
+});
+
+test("hard breaks and table rules read as before the linear versions", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const para = (md: string) => {
+    const b = parse(md)[0];
+    return b && b.t === "p" ? b.runs.map((r) => r.text).join("") : "";
+  };
+  assert.equal(para("one  \ntwo"), "one\ntwo", "two trailing spaces are a hard break");
+  assert.equal(para("one\\\ntwo"), "one\ntwo", "a trailing backslash is a hard break");
+  assert.equal(para("one \ntwo"), "one two", "one trailing space is not");
+  const kinds = (md: string) =>
+    parse(md)
+      .map((b) => b.t)
+      .join(",");
+  assert.equal(kinds("| a | b |\n| --- | :---: |\n| 1 | 2 |"), "table");
+  assert.equal(kinds("| a | b |\n|--|--|\n| 1 | 2 |"), "table");
+  assert.equal(kinds("| a |\n| - |\n| 1 |"), "p", "one dash is not a rule");
+  assert.equal(kinds("| a |\n| ---x |\n| 1 |"), "p");
+  assert.equal(kinds("| a |\n|  |\n| 1 |"), "p");
+});
+
+test("a template of one line of spaces at the 1 MB limit is read in under 100 ms (best of three) and in linear time, for every shape the line readers look at", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const shapes: Array<[string, (n: number) => string]> = [
+    ["spaces then a letter", (n) => `a${" ".repeat(n)}x`],
+    ["spaces then a backslash", (n) => `a${" ".repeat(n)}\\`],
+    ["a table head, then dashes and spaces", (n) => `| a |\n-- ${" ".repeat(n)}`],
+    ["a table head, then spaces and a dash", (n) => `| a |\n${" ".repeat(n)}-x`],
+    ["a table head, then a bar and spaces", (n) => `| a |\n|${" ".repeat(n)}`],
+    ["spaces only", (n) => " ".repeat(n)],
+    ["a heading then spaces", (n) => `# a${" ".repeat(n)}x`],
+    ["a list item then spaces", (n) => `- ${" ".repeat(n)}x`],
+    ["a quote then spaces", (n) => `> ${" ".repeat(n)}x`],
+    ["a fence then spaces", (n) => `\`\`\`${" ".repeat(n)}x`],
+  ];
+  const best = (md: string): number => {
+    let b = Infinity;
+    for (let i = 0; i < 5; i++) {
+      const t = performance.now();
+      parse(md);
+      b = Math.min(b, performance.now() - t);
+    }
+    return b;
+  };
+  for (const [label, make] of shapes) {
+    const big = best(make(1_000_000));
+    assert.ok(big < 100, `${label}: 1 MB took ${big.toFixed(0)} ms`);
+    const small = Math.max(best(make(250_000)), 5);
+    assert.ok(big / small < 10, `${label}: four times the input took ${(big / small).toFixed(1)} times as long`);
+  }
+});
+
+test("a table written with Windows line ends reads as a table: the rule line ends in a carriage return and is still a rule", async () => {
+  const { parse } = await import("../handlers/vdoc.ts");
+  const kinds = (md: string) =>
+    parse(md)
+      .map((b) => b.t)
+      .join(",");
+  assert.equal(kinds("| a | b |\r\n| --- | --- |\r\n| 1 | 2 |\r\n"), "table");
+  assert.equal(kinds("| a | b |\r| --- | --- |\r| 1 | 2 |"), "table");
+  const t = parse("| a | b |\r\n|---|---|\r\n| 1 | 2 |")[0];
+  assert.ok(t && t.t === "table");
+  assert.equal(t.rows[0]!.map((c) => c.map((r) => r.text).join("")).join(","), "1,2");
+});

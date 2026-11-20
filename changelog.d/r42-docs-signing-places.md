@@ -1,0 +1,1 @@
+A PDF made from a Vyre document remembers where each signer signs, and sending it for signature uses those places (no extra signature page). A fill retried on a Space no longer fails on a name that is already there.

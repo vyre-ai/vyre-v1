@@ -1,0 +1,1 @@
+A Vyre document (a Markdown file) is a template too: it fills to a PDF set in the server, so a Space with nothing installed goes from a template to a signature. {sign:role} marks where each signer signs.

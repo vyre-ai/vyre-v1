@@ -1,0 +1,1 @@
+Review fixes: a failed check of whether a copy is exact now holds the send instead of letting a preview out; one Word file LibreOffice cannot read no longer takes the converter down for everyone; two asks with different values are two files; the converter image is rebuilt at least monthly.

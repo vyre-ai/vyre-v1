@@ -9,6 +9,9 @@
 // signing_day_ordinal, signing_month, signing_month_number and signing_year, unless the caller gave that value itself.
 // Records: when recordId is given the record's fields feed the tags (mapping names which record field feeds which tag; without a mapping a field feeds the tag of the same name).
 // The record type comes from values.recordType when present; otherwise it is looked up from the id (records.get reads a record by type and id).
+// Linked records: a tag that reads through a link field ({contact.name}, or a repeat {#contacts}{name}{/contacts}) is fed from the linked record, one step away and no further, read with the
+// caller's own access. A link the caller cannot read stops the document and names the field; several records behind a plain tag feed it from the first, in the order the record holds them.
+// Record type: a template can be marked for one record type (documents.mark_template recordType); the list filters on it. A template with none is for any record.
 // Names: a given name keeps its own spelling; the default is the template name and "(filled)"; a taken name gets " 2", " 3" and so on, an existing file is never replaced.
 // PDF: format "pdf" converts the filled Word file through the converter the host gave to configureDocuments; without one the request is refused and the Word file works anywhere.
 
@@ -34,7 +37,7 @@ const NEXT: Record<NextStep["kind"], string> = {
   report: "Report a problem",
 };
 
-function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
+export function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<string, unknown>): never {
   const def = ERROR_CODES.find((e) => e.code === code) ?? ERROR_CODES.find((e) => e.code === "internal.unexpected");
   if (!def) throw new Error("error catalogue is empty");
   const error: VyreError = {
@@ -48,11 +51,47 @@ function fail(ctx: Ctx, code: ErrorCode, message?: string, details?: Record<stri
   throw new VyreErr(error);
 }
 
+/**
+ * An error a call into another module threw. Matched by its shape, not by class: across the host the error that arrives is not always an instance of this file's VyreErr (a duplicate name
+ * made saving a second fill fail on a booted Space while the unit tests, which share the class, passed).
+ */
+function isVyreError(e: unknown): e is { error: { code: string } } {
+  return (
+    typeof e === "object" &&
+    e !== null &&
+    typeof (e as { error?: { code?: unknown } }).error === "object" &&
+    typeof (e as { error: { code?: unknown } }).error.code === "string"
+  );
+}
+
+/** The key of what a call asks, SHA-256 of the ask in full (a short hash could make two different documents share a key, and the second would be answered with the first). Used when the caller gave no key. */
+export async function askKey(parts: unknown): Promise<string> {
+  return sha256Of(new TextEncoder().encode(JSON.stringify(parts)));
+}
+
+/** SHA-256 of some bytes, in hex. */
+export async function sha256Of(bytes: Uint8Array): Promise<string> {
+  const d = await crypto.subtle.digest("SHA-256", bytes as unknown as ArrayBuffer);
+  return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * What a fill would say, in one word: the SHA-256 of every resolved value (as the record and the typed values give them, headers and footers included) and of the template bytes they were read with. The excerpt a
+ * person is shown is capped and covers the body; this is not, so a retry with no key is the same document only when nothing it says has changed, the template's own words included. The bytes come from the same
+ * read that renders the preview, so the digest and what it describes cannot come apart. (The values are what the engine resolved, which can be more than the tags the template uses: an unrelated field edit is
+ * then a new document too, which errs on the side of a fresh one.)
+ */
+export async function askDigest(bytes: Uint8Array, values: unknown): Promise<{ digest: string }> {
+  return { digest: await askKey([values, await sha256Of(bytes)]) };
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
   /** A filled .docx to a PDF (Gotenberg beside the host). Absent: PDF is refused in plain words. */
   pdf?(docx: Uint8Array): Promise<Uint8Array>;
+  /** how the exact converter stands, for the words when a copy is set in the plain look: ready | pulling | failed | none */
+  state?(): string;
 }
 
 let configured: DocumentsDrivers | null = null;
@@ -113,7 +152,7 @@ export class FillError extends Error {
 // ---- reading a template ----
 
 /** The value of a path like "client.name" or "items.0.label" in the scope stack, innermost first; undefined when any step is not there. */
-function lookup(scopes: unknown[], path: string): unknown {
+export function lookup(scopes: unknown[], path: string): unknown {
   const parts = path.split(".");
   for (let i = scopes.length - 1; i >= 0; i--) {
     const s = scopes[i];
@@ -180,7 +219,7 @@ const MID = "";
 const CLOSE = "";
 
 /** Why a value could not be printed, by tag. The fill is refused with these in plain words. */
-type Problems = Map<string, string>;
+export type Problems = Map<string, string>;
 const SEALED_WORDS = "is a sealed value, and a sealed value is never printed in a document";
 const ID_WORDS = "points to something that cannot be named here (it may be gone, or not yours to open)";
 
@@ -218,7 +257,7 @@ const durationTag = (tag: string): boolean =>
   /(^|_)(duration|effort)$/.test((tag.split(".").pop() ?? tag).toLowerCase());
 
 /** One value as the text a document prints. A value that has no honest printed form is noted in `problems` (the fill is then refused) and prints as nothing. */
-function printed(raw: unknown, tag: string, problems: Problems): string | number {
+export function printed(raw: unknown, tag: string, problems: Problems): string | number {
   if (typeof raw === "string") {
     if (isRawId(raw)) {
       problems.set(tag, ID_WORDS);
@@ -293,6 +332,18 @@ function open(buf: Buffer): Zip {
   if (names.length > MAX_ENTRIES) throw new FillError("bad_template", "that .docx holds too many parts");
   if (!zip.file("word/document.xml"))
     throw new FillError("bad_input", "that is not a Word (.docx) file: it has no word/document.xml");
+  // a Word file with macros (a .docm renamed, or macros put in a .docx) is never a template: nothing in a template may run
+  const types = String(zip.file("[Content_Types].xml")?.asText() ?? "");
+  if (
+    names.some(
+      (n) => /(^|\/)vbaProject\.bin$|(^|\/)vbaData\.xml$/i.test(n) || /^word\/(activeX|embeddings)\//i.test(n),
+    ) ||
+    /macroEnabled|vbaProject/i.test(types)
+  )
+    throw new FillError(
+      "bad_template",
+      "that Word file has macros or embedded programs; save it as a plain .docx without them",
+    );
   let total = 0;
   for (const n of names) total += zip.files[n]?._data?.uncompressedSize ?? 0;
   if (total > MAX_UNPACKED) throw new FillError("too_big", "that .docx unpacks to more than it may");
@@ -586,7 +637,11 @@ export function preview(
 
 /** Keys the caller gave that no tag reads. */
 function unusedOf(buf: Buffer, given: string[]): string[] {
-  const info = placeholders(buf);
+  return unusedFor(placeholders(buf), given);
+}
+
+/** Keys the caller gave that nothing the template asks for reads. */
+export function unusedFor(info: Placeholders, given: string[]): string[] {
   const read = (k: string): boolean =>
     info.names.includes(k) ||
     info.loops.includes(k) ||
@@ -598,22 +653,22 @@ function unusedOf(buf: Buffer, given: string[]): string[] {
 
 // ---- the capabilities ----
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const PAGE_MAX = 500;
 
-function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
+export function rec(ctx: Ctx, input: unknown): Record<string, unknown> {
   if (!isPlain(input)) fail(ctx, "validation.bad_input", "The input is not valid.");
   return input;
 }
 
-function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
+export function reqStr(ctx: Ctx, o: Record<string, unknown>, key: string): string {
   const v = o[key];
   if (typeof v !== "string" || v.length === 0)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: key });
   return v;
 }
 
-function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
+export function optStr(ctx: Ctx, o: Record<string, unknown>, key: string): string | undefined {
   const v = o[key];
   if (v === undefined || v === null) return undefined;
   if (typeof v !== "string" || v.length === 0)
@@ -629,7 +684,7 @@ function optRec(ctx: Ctx, o: Record<string, unknown>, key: string): Record<strin
 }
 
 /** The fill engine's refusals as the catalogue's codes. */
-function refuse(ctx: Ctx, e: unknown): never {
+export function refuse(ctx: Ctx, e: unknown): never {
   if (!(e instanceof FillError)) throw e;
   switch (e.code) {
     case "bad_input":
@@ -647,12 +702,12 @@ function refuse(ctx: Ctx, e: unknown): never {
   }
 }
 
-function mayView(ctx: Ctx, fileId: string): void {
+export function mayView(ctx: Ctx, fileId: string): void {
   const d = ctx.authorize({ perm: null, level: "view" }, { type: "file", id: fileId });
   if (d.effect !== "allow") fail(ctx, "permission.no_grant", "You cannot open that template.", { fileId });
 }
 
-async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
+export async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
   mayView(ctx, fileId);
   const got = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: unknown; truncated?: unknown };
   if (typeof got.base64 !== "string" || got.truncated === true)
@@ -660,15 +715,27 @@ async function templateBytes(ctx: Ctx, fileId: string): Promise<Buffer> {
   return Buffer.from(got.base64, "base64");
 }
 
+/** A kind of template other than Word: which files it is, and how it reads what a template asks for. The Vyre document registers itself (native.ts). */
+export interface TemplateReader {
+  test(name: string): boolean;
+  asked(bytes: Buffer): Placeholders;
+}
+const readers: TemplateReader[] = [];
+export function addTemplateReader(r: TemplateReader): void {
+  if (!readers.includes(r)) readers.push(r);
+}
+const readerFor = (name: string): TemplateReader | undefined => readers.find((r) => r.test(name));
+
 const cache = new Map<string, number>();
 
-async function fieldCount(ctx: Ctx, fileId: string, version: number): Promise<number> {
+async function fieldCount(ctx: Ctx, fileId: string, version: number, name: string): Promise<number> {
   const key = `${ctx.space}:${fileId}:${version}`;
   const hit = cache.get(key);
   if (hit !== undefined) return hit;
   let n = 0;
   try {
-    const info = placeholders(await templateBytes(ctx, fileId));
+    const bytes = await templateBytes(ctx, fileId);
+    const info = (readerFor(name)?.asked ?? placeholders)(bytes);
     n = info.names.length + info.loops.length;
   } catch {
     n = 0;
@@ -678,7 +745,7 @@ async function fieldCount(ctx: Ctx, fileId: string, version: number): Promise<nu
   return n;
 }
 
-async function fieldsOf(
+export async function fieldsOf(
   ctx: Ctx,
   input: unknown,
 ): Promise<{
@@ -733,17 +800,75 @@ async function nameIds(ctx: Ctx, value: unknown, seen: Map<string, string | unde
         if (typeof pick === "string") name = pick;
       }
     } catch (e) {
-      if (!(e instanceof VyreErr)) throw e;
+      if (!isVyreError(e)) throw e;
     }
     seen.set(id, name);
   }
   return seen.get(id) ?? value;
 }
 
-/** The values to render with, the keys the caller gave itself, and the record they came from. */
-async function valuesOf(
+const recIds = (v: unknown): string[] | null => {
+  if (typeof v === "string") return isRawId(v) && v.trim().startsWith("rec_") ? [v.trim()] : null;
+  if (
+    Array.isArray(v) &&
+    v.length > 0 &&
+    v.every((x) => typeof x === "string" && isRawId(x) && x.trim().startsWith("rec_"))
+  )
+    return (v as string[]).map((x) => x.trim());
+  return null;
+};
+
+/** The first step of every dotted name: the fields a template (or a mapping) reads through. */
+const headsOf = (names: readonly string[]): Set<string> =>
+  new Set(names.filter((n) => n.includes(".")).map((n) => n.slice(0, n.indexOf("."))));
+
+/**
+ * The record's fields with each link the template reads through replaced by the linked record's own fields: one record for a plain tag ({contact.name}), a list for a repeat ({#contacts}).
+ * One step only: a link inside a linked record stays what it was. A linked record the caller cannot read stops the document and names the field.
+ */
+async function withLinks(
+  ctx: Ctx,
+  fields: Record<string, unknown>,
+  heads: Set<string>,
+  loops: readonly string[],
+): Promise<Record<string, unknown>> {
+  const out: Record<string, unknown> = { ...fields };
+  const call = (cap: string, input: unknown): Promise<unknown> => ctx.call(cap as never, input as never);
+  const seen = new Map<string, Record<string, unknown> | undefined>();
+  for (const head of new Set([...heads, ...loops])) {
+    const ids = recIds(fields[head]);
+    if (ids === null) continue;
+    const linked: Record<string, unknown>[] = [];
+    for (const id of loops.includes(head) ? ids : ids.slice(0, 1)) {
+      if (!seen.has(id)) {
+        let found: { record: { fields?: unknown } } | undefined;
+        try {
+          found = await findRecord(call, id);
+        } catch (e) {
+          if (!isVyreError(e)) throw e;
+        }
+        seen.set(id, found && isPlain(found.record.fields) ? found.record.fields : undefined);
+      }
+      const got = seen.get(id);
+      if (got === undefined)
+        fail(
+          ctx,
+          "validation.precondition_failed",
+          `The document was not made: ${head} links to a record that cannot be read here (it may be gone, or not yours to open).`,
+          { fields: [head] },
+        );
+      linked.push(got);
+    }
+    out[head] = loops.includes(head) ? linked : linked[0];
+  }
+  return out;
+}
+
+/** The values to render with, the keys the caller gave itself, and the record they came from. `info` is what the template asks for: it decides which links are followed. */
+export async function valuesOf(
   ctx: Ctx,
   o: Record<string, unknown>,
+  info: Placeholders | null,
 ): Promise<{ values: Record<string, unknown>; given: string[] }> {
   const explicit = optRec(ctx, o, "values") ?? {};
   const mapping = optRec(ctx, o, "mapping");
@@ -760,15 +885,28 @@ async function valuesOf(
         : { record: (await findRecord(call, recordId))?.record };
     if (!got.record) fail(ctx, "validation.not_found", "That record does not exist.");
     const rawFields = got.record?.fields;
-    const fields = isPlain(rawFields) ? rawFields : {};
+    const own = isPlain(rawFields) ? rawFields : {};
     if (mapping) {
-      for (const [tag, key] of Object.entries(mapping)) {
+      const keys: string[] = [];
+      for (const key of Object.values(mapping)) {
         if (typeof key !== "string") fail(ctx, "validation.bad_input", "The input is not valid.", { field: "mapping" });
-        setPath(values, tag, fields[key]);
+        keys.push(key);
+      }
+      // a mapping may read through a link ("contact.email"); a key the record holds under that very name wins
+      const fields = await withLinks(ctx, own, headsOf(keys.filter((k) => !(k in own))), []);
+      for (const [tag, key] of Object.entries(mapping) as [string, string][]) {
+        setPath(values, tag, key in own ? own[key] : lookup([fields], key));
         given.push(tag);
       }
     } else {
-      values = { ...fields };
+      values = info
+        ? await withLinks(
+            ctx,
+            own,
+            headsOf([...info.names, ...Object.values(info.loopLeaves).flat()]),
+            info.loops.filter((l) => !l.includes(".")),
+          )
+        : { ...own };
     }
   }
   values = merge(values, explicit);
@@ -785,76 +923,57 @@ async function valuesOf(
   return { values, given: given.filter((k) => k !== "recordType") };
 }
 
-async function previewFill(
+/** What a template asks for, or null when it cannot be read (the fill then says why, in its own words). */
+function asked(bytes: Buffer): Placeholders | null {
+  try {
+    return placeholders(bytes);
+  } catch (e) {
+    if (e instanceof FillError) return null;
+    throw e;
+  }
+}
+
+export async function previewFill(
   ctx: Ctx,
   input: unknown,
-): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string }> {
   const o = rec(ctx, input);
-  const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
-  const { values, given } = await valuesOf(ctx, o);
+  const fileId = reqStr(ctx, o, "templateFileId");
+  const bytes = await templateBytes(ctx, fileId);
+  const { values, given } = await valuesOf(ctx, o, asked(bytes));
   try {
-    return preview(bytes, values, given);
+    return { ...preview(bytes, values, given), ...(await askDigest(bytes, values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
 }
 
-const baseName = (name: string): string => {
+export const baseName = (name: string): string => {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(0, i) : name;
 };
 
-async function documentsFill(
+/** Write a new file under the first free name: "<stem>.<ext>", then "<stem> 2.<ext>" and so on. An existing file is never replaced; a retry with the same key makes the same file once. */
+export async function saveNamed(
   ctx: Ctx,
-  input: unknown,
-): Promise<{ file: { fileId: string; name: string; versionId: string }; missing: string[]; unused: string[] }> {
-  const o = rec(ctx, input);
-  const templateFileId = reqStr(ctx, o, "templateFileId");
-  const intoFolderId = reqStr(ctx, o, "intoFolderId");
-  const format = optStr(ctx, o, "format") ?? "docx";
-  if (format !== "docx" && format !== "pdf")
-    fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
-  if (format === "pdf" && !configured?.pdf) {
-    fail(
-      ctx,
-      "validation.unsupported",
-      "PDF needs a converter: install the PDF converter app from Apps. The Word file works anywhere: ask for that instead.",
-    );
-  }
-  const template = (await ctx.call("files.get", { fileId: templateFileId })) as { file?: { name?: unknown } };
-  const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
-  const bytes = await templateBytes(ctx, templateFileId);
-  const { values, given } = await valuesOf(ctx, o);
-  let made: { buffer: Buffer; used: string[] };
-  let unused: string[];
-  try {
-    made = fill(bytes, values);
-    unused = unusedOf(bytes, given);
-  } catch (e) {
-    return refuse(ctx, e);
-  }
-  let out: Uint8Array = made.buffer;
-  if (format === "pdf" && configured?.pdf) out = await configured.pdf(made.buffer);
-  const ext = format === "pdf" ? "pdf" : "docx";
-  const wanted = optStr(ctx, o, "name");
-  const stem =
-    wanted !== undefined ? wanted.replace(new RegExp(`\\.${ext}$`, "i"), "") : `${baseName(templateName)} (filled)`;
+  f: { folderId: string; stem: string; ext: string; bytes: Uint8Array; mime: string; kind: string; key: string },
+): Promise<{ fileId: string; name: string; versionId: string }> {
   let created: { file?: { fileId?: unknown; name?: unknown } } | undefined;
   let name = "";
   for (let n = 1; n <= 50 && created === undefined; n++) {
-    name = `${n === 1 ? stem : `${stem} ${n}`}.${ext}`;
+    name = `${n === 1 ? f.stem : `${f.stem} ${n}`}.${f.ext}`;
     try {
       created = (await ctx.call("files.create", {
-        folderId: intoFolderId,
+        folderId: f.folderId,
         name,
-        content: { base64: Buffer.from(out).toString("base64") },
-        mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
-        kind: format === "pdf" ? "pdf" : "document",
+        content: { base64: Buffer.from(f.bytes).toString("base64") },
+        mime: f.mime,
+        kind: f.kind,
         // the caller's own key and the name tried, so a retry of this fill creates the same file once
-        idempotencyKey: `docfill:${optStr(ctx, o, "idempotencyKey") ?? templateFileId}:${name}`,
+        idempotencyKey: `${f.key}:${name}`,
       })) as { file?: { fileId?: unknown; name?: unknown } };
     } catch (e) {
-      if (e instanceof VyreErr && e.error.code === "validation.duplicate") continue;
+      if (isVyreError(e) && e.error.code === "validation.duplicate") continue;
       throw e;
     }
   }
@@ -865,29 +984,145 @@ async function documentsFill(
     versions?: { versionId?: unknown; n?: unknown }[];
   };
   const newest = [...(versions.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
-  const versionId = typeof newest?.versionId === "string" ? newest.versionId : "";
+  return {
+    fileId,
+    name: typeof created?.file?.name === "string" ? created.file.name : name,
+    versionId: typeof newest?.versionId === "string" ? newest.versionId : "",
+  };
+}
+
+export async function documentsFill(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{
+  file: { fileId: string; name: string; versionId: string };
+  missing: string[];
+  unused: string[];
+  layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
+}> {
+  const o = rec(ctx, input);
+  const templateFileId = reqStr(ctx, o, "templateFileId");
+  const intoFolderId = reqStr(ctx, o, "intoFolderId");
+  const format = optStr(ctx, o, "format") ?? "docx";
+  if (format !== "docx" && format !== "pdf")
+    fail(ctx, "validation.bad_input", "The format is docx or pdf.", { field: "format" });
+  const template = (await ctx.call("files.get", { fileId: templateFileId })) as {
+    file?: { name?: unknown; version?: unknown };
+  };
+  const templateName = typeof template.file?.name === "string" ? template.file.name : "document.docx";
+  const bytes = await templateBytes(ctx, templateFileId);
+  const { values, given } = await valuesOf(ctx, o, asked(bytes));
+  let made: { buffer: Buffer; used: string[] };
+  let unused: string[];
+  try {
+    made = fill(bytes, values);
+    unused = unusedOf(bytes, given);
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+  let out: Uint8Array = made.buffer;
+  let layout: "word" | "simple" | undefined;
+  let converter: "pulling" | "failed" | "none" | undefined;
+  if (format === "pdf") {
+    const got = await wordToPdf(ctx, made.buffer, baseName(templateName));
+    out = got.pdf;
+    layout = got.layout;
+    converter = got.converter;
+  }
+  const ext = format === "pdf" ? "pdf" : "docx";
+  const wanted = optStr(ctx, o, "name");
+  const stem =
+    wanted !== undefined ? wanted.replace(new RegExp(`\\.${ext}$`, "i"), "") : `${baseName(templateName)} (filled)`;
+  const saved = await saveNamed(ctx, {
+    folderId: intoFolderId,
+    stem,
+    ext,
+    bytes: out,
+    mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
+    kind: format === "pdf" ? "pdf" : "document",
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version, intoFolderId, ctx.actingFor ?? ctx.principal.id, o.recordId])}`}`,
+  });
+  const { fileId, versionId } = saved;
+  // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)
+  if (layout === "simple")
+    ctx.db.run("INSERT OR IGNORE INTO documents_plain (sha256, made_at) VALUES (?, ?)", await sha256Of(out), ctx.now());
   const payload: Record<string, unknown> = { fileId, templateFileId, fields: made.used.length, missing: 0 };
   const recordId = optStr(ctx, o, "recordId");
   if (recordId !== undefined) payload.recordId = recordId;
   ctx.emit("document.filled", `file/${fileId}`, payload);
   ctx.log.info("documents.fill", { fileId, templateFileId, fields: made.used.length, format });
   return {
-    file: { fileId, name: typeof created?.file?.name === "string" ? created.file.name : name, versionId },
+    file: { fileId, name: saved.name, versionId },
     missing: [],
     unused,
+    ...(layout ? { layout } : {}),
+    ...(converter ? { converter } : {}),
   };
+}
+
+/**
+ * A filled Word file as a PDF. The host's converter (LibreOffice) keeps the page exactly; where the host has none, or it fails, the words are set in the plain Vyre page look
+ * (docx.ts and typeset.ts) so a Space with nothing installed still gets a PDF to sign. The answer says which one it was; a person is never told a plain layout is the Word page.
+ */
+async function wordToPdf(
+  ctx: Ctx,
+  docx: Uint8Array,
+  title: string,
+): Promise<{ pdf: Uint8Array; layout: "word" | "simple"; converter?: "pulling" | "failed" | "none" }> {
+  if (configured?.pdf) {
+    try {
+      return { pdf: await configured.pdf(docx), layout: "word" };
+    } catch (e) {
+      ctx.log.warn("documents.pdf_converter_failed", { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  const { docxBlocks } = await import("./docx.ts");
+  const { TypesetError, typeset } = await import("./typeset.ts");
+  try {
+    const set = await typeset(docxBlocks(docx), { title });
+    const st = configured?.state?.();
+    return {
+      pdf: set.pdf,
+      layout: "simple",
+      ...(st === "pulling" || st === "failed" || st === "none" ? { converter: st } : {}),
+    };
+  } catch (e) {
+    if (e instanceof TypesetError)
+      return fail(
+        ctx,
+        "validation.unsupported",
+        `The PDF was not made: the document has ${e.letters.length === 1 ? "a letter" : "letters"} the plain PDF cannot draw (${e.letters.join(" ")}). Ask for the Word file instead.`,
+        { letters: e.letters },
+      );
+    return fail(
+      ctx,
+      "validation.unsupported",
+      `The PDF was not made: ${e instanceof Error ? e.message : "the Word file could not be read"}.`,
+    );
+  }
 }
 
 async function templatesList(
   ctx: Ctx,
   input: unknown,
 ): Promise<{
-  templates: { fileId: string; name: string; folderId: string; fields: number; updatedAt: number }[];
+  templates: {
+    fileId: string;
+    name: string;
+    folderId: string;
+    fields: number;
+    updatedAt: number;
+    recordType?: string;
+  }[];
   next?: string;
   total: number;
 }> {
   const o = rec(ctx, input);
   const folder = optStr(ctx, o, "folder");
+  const recordType = optStr(ctx, o, "recordType");
+  // a name is matched whole, whatever its case and with or without ".docx": "service agreement" finds "Service agreement.docx"
+  const wanted = optStr(ctx, o, "name")?.trim().toLowerCase();
   const limit = typeof o.limit === "number" ? o.limit : 100;
   if (!Number.isInteger(limit) || limit < 1 || limit > PAGE_MAX)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "limit" });
@@ -895,9 +1130,18 @@ async function templatesList(
   const cursor = optStr(ctx, o, "cursor");
   const offset = cursor !== undefined && /^[0-9]+$/.test(cursor) ? Number(cursor) : 0;
   const marked = ctx.db.all("SELECT * FROM documents_template") as Row[];
-  const rows: { fileId: string; name: string; folderId: string; version: number; updatedAt: number }[] = [];
+  const rows: {
+    fileId: string;
+    name: string;
+    folderId: string;
+    version: number;
+    updatedAt: number;
+    recordType?: string;
+  }[] = [];
   for (const m of marked) {
     const fileId = String(m.file_id);
+    const type = typeof m.record_type === "string" && m.record_type !== "" ? m.record_type : undefined;
+    if (recordType !== undefined && type !== recordType) continue;
     try {
       const got = (await ctx.call("files.get", { fileId })) as {
         file?: { name?: unknown; folderId?: unknown; version?: unknown; updatedAt?: unknown; deletedAt?: unknown };
@@ -905,16 +1149,19 @@ async function templatesList(
       const f = got.file;
       if (!f || (f.deletedAt !== undefined && f.deletedAt !== null)) continue;
       if (folder !== undefined && f.folderId !== folder) continue;
+      const name = String(f.name);
+      if (wanted !== undefined && name.toLowerCase() !== wanted && baseName(name).toLowerCase() !== wanted) continue;
       rows.push({
         fileId,
-        name: String(f.name),
+        name,
         folderId: String(f.folderId),
         version: Number(f.version) || 1,
         updatedAt: Number(f.updatedAt) || 0,
+        ...(type !== undefined ? { recordType: type } : {}),
       });
     } catch (e) {
       // not visible to the caller or gone: not in their list
-      if (!(e instanceof VyreErr)) throw e;
+      if (!isVyreError(e)) throw e;
     }
   }
   rows.sort((a, b) => a.name.localeCompare(b.name) || a.fileId.localeCompare(b.fileId));
@@ -925,8 +1172,9 @@ async function templatesList(
       fileId: r.fileId,
       name: r.name,
       folderId: r.folderId,
-      fields: await fieldCount(ctx, r.fileId, r.version),
+      fields: await fieldCount(ctx, r.fileId, r.version, r.name),
       updatedAt: r.updatedAt,
+      ...(r.recordType !== undefined ? { recordType: r.recordType } : {}),
     });
   const out: { templates: typeof templates; next?: string; total: number } = { templates, total: rows.length };
   if (offset + limit < rows.length) out.next = String(offset + limit);
@@ -939,24 +1187,74 @@ async function markTemplate(ctx: Ctx, input: unknown): Promise<{ ok: boolean }> 
   if (typeof o.isTemplate !== "boolean")
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "isTemplate" });
   const isTemplate = o.isTemplate;
-  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown } };
+  const recordType = optStr(ctx, o, "recordType");
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { name?: unknown; size?: unknown } };
   const name = typeof got.file?.name === "string" ? got.file.name : "";
-  if (isTemplate && !/\.docx$/i.test(name))
-    fail(ctx, "validation.unsupported", "Only a Word (.docx) file can be a template.", { fileId });
+  if (isTemplate && typeof got.file?.size === "number" && got.file.size > MAX_BYTES && /\.docx$/i.test(name))
+    fail(
+      ctx,
+      "validation.too_large",
+      `That Word file is ${Math.ceil(got.file.size / 1048576)} MB; a template may be at most ${MAX_BYTES / 1048576} MB.`,
+      { fileId },
+    );
+  if (isTemplate && /\.docm$/i.test(name))
+    fail(
+      ctx,
+      "validation.unsupported",
+      "A Word file with macros (.docm) cannot be a template. Save it as a plain .docx.",
+      { fileId },
+    );
+  if (isTemplate && !/\.docx$/i.test(name) && !readerFor(name))
+    fail(ctx, "validation.unsupported", "Only a Word (.docx) file or a Vyre document (.md) can be a template.", {
+      fileId,
+    });
+  // a Word template is checked when it is marked, not only when it is first used: a file that is not a real .docx, is too big, or carries macros is refused here in plain words
+  if (isTemplate && /\.docx$/i.test(name)) {
+    const bytes = await templateBytes(ctx, fileId);
+    try {
+      open(bytes);
+    } catch (e) {
+      return refuse(ctx, e);
+    }
+  }
+  if (isTemplate && recordType !== undefined) {
+    // the type must be one this Space has: a template for a type that does not exist would never show on any record
+    let known = false;
+    let cursor: string | undefined;
+    do {
+      const page = (await ctx.call("schema.types.list", cursor !== undefined ? { cursor } : {})) as {
+        types?: { key?: unknown }[];
+        next?: unknown;
+      };
+      known = (page.types ?? []).some((t) => t.key === recordType);
+      cursor = typeof page.next === "string" ? page.next : undefined;
+    } while (!known && cursor !== undefined);
+    if (!known)
+      fail(ctx, "validation.not_found", `There is no record type called ${recordType}.`, { field: "recordType" });
+  }
   const row = (ctx.db.all("SELECT * FROM documents_template WHERE file_id = ?", fileId) as Row[])[0];
   if (isTemplate && !row)
     ctx.db.run(
-      "INSERT INTO documents_template (file_id, marked_by, marked_at) VALUES (?, ?, ?)",
+      "INSERT INTO documents_template (file_id, marked_by, marked_at, record_type) VALUES (?, ?, ?, ?)",
       fileId,
       ctx.principal.id,
       ctx.now(),
+      recordType ?? null,
     );
+  else if (isTemplate && row && recordType !== undefined && row.record_type !== recordType)
+    ctx.db.run("UPDATE documents_template SET record_type = ? WHERE file_id = ?", recordType, fileId);
   else if (!isTemplate && row) ctx.db.run("DELETE FROM documents_template WHERE file_id = ?", fileId);
   else return { ok: true };
-  ctx.emit("document.template_marked", `file/${fileId}`, { fileId, isTemplate });
-  ctx.log.info("documents.mark_template", { fileId, isTemplate });
+  ctx.emit("document.template_marked", `file/${fileId}`, {
+    fileId,
+    isTemplate,
+    ...(isTemplate && recordType !== undefined ? { recordType } : {}),
+  });
+  ctx.log.info("documents.mark_template", { fileId, isTemplate, recordType: recordType ?? null });
   return { ok: true };
 }
+
+export { markTemplate, templatesList };
 
 export const fillHandlers = {
   "documents.fields": fieldsOf,

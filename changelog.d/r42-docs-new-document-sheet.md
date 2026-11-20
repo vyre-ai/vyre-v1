@@ -1,0 +1,1 @@
+On a record's Files tab, New document makes a document from a template: pick the template, see the page filled from the record with the missing fields marked, type them, Make a PDF, then Send for signature.

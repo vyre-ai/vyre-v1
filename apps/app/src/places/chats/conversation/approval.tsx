@@ -26,6 +26,8 @@ import {
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
+import { HoldNote } from "./hold-note.tsx";
+import { madeByGate } from "../needsyou/model.ts";
 import type { HeldEditor } from "./held-card.tsx";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
 import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
@@ -425,7 +427,10 @@ export function ApprovalCard({
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
-  const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
+  // the sentence above says it is a preview copy: the raw flag is not also listed as a row
+  const rows = (
+    held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap)
+  ).filter((r) => !(held.note && r.label === "Plain ok"));
   // a key's test read names the key the server resolved, with its name, and the host: "Scout wants to send #Notely (Notely API key) to api.notely.com"
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
@@ -486,6 +491,9 @@ export function ApprovalCard({
         title={headline}
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
+      {held.note && madeByGate(task) ? (
+        <HoldNote note={held.note} names={held.noteSigners} testID={`approval-note-${taskId}`} inset={CARD_INSET} />
+      ) : null}
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
           {collect(
