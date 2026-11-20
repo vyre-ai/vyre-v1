@@ -468,6 +468,9 @@ test("a turn that was given a task is refused when it names another task's id, w
   const other = await make("Another task");
   let scope: { scopeType?: string; scopeId?: string } = { scopeType: "task", scopeId: own };
   h.callee("threads.get", () => ({ thread: { threadId: "thr_own", ...scope } }));
+  // the words that started the turn: the chat's newest message
+  let said = "Get this done please";
+  h.callee("chat.messages.list", () => ({ messages: [{ body: said }] }));
   const inOwn = { ...doer, thread: "thr_own" };
   await assert.rejects(h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn), (e) => {
     assert.equal(codeOf(e), "validation.precondition_failed");
@@ -493,5 +496,41 @@ test("a turn that was given a task is refused when it names another task's id, w
     (await h.call("tasks.submit", { taskId: other, summary: "Done" }, inOwn)).next,
     "done",
     "a chat that is not a task's own chat does not bind the call",
+  );
+});
+
+test("a person who writes in a task's chat 'also do that other task for me' has named it, and their Assistant may act on it; a turn whose words do not name it is a baton turn and is refused", async () => {
+  const h = withThreads();
+  const make = async (title: string): Promise<string> =>
+    (await h.call("tasks.create", newTask({ assigned: bot, title }), me)).task.id as string;
+  const own = await make("Send Noah the figures");
+  const second = await make("Approve the Rivera invoice");
+  const third = await make("File the Harbor quote");
+  h.callee("threads.get", () => ({ thread: { threadId: "thr_own", scopeType: "task", scopeId: own } }));
+  let said = "Get this done please";
+  h.callee("chat.messages.list", () => ({ messages: [{ body: "earlier words" }, { body: said }] }));
+  const inOwn = { ...doer, thread: "thr_own" };
+  await refused(
+    h.call("tasks.submit", { taskId: second, summary: "Done" }, inOwn),
+    "validation.precondition_failed",
+    "wrong_task",
+  );
+  said = "Also, finish the approve the rivera invoice task for me";
+  assert.equal(
+    (await h.call("tasks.submit", { taskId: second, summary: "Done" }, inOwn)).next,
+    "done",
+    "named by its title",
+  );
+  said = `and ${third} too`;
+  assert.equal(
+    (await h.call("tasks.submit", { taskId: third, summary: "Done" }, inOwn)).next,
+    "done",
+    "named by its id",
+  );
+  said = "Also finish the approve the rivera invoice task";
+  await refused(
+    h.call("tasks.submit", { taskId: third, summary: "Done" }, inOwn),
+    "validation.precondition_failed",
+    "wrong_task",
   );
 });

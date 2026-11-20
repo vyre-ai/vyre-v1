@@ -13,6 +13,7 @@ import {
   allTasks,
   clean,
   emitTask,
+  findTask,
   getTask,
   holds,
   isOpen,
@@ -69,7 +70,8 @@ function workTask(ctx: TasksCtx, id: string): Task {
 
 /**
  * A turn that was given a task runs in that task's own chat, and its baton calls are about that task. A model that names another id (the first task id it finds in what it was told is not always this one) is refused here
- * with the right one, so it can try again with it. A chat of another kind, a caller that is not an agent, and a thread that cannot be read leave the call as it was.
+ * with the right one, so it can try again with it. It is a baton turn when the words that started it do not name the other task: a person who writes in a task's chat "also approve the invoice task for me" has named it, and
+ * their Assistant may. The turn's own words are the chat's newest message. A chat of another kind, a caller that is not an agent, and a chat or message that cannot be read leave the call as it was.
  */
 async function ownTurn(ctx: TasksCtx, taskId: unknown): Promise<void> {
   if (ctx.principal.kind !== "agent" || !ctx.thread || !ctx.call) return;
@@ -80,6 +82,20 @@ async function ownTurn(ctx: TasksCtx, taskId: unknown): Promise<void> {
     return;
   }
   if (scope?.scopeType !== "task" || typeof scope.scopeId !== "string" || scope.scopeId === taskId) return;
+  let words: string;
+  try {
+    const r = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 1 })) as {
+      messages?: Array<{ body?: unknown }>;
+    } | null;
+    const last = r?.messages?.[r.messages.length - 1];
+    words = typeof last?.body === "string" ? last.body.toLowerCase() : "";
+  } catch {
+    return;
+  }
+  const named = String(taskId).toLowerCase();
+  const other = findTask(ctx.db, String(taskId));
+  const title = other?.title?.trim().toLowerCase() ?? "";
+  if (words.includes(named) || (title.length >= 4 && words.includes(title))) return;
   raise(
     ctx,
     "validation.precondition_failed",
