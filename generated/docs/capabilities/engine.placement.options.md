@@ -1,6 +1,6 @@
 # engine.placement.options
 
-What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)
+What the runs-on chip of a chat offers: this computer, the Space (Team Space) and each of your servers, whether each is on and why not; where the chat runs now and whether it is pinned
 
 | | |
 |---|---|

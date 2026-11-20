@@ -1,6 +1,6 @@
 # engine.now
 
-Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it
+Which agents are working now: the agent, the person it works for, where it runs and since when; the chat is named only to someone who may read it
 
 | | |
 |---|---|

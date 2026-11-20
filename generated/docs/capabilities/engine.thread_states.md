@@ -1,6 +1,6 @@
 # engine.thread_states
 
-The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out
+The latest turn of up to 200 chats in one call: running, waiting, failed or done, with the words why for a failed one; chats the asker may not open are left out
 
 | | |
 |---|---|

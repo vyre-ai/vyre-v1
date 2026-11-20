@@ -487,6 +487,15 @@ export default defineManifest({
         out: { byThread: t.rec(id.run), byKey: t.rec(id.run) },
       },
     ),
+    write("runs.ops", "Agent work: look, tell, steer; read the runs skill", {
+      in: { action: t.str(), id: t.opt(t.str()), args: t.opt(t.rec()) },
+      out: { result: t.json() },
+      gate: { act: "approve", when: "runs.ops_gate(input)", reason: "Makes a new agent from this work" },
+      emits: ["run.node_state", "run.node_ended", "run.stopped"],
+      tool: "agents",
+      offline: "online",
+      errors: ["validation.bad_input", "validation.precondition_failed"],
+    }),
     write(
       "runs.node.save_as_agent",
       "Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok",
@@ -836,7 +845,7 @@ export default defineManifest({
     ),
     write(
       "runs.replay",
-      "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
+      "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer is cleared",
       {
         in: { ...target, version: t.opt(t.enm("same", "current")), withClearance: t.opt(t.bool()) },
         out: runStarted,
