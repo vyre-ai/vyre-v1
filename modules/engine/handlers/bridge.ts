@@ -37,6 +37,7 @@ import type {
   TurnInput,
 } from "../../../agent/src/turn-engine/types.ts";
 import type { RouteMention } from "../../../lib/route.ts";
+import { accountMayHaveArrived } from "../../../lib/account-arrival.ts";
 
 /** Tools whose card is posted while the turn runs: the words before the call are posted first, so the card follows the words that lead up to it. */
 const CARD_TOOLS: ReadonlySet<string> = new Set(["plan_propose", "ask_question"]);
@@ -1893,7 +1894,12 @@ export const bridgeConsumers = {
   "engine.signin_resume": {
     // a sign-in saved in the Vault, or an AI account connected (provider.added: a pasted key, a subscription sign-in, a Space key) or shared with the Space: a turn waiting for a sign-in goes on
     on: ["vault.item_updated", "vault.item_created", "provider.added", "engine.subscription_share_changed"],
-    run: async (): Promise<{ skipped?: string; resumed?: number }> => {
+    run: async (
+      _ctx: EngineCtx,
+      event?: { name: string; payload?: Record<string, unknown> },
+    ): Promise<{ skipped?: string; resumed?: number }> => {
+      // a share turned off takes an account away: nothing goes on for it
+      if (event && !accountMayHaveArrived(event)) return { skipped: "share_turned_off" };
       const e = engineIfBound();
       return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" };
     },

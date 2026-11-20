@@ -245,3 +245,20 @@ test("a routine that paused itself starts again when an AI account is connected 
   ])
     assert.ok(on.includes(name), `agents.routine_resume listens to ${name}`);
 });
+
+test("a routine that paused itself starts again when a subscription share is turned on, not when it is turned off", async () => {
+  for (const [enabled, comesBack] of [
+    [false, false],
+    [true, true],
+  ] as const) {
+    const hn = harness();
+    world(hn);
+    const r = await routineOf(hn);
+    for (let i = 0; i < 3; i++) await failedRun(hn, r.routineId, "provider.auth_failed", "sign in again");
+    await (consumers["agents.routine_resume"]!.run as (c: Harness["ctx"], e: unknown) => Promise<unknown>)(hn.as(svc), {
+      name: "engine.subscription_share_changed",
+      payload: { enabled },
+    });
+    assert.equal(isSelfPaused(hn.db, r.routineId), !comesBack, `enabled ${enabled}`);
+  }
+});
