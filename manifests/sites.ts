@@ -1027,6 +1027,7 @@ export default defineManifest({
         out: { files: t.arr(t.obj({ name: t.str(), url: t.str(), bytes: t.opt(t.int()) })), note: t.opt(t.str()) },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
+        gate: { act: "secret_export", when: "actor.kind != 'person'" },
         errors: ["validation.precondition_failed"],
       },
     ),

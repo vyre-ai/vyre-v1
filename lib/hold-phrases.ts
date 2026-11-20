@@ -357,6 +357,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "sites.job_create": "schedule a command on a site",
   "sites.job_update": "change a scheduled command on a site",
   "sites.service_add": "start a worker on a site",
+  "sites.backup_download": "download a copy of a site's whole database",
   "sites.backup_restore": "put back a site's database from a backup",
   "sites.deploy": "build and run a site",
   "sites.plan": "read a site's source to plan a build",

@@ -164,6 +164,7 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
   // the one call for a site's operations: the held actions read as what they do, so a person sees "put back a site's database" and not a call name
   if (cap === "sites.ops") {
     const a = obj(input)["action"];
+    if (a === "backup_download") return "download a copy of the site's whole database";
     if (a === "backup_restore") return "put back a site's database from a backup, replacing what is in it now";
     if (a === "job_create" || a === "job_update") return "schedule a command that runs with the site's keys";
     if (a === "worker_add") return "start a worker that runs with the site's keys";
