@@ -1,7 +1,7 @@
 // Small pieces of the site page: the mark of a step or a deploy, a block of log lines that stays at its end, and a button that opens a menu where it was pressed.
 import { useEffect, useRef } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, type ScrollViewInstance } from "react-native";
 import { MenuIcon, useMenu } from "../../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../../ui/src/Menu/index.tsx";
 
@@ -62,7 +62,7 @@ export function LogLines({
   empty: string;
   height?: number;
 }): ReactElement {
-  const ref = useRef<ScrollView | null>(null);
+  const ref = useRef<ScrollViewInstance | null>(null);
   const atEnd = useRef(true);
   useEffect(() => {
     if (atEnd.current) ref.current?.scrollToEnd({ animated: false });
