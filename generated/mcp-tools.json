@@ -62469,7 +62469,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -62485,7 +62484,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -62494,12 +62492,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -62535,7 +62531,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62566,7 +62561,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62653,7 +62647,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -62743,7 +62736,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -62831,7 +62823,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -62854,7 +62845,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63165,7 +63155,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -63181,7 +63170,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -63190,12 +63178,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -63231,7 +63217,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63262,7 +63247,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63349,7 +63333,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -63439,7 +63422,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -63527,7 +63509,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -63550,7 +63531,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {
@@ -63980,7 +63960,6 @@
                     },
                     "match": {
                       "items": {
-                        "description": "JSON pointer such as /id; / is all",
                         "type": "string"
                       },
                       "type": "array"
@@ -63996,7 +63975,6 @@
                       "type": "string"
                     },
                     "stagesFrom": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "title": {
@@ -64005,12 +63983,10 @@
                     "titleField": {
                       "anyOf": [
                         {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         {
                           "items": {
-                            "description": "JSON pointer such as /id; / is all",
                             "type": "string"
                           },
                           "maxItems": 5,
@@ -64046,7 +64022,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64077,7 +64052,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64164,7 +64138,6 @@
                                 ]
                               },
                               "path": {
-                                "description": "JSON pointer such as /id; / is all",
                                 "type": "string"
                               }
                             },
@@ -64254,7 +64227,6 @@
                               "type": "string"
                             },
                             "next": {
-                              "description": "JSON pointer such as /id; / is all",
                               "type": "string"
                             },
                             "param": {
@@ -64342,7 +64314,6 @@
                           "type": "string"
                         },
                         "idAt": {
-                          "description": "JSON pointer such as /id; / is all",
                           "type": "string"
                         },
                         "method": {
@@ -64365,7 +64336,6 @@
                       "type": "object"
                     },
                     "updatedAt": {
-                      "description": "JSON pointer such as /id; / is all",
                       "type": "string"
                     },
                     "webhook": {

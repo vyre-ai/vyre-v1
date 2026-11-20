@@ -154,6 +154,8 @@ const bindingIn = {
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
 const specPointer = t.str({ description: "JSON pointer such as /id; / is all" });
+// the pointer is explained where a person or agent first meets it (the list, the id, each field path); the rest of the spec says only that the value is one
+const ptr = t.str();
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -180,12 +182,12 @@ const specField = t.obj({
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
   key: t.opt(fieldKey),
-  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
+  onlyWhen: t.opt(t.obj({ path: ptr, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
   param: t.opt(t.str()),
-  next: t.opt(specPointer),
+  next: t.opt(ptr),
   size: t.opt(t.int({ minimum: 1 })),
   sizeParam: t.opt(t.str()),
   start: t.opt(t.int({ minimum: 0 })),
@@ -195,7 +197,7 @@ const specWrite = t.obj({
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
   evidence: t.str(),
   bodyAt: t.opt(t.str()),
-  idAt: t.opt(specPointer),
+  idAt: t.opt(ptr),
 });
 const specObject = t.obj({
   remote: t.str(),
@@ -215,7 +217,7 @@ const specObject = t.obj({
   update: t.opt(specWrite),
   delete: t.opt(specWrite),
   id: specPointer,
-  updatedAt: t.opt(specPointer),
+  updatedAt: t.opt(ptr),
   itemsAt: specPointer,
   openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
@@ -234,9 +236,9 @@ const specMapping = t.obj({
   recordType: id.recordType,
   title: t.opt(t.str()),
   fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm("both", "pull", "push", "off") })),
-  match: t.opt(t.arr(specPointer)),
-  stagesFrom: t.opt(specPointer),
-  titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
+  match: t.opt(t.arr(ptr)),
+  stagesFrom: t.opt(ptr),
+  titleField: t.opt(t.union(ptr, t.arr(ptr, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
   link: t.opt(t.json()),

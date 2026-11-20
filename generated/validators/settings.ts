@@ -31,43 +31,43 @@ if ("floorable" in o9) lf(o9["floorable"], p + "/floorable", e, L3);
 
 function d_s_1e2d0bc7b7(v: unknown, p: string, e: string[]): void {
 {
-const x158 = v;
-const g158 = typeOf(x158);
-const b158: string[] = []; lf(x158, p, b158, L0); if (b158.length) e.push(...b158);
-if (g158 === "object") {
-if (g158 === 'object') { const o158 = x158 as Record<string, unknown>;
-if (!("kit" in o158)) e.push(p + "/kit" + ': required');
-if ("kit" in o158) {
+const x188 = v;
+const g188 = typeOf(x188);
+const b188: string[] = []; lf(x188, p, b188, L0); if (b188.length) e.push(...b188);
+if (g188 === "object") {
+if (g188 === 'object') { const o188 = x188 as Record<string, unknown>;
+if (!("kit" in o188)) e.push(p + "/kit" + ': required');
+if ("kit" in o188) {
 {
-const x159 = o158["kit"];
-const g159 = typeOf(x159);
-const b159: string[] = []; lf(x159, p + "/kit", b159, L0); if (b159.length) e.push(...b159);
-if (g159 === "object") {
-if (g159 === 'object') { const o159 = x159 as Record<string, unknown>;
-if (!("space" in o159)) e.push(p + "/kit" + "/space" + ': required');
-if (!("person" in o159)) e.push(p + "/kit" + "/person" + ': required');
-if (!("effective" in o159)) e.push(p + "/kit" + "/effective" + ': required');
-if ("space" in o159) {
+const x189 = o188["kit"];
+const g189 = typeOf(x189);
+const b189: string[] = []; lf(x189, p + "/kit", b189, L0); if (b189.length) e.push(...b189);
+if (g189 === "object") {
+if (g189 === 'object') { const o189 = x189 as Record<string, unknown>;
+if (!("space" in o189)) e.push(p + "/kit" + "/space" + ': required');
+if (!("person" in o189)) e.push(p + "/kit" + "/person" + ': required');
+if (!("effective" in o189)) e.push(p + "/kit" + "/effective" + ': required');
+if ("space" in o189) {
 {
-const x160 = o159["space"];
-const t160_0: string[] = [];
-lf(x160, p + "/kit" + "/space", t160_0, L74);
-const t160_1: string[] = [];
-lf(x160, p + "/kit" + "/space", t160_1, L90);
-if (![t160_0, t160_1].some((x) => x.length === 0)) e.push(p + "/kit" + "/space" + ': matches none of anyOf');
+const x190 = o189["space"];
+const t190_0: string[] = [];
+lf(x190, p + "/kit" + "/space", t190_0, L74);
+const t190_1: string[] = [];
+lf(x190, p + "/kit" + "/space", t190_1, L90);
+if (![t190_0, t190_1].some((x) => x.length === 0)) e.push(p + "/kit" + "/space" + ': matches none of anyOf');
 }
 }
-if ("person" in o159) {
+if ("person" in o189) {
 {
-const x161 = o159["person"];
-const t161_0: string[] = [];
-lf(x161, p + "/kit" + "/person", t161_0, L74);
-const t161_1: string[] = [];
-lf(x161, p + "/kit" + "/person", t161_1, L90);
-if (![t161_0, t161_1].some((x) => x.length === 0)) e.push(p + "/kit" + "/person" + ': matches none of anyOf');
+const x191 = o189["person"];
+const t191_0: string[] = [];
+lf(x191, p + "/kit" + "/person", t191_0, L74);
+const t191_1: string[] = [];
+lf(x191, p + "/kit" + "/person", t191_1, L90);
+if (![t191_0, t191_1].some((x) => x.length === 0)) e.push(p + "/kit" + "/person" + ': matches none of anyOf');
 }
 }
-if ("effective" in o159) lf(o159["effective"], p + "/kit" + "/effective", e, L74);
+if ("effective" in o189) lf(o189["effective"], p + "/kit" + "/effective", e, L74);
 }
 }
 }
@@ -79,13 +79,13 @@ if ("effective" in o159) lf(o159["effective"], p + "/kit" + "/effective", e, L74
 
 function d_s_3115d5e95d(v: unknown, p: string, e: string[]): void {
 {
-const x238 = v;
-const g238 = typeOf(x238);
-const b238: string[] = []; lf(x238, p, b238, L0); if (b238.length) e.push(...b238);
-if (g238 === "object") {
-if (g238 === 'object') { const o238 = x238 as Record<string, unknown>;
-if (!("row" in o238)) e.push(p + "/row" + ': required');
-if ("row" in o238) d_s_027fb3219c(o238["row"], p + "/row", e);
+const x268 = v;
+const g268 = typeOf(x268);
+const b268: string[] = []; lf(x268, p, b268, L0); if (b268.length) e.push(...b268);
+if (g268 === "object") {
+if (g268 === 'object') { const o268 = x268 as Record<string, unknown>;
+if (!("row" in o268)) e.push(p + "/row" + ': required');
+if ("row" in o268) d_s_027fb3219c(o268["row"], p + "/row", e);
 }
 }
 }
@@ -124,17 +124,17 @@ if ("channel" in o747) lf(o747["channel"], p + "/channel", e, L336);
 
 function d_s_cb565fe529(v: unknown, p: string, e: string[]): void {
 {
-const x1044 = v;
-const g1044 = typeOf(x1044);
-const b1044: string[] = []; lf(x1044, p, b1044, L0); if (b1044.length) e.push(...b1044);
-if (g1044 === "object") {
-if (g1044 === 'object') { const o1044 = x1044 as Record<string, unknown>;
-if (!("verified" in o1044)) e.push(p + "/verified" + ': required');
-if (!("canVerify" in o1044)) e.push(p + "/canVerify" + ': required');
-if (!("pending" in o1044)) e.push(p + "/pending" + ': required');
-if ("verified" in o1044) lf(o1044["verified"], p + "/verified", e, L3);
-if ("canVerify" in o1044) lf(o1044["canVerify"], p + "/canVerify", e, L3);
-if ("pending" in o1044) lf(o1044["pending"], p + "/pending", e, L3);
+const x1045 = v;
+const g1045 = typeOf(x1045);
+const b1045: string[] = []; lf(x1045, p, b1045, L0); if (b1045.length) e.push(...b1045);
+if (g1045 === "object") {
+if (g1045 === 'object') { const o1045 = x1045 as Record<string, unknown>;
+if (!("verified" in o1045)) e.push(p + "/verified" + ': required');
+if (!("canVerify" in o1045)) e.push(p + "/canVerify" + ': required');
+if (!("pending" in o1045)) e.push(p + "/pending" + ': required');
+if ("verified" in o1045) lf(o1045["verified"], p + "/verified", e, L3);
+if ("canVerify" in o1045) lf(o1045["canVerify"], p + "/canVerify", e, L3);
+if ("pending" in o1045) lf(o1045["pending"], p + "/pending", e, L3);
 }
 }
 }

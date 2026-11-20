@@ -48,18 +48,18 @@ if ("ua" in o964) lf(o964["ua"], p + "/visitor" + "/ua", e, L1);
 
 function d_s_cd35d57769(v: unknown, p: string, e: string[]): void {
 {
-const x1053 = v;
-const g1053 = typeOf(x1053);
-const b1053: string[] = []; lf(x1053, p, b1053, L0); if (b1053.length) e.push(...b1053);
-if (g1053 === "object") {
-if (g1053 === 'object') { const o1053 = x1053 as Record<string, unknown>;
-if (!("index" in o1053)) e.push(p + "/index" + ': required');
-if (!("name" in o1053)) e.push(p + "/name" + ': required');
-if ("index" in o1053) lf(o1053["index"], p + "/index", e, L2);
-if ("name" in o1053) lf(o1053["name"], p + "/name", e, L1);
-if ("email" in o1053) lf(o1053["email"], p + "/email", e, L1);
-if ("url" in o1053) lf(o1053["url"], p + "/url", e, L1);
-if ("path" in o1053) lf(o1053["path"], p + "/path", e, L1);
+const x1054 = v;
+const g1054 = typeOf(x1054);
+const b1054: string[] = []; lf(x1054, p, b1054, L0); if (b1054.length) e.push(...b1054);
+if (g1054 === "object") {
+if (g1054 === 'object') { const o1054 = x1054 as Record<string, unknown>;
+if (!("index" in o1054)) e.push(p + "/index" + ': required');
+if (!("name" in o1054)) e.push(p + "/name" + ': required');
+if ("index" in o1054) lf(o1054["index"], p + "/index", e, L2);
+if ("name" in o1054) lf(o1054["name"], p + "/name", e, L1);
+if ("email" in o1054) lf(o1054["email"], p + "/email", e, L1);
+if ("url" in o1054) lf(o1054["url"], p + "/url", e, L1);
+if ("path" in o1054) lf(o1054["path"], p + "/path", e, L1);
 }
 }
 }
