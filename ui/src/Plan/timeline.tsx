@@ -18,7 +18,7 @@ import {
   weekday,
 } from "./logic.ts";
 import type { Item } from "./logic.ts";
-import { BAR, FaceButton, ICON, NameField, StatusMark, h, icon } from "./parts.tsx";
+import { BAR, FaceButton, ICON, NameField, StatusMark, h, icon, withDown } from "./parts.tsx";
 import type { EventLike, PlanCtx } from "./parts.tsx";
 
 /** The routed path of a dependency arrow: right, down or up, right, with rounded corners. */
@@ -228,9 +228,8 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
             tabIndex: -1,
             "data-testid": `plan-bar-${it.id}`,
             title: `${it.title} · ${fmtDay(it.s)}${it.fixed ? " · pinned" : ""}`,
-            onPointerDown: (e: EventLike) => c.down(e, it.id, "mv"),
             onDoubleClick: () => c.open(it.id),
-            ...menuProps(it),
+            ...withDown(menuProps(it), (e: EventLike) => c.down(e, it.id, "mv")),
             style: {
               position: "absolute",
               left: cx - 9,
@@ -308,12 +307,11 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
           "data-status": it.status,
           "data-id": it.id,
           title: `${it.title} · ${it.who ? `${it.who.name} · ` : ""}${it.s === it.e ? fmtDay(it.s) : `${fmtDay(it.s)} to ${fmtDay(it.e)}`}`,
-          onPointerDown: (e: EventLike) => {
+          onDoubleClick: () => c.open(it.id),
+          ...withDown(menuProps(it), (e: EventLike) => {
             const t = e.target;
             c.down(e, it.id, t.closest("[data-h=s]") ? "rs" : t.closest("[data-h=e]") ? "re" : "mv");
-          },
-          onDoubleClick: () => c.open(it.id),
-          ...menuProps(it),
+          }),
           style: {
             position: "absolute",
             left: LABEL_W + x + 1,
