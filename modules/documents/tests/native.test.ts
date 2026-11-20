@@ -400,7 +400,7 @@ test("the plain check answers unchecked for a file it cannot read or that is too
   const flaky = w.add("Flaky.pdf", Buffer.from("%PDF-1.7 x"));
   w.ctx.call = (async (cap: string, input: unknown) => {
     if (cap === "files.read" && (input as { fileId?: string }).fileId === flaky) throw new Error("storage hiccup");
-    return inner(cap, input as never);
+    return inner(cap as Parameters<typeof inner>[0], input as never);
   }) as typeof w.ctx.call;
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: flaky })).unchecked, true);
 });
