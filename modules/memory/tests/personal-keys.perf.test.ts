@@ -7,6 +7,7 @@ import { pointer, search } from "../handlers/facts.ts";
 import { setMemoryKeyPort, sweepHeld } from "../personal.ts";
 import { settlePersonal } from "../settle.ts";
 import { asPerson, harness, seedFact } from "../fixtures/harness.ts";
+import { timeCpu, timeCpuAsync } from "../../../testkit/src/cpu-time.ts";
 
 const N = 50_000;
 const KEY = crypto.randomBytes(32);
@@ -59,9 +60,9 @@ test(`50,000 personal facts under her own key: index build, pointer and search`,
   held.delete("usr_dana");
   sweepHeld();
   held.set("usr_dana", KEY);
-  const w0 = performance.now();
-  const warm = settlePersonal(asPerson(h, { kind: "service", id: "svc_host" }).ctx);
-  const warmMs = performance.now() - w0;
+  const { out: warm, cpuMs: warmMs } = timeCpu(() =>
+    settlePersonal(asPerson(h, { kind: "service", id: "svc_host" }).ctx),
+  );
   assert.equal(warm.warmed, N + 1);
 
   const ptr: number[] = [];
@@ -69,34 +70,42 @@ test(`50,000 personal facts under her own key: index build, pointer and search`,
   const common: number[] = [];
   for (let i = 0; i < 9; i++) {
     const v = asPerson(h, { kind: "person", id: "usr_dana" });
-    let t = performance.now();
-    const p = await pointer(v.ctx, {
-      threadId: `thr_${i}`,
-      agentId: "agt_intake",
-      text: "when does the quasar retainer renew?",
-    });
-    ptr.push(performance.now() - t);
+    const pt = await timeCpuAsync(() =>
+      pointer(v.ctx, {
+        threadId: `thr_${i}`,
+        agentId: "agt_intake",
+        text: "when does the quasar retainer renew?",
+      }),
+    );
+    const p = pt.out;
+    ptr.push(pt.cpuMs);
     assert.equal(p.lines[0]?.fact, "Dana's quasar retainer renews in November with Fiona");
-    t = performance.now();
-    const s = await search(v.ctx, { q: "quasar retainer Fiona", mode: "keyword" });
-    srch.push(performance.now() - t);
+    const st = await timeCpuAsync(() => search(v.ctx, { q: "quasar retainer Fiona", mode: "keyword" }));
+    const s = st.out;
+    srch.push(st.cpuMs);
     assert.equal(s.hits[0]?.factId, "fct_target");
     // the worst case: a word every fact holds ("client"), so every fact is scored
-    t = performance.now();
-    await pointer(v.ctx, { threadId: `thr_w${i}`, agentId: "agt_intake", text: "what does client 77 want?" });
-    common.push(performance.now() - t);
+    common.push(
+      (
+        await timeCpuAsync(() =>
+          pointer(v.ctx, { threadId: `thr_w${i}`, agentId: "agt_intake", text: "what does client 77 want?" }),
+        )
+      ).cpuMs,
+    );
   }
   // the same lookup with no index (key held, index dropped): every fact is opened on the way
   held.delete("usr_dana");
   sweepHeld();
   held.set("usr_dana", KEY);
-  const c0 = performance.now();
-  await pointer(asPerson(h, { kind: "person", id: "usr_dana" }).ctx, {
-    threadId: "thr_cold",
-    agentId: "agt_intake",
-    text: "when does the quasar retainer renew?",
-  });
-  const coldMs = performance.now() - c0;
+  const coldMs = (
+    await timeCpuAsync(() =>
+      pointer(asPerson(h, { kind: "person", id: "usr_dana" }).ctx, {
+        threadId: "thr_cold",
+        agentId: "agt_intake",
+        text: "when does the quasar retainer renew?",
+      }),
+    )
+  ).cpuMs;
 
   const out = {
     facts: N + 1,
@@ -108,10 +117,10 @@ test(`50,000 personal facts under her own key: index build, pointer and search`,
     pointerEveryFactMatches: stats(common),
   };
   console.log(`PERF personal-keys ${JSON.stringify(out)}`);
-  // budgets (a shared runner can be slowed by its neighbours, so the best of nine holds the budget)
-  assert.ok(out.pointer.best < 150, `pointer best ${out.pointer.best} ms`);
-  assert.ok(out.search.best < 400, `search best ${out.search.best} ms`);
-  assert.ok(warmMs < 8000, `index build ${warmMs} ms`);
+  // budgets in CPU time, held by the median of nine (not the best: a busy runner stretches the clock, not the work, so no run needs to be lucky)
+  assert.ok(out.pointer.p50 < 150, `pointer median ${out.pointer.p50} ms of CPU`);
+  assert.ok(out.search.p50 < 400, `search median ${out.search.p50} ms of CPU`);
+  assert.ok(warmMs < 8000, `index build ${warmMs} ms of CPU`);
   held.delete("usr_dana");
   sweepHeld();
 });

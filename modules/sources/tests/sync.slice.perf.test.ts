@@ -9,6 +9,7 @@ import type { StoredRecord } from "../../../kernel/src/store/types.ts";
 import { openSources } from "../impl.ts";
 import { runSync } from "../handlers/sync.ts";
 import type { SyncBinding, SyncDeps } from "../handlers/sync.ts";
+import { timeCpuAsync, wallCeiling } from "../../../testkit/src/cpu-time.ts";
 
 const TOTAL = 50_000;
 const BUDGET_MS = 300;
@@ -67,11 +68,16 @@ test("a pass over 3 changed rows of a type of 50,000 linked records takes under 
   // a fourth row the app has not brought before: the pass asks whether any record here is unlinked (every one of the 50,000 is linked, so the whole index is probed)
   slice.push({ ...(await remote.store.create("app_matter", mintRecordId(), { title: "Brand new" })), id: "app_new" });
   const deps: SyncDeps = { local: local.store, remote: remote.store, tx: src.tx, now: () => clock.t, emit: () => {} };
-  const started = performance.now();
-  const out = await runSync(deps, binding, { mode: "both", partial: slice, pushLocalSince: 1 });
-  const tookMs = Math.round(performance.now() - started);
-  process.stderr.write(`[slice-perf] a pass over 4 rows (one new) of ${TOTAL} took ${tookMs} ms\n`);
+  // one run in CPU time (a busy runner stretches the clock, not the work); assertWithinCpuAsync also holds a wall hang guard
+  const timed = await timeCpuAsync(() => runSync(deps, binding, { mode: "both", partial: slice, pushLocalSince: 1 }));
+  const out = timed.out;
+  const tookMs = Math.round(timed.cpuMs);
+  process.stderr.write(`[slice-perf] a pass over 4 rows (one new) of ${TOTAL} took ${tookMs} ms of CPU\n`);
   assert.equal(out.local.updated, 3);
   assert.equal(out.local.created, 1);
-  assert.ok(tookMs <= BUDGET_MS, `the pass took ${tookMs} ms (budget ${BUDGET_MS} ms)`);
+  assert.ok(tookMs <= BUDGET_MS, `the pass took ${tookMs} ms of CPU (budget ${BUDGET_MS} ms)`);
+  assert.ok(
+    timed.wallMs < wallCeiling(BUDGET_MS),
+    `the pass took ${Math.round(timed.wallMs)} ms of wall time (hang guard)`,
+  );
 });

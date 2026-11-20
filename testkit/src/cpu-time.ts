@@ -30,6 +30,15 @@ export function timeCpu<T>(fn: () => T): Timed<T> {
 /** The wall-clock ceiling for a case with a CPU limit: ten times the limit, there only to catch a hang. */
 export const wallCeiling = (cpuLimitMs: number): number => cpuLimitMs * 10;
 
+/** The async form of timeCpu: the CPU this thread used between the start and the end of the await. */
+export async function timeCpuAsync<T>(fn: () => Promise<T>): Promise<Timed<T>> {
+  const w0 = performance.now();
+  const c0 = usage();
+  const out = await fn();
+  const c1 = usage();
+  return { out, cpuMs: (c1.user - c0.user + (c1.system - c0.system)) / 1000, wallMs: performance.now() - w0 };
+}
+
 /** Runs `fn` once and fails unless it used less than `limitMs` of CPU and finished inside the wall ceiling (ten times the limit, a hang guard). */
 export function assertWithinCpu<T>(label: string, limitMs: number, fn: () => T): T {
   const { out, cpuMs, wallMs } = timeCpu(fn);

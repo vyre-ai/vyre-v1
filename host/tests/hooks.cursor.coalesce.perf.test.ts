@@ -9,8 +9,9 @@ import { DatabaseSync } from "node:sqlite";
 import { createHookRunner } from "../src/daemon/consumers.ts";
 import type { ModuleHooks } from "../src/daemon/consumers.ts";
 import type { Invoke } from "../src/invoke.ts";
+import { assertWithinCpuAsync } from "../../testkit/src/cpu-time.ts";
 
-/** The budget for 200 passes of a hundred consumers, in ms (the best of three runs). */
+/** The budget for 200 passes of a hundred consumers, in ms (one run, CPU time). */
 export const CURSORS_200_BUDGET_MS = 500;
 
 test("cursors200: two hundred passes of a hundred consumers moving past a busy head are stored inside the speed budget", async () => {
@@ -44,18 +45,13 @@ test("cursors200: two hundred passes of a hundred consumers moving past a busy h
     log: { read: async () => [] as never, currentHead: async () => ({ seq: head }) },
   } as never);
   await r.start();
-  const runs: number[] = [];
-  for (let run = 0; run < 3; run++) {
-    const t = performance.now();
+  // one run in CPU time: a busy runner stretches the clock, not the work, and a slow store costs CPU on every run
+  await assertWithinCpuAsync(`200 passes (budget ${CURSORS_200_BUDGET_MS} ms)`, CURSORS_200_BUDGET_MS, async () => {
     for (let i = 0; i < 200; i++) {
       head += 1;
       await r.pump();
     }
-    runs.push(performance.now() - t);
-  }
-  const best = Math.min(...runs);
-  console.log(`cursors200 best ${best.toFixed(0)} ms (runs ${runs.map((x) => x.toFixed(0)).join(", ")})`);
-  assert.ok(best <= CURSORS_200_BUDGET_MS, `200 passes took ${best.toFixed(0)} ms, budget ${CURSORS_200_BUDGET_MS}`);
+  });
   sql.close();
   fs.rmSync(dir, { recursive: true, force: true });
 });
