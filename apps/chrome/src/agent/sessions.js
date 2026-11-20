@@ -325,6 +325,7 @@ export function createSessions({
     async touched(tabId, info) {
       const d = drivers.get(tabId);
       if (!d) return false;
+      // the page's report (kind, rounded place, and for a key its physical key code, which on a normal layout names the character) reaches only this worker, is matched here and is kept nowhere
       // what the agent sent a moment ago and the page now reports, of the same kind and place or key, is the agent's own event, used up by the match; anything else
       // (a click elsewhere in the middle of typing, a key the agent did not send) is the person's
       const t = now();
