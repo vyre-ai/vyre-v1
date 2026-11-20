@@ -85,3 +85,13 @@ test("the scan reads the app's text, not what a person wrote: when the page can 
   } as never;
   await guardCrashes(withEval).check("a chat where a person pasted an id");
 });
+
+test("a build whose terminal screen (xterm.js) cannot load or start is a crash: the person keeps the plain screen, the walk goes red", async () => {
+  const { page, handlers } = fakePage("fine");
+  const g = guardCrashes(page);
+  handlers.console[0]!({
+    type: () => "error",
+    text: () => "xterm screen unavailable: the chunk did not load: Failed to fetch",
+  });
+  await assert.rejects(() => g.check("terminal opened"), /terminal opened: a crash was logged/);
+});

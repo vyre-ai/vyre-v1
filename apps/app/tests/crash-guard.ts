@@ -13,7 +13,7 @@ export const BOUNDARY_TEXTS = [
 /** Console and page errors that are not crashes: the Space refusing a read the page then handles, a resize observer notice. */
 const NOISE = /ResizeObserver|Failed to load resource|favicon|net::ERR/i;
 const CRASH =
-  /Minified React error|React error|Invalid hook call|Rendered (more|fewer) hooks|is not defined|Cannot read properties|is not a function|Uncaught|ReferenceError|TypeError/i;
+  /xterm screen unavailable|Minified React error|React error|Invalid hook call|Rendered (more|fewer) hooks|is not defined|Cannot read properties|is not a function|Uncaught|ReferenceError|TypeError/i;
 
 /**
  * Pages whose purpose is to show an id. A walk that visits one says so by name when it checks (`guard.check(where, { idsOnPurpose: "space-id" })`), and the reason is here, so the list can be read in one place

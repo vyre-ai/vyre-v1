@@ -31,8 +31,6 @@ function ensureStyle(): void {
   }
 }
 
-const BRIGHT = ["#5c6370", "#ff8b94", "#9be39a", "#f2d27a", "#8cb8ff", "#dca0f5", "#82dcdc", "#ffffff"];
-
 /** A colour the page's own tokens give at `from`, as the browser resolves it (rgb): a token can be a chain of other tokens, which xterm cannot read. */
 function paint(prop: "color" | "backgroundColor", token: string, fallback: string, from?: Element | null): string {
   try {

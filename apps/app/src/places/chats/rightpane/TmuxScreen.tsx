@@ -319,7 +319,10 @@ export function TmuxScreen({
         if (live) setXt(m);
       })
       .catch((e: unknown) => {
-        if (live) setXWhy(String((e as { message?: unknown } | null)?.message ?? e).slice(0, 160));
+        const why = String((e as { message?: unknown } | null)?.message ?? e).slice(0, 160);
+        // the person keeps the plain screen, but a build that cannot load the terminal screen is an error the shots and the report can see, never a silent fallback
+        console.error(`xterm screen unavailable: the chunk did not load: ${why}`);
+        if (live) setXWhy(why);
       });
     return () => {
       live = false;
@@ -548,7 +551,10 @@ export function TmuxScreen({
                 createElement(xt.XTermView, {
                   shot: shot ?? NO_SCREEN,
                   onReady: () => setXReady(true),
-                  onFail: () => setXt(null),
+                  onFail: () => {
+                    console.error("xterm screen unavailable: the terminal could not start or draw");
+                    setXt(null);
+                  },
                   onPaste: pasteText,
                 }),
               ),
