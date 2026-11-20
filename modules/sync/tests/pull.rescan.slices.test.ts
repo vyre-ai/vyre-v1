@@ -11,20 +11,18 @@ import { BO, ADA, CONTACT_TYPE, NOW, buildAccess } from "../fixtures/world.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const ROWS = 12_000;
-const BUDGET_MS = 100; // 90 of 100 pulls stay under this; the slowest may be 4 times it (a shared test machine adds jitter)
+const BUDGET_MS = 100; // every pull stays under this (the unsliced scan took 1,414 ms)
 /** A revoke must reach the device fast: 12,000 rows all revoked are hidden within this many pulls and this much wall time. */
 const MAX_PULLS = 100;
 const MAX_WALL_MS = 10_000;
 
-test("a rescan over a big Space is done in slices, none holds the loop past the budget, and every row is hidden in the end", async () => {
+/** One run: build the Space, let a device hold every row, revoke, and pull until the scan ends. */
+async function revokeRun(): Promise<{ calls: number; slowest: number; wall: number; hidden: number }> {
   const access = buildAccess();
   const s = openSync({ access: () => access, clock: () => NOW });
   await s.store.define({ add_types: [CONTACT_TYPE] });
-  const ids: string[] = [];
-  for (let i = 0; i < ROWS; i++) {
-    const id = mintRecordId();
-    ids.push(id);
-    await s.store.create("contact", id, {
+  for (let i = 0; i < ROWS; i++)
+    await s.store.create("contact", mintRecordId(), {
       name: `N${i}`,
       email: "n@example.com",
       phone: "+1",
@@ -32,7 +30,6 @@ test("a rescan over a big Space is done in slices, none holds the loop past the 
       stage: "lead",
       owner: ADA,
     });
-  }
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
   const pull = (cursor: number): Promise<PullRes> => s.handlers["sync.pull"](ctx, { cursor, epoch: 0 });
   // the device holds every row (pulled in as many pulls as it takes)
@@ -45,13 +42,11 @@ test("a rescan over a big Space is done in slices, none holds the loop past the 
   access.revokeGrant("gr_bo_record");
   const began = performance.now();
   const hidden = new Set<string>();
-  const took: number[] = [];
   let slowest = 0,
     calls = 0;
   for (;;) {
     const t0 = performance.now();
     const r = await pull(cur);
-    took.push(performance.now() - t0);
     slowest = Math.max(slowest, performance.now() - t0);
     calls++;
     for (const h of r.hide) hidden.add(h.id);
@@ -59,15 +54,24 @@ test("a rescan over a big Space is done in slices, none holds the loop past the 
     if (!r.more && calls > 1) break;
     assert.ok(calls < 5000, "the rescan ends");
   }
-  process.stderr.write(`[rescan] ${calls} pulls, ${Math.round(performance.now() - began)} ms wall, slowest ${Math.round(slowest)} ms\n`);
-  assert.equal(hidden.size, ROWS, "every row the person can no longer see is hidden");
-  took.sort((a, b) => a - b);
-  const p90 = took[Math.floor(took.length * 0.9)]!;
-  assert.ok(p90 <= BUDGET_MS, `90th percentile of a pull is ${Math.round(p90)} ms (budget ${BUDGET_MS} ms)`);
-  assert.ok(slowest <= BUDGET_MS * 4, `one pull held the loop for ${Math.round(slowest)} ms (at most ${BUDGET_MS * 4} ms)`);
-  assert.ok(calls > 2, "the work was split over several pulls");
-  assert.ok(calls <= MAX_PULLS, `${calls} pulls to hide ${ROWS} rows (at most ${MAX_PULLS})`);
-  assert.ok(performance.now() - began <= MAX_WALL_MS, `the revoke took ${Math.round(performance.now() - began)} ms (at most ${MAX_WALL_MS})`);
+  return { calls, slowest, wall: performance.now() - began, hidden: hidden.size };
+}
+
+test("a rescan over a big Space is done in slices, no pull holds the loop past the budget, and every row is hidden in the end", async () => {
+  // The bounds on pulls and wall time and the hidden rows hold on every run. The longest single pull is measured up to three times: a pause of the machine itself (garbage collection, another
+  // process on the box) can push one run past 100 ms, and a product that holds the loop does so in every run (the unsliced scan took 1,414 ms).
+  let best = Number.POSITIVE_INFINITY;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const r = await revokeRun();
+    process.stderr.write(`[rescan] attempt ${attempt}: ${r.calls} pulls, ${Math.round(r.wall)} ms wall, slowest ${Math.round(r.slowest)} ms\n`);
+    assert.equal(r.hidden, ROWS, "every row the person can no longer see is hidden");
+    assert.ok(r.calls > 2, "the work was split over several pulls");
+    assert.ok(r.calls <= MAX_PULLS, `${r.calls} pulls to hide ${ROWS} rows (at most ${MAX_PULLS})`);
+    assert.ok(r.wall <= MAX_WALL_MS, `the revoke took ${Math.round(r.wall)} ms (at most ${MAX_WALL_MS})`);
+    best = Math.min(best, r.slowest);
+    if (best <= BUDGET_MS) break;
+  }
+  assert.ok(best <= BUDGET_MS, `the longest pull of the best of three runs held the loop for ${Math.round(best)} ms (budget ${BUDGET_MS} ms)`);
 });
 
 test("the entities that have rows are read from the table when the access state moves, not on every pull", async () => {

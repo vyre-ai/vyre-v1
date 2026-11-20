@@ -61,7 +61,7 @@ const SCAN_DDL =
   "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
 /** One slice of a rescan holds the event loop at most this long (ms). */
 const SCAN_SLICE_MS = 20;
-const SCAN_ASK_MAX = 200;
+const SCAN_ASK_MAX = 150;
 /** A pull stops reading the change feed after this long (ms) and says there is more. */
 const PULL_SLICE_MS = 30;
 function ensureStamp(db: Tx): void {
@@ -285,8 +285,8 @@ function rescanChanged(
       if (holds !== sees(row)) ask(row.entity, row.id);
       ent = row.entity;
       rid = row.id;
-      // each row asked for is an event the log writes and the feed folds: a slice asks for at most this many
-      if (queued.length >= SCAN_ASK_MAX) {
+      // each row asked for is an event the log writes and the feed folds: a slice asks for at most this many; the clock is read per row, so a large row cannot carry a slice past its time
+      if (queued.length >= SCAN_ASK_MAX || performance.now() - t0 >= SCAN_SLICE_MS) {
         full = true;
         break;
       }
