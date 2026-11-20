@@ -1057,7 +1057,6 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return { release, started: () => clearTimeout(timer) };
   }
 
-
   /**
    * A stream that stays open for one app. It is told only what it asked for, only while its sign-in stands (checked at every keep-alive, and before each notification), and it ends at once when the
    * app is removed. `subId` is the listen request's id (the current revision); null is the GET stream of a handshake revision, which has no acknowledgment and no closing answer.
@@ -1096,12 +1095,19 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
           uris: watch.uris,
           prompts: watch.prompts,
           notify: (method, params) => write(sse({ jsonrpc: "2.0", method, params: { ...params, ...tag } })),
-          valid: async () => bySession.get(s.caller.sessionId) === s && (await deps.open(token, undefined, origin)) !== null,
+          valid: async () =>
+            bySession.get(s.caller.sessionId) === s && (await deps.open(token, undefined, origin)) !== null,
           end: () => over("ended"),
         };
         // the acknowledgment is the first thing on the stream, before any notification can be
         if (ack)
-          write(sse({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: { ...tag, notifications: ack } }));
+          write(
+            sse({
+              jsonrpc: "2.0",
+              method: "notifications/subscriptions/acknowledged",
+              params: { ...tag, notifications: ack },
+            }),
+          );
         listeners.add(l);
         const tick = setInterval(() => {
           write(":\n\n");
@@ -1126,14 +1132,20 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
   /** subscriptions/listen (2026-07-28): the one long request an app keeps open to be told what changed. It names what it wants; the acknowledgment names what it gets. */
   function listen(s: Session, token: string, origin: string | undefined, req: Request): McpHttpResponse {
     const id: Id = req.id ?? null;
-    if (s.caller.kind !== "outside")
-      return json(404, err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`));
+    if (s.caller.kind !== "outside") return json(404, err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`));
     const asked = (req.params as { notifications?: unknown } | null | undefined)?.notifications;
     if (id === null || asked === null || typeof asked !== "object" || Array.isArray(asked))
       return json(200, err(id, INVALID_PARAMS, "subscriptions/listen needs an id and a notifications object."));
     const slot = reserve(s);
     if (!slot)
-      return json(429, err(id, INVALID_REQUEST, `One app holds at most ${MAX_STREAMS} streams open, and this Space ${MAX_TOTAL_STREAMS}. Close one first.`));
+      return json(
+        429,
+        err(
+          id,
+          INVALID_REQUEST,
+          `One app holds at most ${MAX_STREAMS} streams open, and this Space ${MAX_TOTAL_STREAMS}. Close one first.`,
+        ),
+      );
     const want = asked as { promptsListChanged?: unknown; resourceSubscriptions?: unknown };
     // an address that is not one of this server's is left out of the acknowledgment, which is how the client learns it is not watched
     const uris = new Set(
@@ -1142,10 +1154,18 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         .slice(0, MAX_WATCHED),
     );
     const prompts = want.promptsListChanged === true;
-    return openStream(s, token, origin, id, { uris: () => uris, prompts }, {
-      ...(prompts ? { promptsListChanged: true } : {}),
-      ...(Array.isArray(want.resourceSubscriptions) ? { resourceSubscriptions: [...uris] } : {}),
-    }, slot);
+    return openStream(
+      s,
+      token,
+      origin,
+      id,
+      { uris: () => uris, prompts },
+      {
+        ...(prompts ? { promptsListChanged: true } : {}),
+        ...(Array.isArray(want.resourceSubscriptions) ? { resourceSubscriptions: [...uris] } : {}),
+      },
+      slot,
+    );
   }
 
   /** Tell the apps that are watching. Each is told only after the proof read passes as that app, so what an app may not see it does not hear of. */

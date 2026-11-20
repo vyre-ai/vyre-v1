@@ -71,6 +71,24 @@ export function oneLine(cap: string, text: string): string {
   return cut.charAt(0).toUpperCase() + cut.slice(1);
 }
 
+/**
+ * The tools added for the full set (MCP_TOOLS) show a model the names, types and enums of their inputs, not the id patterns and examples a validator uses: the server still checks every call against the full
+ * schema, and a model that writes a wrong id is told so in words. A property that is itself called "examples" or "pattern" lives under "properties" and stays.
+ */
+function leanSchema(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(leanSchema);
+  if (v === null || typeof v !== "object") return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (k === "examples" || (k === "pattern" && typeof x === "string")) continue;
+    out[k] =
+      k === "properties" && typeof x === "object" && x !== null
+        ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, sch]) => [n, leanSchema(sch)]))
+        : leanSchema(x);
+  }
+  return out;
+}
+
 /** Timestamps are written as epoch milliseconds in nearly every tool: one short word for it, and no floor (a time before 1970 is refused by the server all the same). */
 function shortTimes(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(shortTimes);
@@ -155,7 +173,7 @@ export function buildCatalog(
       v: cap.v,
       toolset: t.toolset,
       summary: oneLine(cap.name, t.description),
-      inputSchema: shown.schema,
+      inputSchema: cap.name in MCP_TOOLS ? leanSchema(shown.schema) : shown.schema,
       ...(shown.keyed ? { keyed: true } : {}),
       ...(shown.thread ? { thread: true } : {}),
       effects,

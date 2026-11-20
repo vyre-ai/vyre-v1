@@ -60,5 +60,7 @@ export function shareFragments<T extends Pick<ToolDef, "name" | "inputSchema">>(
     if (first !== undefined && first !== owner) return bare(o);
     return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, rewrite(x, owner)]));
   };
-  return defs.map((d) => (SKIP.test(d.name) ? d : { ...d, inputSchema: rewrite(d.inputSchema, d.name) as T["inputSchema"] }));
+  return defs.map((d) =>
+    SKIP.test(d.name) ? d : { ...d, inputSchema: rewrite(d.inputSchema, d.name) as T["inputSchema"] },
+  );
 }
