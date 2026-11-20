@@ -265,21 +265,17 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read(
-      "sites.list",
-      "List the sites and artifacts you can see, by section, kind, folder",
-      {
-        in: {
-          section: t.opt(t.enm("personal", "shared", "space")),
-          folderId: t.opt(id.folder),
-          kind: t.opt(t.enm("site", "artifact")),
-          ...pageIn,
-        },
-        out: { sites: t.arr(siteRow), ...pageOut },
-        tool: "sites",
-        label: "filter",
+    read("sites.list", "List the sites and artifacts you can see, by section, kind, folder", {
+      in: {
+        section: t.opt(t.enm("personal", "shared", "space")),
+        folderId: t.opt(id.folder),
+        kind: t.opt(t.enm("site", "artifact")),
+        ...pageIn,
       },
-    ),
+      out: { sites: t.arr(siteRow), ...pageOut },
+      tool: "sites",
+      label: "filter",
+    }),
     write(
       "sites.update",
       "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
@@ -304,18 +300,14 @@ export default defineManifest({
         errors: ["validation.version_conflict"],
       },
     ),
-    write(
-      "sites.publish",
-      "Serve a non-public site: space or private access, or a password on its own domain",
-      {
-        in: deployTarget,
-        out: { site: siteRow },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        emits: ["site.published"],
-        tool: "sites",
-      },
-    ),
+    write("sites.publish", "Serve a non-public site: space or private access, or a password on its own domain", {
+      in: deployTarget,
+      out: { site: siteRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      emits: ["site.published"],
+      tool: "sites",
+    }),
     write("sites.stop", "Stop serving a site. Its address answers nothing", {
       in: deployTarget,
       out: { site: siteRow },
