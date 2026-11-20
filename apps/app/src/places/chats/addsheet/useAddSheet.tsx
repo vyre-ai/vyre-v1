@@ -214,7 +214,8 @@ export async function loadAdd(
           kind,
           name,
           ...(filesName ? { filesFolder: filesName } : {}),
-          ...(recordsName ? { recordsFolder: recordsName } : {}),
+          // records are shared with the newcomer whether or not their name could be read: an unread name says so in general words and never leaves them out
+          ...(recordsName ? { recordsFolder: recordsName } : recordsOf !== undefined ? { recordsUnnamed: true } : {}),
         };
   const info: LinkInfo | undefined = link
     ? {

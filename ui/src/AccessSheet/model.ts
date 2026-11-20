@@ -320,6 +320,8 @@ export function addLines(i: AddLinesInput): Line[] {
   if (std.length > 0) {
     // what they get is only what the target really has: a folder and records are named when there are some, and left out when there are none
     const pr = t.project;
+    // a project's chat is still a chat to the person reading this line
+    const said = pr ? "this chat" : noun;
     const parts = pr
       ? [
           ...(pr.hasFiles ? [`${pr.name}'s files`] : []),
@@ -329,10 +331,12 @@ export function addLines(i: AddLinesInput): Line[] {
         ]
       : [
           ...(t.filesFolder ? [`its files folder ${t.filesFolder}`] : []),
-          ...(t.recordsFolder ? [`records in ${t.recordsFolder}`] : []),
+          ...(t.recordsFolder
+            ? [`records in ${t.recordsFolder}`]
+            : t.recordsUnnamed
+              ? [`the records linked to ${said}`]
+              : []),
         ];
-    // a project's chat is still a chat to the person reading this line
-    const said = pr ? "this chat" : noun;
     const lead = i.earlier
       ? `They'll see the whole ${said.replace(/^this /, "")}`
       : `They'll see ${said}'s messages from now on`;
