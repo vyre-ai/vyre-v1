@@ -9273,67 +9273,67 @@
     {
       "deferred": false,
       "name": "task_ask",
-      "summary": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "summary": "Ask a question while you work: an Answer task opens for the requester or a named person, the work waits, the answer wakes you",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_block",
-      "summary": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "summary": "Report what is in the way: an Unblock task opens for whoever the task escalates to, and the work waits",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_decide",
-      "summary": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "summary": "Decide on reviewed work: approve (Done, held actions release) or reject with a reason",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_digest",
-      "summary": "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "summary": "What an agent should keep in mind: this thread's task, its parent and siblings, then its own open tasks (top five and a count). About 300 tokens; tasks_get has detail. Leave out agentId for yourself",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_plan",
-      "summary": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "summary": "Break work into a parent (new or existing) and children in one step, each with brief, what done means, owner and dependencies. A child starts when they are done; the parent hears only when all are done or one is blocked or asks",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_review",
-      "summary": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "summary": "Review submitted work: approve, or send back with numbered fixes (after the loop limit a person decides)",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "task_submit",
-      "summary": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "summary": "Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_act",
-      "summary": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
+      "summary": "Act on a request at its source: approve, reject, send back, answer or resolve, with a note; the chat or run goes on at once",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_agent_on_it",
-      "summary": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "summary": "Say an agent is on a task for its assignee: it moves to Doing and reads \"<Agent> is on it for you\". Only that person or the host",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_archive",
-      "summary": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "summary": "Put away a task that no longer matters, with why; back: true puts it back. Not deleted",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_assign",
-      "summary": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
+      "summary": "Set or clear Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "toolset": "tasks"
     },
     {
@@ -9351,37 +9351,31 @@
     {
       "deferred": false,
       "name": "tasks_create",
-      "summary": "Create a task (Work by default)",
+      "summary": "Create a task",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_delegate",
-      "summary": "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "summary": "Hand a request to someone else with a note; never widens access: walks the delegate chain to the first who can act",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_delete",
-      "summary": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
+      "summary": "Delete a task (Undo restores it); a held act or a task a Run waits on is canceled",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_dependencies_add",
-      "summary": "Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children",
+      "summary": "Make a task wait on another; Blocked comes from unmet dependencies and open Unblocks",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_dependencies_remove",
       "summary": "Remove a dependency",
-      "toolset": "tasks"
-    },
-    {
-      "deferred": false,
-      "name": "tasks_done_when",
-      "summary": "What proves a task done; it closes itself. No kind clears",
       "toolset": "tasks"
     },
     {
@@ -9399,31 +9393,31 @@
     {
       "deferred": false,
       "name": "tasks_get",
-      "summary": "Read one task with its blocks, slots, links, notes and followers",
+      "summary": "Read one task with blocks, slots, links, notes and followers",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_history",
-      "summary": "Activity of a task: transitions, hand-overs, notes and sends back, newest first",
+      "summary": "Activity of a task: transitions, hand-overs, notes, sends back; newest first",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_index",
-      "summary": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "summary": "A scope's long list in one read: a light row per task, newest first; send the last rev and an unchanged list answers nothing",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_links_add",
-      "summary": "Link a record or a file to a task",
+      "summary": "Link a record or file to a task",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_links_remove",
-      "summary": "Remove a record or file link from a task",
+      "summary": "Remove a record or file link",
       "toolset": "tasks"
     },
     {
@@ -9435,13 +9429,13 @@
     {
       "deferred": false,
       "name": "tasks_my_work",
-      "summary": "My work: the full list, with sections Open, Assigned by me, Done",
+      "summary": "My work: the full list in sections Open, Assigned by me, Done",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_needs_you",
-      "summary": "Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others",
+      "summary": "Needs you: my Ready Approve, Review, Answer and Unblock tasks, plus due today, overdue or blocking",
       "toolset": "tasks"
     },
     {
@@ -9459,37 +9453,31 @@
     {
       "deferred": false,
       "name": "tasks_rev",
-      "summary": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "summary": "A mark that changes when any task changes, for a screen with a long list",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_snooze",
-      "summary": "Snooze an open task until a time, or clear the snooze with null",
+      "summary": "Snooze an open task until a time; null clears the snooze",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_take",
-      "summary": "Take a group or role task; the first Take locks it and others see taken by",
+      "summary": "Take a group or role task; the first Take locks it",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_transition",
-      "summary": "Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules",
-      "toolset": "tasks"
-    },
-    {
-      "deferred": false,
-      "name": "tasks_unarchive",
-      "summary": "Put an archived task back",
+      "summary": "Move a task to a new status (the only writer of status); checks the state table and reviewer/approver rules",
       "toolset": "tasks"
     },
     {
       "deferred": false,
       "name": "tasks_update",
-      "summary": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
+      "summary": "Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)",
       "toolset": "tasks"
     },
     {
@@ -9501,7 +9489,7 @@
     {
       "deferred": false,
       "name": "tasks_working_notes_set",
-      "summary": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
+      "summary": "Write a working note (key, value) everyone on the task can read; send expectedFrom, the note as you last read it",
       "toolset": "tasks"
     },
     {

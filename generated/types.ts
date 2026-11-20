@@ -41627,6 +41627,7 @@ export type TasksAgentOnItOut = {
 export type TasksArchiveIn = {
   taskId: string;
   why?: string;
+  back?: boolean;
 };
 export type TasksArchiveOut = {
   task: {
@@ -42030,6 +42031,7 @@ export type TasksCreateIn = {
   dependsOn?: Array<string>;
   expiresAt?: number;
   relevantUntil?: number;
+  doneWhen?: string;
   actions?: Array<{
       key: string;
       label: string;

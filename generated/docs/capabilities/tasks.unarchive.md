@@ -17,7 +17,7 @@ Put an archived task back
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/tasks/unarchive |
-| MCP tool | tasks_unarchive (tasks) |
+| MCP tool | none |
 | CLI | none |
 | Emits | task.unarchived |
 

@@ -1,6 +1,6 @@
 # tasks.decide
 
-Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)
+Decide on reviewed work: approve (Done, held actions release) or reject with a reason
 
 | | |
 |---|---|

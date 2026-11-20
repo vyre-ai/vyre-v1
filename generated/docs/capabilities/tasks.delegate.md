@@ -1,6 +1,6 @@
 # tasks.delegate
 
-Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act
+Hand a request to someone else with a note; never widens access: walks the delegate chain to the first who can act
 
 | | |
 |---|---|

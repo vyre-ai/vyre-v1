@@ -1,6 +1,6 @@
 # tasks.submit
 
-Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
+Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
 
 | | |
 |---|---|

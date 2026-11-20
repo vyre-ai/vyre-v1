@@ -1,6 +1,6 @@
 # tasks.update
 
-Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
+Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)
 
 | | |
 |---|---|

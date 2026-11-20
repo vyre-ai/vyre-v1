@@ -61,6 +61,8 @@ export function putAway(ctx: TasksCtx, t: Task, a: { code: ArchiveCode; why: str
 }
 
 export async function archive(ctx: TasksCtx, input: In): Promise<unknown> {
+  // back: true is the agent's way to put it back (the same as tasks.unarchive, which the app calls)
+  if (input.back === true) return unarchive(ctx, input);
   const t = getTask(ctx, input.taskId);
   const server = isTrustedService(whoIs(ctx));
   if (!server && !visibleTo(ctx, t)) raise(ctx, "permission.not_found", "That task is not available.");

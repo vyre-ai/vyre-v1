@@ -1,6 +1,6 @@
 # tasks.history
 
-Activity of a task: transitions, hand-overs, notes and sends back, newest first
+Activity of a task: transitions, hand-overs, notes, sends back; newest first
 
 | | |
 |---|---|

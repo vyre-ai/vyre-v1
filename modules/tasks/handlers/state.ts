@@ -33,7 +33,9 @@ import {
   whoOn,
   MOMENT_GRACE_MS,
 } from "../projections.ts";
+import { checkProof } from "./proof.ts";
 import { ensureThread, syncThread, unseat } from "./thread.ts";
+import type { DoneWhenKind } from "../projections.ts";
 import type {
   ActionDef,
   Assignee,
@@ -564,6 +566,14 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
   // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
+  if (typeof input.doneWhen === "string") {
+    // "kind:name", for example "vault_item:Hosting key"
+    const at = input.doneWhen.indexOf(":");
+    const kind = input.doneWhen.slice(0, at),
+      key = input.doneWhen.slice(at + 1);
+    await checkProof(ctx, t, kind, key);
+    t.doneWhen = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+  }
   if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
   else if (ctx.principal.kind === "agent") {
     t.momentStated = false;

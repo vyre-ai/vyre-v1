@@ -1,6 +1,6 @@
 # tasks.act
 
-Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once
+Act on a request at its source: approve, reject, send back, answer or resolve, with a note; the chat or run goes on at once
 
 | | |
 |---|---|

@@ -1,6 +1,6 @@
 # tasks.take
 
-Take a group or role task; the first Take locks it and others see taken by
+Take a group or role task; the first Take locks it
 
 | | |
 |---|---|

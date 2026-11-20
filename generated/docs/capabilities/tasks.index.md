@@ -1,6 +1,6 @@
 # tasks.index
 
-The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing
+A scope's long list in one read: a light row per task, newest first; send the last rev and an unchanged list answers nothing
 
 | | |
 |---|---|

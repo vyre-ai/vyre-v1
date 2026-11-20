@@ -129,3 +129,31 @@ test("a meeting the setter cannot open is refused at set time; one refusal while
   const closed = await deliver(h2, "vault.item_created", { itemId: "v", name: "k" });
   assert.deepEqual(closed, [b]);
 });
+
+test("an agent states what proves a task done when it creates it, in one call; a held act or an Approve task refuses it", async () => {
+  const h = world();
+  const id = (
+    await h.call("tasks.create", newTask({ title: "Put the key in the Vault", doneWhen: "vault_item:Hosting Key" }), me)
+  ).task.id as string;
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "vault_item", key: "hosting key" });
+  assert.deepEqual(await deliver(h, "vault.item_created", { itemId: "v", name: "hosting key" }), [id]);
+  await assert.rejects(
+    h.call("tasks.create", newTask({ kind: "approve", title: "Approve", doneWhen: "vault_item:k" }), me),
+  );
+  await assert.rejects(
+    h.call(
+      "tasks.create",
+      newTask({ title: "Held", source: { kind: "gate", id: "act_9" }, doneWhen: "vault_item:k" }),
+      me,
+    ),
+  );
+});
+
+test("tasks.archive with back puts a task back, the same as tasks.unarchive", async () => {
+  const h = world();
+  const id = await mk(h, "Archive then back");
+  await h.call("tasks.archive", { taskId: id, why: "later" }, me);
+  assert.ok((await get(h, id)).archived);
+  await h.call("tasks.archive", { taskId: id, back: true }, me);
+  assert.equal((await get(h, id)).archived, undefined);
+});

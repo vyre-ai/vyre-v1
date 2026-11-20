@@ -1,6 +1,6 @@
 # tasks.create
 
-Create a task (Work by default)
+Create a task
 
 | | |
 |---|---|
@@ -66,6 +66,7 @@ type In = {
   dependsOn?: Array<string>;
   expiresAt?: number;
   relevantUntil?: number;
+  doneWhen?: string;
   actions?: Array<{
       key: string;
       label: string;
@@ -199,6 +200,7 @@ type Out = {
     "dependsOn": [
       "tsk_a1b2c3"
     ],
+    "doneWhen": "vault_item:Hosting key",
     "due": 1760000000000,
     "effort": 1,
     "expiresAt": 1760000000000,
