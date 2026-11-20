@@ -127,6 +127,10 @@ const SIGN_INS =
   "A person's own list of the sites their browser profile on this agent is signed in to (site and date, never a value). It is the person's view; agents use the browser through the chrome tools, not this list.";
 const VIA_RUNS_OPS =
   "An agent reaches it through the runs_ops tool (actions tree, tree_find, node, node_find, compare, events, messages, activity, board, message_send, board_put, board_answer, control, rerun, budget, save_as_agent); each runs the same handler the capability uses, so its own rules apply (who sees a tree, who speaks for a node, who manages it), and an agent's save_as_agent is held (runs.ops_gate).";
+const DESK_PRESS =
+  "A person's own button on the Computer tab: Pause holds an agent's next browser call still, and Resume lets it go on. The agent is the one paused, so it has nothing to call; after a stop it goes on with chrome_resume.";
+const DESK_DRAW =
+  "The Computer tab's own call: pointer draws the cursor where the agent last acted, and warm starts the agent's browser in the background when the tab opens. An agent starts and drives its browser with chrome_open and the other chrome tools.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -599,6 +603,8 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
     /^runs\.(tree\.(get|find)|node\.(get|find|compare|control|rerun|save_as_agent)|events\.list|message\.(list|send)|activity\.list|board\.(list|put|answer)|budget\.set)$/,
     VIA_RUNS_OPS,
   ],
+  [/^computers\.browser\.(pause|resume)$/, DESK_PRESS],
+  [/^computers\.browser\.(pointer|warm)$/, DESK_DRAW],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],
