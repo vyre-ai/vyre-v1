@@ -79,7 +79,7 @@ export type ToolRunner = (
 ) => Promise<ToolRunResult>;
 
 import type { HooksPort } from "../tools/hooks.ts";
-import { noteTurnStart } from "../tools/turn-start.ts";
+import { clearTurnCause, noteTurnStart } from "../tools/turn-start.ts";
 import { reportWindow } from "../transcript/windows.ts";
 
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
@@ -350,7 +350,8 @@ export interface TurnEngine {
   wakeHeld(threadId: string, messageId: string): ReceiveResult | null;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
   /** `routine`: the turn is a routine's (its reply is labelled "on a routine <person> set"); `from`: the person it runs for (default the thread's starter). */
-  wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string }): number;
+  /** `answers` is the task of a held call this wake continues: the turn it starts carries the cause of the turn that held the call (the same as resume()). */
+  wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string; answers?: string }): number;
   /**
    * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
@@ -596,6 +597,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   /** What a held message needs to be routed later (who it replies to, whose job it is, who pays). */
+  /** The cause of a wake that continues a held call whose wait was not recorded, by `${threadId}|${qseq}`; read once when the turn starts. */
+  const pendingCause = new Map<string, string>();
   const heldArgs = new Map<
     string,
     {
@@ -1210,7 +1213,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       injected: 0,
       info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
-    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, item.kind === "wake" && wait ? "resume" : item.kind);
+    // why this turn was started: a turn that continues a held call carries the cause of the turn it continues (a resumed wake is a wake, a resumed message turn is a message turn); the wake of a call whose wait was not
+    // recorded (a command-line engine's) is "resume", which no capability guards
+    const pendingKey = `${st.thread.id}|${item.qseq}`;
+    const parkedCause = pendingCause.get(pendingKey);
+    pendingCause.delete(pendingKey);
+    const cause = wait ? (wait.cause ?? "resume") : (parkedCause ?? item.kind);
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, cause);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,
@@ -1292,6 +1301,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         runId: p.held.runId ?? null,
         at: now(),
         resolution: null,
+        cause,
         wakeQseq: null,
       });
       return p.held.taskId;
@@ -1787,6 +1797,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       } catch {
         /* a session that will not close is dropped */
       }
+      // the turn is over: a call that comes now (a command-line engine's session lives across turns) has no cause, so no guard that reads it applies
+      clearTurnCause(st.thread.id, item.agentId);
     }
 
     const mineStill = leases.renew(st.thread.id, opts.holder, now());
@@ -2081,6 +2093,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         priority: 0,
         routine: o?.routine === true,
       });
+      if (o?.answers) pendingCause.set(`${threadId}|${item.qseq}`, waits.get(o.answers)?.cause ?? "resume");
       kick(st);
       return item.qseq;
     },

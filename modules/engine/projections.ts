@@ -167,6 +167,7 @@ const SCHEMA = [
   "0021_turn_journal.sql",
   "0022_turn_journal_key.sql",
   "0023_journal_scrubbed.sql",
+  "0024_wait_cause.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -202,6 +203,7 @@ export function ensure(db: Db): void {
     db.all("SELECT undo_sha FROM engine_rewind WHERE thread_id = ?", "probe");
     db.all("SELECT state FROM engine_rewind WHERE thread_id = ?", "probe");
     db.all("SELECT background FROM engine_own_subagent WHERE thread_id = ?", "probe");
+    db.all("SELECT cause FROM engine_waits WHERE task_id = ?", "probe");
   } catch {
     // a database that has most of the tables (an older build) runs the whole list again: an ALTER that was already applied says "duplicate column" and is not a failure
     for (const stmt of SCHEMA) {
@@ -512,6 +514,7 @@ function waitOf(r: Row): WaitRow {
     runId: orNull(r["run_id"]),
     at: num(r["at"]),
     resolution: res === null ? null : (JSON.parse(res) as WaitRow["resolution"]),
+    ...(r["cause"] === null || r["cause"] === undefined ? {} : { cause: str(r["cause"]) }),
     wakeQseq: r["wake_qseq"] === null || r["wake_qseq"] === undefined ? null : num(r["wake_qseq"]),
   };
 }
@@ -521,8 +524,8 @@ export function sqlWaits(db: Db): WaitStore {
   return {
     put(w) {
       db.run(
-        `INSERT OR REPLACE INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq, cause)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         w.taskId,
         w.threadId,
         w.turnId,
@@ -534,6 +537,7 @@ export function sqlWaits(db: Db): WaitStore {
         w.at,
         w.resolution === null ? null : JSON.stringify(w.resolution),
         w.wakeQseq,
+        w.cause ?? null,
       );
     },
     get(taskId) {

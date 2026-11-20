@@ -586,7 +586,7 @@ export const consumers = keptWhileStopping({
       }
       try {
         await openAs(ctx, p.threadId, person);
-        engine.wake(p.threadId, agentId);
+        engine.wake(p.threadId, agentId, { answers: p.taskId });
       } catch (e) {
         host.log?.("the agent was not woken after its held call was answered", {
           taskId: p.taskId,
