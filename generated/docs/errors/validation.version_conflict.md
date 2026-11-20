@@ -19,6 +19,7 @@ HTTP 409. Retryable: yes.
 - goals.update
 - google.docs.insert_text
 - journeys.design
+- journeys.move_stage
 - mounts.doc_insert_text
 - notes.update
 - records.update

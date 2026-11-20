@@ -1,0 +1,5 @@
+- A burst of commits is now one live-sync pull per device (not one per commit), the list of entities that have rows is read when the access state moves (not on every pull), and the project-folder repeat is two counts that start the full sweep only when there is work.
+- A revoke reaches a device fast on a big Space (about 60 pulls and 3 s for 12,000 rows), a removed device's rescan state is deleted with it, and a live flush that gives way to the loop is joined by the commits that come meanwhile.
+- The projection pass writes its cursor once per 20 ms slice instead of once per event.
+- New objects are registered in access a hundred to a statement in one transaction, the agent tool catalog is built in the first idle tick after the engine loads (not by the first turn), and the sealed-value pass of a sync gives the loop a turn every 15 ms.
+- A revoke hides the rows a device holds first, and a pull of a few hundred rows is one whole answer (no time cap on the change feed read).

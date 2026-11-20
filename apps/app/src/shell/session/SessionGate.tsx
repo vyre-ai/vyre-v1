@@ -72,6 +72,7 @@ import {
   findSpaceQuietly,
   hasOldData,
   healStaleWorker,
+  signInOptions,
   spaceIdAt,
 } from "./caps.ts";
 import type { Found } from "./caps.ts";
@@ -201,9 +202,16 @@ export function WithSpaceImage({ address, children }: { address: string | null; 
 }
 
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
-export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
+export function signInInvite(
+  baseUrl: string,
+  options: SignInOptions | null,
+  github = false,
+  sso = false,
+  knownName?: string,
+): JoinInvite {
   return {
-    space: spaceLabel(options?.name, baseUrl),
+    // the Space's own name once its options arrive; until then the name this device already knows it by (its row, its saved sign-in), so the title does not flash a generic line first
+    space: spaceLabel(options?.name ?? knownName, baseUrl),
     host: hostOf(baseUrl),
     by: "",
     role: "",
@@ -335,6 +343,7 @@ function SignInScreen({
   onUnreachable,
   username,
   unproven,
+  knownName,
 }: {
   baseUrl: string;
   open: NonNullable<SessionGateProps["open"]>;
@@ -347,6 +356,8 @@ function SignInScreen({
   username?: string | undefined;
   /** An address nothing proves is the Space this device knows (a second saved address): its sign-in shows the plain host, never a name or picture the address supplies. */
   unproven?: boolean;
+  /** What this device already calls the Space (its row in Your Spaces, its saved sign-in): shown as the title until the Space's own options arrive. */
+  knownName?: string | undefined;
 }): ReactElement {
   useEffect(() => {
     mark("app.usable");
@@ -368,7 +379,12 @@ function SignInScreen({
   unreachable.current = onUnreachable;
   useEffect(() => {
     let active = true;
-    const ask = (): Promise<SignInOptions> => anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>;
+    // an answer that is not a Space's sign-in options (an empty 200, a page of HTML in front of the address) is no answer: it takes the same way as a call that failed
+    const ask = async (): Promise<SignInOptions> => {
+      const answer = await anonymous("identity.sign_in_options", {});
+      if (!signInOptions(answer)) throw new Error("not a Space's sign-in options");
+      return answer as SignInOptions;
+    };
     const got = (found: SignInOptions): void => {
       if (!active) return;
       setReconnecting(false);
@@ -400,9 +416,9 @@ function SignInScreen({
     };
   }, [anonymous, baseUrl]);
   const invite = useMemo(() => {
-    const made = signInInvite(baseUrl, options, true, true);
+    const made = signInInvite(baseUrl, options, true, true, unproven ? undefined : knownName);
     return unproven ? { ...made, space: made.host } : made;
-  }, [baseUrl, options, unproven]);
+  }, [baseUrl, options, unproven, knownName]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as {
@@ -1499,7 +1515,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
    * The one address box (and every link handed to the app): find what is at the address, quietly asking again before saying anything, then go the way that fits. It rejects with the line
    * the box shows when the fix is the box itself (a wrong name, nothing answering); every other outcome is a screen of its own.
    */
-  const chooseEntry = async (target: EntryTarget, onRetry?: () => void): Promise<void> => {
+  const chooseEntry = async (target: EntryTarget, onRetry?: () => void, ownSpace = false): Promise<void> => {
     const away = elsewhere(target.kind === "claim" ? target.url : target.address);
     if (!away && target.kind === "signin") {
       const have =
@@ -1515,8 +1531,9 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         return;
       }
     }
-    // this computer's own Space (the app started it) is not asked across the network first: its screen reaches it and says so if it cannot
-    const own = !!bridge && isLoopbackUrl(target.address);
+    // this computer's own Space (the app just started it: the flows that make or claim it say so) is not asked across the network first: its screen reaches it and says so if it cannot. An address a
+    // person types or pastes is asked, loopback or not: nothing says a loopback port is this computer's Space, and "not answering" belongs under the box
+    const own = ownSpace && !!bridge && isLoopbackUrl(target.address);
     const found: Found = own
       ? { kind: "direct" }
       : await findSpaceQuietly(target.address, onRetry ? { onRetry } : {}).catch(() => OFFLINE);
@@ -1684,7 +1701,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         const stored = await resumePersonal(local, old, open);
         setConnectedAddress(local.address);
         signedIn(stored);
-      } else await chooseEntry({ kind: "signin", address: local.address });
+      } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
     }
   };
   const createMacServer = async (): Promise<void> => {
@@ -1694,7 +1711,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       const link = new URL(local.claimUrl);
       setPersonalClaim({ address: local.address, token: link.pathname.slice("/claim/".length), fragment: link.hash });
       setEntry(false);
-    } else await chooseEntry({ kind: "signin", address: local.address });
+    } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
   };
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen = (back?: () => void): ReactElement => (
@@ -1738,7 +1755,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         } catch {
           /* the sign-in screen says why */
         }
-        await chooseEntry({ kind: "signin", address: local.address });
+        await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
@@ -1755,7 +1772,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onLocal={(address) => {
             const saved = readStoredPersonal();
             if (saved) void enterSaved(saved);
-            else void chooseEntry({ kind: "signin", address });
+            else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       )
@@ -1834,12 +1851,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             if (stored) {
               setConnectedAddress(address);
               signedIn(stored);
-            } else void chooseEntry({ kind: "signin", address });
+            } else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
           onSignIn={() => {
             const address = personalClaim.address;
             setPersonalClaim(null);
-            void chooseEntry({ kind: "signin", address });
+            void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       </Suspense>
@@ -2088,6 +2105,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       <SignInScreen
         baseUrl={activeAddress}
         unproven={unproven === activeAddress}
+        knownName={rows.find((r) => r.address === activeAddress)?.name}
         open={open}
         onSignedIn={signedIn}
         notice={notice}

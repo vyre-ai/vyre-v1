@@ -127,6 +127,8 @@ export interface ActorRec {
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** One transaction for the writes of `fn` (a commit for the lot, not one for each statement), where the database has one. */
+  batch?<T>(fn: () => T): T;
 }
 export interface AccessCtx {
   preview?: { issue(person: string): { previewToken: string; expiresAt: number } };
@@ -933,17 +935,27 @@ export class AccessStore {
       }
       t.vals.set(JSON.stringify(key), vals);
     };
-    for (const id of ids) {
-      const r = this.resources.get(id);
-      if (!r) continue;
-      const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
-      db.run("DELETE FROM access_resources WHERE id = ?", id);
-      db.run(
-        "INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES (?,?,?,?,?,?,?)",
-        ...vals,
-      );
-      note("access_resources", [r.id], vals);
-    }
+    const write = (): void => {
+      const rows: unknown[][] = [];
+      for (const id of new Set(ids)) {
+        // an id named twice is written once
+        const r = this.resources.get(id);
+        if (r) rows.push([r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
+      }
+      // a hundred objects to a statement: a thousand new objects were two thousand statements, each through the guard and the trigger that moves the write counter
+      for (let i = 0; i < rows.length; i += 100) {
+        const part = rows.slice(i, i + 100);
+        db.run(`DELETE FROM access_resources WHERE id IN (${part.map(() => "?").join(",")})`, ...part.map((v) => v[0]));
+        db.run(
+          `INSERT INTO access_resources (id,type,parent_id,label,owner_id,holds,row_json) VALUES ${part.map(() => "(?,?,?,?,?,?,?)").join(",")}`,
+          ...part.flat(),
+        );
+        for (const vals of part) note("access_resources", [vals[0]], vals);
+      }
+    };
+    // one commit for the objects, not two for each: a thousand new objects were a thousand and some commits in one stretch
+    if (db.batch) db.batch(write);
+    else write();
     if (!cursorMoved) return;
     const n = this.fieldLabels.get(CURSOR_KEY) ?? 0;
     // the cursor is this computer's own (migrations/0004_local_cursor.sql): where access_local_cursor exists it is kept there, as `persist` keeps it, and never in access_fields, which travels

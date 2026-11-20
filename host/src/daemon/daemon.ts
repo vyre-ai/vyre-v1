@@ -1,6 +1,7 @@
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
+import { settleRegistration } from "../gateway/settle.ts";
 import { ownsSubject } from "./own-subject.ts";
 import { isExportItself, waitForQuiet } from "./export-quiet.ts";
 import { createChoiceSource } from "./forms-choices.ts";
@@ -3438,6 +3439,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             return;
           }
           if (r.type === "thread" && r.id !== null) {
+            // a thread another call has only just made: its row is there and access learns of it when that call's commit is synced. Wait for that commit (read-your-writes), not for a clock
+            const threadId = r.id;
+            await settleRegistration({
+              known: () => access.snap.resource(threadId) !== undefined,
+              rowExists: () => {
+                try {
+                  return (db!.all("SELECT 1 FROM chat_thread WHERE id = ?", threadId) as unknown[]).length > 0;
+                } catch {
+                  return false;
+                }
+              },
+              inFlight: () => [...commitsInFlight],
+              writing: () => exportMutationsInFlight > 0,
+              yieldOnce: () => new Promise<void>((done) => setImmediate(done)),
+            });
             await ensureThreadInChannel(r.id);
             return;
           }

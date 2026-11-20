@@ -313,6 +313,8 @@ function List(): ReactElement {
 
   const lineMenu = (l: Line, x: number, y: number): void => {
     dispatch({ type: "context", key: l.key });
+    if (phone && !state.selection.includes(l.key))
+      dispatch({ type: "click", order, key: l.key, mods: { meta: state.selection.length > 0, shift: false } });
     const picked = state.selection.includes(l.key) ? selectedLines() : [l];
     menu.show(
       lineMenuEntries(picked, inTrash, {
@@ -400,7 +402,10 @@ function List(): ReactElement {
     // a phone has no double tap to open and no modifier keys: one tap opens the folder or the file (it used to only select the row, and nothing seemed to happen)
     if (phone) {
       last.current = { key: l.key, at: 0 };
-      open(l);
+      // a row is selected by a long press (its menu opens too); while something is selected a tap adds or removes a row, and with nothing selected a tap opens
+      if (state.selection.length > 0)
+        dispatch({ type: "click", order, key: l.key, mods: { meta: true, shift: false } });
+      else open(l);
       return;
     }
     const now = Date.now();

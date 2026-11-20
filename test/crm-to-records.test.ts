@@ -113,6 +113,8 @@ async function boot(spaceKind: "personal" | "team" = "personal") {
       if (cap === "spaces.get") return { space: { kind: spaceKind, address: "https://team.example" } };
       if (cap === "connectors.sync_now")
         return (conn.handlers as Record<string, (c: unknown, i: unknown) => Promise<unknown>>)[cap]!(ctx, input);
+      // the Space directory: everyone here is a current member, so a "needs reconnecting" note goes to the person it names
+      if (cap === "access.principals.get") return { principal: { status: "active" } };
       if (cap === "tasks.create") {
         tasks.push({ input });
         return { task: { id: `tsk_${tasks.length}` } };

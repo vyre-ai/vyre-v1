@@ -131,6 +131,95 @@ test("a form link made in one step is usable in the email after it, and a mistyp
   assert.match(say(flow("{{steps.link.out.link}}"))[0]!, /After steps\.link\.out you can use expiresAt, url/);
 });
 
+test("a {{journey.x}} has to be a value some Journey carries: refused at save and said by validate, with what they carry", async () => {
+  const h = harness();
+  h.callee("journeys.list", () => ({
+    journeys: [
+      {
+        variables: [
+          { key: "plan", title: "Plan" },
+          { key: "owner", title: "Owner" },
+        ],
+      },
+    ],
+  }));
+  const flow = (text: string) =>
+    goodDefinition({
+      triggers: [{ key: "record_change", filter: { type: "contact" } }],
+      nodes: [
+        node("a", "records.update", { type: "contact", recordId: "{{trigger.recordId}}", patch: { note: text } }),
+      ],
+    });
+  const ok = await h.call("automations.validate", { definition: flow("Plan: {{journey.plan}}") }, alice);
+  assert.equal(
+    ok.issues.some((i: { message: string }) => /journey/.test(i.message)),
+    false,
+  );
+  const bad = await h.call("automations.validate", { definition: flow("{{journey.colour}}") }, alice);
+  assert.equal(bad.ok, false);
+  assert.match(
+    bad.issues.map((i: { message: string }) => i.message).join("\n"),
+    /\{\{journey\.colour\}\} is not a value any Journey carries\. They carry Plan, Owner\./,
+  );
+  await assert.rejects(
+    h.call("automations.create", create({ definition: flow("{{journey.colour}}") }), alice),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await h.call("automations.create", create({ definition: flow("{{journey.plan}}") }), alice);
+});
+
+test("an AI step names its skills: the save refuses one the Space does not have and says which it has; naming skills clears the 'switch to Task' warning", async () => {
+  const h = harness();
+  h.callee("skills.list", () => ({
+    skills: [
+      { name: "intake", enabled: true },
+      { name: "letters", enabled: true },
+      { name: "old", enabled: false },
+    ],
+  }));
+  const flow = (skills: string[]) =>
+    goodDefinition({
+      triggers: [{ key: "manual" }],
+      nodes: [
+        {
+          id: "a",
+          key: "ai",
+          input: { prompt: "Draft the welcome email with the intake skill." },
+          ai: { skills },
+        } as never,
+      ],
+    });
+  const ok = await h.call("automations.validate", { definition: flow(["intake"]) }, alice);
+  assert.equal(
+    ok.issues.some((i: { message: string }) => /skill/.test(i.message)),
+    false,
+    "no warning, no refusal",
+  );
+  const bad = await h.call("automations.validate", { definition: flow(["intake", "nope", "old"]) }, alice);
+  const lines = bad.issues.map((i: { message: string }) => i.message).join("\n");
+  assert.match(lines, /The skill "nope" is not in this Space\. Skills: intake, letters\./);
+  assert.match(lines, /The skill "old" is not in this Space/, "a switched-off skill is not there");
+  await assert.rejects(
+    h.call("automations.create", create({ definition: flow(["nope"]) }), alice),
+    (e) => codeOf(e) === "validation.bad_input",
+  );
+  await h.call("automations.create", create({ definition: flow(["intake"]) }), alice);
+  const plain = await h.call(
+    "automations.validate",
+    {
+      definition: goodDefinition({
+        triggers: [{ key: "manual" }],
+        nodes: [{ id: "a", key: "ai", input: { prompt: "Use the intake skill." } } as never],
+      }),
+    },
+    alice,
+  );
+  assert.ok(
+    plain.issues.some((i: { message: string }) => /cannot load a skill/.test(i.message)),
+    "without skills the warning stays",
+  );
+});
+
 test("a text of nothing but `{{` is read in linear time (no backtracking on hostile input)", () => {
   const hostile = "{{".repeat(50_000);
   const t0 = Date.now();
@@ -163,4 +252,36 @@ test("a version the server saved is marked checked; a version saved before the c
   assert.equal(edited.automation.version, made.automation.version + 1);
   assert.equal(isChecked(h.db, id, edited.automation.version), true, "the edit passed the check");
   assert.equal(isChecked(h.db, id, made.automation.version), false, "the old version stays as it was");
+});
+
+test("a version made from a checked one stays checked, whether it came from a restore, a copy, a promote or a schedule-limit change; one made from an unchecked one stays unchecked", async () => {
+  const { isChecked } = await import("../projections.ts");
+  const h = harness();
+  const made = await h.call("automations.create", create(), alice);
+  const id = made.automation.id as string;
+  // a copy of a checked Space automation is checked
+  await h.call("automations.promote", { automationId: id, confirm: true }, alice);
+  const copy = await h.call("automations.make_personal_copy", { automationId: id, name: "Copy" }, alice);
+  assert.equal(isChecked(h.db, copy.automation.id, copy.automation.version), true, "copy of a checked one");
+  // a restore of a checked version is checked; of an unchecked one is not
+  await h.call(
+    "automations.update",
+    {
+      automationId: id,
+      definition: goodDefinition({
+        nodes: [node("a", "records.update", { type: "contact", recordId: "rec_x", patch: {} })],
+      }),
+    },
+    alice,
+  );
+  const versions = (await h.call("automations.versions", { automationId: id }, alice)).versions as {
+    versionId: string;
+    n: number;
+  }[];
+  const first = versions.find((v) => v.n === 1)!;
+  const restored = await h.call("automations.restore_version", { automationId: id, versionId: first.versionId }, alice);
+  assert.equal(isChecked(h.db, id, restored.automation.version), true, "restore of a checked version");
+  h.db.run("DELETE FROM automations_checked WHERE automation_id = ?", id);
+  const again = await h.call("automations.restore_version", { automationId: id, versionId: first.versionId }, alice);
+  assert.equal(isChecked(h.db, id, again.automation.version), false, "restore of an unchecked version");
 });

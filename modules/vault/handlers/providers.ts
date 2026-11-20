@@ -900,7 +900,7 @@ async function refreshOne(
   ctx.emit(
     "vault.item_updated",
     `vault_item/${input.itemId}`,
-    { itemId: input.itemId, fieldsChanged: ["credentials"], settingsChanged: [] },
+    { itemId: input.itemId, fieldsChanged: ["credentials"], settingsChanged: [], kind: "ai_subscription" },
     { vis: "participants" },
   );
   return done(true, "refreshed", { providerKey });

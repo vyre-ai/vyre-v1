@@ -67,6 +67,7 @@ import {
 } from "./watches.ts";
 import { connectOptions, home } from "./home.ts";
 import { fire, replay, retry, run, stop, test, testEvents } from "./triggers.ts";
+import { readiness, stageOffers, whyNot, wouldRun } from "./clear.ts";
 
 export const handlers = {
   "automations.watches.check": watchCheck,
@@ -146,6 +147,11 @@ export const handlers = {
   "automations.read_link": readDocs,
   "automations.connector_card": connectorCard,
   "automations.code_reach": () => ({ ok: true }),
+  "automations.step_ask": () => ({ ok: true }),
+  "automations.readiness": readiness,
+  "automations.would_run": wouldRun,
+  "automations.stage_offers": stageOffers,
+  "automations.why_not": whyNot,
   "automations.validate": validate,
   "automations.versions": versions,
   "automations.webhook_url.get": webhookGet,

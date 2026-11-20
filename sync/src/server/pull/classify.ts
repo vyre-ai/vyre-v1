@@ -17,11 +17,29 @@ function ensure(db: Tx): void {
   ready.add(db);
 }
 
+/**
+ * The entities that have rows: read from the table when the access stamp has moved (or after a minute), not on every pull. `SELECT DISTINCT entity FROM sync_rows` walks the whole index, and the live
+ * stream asks at every commit (4.7 s of a 60 s profile on a Space of 280,000 rows). An entity that gets its first row is looked at by the next read; its default configuration holds back what the
+ * catalog says, and a field hidden by a grant or a label moves the access stamp.
+ */
+const ENTITIES_TTL_MS = 60_000;
+const entityCache = new WeakMap<object, Map<string, { stamp: string; at: number; keys: string[] }>>();
+function rowEntities(d: PullDeps, viewer: Viewer): string[] {
+  const stamp = String(d.cache.stamp(viewer.who.person, viewer.now));
+  let per = entityCache.get(d.db);
+  if (!per) entityCache.set(d.db, (per = new Map()));
+  const have = per.get(viewer.who.person);
+  if (have && have.stamp === stamp && viewer.now - have.at < ENTITIES_TTL_MS && viewer.now >= have.at) return have.keys;
+  const keys = d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows").map((r) => r.entity);
+  per.set(viewer.who.person, { stamp, at: viewer.now, keys });
+  return keys;
+}
+
 /** Entity to the fields this person on this device is held back from (grant hiddenFields, fields labelled above the ceiling), for every entity the server knows. */
 export function heldBack(d: PullDeps, viewer: Viewer): Record<string, string[]> {
   const keys = new Set<string>(d.catalog.known().map((e) => e.key));
   for (const k of d.catalog.classified?.() ?? []) keys.add(k);
-  for (const r of d.db.all<{ entity: string }>("SELECT DISTINCT entity FROM sync_rows")) keys.add(r.entity);
+  for (const k of rowEntities(d, viewer)) keys.add(k);
   const out: Record<string, string[]> = {};
   const granted = d.cache.hiddenByGrants(viewer.who.person, viewer.now);
   for (const key of [...keys].sort()) {

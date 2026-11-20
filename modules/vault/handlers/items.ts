@@ -768,7 +768,7 @@ export async function itemUpdate(
   ctx.emit(
     "vault.item_updated",
     `vault_item/${str(r, "id")}`,
-    { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings },
+    { itemId: str(r, "id"), fieldsChanged, settingsChanged: settings, kind: str(r, "kind") },
     { vis: "participants" },
   );
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };

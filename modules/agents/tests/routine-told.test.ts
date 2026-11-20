@@ -234,3 +234,42 @@ test("the pause item and its chat line are keyed by routine and pause time: the 
     "the chat line carries the same key, so a repeat is the same line",
   );
 });
+
+test("a routine that paused itself starts again when an AI account is connected or shared, not only when a Vault item is saved", () => {
+  const on = (consumers["agents.routine_resume"] as { on: string[] }).on;
+  for (const name of [
+    "vault.item_updated",
+    "vault.item_created",
+    "provider.added",
+    "engine.subscription_share_changed",
+  ])
+    assert.ok(on.includes(name), `agents.routine_resume listens to ${name}`);
+});
+
+test("a routine that paused itself starts again only when an AI account arrived: a share turned on or a changed AI key, not a share turned off or a login edit", async () => {
+  const cases: [Record<string, unknown>, string | undefined, boolean][] = [
+    [{ name: "engine.subscription_share_changed", payload: { enabled: false } }, undefined, false],
+    [{ name: "engine.subscription_share_changed", payload: { enabled: true } }, undefined, true],
+    [{ name: "vault.item_updated", payload: { itemId: "vit_login" } }, "login", false],
+    [{ name: "vault.item_updated", payload: { itemId: "vit_key" } }, "api_key", true],
+    [{ name: "provider.added", payload: {} }, undefined, true],
+  ];
+  for (const [event, kind, comesBack] of cases) {
+    const hn = harness();
+    world(hn);
+    const base = hn.as(svc);
+    const r = await routineOf(hn);
+    for (let i = 0; i < 3; i++) await failedRun(hn, r.routineId, "provider.auth_failed", "sign in again");
+    const ctx = {
+      ...base,
+      call: async (cap: string, input: { itemId?: string }) => {
+        if (cap !== "vault.item.get")
+          return (base as { call: (c: string, i: unknown) => Promise<unknown> }).call(cap, input);
+        if (!kind) throw new Error("not found");
+        return { item: { id: input.itemId, kind } };
+      },
+    };
+    await (consumers["agents.routine_resume"]!.run as (c: unknown, e: unknown) => Promise<unknown>)(ctx, event);
+    assert.equal(isSelfPaused(hn.db, r.routineId), !comesBack, JSON.stringify(event));
+  }
+});

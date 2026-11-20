@@ -27,6 +27,10 @@ export interface FirstPageViewProps {
   extra?: ReactNode;
   /** Automations waiting for his approval: a card each with Allow and Deny, drawn first under Needs you. */
   approvals?: ReactNode;
+  /** Automations that are missing something before they can be turned on (rc.41): a card each, with what is missing in one sentence and its one button. */
+  notReady?: readonly { id: string; name: string; line: string; button: "Connect" | "Fix" }[];
+  onOpen?(automationId: string): void;
+  onReady?(automationId: string): void;
 }
 
 function Btn({
@@ -123,6 +127,29 @@ export function FirstPageView(p: FirstPageViewProps): ReactElement {
                 onPress={() => p.onSetUp(suggestion.id)}
               />
             </View>
+          </>
+        ) : null}
+        {p.notReady && p.notReady.length > 0 ? (
+          <>
+            <Text style={[look.heading, s.gap]}>Not ready to turn on</Text>
+            {/* ui-rows-lint: not a list (cards, each with its own one button) */}
+            {p.notReady.map((n) => (
+              <View key={n.id} style={look.card} testID={`fp-notready-${n.id}`}>
+                <AppLogo
+                  app="vyre:logic"
+                  name={n.name}
+                  size={32}
+                  glyph={glyphOf({ app: "vyre:logic", name: n.name })}
+                  tint={tintOf({ app: "vyre:logic", name: n.name })}
+                />
+                <View style={s.grow}>
+                  <Text style={look.title}>{n.name}</Text>
+                  <Text style={[look.body, { color: "var(--ink-2)" }]}>{n.line}</Text>
+                </View>
+                <Btn id={`fp-open-${n.id}`} label="Open" kind="quiet" onPress={() => p.onOpen?.(n.id)} />
+                <Btn id={`fp-ready-${n.id}`} label={n.button} kind="primary" onPress={() => p.onReady?.(n.id)} />
+              </View>
+            ))}
           </>
         ) : null}
         <Text style={[look.heading, s.gap]}>{today.head}</Text>

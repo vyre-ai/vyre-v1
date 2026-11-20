@@ -582,3 +582,37 @@ test("a change a guest made starts no Automation, whichever trigger it is: the d
     "and the drop is logged",
   );
 });
+
+test("a quiet write (a Journey migration) starts no Run, however many Automations listen for a record change; the same change, not quiet, does", async () => {
+  const h = harness();
+  await live(h, {
+    name: "On any change",
+    definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "contact" } }] }),
+  });
+  await live(h, {
+    name: "On a stage field",
+    definition: goodDefinition({
+      triggers: [{ key: "record_change", filter: { type: "contact", fields: ["stage"] } }],
+    }),
+  });
+  const quiet = change({
+    id: "evt_q",
+    payload: {
+      recordId: "rec_1",
+      type: "contact",
+      fields: { stage: "won" },
+      prev: { stage: "new" },
+      version: 3,
+      quiet: true,
+    },
+  });
+  assert.deepEqual(
+    await h.consumer(engine, (ctx) => consumeEvent(ctx, quiet)),
+    [],
+    "nothing starts, and nothing is dropped with a reason either",
+  );
+  assert.equal(h.runs.length, 0);
+  const loud = change({ id: "evt_l", payload: { ...quiet.payload, quiet: undefined } });
+  const res = await h.consumer(engine, (ctx) => consumeEvent(ctx, loud));
+  assert.equal(res.length, 2, "both Automations run for a change that is not quiet");
+});

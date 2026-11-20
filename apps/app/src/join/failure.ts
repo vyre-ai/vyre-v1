@@ -43,7 +43,10 @@ export function seenAgo(seenAt: number | null, now: number = Date.now()): string
 export const MANY_TRIES = 5;
 
 const unreachable = (e: unknown): boolean =>
-  e instanceof TypeError || (typeof DOMException !== "undefined" && e instanceof DOMException);
+  e instanceof TypeError ||
+  (typeof DOMException !== "undefined" && e instanceof DOMException) ||
+  // an answer that was not a Space's (a page of HTML from a proxy or a relay): nothing answered as the Space
+  (e instanceof CapError && e.code === "gateway.bad_answer");
 /** The call never got an answer (no network, no server, a blocked request): the kind of failure that is asked again quietly before anyone is told. A refusal from the Space is not one. */
 export const isUnreachable = (e: unknown): boolean => unreachable(e);
 

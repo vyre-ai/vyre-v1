@@ -143,7 +143,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
     }
     close();
     if (
-      target.screen === "inbox.unmatched" ||
+      (target.screen === "inbox.unmatched" && state.main !== "unmatched") ||
       (state.main !== "meetings" && meetingHash !== null) ||
       (state.main !== "calendar" && eventHash !== null)
     )
@@ -243,7 +243,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
     );
   }
   // Match to a record (the list's menu and its row) opens the Unmatched screen: every sender or caller with no record, and the Match menu on each
-  if (target.screen === "inbox.unmatched" && !openId) {
+  if (state.main === "unmatched" && !openId) {
     return (
       <InboxUnmatched
         onShowAll={() => {
@@ -284,6 +284,17 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
   return <ContactList />;
 }
 
+/** The view a link in the address opens, for the state's first value: the Replies list, a meeting (Meetings) or an event (Calendar). The first frame then already draws it, with no list of inboxes for a frame on a phone. */
+function linkMain(target: { screen?: string | undefined; subject?: { type: string; id: string } | undefined }): {
+  main?: "replies" | "meetings" | "calendar" | "unmatched";
+} {
+  if (target.screen === "inbox.replies") return { main: "replies" };
+  if (target.screen === "inbox.unmatched") return { main: "unmatched" };
+  if (target.subject?.type === "meeting" || target.screen === "meetings.closeout") return { main: "meetings" };
+  if (target.subject?.type === "event") return { main: "calendar" };
+  return {};
+}
+
 /**
  * What a link in the address does to the Inbox's view: a meeting opens the Meetings tab, the Replies list opens Replies, an event opens the Calendar. It lives in the frame, which is mounted for as long
  * as the Inbox is. It used to sit in the middle pane, which a phone draws only after a sidebar row is tapped: the link was then applied at that tap, and took it away ("By contact" ended on Replies).
@@ -305,6 +316,11 @@ function useInboxLinks(): void {
   useEffect(() => {
     if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
   }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  // the Unmatched list (a conversation's Match button opens it): the link moves the view once; a row tapped afterwards leaves it, and the address's old words do not bring it back
+  const unmatchedLink = target.screen === "inbox.unmatched" ? `${target.args["conversationId"] ?? ""}` : null;
+  useEffect(() => {
+    if (unmatchedLink !== null && state.main !== "unmatched") dispatch({ type: "unmatched" });
+  }, [unmatchedLink]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
   useEffect(() => {
     if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
@@ -440,7 +456,7 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
       <InboxStateProvider
         initial={{
           ...scopeOfArgs(target.args),
-          ...(target.screen === "inbox.replies" ? { main: "replies" as const } : {}),
+          ...linkMain(target),
         }}
       >
         <InboxFrame rt={rt} openId={openId} close={() => setOpenId("")} />

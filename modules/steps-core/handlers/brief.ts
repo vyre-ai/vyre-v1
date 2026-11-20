@@ -114,6 +114,37 @@ const one = (s: string): string => cut(s.replace(/\s+/g, " ").trim(), 160);
 
 // ---- the brief ----
 
+/** One skill as the step loads it: the name, what it is for, its instructions and its supporting files. */
+export interface LoadedSkill {
+  name: string;
+  description?: string;
+  body: string;
+  files?: { path: string; text: string }[];
+}
+export const SKILL_CHARS = 12_000;
+export const SKILLS_TOTAL = 30_000;
+
+/** The Skills section: each skill's instructions, in the order the step names them, cut to a size a brief can carry. The Space wrote them, so they are instructions, not data. */
+export function skillsSection(skills: readonly LoadedSkill[]): string {
+  let budget = SKILLS_TOTAL;
+  const out: string[] = [];
+  for (const k of skills) {
+    if (budget <= 0) break;
+    const body = cut(k.body.trim(), Math.min(SKILL_CHARS, budget));
+    budget -= body.length;
+    const files = (k.files ?? [])
+      .map((f) => {
+        if (budget <= 0) return "";
+        const text = cut(f.text.trim(), Math.min(3_000, budget));
+        budget -= text.length;
+        return `File ${f.path}:\n${text}`;
+      })
+      .filter((x) => x !== "");
+    out.push([`### ${k.name}${k.description ? `: ${k.description}` : ""}`, body, ...files].join("\n"));
+  }
+  return section("Skills: your instructions for this work", out);
+}
+
 export interface BriefInput {
   kind: "answer" | "task";
   goal: string;
@@ -129,6 +160,8 @@ export interface BriefInput {
   reviewer?: string | undefined;
   approver?: string | undefined;
   timeoutMinutes?: number | undefined;
+  /** Skills the step was given: their instructions, from the Space's own library, in the brief after the goal. */
+  skills?: readonly LoadedSkill[] | undefined;
   /** The Run was started from outside (an email, a form, a webhook): what started it and the inputs are someone else's words, marked as data (review 12 Nov, 3). */
   outside?: { from: string } | undefined;
 }
@@ -147,6 +180,7 @@ const section = (title: string, body: string | string[]): string => {
 
 export function buildBrief(i: BriefInput): string {
   const parts: string[] = [section("Goal", i.goal)];
+  if (i.skills && i.skills.length > 0) parts.push(skillsSection(i.skills));
   let outsideInputs = "";
 
   const ctx: string[] = [];
@@ -253,7 +287,9 @@ export function buildBrief(i: BriefInput): string {
     );
   if (i.kind === "answer")
     rules.push(
-      "You have no tools in this turn: you cannot load a skill or open a file. Work from what is written here.",
+      i.skills && i.skills.length > 0
+        ? "You have no tools in this turn: the skills above are written here for you to follow. Where one asks for something only a tool can do, say what is missing in your answer."
+        : "You have no tools in this turn: you cannot load a skill or open a file. Work from what is written here.",
     );
   rules.push("Use secrets by Vault handle only. Never write a secret value anywhere.");
   parts.push(section("Rules", rules));

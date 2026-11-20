@@ -1,0 +1,1 @@
+Dragging a card lifts it and shows where it will land; a stage that wants fields asks for them on the card itself; a refusal puts its reason on the card; Z or Undo in the toast puts the last move back; selecting cards shows a bar to move or assign them together; if someone else, or an Automation, moves a card while you hold it, theirs stands and you are told so.

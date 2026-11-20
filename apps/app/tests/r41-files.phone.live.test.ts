@@ -4,7 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { bootNav } from "./r32-nav-kit.test.ts";
 
-test("phone Files: one tap opens a folder, one tap opens a file", async (t) => {
+const SCREENS = `[...document.querySelectorAll('[data-testid^="screen-"]')].map((e) => e.getAttribute("data-testid")).join(",")`;
+
+test("phone Files: one tap opens a folder, one tap opens a file; a long press selects", async (t) => {
   const k = await bootNav({ width: 390, height: 844, scheme: "light", phone: true, tag: "phone-files-tap" });
   if (!k) {
     t.skip("VYRE_APP_DIST required");
@@ -58,6 +60,38 @@ test("phone Files: one tap opens a folder, one tap opens a file", async (t) => {
       `(document.querySelector('[data-testid^="screen-file:"]') || { innerText: "" }).innerText.includes("Welcome to the firm")`,
       null,
       { timeout: 10_000 },
+    );
+
+    // a long press selects a row (and opens its menu); then a tap adds or removes rows instead of opening; with nothing selected a tap opens
+    await page.reload({ waitUntil: "load" });
+    await page.getByTestId("mobile-shell").waitFor({ timeout: 30_000 });
+    await page.getByTestId("tab-files").click();
+    const files = page.locator(
+      '[data-testid^="row-line:file"]:not([data-testid$="-leading"]):not([data-testid$="-trailing"])',
+    );
+    await files.first().waitFor({ timeout: 20_000 });
+    const cdp = await page.context().newCDPSession(page);
+    const box = (await files.first().boundingBox())!;
+    const at = { x: Math.round(box.x + 80), y: Math.round(box.y + box.height / 2) };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+    await page.waitForTimeout(700);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await page.waitForFunction(
+      `document.querySelector('[data-testid^="row-line:file"]').getAttribute("aria-selected") === "true"`,
+      null,
+      { timeout: 10_000 },
+    );
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(400);
+    const stay = (await page.evaluate(SCREENS)) as string;
+    // a tap on the selected row while one is selected un-selects it (nothing opens)
+    await files.first().click();
+    await page.waitForTimeout(800);
+    assert.equal(await page.evaluate(SCREENS), stay, "a tap with a selection does not open anything");
+    assert.equal(
+      await files.first().getAttribute("aria-selected"),
+      "false",
+      "the tap took the row out of the selection",
     );
   } finally {
     await k.close();
