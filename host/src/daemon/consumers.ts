@@ -397,12 +397,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   // a delivered event is still stored at once (setCursor).
   const FLUSH_EVERY_MS = 1000;
   let lastFlush = Number.NEGATIVE_INFINITY;
-  const flush = (): void => {
+  const flush = (force = false): void => {
     if (abandoned) return;
     const dirty = [...read].filter(([name, seq]) => saved.get(name) !== seq);
     if (dirty.length === 0) return;
     const t = performance.now();
-    if (!closing && t - lastFlush < FLUSH_EVERY_MS) return; // coalesced: the next pass or the stop stores the latest
+    if (!force && !closing && t - lastFlush < FLUSH_EVERY_MS) return; // coalesced: the next pass, the idle flush or the stop stores the latest
     lastFlush = t;
     if (dirty.length === 1) return setCursor(dirty[0]![0], dirty[0]![1]);
     // one commit for all of them, not one per consumer
@@ -417,6 +417,23 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       for (const [name, was] of before) was === undefined ? saved.delete(name) : saved.set(name, was); // not stored after all
       throw err;
     }
+  };
+  // When the passes go quiet a coalesced write is not left waiting for a pass that may not come for hours (a quiet Space at night): one flush a second after the last pass stores what is still held, so the
+  // stored cursors reach the head and whatever reads them (the doctor, the console's lag) does not report consumers that are behind when they are not.
+  let idleTimer: ReturnType<typeof setTimeout> | null = null;
+  const armIdleFlush = (): void => {
+    if (idleTimer || closing || abandoned) return;
+    if (![...read].some(([name, seq]) => saved.get(name) !== seq)) return;
+    idleTimer = setTimeout(() => {
+      idleTimer = null;
+      if (running || closing || abandoned) return; // a pass is on (it flushes) or the stop is (it flushes)
+      try {
+        flush(true);
+      } catch (err) {
+        d.warn("the consumers' cursors could not be stored while idle", { error: err instanceof Error ? err.message : String(err) });
+      }
+    }, FLUSH_EVERY_MS);
+    idleTimer.unref?.();
   };
   const tries = new Map<string, number>();
   const kept = new Set<string>();
@@ -530,6 +547,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           }
           flush();
         } while (again);
+        armIdleFlush();
       } finally {
         running = null;
       } // set in the same tick as the last check of `again`, so a call can never be told "a pass is running" by a pass that has finished
@@ -560,7 +578,17 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     },
     close(boundMs) {
       closing = true;
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = null;
       const pass = running;
+      if (!pass && !abandoned) {
+        // no pass is running to store what the coalescing held back: store it now, before the database goes
+        try {
+          flush();
+        } catch (err) {
+          d.warn("the consumers' cursors could not be stored at the stop", { error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       if (!pass || abandoned) return Promise.resolve();
       if (boundMs === undefined) return pass;
       return new Promise<void>((done) => {

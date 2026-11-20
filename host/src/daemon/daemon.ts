@@ -2403,6 +2403,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let previews: ReturnType<typeof createViewAs> | null = null;
       let invokeRef: Invoke = () => Promise.reject(new Error("the invoke pipeline is not ready"));
       const firstCapOf = new Map<string, (typeof registryCaps)[number] | undefined>();
+      const emitsByModule = new Map<string, string[]>();
       /** The task a thread is about, when an Automation's Run made it: its automation, the trigger kind, and whether a stranger could have started it (email, form, webhook). */
       const automationTaskOfThread = async (
         threadId: string,
@@ -2455,11 +2456,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // a guest is a person with no View on the Space (kernel/src/authorize/snapshot.ts); a consumer reads that from the event, it never asks
         outsiderOf: (actor) => actor.startsWith("usr_") && access.snap.info(actor)?.guest === true,
         invoke: (cap, input, seed) => invokeRef(cap, input, seed),
-        emitsOf: (m) => [
-          ...new Set(
-            registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]),
-          ),
-        ],
+        // once per module (it was asked for each of its hundred hooks, and each time went through every capability: 24 ms in one stretch of the start)
+        emitsOf: (m) => {
+          let got = emitsByModule.get(m);
+          if (!got) {
+            got = [
+              ...new Set(
+                registryCaps.filter((c) => (c as { module?: string }).module === m).flatMap((c) => c.emits as string[]),
+              ),
+            ];
+            emitsByModule.set(m, got);
+          }
+          return [...got];
+        },
         // the first capability of each module, looked up once (a search of every capability on every module call was a fifteenth of a write)
         capOf: (m) => {
           if (!firstCapOf.has(m))
