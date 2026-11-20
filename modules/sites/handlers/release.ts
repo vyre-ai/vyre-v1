@@ -1420,8 +1420,15 @@ async function sitesShip(ctx: Ctx, input: unknown): Promise<Record<string, unkno
   const named = optStr(ctx, o, "siteId");
   // what the caller passes as plain is checked now, before a site is made: a refusal later would leave a site behind
   if (Array.isArray(o["env"]))
-    for (const e of o["env"] as { name?: unknown; value?: unknown; confirmPlain?: unknown }[])
+    for (const e of o["env"] as { name?: unknown; value?: unknown; vaultHandle?: unknown; confirmPlain?: unknown }[]) {
       if (typeof e?.value === "string") checkPlain(ctx, String(e.name ?? ""), e.value, e.confirmPlain === true);
+      // a Vault key is written as #Name or #Name.field: the form is no longer in the tool's schema, so it is checked here, before a site is made
+      if (typeof e?.vaultHandle === "string" && e.vaultHandle !== "" && !HANDLE.test(e.vaultHandle))
+        fail(ctx, "validation.bad_input", "A Vault key is written as #Name or #Name.field.", {
+          field: "env.vaultHandle",
+          name: String(e.name ?? ""),
+        });
+    }
   let siteId: string;
   // a site this caller made by this name before is the one meant (a retry that has only the name finds it; it does not make a second)
   let reused = false;
