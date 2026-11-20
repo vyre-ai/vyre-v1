@@ -1963,25 +1963,25 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     >
       <Suspense fallback={<View style={styles.fill} />}>
         <AfterLoad load={loadShellHost} ready={shellReady} fallback={<View style={styles.fill} />}>
-        <SignedInShell
-          key={`${phase.stored.baseUrl}${phase.stored.personId}:${shellTry}`}
-          stored={phase.stored}
-          open={open}
-          onUnreachable={() => shellUnreachable(phase.stored)}
-          onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
-          onHub={onHub}
-          voice={props.voice}
-          onSwitchSpace={(id) => void switchSpace(id)}
-          onYourSpaces={() => {
-            setUnderShell(phase.stored.baseUrl);
-            giDo({ e: "list" });
-          }}
-          onAddSpace={() => {
-            setReturnSession(phase.stored);
-            setEntryStart("choice");
-            setEntry(true);
-          }}
-        />
+          <SignedInShell
+            key={`${phase.stored.baseUrl}${phase.stored.personId}:${shellTry}`}
+            stored={phase.stored}
+            open={open}
+            onUnreachable={() => shellUnreachable(phase.stored)}
+            onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
+            onHub={onHub}
+            voice={props.voice}
+            onSwitchSpace={(id) => void switchSpace(id)}
+            onYourSpaces={() => {
+              setUnderShell(phase.stored.baseUrl);
+              giDo({ e: "list" });
+            }}
+            onAddSpace={() => {
+              setReturnSession(phase.stored);
+              setEntryStart("choice");
+              setEntry(true);
+            }}
+          />
         </AfterLoad>
       </Suspense>
     </KeyGate>
