@@ -1163,8 +1163,6 @@ async function scriptedFill(o: {
         return () => {};
       },
       invoke: async (c: string, i: Msg) => {
-        if (c === "vault.use") return { handle: "#X", fields: ["username", "password"] };
-
         if (c === "vault.use") return o.uses ?? { handle: "#X", fields: ["username", "password"] };
         if (c === "vault.fill") {
           const push = (value: string) =>
