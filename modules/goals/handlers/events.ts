@@ -204,6 +204,27 @@ export async function onCleared(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
       woken.push(g.id);
     }
   }
+  // an AI account was saved while a check-in waited out its backoff after a passing trouble (the server stopped, no account yet): ask now, once. The wake keeps its attempt count, so a check-in that fails
+  // again goes back to the longer wait and is never asked in a tight loop; only another saved account pulls it forward again.
+  if (ev.name !== "turn.completed") {
+    const now = ctx.now();
+    for (const r of ctx.db.all(
+      "SELECT goal_id FROM goals_wake WHERE state = 'pending' AND due_at > ? AND attempt < ? AND (',' || reason || ',') LIKE '%,retry,%'",
+      now,
+      MAX_TRIES,
+    ) as { goal_id: string }[]) {
+      const g = getGoal(ctx.db, r.goal_id);
+      if (!g || !LIVE.has(g.status) || woken.includes(g.id)) continue;
+      ctx.db.run(
+        "UPDATE goals_wake SET due_at = ? WHERE goal_id = ? AND state = 'pending' AND (',' || reason || ',') LIKE '%,retry,%'",
+        now,
+        g.id,
+      );
+      note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} is asked to check in again: an AI account was saved.`);
+      dispatch(ctx, g);
+      woken.push(g.id);
+    }
+  }
   return woken;
 }
 
