@@ -52,3 +52,12 @@ test("Recipient fallback never prints a raw identity or mailbox id", () => {
   assert.equal(subjectLabel({ kind: "person", id: "usr_fixture", name: "usr_fixture" }), "Person");
   assert.equal(subjectLabel({ kind: "person", id: "usr_fixture", name: "Maya" }), "Maya");
 });
+
+test("a link to the sending-domains screen alone opens Sending domains, not the Email page that draws the same screen", async () => {
+  const { PAGES } = await import("../../shell/nav.ts");
+  assert.equal(PAGES.find((p) => p.screen === "mail.domains")?.id, "domains");
+  assert.ok(
+    PAGES.some((p) => p.id === "email" && p.screen === "mail.domains"),
+    "the Email page is still there, reached by its own name",
+  );
+});
