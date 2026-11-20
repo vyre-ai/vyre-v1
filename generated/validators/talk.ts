@@ -176,30 +176,30 @@ if ("label" in o1013) lf(o1013["label"], p + "/providers" + '/' + i1008 + "/lang
 
 function d_s_fa4f8fd868(v: unknown, p: string, e: string[]): void {
 {
-const x1285 = v;
-const g1285 = typeOf(x1285);
-const b1285: string[] = []; lf(x1285, p, b1285, L0); if (b1285.length) e.push(...b1285);
-if (g1285 === "object") {
-if (g1285 === 'object') { const o1285 = x1285 as Record<string, unknown>;
-if (!("set" in o1285)) e.push(p + "/set" + ': required');
-if (!("on" in o1285)) e.push(p + "/on" + ': required');
-if ("set" in o1285) lf(o1285["set"], p + "/set", e, L3);
-if ("on" in o1285) lf(o1285["on"], p + "/on", e, L3);
-if ("provider" in o1285) lf(o1285["provider"], p + "/provider", e, L1);
-if ("itemId" in o1285) lf(o1285["itemId"], p + "/itemId", e, L94);
-if ("setBy" in o1285) lf(o1285["setBy"], p + "/setBy", e, L16);
-if ("checkedAt" in o1285) lf(o1285["checkedAt"], p + "/checkedAt", e, L17);
-if ("state" in o1285) lf(o1285["state"], p + "/state", e, L421);
-if ("peopleOwnKey" in o1285) lf(o1285["peopleOwnKey"], p + "/peopleOwnKey", e, L17);
-if ("keyed" in o1285) {
-{
-const x1286 = o1285["keyed"];
+const x1286 = v;
 const g1286 = typeOf(x1286);
-const b1286: string[] = []; lf(x1286, p + "/keyed", b1286, L4); if (b1286.length) e.push(...b1286);
-if (g1286 === "array") {
-if (g1286 === 'array') { const a1286 = x1286 as unknown[];
-for (let i1286 = 0; i1286 < a1286.length; i1286++) {
-lf(a1286[i1286], p + "/keyed" + '/' + i1286, e, L1);
+const b1286: string[] = []; lf(x1286, p, b1286, L0); if (b1286.length) e.push(...b1286);
+if (g1286 === "object") {
+if (g1286 === 'object') { const o1286 = x1286 as Record<string, unknown>;
+if (!("set" in o1286)) e.push(p + "/set" + ': required');
+if (!("on" in o1286)) e.push(p + "/on" + ': required');
+if ("set" in o1286) lf(o1286["set"], p + "/set", e, L3);
+if ("on" in o1286) lf(o1286["on"], p + "/on", e, L3);
+if ("provider" in o1286) lf(o1286["provider"], p + "/provider", e, L1);
+if ("itemId" in o1286) lf(o1286["itemId"], p + "/itemId", e, L94);
+if ("setBy" in o1286) lf(o1286["setBy"], p + "/setBy", e, L16);
+if ("checkedAt" in o1286) lf(o1286["checkedAt"], p + "/checkedAt", e, L17);
+if ("state" in o1286) lf(o1286["state"], p + "/state", e, L421);
+if ("peopleOwnKey" in o1286) lf(o1286["peopleOwnKey"], p + "/peopleOwnKey", e, L17);
+if ("keyed" in o1286) {
+{
+const x1287 = o1286["keyed"];
+const g1287 = typeOf(x1287);
+const b1287: string[] = []; lf(x1287, p + "/keyed", b1287, L4); if (b1287.length) e.push(...b1287);
+if (g1287 === "array") {
+if (g1287 === 'array') { const a1287 = x1287 as unknown[];
+for (let i1287 = 0; i1287 < a1287.length; i1287++) {
+lf(a1287[i1287], p + "/keyed" + '/' + i1287, e, L1);
 }
 }
 }

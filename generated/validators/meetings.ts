@@ -110,81 +110,81 @@ if ("hasSummary" in o968) lf(o968["hasSummary"], p + "/hasSummary", e, L3);
 
 function d_s_f953700f1c(v: unknown, p: string, e: string[]): void {
 {
-const x1274 = v;
-const g1274 = typeOf(x1274);
-const b1274: string[] = []; lf(x1274, p, b1274, L0); if (b1274.length) e.push(...b1274);
-if (g1274 === "object") {
-if (g1274 === 'object') { const o1274 = x1274 as Record<string, unknown>;
-if (!("itemId" in o1274)) e.push(p + "/itemId" + ': required');
-if (!("kind" in o1274)) e.push(p + "/kind" + ': required');
-if (!("status" in o1274)) e.push(p + "/status" + ': required');
-if (!("title" in o1274)) e.push(p + "/title" + ': required');
-if ("itemId" in o1274) lf(o1274["itemId"], p + "/itemId", e, L1);
-if ("kind" in o1274) lf(o1274["kind"], p + "/kind", e, L487);
-if ("status" in o1274) lf(o1274["status"], p + "/status", e, L488);
-if ("title" in o1274) lf(o1274["title"], p + "/title", e, L1);
-if ("assignee" in o1274) lf(o1274["assignee"], p + "/assignee", e, L16);
-if ("ownerName" in o1274) lf(o1274["ownerName"], p + "/ownerName", e, L1);
-if ("due" in o1274) lf(o1274["due"], p + "/due", e, L17);
-if ("why" in o1274) lf(o1274["why"], p + "/why", e, L1);
-if ("recordId" in o1274) lf(o1274["recordId"], p + "/recordId", e, L28);
-if ("recordType" in o1274) lf(o1274["recordType"], p + "/recordType", e, L1);
-if ("changes" in o1274) {
-{
-const x1275 = o1274["changes"];
+const x1275 = v;
 const g1275 = typeOf(x1275);
-const b1275: string[] = []; lf(x1275, p + "/changes", b1275, L4); if (b1275.length) e.push(...b1275);
-if (g1275 === "array") {
-if (g1275 === 'array') { const a1275 = x1275 as unknown[];
-for (let i1275 = 0; i1275 < a1275.length; i1275++) {
+const b1275: string[] = []; lf(x1275, p, b1275, L0); if (b1275.length) e.push(...b1275);
+if (g1275 === "object") {
+if (g1275 === 'object') { const o1275 = x1275 as Record<string, unknown>;
+if (!("itemId" in o1275)) e.push(p + "/itemId" + ': required');
+if (!("kind" in o1275)) e.push(p + "/kind" + ': required');
+if (!("status" in o1275)) e.push(p + "/status" + ': required');
+if (!("title" in o1275)) e.push(p + "/title" + ': required');
+if ("itemId" in o1275) lf(o1275["itemId"], p + "/itemId", e, L1);
+if ("kind" in o1275) lf(o1275["kind"], p + "/kind", e, L487);
+if ("status" in o1275) lf(o1275["status"], p + "/status", e, L488);
+if ("title" in o1275) lf(o1275["title"], p + "/title", e, L1);
+if ("assignee" in o1275) lf(o1275["assignee"], p + "/assignee", e, L16);
+if ("ownerName" in o1275) lf(o1275["ownerName"], p + "/ownerName", e, L1);
+if ("due" in o1275) lf(o1275["due"], p + "/due", e, L17);
+if ("why" in o1275) lf(o1275["why"], p + "/why", e, L1);
+if ("recordId" in o1275) lf(o1275["recordId"], p + "/recordId", e, L28);
+if ("recordType" in o1275) lf(o1275["recordType"], p + "/recordType", e, L1);
+if ("changes" in o1275) {
 {
-const x1276 = a1275[i1275];
+const x1276 = o1275["changes"];
 const g1276 = typeOf(x1276);
-const b1276: string[] = []; lf(x1276, p + "/changes" + '/' + i1275, b1276, L0); if (b1276.length) e.push(...b1276);
-if (g1276 === "object") {
-if (g1276 === 'object') { const o1276 = x1276 as Record<string, unknown>;
-if (!("field" in o1276)) e.push(p + "/changes" + '/' + i1275 + "/field" + ': required');
-if (!("title" in o1276)) e.push(p + "/changes" + '/' + i1275 + "/title" + ': required');
-if (!("to" in o1276)) e.push(p + "/changes" + '/' + i1275 + "/to" + ': required');
-if ("field" in o1276) lf(o1276["field"], p + "/changes" + '/' + i1275 + "/field", e, L1);
-if ("title" in o1276) lf(o1276["title"], p + "/changes" + '/' + i1275 + "/title", e, L1);
-if ("from" in o1276) lf(o1276["from"], p + "/changes" + '/' + i1275 + "/from", e, L1);
-if ("to" in o1276) lf(o1276["to"], p + "/changes" + '/' + i1275 + "/to", e, L1);
-}
-}
-}
-}
-}
-}
-}
-}
-if ("note" in o1274) lf(o1274["note"], p + "/note", e, L1);
-if ("to" in o1274) d_s_9eb38dfc46(o1274["to"], p + "/to", e);
-if ("subject" in o1274) lf(o1274["subject"], p + "/subject", e, L1);
-if ("text" in o1274) lf(o1274["text"], p + "/text", e, L1);
-if ("mailboxId" in o1274) lf(o1274["mailboxId"], p + "/mailboxId", e, L25);
-if ("send" in o1274) lf(o1274["send"], p + "/send", e, L489);
-if ("startsAt" in o1274) lf(o1274["startsAt"], p + "/startsAt", e, L17);
-if ("endsAt" in o1274) lf(o1274["endsAt"], p + "/endsAt", e, L17);
-if ("made" in o1274) {
+const b1276: string[] = []; lf(x1276, p + "/changes", b1276, L4); if (b1276.length) e.push(...b1276);
+if (g1276 === "array") {
+if (g1276 === 'array') { const a1276 = x1276 as unknown[];
+for (let i1276 = 0; i1276 < a1276.length; i1276++) {
 {
-const x1277 = o1274["made"];
+const x1277 = a1276[i1276];
 const g1277 = typeOf(x1277);
-const b1277: string[] = []; lf(x1277, p + "/made", b1277, L4); if (b1277.length) e.push(...b1277);
-if (g1277 === "array") {
-if (g1277 === 'array') { const a1277 = x1277 as unknown[];
-for (let i1277 = 0; i1277 < a1277.length; i1277++) {
+const b1277: string[] = []; lf(x1277, p + "/changes" + '/' + i1276, b1277, L0); if (b1277.length) e.push(...b1277);
+if (g1277 === "object") {
+if (g1277 === 'object') { const o1277 = x1277 as Record<string, unknown>;
+if (!("field" in o1277)) e.push(p + "/changes" + '/' + i1276 + "/field" + ': required');
+if (!("title" in o1277)) e.push(p + "/changes" + '/' + i1276 + "/title" + ': required');
+if (!("to" in o1277)) e.push(p + "/changes" + '/' + i1276 + "/to" + ': required');
+if ("field" in o1277) lf(o1277["field"], p + "/changes" + '/' + i1276 + "/field", e, L1);
+if ("title" in o1277) lf(o1277["title"], p + "/changes" + '/' + i1276 + "/title", e, L1);
+if ("from" in o1277) lf(o1277["from"], p + "/changes" + '/' + i1276 + "/from", e, L1);
+if ("to" in o1277) lf(o1277["to"], p + "/changes" + '/' + i1276 + "/to", e, L1);
+}
+}
+}
+}
+}
+}
+}
+}
+if ("note" in o1275) lf(o1275["note"], p + "/note", e, L1);
+if ("to" in o1275) d_s_9eb38dfc46(o1275["to"], p + "/to", e);
+if ("subject" in o1275) lf(o1275["subject"], p + "/subject", e, L1);
+if ("text" in o1275) lf(o1275["text"], p + "/text", e, L1);
+if ("mailboxId" in o1275) lf(o1275["mailboxId"], p + "/mailboxId", e, L25);
+if ("send" in o1275) lf(o1275["send"], p + "/send", e, L489);
+if ("startsAt" in o1275) lf(o1275["startsAt"], p + "/startsAt", e, L17);
+if ("endsAt" in o1275) lf(o1275["endsAt"], p + "/endsAt", e, L17);
+if ("made" in o1275) {
 {
-const x1278 = a1277[i1277];
+const x1278 = o1275["made"];
 const g1278 = typeOf(x1278);
-const b1278: string[] = []; lf(x1278, p + "/made" + '/' + i1277, b1278, L0); if (b1278.length) e.push(...b1278);
-if (g1278 === "object") {
-if (g1278 === 'object') { const o1278 = x1278 as Record<string, unknown>;
-if (!("type" in o1278)) e.push(p + "/made" + '/' + i1277 + "/type" + ': required');
-if (!("id" in o1278)) e.push(p + "/made" + '/' + i1277 + "/id" + ': required');
-if ("type" in o1278) lf(o1278["type"], p + "/made" + '/' + i1277 + "/type", e, L490);
-if ("id" in o1278) lf(o1278["id"], p + "/made" + '/' + i1277 + "/id", e, L1);
-if ("title" in o1278) lf(o1278["title"], p + "/made" + '/' + i1277 + "/title", e, L1);
+const b1278: string[] = []; lf(x1278, p + "/made", b1278, L4); if (b1278.length) e.push(...b1278);
+if (g1278 === "array") {
+if (g1278 === 'array') { const a1278 = x1278 as unknown[];
+for (let i1278 = 0; i1278 < a1278.length; i1278++) {
+{
+const x1279 = a1278[i1278];
+const g1279 = typeOf(x1279);
+const b1279: string[] = []; lf(x1279, p + "/made" + '/' + i1278, b1279, L0); if (b1279.length) e.push(...b1279);
+if (g1279 === "object") {
+if (g1279 === 'object') { const o1279 = x1279 as Record<string, unknown>;
+if (!("type" in o1279)) e.push(p + "/made" + '/' + i1278 + "/type" + ': required');
+if (!("id" in o1279)) e.push(p + "/made" + '/' + i1278 + "/id" + ': required');
+if ("type" in o1279) lf(o1279["type"], p + "/made" + '/' + i1278 + "/type", e, L490);
+if ("id" in o1279) lf(o1279["id"], p + "/made" + '/' + i1278 + "/id", e, L1);
+if ("title" in o1279) lf(o1279["title"], p + "/made" + '/' + i1278 + "/title", e, L1);
 }
 }
 }
@@ -193,7 +193,7 @@ if ("title" in o1278) lf(o1278["title"], p + "/made" + '/' + i1277 + "/title", e
 }
 }
 }
-if ("error" in o1274) lf(o1274["error"], p + "/error", e, L1);
+if ("error" in o1275) lf(o1275["error"], p + "/error", e, L1);
 }
 }
 }

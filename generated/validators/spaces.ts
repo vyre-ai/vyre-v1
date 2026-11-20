@@ -115,15 +115,15 @@ if ("type" in o1035) d_s_96787fc2f6(o1035["type"], p + "/type", e);
 
 function d_s_ffeaa590a2(v: unknown, p: string, e: string[]): void {
 {
-const x1327 = v;
-const g1327 = typeOf(x1327);
-const b1327: string[] = []; lf(x1327, p, b1327, L0); if (b1327.length) e.push(...b1327);
-if (g1327 === "object") {
-if (g1327 === 'object') { const o1327 = x1327 as Record<string, unknown>;
-if (!("person" in o1327)) e.push(p + "/person" + ': required');
-if (!("resource" in o1327)) e.push(p + "/resource" + ': required');
-if ("person" in o1327) lf(o1327["person"], p + "/person", e, L16);
-if ("resource" in o1327) d_s_f423029e33(o1327["resource"], p + "/resource", e);
+const x1328 = v;
+const g1328 = typeOf(x1328);
+const b1328: string[] = []; lf(x1328, p, b1328, L0); if (b1328.length) e.push(...b1328);
+if (g1328 === "object") {
+if (g1328 === 'object') { const o1328 = x1328 as Record<string, unknown>;
+if (!("person" in o1328)) e.push(p + "/person" + ': required');
+if (!("resource" in o1328)) e.push(p + "/resource" + ': required');
+if ("person" in o1328) lf(o1328["person"], p + "/person", e, L16);
+if ("resource" in o1328) d_s_f423029e33(o1328["resource"], p + "/resource", e);
 }
 }
 }
@@ -131,13 +131,13 @@ if ("resource" in o1327) d_s_f423029e33(o1327["resource"], p + "/resource", e);
 
 function c783_out(v: unknown, p: string, e: string[]): void {
 {
-const x3364 = v;
-const g3364 = typeOf(x3364);
-const b3364: string[] = []; lf(x3364, p, b3364, L0); if (b3364.length) e.push(...b3364);
-if (g3364 === "object") {
-if (g3364 === 'object') { const o3364 = x3364 as Record<string, unknown>;
-if (!("follows" in o3364)) e.push(p + "/follows" + ': required');
-if ("follows" in o3364) d_s_47d864e64b(o3364["follows"], p + "/follows", e);
+const x3365 = v;
+const g3365 = typeOf(x3365);
+const b3365: string[] = []; lf(x3365, p, b3365, L0); if (b3365.length) e.push(...b3365);
+if (g3365 === "object") {
+if (g3365 === 'object') { const o3365 = x3365 as Record<string, unknown>;
+if (!("follows" in o3365)) e.push(p + "/follows" + ': required');
+if ("follows" in o3365) d_s_47d864e64b(o3365["follows"], p + "/follows", e);
 }
 }
 }
@@ -145,15 +145,15 @@ if ("follows" in o3364) d_s_47d864e64b(o3364["follows"], p + "/follows", e);
 
 function c784_in(v: unknown, p: string, e: string[]): void {
 {
-const x3365 = v;
-const g3365 = typeOf(x3365);
-const b3365: string[] = []; lf(x3365, p, b3365, L0); if (b3365.length) e.push(...b3365);
-if (g3365 === "object") {
-if (g3365 === 'object') { const o3365 = x3365 as Record<string, unknown>;
-if (!("resource" in o3365)) e.push(p + "/resource" + ': required');
-if (!("on" in o3365)) e.push(p + "/on" + ': required');
-if ("resource" in o3365) d_s_f423029e33(o3365["resource"], p + "/resource", e);
-if ("on" in o3365) lf(o3365["on"], p + "/on", e, L3);
+const x3366 = v;
+const g3366 = typeOf(x3366);
+const b3366: string[] = []; lf(x3366, p, b3366, L0); if (b3366.length) e.push(...b3366);
+if (g3366 === "object") {
+if (g3366 === 'object') { const o3366 = x3366 as Record<string, unknown>;
+if (!("resource" in o3366)) e.push(p + "/resource" + ': required');
+if (!("on" in o3366)) e.push(p + "/on" + ': required');
+if ("resource" in o3366) d_s_f423029e33(o3366["resource"], p + "/resource", e);
+if ("on" in o3366) lf(o3366["on"], p + "/on", e, L3);
 }
 }
 }
@@ -161,13 +161,13 @@ if ("on" in o3365) lf(o3365["on"], p + "/on", e, L3);
 
 function c784_out(v: unknown, p: string, e: string[]): void {
 {
-const x3366 = v;
-const g3366 = typeOf(x3366);
-const b3366: string[] = []; lf(x3366, p, b3366, L0); if (b3366.length) e.push(...b3366);
-if (g3366 === "object") {
-if (g3366 === 'object') { const o3366 = x3366 as Record<string, unknown>;
-if (!("following" in o3366)) e.push(p + "/following" + ': required');
-if ("following" in o3366) lf(o3366["following"], p + "/following", e, L3);
+const x3367 = v;
+const g3367 = typeOf(x3367);
+const b3367: string[] = []; lf(x3367, p, b3367, L0); if (b3367.length) e.push(...b3367);
+if (g3367 === "object") {
+if (g3367 === 'object') { const o3367 = x3367 as Record<string, unknown>;
+if (!("following" in o3367)) e.push(p + "/following" + ': required');
+if ("following" in o3367) lf(o3367["following"], p + "/following", e, L3);
 }
 }
 }

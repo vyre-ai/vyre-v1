@@ -302,13 +302,13 @@ if ("call" in o1006) d_s_9460c35d52(o1006["call"], p + "/call", e);
 
 function d_s_f13f776230(v: unknown, p: string, e: string[]): void {
 {
-const x1236 = v;
-const g1236 = typeOf(x1236);
-const b1236: string[] = []; lf(x1236, p, b1236, L4); if (b1236.length) e.push(...b1236);
-if (g1236 === "array") {
-if (g1236 === 'array') { const a1236 = x1236 as unknown[];
-for (let i1236 = 0; i1236 < a1236.length; i1236++) {
-d_s_93ed523472(a1236[i1236], p + '/' + i1236, e);
+const x1237 = v;
+const g1237 = typeOf(x1237);
+const b1237: string[] = []; lf(x1237, p, b1237, L4); if (b1237.length) e.push(...b1237);
+if (g1237 === "array") {
+if (g1237 === 'array') { const a1237 = x1237 as unknown[];
+for (let i1237 = 0; i1237 < a1237.length; i1237++) {
+d_s_93ed523472(a1237[i1237], p + '/' + i1237, e);
 }
 }
 }
@@ -317,15 +317,15 @@ d_s_93ed523472(a1236[i1236], p + '/' + i1236, e);
 
 function d_s_f9a7628479(v: unknown, p: string, e: string[]): void {
 {
-const x1279 = v;
-const g1279 = typeOf(x1279);
-const b1279: string[] = []; lf(x1279, p, b1279, L0); if (b1279.length) e.push(...b1279);
-if (g1279 === "object") {
-if (g1279 === 'object') { const o1279 = x1279 as Record<string, unknown>;
-if (!("callId" in o1279)) e.push(p + "/callId" + ': required');
-if (!("fileId" in o1279)) e.push(p + "/fileId" + ': required');
-if ("callId" in o1279) lf(o1279["callId"], p + "/callId", e, L338);
-if ("fileId" in o1279) lf(o1279["fileId"], p + "/fileId", e, L35);
+const x1280 = v;
+const g1280 = typeOf(x1280);
+const b1280: string[] = []; lf(x1280, p, b1280, L0); if (b1280.length) e.push(...b1280);
+if (g1280 === "object") {
+if (g1280 === 'object') { const o1280 = x1280 as Record<string, unknown>;
+if (!("callId" in o1280)) e.push(p + "/callId" + ': required');
+if (!("fileId" in o1280)) e.push(p + "/fileId" + ': required');
+if ("callId" in o1280) lf(o1280["callId"], p + "/callId", e, L338);
+if ("fileId" in o1280) lf(o1280["fileId"], p + "/fileId", e, L35);
 }
 }
 }

@@ -37,26 +37,26 @@ if ("why" in o967) lf(o967["why"], p + "/why", e, L1);
 
 function d_s_fcd2dfbd95(v: unknown, p: string, e: string[]): void {
 {
-const x1309 = v;
-const g1309 = typeOf(x1309);
-const b1309: string[] = []; lf(x1309, p, b1309, L4); if (b1309.length) e.push(...b1309);
-if (g1309 === "array") {
-if (g1309 === 'array') { const a1309 = x1309 as unknown[];
-for (let i1309 = 0; i1309 < a1309.length; i1309++) {
-{
-const x1310 = a1309[i1309];
+const x1310 = v;
 const g1310 = typeOf(x1310);
-const b1310: string[] = []; lf(x1310, p + '/' + i1309, b1310, L0); if (b1310.length) e.push(...b1310);
-if (g1310 === "object") {
-if (g1310 === 'object') { const o1310 = x1310 as Record<string, unknown>;
-if (!("name" in o1310)) e.push(p + '/' + i1309 + "/name" + ': required');
-if (!("summary" in o1310)) e.push(p + '/' + i1309 + "/summary" + ': required');
-if (!("toolset" in o1310)) e.push(p + '/' + i1309 + "/toolset" + ': required');
-if (!("deferred" in o1310)) e.push(p + '/' + i1309 + "/deferred" + ': required');
-if ("name" in o1310) lf(o1310["name"], p + '/' + i1309 + "/name", e, L1);
-if ("summary" in o1310) lf(o1310["summary"], p + '/' + i1309 + "/summary", e, L1);
-if ("toolset" in o1310) lf(o1310["toolset"], p + '/' + i1309 + "/toolset", e, L500);
-if ("deferred" in o1310) lf(o1310["deferred"], p + '/' + i1309 + "/deferred", e, L3);
+const b1310: string[] = []; lf(x1310, p, b1310, L4); if (b1310.length) e.push(...b1310);
+if (g1310 === "array") {
+if (g1310 === 'array') { const a1310 = x1310 as unknown[];
+for (let i1310 = 0; i1310 < a1310.length; i1310++) {
+{
+const x1311 = a1310[i1310];
+const g1311 = typeOf(x1311);
+const b1311: string[] = []; lf(x1311, p + '/' + i1310, b1311, L0); if (b1311.length) e.push(...b1311);
+if (g1311 === "object") {
+if (g1311 === 'object') { const o1311 = x1311 as Record<string, unknown>;
+if (!("name" in o1311)) e.push(p + '/' + i1310 + "/name" + ': required');
+if (!("summary" in o1311)) e.push(p + '/' + i1310 + "/summary" + ': required');
+if (!("toolset" in o1311)) e.push(p + '/' + i1310 + "/toolset" + ': required');
+if (!("deferred" in o1311)) e.push(p + '/' + i1310 + "/deferred" + ': required');
+if ("name" in o1311) lf(o1311["name"], p + '/' + i1310 + "/name", e, L1);
+if ("summary" in o1311) lf(o1311["summary"], p + '/' + i1310 + "/summary", e, L1);
+if ("toolset" in o1311) lf(o1311["toolset"], p + '/' + i1310 + "/toolset", e, L500);
+if ("deferred" in o1311) lf(o1311["deferred"], p + '/' + i1310 + "/deferred", e, L3);
 }
 }
 }

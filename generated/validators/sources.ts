@@ -169,13 +169,13 @@ lf(a1001[i1001], p + "/link" + '/' + i1001, e, L32);
 
 function d_s_f2c5e7c5f8(v: unknown, p: string, e: string[]): void {
 {
-const x1240 = v;
-const g1240 = typeOf(x1240);
-const b1240: string[] = []; lf(x1240, p, b1240, L0); if (b1240.length) e.push(...b1240);
-if (g1240 === "object") {
-if (g1240 === 'object') { const o1240 = x1240 as Record<string, unknown>;
-if (!("source" in o1240)) e.push(p + "/source" + ': required');
-if ("source" in o1240) d_s_094f153ff1(o1240["source"], p + "/source", e);
+const x1241 = v;
+const g1241 = typeOf(x1241);
+const b1241: string[] = []; lf(x1241, p, b1241, L0); if (b1241.length) e.push(...b1241);
+if (g1241 === "object") {
+if (g1241 === 'object') { const o1241 = x1241 as Record<string, unknown>;
+if (!("source" in o1241)) e.push(p + "/source" + ': required');
+if ("source" in o1241) d_s_094f153ff1(o1241["source"], p + "/source", e);
 }
 }
 }

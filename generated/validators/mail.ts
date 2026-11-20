@@ -283,15 +283,15 @@ if ("checkedAt" in o1030) lf(o1030["checkedAt"], p + "/checkedAt", e, L17);
 
 function d_s_d75675a98a(v: unknown, p: string, e: string[]): void {
 {
-const x1067 = v;
-const g1067 = typeOf(x1067);
-const b1067: string[] = []; lf(x1067, p, b1067, L0); if (b1067.length) e.push(...b1067);
-if (g1067 === "object") {
-if (g1067 === 'object') { const o1067 = x1067 as Record<string, unknown>;
-if (!("routeId" in o1067)) e.push(p + "/routeId" + ': required');
-if (!("domainId" in o1067)) e.push(p + "/domainId" + ': required');
-if ("routeId" in o1067) lf(o1067["routeId"], p + "/routeId", e, L378);
-if ("domainId" in o1067) lf(o1067["domainId"], p + "/domainId", e, L379);
+const x1068 = v;
+const g1068 = typeOf(x1068);
+const b1068: string[] = []; lf(x1068, p, b1068, L0); if (b1068.length) e.push(...b1068);
+if (g1068 === "object") {
+if (g1068 === 'object') { const o1068 = x1068 as Record<string, unknown>;
+if (!("routeId" in o1068)) e.push(p + "/routeId" + ': required');
+if (!("domainId" in o1068)) e.push(p + "/domainId" + ': required');
+if ("routeId" in o1068) lf(o1068["routeId"], p + "/routeId", e, L378);
+if ("domainId" in o1068) lf(o1068["domainId"], p + "/domainId", e, L379);
 }
 }
 }

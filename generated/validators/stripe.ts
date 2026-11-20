@@ -200,13 +200,13 @@ if ("customer" in o995) d_s_8ec0b22028(o995["customer"], p + "/customer", e);
 
 function d_s_dbc080deb1(v: unknown, p: string, e: string[]): void {
 {
-const x1098 = v;
-const g1098 = typeOf(x1098);
-const b1098: string[] = []; lf(x1098, p, b1098, L0); if (b1098.length) e.push(...b1098);
-if (g1098 === "object") {
-if (g1098 === 'object') { const o1098 = x1098 as Record<string, unknown>;
-if (!("subscription" in o1098)) e.push(p + "/subscription" + ': required');
-if ("subscription" in o1098) d_s_22aca4e091(o1098["subscription"], p + "/subscription", e);
+const x1099 = v;
+const g1099 = typeOf(x1099);
+const b1099: string[] = []; lf(x1099, p, b1099, L0); if (b1099.length) e.push(...b1099);
+if (g1099 === "object") {
+if (g1099 === 'object') { const o1099 = x1099 as Record<string, unknown>;
+if (!("subscription" in o1099)) e.push(p + "/subscription" + ': required');
+if ("subscription" in o1099) d_s_22aca4e091(o1099["subscription"], p + "/subscription", e);
 }
 }
 }

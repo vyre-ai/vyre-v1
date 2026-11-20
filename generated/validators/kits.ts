@@ -60,13 +60,13 @@ lf(a166[i166], p + "/contents" + '/' + i166, e, L105);
 
 function d_s_fd2fd1aeff(v: unknown, p: string, e: string[]): void {
 {
-const x1315 = v;
-const g1315 = typeOf(x1315);
-const b1315: string[] = []; lf(x1315, p, b1315, L0); if (b1315.length) e.push(...b1315);
-if (g1315 === "object") {
-if (g1315 === 'object') { const o1315 = x1315 as Record<string, unknown>;
-if (!("kit" in o1315)) e.push(p + "/kit" + ': required');
-if ("kit" in o1315) d_s_21a2f633a7(o1315["kit"], p + "/kit", e);
+const x1316 = v;
+const g1316 = typeOf(x1316);
+const b1316: string[] = []; lf(x1316, p, b1316, L0); if (b1316.length) e.push(...b1316);
+if (g1316 === "object") {
+if (g1316 === 'object') { const o1316 = x1316 as Record<string, unknown>;
+if (!("kit" in o1316)) e.push(p + "/kit" + ': required');
+if ("kit" in o1316) d_s_21a2f633a7(o1316["kit"], p + "/kit", e);
 }
 }
 }
