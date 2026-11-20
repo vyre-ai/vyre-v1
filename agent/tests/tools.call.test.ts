@@ -22,7 +22,7 @@ test("catalog: every generated tool joins its capability; the frozen default lis
   // 77 until rc.8 added twelve gated outward tools: Dropbox files (create_folder, delete, restore, upload), Google Docs insert/replace text, mounts doc/sheet edits and Excel workbook writes.
   // 95 since 19 Nov 2026: mail.smtp.verify (r42-email) is a gated outward test send.
   // 94 since 17 Nov 2026: esign.cancel became a gated outward act (an agent may not cancel a document sent for signature without a person's yes).
-  // 97 since 19 Nov 2026: esign.remind and mail.send_as became tools (r42-mcp coverage), each gated outward, on top of mail.smtp.verify (r42-email).
+  // 97 since 19 Nov 2026 (measured on the rc.43 candidate against main, 94): three tools became gated outward acts: esign.remind and mail.send_as (r42-mcp coverage) and mail.configure (r42-email; the SMTP test send moved into it).
   assert.equal(stricter, 97); // before that 94, and before that 93: the Drive write-back branch (f-drive2) added three gated outward tools: google.drive.update_file, ms.drive.update_item, ms.drive.restore_item; before that, campaigns_launch left with Campaigns; mcp_call (a connection's tool called from a CLI engine, l-skills1) is gated outward; google_gmail_delete_draft (l-chrome2a) is too
 });
 
