@@ -1,6 +1,6 @@
 # tasks.rev
 
-A short mark that changes whenever any task changes, for a screen that holds a long list
+A mark that changes when any task changes, for a screen with a long list
 
 | | |
 |---|---|

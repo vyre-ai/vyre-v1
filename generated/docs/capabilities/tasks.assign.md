@@ -1,6 +1,6 @@
 # tasks.assign
 
-Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)
+Set or clear Assigned, Reviewer or Approver (person, agent, group, role or automation)
 
 | | |
 |---|---|

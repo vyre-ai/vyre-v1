@@ -89,8 +89,13 @@ test("evidence never settles a held act or an Approve task, and done_when on one
       return true;
     });
   });
-  const held = (await h.call("tasks.create", newTask({ title: "Held", source: { kind: "gate", id: "act_1" } }), me))
-    .task.id as string;
+  // a held act is made the way the Gate makes it: by the server
+  const held = (
+    await h.call("tasks.create", newTask({ title: "Held", source: { kind: "gate", id: "act_1" } }), {
+      id: "svc_host",
+      kind: "service",
+    })
+  ).task.id as string;
   await assert.rejects(h.call("tasks.done_when", { taskId: held, kind: "vault_item", key: "k" }, me));
   // even a proof that was somehow stored does not close it
   h.db.run("INSERT INTO tasks_proof (task_id, kind, key) VALUES (?, 'vault_item', 'k')", held);
@@ -128,4 +133,81 @@ test("a meeting the setter cannot open is refused at set time; one refusal while
   });
   const closed = await deliver(h2, "vault.item_created", { itemId: "v", name: "k" });
   assert.deepEqual(closed, [b]);
+});
+
+test("an agent states what proves a task done when it creates it, in one call; a held act or an Approve task refuses it", async () => {
+  const h = world();
+  const id = (
+    await h.call("tasks.create", newTask({ title: "Put the key in the Vault", doneWhen: "vault_item:Hosting Key" }), me)
+  ).task.id as string;
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "vault_item", key: "hosting key" });
+  assert.deepEqual(await deliver(h, "vault.item_created", { itemId: "v", name: "hosting key" }), [id]);
+  await assert.rejects(
+    h.call("tasks.create", newTask({ kind: "approve", title: "Approve", doneWhen: "vault_item:k" }), me),
+  );
+  await assert.rejects(
+    h.call(
+      "tasks.create",
+      newTask({ title: "Held", source: { kind: "gate", id: "act_9" }, doneWhen: "vault_item:k" }),
+      { id: "svc_host", kind: "service" },
+    ),
+  );
+});
+
+test("tasks.archive with back puts a task back, the same as tasks.unarchive", async () => {
+  const h = world();
+  const id = await mk(h, "Archive then back");
+  await h.call("tasks.archive", { taskId: id, why: "later" }, me);
+  assert.ok((await get(h, id)).archived);
+  await h.call("tasks.archive", { taskId: id, back: true }, me);
+  assert.equal((await get(h, id)).archived, undefined);
+});
+
+test("tasks.update sets, changes and clears what proves a task done, with the same refusals as at creation", async () => {
+  const h = world();
+  const id = await mk(h, "Put the key in the Vault");
+  await h.call("tasks.update", { taskId: id, doneWhen: "vault_item:Hosting Key" }, me);
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "vault_item", key: "hosting key" });
+  await h.call("tasks.update", { taskId: id, doneWhen: "message_sent:rec_client" }, me);
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "message_sent", key: "rec_client" });
+  assert.deepEqual(
+    await deliver(h, "vault.item_created", { itemId: "v", name: "hosting key" }),
+    [],
+    "the old proof no longer counts",
+  );
+  await h.call("tasks.update", { taskId: id, doneWhen: "" }, me);
+  assert.equal((await get(h, id)).doneWhen, undefined, "empty clears it");
+  assert.deepEqual(await deliver(h, "message.sent", { messageId: "m", channel: "email", contactId: "rec_client" }), []);
+  await h.call("tasks.update", { taskId: id, doneWhen: "vault_item:k2" }, me);
+  assert.deepEqual(await deliver(h, "vault.item_created", { itemId: "v", name: "k2" }), [id]);
+  // the refusals
+  const approve = (await h.call("tasks.create", newTask({ kind: "approve", title: "Approve" }), me)).task.id as string;
+  await assert.rejects(h.call("tasks.update", { taskId: approve, doneWhen: "vault_item:k" }, me));
+  const other = await mk(h, "Another");
+  await assert.rejects(h.call("tasks.update", { taskId: other, doneWhen: "nonsense:k" }, me));
+  await assert.rejects(
+    h.call("tasks.update", { taskId: other, doneWhen: "vault_item:k" }, { id: "usr_cara" }),
+    "someone not on the task cannot",
+  );
+});
+
+test("tasks.update takes doneWhen only from someone who may let the task go, not from someone who can merely edit it; create treats an empty doneWhen as no proof; the key and why have a length limit", async () => {
+  const h = harness({ authorize: (who, _a, r) => who.id === "usr_granted" && r.type === "task" });
+  h.callee("meetings.get", () => ({}));
+  const id = (await h.call("tasks.create", newTask({ title: "Put the key in the Vault" }), me)).task.id as string;
+  const granted = { id: "usr_granted" };
+  // someone with edit on the task may change its title ...
+  await h.call("tasks.update", { taskId: id, title: "Put the hosting key in the Vault" }, granted);
+  // ... but not say what proves it done
+  await assert.rejects(h.call("tasks.update", { taskId: id, doneWhen: "vault_item:k" }, granted), (e) => {
+    assert.equal(reasonOf(e), "wrong_actor");
+    return true;
+  });
+  assert.equal((await h.call("tasks.get", { taskId: id }, me)).task.doneWhen, undefined);
+  // an empty doneWhen at creation is no proof, the same as on update
+  const none = (await h.call("tasks.create", newTask({ title: "No proof", doneWhen: "" }), me)).task.id as string;
+  assert.equal((await h.call("tasks.get", { taskId: none }, me)).task.doneWhen, undefined);
+  // lengths
+  await assert.rejects(h.call("tasks.update", { taskId: id, doneWhen: `vault_item:${"x".repeat(250)}` }, me));
+  await assert.rejects(h.call("tasks.archive", { taskId: id, why: "y".repeat(301) }, me));
 });

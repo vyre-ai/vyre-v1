@@ -45,6 +45,14 @@ const archived = t.obj({
   why: t.str({ description: "One sentence a person reads; empty when someone archived it by hand and gave no reason" }),
 });
 const doneWhenKind = t.enm("vault_item", "message_sent", "meeting_ended", "connection_on");
+// what proves a task done, as one string "kind:name" ("vault_item:Hosting key"); empty clears it (tasks.update)
+// a time the tools take, in the fewest words
+const ms = () => t.ts({ description: "Unix ms" });
+const doneWhenText = t.str({
+  pattern: "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
+  maxLength: 200,
+  examples: ["vault_item:Hosting key"],
+});
 const doneWhen = t.obj({
   kind: doneWhenKind,
   key: t.str({ minLength: 1 }),
@@ -424,7 +432,7 @@ export default defineManifest({
     }),
   ],
   capabilities: [
-    create("tasks.create", "Create a task (Work by default)", {
+    create("tasks.create", "Create a task", {
       in: {
         kind: t.opt(taskKindKey),
         title: t.str({ minLength: 1 }),
@@ -434,11 +442,11 @@ export default defineManifest({
         assigned: assignee,
         reviewer: t.opt(assignee),
         approver: t.opt(assignee),
-        due: t.opt(t.ts()),
+        due: t.opt(ms()),
         effort: t.opt(t.int({ minimum: 0 })),
         priority: t.opt(priority),
         labels: t.opt(t.arr(t.str())),
-        start: t.opt(t.ts()),
+        start: t.opt(ms()),
         fields: t.opt(fieldValues),
         recur: t.opt(recur),
         recordId: t.opt(id.record),
@@ -446,8 +454,9 @@ export default defineManifest({
         source: t.opt(source),
         parentTaskId: t.opt(id.task),
         dependsOn: t.opt(t.arr(id.task)),
-        expiresAt: t.opt(t.ts()),
+        expiresAt: t.opt(ms()),
         relevantUntil: t.opt(t.ts({ description: "When it stops mattering" })),
+        doneWhen: t.opt(doneWhenText),
         actions: t.opt(t.arr(action)),
         notes: t.opt(t.rec(t.str())), // working notes to start the task with: the brief, what done means, the schema its outputs must match
         decisionId: t.opt(t.str()),
@@ -462,7 +471,7 @@ export default defineManifest({
       cli: "vyre tasks create",
       errors: ["validation.precondition_failed"],
     }),
-    read("tasks.get", "Read one task with its blocks, slots, links, notes and followers", {
+    read("tasks.get", "Read one task with blocks, slots, links, notes and followers", {
       in: target,
       out: { task: taskRow },
       on: ["task", "/taskId"],
@@ -470,7 +479,7 @@ export default defineManifest({
       label: "check",
       cli: "vyre tasks get",
     }),
-    read("tasks.list", "List tasks by scope (mine, assigned by me, following, a record, a run) and filters", {
+    read("tasks.list", "List tasks by scope (mine, given by me, following, a record, a run) and filters", {
       level: "member",
       in: {
         scope: t.enm("mine", "assigned_by_me", "following", "record", "run", "all"),
@@ -489,7 +498,7 @@ export default defineManifest({
     }),
     read(
       "tasks.needs_you",
-      "Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others",
+      "Needs you: my Ready Approve, Review, Answer and Unblock tasks, plus due today, overdue or blocking",
       {
         in: { limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
         out: {
@@ -505,7 +514,7 @@ export default defineManifest({
     ),
     read(
       "tasks.index",
-      "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "A scope's long list in one read: a light row per task, newest first; send the last rev and an unchanged list answers nothing",
       {
         in: {
           scope: t.enm("mine", "given", "everyone"),
@@ -517,7 +526,7 @@ export default defineManifest({
           q: t.opt(
             t.str({
               maxLength: 200,
-              description: "Words to find in the title, key, brief, notes and summary of every task the reader sees",
+              description: "Words to find in title, key, brief, notes and summary",
             }),
           ),
           snoozed: t.opt(t.bool()), // only the open tasks that are snoozed
@@ -528,7 +537,7 @@ export default defineManifest({
         label: "filter",
       },
     ),
-    read("tasks.rev", "A short mark that changes whenever any task changes, for a screen that holds a long list", {
+    read("tasks.rev", "A mark that changes when any task changes, for a screen with a long list", {
       in: {},
       out: { rev: t.str() },
       tool: "tasks",
@@ -542,7 +551,7 @@ export default defineManifest({
     }),
     read(
       "tasks.digest",
-      "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "What an agent should keep in mind: this thread's task, its parent and siblings, then its own open tasks (top five and a count). About 300 tokens; tasks_get has detail. Leave out agentId for yourself",
       {
         in: { agentId: t.opt(id.agent), threadId: t.opt(id.thread) },
         out: { text: t.str(), hash: t.str(), boundTaskId: t.opt(id.task) },
@@ -557,7 +566,7 @@ export default defineManifest({
       out: { count: t.int() },
       tool: "tasks",
     }),
-    read("tasks.my_work", "My work: the full list, with sections Open, Assigned by me, Done", {
+    read("tasks.my_work", "My work: the full list in sections Open, Assigned by me, Done", {
       in: { section: t.opt(t.enm("open", "assigned_by_me", "done", "all")), ...pageIn },
       out: {
         tasks: t.arr(taskRow),
@@ -569,29 +578,29 @@ export default defineManifest({
     }),
     write(
       "tasks.update",
-      "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
+      "Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)",
       {
         in: {
           ...target,
           title: t.opt(t.str()),
           summary: t.opt(t.str()),
           why: t.opt(t.str()),
-          due: t.opt(t.nullable(t.ts())),
+          due: t.opt(t.nullable(ms())),
           effort: t.opt(t.nullable(t.int())),
           blocks: t.opt(t.arr(blockIn)),
           threadId: t.opt(id.thread),
           priority: t.opt(t.nullable(priority)),
           labels: t.opt(t.arr(t.str())),
-          start: t.opt(t.nullable(t.ts())),
+          start: t.opt(t.nullable(ms())),
           fields: t.opt(fieldValues),
           recur: t.opt(t.nullable(recur)),
+          doneWhen: t.opt(doneWhenText),
           parentTaskId: t.opt(t.nullable(id.task)),
           workerThread: t.opt(id.thread),
           expectedVersion: t.opt(
             t.int({
               minimum: 0,
-              description:
-                "The version the editor saw; a task that moved on is refused with what changed, never overwritten",
+              description: "The version you saw; a task that changed is refused with what changed",
             }),
           ),
         },
@@ -618,7 +627,7 @@ export default defineManifest({
     ),
     write(
       "tasks.transition",
-      "Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules",
+      "Move a task to a new status (the only writer of status); checks the state table and reviewer/approver rules",
       {
         in: { ...target, to: taskState, note: t.opt(t.str()), expectedFrom: t.opt(taskState) },
         out: { task: taskRow },
@@ -643,7 +652,7 @@ export default defineManifest({
     ),
     write(
       "tasks.act",
-      "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
+      "Act on a request at its source: approve, reject, send back, answer or resolve, with a note; the chat or run goes on at once",
       {
         in: {
           ...target,
@@ -671,7 +680,7 @@ export default defineManifest({
     ),
     write(
       "tasks.submit",
-      "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else Approver, else Done",
       {
         in: {
           ...target,
@@ -690,7 +699,7 @@ export default defineManifest({
     ),
     write(
       "tasks.ask",
-      "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "Ask a question while you work: an Answer task opens for the requester or a named person, the work waits and the answer wakes you",
       {
         in: {
           ...target,
@@ -709,7 +718,7 @@ export default defineManifest({
     ),
     write(
       "tasks.block",
-      "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "Report what is in the way: an Unblock task opens for whoever the task escalates to, and the work waits",
       {
         in: { ...target, reason: t.str({ minLength: 1, examples: ["I cannot open the client folder"] }) },
         out: { task: taskRow, unblockTaskId: id.task },
@@ -724,7 +733,7 @@ export default defineManifest({
     ),
     write(
       "tasks.review",
-      "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "Review submitted work: approve, or send back with numbered fixes (after the loop limit a person decides)",
       {
         in: {
           ...target,
@@ -749,37 +758,29 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write(
-      "tasks.decide",
-      "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
-      {
-        in: { ...target, verdict: t.enm("approve", "reject"), reason: t.opt(t.str()) },
-        out: { task: taskRow, next: t.enm("done", "fixes") },
-        on: ["task", "/taskId"],
-        level: "use",
-        emits: ["task.transitioned", "task.completed", "task.approved", "task.rejected", "task.requested"],
-        tool: "tasks",
-        mcpName: "task_decide",
-        offline: "online",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
-    write(
-      "tasks.assign",
-      "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
-      {
-        in: { ...target, slot, to: t.nullable(assignee) },
-        out: { task: taskRow },
-        on: ["task", "/taskId"],
-        emits: ["task.assigned"],
-        tool: "tasks",
-        offline: "queue",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    write("tasks.decide", "Decide on reviewed work: approve (Done, held actions release) or reject with a reason", {
+      in: { ...target, verdict: t.enm("approve", "reject"), reason: t.opt(t.str()) },
+      out: { task: taskRow, next: t.enm("done", "fixes") },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.transitioned", "task.completed", "task.approved", "task.rejected", "task.requested"],
+      tool: "tasks",
+      mcpName: "task_decide",
+      offline: "online",
+      errors: ["validation.precondition_failed"],
+    }),
+    write("tasks.assign", "Set or clear Assigned, Reviewer or Approver (person, agent, group, role or automation)", {
+      in: { ...target, slot, to: t.nullable(assignee) },
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      emits: ["task.assigned"],
+      tool: "tasks",
+      offline: "queue",
+      errors: ["validation.precondition_failed"],
+    }),
     write(
       "tasks.delegate",
-      "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "Hand a request to someone else with a note; never widens access: walks the delegate chain to the first who can act",
       {
         in: { ...target, to: assignee, note: t.opt(t.str()) },
         out: { task: taskRow, passedTo: assignee },
@@ -799,8 +800,8 @@ export default defineManifest({
         emits: ["task.escalated"],
       },
     ),
-    write("tasks.snooze", "Snooze an open task until a time, or clear the snooze with null", {
-      in: { ...target, until: t.nullable(t.ts()) },
+    write("tasks.snooze", "Snooze an open task until a time; null clears the snooze", {
+      in: { ...target, until: t.nullable(ms()) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
       level: "use",
@@ -808,7 +809,7 @@ export default defineManifest({
       tool: "tasks",
       offline: "queue",
     }),
-    write("tasks.take", "Take a group or role task; the first Take locks it and others see taken by", {
+    write("tasks.take", "Take a group or role task; the first Take locks it", {
       in: target,
       out: { task: taskRow },
       on: ["task", "/taskId"],
@@ -820,7 +821,7 @@ export default defineManifest({
     }),
     write(
       "tasks.agent_on_it",
-      'Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so',
+      'Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only they or the host',
       {
         in: { ...target, agentId: id.agent },
         out: { task: taskRow },
@@ -841,7 +842,7 @@ export default defineManifest({
     }),
     create(
       "tasks.plan",
-      "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "Break work into a parent (new or existing) and children in one step, each with brief, what done means, owner and dependencies. A child starts when they are done; the parent hears only when all are done or one is blocked or asks",
       {
         in: {
           parentTaskId: t.opt(id.task),
@@ -852,7 +853,7 @@ export default defineManifest({
               doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
               assigned: t.opt(assignee),
               recordId: t.opt(id.record),
-              due: t.opt(t.ts()),
+              due: t.opt(ms()),
             }),
           ),
           children: t.arr(planChild, { minItems: 1, maxItems: 50 }),
@@ -869,39 +870,30 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write(
-      "tasks.delete",
-      "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
-      {
-        in: target,
-        out: { deleted: t.bool() },
-        on: ["task", "/taskId"],
-        level: "use",
-        emits: ["task.deleted"],
-        tool: "tasks",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
-    write(
-      "tasks.archive",
-      "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
-      {
-        in: { ...target, why: t.opt(t.str({ maxLength: 300 })) },
-        out: { task: taskRow },
-        on: ["task", "/taskId"],
-        level: "use",
-        emits: ["task.archived"],
-        tool: "tasks",
-        errors: ["validation.precondition_failed"],
-      },
-    ),
+    write("tasks.delete", "Delete a task (Undo restores it); a held act or a task a Run waits on is canceled", {
+      in: target,
+      out: { deleted: t.bool() },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.deleted"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
+    write("tasks.archive", "Put away a task that no longer matters, with why; back: true puts it back. Not deleted", {
+      in: { ...target, why: t.opt(t.str({ maxLength: 300 })), back: t.opt(t.bool()) },
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.archived", "task.unarchived"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
     write("tasks.done_when", "What proves a task done; it closes itself. No kind clears", {
       in: { ...target, kind: t.opt(doneWhenKind), key: t.opt(t.str({ minLength: 1 })) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
       level: "use",
       emits: ["task.updated"],
-      tool: "tasks",
       errors: ["validation.precondition_failed"],
     }),
     read(
@@ -955,7 +947,6 @@ export default defineManifest({
       on: ["task", "/taskId"],
       level: "use",
       emits: ["task.unarchived"],
-      tool: "tasks",
       errors: ["validation.precondition_failed"],
     }),
     write("tasks.restore", "Bring a deleted task back", {
@@ -999,7 +990,7 @@ export default defineManifest({
     }),
     write(
       "tasks.working_notes.set",
-      "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
+      "Write a working note (key, value) everyone on the task can read; send expectedFrom: the note as you last read it",
       {
         in: {
           ...target,
@@ -1008,7 +999,7 @@ export default defineManifest({
           expectedFrom: t.opt(
             t.str({
               description:
-                "The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note",
+                "The note as you last read it (empty if none). If it changed since, nothing is written and the refusal gives the current note: redo your change on it (a list note is merged for an agent). Without it an agent may only append",
             }),
           ),
         },
@@ -1029,7 +1020,7 @@ export default defineManifest({
       tool: "tasks",
       offline: "patch",
     }),
-    write("tasks.links.add", "Link a record or a file to a task", {
+    write("tasks.links.add", "Link a record or file to a task", {
       in: { ...target, recordId: t.opt(id.record), fileId: t.opt(id.file) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
@@ -1037,7 +1028,7 @@ export default defineManifest({
       tool: "tasks",
       offline: "patch",
     }),
-    write("tasks.links.remove", "Remove a record or file link from a task", {
+    write("tasks.links.remove", "Remove a record or file link", {
       in: { ...target, recordId: t.opt(id.record), fileId: t.opt(id.file) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
@@ -1047,7 +1038,7 @@ export default defineManifest({
     }),
     write(
       "tasks.dependencies.add",
-      "Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children",
+      "Make a task wait on another; Blocked comes from unmet dependencies and open Unblocks",
       {
         in: { ...target, dependsOnId: id.task },
         out: { task: taskRow },
@@ -1073,7 +1064,7 @@ export default defineManifest({
         emits: ["task.due", "task.snoozed", "task.nudged", "task.archived"],
       },
     ),
-    read("tasks.history", "Activity of a task: transitions, hand-overs, notes and sends back, newest first", {
+    read("tasks.history", "Activity of a task: transitions, hand-overs, notes, sends back; newest first", {
       in: { ...target, ...pageIn },
       out: {
         entries: t.arr(t.obj({ at: t.ts(), type: t.str(), by: t.str(), note: t.opt(t.str()), eventId: id.event })),

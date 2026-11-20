@@ -1,6 +1,6 @@
 # tasks.list
 
-List tasks by scope (mine, assigned by me, following, a record, a run) and filters
+List tasks by scope (mine, given by me, following, a record, a run) and filters
 
 | | |
 |---|---|

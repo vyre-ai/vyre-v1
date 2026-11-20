@@ -1,6 +1,6 @@
 # tasks.update
 
-Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)
+Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)
 
 | | |
 |---|---|
@@ -45,6 +45,7 @@ type In = {
     every: "day" | "week" | "month";
     n?: number;
   }) | null;
+  doneWhen?: string;
   parentTaskId?: string | null;
   workerThread?: string;
   expectedVersion?: number;
@@ -153,6 +154,7 @@ type Out = {
         "v": 1
       }
     ],
+    "doneWhen": "vault_item:Hosting key",
     "due": 1760000000000,
     "effort": 1,
     "expectedVersion": 1,

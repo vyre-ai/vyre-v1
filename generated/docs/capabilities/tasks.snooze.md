@@ -1,6 +1,6 @@
 # tasks.snooze
 
-Snooze an open task until a time, or clear the snooze with null
+Snooze an open task until a time; null clears the snooze
 
 | | |
 |---|---|

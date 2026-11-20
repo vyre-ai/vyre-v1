@@ -1,6 +1,6 @@
 # tasks.dependencies.add
 
-Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children
+Make a task wait on another; Blocked comes from unmet dependencies and open Unblocks
 
 | | |
 |---|---|

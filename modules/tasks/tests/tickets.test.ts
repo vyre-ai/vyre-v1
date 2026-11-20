@@ -137,10 +137,10 @@ test("a held act or a task a Run waits on is never deleted", async () => {
   const held = await mk(
     h,
     { kind: "approve", source: { kind: "gate", id: "dec_1" } },
-    { id: "svc_system", kind: "service" },
+    { id: "svc_host", kind: "service" },
   );
   await refused(h.call("tasks.delete", { taskId: held }, me), "held_act");
-  const run = await mk(h, { source: { kind: "run", id: "run_1" } }, { id: "svc_system", kind: "service" });
+  const run = await mk(h, { source: { kind: "run", id: "run_1" } }, { id: "svc_host", kind: "service" });
   await refused(h.call("tasks.delete", { taskId: run }, me), "run_waits");
 });
 
@@ -153,7 +153,7 @@ test("plain work is let go one task at a time, by someone on it; a source that s
       await h.call(
         "tasks.withdraw",
         { sourceKind: "chat", sourceId: "thr_1", note: "Stopped" },
-        { id: "svc_system", kind: "service" },
+        { id: "svc_host", kind: "service" },
       )
     ).withdrawn,
     0,
@@ -311,11 +311,11 @@ test("only the Gate or the server makes a held act: a person or an agent that na
   const held = await mk(
     h,
     { kind: "approve", source: { kind: "gate", id: "dec_y" } },
-    { id: "svc_system", kind: "service" },
+    { id: "svc_host", kind: "service" },
   );
   await h.call(
     "tasks.working_notes.set",
     { taskId: held, key: "payload_hash", value: "h_abc" },
-    { id: "svc_system", kind: "service" },
+    { id: "svc_host", kind: "service" },
   );
 });

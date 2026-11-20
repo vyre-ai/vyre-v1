@@ -1,6 +1,6 @@
 # tasks.archive
 
-Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back
+Put away a task that no longer matters, with why; back: true puts it back. Not deleted
 
 | | |
 |---|---|
@@ -19,7 +19,7 @@ Put away an open task that no longer matters, with why in a sentence. Not delete
 | HTTP | POST /v1/tasks/archive |
 | MCP tool | tasks_archive (tasks) |
 | CLI | none |
-| Emits | task.archived |
+| Emits | task.archived, task.unarchived |
 
 ## Input
 
@@ -27,6 +27,7 @@ Put away an open task that no longer matters, with why in a sentence. Not delete
 type In = {
   taskId: string;
   why?: string;
+  back?: boolean;
 };
 ```
 
@@ -126,6 +127,7 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "back": true,
     "taskId": "tsk_a1b2c3",
     "why": "example"
   },

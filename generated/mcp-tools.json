@@ -66998,7 +66998,7 @@
       "blocks": [],
       "cap": "tasks.ask",
       "deferred": false,
-      "description": "Ask a question while you work on a task: an Answer task opens for the requester or a named person, the work waits, and the answer wakes you",
+      "description": "Ask a question while you work: an Answer task opens for the requester or a named person, the work waits and the answer wakes you",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67057,7 +67057,7 @@
       "blocks": [],
       "cap": "tasks.block",
       "deferred": false,
-      "description": "Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits",
+      "description": "Report what is in the way: an Unblock task opens for whoever the task escalates to, and the work waits",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67091,7 +67091,7 @@
       "blocks": [],
       "cap": "tasks.decide",
       "deferred": false,
-      "description": "Decide on reviewed work: approve it (Done, held actions release) or reject it with a reason (back to the doer)",
+      "description": "Decide on reviewed work: approve (Done, held actions release) or reject with a reason",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67128,7 +67128,7 @@
       "blocks": [],
       "cap": "tasks.digest",
       "deferred": false,
-      "description": "What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId",
+      "description": "What an agent should keep in mind: this thread's task, its parent and siblings, then its own open tasks (top five and a count). About 300 tokens; tasks_get has detail. Leave out agentId for yourself",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -67158,7 +67158,7 @@
       "blocks": [],
       "cap": "tasks.plan",
       "deferred": false,
-      "description": "Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks",
+      "description": "Break work into a parent (new or existing) and children in one step, each with brief, what done means, owner and dependencies. A child starts when they are done; the parent hears only when all are done or one is blocked or asks",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67365,7 +67365,7 @@
                 "type": "array"
               },
               "due": {
-                "description": "Milliseconds since the Unix epoch",
+                "description": "Unix ms",
                 "examples": [
                   1760000000000
                 ],
@@ -67412,7 +67412,7 @@
       "blocks": [],
       "cap": "tasks.review",
       "deferred": false,
-      "description": "Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)",
+      "description": "Review submitted work: approve, or send back with numbered fixes (after the loop limit a person decides)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67456,7 +67456,7 @@
       "blocks": [],
       "cap": "tasks.submit",
       "deferred": false,
-      "description": "Hand in your part of a work task with its outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "description": "Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else Approver, else Done",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67494,7 +67494,7 @@
       "blocks": [],
       "cap": "tasks.act",
       "deferred": false,
-      "description": "Act on a request at its source: approve, reject, send back, answer, resolve, with a note; continues the chat or run at once",
+      "description": "Act on a request at its source: approve, reject, send back, answer or resolve, with a note; the chat or run goes on at once",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67537,7 +67537,7 @@
       "blocks": [],
       "cap": "tasks.agent_on_it",
       "deferred": false,
-      "description": "Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads \"<Agent> is on it for you\". Only that person, or the host, may say so",
+      "description": "Say an agent is on a task for its assignee: it moves to Doing and reads \"<Agent> is on it for you\". Only they or the host",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67571,10 +67571,13 @@
       "blocks": [],
       "cap": "tasks.archive",
       "deferred": false,
-      "description": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "description": "Put away a task that no longer matters, with why; back: true puts it back. Not deleted",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "back": {
+            "type": "boolean"
+          },
           "taskId": {
             "examples": [
               "tsk_a1b2c3"
@@ -67601,7 +67604,7 @@
       "blocks": [],
       "cap": "tasks.assign",
       "deferred": false,
-      "description": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
+      "description": "Set or clear Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67710,7 +67713,7 @@
       "blocks": [],
       "cap": "tasks.create",
       "deferred": false,
-      "description": "Create a task (Work by default)",
+      "description": "Create a task",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -67833,8 +67836,16 @@
             },
             "type": "array"
           },
+          "doneWhen": {
+            "examples": [
+              "vault_item:Hosting key"
+            ],
+            "maxLength": 200,
+            "pattern": "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
+            "type": "string"
+          },
           "due": {
-            "description": "Milliseconds since the Unix epoch",
+            "description": "Unix ms",
             "examples": [
               1760000000000
             ],
@@ -67846,7 +67857,7 @@
             "type": "integer"
           },
           "expiresAt": {
-            "description": "Milliseconds since the Unix epoch",
+            "description": "Unix ms",
             "examples": [
               1760000000000
             ],
@@ -68005,7 +68016,7 @@
             "type": "object"
           },
           "start": {
-            "description": "Milliseconds since the Unix epoch",
+            "description": "Unix ms",
             "examples": [
               1760000000000
             ],
@@ -68039,7 +68050,7 @@
       "blocks": [],
       "cap": "tasks.delegate",
       "deferred": false,
-      "description": "Hand a request to someone else with a note; never widens access, so it walks the delegate chain to the first who can act",
+      "description": "Hand a request to someone else with a note; never widens access: walks the delegate chain to the first who can act",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68094,7 +68105,7 @@
       "blocks": [],
       "cap": "tasks.delete",
       "deferred": false,
-      "description": "Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead",
+      "description": "Delete a task (Undo restores it); a held act or a task a Run waits on is canceled",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68120,7 +68131,7 @@
       "blocks": [],
       "cap": "tasks.dependencies.add",
       "deferred": false,
-      "description": "Make a task wait on another; Blocked is derived from unmet dependencies and open Unblock children",
+      "description": "Make a task wait on another; Blocked comes from unmet dependencies and open Unblocks",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68180,45 +68191,6 @@
         "type": "object"
       },
       "name": "tasks_dependencies_remove",
-      "planMode": "blocked",
-      "toolset": "tasks",
-      "v": 1
-    },
-    {
-      "blocks": [],
-      "cap": "tasks.done_when",
-      "deferred": false,
-      "description": "What proves a task done; it closes itself. No kind clears",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "key": {
-            "minLength": 1,
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "vault_item",
-              "message_sent",
-              "meeting_ended",
-              "connection_on"
-            ],
-            "type": "string"
-          },
-          "taskId": {
-            "examples": [
-              "tsk_a1b2c3"
-            ],
-            "pattern": "^tsk_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "taskId"
-        ],
-        "type": "object"
-      },
-      "name": "tasks_done_when",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1
@@ -68293,7 +68265,7 @@
       "blocks": [],
       "cap": "tasks.get",
       "deferred": false,
-      "description": "Read one task with its blocks, slots, links, notes and followers",
+      "description": "Read one task with blocks, slots, links, notes and followers",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68319,7 +68291,7 @@
       "blocks": [],
       "cap": "tasks.history",
       "deferred": false,
-      "description": "Activity of a task: transitions, hand-overs, notes and sends back, newest first",
+      "description": "Activity of a task: transitions, hand-overs, notes, sends back; newest first",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68353,7 +68325,7 @@
       "blocks": [],
       "cap": "tasks.index",
       "deferred": false,
-      "description": "The long list of a scope in one read: a light row per task with its rollup, ordered newest first; pass the last rev and an unchanged list answers nothing",
+      "description": "A scope's long list in one read: a light row per task, newest first; send the last rev and an unchanged list answers nothing",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68371,7 +68343,7 @@
             "type": "string"
           },
           "q": {
-            "description": "Words to find in the title, key, brief, notes and summary of every task the reader sees",
+            "description": "Words to find in title, key, brief, notes and summary",
             "maxLength": 200,
             "type": "string"
           },
@@ -68418,7 +68390,7 @@
       "blocks": [],
       "cap": "tasks.links.add",
       "deferred": false,
-      "description": "Link a record or a file to a task",
+      "description": "Link a record or file to a task",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68458,7 +68430,7 @@
       "blocks": [],
       "cap": "tasks.links.remove",
       "deferred": false,
-      "description": "Remove a record or file link from a task",
+      "description": "Remove a record or file link",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68498,7 +68470,7 @@
       "blocks": [],
       "cap": "tasks.list",
       "deferred": false,
-      "description": "List tasks by scope (mine, assigned by me, following, a record, a run) and filters",
+      "description": "List tasks by scope (mine, given by me, following, a record, a run) and filters",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68606,7 +68578,7 @@
       "blocks": [],
       "cap": "tasks.my_work",
       "deferred": false,
-      "description": "My work: the full list, with sections Open, Assigned by me, Done",
+      "description": "My work: the full list in sections Open, Assigned by me, Done",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68639,7 +68611,7 @@
       "blocks": [],
       "cap": "tasks.needs_you",
       "deferred": false,
-      "description": "Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others",
+      "description": "Needs you: my Ready Approve, Review, Answer and Unblock tasks, plus due today, overdue or blocking",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -68712,7 +68684,7 @@
       "blocks": [],
       "cap": "tasks.rev",
       "deferred": false,
-      "description": "A short mark that changes whenever any task changes, for a screen that holds a long list",
+      "description": "A mark that changes when any task changes, for a screen with a long list",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -68727,7 +68699,7 @@
       "blocks": [],
       "cap": "tasks.snooze",
       "deferred": false,
-      "description": "Snooze an open task until a time, or clear the snooze with null",
+      "description": "Snooze an open task until a time; null clears the snooze",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68741,7 +68713,7 @@
           "until": {
             "anyOf": [
               {
-                "description": "Milliseconds since the Unix epoch",
+                "description": "Unix ms",
                 "examples": [
                   1760000000000
                 ],
@@ -68769,7 +68741,7 @@
       "blocks": [],
       "cap": "tasks.take",
       "deferred": false,
-      "description": "Take a group or role task; the first Take locks it and others see taken by",
+      "description": "Take a group or role task; the first Take locks it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68795,7 +68767,7 @@
       "blocks": [],
       "cap": "tasks.transition",
       "deferred": false,
-      "description": "Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules",
+      "description": "Move a task to a new status (the only writer of status); checks the state table and reviewer/approver rules",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68845,35 +68817,9 @@
     },
     {
       "blocks": [],
-      "cap": "tasks.unarchive",
-      "deferred": false,
-      "description": "Put an archived task back",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "taskId": {
-            "examples": [
-              "tsk_a1b2c3"
-            ],
-            "pattern": "^tsk_[a-z0-9]+$",
-            "type": "string"
-          }
-        },
-        "required": [
-          "taskId"
-        ],
-        "type": "object"
-      },
-      "name": "tasks_unarchive",
-      "planMode": "blocked",
-      "toolset": "tasks",
-      "v": 1
-    },
-    {
-      "blocks": [],
       "cap": "tasks.update",
       "deferred": false,
-      "description": "Edit the title, summary, why, due, effort or content blocks of a task, or link its thread when it has none (status goes through tasks.transition)",
+      "description": "Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -68902,10 +68848,18 @@
             },
             "type": "array"
           },
+          "doneWhen": {
+            "examples": [
+              "vault_item:Hosting key"
+            ],
+            "maxLength": 200,
+            "pattern": "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
+            "type": "string"
+          },
           "due": {
             "anyOf": [
               {
-                "description": "Milliseconds since the Unix epoch",
+                "description": "Unix ms",
                 "examples": [
                   1760000000000
                 ],
@@ -68928,7 +68882,7 @@
             ]
           },
           "expectedVersion": {
-            "description": "The version the editor saw; a task that moved on is refused with what changed, never overwritten",
+            "description": "The version you saw; a task that changed is refused with what changed",
             "minimum": 0,
             "type": "integer"
           },
@@ -69003,7 +68957,7 @@
           "start": {
             "anyOf": [
               {
-                "description": "Milliseconds since the Unix epoch",
+                "description": "Unix ms",
                 "examples": [
                   1760000000000
                 ],
@@ -69090,12 +69044,12 @@
       "blocks": [],
       "cap": "tasks.working_notes.set",
       "deferred": false,
-      "description": "Write a working note (key and value) that any person or agent on the task can read; send expectedFrom, the note as you last read it",
+      "description": "Write a working note (key, value) everyone on the task can read; send expectedFrom: the note as you last read it",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "expectedFrom": {
-            "description": "The note as you last read it, empty when it had none. If someone changed the note since, nothing is written and the refusal gives the current note: make your change again on top of it (a list note, Done means or its ticks, is merged for an agent). Without it an agent may only append to the note",
+            "description": "The note as you last read it (empty if none). If it changed since, nothing is written and the refusal gives the current note: redo your change on it (a list note is merged for an agent). Without it an agent may only append",
             "type": "string"
           },
           "key": {

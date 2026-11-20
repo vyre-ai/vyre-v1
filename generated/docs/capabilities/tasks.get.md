@@ -1,6 +1,6 @@
 # tasks.get
 
-Read one task with its blocks, slots, links, notes and followers
+Read one task with blocks, slots, links, notes and followers
 
 | | |
 |---|---|

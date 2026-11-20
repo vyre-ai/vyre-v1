@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { isHostOwnService, isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe,
   allTasks,
@@ -33,7 +33,9 @@ import {
   whoOn,
   MOMENT_GRACE_MS,
 } from "../projections.ts";
+import { checkProof } from "./proof.ts";
 import { ensureThread, syncThread, unseat } from "./thread.ts";
+import type { DoneWhenKind } from "../projections.ts";
 import type {
   ActionDef,
   Assignee,
@@ -568,6 +570,14 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
   // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
+  if (typeof input.doneWhen === "string" && input.doneWhen !== "") {
+    // "kind:name", for example "vault_item:Hosting key"
+    const at = input.doneWhen.indexOf(":");
+    const kind = input.doneWhen.slice(0, at),
+      key = input.doneWhen.slice(at + 1);
+    await checkProof(ctx, t, kind, key);
+    t.doneWhen = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+  }
   if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
   else if (ctx.principal.kind === "agent") {
     t.momentStated = false;
@@ -819,6 +829,31 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("labels" in input && input.labels !== undefined) set("labels", [...new Set<string>(input.labels)]);
   if ("start" in input && input.start !== undefined) set("start", input.start ?? undefined);
   if ("recur" in input && input.recur !== undefined) set("recur", input.recur ?? undefined);
+  if ("doneWhen" in input && input.doneWhen !== undefined) {
+    // what proves the task done, "kind:name"; empty clears it. The same permission as tasks.done_when (someone who may let the task go), not the wider right to edit, and the same refusals as at creation
+    if (!isTrustedService(whoIs(ctx)) && !mayLetGo(ctx, t))
+      raise(ctx, "validation.precondition_failed", "Only someone on this task can say what proves it done.", {
+        reason: "wrong_actor",
+      });
+    const text = String(input.doneWhen);
+    if (text === "") {
+      if (t.doneWhen !== undefined) {
+        ctx.db.run("DELETE FROM tasks_proof WHERE task_id = ?", t.id);
+        delete t.doneWhen;
+        changed.push("doneWhen");
+      }
+    } else {
+      const at = text.indexOf(":");
+      const kind = text.slice(0, at),
+        key = text.slice(at + 1);
+      await checkProof(ctx, t, kind, key);
+      const next = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+      if (JSON.stringify(t.doneWhen) !== JSON.stringify(next)) {
+        t.doneWhen = next;
+        changed.push("doneWhen");
+      }
+    }
+  }
   if ("fields" in input && input.fields !== undefined) {
     const next: Record<string, unknown> = { ...t.fields };
     for (const [k, v] of Object.entries(input.fields as Record<string, unknown>)) {
@@ -1081,9 +1116,9 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
-/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a trusted service. */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by one of the host's own services by name (an allow-list: a service a tenant made, or any id nobody has heard of, is not one). */
 export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
-  isTrustedService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
+  isHostOwnService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
 
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 

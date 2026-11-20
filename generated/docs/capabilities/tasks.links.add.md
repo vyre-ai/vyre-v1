@@ -1,6 +1,6 @@
 # tasks.links.add
 
-Link a record or a file to a task
+Link a record or file to a task
 
 | | |
 |---|---|

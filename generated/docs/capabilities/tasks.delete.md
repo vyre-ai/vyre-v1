@@ -1,6 +1,6 @@
 # tasks.delete
 
-Delete a task; Undo brings it back. A held act and a task a Run waits on are canceled instead
+Delete a task (Undo restores it); a held act or a task a Run waits on is canceled
 
 | | |
 |---|---|

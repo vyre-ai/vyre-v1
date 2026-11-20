@@ -8,8 +8,11 @@ import { onChatGone, onGoalEnded, onParentFinished } from "../handlers/orphans.t
 
 const me = { id: owner.id };
 const svc = { id: "svc_host", kind: "service" as const };
-const mk = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> =>
-  (await h.call("tasks.create", newTask(over), me)).task.id as string;
+const mk = async (
+  h: Harness,
+  over: Record<string, unknown> = {},
+  who: Parameters<Harness["call"]>[2] = me,
+): Promise<string> => (await h.call("tasks.create", newTask(over), who)).task.id as string;
 const get = async (
   h: Harness,
   id: string,
@@ -56,7 +59,12 @@ test("a finished parent puts away its Unblock, and an Unblock of a parent still 
 
 test("a held act is never put away by its chat closing: the Gate decides that", async () => {
   const h = harness();
-  const held = await mk(h, { kind: "approve", title: "Send the email", source: { kind: "gate", id: "act_1" } });
+  // a held act is made the way the Gate makes it: by the server
+  const held = await mk(
+    h,
+    { kind: "approve", title: "Send the email", source: { kind: "gate", id: "act_1" }, assigned: owner },
+    { id: "svc_host", kind: "service" },
+  );
   const asked = await mk(h, { kind: "approve", title: "A plan", source: { kind: "chat", id: "thr_9" } });
   assert.deepEqual(await chat(h, "thread.closed", "thr_9"), [asked]);
   assert.equal((await get(h, held)).archived, undefined);

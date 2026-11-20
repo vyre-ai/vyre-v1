@@ -3,9 +3,9 @@
 // all behave as for any other close. Every event can arrive twice: a closed or archived task is left alone.
 import { findTask, isOpen, raise, saveTask, visibleTo, whoIs } from "../projections.ts";
 import type { DoneWhenKind, Task, TasksCtx } from "../projections.ts";
-import { DONE_WHEN_KINDS } from "../projections.ts";
 import { isTrustedService } from "../../../lib/trust.ts";
 import { mayLetGo } from "./state.ts";
+import { checkProof, heldOrApproval } from "./proof.ts";
 import { out } from "../projections.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -36,11 +36,6 @@ export function proofOf(e: Ev): { kind: DoneWhenKind; key: string; words: string
     default:
       return null;
   }
-}
-
-/** Evidence never settles a held act, an Approve task or anything the Gate or a Run waits on: those are decided with their own approval, never by an event. */
-export function heldOrApproval(t: Task): boolean {
-  return t.kind === "approve" || t.source?.kind === "gate" || t.source?.kind === "run" || t.payloadHash !== undefined;
 }
 
 /** The people and agents on the task: only what one of them does can close it, so the task closing never tells its setter about what someone else did out of their sight. */
@@ -87,33 +82,11 @@ export async function doneWhen(ctx: TasksCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.precondition_failed", "Only someone on this task can say what proves it done.", {
       reason: "wrong_actor",
     });
-  if (input.kind !== undefined && heldOrApproval(t))
-    raise(
-      ctx,
-      "validation.precondition_failed",
-      "A held act or an Approve task is decided by its own approval, not by an event.",
-      {
-        reason: "held_act",
-      },
-    );
-  if (input.kind === "meeting_ended" && typeof input.key === "string" && ctx.call) {
-    // a proof may only name what its setter may read: a meeting they cannot open is not theirs to wait for
-    try {
-      await ctx.call("meetings.get", { meetingId: input.key.trim() });
-    } catch {
-      raise(ctx, "validation.precondition_failed", "That meeting is not one you can open.", {
-        reason: "proof_unreadable",
-      });
-    }
-  }
+  if (input.kind !== undefined) await checkProof(ctx, t, input.kind, input.key);
   if (input.kind === undefined) {
     ctx.db.run("DELETE FROM tasks_proof WHERE task_id = ?", t.id);
     delete t.doneWhen;
   } else {
-    if (!DONE_WHEN_KINDS.includes(input.kind) || typeof input.key !== "string" || input.key.trim() === "")
-      raise(ctx, "validation.precondition_failed", "Say what to wait for: a kind and a name or id.", {
-        reason: "bad_proof",
-      });
     t.doneWhen = { kind: input.kind, key: norm(input.key) };
   }
   saveTask(ctx.db, t);

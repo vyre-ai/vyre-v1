@@ -115,7 +115,12 @@ test("only someone on the task may archive it or put it back, and a closed task 
 
 test("archiving never strands a waiter: a held act, a task a Run waits on and a task other work waits on are refused", async () => {
   const h = harness();
-  const held = await mk(h, { kind: "approve", source: { kind: "gate", id: "dec_1" } });
+  // a held act is made the way the Gate makes it: by the server
+  const held = await mk(
+    h,
+    { kind: "approve", source: { kind: "gate", id: "dec_1" } },
+    { id: "svc_host", kind: "service" },
+  );
   await refused(h.call("tasks.archive", { taskId: held }, me), "held_act");
   const run = await mk(h, { source: { kind: "run", id: "run_1" } });
   await refused(h.call("tasks.archive", { taskId: run }, me), "run_waits");

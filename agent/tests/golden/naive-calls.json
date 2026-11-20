@@ -5589,9 +5589,6 @@
     "taskId": "tsk_a1b2c3",
     "dependsOnId": "tsk_a1b2c3"
   },
-  "tasks_done_when": {
-    "taskId": "tsk_a1b2c3"
-  },
   "tasks_followers_add": {
     "taskId": "tsk_a1b2c3",
     "follower": "Quarterly planning"
@@ -5637,9 +5634,6 @@
   "tasks_transition": {
     "taskId": "tsk_a1b2c3",
     "to": "todo"
-  },
-  "tasks_unarchive": {
-    "taskId": "tsk_a1b2c3"
   },
   "tasks_update": {
     "taskId": "tsk_a1b2c3"

@@ -50,8 +50,9 @@ export function TemplatesPage({ initialKey }: { initialKey?: string }): ReactEle
         />
       </Section>
       <Help>
-        Put a field in with its name in double braces, like {"{{signer_name|there}}"}. The words after the bar are used
-        when the field is empty.
+        {
+          "Put a field in with its name in double braces, like {{signer_name|there}}. The words after the bar are used when the field is empty."
+        }
       </Help>
     </View>
   );
@@ -148,7 +149,7 @@ function TemplateEditor({
               label="Save"
               testID="template-save"
               disabled={!changed || !valid || action.busy}
-              why={!valid ? "A template needs a subject and a body" : undefined}
+              {...(!valid ? { why: "A template needs a subject and a body" } : {})}
               onPress={() =>
                 void action.run(
                   "mail.template.save",

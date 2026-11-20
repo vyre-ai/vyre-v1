@@ -387,7 +387,12 @@ test("signing out here ends the session at the Space, closes the open socket so 
   assert.equal(out[1], "Bearer vst_tok");
   assert.throws(() => port.postMessage({ id: "x" }), /closed/);
 
-  const down = world({ fetch: async (u: string) => (u.endsWith("pair_redeem") ? { ok: true, json: async () => ({ data: { session: { token: "t" } } }) } : Promise.reject(new TypeError("offline"))) });
+  const down = world({
+    fetch: async (u: string) =>
+      u.endsWith("pair_redeem")
+        ? { ok: true, json: async () => ({ data: { session: { token: "t" } } }) }
+        : Promise.reject(new TypeError("offline")),
+  });
   const dl = await linked(down);
   await down.link.signOut(dl.address);
   assert.equal(down.link.current(), null, "forgotten here even when the Space cannot be told");

@@ -17,7 +17,7 @@ What proves a task done; it closes itself. No kind clears
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/tasks/done_when |
-| MCP tool | tasks_done_when (tasks) |
+| MCP tool | none |
 | CLI | none |
 | Emits | task.updated |
 
