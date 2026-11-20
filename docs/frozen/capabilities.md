@@ -775,7 +775,7 @@ Added after the lead's note on the seventh look (lane r42-alive, 20 Nov 2026): `
 
 Signed: lead, 19 Nov 2026
 
-Added after the review lows (lane r42-alive, 20 Nov 2026): setting `doneWhen` through `tasks.update` needs the same right as `tasks.done_when` (someone who may let the task go), not the wider right to edit; an empty `doneWhen` at creation is no proof; `doneWhen` is at most 200 characters and `tasks.archive` `why` at most 300. Signed: pending, lead.
+Added after the review lows (lane r42-alive, 20 Nov 2026): setting `doneWhen` through `tasks.update` needs the same right as `tasks.done_when` (someone who may let the task go), not the wider right to edit; an empty `doneWhen` at creation is no proof; `doneWhen` is at most 200 characters and `tasks.archive` `why` at most 300. Signed: lead, 2026-11-20.
 
 ## 19 Nov 2026: two new gate acts, admit and access (lane r42-email)
 
