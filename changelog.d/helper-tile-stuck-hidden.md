@@ -1,0 +1,1 @@
+- A tile's stuck line is a warn mark and a short quiet line, a helper that waits for another shows only what it starts after, and a chat's place that is kept but hidden reads nothing from the runtime until it shows again.

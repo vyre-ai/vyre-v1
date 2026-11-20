@@ -972,6 +972,8 @@ export async function retryHelper(data: ConversationData, helperThreadId: string
     threadId: data.threadId,
     title: th.thread?.title ?? "Helper",
     instruction: brief,
+    // the runtime starts anything that waited for the failed helper again behind this one
+    retryOf: helperThreadId,
     idempotencyKey: key,
   });
 }

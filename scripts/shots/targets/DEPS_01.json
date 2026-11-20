@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "DEPS_01-daemon",
+      "route": "/m/DEPS_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='deps-mount']",
+      "note": "The crew block from real daemon data: a helper waiting for another, one behind a failed helper, and the one the host then failed."
+    }
+  ]
+}

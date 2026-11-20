@@ -1,0 +1,1 @@
+- The Crew pane has an Everything running or asleep list for the whole Space (what runs, what sleeps and what it waits on); it is read only when you open it, and a press opens that run's own chat.

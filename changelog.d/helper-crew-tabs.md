@@ -1,0 +1,1 @@
+- The Crew pane now has the tabs Helpers, Board and Tokens like the prototype: Helpers is the pane as before with what the Space has running or asleep under it, Board holds what the helpers know together and the last words between them, Tokens is one quiet line with its details.
