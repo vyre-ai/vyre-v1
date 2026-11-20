@@ -113,7 +113,7 @@ test("a delivered event is stored at once, and a crash with a stale past-event c
 
 test("an idle server stores the cursors it held back: they reach the head within about two seconds, with no pass to do it", async () => {
   const names = ["m.x", "m.none"];
-  const db = new Map(names.map((n) => [n, 0] as const));
+  const db = new Map<string, number>(names.map((n) => [n, 0]));
   const events = [ev(1, "other")];
   const { r, setHead } = make(db, events, [], names);
   setHead(1);
@@ -214,7 +214,7 @@ test("the idle flush does not write while a pass is running: the pass stores wha
 
 test("a stop right after a pass stores the held-back cursors, and nothing is written after it", async () => {
   const names = ["m.x", "m.none"];
-  const db = new Map(names.map((n) => [n, 0] as const));
+  const db = new Map<string, number>(names.map((n) => [n, 0]));
   const events = [ev(1, "other")];
   const sqls: string[] = [];
   const { r, setHead } = make(db, events, [], names);
