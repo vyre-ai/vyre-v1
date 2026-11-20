@@ -350,7 +350,6 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "zoom.meetings.delete": "delete a Zoom meeting",
   "zoom.meetings.update": "change a Zoom meeting",
   // holds added with the email, communications and key-host work (lane r42-email)
-  "backup.export_start": "make a copy of the whole Space to download",
   "comms.senders.set_default": "change who emails are sent as by default",
   "connectors.publish": "publish a connection for others to use",
   "forms.link_create": "make a link to a form for one person",

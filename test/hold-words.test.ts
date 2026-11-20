@@ -169,6 +169,8 @@ test("a held rotation says which site and that GitHub must be given the new secr
   assert.equal(
     holdShort("sites.webhook_set", { siteId: "s", rotate: true }, { site: { name: "Dash", keys: [] } }),
     "rotate the webhook secret for Dash; GitHub must be given the new one",
+  );
+});
 
 test("a held read of a web page names the host, then the whole address: never cut, control and bidi characters written out, an address that is not a web address is not worded as a host", () => {
   const url = "https://docs.vendor.example/guide/auth?topic=tokens&page=2";

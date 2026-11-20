@@ -952,6 +952,33 @@ test("a held send of a preview copy shows the server's sentence quietly under th
     ({
       call: async (cap: string) =>
         cap === "tasks.get" ? t : cap === "files.get" ? { file: { name: "Agreement.pdf" } } : {},
+      nav: { openBeside: () => undefined },
+    }) as never;
+  const root = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_9"
+      agent="Intake"
+      agentId="agt_1"
+      data={make(
+        held({
+          note: "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+          noteSigners: ["Andrea Lindahl"],
+        }),
+      )}
+    />,
+  );
+  assert.match(
+    textOf(find(root, "approval-note-tsk_9")),
+    /preview copy of the file for signature\. It's in the plain page look, not the Word template's layout\. Allow sends it as it is\./,
+  );
+  assert.equal(textOf(find(root, "approval-note-tsk_9-signers")), "To: Andrea Lindahl");
+  const plain = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
+  );
+  assert.equal(find(plain, "approval-note-tsk_9"), null);
+});
 
 test("a held read of a web page: the host on the first line, the whole address in a block of its own, escaped, never cut", async () => {
   const long = `https://docs.vendor.example/a/${"x".repeat(1990)}?d=THE-END-OF-THE-ADDRESS`;
@@ -979,29 +1006,6 @@ test("a held read of a web page: the host on the first line, the whole address i
     }) as never;
   const root = await mount(
     createRoot,
-    <ApprovalCard
-      taskId="tsk_9"
-      agent="Intake"
-      agentId="agt_1"
-      data={make(
-        held({
-          note: "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
-          noteSigners: ["Andrea Lindahl"],
-        }),
-      )}
-    />,
-  );
-  assert.match(
-    textOf(find(root, "approval-note-tsk_9")),
-    /preview copy of the file for signature\. It's in the plain page look, not the Word template's layout\. Allow sends it as it is\./,
-  );
-  assert.equal(textOf(find(root, "approval-note-tsk_9-signers")), "To: Andrea Lindahl");
-  const plain = await mount(
-    createRoot,
-    <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
-  );
-  assert.equal(find(plain, "approval-note-tsk_9"), null);
-
     <ApprovalCard taskId="tsk_w" agent="Intake" agentId="agt_1" data={held(long)} />,
   );
   assert.match(textOf(root), /Intake wants to read a web page on docs\.vendor\.example/);

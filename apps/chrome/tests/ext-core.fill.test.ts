@@ -1300,6 +1300,7 @@ test("a message that says nothing about which site it comes from is treated as a
   assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0);
   const src = (await import("node:fs")).readFileSync(new URL("../src/content/badge.js", import.meta.url), "utf8");
   assert.match(src, /Vyre does not fill inside another site's frame\./);
+});
 
 test("a page cannot use the Vault comparison to try passwords: a site's logins are compared a few times a minute, then not at all until the minute passes", async () => {
   const app = new FakeApp();
