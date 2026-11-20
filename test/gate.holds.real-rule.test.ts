@@ -1,6 +1,6 @@
 // The email setup capabilities through the real invoke pipeline: the real definitions from the registry, the real kernel authorize over a real access snapshot, and the real Gate hook.
 // mail.configure routes to these, so they are its whole door: a member without comms.domains is refused, an admin is let in, and when an agent changes the Space's mail server or moves an address the call is held for a person's ok.
-import { holdShort, wantsFromInput } from "../../../lib/hold-words.ts";
+import { holdShort, wantsFromInput } from "../lib/hold-words.ts";
 import {
   heldGateFp,
   noteGateFp,
@@ -9,15 +9,15 @@ import {
   takeGateFp,
   uploadFingerprint,
   usedGateFp,
-} from "../../../lib/key-target.ts";
-import { siteFacts } from "../../sites/impl.ts";
-import { world as sitesWorld, h as siteH, useDatabase } from "../../sites/tests/deploy-world.ts";
+} from "../lib/key-target.ts";
+import { siteFacts } from "../modules/sites/impl.ts";
+import { world as sitesWorld, h as siteH, useDatabase } from "../modules/sites/tests/deploy-world.ts";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
-import { createIdempotency } from "../../../kernel/src/idempotency/index.ts";
-import { registry } from "../../../generated/registry.ts";
+import { AccessSnapshot, authorize } from "../kernel/src/authorize/index.ts";
+import { createIdempotency } from "../kernel/src/idempotency/index.ts";
+import { registry } from "../generated/registry.ts";
 import {
   createGateHook,
   keySendOf,
@@ -25,14 +25,14 @@ import {
   moduleWhens,
   payloadHash,
   pinnedDeploy,
-} from "../../../host/src/daemon/gate-hook.ts";
-import { createInvoke, createRateLimiter, indexCapabilities } from "../../../host/src/invoke.ts";
-import type { CtxSeed, Handler, InvokeDeps } from "../../../host/src/invoke.ts";
-import { harness as gateHarness } from "../fixtures/db.ts";
-import { HostError } from "../../../host/src/routes/errors.ts";
+} from "../host/src/daemon/gate-hook.ts";
+import { createInvoke, createRateLimiter, indexCapabilities } from "../host/src/invoke.ts";
+import type { CtxSeed, Handler, InvokeDeps } from "../host/src/invoke.ts";
+import { harness as gateHarness } from "../modules/gate/fixtures/db.ts";
+import { HostError } from "../host/src/routes/errors.ts";
 
 // what mail.configure routes to (modules/mail/handlers/setup.ts CONFIGURE_ROUTE, minus the test email): kept here by name so a host test imports no module; modules/mail/tests/configure.perm.test.ts fails when the two differ
-import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
+import type { CapabilityDef } from "../packages/contracts/src/types.ts";
 
 // the callees come from mail.configure's own routing table (minus the test email, which goes through mail.send and has its own tests), so a new action is checked the day it is added
 const CALLEES = [

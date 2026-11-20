@@ -1,17 +1,17 @@
 // An agent's scheduled command or worker runs with the site's production keys, so every door that makes one is held for an agent when the site stores Vault keys, and only then (r42-sites-run).
 // The real Gate conditions (host/src/daemon/gate-hook.ts moduleWhens) over a real SQLite with the sites migrations and the real siteFacts: an agent is held, a person goes through, a site with no Vault row goes through.
-// @reads ../../sites/migrations/0001_sites_core.sql
+// @reads ../modules/sites/migrations/0001_sites_core.sql
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { DatabaseSync } from "node:sqlite";
-import { moduleWhens } from "../../../host/src/daemon/gate-hook.ts";
-import { siteFacts } from "../../sites/impl.ts";
-import type { CtxSeed } from "../../../host/src/invoke.ts";
+import { moduleWhens } from "../host/src/daemon/gate-hook.ts";
+import { siteFacts } from "../modules/sites/impl.ts";
+import type { CtxSeed } from "../host/src/invoke.ts";
 
 function world() {
   const raw = new DatabaseSync(":memory:");
-  const dir = new URL("../../sites/migrations/", import.meta.url);
+  const dir = new URL("../modules/sites/migrations/", import.meta.url);
   for (const f of fs
     .readdirSync(dir)
     .filter((n) => n.endsWith(".sql"))
