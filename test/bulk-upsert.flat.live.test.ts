@@ -6,7 +6,9 @@ import assert from "node:assert/strict";
 import { call } from "./support/eco-live.ts";
 import { world } from "./support/sync-live.ts";
 
-const threadCpu = (process as unknown as { threadCpuUsage?: (p?: { user: number; system: number }) => { user: number; system: number } }).threadCpuUsage?.bind(process);
+const threadCpu = (
+  process as unknown as { threadCpuUsage?: (p?: { user: number; system: number }) => { user: number; system: number } }
+).threadCpuUsage?.bind(process);
 const cpuStart = (): { user: number; system: number } => threadCpu?.() ?? { user: performance.now() * 1000, system: 0 };
 const cpuSince = (t: { user: number; system: number }): number => {
   const u = threadCpu ? threadCpu(t) : { user: performance.now() * 1000 - t.user, system: 0 };
@@ -49,7 +51,12 @@ test("the CPU of a bulk_upsert row stays flat as the table grows", { timeout: 30
         match: ["name"],
         createOnly: true,
         runAutomations: false,
-        rows: Array.from({ length: BATCH }, (_, i) => ({ name: `P ${b}-${i}`, email: `p${b}${i}@example.com`, phone: `+1${b}${i}`, city: "Town" })),
+        rows: Array.from({ length: BATCH }, (_, i) => ({
+          name: `P ${b}-${i}`,
+          email: `p${b}${i}@example.com`,
+          phone: `+1${b}${i}`,
+          city: "Town",
+        })),
       });
       costs.push(cpuSince(t));
       assert.equal(r.status, 200, JSON.stringify(r.data).slice(0, 300));
@@ -57,7 +64,10 @@ test("the CPU of a bulk_upsert row stays flat as the table grows", { timeout: 30
     process.stderr.write(`[flat] CPU ms per batch of ${BATCH}: ${costs.map((c) => Math.round(c)).join(" ")}\n`);
     const early = costs.slice(1, 4).reduce((a, b) => a + b, 0) / 3; // the first batch warms the code
     const late = costs.slice(8, 11).reduce((a, b) => a + b, 0) / 3;
-    assert.ok(late <= early * 1.5, `a row costs ${Math.round((late / BATCH) * 100) / 100} ms with 2,400 rows in the table and ${Math.round((early / BATCH) * 100) / 100} ms with 300-900 (at most 1.5 times)`);
+    assert.ok(
+      late <= early * 1.5,
+      `a row costs ${Math.round((late / BATCH) * 100) / 100} ms with 2,400 rows in the table and ${Math.round((early / BATCH) * 100) / 100} ms with 300-900 (at most 1.5 times)`,
+    );
   } finally {
     await w.close();
   }
