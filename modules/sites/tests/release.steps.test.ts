@@ -2676,3 +2676,62 @@ test("a whole clone (the dumb-HTTP fallback takes the branch whole) is held to t
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
+
+test("an id or handle the schema no longer pattern-checks is refused by its handler with a plain error, and no path takes one unchecked", async () => {
+  // Files answers an id it does not have with a refusal, as the real one does
+  const notThere = (): never => {
+    throw Object.assign(new Error("not found"), {
+      error: { code: "resource.not_found", message: "That is not in Files." },
+    });
+  };
+  const w = world();
+  try {
+    const siteId = await w.makeRepo("Checked");
+    const all = h as unknown as Record<string, (c: unknown, i: unknown) => Promise<unknown>>;
+    const bad = async (cap: string, input: Record<string, unknown>): Promise<string> => {
+      try {
+        await all[cap]!(w.ctx, input);
+        return "accepted";
+      } catch (e) {
+        return String((e as { error?: { message?: string } })?.error?.message ?? e);
+      }
+    };
+    const plain = (m: string): void => {
+      assert.notEqual(m, "accepted");
+      assert.doesNotMatch(m, /TypeError|undefined|Cannot read|\bat \w/, m);
+      assert.ok(m.length > 10 && m.length < 300, m);
+    };
+    // a site id that is not one
+    // every live sites.* capability that takes a siteId (the ones with none are named here, so a new one has to be placed)
+    const noSiteId = new Set(["sites.create", "sites.ship", "sites.list", "sites.host", "sites.plan"]);
+    const live = Object.keys(all).filter((k) => k.startsWith("sites.") && !noSiteId.has(k));
+    assert.ok(live.length > 20, String(live.length));
+    for (const cap of live) {
+      const m = await bad(cap, { siteId: "not a site id", name: "x" });
+      if (m === "accepted") assert.fail(`${cap} took a site id that is not one`);
+      assert.doesNotMatch(m, /TypeError|undefined|Cannot read|\bat \w/, `${cap}: ${m}`);
+    }
+    // a source's token that is not a Vault key, in plan (head_check takes only a site id and reads the stored source, which update and create already refused)
+    plain(await bad("sites.plan", { source: { repo: "acme/app", tokenHandle: "Stripe_Key" } }));
+    // a Vault handle that is not one: in env, in a source's token, in a database import
+    for (const h2 of ["Stripe_Key", "#", "# x", "#a.b.c", "../etc", "#ok\nnewline"]) {
+      plain(await bad("sites.env_set", { siteId, entries: [{ name: "K", vaultHandle: h2 }] }));
+      plain(await bad("sites.update", { siteId, source: { repo: "acme/app", tokenHandle: h2 } }));
+      plain(await bad("sites.create", { name: "x", source: { repo: "acme/app", tokenHandle: h2 } }));
+      plain(
+        await bad("sites.ship", { name: "x", source: { repo: "acme/app" }, env: [{ name: "K", vaultHandle: h2 }] }),
+      );
+    }
+    plain(await bad("sites.db_import", { siteId, fromHandle: "Stripe_Key" }));
+    // a folder or file id that is not one: the source is refused at the Files lookup or at the build, never fetched blind
+    for (const src of [{ folderId: "not a folder" }, { fileId: "not a file" }]) {
+      const m = await fetchSource(src, { call: async () => notThere(), token: async () => null, contained: true }).then(
+        () => "accepted",
+        (e: unknown) => String((e as { error?: { message?: string } })?.error?.message ?? e),
+      );
+      plain(m);
+    }
+  } finally {
+    w.done();
+  }
+});
