@@ -12,6 +12,7 @@ import { createAgentControl } from "../src/agent/index.js";
 import { createDecoder, encode } from "../src/worker/framing.js";
 import { runHost } from "../src/worker/native/host.js";
 import { HOST_NAME } from "../src/worker/protocol.js";
+import { boxOf } from "./e2e/pierce.ts";
 import { createChromeBridge } from "../../../lib/chrome-bridge.ts";
 
 const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-chrome-agent-shots");
@@ -577,6 +578,55 @@ test(
         assert.ok(await idle.overlayState(), "the next call brings it back");
       } finally {
         await idle.close();
+      }
+    } finally {
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "a press on Take over or Stop takes effect even when the bar is redrawn and moves before the button is let go",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    try {
+      for (const [label, expectPaused] of [
+        ["Take over", true],
+        ["Stop", true],
+      ] as const) {
+        const r = await rig(browser, "light");
+        try {
+          await r.page.goto(`${srv.url}/`);
+          await r.call("chrome_plan", { goal: "Sign in" });
+          await r.call("chrome_snapshot");
+          const at = await boxOf(r.page, "button", label);
+          const width = () =>
+            r.page.evaluate(
+              () => (globalThis as any)[Symbol.for("vyre.agent.overlay")].bar.getBoundingClientRect().width,
+            );
+          const before = await width();
+          await r.page.mouse.move(at.x, at.y);
+          await r.page.mouse.down();
+          // while the button is held down, the bar is drawn again with a longer line (what the next chrome_plan or snapshot does): it grows and its buttons move
+          await r.page.evaluate(() => {
+            const o = (globalThis as any)[Symbol.for("vyre.agent.overlay")];
+            o.goal.textContent = "Sign in to the portal, read the latest invoices and send the signed deed to Dana";
+            o.goal.style.display = "";
+            o.text.textContent = "Intake is using this tab, and a longer line moves the bar's buttons";
+          });
+          assert.ok((await width()) > before + 40, "the redraw made the bar wider, so it moved under the pointer");
+          await r.page.mouse.up();
+          await new Promise((res) => setTimeout(res, 300));
+          assert.equal((await r.call("chrome_status")).paused, expectPaused, `${label} took effect`);
+        } finally {
+          await r.close();
+        }
       }
     } finally {
       await browser.close();

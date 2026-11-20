@@ -123,36 +123,31 @@ export function overlayShow(o) {
 
     const port =
       g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
-    stop.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "stop" });
-    });
-    open.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "openvyre" });
-    });
-    give.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "giveback" });
-    });
-    resume.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "giveback" });
-    });
-    end.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "endtask" });
-    });
-    take.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "takeover" });
-    });
+    // A button on the bar acts when it is pressed, not when it is let go: the bar is drawn again as the agent works (its line grows, it moves) and a release that lands somewhere else
+    // is no click, so a person's press on Stop or Take over, the one moment it matters, would be lost. The click that follows a press is ignored; a click with no press (the keyboard) acts.
+    /** @param {any} btn @param {() => void} fn */
+    const onPress = (btn, fn) => {
+      let at = 0;
+      btn.addEventListener("pointerdown", (/** @type {any} */ e) => {
+        if (!e.isTrusted || (e.button !== undefined && e.button !== 0)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        at = Date.now();
+        fn();
+      });
+      btn.addEventListener("click", (/** @type {any} */ e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (Date.now() - at < 1000) return;
+        fn();
+      });
+    };
+    onPress(stop, () => port && port.postMessage({ type: "stop" }));
+    onPress(open, () => port && port.postMessage({ type: "openvyre" }));
+    onPress(give, () => port && port.postMessage({ type: "giveback" }));
+    onPress(resume, () => port && port.postMessage({ type: "giveback" }));
+    onPress(end, () => port && port.postMessage({ type: "endtask" }));
+    onPress(take, () => port && port.postMessage({ type: "takeover" }));
     // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
     // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
     let lastTouch = 0;
