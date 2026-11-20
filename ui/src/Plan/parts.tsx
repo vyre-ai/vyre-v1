@@ -29,6 +29,8 @@ export interface EventLike {
   altKey?: boolean;
   key?: string;
   isComposing?: boolean;
+  /** When the browser made the event (ms): a busy page delays the handler, not this. */
+  timeStamp?: number;
   target: ElLike;
   currentTarget: ElLike;
   preventDefault(): void;
@@ -295,4 +297,19 @@ export interface PlanCtx {
   setBody(el: ElLike | null): void;
   /** Right-click on a dependency arrow: Remove Link. */
   linkMenu(a: string, b: string, x: number, y: number): void;
+}
+
+/**
+ * The menu trigger's props with a pointer-down of the element's own added to it. menuTrigger has an onPointerDown of its own (a finger held still opens the menu), and spreading it over an
+ * element's own onPointerDown replaced it: a bar or a calendar chip then never began a drag, with the mouse either. Both run, the menu's first.
+ */
+export function withDown(menu: Record<string, unknown>, onDown: (e: EventLike) => void): Record<string, unknown> {
+  const theirs = menu["onPointerDown"] as ((e: EventLike) => void) | undefined;
+  return {
+    ...menu,
+    onPointerDown: (e: EventLike): void => {
+      theirs?.(e);
+      onDown(e);
+    },
+  };
 }

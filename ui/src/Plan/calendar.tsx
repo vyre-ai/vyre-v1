@@ -3,7 +3,7 @@ import type { ReactElement, ReactNode } from "react";
 import { menuTrigger } from "../Menu/index.tsx";
 import { MONL, calendarWeeks, isLate, passes } from "./logic.ts";
 import type { CalSeg } from "./logic.ts";
-import { BAR, FaceButton, ICON, NameField, h, icon } from "./parts.tsx";
+import { BAR, FaceButton, ICON, NameField, h, icon, withDown } from "./parts.tsx";
 import type { EventLike, PlanCtx } from "./parts.tsx";
 
 function bar(c: PlanCtx, sg: CalSeg): ReactElement {
@@ -20,9 +20,11 @@ function bar(c: PlanCtx, sg: CalSeg): ReactElement {
       "data-testid": `plan-cal-${it.id}`,
       "data-id": it.id,
       title: it.title,
-      onPointerDown: (e: EventLike) => c.down(e, it.id, "cal"),
       onDoubleClick: () => c.open(it.id),
-      ...menuTrigger((x: number, y: number) => c.menu(it.id, x, y)),
+      ...withDown(
+        menuTrigger((x: number, y: number) => c.menu(it.id, x, y)),
+        (e: EventLike) => c.down(e, it.id, "cal"),
+      ),
       style: {
         gridColumn: `${sg.col + 1} / span ${sg.len}`,
         gridRow: sg.lane + 1,
