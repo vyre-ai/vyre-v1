@@ -1,6 +1,7 @@
 // The board's small chrome: the bar that appears when cards are selected (Move to, Assign), the toast that says what moved and offers Undo, and the keyboard hints behind the ? button.
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { Glyph, pointOf } from "../sidebar/parts.tsx";
 import { each } from "../views-a/model.ts";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
@@ -23,7 +24,7 @@ export function SelectBar({
   onAssign: ((who: string | null) => void) | null;
 }): ReactElement | null {
   const n = board.selected.size;
-  const narrow = useWindowDimensions().width < 700;
+  const narrow = isPhoneWidth(useWindowDimensions().width);
   if (n === 0) return null;
   const moveMenu = (e: unknown): void => {
     const p = pointOf(e);

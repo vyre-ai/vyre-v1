@@ -78,7 +78,6 @@ export function Cell({
     board.cellOf.current[r.id] = key;
   }
   if (swimKey === null) board.counts.current[lane.key] = count;
-  if (lane.none && count === 0 && swimKey === null) return null;
   const over = board.move.kind === "lifted" && board.move.over === lane.key && board.move.from !== lane.key;
   const blocked = over && board.move.kind === "lifted" ? board.move.blocked : null;
   const big = count > BIG_LANE;
@@ -89,6 +88,7 @@ export function Cell({
   useEffect(() => {
     if (wantMore) setLimit(rows.length + LANE_PAGE * 2);
   }, [wantMore, rows.length]);
+  if (lane.none && count === 0 && swimKey === null) return null;
   const drawn = win ? rows.slice(win.from, win.to) : rows;
   const tid = swimKey === null ? lane.key || "none" : `${lane.key || "none"}-${swimKey || "none"}`;
   const submit = (): void => {
