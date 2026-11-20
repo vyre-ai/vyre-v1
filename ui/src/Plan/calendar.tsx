@@ -49,7 +49,7 @@ function bar(c: PlanCtx, sg: CalSeg): ReactElement {
     },
     it.milestone
       ? icon(ICON.diamond, { color: it.status === "done" ? "var(--ok)" : "var(--ink-2)" })
-      : h(FaceButton, { it, size: 14, ctx: c }),
+      : h(FaceButton, { it, size: 14, ctx: c, display: c.coarse }),
     h(NameField, { it, ctx: c, style: { minWidth: 0 } }),
   );
 }

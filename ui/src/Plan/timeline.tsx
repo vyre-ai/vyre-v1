@@ -338,7 +338,7 @@ export function timelineView(c: PlanCtx, height: number): ReactElement {
           },
         },
         h("i", { "data-h": "s", style: HANDLE_L }),
-        h(FaceButton, { it, size: 16, ctx: c }),
+        h(FaceButton, { it, size: 16, ctx: c, display: c.coarse || w < 80 }),
         w >= 120
           ? h(
               "span",
