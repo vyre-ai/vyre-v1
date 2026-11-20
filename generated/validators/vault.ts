@@ -2818,6 +2818,7 @@ lf(a8044[i8044], p + "/settingsChanged" + '/' + i8044, e, L1);
 }
 }
 }
+if ("kind" in o8042) lf(o8042["kind"], p + "/kind", e, L409);
 }
 }
 }

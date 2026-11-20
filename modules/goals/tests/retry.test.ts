@@ -135,6 +135,10 @@ test("the activity line says only what is true for the event: an AI account was 
     ["vault.item_updated", { itemId: "v", fieldsChanged: ["password"] }, "login", null],
     ["vault.item_updated", { itemId: "v", fieldsChanged: ["accessToken"] }, "other", null],
     ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"] }, undefined, null],
+    // the event carries its kind: a Mine item the Vault refuses to read for the host still counts
+    ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "api_key" }, undefined, saved],
+    ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "ai_subscription" }, undefined, saved],
+    ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"], kind: "login" }, undefined, null],
   ];
   for (const [name, payload, kind, words] of cases) {
     const { w, goal } = await failedGoal();
