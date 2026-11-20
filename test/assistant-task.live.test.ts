@@ -36,7 +36,8 @@ test("Team: the Assistant completes Mia's own task for her, with the send held o
     const taskId = /taskId (tsk_[a-z0-9]+)/.exec(section)?.[1];
     if (input.resumed?.toolName === "message_person") {
       yield* run("task_submit", {
-        taskId: /tsk_[a-z0-9]+/.exec(JSON.stringify(input.context?.sections ?? []))?.[0],
+        // the task the turn was given, from its own section: the first task id anywhere in the context may be another one (the thread line names the scope, the section of what is running names others)
+        taskId,
         outputs: {},
         summary: "Sent Noah the figures and closed this",
       });
