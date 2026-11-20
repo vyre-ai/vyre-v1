@@ -51,7 +51,10 @@ test("a projection pass over a backlog of heavy events never holds the loop past
     if (/INSERT INTO host_projection_cursor/.test(sql)) cursorWrites++;
     return (run as (q: string, ...x: never[]) => unknown)(sql, ...a);
   };
-  const events = Array.from({ length: 1000 }, (_, i) => ({ seq: i + 1, type: "record.created" }) as unknown as StoredEvent);
+  const events = Array.from(
+    { length: 1000 },
+    (_, i) => ({ seq: i + 1, type: "record.created" }) as unknown as StoredEvent,
+  );
   let handled = 0;
   const p: AsyncConsumer = {
     name: "test.heavy",
@@ -80,7 +83,13 @@ test("a projection pass over a backlog of heavy events never holds the loop past
   await runner.pump();
   const max = await w.stop();
   assert.equal(handled, 1000);
-  assert.equal(db.all("SELECT seq FROM host_projection_cursor WHERE name = 'test.heavy'").map((r) => (r as { seq: number }).seq)[0], 1000, "the cursor ends at the last event");
+  assert.equal(
+    db
+      .all("SELECT seq FROM host_projection_cursor WHERE name = 'test.heavy'")
+      .map((r) => (r as { seq: number }).seq)[0],
+    1000,
+    "the cursor ends at the last event",
+  );
   assert.ok(cursorWrites <= 200, `${cursorWrites} cursor writes for 1,000 events: one each slice, not one each event`);
   assert.ok(max <= BUDGET_MS, `the loop was held for ${max} ms (budget ${BUDGET_MS} ms)`);
 });
@@ -97,7 +106,9 @@ test("a schedule tick with fifty due jobs never holds the loop past the budget",
     },
   });
   for (let i = 0; i < 50; i++)
-    await q.add({ space: "spc_1", principal: { kind: "person", id: "usr_dana" } }, 0, "connectors.sync_poll", { type: `t${i}` });
+    await q.add({ space: "spc_1", principal: { kind: "person", id: "usr_dana" } }, 0, "connectors.sync_poll", {
+      type: `t${i}`,
+    });
   const w = watchLoop();
   await q.tick();
   const max = await w.stop();

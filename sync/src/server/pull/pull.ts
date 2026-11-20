@@ -462,7 +462,11 @@ export function pullChanges(
         }
       }
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
-      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes) || performance.now() - began >= PULL_SLICE_MS) {
+      if (
+        used >= limit ||
+        (maxBytes !== undefined && weight >= maxBytes) ||
+        performance.now() - began >= PULL_SLICE_MS
+      ) {
         stopped = true;
         break;
       }

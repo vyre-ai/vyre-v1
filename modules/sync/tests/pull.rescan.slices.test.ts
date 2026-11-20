@@ -61,13 +61,18 @@ test("a rescan over a big Space is done in slices: every pull is at most 100 ms 
     assert.ok(calls < 5000, "the rescan ends");
   }
   const wall = performance.now() - began;
-  process.stderr.write(`[rescan] ${calls} pulls, ${Math.round(wall)} ms wall, slowest pull ${Math.round(slowest)} ms of CPU\n`);
+  process.stderr.write(
+    `[rescan] ${calls} pulls, ${Math.round(wall)} ms wall, slowest pull ${Math.round(slowest)} ms of CPU\n`,
+  );
   assert.equal(hidden.size, ROWS, "every row the person can no longer see is hidden");
   assert.ok(calls > 2, "the work was split over several pulls");
   assert.ok(calls <= MAX_PULLS, `${calls} pulls to hide ${ROWS} rows (at most ${MAX_PULLS})`);
   assert.ok(wall <= MAX_WALL_MS, `the revoke took ${Math.round(wall)} ms (at most ${MAX_WALL_MS})`);
   // a wait that is not CPU (a lock, a disk) still holds the loop: a generous wall-clock bound on every pull beside the CPU bound
-  assert.ok(slowestWall <= WALL_PULL_MS, `one pull took ${Math.round(slowestWall)} ms of wall time (at most ${WALL_PULL_MS} ms)`);
+  assert.ok(
+    slowestWall <= WALL_PULL_MS,
+    `one pull took ${Math.round(slowestWall)} ms of wall time (at most ${WALL_PULL_MS} ms)`,
+  );
   assert.ok(slowest <= BUDGET_MS, `one pull was ${Math.round(slowest)} ms of work (budget ${BUDGET_MS} ms)`);
 });
 
@@ -75,7 +80,14 @@ test("the entities that have rows are read from the table when the access state 
   const access = buildAccess();
   const s = openSync({ access: () => access, clock: () => NOW });
   await s.store.define({ add_types: [CONTACT_TYPE] });
-  await s.store.create("contact", mintRecordId(), { name: "N", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  await s.store.create("contact", mintRecordId(), {
+    name: "N",
+    email: "n@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   const db = s.deps.db;
   let distinct = 0;
   const all = db.all.bind(db);
@@ -98,7 +110,14 @@ async function held(rows: number) {
   const s = openSync({ access: () => access, clock: () => NOW });
   await s.store.define({ add_types: [CONTACT_TYPE] });
   for (let i = 0; i < rows; i++)
-    await s.store.create("contact", mintRecordId(), { name: `N${i}`, email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+    await s.store.create("contact", mintRecordId(), {
+      name: `N${i}`,
+      email: "n@example.com",
+      phone: "+1",
+      region: "eu",
+      stage: "lead",
+      owner: ADA,
+    });
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
   const pull = (cursor: number): Promise<PullRes> => s.handlers["sync.pull"](ctx, { cursor, epoch: 0 });
   // the device's copy: what it holds after applying every answer
@@ -153,9 +172,14 @@ test("a removed device takes its rescan state with it", async () => {
   const r = await w.pull(w.cursor());
   assert.equal(r.more, true);
   const rows = (): number =>
-    (w.s.deps.db.get<{ n: number }>("SELECT (SELECT count(*) FROM sync_scope_scan) + (SELECT count(*) FROM sync_scope_stamp) AS n")?.n ?? 0);
+    w.s.deps.db.get<{ n: number }>(
+      "SELECT (SELECT count(*) FROM sync_scope_scan) + (SELECT count(*) FROM sync_scope_stamp) AS n",
+    )?.n ?? 0;
   assert.ok(rows() > 0, "a scan is open and the device has a stamp");
   const purge = createPurgeHandlers(purgeDepsOf(w.s, { purge: () => 0 }));
-  await purge["sync.epoch.bump"]({ trace: { traceId: TRACE }, principal: ADA }, { personId: BO, reason: "device_revoked", deviceId: "dev1" });
+  await purge["sync.epoch.bump"](
+    { trace: { traceId: TRACE }, principal: ADA },
+    { personId: BO, reason: "device_revoked", deviceId: "dev1" },
+  );
   assert.equal(rows(), 0, "neither the scan nor the stamp is kept for a revoked device");
 });

@@ -296,7 +296,12 @@ test("syncengine: sealing the values that waited for the Vault gives the event l
         busy(1);
         const i = input as { type: string; recordId: string; patch: Record<string, unknown> };
         const cur = (await store.get(i.type, i.recordId))!;
-        await store.update(i.type, i.recordId, { ssn: { sealed: "ssn", ref: `ref_${i.recordId}`, present: true, set_at: Date.now() } }, cur.version);
+        await store.update(
+          i.type,
+          i.recordId,
+          { ssn: { sealed: "ssn", ref: `ref_${i.recordId}`, present: true, set_at: Date.now() } },
+          cur.version,
+        );
         kept++;
         return { record: { id: i.recordId } };
       }

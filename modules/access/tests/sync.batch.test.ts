@@ -46,7 +46,15 @@ test("a batch of two thousand new objects is written in one stretch of under 100
 test("an object named twice in one batch is written once", () => {
   const { db: raw } = fresh("batchdup");
   const store = loadStore(raw);
-  store.resources.set("rec_dup", { id: "rec_dup", type: "record", parentId: null, label: 1, ownerId: "usr_owner", holds: 0, row: null } as never);
+  store.resources.set("rec_dup", {
+    id: "rec_dup",
+    type: "record",
+    parentId: null,
+    label: 1,
+    ownerId: "usr_owner",
+    holds: 0,
+    row: null,
+  } as never);
   const writes: string[] = [];
   const spy: Db = {
     all: (sql, ...a) => raw.all(sql, ...a),
