@@ -120,7 +120,7 @@ function NewDomain({ onBack, onCreated }: { onBack(): void; onCreated(id: string
             label="Add domain"
             testID="domain-create"
             disabled={!valid || action.busy}
-            why={!valid ? "Enter a valid domain" : undefined}
+            {...(!valid ? { why: "Enter a valid domain" } : {})}
             onPress={() =>
               void action
                 .run<
