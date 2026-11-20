@@ -117,16 +117,26 @@ export function loopLagMs(d: Daemon): number {
 }
 
 /**
- * waitFor for a thing the daemon's own scheduler does by itself (a retry, a pull). A loaded runner slips the scheduler's ticks by seconds, and the daemon
- * says so in its log (scheduler.loop_blocked); the time it reported itself blocked is added to the deadline, so a stall the host admits to does not
- * count against the wait, while a thing that never happens still fails (the credit is only what the log shows, and it is finite). The failure names the credit.
+ * waitFor for a thing the daemon's own scheduler does by itself (a retry, a pull), on a runner that may be loaded. A loaded runner slips the scheduler's
+ * ticks by seconds, and the daemon says so in its log (scheduler.loop_blocked); the lag it reports DURING this wait (not before it) is added to the
+ * deadline, at most half of `ms`, so a wait gets at most 1.5 times its base. If the daemon reports more than `ms` of blocked loop during the wait, it
+ * fails at once: a stall that large is the fault, not the runner.
+ *
+ * Never use this where a stall is the thing under test (a walk about the event loop, boot hooks or loop blocking): the credit would forgive the very
+ * thing it is meant to catch. Use waitFor there, with its fixed bound.
  */
 export async function waitForScheduled<T>(d: Daemon, f: () => Promise<T | null>, ms = 40_000): Promise<T> {
   const start = Date.now();
+  const lag0 = loopLagMs(d); // what the daemon reported before this wait (boot, earlier steps) is not credited
   for (;;) {
     const v = await f();
     if (v !== null) return v;
-    const credit = loopLagMs(d);
+    const lag = loopLagMs(d) - lag0;
+    if (lag > ms)
+      throw new Error(
+        `waitFor: the daemon reported its loop blocked for ${lag} ms during a ${ms} ms wait; host log ${hostLog(d)}`,
+      );
+    const credit = Math.min(lag, ms / 2);
     if (Date.now() - start > ms + credit)
       throw new Error(
         `waitFor: it never happened within ${ms} ms plus ${credit} ms the daemon reported its loop blocked; host log ${hostLog(d)}`,
