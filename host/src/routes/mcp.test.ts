@@ -198,6 +198,12 @@ test("a visitor with no valid MAC is keyed by the connection's address, and the 
     ],
     ["a wrong MAC", { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1", "127.0.0.1"],
     [
+      "a MAC in the first format (64 hex digits, from a build before the kernel's HMAC): refused like any wrong MAC, the connection's address stands and nothing errors or asks",
+      { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "0123456789abcdef".repeat(4) },
+      "127.0.0.1",
+      "127.0.0.1",
+    ],
+    [
       "a good MAC from outside the loopback",
       { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9") },
       "198.51.100.7",
