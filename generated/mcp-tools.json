@@ -57124,7 +57124,7 @@
       "blocks": [],
       "cap": "sites.artifact_thumb_set",
       "deferred": false,
-      "description": "Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed",
+      "description": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57154,7 +57154,7 @@
       "blocks": [],
       "cap": "sites.build",
       "deferred": false,
-      "description": "Build the site from its repo; test and verify",
+      "description": "Build the site from its repo (the agent runs in it); test, verify",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57796,7 +57796,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: address, whether Vyre runs apps here, the sites address, custom domain needs",
+      "description": "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -57896,7 +57896,7 @@
       "blocks": [],
       "cap": "sites.ops",
       "deferred": false,
-      "description": "Site ops: logs, metrics, jobs, workers, backups. Read the sites skill",
+      "description": "Site ops: logs, metrics, jobs, workers, backups; read the sites skill",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58027,7 +58027,7 @@
       "blocks": [],
       "cap": "sites.preview_rebuild",
       "deferred": false,
-      "description": "Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last",
+      "description": "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58150,7 +58150,7 @@
       "blocks": [],
       "cap": "sites.publish",
       "deferred": false,
-      "description": "Serve a non-public site: space or private access, or a password on its own domain",
+      "description": "Serve a non-public site: space or private access, or a password on its domain",
       "effects": "write",
       "inputSchema": {
         "properties": {

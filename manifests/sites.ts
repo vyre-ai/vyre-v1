@@ -341,21 +341,17 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read(
-      "sites.list",
-      "List the sites and artifacts you can see, by section, kind, folder",
-      {
-        in: {
-          section: t.opt(t.enm("personal", "shared", "space")),
-          folderId: t.opt(id.folder),
-          kind: t.opt(t.enm("site", "artifact")),
-          ...pageIn,
-        },
-        out: { sites: t.arr(siteRow), ...pageOut },
-        tool: "sites",
-        label: "filter",
+    read("sites.list", "List the sites and artifacts you can see, by section, kind, folder", {
+      in: {
+        section: t.opt(t.enm("personal", "shared", "space")),
+        folderId: t.opt(id.folder),
+        kind: t.opt(t.enm("site", "artifact")),
+        ...pageIn,
       },
-    ),
+      out: { sites: t.arr(siteRow), ...pageOut },
+      tool: "sites",
+      label: "filter",
+    }),
     write(
       "sites.update",
       "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
@@ -380,18 +376,14 @@ export default defineManifest({
         errors: ["validation.version_conflict"],
       },
     ),
-    write(
-      "sites.publish",
-      "Serve a non-public site: space or private access, or a password on its own domain",
-      {
-        in: deployTarget,
-        out: { site: siteRow },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        emits: ["site.published"],
-        tool: "sites",
-      },
-    ),
+    write("sites.publish", "Serve a non-public site: space or private access, or a password on its domain", {
+      in: deployTarget,
+      out: { site: siteRow },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      emits: ["site.published"],
+      tool: "sites",
+    }),
     write("sites.stop", "Stop serving a site. Its address answers nothing", {
       in: deployTarget,
       out: { site: siteRow },
@@ -408,7 +400,7 @@ export default defineManifest({
     }),
     read(
       "sites.host",
-      "What this Space can host: address, whether Vyre runs apps here, the sites address, custom domain needs",
+      "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       {
         in: {},
         out: {
@@ -439,7 +431,7 @@ export default defineManifest({
       gate: { act: "delete", when: "actor.kind != 'person'" },
       tool: "sites",
     }),
-    write("sites.build", "Build the site from its repo; test and verify", {
+    write("sites.build", "Build the site from its repo (the agent runs in it); test, verify", {
       in: { siteId: id.site, branch: t.opt(t.str()) },
       out: { runId: id.run, deploymentId: t.id("dpl") },
       on: ["site", "/siteId"],
@@ -552,7 +544,7 @@ export default defineManifest({
     }),
     write(
       "sites.preview_rebuild",
-      "Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last",
+      "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
@@ -749,20 +741,16 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write(
-      "sites.artifact_open",
-      "A short-lived address that opens an artifact for the asker",
-      {
-        in: { artifactId: id.site },
-        out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts(), checked: t.opt(t.bool()) },
-        on: ["site", "/artifactId"],
-        level: "view",
-        tool: "sites",
-      },
-    ),
+    write("sites.artifact_open", "A short-lived address that opens an artifact for the asker", {
+      in: { artifactId: id.site },
+      out: { path: t.str(), url: t.opt(t.str()), expiresAt: t.ts(), checked: t.opt(t.bool()) },
+      on: ["site", "/artifactId"],
+      level: "view",
+      tool: "sites",
+    }),
     write(
       "sites.artifact_thumb_set",
-      "Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed",
+      "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed",
       {
         in: { artifactId: id.site, thumb: t.str() },
         out: { set: t.bool() },
@@ -784,17 +772,13 @@ export default defineManifest({
         offline: "online",
       },
     ),
-    write(
-      "sites.staging_password_set",
-      "Choose the sealed Vault key protecting staging (shared by its previews)",
-      {
-        in: { siteId: id.site, vaultHandle: id.handle },
-        out: { ok: t.bool() },
-        on: ["site", "/siteId"],
-        perm: "sites.deploy",
-        tool: "sites",
-      },
-    ),
+    write("sites.staging_password_set", "Choose the sealed Vault key protecting staging (shared by its previews)", {
+      in: { siteId: id.site, vaultHandle: id.handle },
+      out: { ok: t.bool() },
+      on: ["site", "/siteId"],
+      perm: "sites.deploy",
+      tool: "sites",
+    }),
     read("sites.service_identity", "The site service identity and its grants (capped by the owner)", {
       in: deployTarget,
       out: { principal: t.str(), grants: t.arr(t.obj({ resource: t.str(), level: t.str() })) },
@@ -1073,7 +1057,7 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
-    write("sites.ops", "Site ops: logs, metrics, jobs, workers, backups. Read the sites skill", {
+    write("sites.ops", "Site ops: logs, metrics, jobs, workers, backups; read the sites skill", {
       in: { siteId: id.site, action: t.str(), id: t.opt(t.str()), args: t.opt(t.rec()) },
       out: { result: t.rec() },
       on: ["site", "/siteId"],

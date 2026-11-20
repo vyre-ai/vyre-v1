@@ -1,6 +1,6 @@
 # sites.ops
 
-Site ops: logs, metrics, jobs, workers, backups. Read the sites skill
+Site ops: logs, metrics, jobs, workers, backups; read the sites skill
 
 | | |
 |---|---|

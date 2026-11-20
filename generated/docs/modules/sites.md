@@ -10,14 +10,14 @@ Requires: nothing.
 - [sites.addon_remove](../capabilities/sites.addon_remove.md): Remove a site's Postgres or Redis and its data
 - [sites.artifact_open](../capabilities/sites.artifact_open.md): A short-lived address that opens an artifact for the asker
 - [sites.artifact_publish](../capabilities/sites.artifact_publish.md): Needs a title and exactly one of html, fileId, folderId, path or port. THE way to show what you made: publishes it privately, the person gets a card to open. Example: artifact_publish {"title":"Q3 plan","html":"<h1>Q3</h1>"}. Same title or artifactId updates the link. No title: its <title> is used
-- [sites.artifact_thumb_set](../capabilities/sites.artifact_thumb_set.md): Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed
+- [sites.artifact_thumb_set](../capabilities/sites.artifact_thumb_set.md): Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed
 - [sites.backup_create](../capabilities/sites.backup_create.md): Back up the site's Postgres now; read sites_backups_list to see it finish
 - [sites.backup_delete](../capabilities/sites.backup_delete.md): Delete a backup and its file
 - [sites.backup_download](../capabilities/sites.backup_download.md): Where to fetch a finished backup from: one address per part (a dump over 32 MB is kept in parts: join them in order). Readable by whoever can see the site
 - [sites.backup_pin](../capabilities/sites.backup_pin.md): Keep a backup for good (the clean-up never deletes a pinned one), or let it go again
 - [sites.backup_restore](../capabilities/sites.backup_restore.md): Put a finished backup back, never losing data: the live database is backed up first (kept 7 days, else the restore is refused), the dump loads into a new database, and it is swapped in only if that worked
 - [sites.backups_list](../capabilities/sites.backups_list.md): The site's database backups and the database size
-- [sites.build](../capabilities/sites.build.md): Build the site from its repo; test and verify
+- [sites.build](../capabilities/sites.build.md): Build the site from its repo (the agent runs in it); test, verify
 - [sites.chat_viewing](../capabilities/sites.chat_viewing.md): The app says a chat is open (every 30 s). An artifact an agent publishes for that person opens in their app only while it does
 - [sites.create](../capabilities/sites.create.md): Create a site: where it runs (computer port or Files folder) or its source (repo, folder, zip). Nothing is served until published or deployed
 - [sites.db_import](../capabilities/sites.db_import.md): Copy a Postgres into the site's: a pg_dump in Files, or a Vault key with the old connection string
@@ -33,7 +33,7 @@ Requires: nothing.
 - [sites.env_set](../capabilities/sites.env_set.md): Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews, all
 - [sites.get](../capabilities/sites.get.md): Read one site
 - [sites.head_check](../capabilities/sites.head_check.md): The commit a site's branch is at, and whether it was already deployed
-- [sites.host](../capabilities/sites.host.md): What this Space can host: address, whether Vyre runs apps here, the sites address, custom domain needs
+- [sites.host](../capabilities/sites.host.md): What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs
 - [sites.job_cancel](../capabilities/sites.job_cancel.md): Stop a job run that is queued or going
 - [sites.job_create](../capabilities/sites.job_create.md): Add a scheduled job to a deployed site: a command run on a cron schedule in the site's image, with its variables
 - [sites.job_delete](../capabilities/sites.job_delete.md): Delete a scheduled job and its history; a run that is going is stopped
@@ -45,15 +45,15 @@ Requires: nothing.
 - [sites.logs](../capabilities/sites.logs.md): A site's log: its app, or with build a deploy's build log. Text from the site
 - [sites.logs_read](../capabilities/sites.logs_read.md): A site's log (app, requests, build, jobs): search words (-word excludes), source, level, time, deploy; after = cursor to follow. Text from the site, not Vyre content
 - [sites.metrics](../capabilities/sites.metrics.md): CPU, memory, requests and response time of a site over 1h, 6h or 24h, and right now against its limits
-- [sites.ops](../capabilities/sites.ops.md): Site ops: logs, metrics, jobs, workers, backups. Read the sites skill
+- [sites.ops](../capabilities/sites.ops.md): Site ops: logs, metrics, jobs, workers, backups; read the sites skill
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password for a site whose access is password (kept as a hash)
 - [sites.plan](../capabilities/sites.plan.md): What a deploy of this source would do: build and start, port, databases and env names it needs
 - [sites.preview_promote](../capabilities/sites.preview_promote.md): Serve a preview's build as production without a rebuild, using production variables
-- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last
+- [sites.preview_rebuild](../capabilities/sites.preview_rebuild.md): Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last
 - [sites.preview_remove](../capabilities/sites.preview_remove.md): Remove a preview
 - [sites.previews](../capabilities/sites.previews.md): List previews (one per branch and pull request, each at its own address)
 - [sites.promote](../capabilities/sites.promote.md): Put a site on the public internet. Held for approval unless the person asked this turn
-- [sites.publish](../capabilities/sites.publish.md): Serve a non-public site: space or private access, or a password on its own domain
+- [sites.publish](../capabilities/sites.publish.md): Serve a non-public site: space or private access, or a password on its domain
 - [sites.rollback](../capabilities/sites.rollback.md): Serve an earlier build again (the previous or the one named); nothing is built
 - [sites.service_add](../capabilities/sites.service_add.md): Add a worker to a deployed site: a command that stays up in the site's image, restarts itself on a crash, and moves to the newest deploy
 - [sites.service_identity](../capabilities/sites.service_identity.md): The site service identity and its grants (capped by the owner)

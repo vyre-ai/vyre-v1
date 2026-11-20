@@ -8355,13 +8355,13 @@
     {
       "deferred": false,
       "name": "sites_artifact_thumb_set",
-      "summary": "Keep an artifact's small picture (sent by the Vyre for Chrome extension) only if none exists or it changed",
+      "summary": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_build",
-      "summary": "Build the site from its repo; test and verify",
+      "summary": "Build the site from its repo (the agent runs in it); test, verify",
       "toolset": "sites"
     },
     {
@@ -8451,7 +8451,7 @@
     {
       "deferred": false,
       "name": "sites_host",
-      "summary": "What this Space can host: address, whether Vyre runs apps here, the sites address, custom domain needs",
+      "summary": "What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs",
       "toolset": "sites"
     },
     {
@@ -8469,7 +8469,7 @@
     {
       "deferred": false,
       "name": "sites_ops",
-      "summary": "Site ops: logs, metrics, jobs, workers, backups. Read the sites skill",
+      "summary": "Site ops: logs, metrics, jobs, workers, backups; read the sites skill",
       "toolset": "sites"
     },
     {
@@ -8487,7 +8487,7 @@
     {
       "deferred": false,
       "name": "sites_preview_rebuild",
-      "summary": "Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last",
+      "summary": "Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last",
       "toolset": "sites"
     },
     {
@@ -8511,7 +8511,7 @@
     {
       "deferred": false,
       "name": "sites_publish",
-      "summary": "Serve a non-public site: space or private access, or a password on its own domain",
+      "summary": "Serve a non-public site: space or private access, or a password on its domain",
       "toolset": "sites"
     },
     {

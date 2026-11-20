@@ -1,6 +1,6 @@
 # sites.preview_rebuild
 
-Build a repo branch as a preview at its own address behind sign-in; a new build replaces the last
+Build a repo branch as a preview at its own address behind sign-in; a rebuild replaces the last
 
 | | |
 |---|---|
