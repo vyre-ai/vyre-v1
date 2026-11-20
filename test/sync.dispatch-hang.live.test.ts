@@ -2,7 +2,7 @@
 // its deadline with a reason, the jobs behind it start by themselves, and the hung one is tried again and finishes. Nobody presses anything.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { call, hostLog, waitFor } from "./support/eco-live.ts";
+import { call, hostLog, waitForScheduled } from "./support/eco-live.ts";
 import { rowsOf, spec, world } from "./support/sync-live.ts";
 
 test("a pull that never gets an answer does not hold the queue: the other types are pulled by themselves, and the hung one is tried again", async () => {
@@ -18,20 +18,17 @@ test("a pull that never gets an answer does not hold the queue: the other types 
     const applied = await call(w.d, "sync_specs.apply", { spec: spec(), idempotencyKey: "apply-hang" });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
     // the three other types come in with nothing pressed and no manual call to connectors.sync_run
-    await waitFor(
+    // the daemon's own scheduler does the pulls; the time it reports its loop blocked is added to the wait (see waitForScheduled)
+    await waitForScheduled(
+      w.d,
       async () => {
         for (const t of ["matter", "contact", "company"]) if ((await rowsOf(w.d, t)).length === 0) return null;
         return true;
       },
       45_000,
-      () => hostLog(w.d),
     );
     // the hung pull was ended with the reason and tried again: the people arrive too
-    await waitFor(
-      async () => ((await rowsOf(w.d, "person")).length >= 2 ? true : null),
-      50_000,
-      () => hostLog(w.d),
-    );
+    await waitForScheduled(w.d, async () => ((await rowsOf(w.d, "person")).length >= 2 ? true : null), 50_000);
     assert.match(hostLog(w.d), /did not finish within/, "the log says why the pass was ended");
   } finally {
     await w.close();
