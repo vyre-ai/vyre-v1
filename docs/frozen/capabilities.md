@@ -774,4 +774,4 @@ Signed: lead, 2026-11-20
 
 Changed contracts, in `manifests/sites.ts`; no capability was added or removed and no version moved. In the sites capabilities' inputs, a site id, a Vault handle, a folder id and a file id are plain strings with an example (`sit_a1b2c3`, `#Dana_Lawmatics`, `fld_a1b2c3`, `fil_a1b2c3`) and no `pattern`, so every tool the model is shown stops repeating it: the tool text shrinks by about 1,860 characters. The form is still checked: a site id by the lookup of the site (an id that is not one is refused as not found), a Vault handle by the handlers' own check (`cleanSource`, `sites.env_set`, `sites.db_import`), a folder or file id by the Files lookup. A looser input contract only: every call that was accepted still is.
 
-Signed: pending, lead
+Signed: lead, 2026-11-20
