@@ -63,7 +63,7 @@ export default defineManifest({
   capabilities: [
     read(
       "documents.fields",
-      "List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions",
+      "List the fields a template needs (its {blanks})",
       {
         in: { templateFileId: id.file },
         out: {
@@ -81,7 +81,7 @@ export default defineManifest({
     ),
     read(
       "documents.preview_fill",
-      "Show the filled document as an excerpt with every filled value marked, and what is missing or unused",
+      "Preview a filled template: what is missing or unused",
       {
         in: fillIn,
         out: {
@@ -101,7 +101,7 @@ export default defineManifest({
     ),
     create(
       "documents.fill",
-      "Fill a template into a new file in a folder; missing required fields stop the fill and are listed",
+      "Fill a template into a new file in a folder",
       {
         in: {
           ...fillIn,
@@ -127,7 +127,7 @@ export default defineManifest({
     ),
     write(
       "documents.make",
-      "Make a document for a record from a template; answers the file and what is missing",
+      "Make a document for a record from a template",
       {
         in: {
           template: t.str({ examples: ["Service agreement"] }),
@@ -155,13 +155,14 @@ export default defineManifest({
     ),
     create(
       "documents.make_pdf",
-      "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",
+      "Make a PDF of a .md document in a folder; names any blank left",
       {
         in: { fileId: id.file, intoFolderId: id.folder, name: t.opt(t.str()) },
         out: { file: savedFile, pages: t.int({ minimum: 1 }), signers },
         make: ["file", "/intoFolderId"],
         perm: "files.write",
         emits: ["file.created", "file.version_added"],
+        tool: "files",
         errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
       },
     ),
@@ -198,7 +199,7 @@ export default defineManifest({
         label: "check",
       },
     ),
-    read("documents.templates.list", "List files marked as templates the caller can open", {
+    read("documents.templates.list", "List templates", {
       in: {
         folder: t.opt(id.folder),
         recordType: t.opt(t.str()),
@@ -211,7 +212,7 @@ export default defineManifest({
     }),
     write(
       "documents.mark_template",
-      "Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it",
+      "Mark a .docx or .md file as a template, or unmark it",
       {
         in: {
           fileId: id.file,

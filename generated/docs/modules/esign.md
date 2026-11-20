@@ -14,7 +14,7 @@ Requires: nothing.
 - [esign.provider_set](../capabilities/esign.provider_set.md): Choose the default provider; Automations do not change
 - [esign.providers](../capabilities/esign.providers.md): Signing services and the default
 - [esign.remind](../capabilities/esign.remind.md): New link for a signer; the old one stops
-- [esign.send](../capabilities/esign.send.md): Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can
+- [esign.send](../capabilities/esign.send.md): Send a PDF for signature
 - [esign.signer_act](../capabilities/esign.signer_act.md): Public: sign, decline or take a copy, by a signing link
 - [esign.signer_doc](../capabilities/esign.signer_doc.md): Public: the PDF a signer signs, for a live link only
 - [esign.signer_view](../capabilities/esign.signer_view.md): Public: open a signing link. Records the open and returns what the signer sees

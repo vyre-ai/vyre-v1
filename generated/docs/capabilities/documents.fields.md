@@ -1,6 +1,6 @@
 # documents.fields
 
-List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions
+List the fields a template needs (its {blanks})
 
 | | |
 |---|---|
