@@ -73,6 +73,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "automations.packages.import": "import automations",
   "automations.make_personal_copy": "copy an automation for yourself",
   "agents.create": "create an agent",
+  "runs.node.save_as_agent": "make an agent from finished work",
   "agents.update": "change an agent",
   "agents.instruction.append": "add to an agent's instructions",
   "agents.routine.save": "set up a routine",

@@ -243,6 +243,10 @@ const TITLE: Readonly<Record<SectionId, string>> = {
   skills: "",
   can: "What you can do here",
   here: "This chat",
+  // sections that carry their own words and need no title (a missing entry read as no title all the same; the table is complete so the compiler checks it)
+  running: "",
+  parent: "",
+  digest: "",
   task: "Your task",
   goal: "Your goal",
   recent: "",

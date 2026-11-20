@@ -1935,8 +1935,7 @@ export default defineManifest({
           dependsOn: t.opt(
             t.arr(t.str({ maxLength: 120 }), {
               maxItems: 8,
-              description:
-                "Helpers of this chat to wait for: their titles or thread ids. This one starts when each of them has finished, and fails if one of them does not",
+              description: "Helpers of this chat (titles or thread ids) to start after; it fails if one of them fails",
             }),
           ),
         },

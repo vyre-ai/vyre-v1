@@ -1,6 +1,6 @@
 # engine.running_here
 
-System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)
+System: the turns running now with the chat each is in and who asked, for the desktop update screen (GET /local/daemon/busy)
 
 | | |
 |---|---|
