@@ -39,15 +39,13 @@ test(
         s.as(MAC, "memory.capture", { threadId, reason: "turn", agentId, account, idempotencyKey: key });
 
       // 1. a turn, then the pass the turn starts by itself: its one-shot starts on her computer (the turn's engine and the pass's make two processes there), the server starts nothing
-      // (the time a plain turn takes here is measured: the later bounds scale with it, so a loaded runner moves them and a real slow-down does not)
-      const plainStart = Date.now();
       assert.equal(
         await replyAfter(s, threadId, await send(s, threadId, agentId, "I prefer short replies.\nwhereami", "ml-t1")),
         "ran-on=device handover=no",
         hostLog(s.d),
       );
-      const plainMs = Date.now() - plainStart;
-      const slack = Math.max(4000, 6 * plainMs);
+      // the bounds below are the ones this walk always had (the slow turn's own time plus 4 s; the next turn inside 4 s): the pass must not slow the turn
+      const SLACK_MS = 4000;
       await waitFor(
         async () => (mac.spawns.length >= 2 ? true : null),
         15_000,
@@ -82,8 +80,8 @@ test(
       const turnMs = Date.now() - base;
       assert.match(reply, /ran-on=device handover=no$/);
       assert.ok(
-        turnMs < SLOW_MS + slack,
-        `the slow turn (${SLOW_MS} ms of its own) finished in ${turnMs} ms with a pass running beside it (allowed ${SLOW_MS + slack})`,
+        turnMs < SLOW_MS + SLACK_MS,
+        `the slow turn (${SLOW_MS} ms of its own) finished in ${turnMs} ms with a pass running beside it (allowed ${SLOW_MS + SLACK_MS})`,
       );
       assert.ok(Date.now() - t0 < 25_000);
       // her next turn, right after: as fast as a turn is
@@ -92,10 +90,7 @@ test(
         await replyAfter(s, threadId, await send(s, threadId, agentId, "whereami", "ml-t3")),
         "ran-on=device handover=no",
       );
-      assert.ok(
-        Date.now() - t1 < slack,
-        `the next turn took ${Date.now() - t1} ms (a plain turn took ${plainMs} ms here, allowed ${slack})`,
-      );
+      assert.ok(Date.now() - t1 < SLACK_MS, `the next turn took ${Date.now() - t1} ms`);
 
       // 3. her computer stops (the Space still lists it for a moment): the pass is skipped and nothing runs on the server
       const spaceSpawns = await hostSpawns(s);

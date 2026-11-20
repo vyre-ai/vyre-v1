@@ -7,18 +7,14 @@ import assert from "node:assert/strict";
 import { cap, FIRM, registryHash, request, RelaySocket, rig, seed, seededDir } from "./bigspace-kit.ts";
 import type { Size } from "./bigspace-kit.ts";
 
-// The run that only has to work on every box (bigspace.live) uses about half the size of the judged speed run: the relay-limit proof is the same (the
-// desktop's frames fill to the server's 512 KB cut at both sizes: max 534 KB), and the run takes 22 s on box D instead of 38 s, so a runner three times
-// slower than that still ends well inside the 120 s file cap (the 38 s run took 122 s on a loaded one). The judged run (bigspace.perf, v1-perf runners only) keeps its size.
-const sizeFor = (judged: boolean): Size =>
-  process.env["BIG_FULL"]
-    ? FIRM
-    : {
-        matters: Number(process.env["BIG_MATTERS"] ?? (judged ? 1500 : 800)),
-        fields: 100,
-        contacts: Number(process.env["BIG_CONTACTS"] ?? (judged ? 3000 : 1600)),
-        orgs: 300,
-      };
+const SIZE: Size = process.env["BIG_FULL"]
+  ? FIRM
+  : {
+      matters: Number(process.env["BIG_MATTERS"] ?? 1500),
+      fields: 100,
+      contacts: Number(process.env["BIG_CONTACTS"] ?? 3000),
+      orgs: 300,
+    };
 // BIG_MEASURE=1 logs what would fail instead of failing, to take the numbers on code that cannot pass
 const MEASURE = process.env["BIG_MEASURE"] === "1";
 const check = (ok: unknown, msg: string): void => {
@@ -101,7 +97,6 @@ export async function bigSpaceScenario(judged: boolean): Promise<void> {
     if (judged) check(ok, msg);
     else if (!ok) log(`(budget, judged only on the perf runners) ${msg}`);
   };
-  const SIZE = sizeFor(judged);
   const r = await rig(seededDir());
   try {
     await seed(r.d, SIZE, log);
