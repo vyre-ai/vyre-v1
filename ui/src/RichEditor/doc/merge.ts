@@ -102,7 +102,7 @@ export function mergeRemote(state: EditorState, base: string, remote: string, wh
   rh.forEach((h, i) => {
     for (const g of lh) if (touches(h, g)) clashing[i] = true;
   });
-  for (let again = true; again;) {
+  for (let again = true; again; ) {
     again = false;
     // 1. widen each clashing hunk over the local hunks it touches
     for (let i = 0; i < rh.length; i += 1) {

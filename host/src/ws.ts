@@ -550,112 +550,115 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     }
   }
 
-  server.on("upgrade", guardUpgrade((req, socket: Duplex) => {
-    socket.on("error", () => socket.destroy()); // r40
-    if (!requestTargetOk(req.url)) {
-      socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
-      return;
-    }
-    if (o.claims?.(req)) return;
-    void (async () => {
-      const wsKey = req.headers["sec-websocket-key"];
-      if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") {
-        socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
-        return;
-      }
-      let session: LiveSession | null = null;
-      try {
-        session = await o.session(req.headers, safeUrl(req.url, "http://live"));
-      } catch {
-        session = null;
-      }
-      if (!session) {
-        socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
-        return;
-      }
-      const accept = crypto
-        .createHash("sha1")
-        .update(wsKey + GUID)
-        .digest("base64");
-      socket.write(
-        `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
-      );
-      const c: Conn = {
-        id: crypto.randomUUID(),
-        session,
-        socket,
-        reader: new FrameReader(),
-        lastSeen: now(),
-        acked: 0,
-        pending: [],
-        closed: false,
-        inflight: 0,
-        ending: false,
-      };
-      // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
-      const old = conns.get(key(session));
-      if (old) close(old, 4000, "replaced by a newer connection from this device");
-      if (o.sync) {
-        const frameCbs: Array<(f: unknown) => void> = [],
-          closeCbs: Array<(r: string) => void> = [];
-        const sess = o.sync.accept(
-          {
-            send: (frame) => sendLive(c, frame as Record<string, unknown>),
-            close: (reason) =>
-              close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
-            onFrame: (cb) => {
-              frameCbs.push(cb);
-            },
-            onClose: (cb) => {
-              closeCbs.push(cb);
-            },
-          },
-          { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) },
-        );
-        c.link = {
-          frame: (f) => {
-            for (const cb of frameCbs) cb(f);
-          },
-          gone: (r) => {
-            for (const cb of closeCbs) cb(r);
-          },
-          session: sess,
-        };
-      }
-      if (!c.closed) conns.set(connKey(c), c); // a revoked device was already told and closed inside accept
-      o.sink?.log({
-        space: session.space,
-        level: 20,
-        msg: "live.opened",
-        device: session.device,
-        actor: session.principal.id,
-      });
-      socket.on("data", (chunk: Buffer) => {
-        for (const m of c.reader.push(chunk)) {
-          if (m.opcode === 0x1) onFrame(c, m.data.toString("utf8"));
-          else if (m.opcode === 0x9) socket.write(encodeFrame(0xa, m.data));
-          else if (m.opcode === 0x8) {
-            close(c, 1000, "bye");
+  server.on(
+    "upgrade",
+    guardUpgrade(
+      (req, socket: Duplex) => {
+        socket.on("error", () => socket.destroy()); // r40
+        if (!requestTargetOk(req.url)) {
+          socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+          return;
+        }
+        if (o.claims?.(req)) return;
+        void (async () => {
+          const wsKey = req.headers["sec-websocket-key"];
+          if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") {
+            socket.end("HTTP/1.1 400 Bad Request\r\n\r\n");
             return;
           }
-        }
-        if (c.reader.error) close(c, c.reader.error.code, c.reader.error.why);
-      });
-      socket.on("close", () => {
-        const was = c.closed;
-        c.closed = true;
-        if (conns.get(connKey(c)) === c) conns.delete(connKey(c));
-        if (!was) c.link?.gone("peer closed");
-      });
-      socket.on("error", () => {
-        c.closed = true;
-      });
-    })();
-  }, (where, error) =>
-    o.sink
-      ?.logger({ space: "-", place: "ws" })
-      .error("ws.upgrade_threw", { where, ...errorLine(error) }),
-  ));
+          let session: LiveSession | null = null;
+          try {
+            session = await o.session(req.headers, safeUrl(req.url, "http://live"));
+          } catch {
+            session = null;
+          }
+          if (!session) {
+            socket.end("HTTP/1.1 401 Unauthorized\r\n\r\n");
+            return;
+          }
+          const accept = crypto
+            .createHash("sha1")
+            .update(wsKey + GUID)
+            .digest("base64");
+          socket.write(
+            `HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ${accept}\r\n\r\n`,
+          );
+          const c: Conn = {
+            id: crypto.randomUUID(),
+            session,
+            socket,
+            reader: new FrameReader(),
+            lastSeen: now(),
+            acked: 0,
+            pending: [],
+            closed: false,
+            inflight: 0,
+            ending: false,
+          };
+          // a device holds one live socket: a newer connection replaces the older (the perf budget connection_count), before the hub is told about the new one
+          const old = conns.get(key(session));
+          if (old) close(old, 4000, "replaced by a newer connection from this device");
+          if (o.sync) {
+            const frameCbs: Array<(f: unknown) => void> = [],
+              closeCbs: Array<(r: string) => void> = [];
+            const sess = o.sync.accept(
+              {
+                send: (frame) => sendLive(c, frame as Record<string, unknown>),
+                close: (reason) =>
+                  close(c, reason === "purged" || reason === "auth.device_revoked" ? 4003 : 1000, reason ?? "closed"),
+                onFrame: (cb) => {
+                  frameCbs.push(cb);
+                },
+                onClose: (cb) => {
+                  closeCbs.push(cb);
+                },
+              },
+              { person: session.principal.id, device: session.device, deviceClass: deviceClassOf(req.url) },
+            );
+            c.link = {
+              frame: (f) => {
+                for (const cb of frameCbs) cb(f);
+              },
+              gone: (r) => {
+                for (const cb of closeCbs) cb(r);
+              },
+              session: sess,
+            };
+          }
+          if (!c.closed) conns.set(connKey(c), c); // a revoked device was already told and closed inside accept
+          o.sink?.log({
+            space: session.space,
+            level: 20,
+            msg: "live.opened",
+            device: session.device,
+            actor: session.principal.id,
+          });
+          socket.on("data", (chunk: Buffer) => {
+            for (const m of c.reader.push(chunk)) {
+              if (m.opcode === 0x1) onFrame(c, m.data.toString("utf8"));
+              else if (m.opcode === 0x9) socket.write(encodeFrame(0xa, m.data));
+              else if (m.opcode === 0x8) {
+                close(c, 1000, "bye");
+                return;
+              }
+            }
+            if (c.reader.error) close(c, c.reader.error.code, c.reader.error.why);
+          });
+          socket.on("close", () => {
+            const was = c.closed;
+            c.closed = true;
+            if (conns.get(connKey(c)) === c) conns.delete(connKey(c));
+            if (!was) c.link?.gone("peer closed");
+          });
+          socket.on("error", () => {
+            c.closed = true;
+          });
+        })();
+      },
+      (where, error) =>
+        o.sink?.logger({ space: "-", place: "ws" }).error("ws.upgrade_threw", { where, ...errorLine(error) }),
+    ),
+  );
 
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {

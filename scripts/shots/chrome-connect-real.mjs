@@ -57,7 +57,13 @@ try {
   });
   const waiting = ctx.waitForEvent("page", { predicate: (p) => p.url().includes("/src/panel/panel.html") });
   await r.worker.evaluate(async (w) => {
-    await globalThis.chrome.windows.create({ url: `src/panel/panel.html?window=${w}`, type: "popup", width: 400, height: 760, focused: false });
+    await globalThis.chrome.windows.create({
+      url: `src/panel/panel.html?window=${w}`,
+      type: "popup",
+      width: 400,
+      height: 760,
+      focused: false,
+    });
   }, winId);
   const panel = await waiting;
   await panel.setViewportSize({ width: 400, height: 760 });
@@ -76,10 +82,13 @@ try {
   await tab.screenshot({ path: path.join(out, "1-space-page.png") });
   await panel.screenshot({ path: path.join(out, "1-panel-waiting.png") });
   await tab.getByTestId("chrome-connect").click();
-  await tab.getByTestId("chrome-done").waitFor({ timeout: 20000 }).then(
-    () => say(true, "the page says Connected"),
-    () => say(false, "the page says Connected"),
-  );
+  await tab
+    .getByTestId("chrome-done")
+    .waitFor({ timeout: 20000 })
+    .then(
+      () => say(true, "the page says Connected"),
+      () => say(false, "the page says Connected"),
+    );
   await tab.screenshot({ path: path.join(out, "2-space-page-connected.png") }).catch(() => {});
   await panel.waitForSelector("#q", { timeout: 20000 }).then(
     () => say(true, "the panel filled in by itself"),
@@ -87,21 +96,40 @@ try {
   );
   await panel.screenshot({ path: path.join(out, "3-panel-connected.png") });
   const links = await r.worker.evaluate(async () => (await globalThis.chrome.storage.local.get("vyreLinks")).vyreLinks);
-  say(Array.isArray(links) && links.length === 1 && links[0].address === web.origin, "the extension keeps one link, to this Space");
+  say(
+    Array.isArray(links) && links.length === 1 && links[0].address === web.origin,
+    "the extension keeps one link, to this Space",
+  );
   await sleep(2500);
-  say(!ctx.pages().some((p) => p.url().startsWith(`${web.origin}/chrome/connect`) && !p.isClosed()), "the Connect tab closed itself");
+  say(
+    !ctx.pages().some((p) => p.url().startsWith(`${web.origin}/chrome/connect`) && !p.isClosed()),
+    "the Connect tab closed itself",
+  );
 
   // Settings, Sign-in and devices lists Chrome
   await page.bringToFront();
-  await page.goto(`${web.origin}/settings?skin=paper#screen=settings.page&page=signin`, { waitUntil: "load", timeout: 60000 });
-  await page.getByText("Chrome on this computer").first().waitFor({ timeout: 20000 }).then(
-    () => say(true, "Settings, Sign-in and devices lists Chrome on this computer"),
-    () => say(false, "Settings, Sign-in and devices lists Chrome on this computer"),
-  );
+  await page.goto(`${web.origin}/settings?skin=paper#screen=settings.page&page=signin`, {
+    waitUntil: "load",
+    timeout: 60000,
+  });
+  await page
+    .getByText("Chrome on this computer")
+    .first()
+    .waitFor({ timeout: 20000 })
+    .then(
+      () => say(true, "Settings, Sign-in and devices lists Chrome on this computer"),
+      () => say(false, "Settings, Sign-in and devices lists Chrome on this computer"),
+    );
   await page.screenshot({ path: path.join(out, "4-settings-devices.png") });
 
   // signing it out there ends the extension's link: the Space closes its socket at its next check and the extension forgets the session
-  await page.getByText("Chrome on this computer").first().locator("xpath=ancestor::*[.//button or .//*[@role='button']][1]").getByText("Sign out").first().click();
+  await page
+    .getByText("Chrome on this computer")
+    .first()
+    .locator("xpath=ancestor::*[.//button or .//*[@role='button']][1]")
+    .getByText("Sign out")
+    .first()
+    .click();
   await page.getByText("Sign it out").first().click({ timeout: 5000 });
   let gone = false;
   for (let i = 0; i < 90 && !gone; i++) {

@@ -61,111 +61,87 @@ export default defineManifest({
     }),
   ],
   capabilities: [
-    read(
-      "documents.fields",
-      "List the fields a template needs (its {blanks})",
-      {
-        in: { templateFileId: id.file },
-        out: {
-          fields: t.arr(fieldInfo),
-          loops: t.arr(t.str()),
-          problems: t.arr(
-            t.obj({ message: t.str(), tag: t.opt(t.str({ description: "The field the problem is about" })) }),
-          ),
-          signers,
-        },
-        on: ["file", "/templateFileId"],
-        tool: "files",
-        label: "check",
+    read("documents.fields", "List the fields a template needs (its {blanks})", {
+      in: { templateFileId: id.file },
+      out: {
+        fields: t.arr(fieldInfo),
+        loops: t.arr(t.str()),
+        problems: t.arr(
+          t.obj({ message: t.str(), tag: t.opt(t.str({ description: "The field the problem is about" })) }),
+        ),
+        signers,
       },
-    ),
-    read(
-      "documents.preview_fill",
-      "Preview a filled template: what is missing or unused",
-      {
-        in: fillIn,
-        out: {
-          excerpt: t.arr(
-            t.obj({ text: t.str(), filled: t.arr(t.obj({ from: t.int(), to: t.int(), field: t.str() })) }),
-          ),
-          missing: t.arr(t.str()),
-          unused: t.arr(t.str()),
-          digest: t.str({
-            description: "SHA-256 of every resolved value and of the template bytes they were read with",
-          }),
-        },
-        on: ["file", "/templateFileId"],
-        tool: "files",
-        label: "check",
+      on: ["file", "/templateFileId"],
+      tool: "files",
+      label: "check",
+    }),
+    read("documents.preview_fill", "Preview a filled template: what is missing or unused", {
+      in: fillIn,
+      out: {
+        excerpt: t.arr(t.obj({ text: t.str(), filled: t.arr(t.obj({ from: t.int(), to: t.int(), field: t.str() })) })),
+        missing: t.arr(t.str()),
+        unused: t.arr(t.str()),
+        digest: t.str({
+          description: "SHA-256 of every resolved value and of the template bytes they were read with",
+        }),
       },
-    ),
-    create(
-      "documents.fill",
-      "Fill a template into a new file in a folder",
-      {
-        in: {
-          ...fillIn,
-          intoFolderId: id.folder,
-          name: t.opt(t.str()),
-          format: t.opt(t.enm("docx", "pdf", "md")),
-        },
-        out: {
-          file: savedFile,
-          missing: t.arr(t.str()),
-          unused: t.arr(t.str()),
-          signers,
-          layout: t.opt(t.enm("word", "simple")),
-          converter: t.opt(t.enm("pulling", "failed", "none")),
-        },
-        make: ["file", "/intoFolderId"],
-        perm: "files.write",
-        emits: ["document.filled", "file.created", "file.version_added"],
-        tool: "files",
-        cli: "vyre documents fill",
-        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      on: ["file", "/templateFileId"],
+      tool: "files",
+      label: "check",
+    }),
+    create("documents.fill", "Fill a template into a new file in a folder", {
+      in: {
+        ...fillIn,
+        intoFolderId: id.folder,
+        name: t.opt(t.str()),
+        format: t.opt(t.enm("docx", "pdf", "md")),
       },
-    ),
-    write(
-      "documents.make",
-      "Make a document for a record from a template",
-      {
-        in: {
-          template: t.str({ examples: ["Service agreement"] }),
-          recordId: id.record,
-          values: t.opt(t.rec()),
-          signingDate: t.opt(
-            t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", examples: ["2026-10-24"] }),
-          ),
-          name: t.opt(t.str()),
-          format: t.opt(t.enm("docx", "pdf", "md")),
-        },
-        out: {
-          file: savedFile,
-          missing: t.arr(t.str()),
-          signers,
-          layout: t.opt(t.enm("word", "simple")),
-          converter: t.opt(t.enm("pulling", "failed", "none")),
-        },
-        on: ["record", "/recordId"],
-        level: "use",
-        emits: ["document.filled", "file.created", "file.version_added"],
-        tool: "files",
-        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      out: {
+        file: savedFile,
+        missing: t.arr(t.str()),
+        unused: t.arr(t.str()),
+        signers,
+        layout: t.opt(t.enm("word", "simple")),
+        converter: t.opt(t.enm("pulling", "failed", "none")),
       },
-    ),
-    create(
-      "documents.make_pdf",
-      "Make a PDF of a .md document in a folder; names any blank left",
-      {
-        in: { fileId: id.file, intoFolderId: id.folder, name: t.opt(t.str()) },
-        out: { file: savedFile, pages: t.int({ minimum: 1 }), signers },
-        make: ["file", "/intoFolderId"],
-        perm: "files.write",
-        emits: ["file.created", "file.version_added"],
-        tool: "files",
-        errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+      make: ["file", "/intoFolderId"],
+      perm: "files.write",
+      emits: ["document.filled", "file.created", "file.version_added"],
+      tool: "files",
+      cli: "vyre documents fill",
+      errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+    }),
+    write("documents.make", "Make a document for a record from a template", {
+      in: {
+        template: t.str({ examples: ["Service agreement"] }),
+        recordId: id.record,
+        values: t.opt(t.rec()),
+        signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", examples: ["2026-10-24"] })),
+        name: t.opt(t.str()),
+        format: t.opt(t.enm("docx", "pdf", "md")),
       },
-    ),
+      out: {
+        file: savedFile,
+        missing: t.arr(t.str()),
+        signers,
+        layout: t.opt(t.enm("word", "simple")),
+        converter: t.opt(t.enm("pulling", "failed", "none")),
+      },
+      on: ["record", "/recordId"],
+      level: "use",
+      emits: ["document.filled", "file.created", "file.version_added"],
+      tool: "files",
+      errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+    }),
+    create("documents.make_pdf", "Make a PDF of a .md document in a folder; names any blank left", {
+      in: { fileId: id.file, intoFolderId: id.folder, name: t.opt(t.str()) },
+      out: { file: savedFile, pages: t.int({ minimum: 1 }), signers },
+      make: ["file", "/intoFolderId"],
+      perm: "files.write",
+      emits: ["file.created", "file.version_added"],
+      tool: "files",
+      errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
+    }),
     read(
       "documents.signing",
       "Where the signers of a PDF made from a Vyre document sign, and what it was filled from",
@@ -210,23 +186,19 @@ export default defineManifest({
       tool: "files",
       label: "filter",
     }),
-    write(
-      "documents.mark_template",
-      "Mark a .docx or .md file as a template, or unmark it",
-      {
-        in: {
-          fileId: id.file,
-          isTemplate: t.bool(),
-          recordType: t.opt(t.str({ examples: ["customer"] })),
-        },
-        out: { ok: t.bool() },
-        on: ["file", "/fileId"],
-        perm: "files.write",
-        emits: ["document.template_marked"],
-        tool: "files",
-        errors: ["validation.unsupported", "validation.not_found"],
+    write("documents.mark_template", "Mark a .docx or .md file as a template, or unmark it", {
+      in: {
+        fileId: id.file,
+        isTemplate: t.bool(),
+        recordType: t.opt(t.str({ examples: ["customer"] })),
       },
-    ),
+      out: { ok: t.bool() },
+      on: ["file", "/fileId"],
+      perm: "files.write",
+      emits: ["document.template_marked"],
+      tool: "files",
+      errors: ["validation.unsupported", "validation.not_found"],
+    }),
   ],
   steps: [
     step("documents.fill", "Documents · Make a document from a template", "data", "capability", {

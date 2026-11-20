@@ -52,7 +52,16 @@ const FROM_SITE = new Set([
   "vary",
 ]);
 /** The headers a caller may not bring into the public path: identity, and what this route sets itself. */
-const DROP = ["cookie", "authorization", "x-forwarded-for", "x-real-ip", "x-vyre-public-base", "x-vyre-public-origin", "x-vyre-visitor", "x-vyre-visitor-mac"];
+const DROP = [
+  "cookie",
+  "authorization",
+  "x-forwarded-for",
+  "x-real-ip",
+  "x-vyre-public-base",
+  "x-vyre-public-origin",
+  "x-vyre-visitor",
+  "x-vyre-visitor-mac",
+];
 
 interface Inner {
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;

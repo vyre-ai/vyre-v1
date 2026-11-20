@@ -5,21 +5,35 @@ import { readFileSync } from "node:fs";
 import { MCP_HELD, MCP_TOOLS, NO_TOOL, noToolReason } from "../../../packages/contracts/src/mcp-coverage.ts";
 
 const reg = JSON.parse(readFileSync(new URL("../../../generated/registry.json", import.meta.url), "utf8")) as {
-  capabilities: Array<{ name: string; risk?: string; effects?: string; gate?: { act: string; when?: string }; surfaces?: { mcp?: unknown; agent?: unknown }; caller?: string }>;
+  capabilities: Array<{
+    name: string;
+    risk?: string;
+    effects?: string;
+    gate?: { act: string; when?: string };
+    surfaces?: { mcp?: unknown; agent?: unknown };
+    caller?: string;
+  }>;
 };
 const open = reg.capabilities.filter((c) => c.surfaces?.agent !== false && c.caller === undefined);
 const names = new Set(reg.capabilities.map((c) => c.name));
 
 test("no capability is without both a tool and a reason", () => {
   const gaps = open.filter((c) => !c.surfaces?.mcp && noToolReason(c.name) === null).map((c) => c.name);
-  assert.deepEqual(gaps, [], "give each a tool (MCP_TOOLS) or a reason (NO_TOOL) in packages/contracts/src/mcp-coverage.ts");
+  assert.deepEqual(
+    gaps,
+    [],
+    "give each a tool (MCP_TOOLS) or a reason (NO_TOOL) in packages/contracts/src/mcp-coverage.ts",
+  );
 });
 
 test("a tool is never also on the no-tool list, and every tool named exists", () => {
   for (const cap of Object.keys(MCP_TOOLS)) {
     assert.ok(names.has(cap), `${cap} is not a capability`);
     assert.equal(noToolReason(cap), null, `${cap} is a tool and has a reason not to be`);
-    assert.ok(reg.capabilities.find((c) => c.name === cap)?.surfaces?.mcp, `${cap} is in MCP_TOOLS and generated no tool`);
+    assert.ok(
+      reg.capabilities.find((c) => c.name === cap)?.surfaces?.mcp,
+      `${cap} is in MCP_TOOLS and generated no tool`,
+    );
   }
 });
 
@@ -37,7 +51,11 @@ test("a tool that deletes, erases or changes access, a connection or a key is he
     assert.ok(c, `${cap} is in MCP_HELD and is not a capability`);
     assert.ok(MCP_TOOLS[cap], `${cap} is held and is not a tool`);
     assert.equal(c.gate?.act, act, `${cap} should be held as ${act}`);
-    assert.match(c.gate?.when ?? "", /actor\.kind == 'agent'/, `${cap} holds an agent, never a person or the host's own press`);
+    assert.match(
+      c.gate?.when ?? "",
+      /actor\.kind == 'agent'/,
+      `${cap} holds an agent, never a person or the host's own press`,
+    );
   }
   // every tool that writes at high risk has a gate that is not "none"
   for (const cap of Object.keys(MCP_TOOLS)) {

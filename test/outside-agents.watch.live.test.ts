@@ -15,24 +15,27 @@ function open(url: string, o: { method: string; headers: Record<string, string>;
   let ended = false;
   let contentType = "";
   const u = new URL(url);
-  const req = http.request({ host: u.hostname, port: u.port, path: u.pathname, method: o.method, headers: o.headers }, (res) => {
-    status = res.statusCode ?? 0;
-    contentType = String(res.headers["content-type"] ?? "");
-    let buf = "";
-    res.setEncoding("utf8");
-    res.on("data", (c: string) => {
-      buf += c;
-      let i: number;
-      while ((i = buf.indexOf("\n\n")) >= 0) {
-        const frame = buf.slice(0, i);
-        buf = buf.slice(i + 2);
-        const d = frame.split("\n").find((l) => l.startsWith("data: "));
-        if (d) messages.push(JSON.parse(d.slice(6)));
-      }
-    });
-    res.on("end", () => void (ended = true));
-    res.on("close", () => void (ended = true));
-  });
+  const req = http.request(
+    { host: u.hostname, port: u.port, path: u.pathname, method: o.method, headers: o.headers },
+    (res) => {
+      status = res.statusCode ?? 0;
+      contentType = String(res.headers["content-type"] ?? "");
+      let buf = "";
+      res.setEncoding("utf8");
+      res.on("data", (c: string) => {
+        buf += c;
+        let i: number;
+        while ((i = buf.indexOf("\n\n")) >= 0) {
+          const frame = buf.slice(0, i);
+          buf = buf.slice(i + 2);
+          const d = frame.split("\n").find((l) => l.startsWith("data: "));
+          if (d) messages.push(JSON.parse(d.slice(6)));
+        }
+      });
+      res.on("end", () => void (ended = true));
+      res.on("close", () => void (ended = true));
+    },
+  );
   req.on("error", () => void (ended = true));
   req.end(o.body);
   const until = async (f: () => boolean, ms = 6000): Promise<boolean> => {
@@ -43,7 +46,14 @@ function open(url: string, o: { method: string; headers: Record<string, string>;
     }
     return f();
   };
-  return { messages, status: () => status, contentType: () => contentType, ended: () => ended, until, close: () => req.destroy() };
+  return {
+    messages,
+    status: () => status,
+    contentType: () => contentType,
+    ended: () => ended,
+    until,
+    close: () => req.destroy(),
+  };
 }
 
 const updated = (m: Json[]): string[] =>
@@ -108,7 +118,10 @@ withSpace(
       "tasks.create",
     );
     await s.d.hooks?.pump?.();
-    assert.ok(await stream.until(() => updated(stream.messages).length > 0), JSON.stringify(stream.messages).slice(0, 600));
+    assert.ok(
+      await stream.until(() => updated(stream.messages).length > 0),
+      JSON.stringify(stream.messages).slice(0, 600),
+    );
     assert.deepEqual(updated(stream.messages), ["vyre://tasks/mine"]);
     assert.equal(stream.messages.at(-1).params._meta["io.modelcontextprotocol/subscriptionId"], 5);
 
@@ -149,10 +162,16 @@ withSpace(
       "tasks.create",
     );
     await s.d.hooks?.pump?.();
-    assert.ok(await stream.until(() => updated(stream.messages).length > 0), JSON.stringify(stream.messages).slice(0, 400));
+    assert.ok(
+      await stream.until(() => updated(stream.messages).length > 0),
+      JSON.stringify(stream.messages).slice(0, 400),
+    );
     assert.deepEqual(updated(stream.messages), ["vyre://tasks/mine"]);
     stream.close();
-    const refused = open(mcp, { method: "GET", headers: { accept: "text/event-stream", authorization: "Bearer nope" } });
+    const refused = open(mcp, {
+      method: "GET",
+      headers: { accept: "text/event-stream", authorization: "Bearer nope" },
+    });
     assert.ok(await refused.until(() => refused.status() !== 0));
     assert.equal(refused.status(), 401);
     refused.close();

@@ -129,7 +129,6 @@ const relayed = (d: Daemon, method: string, p: string, json?: unknown, ip = "203
     );
   });
 
-
 const AGREEMENT = `# Service agreement
 
 This agreement is between {firm.name} and {client.name}, dated {signing_date}.
@@ -145,7 +144,12 @@ test("a Vyre document goes from template to signed PDF on a fresh Space: filled 
   const d = await boot(seededDir());
   try {
     const folderId = await home(d);
-    const tpl = await cap(d, "files.create", { folderId, name: "Service agreement.md", mime: "text/markdown", content: { base64: b64(AGREEMENT) } });
+    const tpl = await cap(d, "files.create", {
+      folderId,
+      name: "Service agreement.md",
+      mime: "text/markdown",
+      content: { base64: b64(AGREEMENT) },
+    });
     const templateFileId = tpl.file.fileId as string;
     await cap(d, "documents.mark_template", { fileId: templateFileId, isTemplate: true });
     const listed = await cap(d, "documents.templates.list", {});
@@ -157,12 +161,24 @@ test("a Vyre document goes from template to signed PDF on a fresh Space: filled 
     const refused = await fetch(`${d.url}/v1/documents/fill`, {
       method: "POST",
       headers: { "content-type": "application/json", authorization: `Bearer ${OWNER}` },
-      body: JSON.stringify({ idempotencyKey: "doc-miss", templateFileId, intoFolderId: folderId, values: { firm: VALUES.firm }, signingDate: "2026-11-19" }),
+      body: JSON.stringify({
+        idempotencyKey: "doc-miss",
+        templateFileId,
+        intoFolderId: folderId,
+        values: { firm: VALUES.firm },
+        signingDate: "2026-11-19",
+      }),
     });
     assert.notEqual(refused.status, 200);
     assert.match(await refused.text(), /client\.name/);
 
-    const filled = await cap(d, "documents.fill", { templateFileId, intoFolderId: folderId, values: VALUES, signingDate: "2026-11-19", name: "Service agreement - Lindahl" });
+    const filled = await cap(d, "documents.fill", {
+      templateFileId,
+      intoFolderId: folderId,
+      values: VALUES,
+      signingDate: "2026-11-19",
+      name: "Service agreement - Lindahl",
+    });
     assert.deepEqual(filled.missing, []);
     assert.deepEqual(filled.signers, ["client", "firm"]);
     const pdfId = filled.file.fileId as string;
@@ -181,19 +197,34 @@ test("a Vyre document goes from template to signed PDF on a fresh Space: filled 
     assert.equal(first.state, "ready");
     assert.equal(first.places.length, 2, "Andrea sees her own signature and date, where the text said");
     const sentDoc = await direct(d, "GET", `${a}doc`);
-    assert.doesNotMatch(textOf(sentDoc.body), /Signature page/, "no extra signature page: the document had its own places");
+    assert.doesNotMatch(
+      textOf(sentDoc.body),
+      /Signature page/,
+      "no extra signature page: the document had its own places",
+    );
     const read = textOf(sentDoc.body).replace(/\s+/g, " ");
     assert.match(read, /Northwind Traders and Andrea Lindahl/);
     assert.match(read, /1,?500/);
 
-    const one = await direct(d, "POST", `${a}sign`, { name: "Andrea Lindahl", consent: true, signature: { kind: "typed", text: "Andrea Lindahl" } });
+    const one = await direct(d, "POST", `${a}sign`, {
+      name: "Andrea Lindahl",
+      consent: true,
+      signature: { kind: "typed", text: "Andrea Lindahl" },
+    });
     assert.equal(JSON.parse(one.body.toString()).data.completed, false, one.body.toString());
-    const two = await direct(d, "POST", `${s}sign`, { name: "Sam Okafor", consent: true, signature: { kind: "typed", text: "Sam Okafor" } });
+    const two = await direct(d, "POST", `${s}sign`, {
+      name: "Sam Okafor",
+      consent: true,
+      signature: { kind: "typed", text: "Sam Okafor" },
+    });
     assert.equal(JSON.parse(two.body.toString()).data.completed, true, two.body.toString());
 
     const st = await cap(d, "esign.status", { envelopeId: sent.envelopeId });
     assert.equal(st.status, "signed");
-    const final = Buffer.from((await cap(d, "files.read", { fileId: st.signedFileId, as: "base64" })).base64 as string, "base64");
+    const final = Buffer.from(
+      (await cap(d, "files.read", { fileId: st.signedFileId, as: "base64" })).base64 as string,
+      "base64",
+    );
     assert.equal(sha(final), st.finalSha256);
     assert.match(textOf(final), /Signed by Andrea Lindahl/);
     assert.match(textOf(final), /Signed by Sam Okafor/);
@@ -203,8 +234,22 @@ test("a Vyre document goes from template to signed PDF on a fresh Space: filled 
     const tplRead = await cap(d, "files.read", { fileId: templateFileId, as: "base64" });
     assert.equal(Buffer.from(tplRead.base64 as string, "base64").toString("utf8"), AGREEMENT);
     // the same fill again is the same file, not a second one (a retry never doubles)
-    const again = await cap(d, "documents.fill", { templateFileId, intoFolderId: folderId, values: VALUES, signingDate: "2026-11-19", name: "Service agreement - Lindahl", idempotencyKey: "doc-retry-1" });
-    const again2 = await cap(d, "documents.fill", { templateFileId, intoFolderId: folderId, values: VALUES, signingDate: "2026-11-19", name: "Service agreement - Lindahl", idempotencyKey: "doc-retry-1" });
+    const again = await cap(d, "documents.fill", {
+      templateFileId,
+      intoFolderId: folderId,
+      values: VALUES,
+      signingDate: "2026-11-19",
+      name: "Service agreement - Lindahl",
+      idempotencyKey: "doc-retry-1",
+    });
+    const again2 = await cap(d, "documents.fill", {
+      templateFileId,
+      intoFolderId: folderId,
+      values: VALUES,
+      signingDate: "2026-11-19",
+      name: "Service agreement - Lindahl",
+      idempotencyKey: "doc-retry-1",
+    });
     assert.equal(again.file.fileId, again2.file.fileId);
   } finally {
     await d.stop();
@@ -223,29 +268,56 @@ test("a Word template goes from template to signed PDF on a fresh Space: the PDF
       content: { base64: b64(word) },
     });
     const templateFileId = tpl.file.fileId as string;
-    const filled = await cap(d, "documents.fill", { templateFileId, intoFolderId: folderId, values: { firm: "Northwind Traders", client: "Andrea Lindahl" }, format: "pdf" });
+    const filled = await cap(d, "documents.fill", {
+      templateFileId,
+      intoFolderId: folderId,
+      values: { firm: "Northwind Traders", client: "Andrea Lindahl" },
+      format: "pdf",
+    });
     assert.ok(["word", "simple"].includes(filled.layout), `layout ${filled.layout}`);
     assert.match(filled.file.name, /\.pdf$/);
     const who = [{ name: "Andrea Lindahl", email: "andrea@northwind.example" }];
     if (filled.layout === "simple") {
       // the plain copy has no letterhead: it is held until the sender says send it anyway
-      await assert.rejects(cap(d, "esign.send", { fileId: filled.file.fileId, signers: who }), /Letterhead and pictures are missing in this copy/);
+      await assert.rejects(
+        cap(d, "esign.send", { fileId: filled.file.fileId, signers: who }),
+        /Letterhead and pictures are missing in this copy/,
+      );
     }
     if (filled.layout === "simple") {
       // the mark follows the bytes: the same bytes uploaded again as another file are held too
       const bytes = (await cap(d, "files.read", { fileId: filled.file.fileId, as: "base64" })).base64 as string;
-      const again = await cap(d, "files.create", { folderId, name: "Re-uploaded agreement.pdf", mime: "application/pdf", content: { base64: bytes } });
-      await assert.rejects(cap(d, "esign.send", { fileId: again.file.fileId, signers: who }), /Letterhead and pictures are missing in this copy/);
+      const again = await cap(d, "files.create", {
+        folderId,
+        name: "Re-uploaded agreement.pdf",
+        mime: "application/pdf",
+        content: { base64: bytes },
+      });
+      await assert.rejects(
+        cap(d, "esign.send", { fileId: again.file.fileId, signers: who }),
+        /Letterhead and pictures are missing in this copy/,
+      );
     }
-    const sent = await cap(d, "esign.send", { fileId: filled.file.fileId, signers: who, ...(filled.layout === "simple" ? { plainOk: true } : {}) });
+    const sent = await cap(d, "esign.send", {
+      fileId: filled.file.fileId,
+      signers: who,
+      ...(filled.layout === "simple" ? { plainOk: true } : {}),
+    });
     const link = sent.links[0].path as string;
     const doc = await direct(d, "GET", `${link}doc`);
     assert.match(doc.body.subarray(0, 5).toString("latin1"), /%PDF-/);
-    const done = await direct(d, "POST", `${link}sign`, { name: "Andrea Lindahl", consent: true, signature: { kind: "typed", text: "Andrea Lindahl" } });
+    const done = await direct(d, "POST", `${link}sign`, {
+      name: "Andrea Lindahl",
+      consent: true,
+      signature: { kind: "typed", text: "Andrea Lindahl" },
+    });
     assert.equal(JSON.parse(done.body.toString()).data.completed, true, done.body.toString());
     const st = await cap(d, "esign.status", { envelopeId: sent.envelopeId });
     assert.equal(st.status, "signed");
-    const final = Buffer.from((await cap(d, "files.read", { fileId: st.signedFileId, as: "base64" })).base64 as string, "base64");
+    const final = Buffer.from(
+      (await cap(d, "files.read", { fileId: st.signedFileId, as: "base64" })).base64 as string,
+      "base64",
+    );
     assert.match(textOf(final), /Signed by Andrea Lindahl/);
     // an agent or person cannot sign a Word file: it must be a PDF first
     await assert.rejects(

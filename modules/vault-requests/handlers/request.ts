@@ -102,7 +102,8 @@ async function companyFolder(ctx: VaultReqCtx): Promise<string | undefined> {
   const name = COMPANY_FOLDER;
   const have = (
     (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-      { id?: string; name?: string }[] | undefined) ?? []
+      | { id?: string; name?: string }[]
+      | undefined) ?? []
   ).find((f) => f.name === name);
   const id =
     have?.id ??
@@ -436,7 +437,8 @@ async function serviceMadeFolder(ctx: VaultReqCtx, folderId: string): Promise<bo
   try {
     const folders =
       (asRow(await ctx.call("vault.folders.list", { scope: "shared" }))?.["folders"] as
-        { id?: string; owner?: string; parentId?: string }[] | undefined) ?? [];
+        | { id?: string; owner?: string; parentId?: string }[]
+        | undefined) ?? [];
     return folders.some((f) => f.id === folderId && !f.parentId && String(f.owner ?? "").startsWith("svc_"));
   } catch {
     return false;

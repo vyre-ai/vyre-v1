@@ -443,7 +443,10 @@ test("a template of one line of spaces at the 1 MB limit is read in under 100 ms
     assert.ok(big.cpu < 100, `${label}: 1 MB took ${big.cpu.toFixed(0)} ms of CPU`);
     assert.ok(big.wall < 1000, `${label}: 1 MB took ${big.wall.toFixed(0)} ms on the clock`);
     const small = Math.max(best(make(250_000)).cpu, 5);
-    assert.ok(big.cpu / small < 10, `${label}: four times the input took ${(big.cpu / small).toFixed(1)} times as long`);
+    assert.ok(
+      big.cpu / small < 10,
+      `${label}: four times the input took ${(big.cpu / small).toFixed(1)} times as long`,
+    );
   }
 });
 

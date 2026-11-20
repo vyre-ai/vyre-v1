@@ -689,7 +689,15 @@ test("a version uploaded between the exact-copy check and the read of the bytes 
   const h = await setup();
   let version = 1;
   const head = (i: { fileId: string }) => ({
-    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000, version },
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: 1000,
+      version,
+    },
   });
   h.callee("files.get", head);
   // the check passes on version 1, and a new version lands while it runs
@@ -717,7 +725,14 @@ test("the pin is the hash of the bytes the check read: with a file store that na
   const h = await setup();
   let bytes: Uint8Array = first;
   h.callee("files.get", (i: { fileId: string }) => ({
-    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: 1000,
+    },
   }));
   const reads = () => h.callsTo("files.read").length;
   h.callee("files.read", () => ({ base64: toBase64(bytes), mime: "application/pdf", size: 1000, truncated: false }));
@@ -746,7 +761,14 @@ test("the pin is the hash of the bytes the check read: with a file store that na
   // an exact answer that names nothing means no check had anything to compare (no plain copies in the Space, a drive whose files carry no version): that send goes out
   const h3 = await setup();
   h3.callee("files.get", (i: { fileId: string }) => ({
-    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: 1000,
+    },
   }));
   h3.callee("documents.signing", () => ({ signers: [], places: [] }));
   assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);

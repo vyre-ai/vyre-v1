@@ -7,7 +7,12 @@ import { Client, signIn, withOutsideSpace as withSpace } from "./support/outside
 type Json = any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 const CALLS: Array<{ act: string; cap: string; tool: string; args: Record<string, unknown> }> = [
-  { act: "delete", cap: "records.purge_trashed", tool: "records_purge_trashed", args: { before: 1760000000000, idempotencyKey: "h-delete" } },
+  {
+    act: "delete",
+    cap: "records.purge_trashed",
+    tool: "records_purge_trashed",
+    args: { before: 1760000000000, idempotencyKey: "h-delete" },
+  },
   {
     act: "connection_change",
     cap: "skills.policy.set",
@@ -46,22 +51,30 @@ withSpace(
     CALLS[2]!.args["siteId"] = (made.site?.siteId ?? made.siteId) as string;
     for (const k of CALLS) {
       // deferred tools are found first, then called
-      const found = (await c.tool("tool_search", { query: k.tool.replace(/_/g, " ") })).json.result.structuredContent.data
-        .tools as Json[];
+      const found = (await c.tool("tool_search", { query: k.tool.replace(/_/g, " ") })).json.result.structuredContent
+        .data.tools as Json[];
       assert.ok(
         found.some((t) => t.name === k.tool),
         `${k.tool} is found with tool_search`,
       );
       const held = await c.tool("use_tool", { name: k.tool, arguments: k.args });
       assert.equal(held.json.result.isError, true, `${k.tool}: ${JSON.stringify(held.json.result).slice(0, 400)}`);
-      assert.equal(held.json.result.structuredContent.held, true, `${k.tool} (${k.act}) is held: ${JSON.stringify(held.json.result).slice(0, 600)}`);
+      assert.equal(
+        held.json.result.structuredContent.held,
+        true,
+        `${k.tool} (${k.act}) is held: ${JSON.stringify(held.json.result).slice(0, 600)}`,
+      );
     }
     const holds = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list")
       .holds as Json[];
     for (const k of CALLS) {
       const h = holds.find((x) => x.capName === k.cap);
       assert.ok(h, `a held card for ${k.cap}: ${JSON.stringify(holds.map((x) => x.capName))}`);
-      assert.equal(h.askedBy?.id ?? h.principal?.id, agentId, `${k.cap} is held as the agent: ${JSON.stringify(h).slice(0, 500)}`);
+      assert.equal(
+        h.askedBy?.id ?? h.principal?.id,
+        agentId,
+        `${k.cap} is held as the agent: ${JSON.stringify(h).slice(0, 500)}`,
+      );
       taskOf[k.cap] = h.taskId;
     }
     // the class (r-review, 19 Nov): no tool of the task family lets an agent decide, move, take, hand on or delete the task a Gate hold lives in
@@ -82,16 +95,34 @@ withSpace(
     ];
     for (const [tool, args] of tryAll) {
       const r = await c.tool("use_tool", { name: tool, arguments: { ...args, idempotencyKey: `sweep-${tool}` } });
-      assert.ok(r.json.error || r.json.result.isError === true, `${tool} did not stop an agent on a held act: ${JSON.stringify(r.json).slice(0, 300)}`);
+      assert.ok(
+        r.json.error || r.json.result.isError === true,
+        `${tool} did not stop an agent on a held act: ${JSON.stringify(r.json).slice(0, 300)}`,
+      );
     }
-    const after = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list").holds as Json[];
-    assert.ok(after.some((x) => x.taskId === held && x.state === "held"), "the held act is still waiting after every attempt");
+    const after = expectStatus(await s.call("gate.holds.list", admin, { states: ["held"] }), 200, "gate.holds.list")
+      .holds as Json[];
+    assert.ok(
+      after.some((x) => x.taskId === held && x.state === "held"),
+      "the held act is still waiting after every attempt",
+    );
     // it cannot answer its own holds
-    const own = await c.tool("use_tool", { name: "tasks_act", arguments: { taskId: taskOf["skills.policy.set"], action: "approve" } });
+    const own = await c.tool("use_tool", {
+      name: "tasks_act",
+      arguments: { taskId: taskOf["skills.policy.set"], action: "approve" },
+    });
     assert.equal(own.json.result.isError, true, "an agent cannot approve its own held act");
     // a person approves one and denies one
-    expectStatus(await s.call("tasks.act", owner, { taskId: taskOf["skills.policy.set"], action: "approve" }), 200, "approve");
-    expectStatus(await s.call("tasks.act", owner, { taskId: taskOf["records.purge_trashed"], action: "reject", note: "Not now" }), 200, "reject");
+    expectStatus(
+      await s.call("tasks.act", owner, { taskId: taskOf["skills.policy.set"], action: "approve" }),
+      200,
+      "approve",
+    );
+    expectStatus(
+      await s.call("tasks.act", owner, { taskId: taskOf["records.purge_trashed"], action: "reject", note: "Not now" }),
+      200,
+      "reject",
+    );
     await s.d.hooks?.pump?.();
     const answers: Json[] = [];
     for (let i = 0; i < 10; i++) {

@@ -171,7 +171,11 @@ test("authorize with a client_id that is an address: its page is read once and k
   const hn = harness();
   ensure(hn.db);
   let reads = 0;
-  const doc = JSON.stringify({ client_id: ID, client_name: "Example app", redirect_uris: ["https://app.example.com/cb"] });
+  const doc = JSON.stringify({
+    client_id: ID,
+    client_name: "Example app",
+    redirect_uris: ["https://app.example.com/cb"],
+  });
   const make = (get: (u: string) => Promise<{ ok: boolean; status: number; body: AsyncIterable<Uint8Array> | null }>) =>
     createMcpRuntime({
       db: hn.db,
@@ -185,19 +189,35 @@ test("authorize with a client_id that is an address: its page is read once and k
   const search = (id: string) =>
     `?client_id=${encodeURIComponent(id)}&redirect_uri=${encodeURIComponent("https://app.example.com/cb")}&response_type=code&code_challenge=${challengeOf(VERIFIER)}&code_challenge_method=S256`;
   const authorize = (r: ReturnType<typeof make>, id: string) =>
-    r.oauth({ method: "GET", path: "/oauth/authorize", search: search(id), headers: {}, body: "", origin: ORIGIN, visitor: "v1" });
+    r.oauth({
+      method: "GET",
+      path: "/oauth/authorize",
+      search: search(id),
+      headers: {},
+      body: "",
+      origin: ORIGIN,
+      visitor: "v1",
+    });
   const good = make(async () => {
     reads += 1;
     return {
       ok: true,
       status: 200,
-      body: { async *[Symbol.asyncIterator]() { yield new TextEncoder().encode(doc); } },
+      body: {
+        async *[Symbol.asyncIterator]() {
+          yield new TextEncoder().encode(doc);
+        },
+      },
     };
   });
   const first = await authorize(good, ID);
   assert.equal(first?.status, 200, "the Allow tab is drawn for the app that named itself");
   assert.match(first?.body ?? "", /Example app/);
-  assert.match(first?.body ?? "", /names itself by <b>app\.example\.com<\/b>/, "the page shows whose address named it, since its name is its own word");
+  assert.match(
+    first?.body ?? "",
+    /names itself by <b>app\.example\.com<\/b>/,
+    "the page shows whose address named it, since its name is its own word",
+  );
   assert.equal(reads, 1);
   await authorize(good, ID);
   assert.equal(reads, 1, "the second request does not read the page again");
@@ -218,7 +238,13 @@ test("authorize with a client_id that is an address: its page is read once and k
   const liar = make(async () => ({
     ok: true,
     status: 200,
-    body: { async *[Symbol.asyncIterator]() { yield new TextEncoder().encode(JSON.stringify({ client_id: "https://x.example.com/c.json", redirect_uris: ["https://app.example.com/cb"] })); } },
+    body: {
+      async *[Symbol.asyncIterator]() {
+        yield new TextEncoder().encode(
+          JSON.stringify({ client_id: "https://x.example.com/c.json", redirect_uris: ["https://app.example.com/cb"] }),
+        );
+      },
+    },
   }));
   assert.equal((await authorize(liar, "https://liar.example.com/client.json"))?.status, 400);
 });
@@ -239,7 +265,11 @@ test("authorize: one source that names many apps is stopped after its daily few,
     clientDocGet: (async (u: string) => ({
       ok: true,
       status: 200,
-      body: { async *[Symbol.asyncIterator]() { yield new TextEncoder().encode(mk(u)); } },
+      body: {
+        async *[Symbol.asyncIterator]() {
+          yield new TextEncoder().encode(mk(u));
+        },
+      },
     })) as never,
   });
   const ask = (visitor: string, id: string) =>
@@ -255,6 +285,13 @@ test("authorize: one source that names many apps is stopped after its daily few,
   const statuses: number[] = [];
   for (let i = 0; i < 25; i++) statuses.push((await ask("evil", `https://spam${i}.junk${i}.example/c.json`))!.status);
   assert.equal(statuses.filter((s) => s === 200).length, 20, "twenty new apps for one source");
-  assert.ok(statuses.slice(20).every((s) => s === 429), "then it is stopped");
-  assert.equal((await ask("honest", "https://app.honest.example/c.json"))!.status, 200, "another source's first is welcome");
+  assert.ok(
+    statuses.slice(20).every((s) => s === 429),
+    "then it is stopped",
+  );
+  assert.equal(
+    (await ask("honest", "https://app.honest.example/c.json"))!.status,
+    200,
+    "another source's first is welcome",
+  );
 });

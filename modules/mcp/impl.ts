@@ -523,7 +523,10 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
         // a page that could not be read is tried again in a minute, even for a known app
         if ("refused" in doc) docTried.set(`${o.space} ${named}`, at - DOC_REFRESH_MS + DOC_RETRY_MS);
         if (!("refused" in doc) && !keepDoc(o.db, doc, at)) {
-          const full = refusalPage("Too many apps", "This Space has no room for another app right now. Try again later.");
+          const full = refusalPage(
+            "Too many apps",
+            "This Space has no room for another app right now. Try again later.",
+          );
           return { status: 503, headers: { ...full.headers }, body: full.body };
         }
       }

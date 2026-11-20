@@ -5,12 +5,7 @@ import { safeUrl } from "../safe-url.ts";
 import { visitorOfRequest } from "../seams/visitor-proof.ts";
 
 export interface McpRuntime {
-  handle(req: {
-    method: string;
-    headers: Record<string, string | undefined>;
-    body: string;
-    origin?: string;
-  }): Promise<{
+  handle(req: { method: string; headers: Record<string, string | undefined>; body: string; origin?: string }): Promise<{
     status: number;
     headers: Record<string, string>;
     body: string;

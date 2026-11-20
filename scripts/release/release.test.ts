@@ -473,7 +473,13 @@ test("the command line: tag checks the version against package.json, and pack ma
   };
   const saved = process.env["VYRE_IMAGE"];
   // the pack reads every image name from the environment; the test runner sets local build names (scripts/test-run.ts) that are not pinned by digest, so this test packs with only its own
-  const others = ["VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_CONVERTER_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
+  const others = [
+    "VYRE_AGENT_IMAGE",
+    "VYRE_BROWSER_IMAGE",
+    "VYRE_WORKSPACE_IMAGE",
+    "VYRE_CONVERTER_IMAGE",
+    "VYRE_SANDBOX_IMAGE",
+  ] as const;
   const savedOthers = others.map((k) => [k, process.env[k]] as const);
   for (const k of others) delete process.env[k];
   try {

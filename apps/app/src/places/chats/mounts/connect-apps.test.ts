@@ -2,7 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { APPS, howTo } from "./connect-apps.ts";
 
-const link = { url: "https://northwind.vyre.run/mcp", claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp" };
+const link = {
+  url: "https://northwind.vyre.run/mcp",
+  claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp",
+};
 
 test("every app has steps, something to copy, and the address in it is this Space's", () => {
   for (const a of [...APPS, { id: "other" as const }]) {
