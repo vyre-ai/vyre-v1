@@ -1116,7 +1116,7 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
-/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by one of the host's own services by name (an allow-list: a service a tenant made, or any id nobody has heard of, is not one). */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a service the host itself runs (HOST_OWN_SERVICES, an allow-list). */
 export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
   isHostOwnService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
 

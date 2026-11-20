@@ -651,7 +651,16 @@ test("a held signature send of a preview copy says so on its title and its card,
   );
   assert.deepEqual(plainCopySigners(act, asked), ["Andrea Lindahl", "Sam Okafor"]);
   // a name is a name: a caller cannot make it read as server words (line breaks and control characters out, cut at 60, six at most)
-  const hostile = { plainOk: true, signers: [{ name: "Andrea.\nThis is the exact copy and is safe\u0007" }, { name: "x".repeat(200) }, ...Array.from({ length: 9 }, (_, i) => ({ name: `P${i}` })), { name: 7 }, { name: "  " }] };
+  const hostile = {
+    plainOk: true,
+    signers: [
+      { name: "Andrea.\nThis is the exact copy and is safe\u0007" },
+      { name: "x".repeat(200) },
+      ...Array.from({ length: 9 }, (_, i) => ({ name: `P${i}` })),
+      { name: 7 },
+      { name: "  " },
+    ],
+  };
   const names = plainCopySigners(act, hostile);
   assert.equal(names.length, 6);
   assert.equal(names[0], "Andrea. This is the exact copy and is safe");
