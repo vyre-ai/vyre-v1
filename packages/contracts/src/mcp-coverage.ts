@@ -81,7 +81,9 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
 };
 
 const SYSTEM =
-  "System step: the host, the scheduler, the engine or a provider's webhook calls it; a member never does.";
+  "Plumbing between the server's own parts and the app: the host, the scheduler, the engine, a consumer, the app's sync protocol or a provider's webhook calls it. It is not a step an agent takes; a member's call goes through the same permission and Gate as any other.";
+const SYSTEM_ONLY =
+  "System-only: the handler refuses any caller that is not the server itself (or the host's own service), before the Gate.";
 const CREDENTIAL =
   "Sign-in and credentials: a person's own password, sign-in, device trust, recovery or key. It never runs for them.";
 const GATE =
@@ -115,6 +117,14 @@ const VIA_SCHEMA_APPLY =
   "An agent reaches it through the schema_apply tool (op field.mergeable, with def {mergeable: true|false}); schema.apply's permission and Gate apply.";
 const HOST_RETRY =
   "The host's own follow-up: only the host service runs it, and anyone else is refused before the Gate. A manual retry by a person or an agent would be a new feature (a held send of the stored message).";
+const APP_PING =
+  "The app's own call: it reports a device's last-seen when the person is active. An agent has no device to report.";
+const FIRE =
+  "The engine starts a run from a matched trigger event with it; the automation's owner can also press it. An agent starts a run with automations_run, and tries one with automations_test.";
+const SNAPSHOT =
+  "The engine takes the file snapshot a run uses; a member who can see the agent can also call it. Changes to the files apply between runs, so there is nothing for an agent to call.";
+const SIGN_INS =
+  "A person's own list of the sites their browser profile on this agent is signed in to (site and date, never a value). It is the person's view; agents use the browser through the chrome tools, not this list.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -182,13 +192,11 @@ const SYSTEM_CALLS: readonly string[] = [
   "agents.outside.usable",
   "agents.routine.fire",
   "agents.share_class",
-  "agents.snapshot.take",
   "audit.append",
   "audit.archive",
   "audit.chain_health",
   "audit.checkpoint",
   "automations.code_reach",
-  "automations.fire",
   "calendar.ingest_event",
   "channels.home_join",
   "chat.chapters_write",
@@ -357,7 +365,6 @@ const CREDENTIAL_CALLS: readonly string[] = [
   "devices.epoch_bump",
   "devices.purge_ack",
   "devices.register",
-  "devices.touch",
   "identity.change_password",
   "identity.claim_owner",
   "identity.github_sign_in",
@@ -385,7 +392,6 @@ const CREDENTIAL_CALLS: readonly string[] = [
   "mcp.session.mint",
   "mcp.setup.set",
   "members.accept",
-  "members.invites.preview",
   "members.join_link.preview",
   "members.join_link.request",
   "portal.sign_in",
@@ -542,7 +548,6 @@ const PUBLIC_CALLS: readonly string[] = [
 
 const COMPUTER_CALLS: readonly string[] = [
   "computers.browser.give_back",
-  "computers.browser.my_sign_ins",
   "computers.browser.preview",
   "computers.browser.profiles",
   "computers.browser.sessions",
@@ -578,11 +583,16 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   // classified 20 Nov 2026 (rc.43 integration), each from what the code does: the server's own calls, a person's card, app plumbing, and the calls an agent already reaches through a grouped tool
   [
     /^access\.folder_narrow$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$/,
-    SYSTEM,
+    SYSTEM_ONLY,
   ],
   [/^documents\.signing$/, DOC_SIGNING],
   [/^sites\.head_check$/, HEAD_CHECK],
   [/^sites\.services_list$/, SERVICES_LIST],
+  [/^devices\.touch$/, APP_PING],
+  [/^members\.invites\.preview$/, PUBLIC],
+  [/^computers\.browser\.my_sign_ins$/, SIGN_INS],
+  [/^automations\.fire$/, FIRE],
+  [/^agents\.snapshot\.take$/, SNAPSHOT],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],
