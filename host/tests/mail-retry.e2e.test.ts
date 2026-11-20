@@ -282,13 +282,23 @@ test("a soft bounce is retried by the host's own schedule, as the host service, 
     for (const k of ["sent", "soft_bounced", "retry_scheduled", "retried", "delivered"])
       assert.ok(kinds.includes(k), `${k} is on the trail: ${kinds.join(", ")}`);
 
-    // 5. a person cannot run a retry, early or late
+    // 5. a person cannot run a retry, early or late, and no approval task is made for the try
+    const heldTables = (
+      db.all(`SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE '%hold%' OR name LIKE '%park%')`) as {
+        name: string;
+      }[]
+    ).map((r) => r.name);
+    const heldCount = (): number =>
+      heldTables.reduce((n, t) => n + Number((db.all(`SELECT count(*) AS c FROM ${t}`)[0] as { c: number }).c), 0);
+    const before = heldCount();
     const early = await post(d, "/v1/mail/delivery/retry", {
       messageId: original,
       address: "pat@acme.test",
       attempt: 2,
     });
     assert.equal(early.body.error?.code, "permission.no_grant");
+    assert.ok(heldTables.length > 0, "there are hold or park tables to look at");
+    assert.equal(heldCount(), before, "refused before the Gate: nothing parked, no approval task");
   } finally {
     await d.stop();
   }

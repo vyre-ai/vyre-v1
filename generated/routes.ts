@@ -22976,24 +22976,6 @@ const routes4: Route[] = [
   },
   {
     "method": "POST",
-    "path": "/v1/mail/templates",
-    "cap": "mail.templates",
-    "v": 1,
-    "module": "mail",
-    "effects": "write",
-    "permission": null,
-    "level": "edit",
-    "resource": {
-      "type": "space"
-    },
-    "idempotency": "natural",
-    "risk": "medium",
-    "offline": null,
-    "teamOnly": false,
-    "gate": "send"
-  },
-  {
-    "method": "POST",
     "path": "/v1/mail/thread/get",
     "cap": "mail.thread.get",
     "v": 1,
@@ -27658,10 +27640,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/ms/user/remove",
@@ -27679,7 +27658,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/user/send_message",
@@ -33188,10 +33170,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/runs/wait_for",
@@ -33209,7 +33188,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/scheduler/can_hold",
@@ -38690,10 +38672,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/talk/space/configure",
@@ -38711,7 +38690,10 @@ const routes7: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "approve"
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/talk/space/connect",

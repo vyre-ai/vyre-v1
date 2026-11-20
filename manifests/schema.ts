@@ -80,6 +80,7 @@ const schemaOp = t.obj({
     "type.drop",
     "field.add",
     "field.update",
+    "field.mergeable",
     "field.retype",
     "field.rename",
     "field.drop",

@@ -73,7 +73,9 @@ const PROVIDER = [
 const MORE = [
   "mail.template.save",
   "mail.template.reset",
-  "mail.templates",
+  "mail.template.for_document.set",
+  "mail.template.for_document.clear",
+  "mail.template.list",
   "mail.mailbox.pause",
   "mail.mailbox.resume",
   "mail.mailbox.set_sync_state",
@@ -133,6 +135,7 @@ function world(sites: readonly string[] = []): AccessSnapshot {
   s.putResource({ id: "num_1", type: "number", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "fld_1", type: "folder", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "rec_1", type: "record", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
+  s.putResource({ id: "fil_doc1", type: "file", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "thr_1", type: "thread", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "chg_1", type: "changeset", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   s.putResource({ id: "mbx_a", type: "mailbox", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
@@ -332,7 +335,14 @@ const INPUT: Record<string, Record<string, unknown>> = {
   "settings.reset_space": { key: "mail.provider" },
   "mail.template.save": { key: "welcome", subject: "Hi", text: "Hello", idempotencyKey: "k9" },
   "mail.template.reset": { key: "welcome", idempotencyKey: "k10" },
-  "mail.templates": { action: "set", key: "welcome", subject: "Hi", text: "Hello" },
+  "mail.template.for_document.set": {
+    documentId: "fil_doc1",
+    key: "welcome",
+    subject: "Hi",
+    text: "Hello",
+    idempotencyKey: "k12",
+  },
+  "mail.template.for_document.clear": { documentId: "fil_doc1", key: "welcome", idempotencyKey: "k13" },
   "mail.mailbox.pause": { mailboxId: "mbx_a" },
   "mail.mailbox.resume": { mailboxId: "mbx_a" },
   "mail.mailbox.set_sync_state": { mailboxId: "mbx_a", state: "error" },
@@ -477,7 +487,8 @@ test("through the real Gate: wording, sync switches and connecting a mailbox are
   for (const name of [
     "mail.template.save",
     "mail.template.reset",
-    "mail.templates",
+    "mail.template.for_document.set",
+    "mail.template.for_document.clear",
     "mail.mailbox.pause",
     "mail.mailbox.resume",
     "mail.mailbox.set_sync_state",
@@ -492,9 +503,9 @@ test("through the real Gate: wording, sync switches and connecting a mailbox are
       `${name}: a person is one step`,
     );
   }
-  // the tool's reads are not held, only its writes
+  // the reads are not held, only the writes
   const read = rig();
-  assert.equal((await read.invoke("mail.templates", { action: "list" }, agent())).status, "ok");
+  assert.equal((await read.invoke("mail.template.list", {}, agent())).status, "ok");
   assert.deepEqual(read.parked, []);
   // testing the saved mail server sends a sign-in to a place the person gave: open; naming a server, a port, a username or a password handle is held for an agent
   const saved = rig();

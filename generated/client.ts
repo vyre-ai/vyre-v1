@@ -1726,7 +1726,6 @@ export function createClient(transport: Transport) {
         reset: call("mail.template.reset", 1),
         save: call("mail.template.save", 1),
       },
-      templates: call("mail.templates", 1),
       thread: {
         get: call("mail.thread.get", 1),
       },

@@ -1726,7 +1726,6 @@ export function stubs(ctx: CallCtx) {
         reset: call("mail.template.reset"),
         save: call("mail.template.save"),
       },
-      templates: call("mail.templates"),
       thread: {
         get: call("mail.thread.get"),
       },

@@ -377,7 +377,6 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "mail.template.for_document.set": "pick the template for a kind of email",
   "mail.template.reset": "put an email template back to the original",
   "mail.template.save": "change an email template",
-  "mail.templates": "change the email templates",
   "members.join_link.rotate": "make a new link to join the Space",
   "network.relay_set": "change how devices reach the Space",
   "notifications.delegate.set": "hand approvals to someone else",

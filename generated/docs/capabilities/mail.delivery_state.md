@@ -1,6 +1,6 @@
 # mail.delivery_state
 
-A message's delivery trail (messageId), else inbox health
+A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried
 
 | | |
 |---|---|
@@ -26,7 +26,6 @@ A message's delivery trail (messageId), else inbox health
 ```ts
 type In = {
   messageId?: string;
-  mailboxId?: string;
 };
 ```
 
@@ -52,7 +51,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "mailboxId": "mbx_a1b2c3",
     "messageId": "eml_a1b2c3"
   },
   "output": {
