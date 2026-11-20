@@ -3,6 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { HOLD_PHRASES } from "../../../lib/hold-phrases.ts";
+import { OUTWARD_ACTS } from "../../../lib/grants.ts";
 import { holdShort, holdTitle } from "../../../lib/hold-words.ts";
 
 interface Cap {
@@ -40,9 +41,9 @@ test("every held site-operation call has words in the table", () => {
 
 test("sites.ops, and the plain calls behind its held actions, name the key-class Gate conditions (evaluated in modules/gate/tests/sites-ops-holds.test.ts)", () => {
   assert.deepEqual(gate("sites.ops"), { act: "delete", when: "sites.ops_gate(input)" });
-  assert.deepEqual(gate("sites.job_create"), { act: "send", when: "sites.run_gate(input)" });
-  assert.deepEqual(gate("sites.service_add"), { act: "send", when: "sites.run_gate(input)" });
-  assert.deepEqual(gate("sites.job_update"), { act: "send", when: "sites.run_update_gate(input)" });
+  assert.deepEqual(gate("sites.job_create"), { act: "delete", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.service_add"), { act: "delete", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.job_update"), { act: "delete", when: "sites.run_update_gate(input)" });
   assert.equal(gate("sites.backup_restore")?.when, "actor.kind != 'person'");
   // the calls that change no command are not held
   for (const n of [
@@ -54,4 +55,12 @@ test("sites.ops, and the plain calls behind its held actions, name the key-class
     "sites.backup_create",
   ])
     assert.equal(gate(n), undefined, n);
+});
+
+test("none of the site-operation holds is under an outward act, so a person's turn grant to email or post can never lift a scheduled command, a worker or a restore", () => {
+  for (const n of ["sites.ops", "sites.job_create", "sites.job_update", "sites.service_add", "sites.backup_restore"]) {
+    const act = gate(n)?.act;
+    assert.ok(act !== undefined && act !== "none", `${n} has a hold`);
+    assert.ok(!OUTWARD_ACTS.has(act), `${n}: ${act} is an outward act`);
+  }
 });
