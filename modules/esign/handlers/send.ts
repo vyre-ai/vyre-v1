@@ -288,7 +288,26 @@ export function assigneeOf(ctx: Ctx): { kind: "person" | "agent"; id: string } |
 
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
-async function send(ctx: Ctx, input: unknown): Promise<{ envelopeId: string }> {
+/**
+ * The version of the file now, read once before the exact-copy check. The send reads the bytes after that check, so a version uploaded in between would be sent although the check saw an older one: after the
+ * bytes are read, the head must still be this version (`assertHead`), or the send is refused and nothing goes out.
+ */
+export async function headVersion(ctx: Ctx, fileId: string): Promise<unknown> {
+  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+  return got.file?.version;
+}
+export async function assertHead(ctx: Ctx, fileId: string, pinned: unknown): Promise<void> {
+  const now = await headVersion(ctx, fileId);
+  if (now !== pinned)
+    fail(
+      ctx,
+      "validation.version_conflict",
+      "This file changed while it was being sent. Nothing was sent. Check the new version and send again.",
+      { field: "fileId", changed: true },
+    );
+}
+
+async function send(ctx: Ctx, input: unknown, pinned?: { version: unknown }): Promise<{ envelopeId: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const recordId = optStr(ctx, o, "recordId");
@@ -312,6 +331,7 @@ async function send(ctx: Ctx, input: unknown): Promise<{ envelopeId: string }> {
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
   const pdf = fromBase64(body.base64);
+  if (pinned) await assertHead(ctx, fileId, pinned.version);
   if (pdf.length === 0 || pdf.length > MAX_PDF_BYTES)
     fail(ctx, "validation.too_large", "That PDF is empty or over 25 MB.", { field: "fileId" });
 
@@ -550,7 +570,7 @@ async function fetchSigned(ctx: Ctx, input: unknown): Promise<{ fileId: string }
 }
 
 export const sendHandlers = {
-  "esign.send": (ctx: Ctx, input: unknown) => send(ctx, input),
+  "esign.send": (ctx: Ctx, input: unknown, pinned?: { version: unknown }) => send(ctx, input, pinned),
   "esign.status": (ctx: Ctx, input: unknown) => status(ctx, input),
   "esign.cancel": (ctx: Ctx, input: unknown) => cancel(ctx, input),
   "esign.fetch_signed": (ctx: Ctx, input: unknown) => fetchSigned(ctx, input),

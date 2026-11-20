@@ -684,6 +684,28 @@ test("a PDF of a Word file set in the plain page look is held: no send until the
   assert.equal(h3.rows("esign_event").filter((r) => r.kind === "plain_copy_sent").length, 0);
 });
 
+test("a version uploaded between the exact-copy check and the read of the bytes is never sent: the send is refused and nothing goes out", async () => {
+  const h = await setup();
+  let version = 1;
+  const head = (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000, version },
+  });
+  h.callee("files.get", head);
+  // the check passes on version 1, and a new version lands while it runs
+  h.callee("documents.signing", () => {
+    version = 2;
+    return { signers: [], places: [] };
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.match(e.error.message, /changed while it was being sent. Nothing was sent/);
+  assert.equal(h.rows("esign_envelope").length, 0, "nothing was created or sent");
+  // the head holds still: the same send goes out
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  assert.match((await send(h, [ANDREA])).envelopeId, /^env_/);
+  assert.equal(h.rows("esign_envelope").length, 1);
+});
+
 test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {
   const h = await setup();
   h.callee("documents.signing", () => {
