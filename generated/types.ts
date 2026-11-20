@@ -12944,6 +12944,7 @@ export type DocumentsPreviewFillOut = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+  digest: string;
 };
 export type DocumentsSigningIn = {
   fileId: string;

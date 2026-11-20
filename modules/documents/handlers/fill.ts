@@ -75,6 +75,16 @@ export async function sha256Of(bytes: Uint8Array): Promise<string> {
   return Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+/**
+ * What a fill would say, in one word: the SHA-256 of every resolved value (as the record and the typed values give them, headers and footers included) and of the template bytes they were read with. The excerpt a
+ * person is shown is capped and covers the body; this is not, so a retry with no key is the same document only when nothing it says has changed, the template's own words included. The bytes come from the same
+ * read that renders the preview, so the digest and what it describes cannot come apart. (The values are what the engine resolved, which can be more than the tags the template uses: an unrelated field edit is
+ * then a new document too, which errs on the side of a fresh one.)
+ */
+export async function askDigest(bytes: Uint8Array, values: unknown): Promise<{ digest: string }> {
+  return { digest: await askKey([values, await sha256Of(bytes)]) };
+}
+
 // ---- drivers ----
 
 export interface DocumentsDrivers {
@@ -926,12 +936,13 @@ function asked(bytes: Buffer): Placeholders | null {
 export async function previewFill(
   ctx: Ctx,
   input: unknown,
-): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string }> {
   const o = rec(ctx, input);
-  const bytes = await templateBytes(ctx, reqStr(ctx, o, "templateFileId"));
+  const fileId = reqStr(ctx, o, "templateFileId");
+  const bytes = await templateBytes(ctx, fileId);
   const { values, given } = await valuesOf(ctx, o, asked(bytes));
   try {
-    return preview(bytes, values, given);
+    return { ...preview(bytes, values, given), ...(await askDigest(bytes, values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -1030,7 +1041,7 @@ export async function documentsFill(
     bytes: out,
     mime: format === "pdf" ? "application/pdf" : DOCX_MIME,
     kind: format === "pdf" ? "pdf" : "document",
-    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version])}`}`,
+    key: `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, (template.file as { version?: unknown } | undefined)?.version, intoFolderId, ctx.actingFor ?? ctx.principal.id, o.recordId])}`}`,
   });
   const { fileId, versionId } = saved;
   // a PDF set in the plain page look is a preview of the Word file: its bytes are marked, so signing holds it (and any copy of it) until the sender chooses (documents.signing says plain)

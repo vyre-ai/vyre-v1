@@ -7,6 +7,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
   FillError,
   addTemplateReader,
+  askDigest,
   askKey,
   baseName,
   documentsFill,
@@ -109,7 +110,10 @@ async function fields(ctx: Ctx, input: unknown): Promise<Fields> {
   return { fields: out, loops: asked.loops, problems: [], ...(asked.roles.length > 0 ? { signers: asked.roles } : {}) };
 }
 
-async function preview(ctx: Ctx, input: unknown): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[] }> {
+async function preview(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ excerpt: Excerpt[]; missing: string[]; unused: string[]; digest: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "templateFileId");
   if (!isVyreDoc(await fileName(ctx, fileId))) return previewFill(ctx, input);
@@ -117,7 +121,7 @@ async function preview(ctx: Ctx, input: unknown): Promise<{ excerpt: Excerpt[]; 
   const { values, given } = await valuesOf(ctx, o, asked);
   try {
     const got = mdExcerpt(text, values);
-    return { ...got, unused: unusedFor(asked, given) };
+    return { ...got, unused: unusedFor(asked, given), ...(await askDigest(new TextEncoder().encode(text), values)) };
   } catch (e) {
     return refuse(ctx, e);
   }
@@ -191,7 +195,7 @@ async function fill(ctx: Ctx, input: unknown): Promise<Filled> {
   const stem =
     wanted !== undefined ? wanted.replace(new RegExp(`\\.${format}$`, "i"), "") : `${baseName(templateName)} (filled)`;
   const recordId = optStr(ctx, o, "recordId");
-  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId)])}`}`;
+  const key = `docfill:${optStr(ctx, o, "idempotencyKey") ?? `${templateFileId}:${await askKey([values, o.signingDate, o.name, format, await fileVersion(ctx, templateFileId), intoFolderId, ctx.actingFor ?? ctx.principal.id, o.recordId])}`}`;
   let saved: Saved;
   let signers: string[] = [];
   if (format === "pdf") {
@@ -262,7 +266,7 @@ async function makePdf(ctx: Ctx, input: unknown): Promise<{ file: Saved; pages: 
     bytes: set.pdf,
     mime: "application/pdf",
     kind: "pdf",
-    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${await askKey([o.name, text])}`}`,
+    key: `docpdf:${optStr(ctx, o, "idempotencyKey") ?? `${fileId}:${await askKey([o.name, text, intoFolderId, ctx.actingFor ?? ctx.principal.id])}`}`,
   });
   remember(ctx, saved, set.roles, set.places, {});
   ctx.log.info("documents.make_pdf", { fileId: saved.fileId, from: fileId, pages: set.pages });
@@ -384,8 +388,22 @@ async function make(ctx: Ctx, input: unknown): Promise<Filled> {
   const pass: Record<string, unknown> = { templateFileId, intoFolderId: folder.folderId, recordId };
   for (const k of ["values", "signingDate", "name", "format"]) if (o[k] !== undefined) pass[k] = o[k];
   // a retry of the same ask makes the same file: the key is the ask itself
-  // with the caller's key a retry is the same file; with none, every call is its own ask (the trace id is new for each), so an old file is never replayed for a new one
-  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${typeof o.idempotencyKey === "string" ? o.idempotencyKey : ctx.trace.traceId}`;
+  // the key of the ask: the caller's own when it gave one (a retry with it is the same document), else made from what is asked, as fill does: template and its version, the values, the date, the name,
+  // the format, the record, the folder and the person. A retry of the same ask is the same document; another person, folder, template version or value is another.
+  const given = typeof o.idempotencyKey === "string" ? o.idempotencyKey : "";
+  let ask = "";
+  if (given === "") {
+    // what the document will say as the record stands now: the page filled from the record and the typed values. A corrected record is another ask, another record another.
+    const shown = (await ctx.call("documents.preview_fill", {
+      templateFileId,
+      recordId,
+      ...(o.values !== undefined ? { values: o.values } : {}),
+      ...(o.signingDate !== undefined ? { signingDate: o.signingDate } : {}),
+    })) as { digest?: unknown };
+    // the digest covers every resolved value and the template bytes they were read with (one read, so an edit between the two cannot split them)
+    ask = await askKey([shown.digest, o.name, o.format, recordId, folder.folderId, ctx.actingFor ?? ctx.principal.id]);
+  }
+  pass.idempotencyKey = `make:${recordId}:${templateFileId}:${given !== "" ? given : ask}`;
   return (await ctx.call("documents.fill", pass)) as Filled;
 }
 

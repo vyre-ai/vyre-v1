@@ -445,6 +445,7 @@ if (g2811 === 'object') { const o2811 = x2811 as Record<string, unknown>;
 if (!("excerpt" in o2811)) e.push(p + "/excerpt" + ': required');
 if (!("missing" in o2811)) e.push(p + "/missing" + ': required');
 if (!("unused" in o2811)) e.push(p + "/unused" + ': required');
+if (!("digest" in o2811)) e.push(p + "/digest" + ': required');
 if ("excerpt" in o2811) {
 {
 const x2812 = o2811["excerpt"];
@@ -526,6 +527,7 @@ lf(a2817[i2817], p + "/unused" + '/' + i2817, e, L1);
 }
 }
 }
+if ("digest" in o2811) lf(o2811["digest"], p + "/digest", e, L1);
 }
 }
 }

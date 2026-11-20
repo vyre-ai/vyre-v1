@@ -560,6 +560,10 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.start !== undefined) t.start = input.start;
   if (input.recur !== undefined) t.recur = input.recur;
   if (input.recordId !== undefined) t.recordId = input.recordId;
+  // a task that says it is the Gate's is the Gate's: made by the Gate (a nested call from a gate capability, which the pipeline sets and a caller cannot) or by the server. Anyone else naming a gate source would
+  // dress their own task in the Gate's card, so it is refused.
+  if ((input.source as { kind?: string } | undefined)?.kind === "gate" && !mayMakeGateTask(ctx))
+    raise(ctx, "validation.field_locked", "Only the Gate makes a held act.", { field: "source" });
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
@@ -1077,6 +1081,10 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a trusted service. */
+export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
+  isTrustedService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
+
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 
 /** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
@@ -1181,7 +1189,7 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   const reserved = (RESERVED_NOTES as Record<string, "decisionId" | "payloadHash">)[key];
   if (reserved) {
-    if (t.source?.kind !== "gate")
+    if (t.source?.kind !== "gate" || !mayMakeGateTask(ctx))
       raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
     if (t[reserved] !== undefined && t[reserved] !== value)
       raise(ctx, "validation.field_locked", "That value is set once.", { field: key });

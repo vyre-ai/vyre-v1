@@ -884,3 +884,88 @@ test("the template fallback follows the mail module's contract: a Gate hold or a
     assert.ok(h.warnings.length >= 0);
   }
 });
+
+test("only a person can choose to send a copy that is not the exact one: an agent, or someone's agent acting for them, is stopped and asked to bring a person in", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  for (const who of [
+    { id: "agt_helper", kind: "agent" as const },
+    { ...dana, actingFor: "usr_dana" },
+  ]) {
+    const e = await h
+      .call("esign.send", { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: `a${who.id}` }, who)
+      .catch((x: unknown) => x);
+    assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval");
+    assert.match((e as { error: { message: string } }).error.message, /person must choose/);
+  }
+  assert.equal(h.rows("esign_envelope").length, 0);
+  const ok = await h.call(
+    "esign.send",
+    { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "person" },
+    dana,
+  );
+  assert.match(ok.envelopeId, /^env_/);
+});
+
+test("an Automation's sign step runs as the person who built it but is not that person's choice: plainOk from inside another capability (named by callerCap) is refused like an agent's", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  const e = await h
+    .call(
+      "esign.send",
+      { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "auto1" },
+      { ...dana, depth: 1, callerCap: "steps-core.run_step" },
+    )
+    .catch((x: unknown) => x);
+  assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval");
+  assert.equal(h.rows("esign_envelope").length, 0);
+  // a person's own held send, resumed by the Gate after they pressed Allow, is their choice; an agent's held send resumed the same way is not
+  const resumed = await h.call(
+    "esign.send",
+    { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "resumed" },
+    { ...dana, depth: 1, callerCap: "gate.release" },
+  );
+  assert.match(resumed.envelopeId, /^env_/);
+  const agentResumed = await h
+    .call(
+      "esign.send",
+      { fileId: FILE, signers: [SAM], plainOk: true, idempotencyKey: "agent-resumed" },
+      { id: "agt_helper", kind: "agent", depth: 1, callerCap: "gate.release" },
+    )
+    .catch((x: unknown) => x);
+  assert.equal((agentResumed as { error: { code: string } }).error.code, "permission.needs_approval");
+  // the same person at the top of the call is one step
+  assert.match(
+    (await h.call("esign.send", { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: "top" }, dana))
+      .envelopeId,
+    /^env_/,
+  );
+  // without plainOk an Automation's send of an exact copy is unaffected
+  const h2 = await setup();
+  assert.match(
+    (
+      await h2.call(
+        "esign.send",
+        { fileId: FILE, signers: [ANDREA], idempotencyKey: "auto2" },
+        { ...dana, depth: 1, callerCap: "steps-core.run_step" },
+      )
+    ).envelopeId,
+    /^env_/,
+  );
+});
+
+test("a person nested inside any other capability (documents.make, a step, a hook) is not the person's choice; only their own top-level call or their own Gate-resumed call is", async () => {
+  const h = await setup();
+  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  for (const cap of ["documents.make", "steps-core.run_step", "automations.fire", "esign.hook"]) {
+    const e = await h
+      .call(
+        "esign.send",
+        { fileId: FILE, signers: [ANDREA], plainOk: true, idempotencyKey: `n-${cap}` },
+        { ...dana, depth: 1, callerCap: cap },
+      )
+      .catch((x: unknown) => x);
+    assert.equal((e as { error: { code: string } }).error.code, "permission.needs_approval", cap);
+  }
+  assert.equal(h.rows("esign_envelope").length, 0);
+});

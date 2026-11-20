@@ -342,27 +342,38 @@ test("with no key of its own, fill derives it from what is asked: another value,
   assert.notEqual(await keyOf(), base, "an edited template");
 });
 
-test("documents.make with no key makes a new ask every call, so an old file is never replayed for a new one; with the caller's key a retry is the same key", async () => {
+test("documents.make: a retry gives the same document, with the caller's key or without one; another value, person, folder or template version is another document", async () => {
   const w = linked();
   const id = w.add("Service agreement.md", enc(AGREEMENT));
   await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
   const ask = { template: "Service agreement", recordId: "rec_imran", values: VALUES, signingDate: "2026-11-19" };
-  const keys = async (extra: Record<string, unknown>, calls: number) => {
+  const key = async (extra: Record<string, unknown> = {}, who = "per_a") => {
     const before = w.calls.filter((c) => c.cap === "files.create").length;
-    for (let i = 0; i < calls; i++)
-      await handlers["documents.make"](
-        { ...w.ctx, trace: { ...w.ctx.trace, traceId: `${i}`.padStart(32, "a") } },
-        { ...ask, ...extra },
-      );
-    return w.calls
-      .filter((c) => c.cap === "files.create")
-      .slice(before)
-      .map((c) => String(c.input.idempotencyKey).replace(/:[^:]*\.pdf$/, ""));
+    await handlers["documents.make"](
+      {
+        ...w.ctx,
+        principal: { kind: "person", id: who },
+        trace: { ...w.ctx.trace, traceId: `${Math.random()}`.padEnd(32, "0").slice(0, 32) },
+      },
+      { ...ask, ...extra },
+    );
+    return String(w.calls.filter((c) => c.cap === "files.create")[before]!.input.idempotencyKey).replace(
+      /:[^:]*\.pdf$/,
+      "",
+    );
   };
-  const none = await keys({}, 2);
-  assert.notEqual(none[0], none[1], "no caller key: every call is its own ask");
-  const kept = await keys({ idempotencyKey: "retry-1" }, 2);
-  assert.equal(kept[0], kept[1], "the caller's key: a retry is the same ask");
+  // no key: the same ask is the same key even though every call has its own trace id
+  const base = await key();
+  assert.equal(await key(), base, "a retry without a key is the same document");
+  assert.notEqual(await key({ values: { ...VALUES, matter: { fee: 7 } } }), base, "another value");
+  assert.notEqual(await key({}, "per_b"), base, "another person");
+  w.files.get(id)!.versions = 2;
+  w.files.get(id)!.bytes = enc(`${AGREEMENT}\nA new closing line.\n`); // edited: new words, new version
+  assert.notEqual(await key(), base, "an edited template");
+  // the caller's key: a retry is the same, another key is another
+  const k1 = await key({ idempotencyKey: "retry-1" });
+  assert.equal(await key({ idempotencyKey: "retry-1" }), k1);
+  assert.notEqual(await key({ idempotencyKey: "retry-2" }), k1);
 });
 
 test("the plain check answers unchecked for a file it cannot read or that is too big, never 'not plain', and a file found plain is not read again", async () => {
@@ -389,7 +400,7 @@ test("the plain check answers unchecked for a file it cannot read or that is too
   const flaky = w.add("Flaky.pdf", Buffer.from("%PDF-1.7 x"));
   w.ctx.call = (async (cap: string, input: unknown) => {
     if (cap === "files.read" && (input as { fileId?: string }).fileId === flaky) throw new Error("storage hiccup");
-    return inner(cap, input as never);
+    return inner(cap as Parameters<typeof inner>[0], input as never);
   }) as typeof w.ctx.call;
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: flaky })).unchecked, true);
 });
@@ -428,4 +439,119 @@ test("a Word fill with no key of its own is keyed by the resolved record values 
   const second = await keyOf();
   w.files.get(id)!.versions = 2;
   assert.notEqual(await keyOf(), second, "the template was edited");
+});
+
+test("with no key of its own, the same ask by another person or into another folder is another file, never the first person's file replayed", async () => {
+  const w = world();
+  const id = w.add("Service agreement.md", enc(AGREEMENT));
+  const keyOf = async (into: string, who: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](
+      { ...w.ctx, principal: { kind: "person", id: who } },
+      { templateFileId: id, intoFolderId: into, values: VALUES, signingDate: "2026-11-19" },
+    );
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(/:[^:]*\.pdf$/, "");
+  };
+  const a = await keyOf(FOLDER, "per_a");
+  assert.equal(await keyOf(FOLDER, "per_a"), a, "the same person, the same folder: the same ask");
+  assert.notEqual(await keyOf(FOLDER, "per_b"), a, "another person");
+  assert.notEqual(await keyOf("fld_other", "per_a"), a, "another folder");
+});
+
+test("with no key of its own, fill for another record is another file even when the folder, template and person are the same and no values are typed", async () => {
+  const w = linked();
+  w.records.set("rec_other", { name: "Imran Ibarra" });
+  const id = w.add("Letter.docx", docx(para("Dear {name}")));
+  const keyOf = async (recordId: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.fill"](w.ctx, {
+      templateFileId: id,
+      intoFolderId: FOLDER,
+      recordId,
+      mapping: { name: "name" },
+    });
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      /:[^:]*\.docx$/,
+      "",
+    );
+  };
+  const a = await keyOf("rec_imran");
+  assert.equal(await keyOf("rec_imran"), a, "the same record again is the same ask");
+  assert.notEqual(await keyOf("rec_other"), a, "another record, even with the same words in it");
+  w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
+  assert.notEqual(await keyOf("rec_imran"), a, "the record was corrected: not the old document");
+});
+
+test("documents.make with no key: two records, different documents; a corrected record, a new one; a plain retry, the same one", async () => {
+  const w = linked();
+  w.records.set("rec_other", { name: "Imran Ibarra" });
+  const id = w.add("Letter.docx", docx(para("Dear {name}, welcome.")));
+  await handlers["documents.mark_template"](w.ctx, { fileId: id, isTemplate: true });
+  const keyOf = async (recordId: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.make"](w.ctx, { template: "Letter", recordId, format: "docx" });
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      /:[^:]*\.docx$/,
+      "",
+    );
+  };
+  const a = await keyOf("rec_imran");
+  assert.equal(await keyOf("rec_imran"), a, "a plain retry is the same document");
+  assert.notEqual(await keyOf("rec_other"), a, "another record, even with the same words in it");
+  w.records.set("rec_imran", { name: "Imran Ibarra (corrected)" });
+  assert.notEqual(await keyOf("rec_imran"), a, "a corrected record is a new document");
+});
+
+test("documents.make with no key is keyed on every resolved value, not on the shown excerpt: a value only in a footer, or past the 200-entry excerpt cap, changes the key", async () => {
+  const w = linked();
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until June", late: "1,500" });
+  const footerDoc = docx(para("Dear {name}, welcome."), {
+    "word/footer1.xml": `<?xml version="1.0"?><w:ftr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:t>{footer_note}</w:t></w:r></w:p></w:ftr>`,
+  });
+  const a = w.add("Footer letter.docx", footerDoc);
+  const long = w.add(
+    "Schedule.md",
+    enc(
+      `${Array.from({ length: 260 }, (_, i) => `Item ${i + 1} of the schedule.`).join("\n\n")}\n\nThe last figure is {late}.\n`,
+    ),
+  );
+  await handlers["documents.mark_template"](w.ctx, { fileId: a, isTemplate: true });
+  await handlers["documents.mark_template"](w.ctx, { fileId: long, isTemplate: true });
+  const keyOf = async (template: string, format: string, ext: string) => {
+    const n = w.calls.filter((c) => c.cap === "files.create").length;
+    await handlers["documents.make"](w.ctx, { template, recordId: "rec_imran", format } as never);
+    return String(w.calls.filter((c) => c.cap === "files.create")[n]!.input.idempotencyKey).replace(
+      new RegExp(`:[^:]*\\.${ext}$`),
+      "",
+    );
+  };
+  const footer1 = await keyOf("Footer letter", "docx", "docx");
+  assert.equal(await keyOf("Footer letter", "docx", "docx"), footer1);
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until July", late: "1,500" });
+  assert.notEqual(await keyOf("Footer letter", "docx", "docx"), footer1, "a value only in the footer was corrected");
+  const late1 = await keyOf("Schedule", "md", "md");
+  w.records.set("rec_imran", { name: "Imran Ibarra", footer_note: "Valid until July", late: "2,500" });
+  assert.notEqual(await keyOf("Schedule", "md", "md"), late1, "a value past the 200th excerpt entry was corrected");
+  // the excerpt really is capped: the preview shows no trace of the late figure
+  const shown = (await handlers["documents.preview_fill"](w.ctx, { templateFileId: long, recordId: "rec_imran" })) as {
+    excerpt: { text: string }[];
+    digest: string;
+  };
+  assert.ok(!shown.excerpt.some((e) => e.text.includes("2,500")), "past the cap, not shown");
+  assert.match(shown.digest, /^[0-9a-f]{64}$/);
+});
+
+test("the preview digest follows the template's own bytes too: an edit to the template changes it even when no version is reported", async () => {
+  const w = linked();
+  const id = w.add("Letter.md", enc("Dear {name}, welcome.\n"));
+  const digest = async () =>
+    (
+      (await handlers["documents.preview_fill"](w.ctx, { templateFileId: id, recordId: "rec_imran" })) as {
+        digest: string;
+      }
+    ).digest;
+  const a = await digest();
+  assert.equal(await digest(), a);
+  w.files.get(id)!.bytes = enc("Dear {name}, welcome back.\n"); // edited; the version number is not touched
+  assert.notEqual(await digest(), a);
 });

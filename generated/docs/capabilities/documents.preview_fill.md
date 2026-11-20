@@ -47,6 +47,7 @@ type Out = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+  digest: string;
 };
 ```
 
@@ -71,6 +72,7 @@ type Out = {
     "values": {}
   },
   "output": {
+    "digest": "example",
     "excerpt": [
       {
         "filled": [

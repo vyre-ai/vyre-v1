@@ -338,6 +338,36 @@ function settle(b: Block, value: (n: string) => string): Block {
 // ---- the Markdown a document is written in: headings, paragraphs, lists, a quote, a rule, a table, bold and italic ----
 
 /** Bold and italic, links as their words, code as its letters, a backslash before a mark keeps it a letter. */
+/**
+ * Links and pictures keep their text only: `[text](address)` and `![text](address)` become `text`. A linear scan with the nearest closing bracket remembered, so a document of nothing but opening brackets
+ * costs one pass (a regex per start made every `[` read to the end). The text is at most 200 letters on one line and the address at most 500.
+ */
+function stripLinks(src: string): string {
+  if (!src.includes("](")) return src;
+  let out = "";
+  let at = 0;
+  let close = -2; // the nearest "]" at or after the scan position, -1: none left
+  let newline = -2;
+  let paren = -2; // the nearest ")" at or after the address start, -1: none left
+  for (let i = src.indexOf("["); i >= 0; i = src.indexOf("[", i + 1)) {
+    if (i < at) continue;
+    if (close !== -1 && close < i) close = src.indexOf("]", i);
+    if (close === -1) break;
+    if (newline !== -1 && newline < i) newline = src.indexOf("\n", i);
+    const j = close;
+    if (j - i - 1 > 200 || (newline !== -1 && newline < j) || src[j + 1] !== "(") continue;
+    if (paren !== -1 && paren < j + 2) paren = src.indexOf(")", j + 2);
+    if (paren === -1) break;
+    const k = paren;
+    if (k - j - 2 > 500 || src.slice(j + 2, k).includes("\n")) continue;
+    // a picture's "!" goes with it
+    const from = i > at && src[i - 1] === "!" ? i - 1 : i;
+    out += src.slice(at, from) + src.slice(i + 1, j);
+    at = k + 1;
+  }
+  return out + src.slice(at);
+}
+
 export function inline(src: string): Run[] {
   const out: Run[] = [];
   let b = false;
@@ -350,10 +380,8 @@ export function inline(src: string): Run[] {
     else out.push({ text: buf, ...(b ? { b: true } : {}), ...(i ? { i: true } : {}) });
     buf = "";
   };
-  const s = src
-    .replace(/!\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
-    .replace(/\[([^\]\n]{0,200})\]\([^)\n]{0,500}\)/g, "$1")
-    .replace(/~~(.*?)~~/g, "$1");
+  // twice: stripping a picture can leave a link made of what was around it, which the two passes of the regexes this replaced also stripped
+  const s = stripLinks(stripLinks(src)).replace(/~~(.*?)~~/g, "$1");
   for (let k = 0; k < s.length; k++) {
     const c = s[k] as string;
     if (c === "\\" && k + 1 < s.length && /[\\`*_{}\[\]()#+\-.!|>~]/.test(s[k + 1] as string)) {
@@ -383,8 +411,35 @@ const cells = (line: string): string[] =>
     .map((c) => c.trim());
 
 /** The blocks of a document. A line break inside a paragraph is kept when the line ends with two spaces or a backslash; otherwise lines of one paragraph join with a space. */
+/** The line under a table's head: `| --- | :---: |`, each cell two or more dashes with an optional colon at either end. Cells are cut by hand, so a long line of spaces or dashes is read once. */
+function isTableRule(line: string): boolean {
+  // spaces and tabs only, as the pattern this replaced: not every character String.trim calls whitespace
+  const cut = (x: string): string => {
+    let a = 0;
+    let b = x.length;
+    while (a < b && (x[a] === " " || x[a] === "\t")) a++;
+    while (b > a && (x[b - 1] === " " || x[b - 1] === "\t")) b--;
+    return x.slice(a, b);
+  };
+  let t = cut(line);
+  if (t.startsWith("|")) t = t.slice(1);
+  if (t.endsWith("|")) t = t.slice(0, -1);
+  if (t === "") return false;
+  for (const cell of t.split("|")) {
+    const c = cut(cell);
+    let a = 0;
+    let b = c.length;
+    if (c[a] === ":") a++;
+    if (b > a && c[b - 1] === ":") b--;
+    if (b - a < 2) return false;
+    for (let k = a; k < b; k++) if (c[k] !== "-") return false;
+  }
+  return true;
+}
+
 export function parse(md: string): Block[] {
-  const lines = md.split("\n");
+  // CRLF and a lone CR are line ends like LF: a table rule that ends in a carriage return is still a rule
+  const lines = md.replace(/\r\n?/g, "\n").split("\n");
   const out: Block[] = [];
   let para: string[] = [];
   let quote = false;
@@ -392,8 +447,12 @@ export function parse(md: string): Block[] {
     if (para.length === 0) return;
     let text = "";
     para.forEach((l, n) => {
-      const hard = / {2,}$/.test(l) || /\\$/.test(l);
-      text += l.replace(/( {2,}|\\)$/, "").trim();
+      // trailing spaces counted by hand: the regex form re-read a long run of spaces from every position
+      let e = l.length;
+      while (e > 0 && l[e - 1] === " ") e--;
+      const spaces = l.length - e;
+      const hard = spaces >= 2 || l.endsWith("\\");
+      text += (spaces >= 2 ? l.slice(0, e) : l.endsWith("\\") ? l.slice(0, -1) : l).trim();
       if (n < para.length - 1) text += hard ? "\n" : " ";
     });
     para = [];
@@ -454,10 +513,7 @@ export function parse(md: string): Block[] {
       });
       continue;
     }
-    if (
-      line.trimStart().startsWith("|") &&
-      /^\s*\|?[ \t]*:?-{2,}:?[ \t]*(\|[ \t]*:?-{2,}:?[ \t]*)*\|?\s*$/.test(lines[n + 1] ?? "")
-    ) {
+    if (line.trimStart().startsWith("|") && isTableRule(lines[n + 1] ?? "")) {
       endPara();
       const head = cells(line).map(inline);
       const rows: Run[][][] = [];

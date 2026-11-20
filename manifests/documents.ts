@@ -90,6 +90,9 @@ export default defineManifest({
           ),
           missing: t.arr(t.str()),
           unused: t.arr(t.str()),
+          digest: t.str({
+            description: "SHA-256 of every resolved value and of the template bytes they were read with",
+          }),
         },
         on: ["file", "/templateFileId"],
         tool: "files",

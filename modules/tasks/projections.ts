@@ -133,6 +133,8 @@ export interface TasksCtx {
   space: string;
   principal: { kind: string; id: string };
   actingFor?: string;
+  /** the capability that made this call, from inside another (the pipeline sets it; a caller cannot): how the Gate, a Run step or a module is told from a person or an agent at the top of a call */
+  callerCap?: string;
   trace: { traceId: string };
   device?: string;
   run?: string;

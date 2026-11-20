@@ -134,9 +134,13 @@ test("a deleted task leaves every list and Undo brings it back; only someone on 
 
 test("a held act or a task a Run waits on is never deleted", async () => {
   const h = harness();
-  const held = await mk(h, { kind: "approve", source: { kind: "gate", id: "dec_1" } });
+  const held = await mk(
+    h,
+    { kind: "approve", source: { kind: "gate", id: "dec_1" } },
+    { id: "svc_system", kind: "service" },
+  );
   await refused(h.call("tasks.delete", { taskId: held }, me), "held_act");
-  const run = await mk(h, { source: { kind: "run", id: "run_1" } });
+  const run = await mk(h, { source: { kind: "run", id: "run_1" } }, { id: "svc_system", kind: "service" });
   await refused(h.call("tasks.delete", { taskId: run }, me), "run_waits");
 });
 
@@ -289,4 +293,29 @@ test("the work under a chat is the children of the plans in that thread, and not
   const rows = (await h.call("tasks.index", { scope: "everyone", underThread: "thr_here" }, me)).rows;
   assert.deepEqual(rows.map((r: { title: string }) => r.title).sort(), ["One", "Two"]);
   assert.deepEqual((await h.call("tasks.index", { scope: "everyone", underThread: "thr_other" }, me)).rows, []);
+});
+
+test("only the Gate or the server makes a held act: a person or an agent that names a gate source, or writes the reserved notes on a task of their own, is refused", async () => {
+  const h = harness();
+  for (const who of [me, { id: "agt_helper", kind: "agent" as const }])
+    await assert.rejects(
+      h.call("tasks.create", newTask({ kind: "approve", source: { kind: "gate", id: "dec_x" } }), who),
+      (e: unknown) => (e as { error?: { code?: string } }).error?.code === "validation.field_locked",
+    );
+  const mine = await mk(h, { kind: "approve" });
+  await assert.rejects(
+    h.call("tasks.working_notes.set", { taskId: mine, key: "payload_hash", value: "h" }, me),
+    (e: unknown) => (e as { error?: { code?: string } }).error?.code === "validation.field_locked",
+  );
+  // the server's own call is the Gate's
+  const held = await mk(
+    h,
+    { kind: "approve", source: { kind: "gate", id: "dec_y" } },
+    { id: "svc_system", kind: "service" },
+  );
+  await h.call(
+    "tasks.working_notes.set",
+    { taskId: held, key: "payload_hash", value: "h_abc" },
+    { id: "svc_system", kind: "service" },
+  );
 });

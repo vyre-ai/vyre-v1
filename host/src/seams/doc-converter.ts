@@ -8,9 +8,13 @@
 //   pulling   the image is being fetched (started by the first conversion, which answers "pulling" at once; the caller sets the words in its plain look and says the exact copy is being made ready)
 //   ready     the image is here: conversions run
 //   failed    the fetch or a conversion failed; the next conversion after RETRY_MS tries again (never a loop)
-import { randomBytes } from "node:crypto";
 import http from "node:http";
 import { releaseImage } from "./release-images.ts";
+
+/** Random lowercase hex from the shared Web Crypto seam (host code must not import node:crypto). */
+function randomHex(bytes: number): string {
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 export type ConverterState = "none" | "idle" | "pulling" | "ready" | "failed";
 
@@ -189,7 +193,7 @@ export function createDocConverter(d: DocConverterDeps): DocConverter {
       method: "POST",
       path: "/containers/create",
       // the name and label are what the runner's policy knows a converter by (host/src/sites-runner/converter-policy.ts)
-      query: { name: `vyre-conv-${randomBytes(8).toString("hex")}` },
+      query: { name: `vyre-conv-${randomHex(8)}` },
       json: {
         Labels: { "vyre.conv": "1" },
         Image: d.image,
