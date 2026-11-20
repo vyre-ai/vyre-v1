@@ -71,6 +71,7 @@ import {
   findSpaceQuietly,
   hasOldData,
   healStaleWorker,
+  signInOptions,
   spaceIdAt,
 } from "./caps.ts";
 import type { Found } from "./caps.ts";
@@ -367,7 +368,12 @@ function SignInScreen({
   unreachable.current = onUnreachable;
   useEffect(() => {
     let active = true;
-    const ask = (): Promise<SignInOptions> => anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>;
+    // an answer that is not a Space's sign-in options (an empty 200, a page of HTML in front of the address) is no answer: it takes the same way as a call that failed
+    const ask = async (): Promise<SignInOptions> => {
+      const answer = await anonymous("identity.sign_in_options", {});
+      if (!signInOptions(answer)) throw new Error("not a Space's sign-in options");
+      return answer as SignInOptions;
+    };
     const got = (found: SignInOptions): void => {
       if (!active) return;
       setReconnecting(false);

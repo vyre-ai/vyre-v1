@@ -269,3 +269,27 @@ test("a remembered Space that does not answer: Reconnecting, then its name with 
     await act(async () => undefined);
   }
 });
+
+test("an address whose sign-in options answer is an empty 200 or a page of HTML is no Space: the sign-in does not wait on it, the screen says it is not answering", async () => {
+  installDom();
+  storage({ "vyre.spaces.v1": KNOWN });
+  const back = setQuietWaitsForTests([1, 1]);
+  g.open = () => undefined;
+  // a proxy or a relay page in front of the address: every call answers 200, none with JSON
+  network((url) =>
+    url.origin === "https://northwind.example"
+      ? new Response("<!doctype html><title>proxy</title>", { status: 200, headers: { "content-type": "text/html" } })
+      : null,
+  );
+  try {
+    desktopShell();
+    const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+    await press(await until(root, "your-space-0"));
+    const screen = await until(root, "step-not-answering", 6000);
+    assert.match(textOf(screen), /Northwind is not answering/);
+    assert.equal(find(root, "si-user"), null, "no sign-in for something that is not a Space");
+  } finally {
+    back();
+    done();
+  }
+});

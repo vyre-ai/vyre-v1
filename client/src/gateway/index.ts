@@ -77,6 +77,9 @@ export function queryString(input: unknown): string {
   return s === "" ? "" : `?${s}`;
 }
 
+/** The code of the error for an answer that was not a Space's (a 2xx that is not JSON). The app treats it as no answer at all. */
+export const BAD_ANSWER = "gateway.bad_answer";
+
 function errorOf(status: number, body: unknown, trace: string | null): CapError {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
   const code =
@@ -203,11 +206,23 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       ...(opts.signal ? { signal: opts.signal } : {}),
     });
     let body: unknown = null;
+    let parsed = true;
     try {
       body = await res.json();
     } catch {
-      /* an empty or non-JSON answer: the status decides */
+      parsed = false;
+      /* an empty or non-JSON answer: the status decides (below) */
     }
+    // A success that is not JSON is not a Space's answer: a proxy, a captive portal or a relay page answered in its place. Said as an error, never returned as an empty success (every capability
+    // answers with a JSON envelope; only a 204 says nothing). Errors keep going the way they did: the status decides.
+    if (!parsed && res.status < 400 && res.status !== 204)
+      throw new CapError({
+        code: BAD_ANSWER,
+        message: "This address did not answer as a Space.",
+        traceId: res.headers.get("x-vyre-trace") ?? "",
+        status: res.status,
+        details: { contentType: res.headers.get("content-type") ?? "" },
+      });
     if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
     if (res.status >= 400 || (isObj(body) && body["error"] !== undefined))
       throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));
