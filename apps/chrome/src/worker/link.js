@@ -72,7 +72,7 @@ const linksShape = (v) =>
  * @param {{ fetch?: typeof fetch, WebSocket?: any, now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, retryMs?: number, helloMs?: number }} [o]
  */
 export function createLink(storage, o = {}) {
-  const doFetch = o.fetch ?? globalThis.fetch.bind(globalThis);
+  const doFetch = o.fetch ?? ((/** @type {any} */ u, /** @type {any} */ init) => globalThis.fetch(u, init));
   const WS = o.WebSocket ?? globalThis.WebSocket;
   const now = o.now ?? Date.now;
   const setTimer = o.setTimer ?? ((f, ms) => setTimeout(f, ms));
