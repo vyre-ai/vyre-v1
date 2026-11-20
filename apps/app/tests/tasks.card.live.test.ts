@@ -66,6 +66,8 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     const titles = ["Check the quarterly report", "Reply to the vendor", "Book the venue", "Update the handbook"];
     const ids: string[] = [];
     for (const [n, title] of titles.entries()) ids.push(await make(title));
+    // a request whose chat is gone: the card can say it looks done but no one can read the words (a request lives in the chat that asked it)
+    const goneId = await make("Which budget?", { kind: "answer", source: { kind: "chat", id: "thr_gone" } });
     const open = await make("A task that stays on the list");
     const why = [
       "Nothing has happened for 14 days.",
@@ -96,6 +98,13 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
           n === 2 ? Date.now() - 2 * 86_400_000 : null,
         );
     });
+    withDb((db) =>
+      db
+        .prepare(
+          "INSERT INTO tasks_ask (task_id, at, why, kept_until, look, quote, quote_by, quote_at) VALUES (?, ?, 'Looks done', NULL, 'done', 'Budget approved by finance', ?, ?)",
+        )
+        .run(goneId, Date.now(), owner, Date.now() - 86_400_000),
+    );
     const kept = (id: string): number | null =>
       withDb(
         (db) =>
@@ -140,7 +149,7 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
     assert.ok(seenAt(ids[0]!) !== null, "showing the card stamps that someone saw it");
     await page.waitForTimeout(6000);
     assert.equal(seenCalls, 1, "the seen call stops once it was sent");
-    assert.match(await page.getByTestId("tasks-still").innerText(), /4 tasks may be finished/);
+    assert.match(await page.getByTestId("tasks-still").innerText(), /5 tasks may be finished/);
     await shot("card-closed-dark-desktop");
     await page.getByTestId("still-open").click();
     await page.getByTestId("tasks-still").getByText("Reply to the vendor", { exact: true }).waitFor();
@@ -152,6 +161,21 @@ test("the card shows what is asked with why, in light and dark and on a phone; K
       .getByText(/Payment received, \$171\.56/)
       .waitFor();
     await page.getByTestId("still-done").waitFor();
+    // the request whose chat is gone: it says it looks done and where to look, never the words, and has no Done
+    await page.getByTestId("tasks-still").getByText("Open the chat to see why").waitFor();
+    assert.equal(
+      await page
+        .getByTestId("tasks-still")
+        .getByText(/Budget approved by finance/)
+        .count(),
+      0,
+      "no quote for a reader who cannot read the chat",
+    );
+    assert.equal(
+      await page.getByTestId("still-done").count(),
+      1,
+      "Done only on the row whose words this reader can read",
+    );
     await shot("card-look-dark-desktop");
     await page.emulateMedia({ colorScheme: "light" });
     await page.waitForTimeout(400);

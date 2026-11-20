@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { dateIn, deviceZone } from "../../../../../../lib/zones.ts";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import type { RowProps } from "../../../../../../ui/src/Row/index.tsx";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 type Card = CapMap["tasks.still_needed"]["out"];
@@ -44,8 +45,8 @@ export function lookNote(l: { quote: string; by: string; at: number }, nameOf: (
   return `\u201c${l.quote}\u201d, ${l.by === "" ? "someone" : nameOf(l.by)}, ${dateIn(l.at, deviceZone())}`;
 }
 
-/** One row of the card. A looks-done row is drawn only from what the server verified (lookDone), never from text a model wrote: with the quote it shows the words, who wrote them and when, and Done; for a reader who cannot read that chat it says it looks done, offers Open the chat and Not yet, and no words and no Done. */
-export function StillRow({
+/** The props of one row of the card (the list draws each in a ui/Row). A looks-done row is drawn only from what the server verified (lookDone), never from text a model wrote: with the quote it shows the words, who wrote them and when, and Done; for a reader who cannot read that chat it says it looks done, offers Open the chat and Not yet, and no words and no Done. */
+export function stillRowProps({
   item,
   nameOf,
   openTask,
@@ -57,42 +58,38 @@ export function StillRow({
   openTask(id: string): void;
   openChat(threadId: string): void;
   answer(a: "keep" | "archive" | "done"): void;
-}): ReactElement {
+}): RowProps {
   const look = item.lookDone;
   const shown = look?.quote !== undefined;
-  return (
-    <Row
-      title={item.task.title}
-      note={
-        look
-          ? shown
-            ? lookNote({ quote: look.quote!, by: look.by ?? "", at: look.at ?? 0 }, nameOf)
-            : "Open the chat to see why"
-          : item.why
-      }
-      {...(look ? { noteLead: "Looks done" } : {})}
-      {...(look && !shown
-        ? { noteAction: { label: "Open the chat", onPress: () => openChat(look.threadId), testID: "still-open-chat" } }
-        : {})}
-      tall
-      {...(look && !shown ? {} : { onPress: () => openTask(item.task.id) })}
-      trailing={
-        <View style={st.btns}>
-          {look ? (
-            <>
-              {shown ? <Btn label="Done" testID="still-done" onPress={() => answer("done")} /> : null}
-              <Btn label="Not yet" testID="still-keep" onPress={() => answer("keep")} />
-            </>
-          ) : (
-            <>
-              <Btn label="Keep" testID="still-keep" onPress={() => answer("keep")} />
-              <Btn label="Archive" testID="still-archive" onPress={() => answer("archive")} />
-            </>
-          )}
-        </View>
-      }
-    />
-  );
+  return {
+    title: item.task.title,
+    note: look
+      ? shown
+        ? lookNote({ quote: look.quote!, by: look.by ?? "", at: look.at ?? 0 }, nameOf)
+        : "Open the chat to see why"
+      : item.why,
+    ...(look ? { noteLead: "Looks done" } : {}),
+    ...(look && !shown
+      ? { noteAction: { label: "Open the chat", onPress: () => openChat(look.threadId), testID: "still-open-chat" } }
+      : {}),
+    tall: true,
+    ...(look && !shown ? {} : { onPress: () => openTask(item.task.id) }),
+    trailing: (
+      <View style={st.btns}>
+        {look ? (
+          <>
+            {shown ? <Btn label="Done" testID="still-done" onPress={() => answer("done")} /> : null}
+            <Btn label="Not yet" testID="still-keep" onPress={() => answer("keep")} />
+          </>
+        ) : (
+          <>
+            <Btn label="Keep" testID="still-keep" onPress={() => answer("keep")} />
+            <Btn label="Archive" testID="still-archive" onPress={() => answer("archive")} />
+          </>
+        )}
+      </View>
+    ),
+  };
 }
 
 /** The card stays open across a redraw of the page (a width change draws it again from nothing), for the same person only. */
@@ -205,14 +202,15 @@ export function StillCard({
         </View>
         {open
           ? card.items.map((i) => (
-              // ui-rows-lint: not a list (each item is StillRow, which is one ui/Row)
-              <StillRow
+              <Row
                 key={i.task.id}
-                item={i}
-                nameOf={nameOf}
-                openTask={openTask}
-                openChat={openChat}
-                answer={(a) => answer([i.task.id], a)}
+                {...stillRowProps({
+                  item: i,
+                  nameOf,
+                  openTask,
+                  openChat,
+                  answer: (a) => answer([i.task.id], a),
+                })}
               />
             ))
           : null}

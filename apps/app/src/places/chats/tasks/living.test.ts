@@ -2,7 +2,8 @@
 // The alive line and the Still need these card (lane r42-alive): the words are built from counts, never a zero, and say which day the line reaches back to.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { aliveWords, sinceWords, StillRow } from "./Living.tsx";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { aliveWords, sinceWords, stillRowProps } from "./Living.tsx";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
 
@@ -31,13 +32,16 @@ const row = (lookDone?: { threadId: string; quote?: string; by?: string; at?: nu
   }) as never;
 const html = (item: unknown): string =>
   renderToStaticMarkup(
-    createElement(StillRow, {
-      item: item as never,
-      nameOf: (id: string) => (id === "usr_sara" ? "Sara" : id),
-      openTask: () => undefined,
-      openChat: () => undefined,
-      answer: () => undefined,
-    }),
+    createElement(
+      Row,
+      stillRowProps({
+        item: item as never,
+        nameOf: (id: string) => (id === "usr_sara" ? "Sara" : id),
+        openTask: () => undefined,
+        openChat: () => undefined,
+        answer: () => undefined,
+      }),
+    ),
   );
 
 test("a looks-done row for a reader who cannot read the chat shows no quote and no Done, only Open the chat and Not yet", () => {
