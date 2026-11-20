@@ -70,7 +70,7 @@ import { rememberNotesTab } from "../notes/notes-tab.ts";
 import type { NotesInitial } from "../notes/NotesPage.tsx";
 import { setAgentFaces } from "../../../../../../ui/src/Avatar/assistant.ts";
 import { useDirectory } from "../../../shell/providers/automations-directory.ts";
-import { PANE_MEMORY } from "./pane-memory.ts";
+import { usePaneMemory } from "./pane-memory.ts";
 import { nextTrail, thingOf } from "./thing-model.ts";
 import type { Thing } from "./thing-model.ts";
 import { openIn, takeOpenHow } from "../../../shell/tabs/open-how.ts";
@@ -432,26 +432,17 @@ export function ChatsMounted({
     setSideTask(null);
     setThingTrail([]);
   }, [chatShown]);
-  // each chat keeps its pane: whether it is open and on which tab, for as long as the app is open, so leaving the tab and coming back (or Back) finds the pane as it was (NAV-2026-11-14 rules 1 and 5)
-  const savedPane = useRef<string | null>(null);
-  const skipSave = useRef(false);
-  useEffect(() => {
-    const mem = chatShown === null ? undefined : PANE_MEMORY.get(chatShown);
-    setPaneTab(mem?.tab);
-    setHookSel(null);
-    savedPane.current = chatShown;
-    // the commit that brings a chat in still carries the last chat's pane flag: what it says is not this chat's
-    skipSave.current = true;
-    if (mem?.open === true && !shown.pane) act({ t: "pane-open" });
-  }, [chatShown]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (skipSave.current) {
-      skipSave.current = false;
-      return;
-    }
-    if (chatShown === null || savedPane.current !== chatShown) return;
-    PANE_MEMORY.set(chatShown, { open: shown.pane, ...(paneTab !== undefined ? { tab: paneTab } : {}) });
-  }, [chatShown, shown.pane, paneTab]);
+  // each chat keeps its pane, closed as well as open, and on which tab, for as long as the app is open, so leaving the tab and coming back (or Back) finds the pane as it was (NAV-2026-11-14 rules 1 and 5)
+  usePaneMemory({
+    chat: chatShown,
+    pane: shown.pane,
+    tab: paneTab,
+    arrive: (mem) => {
+      setPaneTab(mem?.tab);
+      setHookSel(null);
+    },
+    setPane: (open) => act({ t: open ? "pane-open" : "pane-close" }),
+  });
   const profile = useCallback(
     (id: string, asPerson = false): void => {
       const agent =

@@ -1,0 +1,1 @@
+- A chat's right pane is the chat's own, closed as well as open: a chat left with its pane closed comes back closed after another chat that opened its pane (it used to inherit the open pane), and a place shown again after being kept leaves its pane as it was.
