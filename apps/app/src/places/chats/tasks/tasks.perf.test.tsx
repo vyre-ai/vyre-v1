@@ -77,7 +77,6 @@ test("the ordered list of 5,000 tasks builds inside a frame", () => {
       doneRows: null,
       doneCount: 0,
       names,
-      quietOff: false,
     }),
   );
   console.log(
@@ -102,7 +101,6 @@ test("grouping and sorting 5,000 tasks stay inside two frames", () => {
       doneRows: null,
       doneCount: 0,
       names,
-      quietOff: false,
     });
     sortRows(rows, "title");
   }, 9);

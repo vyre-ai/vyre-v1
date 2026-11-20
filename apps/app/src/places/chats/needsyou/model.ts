@@ -292,15 +292,32 @@ export type BlockView =
   | { type: "table"; columns: string[]; rows: string[][]; more?: number; tags?: string[] }
   | { type: "pairs"; pairs: [string, string][] }
   | { type: "quote"; lines: string[]; source?: string }
-  | { type: "line"; text: string };
+  | { type: "line"; text: string }
+  | { type: "note"; text: string; names: string[] };
 
 const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string =>
   typeof v === "string" || typeof v === "number" || typeof v === "boolean" ? String(v) : "";
 const strs = (v: unknown): string[] => (Array.isArray(v) ? v.map(str) : []);
 
+/**
+ * Was this task made by the Gate? Not from its blocks (any author writes those) and not from `source` alone (tasks.create takes a source from its author): the Gate's approve task also carries the payload hash
+ * of the held act, a reserved note only the server writes and never takes from input. A member-written task with a gate-looking source and gate-looking blocks has none.
+ */
+export const madeByGate = (t: { source?: { kind?: string } | null; payloadHash?: string | null }): boolean =>
+  t.source?.kind === "gate" && typeof t.payloadHash === "string" && t.payloadHash !== "";
+
+/** The server's own sentence for a held act (a preview copy that is not the exact one), as a block of its own beside the act's lines; null when the block carries none. */
+export function noteView(b: Task["blocks"][number], gate: boolean): BlockView | null {
+  // only a task the Gate made: the data of an ordinary task is whatever its author wrote, and must not wear the Gate's words
+  if (!gate) return null;
+  const d = b.data;
+  if (!isRec(d) || str(d.note) === "" || str(d.cap) === "") return null;
+  return { type: "note", text: str(d.note).slice(0, 400), names: strs(d.noteSigners).slice(0, 6) };
+}
+
 /** A task's content block as something the detail can draw. Tables, key/values and excerpts get their own look; anything else is one quiet line with its type. */
-export function blockView(b: Task["blocks"][number]): BlockView {
+export function blockView(b: Task["blocks"][number], gate = false): BlockView {
   const d = b.data;
   if (b.type === "table" && isRec(d) && Array.isArray(d.columns) && Array.isArray(d.rows)) {
     const more = typeof d.more === "number" ? d.more : undefined;
@@ -338,7 +355,12 @@ export function blockView(b: Task["blocks"][number]): BlockView {
     };
   }
   // a held act (the Gate's doc_excerpt, { act, cap, input }): what it will do, to whom, and the words that go, never the block's type name
-  if (b.type === "doc_excerpt" && isRec(d) && isRec(d.input)) {
+  // (on a task the Gate made, any block that carries { act, cap, input } is a held act: the Gate draws a signature send as a "file" block; on any other task it is the author's own data)
+  if (
+    (b.type === "doc_excerpt" || (gate && isRec(d) && typeof d.act === "string" && typeof d.cap === "string")) &&
+    isRec(d) &&
+    isRec(d.input)
+  ) {
     const i = d.input;
     const named = (r: unknown): string =>
       isRec(r)

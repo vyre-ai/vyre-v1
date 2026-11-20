@@ -1,0 +1,1 @@
+Word files are turned into an exact PDF by a small converter image fetched the first time it is needed (Docker, on Mac and Linux). While it is being fetched, or if it fails, the copy is a plain preview and is held for the sender's choice when sent for signature.

@@ -37,6 +37,7 @@ async function world() {
     site2: { "vyre.site": "sit_02zzz", "vyre.kind": "app" },
     vyred: { "com.docker.compose.service": "vyred", "vyre.ingress": "1" },
     other: { "com.docker.compose.service": "postgres" },
+    comp1: { "vyre.computer": "cmt_abc12345" },
   };
   // the containers on each network, as Docker's network inspect lists them
   const onNet: Record<string, string[]> = {};
@@ -352,4 +353,57 @@ test("refusals: containers that are not a site's, execs, networks, volumes, pull
   assert.equal(b.status, 200, b.body);
   const q = new URL(`http://x${w.seen.at(-1)!.url}`).searchParams;
   assert.equal(q.get("memory"), String(4 * 1024 ** 3), "the build's memory is capped");
+});
+
+test("stats of a site's container are read once; a stream, another query or another container's stats are refused", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  assert.equal(
+    (await w.call("GET", "/containers/site2/stats?stream=false")).status,
+    200,
+    "a site's own container, read once",
+  );
+  assert.equal((await w.call("GET", "/containers/site2/stats")).status, 403, "no query would stream");
+  assert.equal((await w.call("GET", "/containers/site2/stats?stream=true")).status, 403, "a stream");
+  assert.equal((await w.call("GET", "/containers/site2/stats?stream=false&x=1")).status, 403, "another query");
+  assert.equal((await w.call("POST", "/containers/site2/stats?stream=false")).status, 403, "a write method");
+  assert.equal((await w.call("GET", "/containers/vyred/stats?stream=false")).status, 403, "the ingress");
+  assert.equal(
+    (await w.call("GET", "/containers/other/stats?stream=false")).status,
+    403,
+    "a container that is not Vyre's",
+  );
+});
+
+test("a worker or a job is a container of the site's own image with its own command, its own site's network and no restart policy of Docker's", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  const body = good(
+    { Cmd: ["node", "worker.js"], Labels: { "vyre.site": SITE, "vyre.process": "svc_1", "vyre.kind": "app" } },
+    { RestartPolicy: { Name: "no" }, Tmpfs: { "/tmp": "rw,nosuid,size=64m" } },
+  );
+  const made = await w.call("POST", `/containers/create?name=vyre-site-${HEX}-svcabc`, body);
+  assert.equal(made.status, 201, made.body);
+  const sent = JSON.parse(w.seen.filter((x) => x.url.includes("/containers/create")).at(-1)!.body);
+  assert.deepEqual(sent.Cmd, ["node", "worker.js"]);
+  assert.equal(sent.HostConfig.RestartPolicy.Name, "no");
+  assert.deepEqual(sent.HostConfig.CapDrop, ["ALL"]);
+  // another site's image, or a name that is not the site's, is still refused
+  assert.equal(
+    (await w.call("POST", `/containers/create?name=vyre-site-${HEX}-svcabc`, { ...body, Image: "vyre-site/other:x" }))
+      .status,
+    403,
+  );
+  assert.equal((await w.call("POST", "/containers/create?name=vyre-site-zzzzz-svcabc", body)).status, 403);
+});
+
+test("an agent computer's CPU and memory are not read through the sites runner", async (t) => {
+  const w = await world();
+  t.after(w.close);
+  assert.equal((await w.call("GET", "/containers/comp1/stats?stream=false")).status, 403);
+  assert.equal(
+    (await w.call("GET", "/containers/comp1/json")).status,
+    200,
+    "what a computer may be asked is unchanged",
+  );
 });

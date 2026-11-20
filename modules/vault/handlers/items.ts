@@ -8,7 +8,8 @@
 // DECISION: a Mine item cannot be shared; to share it, move it into a Shared folder (that re-encrypts it under the filler). A subscription sign-in (kind ai_subscription) stays Mine for ever.
 // DECISION: Trash keeps the sealed row; restore brings it back whole. Deleting a folder, Space policy, export and import are other packets.
 import { agentStanding } from "../../../lib/agent-asker.ts";
-import { COMPANY_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
+import { COMPANY_FOLDER, SEALED_FOLDER, isCompanyKey } from "../../../lib/company-keys.ts";
+import { isHostService } from "../../../lib/trust.ts";
 import { fail } from "../../../host/src/routes/errors.ts";
 import {
   ENC_MINE,
@@ -32,6 +33,7 @@ import {
   ensure,
   first,
   handleOf,
+  isBackingFolder,
   isId,
   isInt,
   keyOf,
@@ -259,6 +261,8 @@ const ownItem = (ctx: VaultCtx, r: Row): boolean =>
 
 export function visible(ctx: VaultCtx, r: Row): boolean {
   if (!live(r)) return false;
+  // the item behind a sealed record value is the Space's plumbing: it is not in any list or search, and opens only through the field (vault.item.reveal still checks the person's right on it)
+  if (isBackingFolder(ctx, r["folderId"])) return false;
   if (str(r, "scope") === "mine") return str(r, "owner") === ctx.principal.id;
   return ownItem(ctx, r) || levelOn(ctx, "vault_item", str(r, "id")) !== null;
 }
@@ -654,9 +658,11 @@ export async function itemUpdate(
     replaceUnopenable?: boolean;
     expectedUpdatedAt?: number;
   },
+  /** The access the change needs. A connection's own housekeeping (itemRotateField) needs only the use the connection already holds. */
+  level: "edit" | "use" = "edit",
 ) {
   ensure(ctx);
-  const r = reachable(ctx, input.itemId, "edit");
+  const r = reachable(ctx, input.itemId, level);
   // a caller that read the item at updatedAt N is refused when it has changed since (F50); nothing is checked without it
   if (input.expectedUpdatedAt !== undefined && input.expectedUpdatedAt !== num(r, "updatedAt"))
     throw fail("validation.version_conflict", ctx.trace.traceId, {
@@ -723,7 +729,7 @@ export async function itemUpdate(
     // the awaits above let another change land: the same check again, in the same step as the write
     if (
       input.expectedUpdatedAt !== undefined &&
-      input.expectedUpdatedAt !== num(reachable(ctx, input.itemId, "edit"), "updatedAt")
+      input.expectedUpdatedAt !== num(reachable(ctx, input.itemId, level), "updatedAt")
     )
       throw fail("validation.version_conflict", ctx.trace.traceId, {
         message: "This changed after it was read, so this change was not saved. Read it again and redo the change.",
@@ -766,6 +772,30 @@ export async function itemUpdate(
     { vis: "participants" },
   );
   return { item: metaOut(ctx, liveItem(ctx, str(r, "id"))) };
+}
+
+/**
+ * A connection's own housekeeping: an app that rotates its refresh token on every renewal hands back a new one, and the item the connection holds must take it at once or the connection is lost. This asks only for the
+ * use the connection already has, never edit; it changes one existing secret field and nothing else, and leaves the audit line and history of any edit.
+ */
+export async function itemRotateField(ctx: VaultCtx, input: { itemId: string; key: string; value: string }) {
+  ensure(ctx);
+  const r = reachable(ctx, input.itemId, "use");
+  if (
+    typeof input.key !== "string" ||
+    !FIELD_KEY.test(input.key) ||
+    typeof input.value !== "string" ||
+    input.value === ""
+  )
+    bad(ctx, "Name the field and give its new value.");
+  const have = await openFields(ctx, r);
+  if (!have.some((f) => f.key === input.key && f.secret === true))
+    bad(ctx, `This item has no secret field ${input.key} to rotate.`);
+  return itemUpdate(
+    ctx,
+    { itemId: input.itemId, fieldsSet: [{ key: input.key, value: input.value, secret: true }] },
+    "use",
+  );
 }
 
 export async function itemMove(ctx: VaultCtx, input: { itemId: string; folderId: string }) {
@@ -973,11 +1003,18 @@ export async function foldersList(ctx: VaultCtx, input: { scope?: string }) {
   const rows = rowsOf(ctx.db.all(`SELECT * FROM vault_folder`)).filter(
     (f) =>
       live(f) &&
+      // the server's own folder for sealed values is shown to the server (it finds the folder to put values in), never to a person
+      (isHostService(ctx.principal) || !isBackingFolder(ctx, f["id"])) &&
       (input.scope === undefined || str(f, "scope") === input.scope) &&
       (str(f, "scope") === "mine"
         ? str(f, "owner") === ctx.principal.id
         : str(f, "owner") === ctx.principal.id || levelOn(ctx, "vault_folder", str(f, "id")) !== null),
   );
+  // the server looks the folder up to put sealed values in it: from then on it is the sealing code's folder, however it was made
+  if (isHostService(ctx.principal))
+    for (const f of rows)
+      if (str(f, "name") === SEALED_FOLDER && str(f, "scope") === "shared" && !strOrNull(f, "parentId"))
+        ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, str(f, "id"));
   rows.sort(
     (a, b) =>
       str(a, "name").toLowerCase().localeCompare(str(b, "name").toLowerCase(), "en") ||
@@ -1035,6 +1072,9 @@ export async function foldersCreate(
     "[]",
     ctx.now(),
   );
+  // the server making its Sealed fields folder (a person's own folder of that name is a folder like any other)
+  if (isHostService(ctx.principal) && input.scope === "shared" && !input.parentId && name === SEALED_FOLDER)
+    ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, id);
   ctx.emit("vault.folder_created", `vault_folder/${id}`, { folderId: id, scope: input.scope }, { vis: "participants" });
   return { folder: folderOut(ctx, liveFolder(ctx, id)) };
 }

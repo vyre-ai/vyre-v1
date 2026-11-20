@@ -79,9 +79,9 @@ test("production Automations: the step row and the step form for each kind and s
         id: "mail",
         key: "send_email",
         input: {
-          to: "{{ trigger.email }}",
+          to: "{{ trigger.input.email }}",
           subject: "Thanks for getting in touch",
-          body: "Thanks for getting in touch, {{ trigger.name }}",
+          body: "Thanks for getting in touch, {{ trigger.input.name }}",
         },
         next: ["pause"],
       },
@@ -89,10 +89,10 @@ test("production Automations: the step row and the step form for each kind and s
       {
         id: "task",
         key: "create_task",
-        input: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } },
+        input: { title: "Call {{ trigger.input.name }}", assigned: { kind: "person", id: who } },
         next: ["post"],
       },
-      { id: "post", key: "post_message", input: { text: "New lead: {{ trigger.name }}" } },
+      { id: "post", key: "post_message", input: { text: "New lead: {{ trigger.input.name }}" } },
     ]);
     void six;
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
@@ -113,27 +113,27 @@ test("production Automations: the step row and the step form for each kind and s
       email: {
         key: "send_email",
         filled: {
-          to: "{{ trigger.email }}",
+          to: "{{ trigger.input.email }}",
           subject: "Thanks for getting in touch",
-          body: "Thanks, {{ trigger.name }}",
+          body: "Thanks, {{ trigger.input.name }}",
         },
         needs: { subject: "Thanks for getting in touch", body: "Hello" },
       },
       sms: {
         key: "send_sms",
-        filled: { to: "{{ trigger.phone }}", body: "Hi {{ trigger.name }}" },
+        filled: { to: "{{ trigger.input.phone }}", body: "Hi {{ trigger.input.name }}" },
         needs: { body: "Hi" },
       },
-      ai: { key: "ai", filled: { prompt: "Write a short reply to {{ trigger.name }}" }, needs: {} },
+      ai: { key: "ai", filled: { prompt: "Write a short reply to {{ trigger.input.name }}" }, needs: {} },
       lookup: { key: "records.find", filled: { type: "contact", limit: 5 }, needs: {} },
       paths: { key: "paths", filled: { paths: [{ name: "Hot", when: "trigger.score > 80" }] }, needs: {} },
       wait: { key: "wait", filled: { forDuration: "2d" }, needs: {} },
       task: {
         key: "create_task",
-        filled: { title: "Call {{ trigger.name }}", assigned: { kind: "person", id: who } },
+        filled: { title: "Call {{ trigger.input.name }}", assigned: { kind: "person", id: who } },
         needs: { assigned: { kind: "person", id: who } },
       },
-      chat: { key: "post_message", filled: { text: "New lead: {{ trigger.name }}" }, needs: {} },
+      chat: { key: "post_message", filled: { text: "New lead: {{ trigger.input.name }}" }, needs: {} },
     };
     for (const [kind, k] of Object.entries(kinds))
       for (const state of ["empty", "filled", "needs", "fail"] as const) {

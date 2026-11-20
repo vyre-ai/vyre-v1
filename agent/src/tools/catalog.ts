@@ -71,6 +71,27 @@ export function oneLine(cap: string, text: string): string {
   return cut.charAt(0).toUpperCase() + cut.slice(1);
 }
 
+/**
+ * The tools added for the full set (MCP_TOOLS) show a model the names, types, enums and examples of their inputs, not the id patterns a validator uses (an example is what lets a first call be shaped; a format pattern stays, as the words of a refusal come from it): the server still checks every call
+ * against the full schema, and a model that writes a wrong id is told so in words. A property that is itself called "pattern" lives under "properties" and stays.
+ */
+/** The pattern of an id (^agt_[a-z0-9]+$): the examples already show its shape. A format pattern (an address, a date, a host) stays, because the words of a refusal are made from it (agent/src/tools/reject.ts). */
+const ID_PATTERN = /^\^[a-z]+_\[a-z0-9\]\+\$$/;
+
+function leanSchema(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(leanSchema);
+  if (v === null || typeof v !== "object") return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (k === "pattern" && typeof x === "string" && ID_PATTERN.test(x)) continue;
+    out[k] =
+      k === "properties" && typeof x === "object" && x !== null
+        ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, sch]) => [n, leanSchema(sch)]))
+        : leanSchema(x);
+  }
+  return out;
+}
+
 /** Timestamps are written as epoch milliseconds in nearly every tool: one short word for it, and no floor (a time before 1970 is refused by the server all the same). */
 function shortTimes(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(shortTimes);
@@ -155,7 +176,7 @@ export function buildCatalog(
       v: cap.v,
       toolset: t.toolset,
       summary: oneLine(cap.name, t.description),
-      inputSchema: shown.schema,
+      inputSchema: cap.name in MCP_TOOLS ? leanSchema(shown.schema) : shown.schema,
       ...(shown.keyed ? { keyed: true } : {}),
       ...(shown.thread ? { thread: true } : {}),
       effects,

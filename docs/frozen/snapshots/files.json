@@ -1,7 +1,7 @@
 {
   "module": "files",
   "capabilities": {
-    "changesets.approve@1": "c9099a12ea02d52d730224a129e6ebca47fba10fc30fdf0dc7f3d882fad91774",
+    "changesets.approve@1": "d52e5f0a622023b1ad784aeb0f73e6d6e37b73ae153742ce7a56cf214210be5b",
     "changesets.comments.add@1": "3274ef5dbb4fca7283c4c3663c3d5a2758ce574e2c53bb6c6527d9ab4c5cc5e0",
     "changesets.comments.list@1": "1bd160fd823c322da1578147dfd25b81c227267ee60664fb894eef1a991d5807",
     "changesets.diff@1": "be05eef5bc08e588e129b97e594496ee1e76cca7bc7051f20027731a20c1dcbc",

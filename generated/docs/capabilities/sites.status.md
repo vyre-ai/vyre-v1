@@ -1,6 +1,6 @@
 # sites.status
 
-Is the port answering? Where it runs, the address, and what is wrong when something is
+Is the port answering? Where it runs, its address, what is wrong if not
 
 | | |
 |---|---|

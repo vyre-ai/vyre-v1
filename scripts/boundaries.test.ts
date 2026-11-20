@@ -175,12 +175,17 @@ test("fetch in ui fails and node:sqlite is limited to B2", () => {
   const v = checkSources(
     {
       "ui/src/row.ts": 'export const n = fetch("/api");\n',
+      "apps/app/src/x.ts": "export const r = new XMLHttpRequest();\n",
       "modules/mail/src/db.ts": 'import "node:sqlite";\n',
       "kernel/src/db.ts": 'import "node:sqlite";\n',
     },
     config,
   );
   assert.ok(v.some((x) => x.rule === "B4" && x.file === "ui/src/row.ts"));
+  assert.ok(
+    v.some((x) => x.rule === "B4" && x.file === "apps/app/src/x.ts"),
+    "XMLHttpRequest is the same network call as fetch",
+  );
   assert.ok(v.some((x) => x.rule === "B2" && x.file === "modules/mail/src/db.ts"));
   assert.ok(!v.some((x) => x.file === "kernel/src/db.ts"));
 });

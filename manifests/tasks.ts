@@ -36,6 +36,19 @@ const action = t.obj({
 });
 
 const priority = t.enm("urgent", "high", "normal", "low");
+// Put away, never deleted (lane r42-alive). hand: someone archived it. asked: they answered Archive when asked. passed: its moment passed. gone: what it waited for is gone. quiet: nobody answered the ask.
+const archiveCode = t.enm("hand", "asked", "passed", "gone", "quiet");
+const archived = t.obj({
+  at: t.ts(),
+  by: t.str({ examples: ["usr_a1b2c3"] }),
+  code: archiveCode,
+  why: t.str({ description: "One sentence a person reads; empty when someone archived it by hand and gave no reason" }),
+});
+const doneWhenKind = t.enm("vault_item", "message_sent", "meeting_ended", "connection_on");
+const doneWhen = t.obj({
+  kind: doneWhenKind,
+  key: t.str({ minLength: 1 }),
+});
 const recur = t.obj({ every: t.enm("day", "week", "month"), n: t.opt(t.int({ minimum: 1, maximum: 365 })) });
 const fieldValues = t.rec();
 const taskRow = t.obj({
@@ -66,6 +79,12 @@ const taskRow = t.obj({
   reviewLoops: t.int({ minimum: 0 }),
   snoozedUntil: t.opt(t.ts()),
   expiresAt: t.opt(t.ts({ description: "When an open request stops being decidable" })),
+  relevantUntil: t.opt(
+    t.ts({
+      description:
+        "When the task stops mattering (a call at 18:30, a payment due Friday). One day after it the Space puts the task away, with the reason, and Put back undoes it. A due date alone never does this",
+    }),
+  ),
   createdBy: t.str(),
   createdAt: t.ts(),
   updatedAt: t.ts(),
@@ -83,6 +102,8 @@ const taskRow = t.obj({
   fields: t.opt(fieldValues),
   recur: t.opt(recur),
   workerThread: t.opt(id.thread),
+  doneWhen: t.opt(doneWhen),
+  archived: t.opt(archived), // put away: the task keeps its state and is left out of every list but Archived and a search
 });
 // One row of a long list: everything a row, a card or a bar draws, and nothing it does not.
 const indexRow = t.obj({
@@ -113,6 +134,7 @@ const indexRow = t.obj({
   createdAt: t.ts(),
   updatedAt: t.ts(),
   yourTurn: t.opt(t.bool()),
+  archived: t.opt(archived),
 });
 const planChild = t.obj({
   key: t.str({ minLength: 1, maxLength: 60, examples: ["draft"] }),
@@ -328,6 +350,18 @@ export default defineManifest({
       vis: "participants",
       label: "subject",
     }),
+    ev("task.archived", "A task was put away with its reason; it is not deleted and can be put back", {
+      p: { taskId: id.task, title: t.str(), code: archiveCode, why: t.opt(t.str()), by: t.str() },
+      subject: ["task", "/taskId"],
+      vis: "participants",
+      label: "subject",
+    }),
+    ev("task.unarchived", "An archived task was put back", {
+      p: { taskId: id.task, code: archiveCode },
+      subject: ["task", "/taskId"],
+      vis: "participants",
+      label: "subject",
+    }),
     ev("task.restored", "A deleted task came back", {
       p: { taskId: id.task },
       subject: ["task", "/taskId"],
@@ -390,47 +424,44 @@ export default defineManifest({
     }),
   ],
   capabilities: [
-    create(
-      "tasks.create",
-      "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
-      {
-        in: {
-          kind: t.opt(taskKindKey),
-          title: t.str({ minLength: 1 }),
-          summary: t.opt(t.str()),
-          why: t.opt(t.str()),
-          blocks: t.opt(t.arr(blockIn)),
-          assigned: assignee,
-          reviewer: t.opt(assignee),
-          approver: t.opt(assignee),
-          due: t.opt(t.ts()),
-          effort: t.opt(t.int({ minimum: 0 })),
-          priority: t.opt(priority),
-          labels: t.opt(t.arr(t.str())),
-          start: t.opt(t.ts()),
-          fields: t.opt(fieldValues),
-          recur: t.opt(recur),
-          recordId: t.opt(id.record),
-          fileIds: t.opt(t.arr(id.file)),
-          source: t.opt(source),
-          parentTaskId: t.opt(id.task),
-          dependsOn: t.opt(t.arr(id.task)),
-          expiresAt: t.opt(t.ts()),
-          actions: t.opt(t.arr(action)),
-          notes: t.opt(t.rec(t.str())), // working notes to start the task with: the brief, what done means, the schema its outputs must match
-          decisionId: t.opt(t.str()),
-          payloadHash: t.opt(t.str()), // the Gate's Approve task keeps the held act's decision and payload hash (working notes decision_id, payload_hash)
-        },
-        out: { task: taskRow },
-        make: ["task", "/recordId"],
-        emits: ["task.created", "task.requested", "task.assigned"],
-        tool: "tasks",
-        offline: "queue",
-        hook: true,
-        cli: "vyre tasks create",
-        errors: ["validation.precondition_failed"],
+    create("tasks.create", "Create a task (Work by default)", {
+      in: {
+        kind: t.opt(taskKindKey),
+        title: t.str({ minLength: 1 }),
+        summary: t.opt(t.str()),
+        why: t.opt(t.str()),
+        blocks: t.opt(t.arr(blockIn)),
+        assigned: assignee,
+        reviewer: t.opt(assignee),
+        approver: t.opt(assignee),
+        due: t.opt(t.ts()),
+        effort: t.opt(t.int({ minimum: 0 })),
+        priority: t.opt(priority),
+        labels: t.opt(t.arr(t.str())),
+        start: t.opt(t.ts()),
+        fields: t.opt(fieldValues),
+        recur: t.opt(recur),
+        recordId: t.opt(id.record),
+        fileIds: t.opt(t.arr(id.file)),
+        source: t.opt(source),
+        parentTaskId: t.opt(id.task),
+        dependsOn: t.opt(t.arr(id.task)),
+        expiresAt: t.opt(t.ts()),
+        relevantUntil: t.opt(t.ts({ description: "When it stops mattering" })),
+        actions: t.opt(t.arr(action)),
+        notes: t.opt(t.rec(t.str())), // working notes to start the task with: the brief, what done means, the schema its outputs must match
+        decisionId: t.opt(t.str()),
+        payloadHash: t.opt(t.str()), // the Gate's Approve task keeps the held act's decision and payload hash (working notes decision_id, payload_hash)
       },
-    ),
+      out: { task: taskRow },
+      make: ["task", "/recordId"],
+      emits: ["task.created", "task.requested", "task.assigned"],
+      tool: "tasks",
+      offline: "queue",
+      hook: true,
+      cli: "vyre tasks create",
+      errors: ["validation.precondition_failed"],
+    }),
     read("tasks.get", "Read one task with its blocks, slots, links, notes and followers", {
       in: target,
       out: { task: taskRow },
@@ -490,6 +521,7 @@ export default defineManifest({
             }),
           ),
           snoozed: t.opt(t.bool()), // only the open tasks that are snoozed
+          archived: t.opt(t.bool()), // only the archived tasks, newest put away first; without it they are left out, except from a search (q), which finds them too
         },
         out: { rev: t.str(), unchanged: t.bool(), rows: t.arr(indexRow), doneThisWeek: t.int(), total: t.int() },
         tool: "tasks",
@@ -850,6 +882,82 @@ export default defineManifest({
         errors: ["validation.precondition_failed"],
       },
     ),
+    write(
+      "tasks.archive",
+      "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      {
+        in: { ...target, why: t.opt(t.str({ maxLength: 300 })) },
+        out: { task: taskRow },
+        on: ["task", "/taskId"],
+        level: "use",
+        emits: ["task.archived"],
+        tool: "tasks",
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("tasks.done_when", "What proves a task done; it closes itself. No kind clears", {
+      in: { ...target, kind: t.opt(doneWhenKind), key: t.opt(t.str({ minLength: 1 })) },
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.updated"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
+    read(
+      "tasks.changes",
+      "What the Space did to my tasks since a time (put away because they passed, their chat closed, nobody answered), each with its reason; and how many new ones wait on me. Built from the log",
+      {
+        in: { since: t.ts() },
+        out: {
+          items: t.arr(
+            t.obj({ taskId: id.task, title: t.str(), code: archiveCode, why: t.str(), at: t.ts(), by: t.str() }),
+          ),
+          counts: t.rec(t.int()),
+          fresh: t.int(),
+          since: t.ts(),
+        },
+      },
+    ),
+    read(
+      "tasks.still_needed",
+      "The card Still need these?: tasks the Space cannot tell about (a guessed moment passed), each with why it is asked; at most seven, oldest first",
+      {
+        in: {},
+        out: {
+          items: t.arr(
+            t.obj({
+              task: taskRow,
+              why: t.str(),
+              askedAt: t.ts(),
+              lookDone: t.opt(
+                t.obj({ threadId: id.thread, quote: t.opt(t.str()), by: t.opt(t.str()), at: t.opt(t.ts()) }),
+              ),
+            }),
+          ),
+          total: t.int(),
+        },
+      },
+    ),
+    write(
+      "tasks.still_answer",
+      "Answer the card for one or several tasks: keep (not asked again for 90 days) or archive (put away, Put back undoes it)",
+      {
+        in: { taskIds: t.arr(id.task), answer: t.enm("keep", "archive", "seen", "done") },
+        out: { kept: t.int(), archived: t.int(), done: t.int() },
+        emits: ["task.archived"],
+        errors: ["validation.precondition_failed"],
+      },
+    ),
+    write("tasks.unarchive", "Put an archived task back", {
+      in: target,
+      out: { task: taskRow },
+      on: ["task", "/taskId"],
+      level: "use",
+      emits: ["task.unarchived"],
+      tool: "tasks",
+      errors: ["validation.precondition_failed"],
+    }),
     write("tasks.restore", "Bring a deleted task back", {
       in: target,
       out: { task: taskRow },
@@ -961,8 +1069,8 @@ export default defineManifest({
       "What the clock moves, once a minute: the day a task is due begins for its holder, a due time passes, a snooze ends, a step sat with someone too long",
       {
         in: {},
-        out: { due: t.int(), woke: t.int(), nudged: t.int() },
-        emits: ["task.due", "task.snoozed", "task.nudged"],
+        out: { due: t.int(), woke: t.int(), nudged: t.int(), passed: t.int(), asked: t.int() },
+        emits: ["task.due", "task.snoozed", "task.nudged", "task.archived"],
       },
     ),
     read("tasks.history", "Activity of a task: transitions, hand-overs, notes and sends back, newest first", {
@@ -1063,6 +1171,31 @@ export default defineManifest({
       "Times a reviewer agent may send work back before a person decides",
       t.int({ minimum: 1, maximum: 10 }),
       2,
+    ),
+    setting("tasks.tidy", "space", "Policies", "Ask about, and put away, tasks that no longer matter", t.bool(), true),
+    setting(
+      "tasks.ask_after_days",
+      "space",
+      "Policies",
+      "Days a task may sit untouched before the Space asks about it",
+      t.int({ minimum: 3, maximum: 90 }),
+      14,
+    ),
+    setting(
+      "tasks.assistant_look",
+      "space",
+      "Policies",
+      "Once a day, let a cheap model look at tasks that may be done",
+      t.bool(),
+      false,
+    ),
+    setting(
+      "tasks.moment_grace_days",
+      "space",
+      "Policies",
+      "Days after a task's moment passes before it is put away",
+      t.int({ minimum: 0, maximum: 14 }),
+      1,
     ),
     setting(
       "tasks.allow_self_review",

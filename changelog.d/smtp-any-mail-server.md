@@ -1,0 +1,1 @@
+A Space can send email through its own mail server: any SMTP host, port and username, with the password kept in the Vault. Testing the server says in plain words what is wrong, including a host that blocks mail ports.

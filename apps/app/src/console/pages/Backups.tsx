@@ -5,6 +5,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 import { Empty, Group, Lead, Section } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { Tip } from "../../../../../ui/src/Tip/index.tsx";
@@ -65,28 +66,27 @@ function Encryption(): ReactElement {
         />
         {review ? (
           <>
-            <Note>
-              Turn encryption off for future backups? Anyone with access to the destination could read those copies.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setReview(false)} />
-              <Button
-                label="Turn encryption off"
-                danger
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run(
-                      "settings.set_space",
-                      { key: "backup.encrypt", value: false },
-                      "Encryption disabled for new backups.",
-                    )
-                    .then((out) => {
-                      if (out) setReview(false);
-                    })
-                }
-              />
-            </Actions>
+            <InlineConfirm
+              question={
+                <>
+                  Turn encryption off for future backups? Anyone with access to the destination could read those copies.
+                </>
+              }
+              confirmLabel="Turn encryption off"
+              disabled={action.busy}
+              onConfirm={() =>
+                action
+                  .run(
+                    "settings.set_space",
+                    { key: "backup.encrypt", value: false },
+                    "Encryption disabled for new backups.",
+                  )
+                  .then((out) => {
+                    if (out) setReview(false);
+                  })
+              }
+              onCancel={() => setReview(false)}
+            />
           </>
         ) : null}
         {action.note ? <Note>{action.note}</Note> : null}
@@ -337,28 +337,22 @@ export function Backups(): ReactElement {
         <Group>{rows.length ? rows : <Empty icon="data">No backups yet</Empty>}</Group>
       </Section>
       {remove ? (
-        <Section title="Delete backup">
-          <Group>
-            <Note>Delete backup {remove} from its destination? You will not be able to restore this copy.</Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setRemove("")} />
-              <Button
-                label="Confirm backup deletion"
-                danger
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run<CapMap["backup.delete"]["out"]>("backup.delete", { backupId: remove }, (out) =>
-                      out.deleted ? "Backup deleted." : "The backup was not deleted.",
-                    )
-                    .then((out) => {
-                      if (out) setRemove("");
-                    })
-                }
-              />
-            </Actions>
-          </Group>
-        </Section>
+        <InlineConfirm
+          question={"Delete backup"}
+          note={<>Delete backup {remove} from its destination? You will not be able to restore this copy.</>}
+          confirmLabel="Confirm backup deletion"
+          disabled={action.busy}
+          onConfirm={() =>
+            action
+              .run<CapMap["backup.delete"]["out"]>("backup.delete", { backupId: remove }, (out) =>
+                out.deleted ? "Backup deleted." : "The backup was not deleted.",
+              )
+              .then((out) => {
+                if (out) setRemove("");
+              })
+          }
+          onCancel={() => setRemove("")}
+        />
       ) : null}
       {restoreState.status === "loading" ? (
         <Section title="Preparing restore preview">

@@ -1,0 +1,79 @@
+{
+  "targets": [
+    {
+      "id": "EMAIL42S_01-setup",
+      "route": "/m/EMAIL42S_01?part=setup",
+      "proto": "console,at:commsdom,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "Ready: provider, steps, the domain, the addresses, and a test send."
+    },
+    {
+      "id": "EMAIL42S_01-addresses",
+      "route": "/m/EMAIL42S_01?part=setup",
+      "proto": "console,at:commsdom-addr,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "The addresses: an inbox's own, an alias, one that only sends.",
+      "steps": [
+        "see|address-new"
+      ]
+    },
+    {
+      "id": "EMAIL42S_01-address-new",
+      "route": "/m/EMAIL42S_01?part=setup",
+      "proto": "console,at:commsdom-newaddr,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "New address: a name, a domain, and where its mail goes.",
+      "steps": [
+        "click|address-new",
+        "fill|address-name|invoices",
+        "see|address-create"
+      ]
+    },
+    {
+      "id": "EMAIL42S_01-address-move",
+      "route": "/m/EMAIL42S_01?part=setup",
+      "proto": "console,at:commsdom-addr,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "Move an alias: it names where the address goes now.",
+      "steps": [
+        "click|row-address-billing@northwind.example",
+        "click|address-move-invoices@northwind.example",
+        "see|address-move"
+      ]
+    },
+    {
+      "id": "EMAIL42S_01-test-sent",
+      "route": "/m/EMAIL42S_01?part=setup",
+      "proto": "console,at:commsdom-test,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "A test email sent: who it came from and that it should arrive.",
+      "steps": [
+        "click|test-open",
+        "fill|test-to|maya@example.com",
+        "click|test-send",
+        "see|test-note"
+      ]
+    },
+    {
+      "id": "EMAIL42S_01-smtp-failed",
+      "route": "/m/EMAIL42S_01?part=smtp",
+      "proto": "console,at:commsdom-blocked,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "Your own mail server whose test failed: the reason, and the next step."
+    },
+    {
+      "id": "EMAIL42S_01-needs",
+      "route": "/m/EMAIL42S_01?part=needs",
+      "proto": "console,at:commsdom,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "Needs a look: a route being removed, and a duplicate that was removed."
+    },
+    {
+      "id": "EMAIL42S_01-stopped",
+      "route": "/m/EMAIL42S_01?part=stopped",
+      "proto": "console,at:commsdom-dns,{skin}",
+      "waitFor": "[data-testid='console-email']",
+      "note": "One domain warned after a failed daily check, one stopped after two."
+    }
+  ]
+}

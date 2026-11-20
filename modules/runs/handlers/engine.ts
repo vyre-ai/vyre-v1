@@ -546,7 +546,19 @@ export async function list(ctx: RunsCtx, input: In): Promise<unknown> {
 export async function steps(ctx: RunsCtx, input: In): Promise<unknown> {
   seeRun(ctx, input.runId);
   const p = page(allSteps(ctx.db, input.runId), input.cursor, input.limit);
-  return clean({ steps: p.rows.map(stepOut), next: p.next, total: p.total });
+  const notes = ctx.db.all("SELECT step, attempt, note FROM runs_step_notes WHERE run_id = ?", input.runId) as {
+    step: string;
+    attempt: number;
+    note: string;
+  }[];
+  return clean({
+    steps: p.rows.map((s) => {
+      const mine = notes.filter((n) => n.step === s.step && n.attempt === s.attempt).map((n) => n.note);
+      return mine.length > 0 ? { ...stepOut(s), notes: mine } : stepOut(s);
+    }),
+    next: p.next,
+    total: p.total,
+  });
 }
 export async function peopleCounts(ctx: RunsCtx, input: In): Promise<unknown> {
   return { people: foldedCounts(ctx, input.statuses) };
@@ -827,6 +839,8 @@ export interface StepResult {
   next?: string | null;
   /** park the Run: the step continues when the Run is resumed */
   wait?: StepWait;
+  /** plain lines for the Run log, kept with the step */
+  notes?: string[];
 }
 /** What a step asks the engine to park the Run on. `on` is the label; the rest is registered on the wait row so the event and clock consumers can end it. */
 export interface StepWait {
@@ -1227,6 +1241,14 @@ export async function drive(
       ...(result.next !== undefined ? { nextStep: result.next } : {}),
       endedAt: ctx.now(),
     });
+    for (const note of result.notes ?? [])
+      ctx.db.run(
+        "INSERT OR IGNORE INTO runs_step_notes (run_id, step, attempt, note) VALUES (?, ?, ?, ?)",
+        runId,
+        cur,
+        attempt,
+        note.slice(0, 500),
+      );
     outputs[cur] = result.output;
     cur = result.next === undefined ? plan[idx + 1]?.id : (result.next ?? undefined);
   }

@@ -251,6 +251,10 @@ export function buildBrief(i: BriefInput): string {
     rules.push(
       "Anything that leaves Vyre (an email, a text, a post, a payment) is held for approval. Say what is waiting and for whom.",
     );
+  if (i.kind === "answer")
+    rules.push(
+      "You have no tools in this turn: you cannot load a skill or open a file. Work from what is written here.",
+    );
   rules.push("Use secrets by Vault handle only. Never write a secret value anywhere.");
   parts.push(section("Rules", rules));
 

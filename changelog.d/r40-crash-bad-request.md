@@ -1,0 +1,1 @@
+A request the server cannot read, such as a scanner's `//`, is now answered with an error instead of stopping the whole server; a restart of the server also restarts Caddy by itself, so the site answers again within a minute.

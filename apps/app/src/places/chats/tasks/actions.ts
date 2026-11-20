@@ -201,6 +201,48 @@ export async function bulkDelete(env: ActEnv, ids: readonly string[]): Promise<v
   });
 }
 
+/** Archive with Undo: the rows leave the list now, each is put away (tasks.archive), and Undo puts every one back where it was. A task that cannot be archived stays, with the server's reason. */
+export async function bulkArchive(env: ActEnv, ids: readonly string[]): Promise<void> {
+  const back = env.store.remove(ids);
+  const put: string[] = [];
+  let reason = "";
+  for (const id of ids) {
+    try {
+      await env.call("tasks.archive", { taskId: id });
+      put.push(id);
+    } catch (e) {
+      reason ||= failure(e, "It could not be archived.");
+    }
+  }
+  if (put.length < ids.length) {
+    back();
+    if (put.length > 0) env.store.remove(put);
+  }
+  if (put.length === 0) {
+    env.say(reason);
+    return;
+  }
+  env.say(`${put.length === 1 ? "Archived" : `${put.length} tasks archived`}${reason ? `. ${reason}` : ""}`, () => {
+    void Promise.all(put.map((id) => env.call("tasks.unarchive", { taskId: id }))).then(
+      () => env.store.refresh(),
+      (e: unknown) => env.say(failure(e, "It could not be put back.")),
+    );
+  });
+}
+/** Put archived tasks back where they were: they leave the Archived list now and are on their own lists again. */
+export const putBack = (env: ActEnv, ids: readonly string[]): Promise<number> => {
+  const back = env.store.remove(ids);
+  return forEach(
+    env,
+    ids,
+    (id) => env.call("tasks.unarchive", { taskId: id }),
+    ids.length === 1 ? "Back in your tasks" : `${ids.length} tasks back in your lists`,
+  ).then((n) => {
+    if (n === 0) back();
+    return n;
+  });
+};
+
 const noonIn = (days: number, now: number, offsetMin: number): number =>
   Math.floor((now + offsetMin * 60_000) / DAY) * DAY + days * DAY + DAY - 60_000 - offsetMin * 60_000;
 export function dueEntries(
@@ -230,21 +272,6 @@ export const priorityEntries = (
     onSelect: () => choose(p.key, p.title),
   }));
 
-/** Keep, snooze, let go: the three answers to a task nobody has moved. */
-export async function keepQuiet(env: ActEnv, ids: readonly string[]): Promise<void> {
-  // a note counts as a move, so the task leaves the quiet line and comes back only if it goes quiet again
-  await forEach(
-    env,
-    ids,
-    (id) =>
-      env.call("tasks.working_notes.set", {
-        taskId: id,
-        key: "quiet.kept",
-        value: new Date(env.now()).toISOString().slice(0, 10),
-      }),
-    ids.length === 1 ? "Kept" : `Kept ${ids.length} tasks`,
-  );
-}
 export const snoozeQuiet = (env: ActEnv, ids: readonly string[], until: number, words: string): Promise<number> => {
   const back = env.store.remove(ids);
   return forEach(
@@ -252,18 +279,6 @@ export const snoozeQuiet = (env: ActEnv, ids: readonly string[], until: number, 
     ids,
     (id) => env.call("tasks.snooze", { taskId: id, until }),
     `Snoozed ${ids.length === 1 ? "it" : `${ids.length} tasks`} ${words}`,
-  ).then((n) => {
-    if (n === 0) back();
-    return n;
-  });
-};
-export const letGo = (env: ActEnv, ids: readonly string[]): Promise<number> => {
-  const back = env.store.remove(ids);
-  return forEach(
-    env,
-    ids,
-    (id) => env.call("tasks.withdraw", { taskId: id, note: "Let go after it went quiet." }),
-    `Let ${ids.length === 1 ? "it" : `${ids.length} tasks`} go`,
   ).then((n) => {
     if (n === 0) back();
     return n;

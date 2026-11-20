@@ -46,3 +46,25 @@ export function loaderFor(id: string): PlaceLoader {
 export function resolveLastPlace(persisted: string | null | undefined): PlaceId {
   return persisted && isPlace(persisted) ? persisted : DEFAULT_PLACE;
 }
+
+const pendingPlaces = new Map<string, Promise<PlaceModule>>();
+const settledPlaces = new Map<string, PlaceModule>();
+
+/** The place's module, loaded once. Everything that opens a place (the shell when it draws one, the page's own warm-up before) comes through here, so there is one load and the answer is kept. */
+export function loadPlace(id: string): Promise<PlaceModule> {
+  let p = pendingPlaces.get(id);
+  if (!p) {
+    p = loaderFor(id)().then((m) => {
+      settledPlaces.set(id, m);
+      return m;
+    });
+    p.catch(() => pendingPlaces.delete(id));
+    pendingPlaces.set(id, p);
+  }
+  return p;
+}
+
+/** The place's module when it is already loaded: drawn at once, with nothing to wait for (a lazy component that is not loaded makes React show a fallback and hold the reveal for 300 ms). */
+export function loadedPlace(id: string): PlaceModule | undefined {
+  return settledPlaces.get(id);
+}

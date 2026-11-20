@@ -83,6 +83,10 @@ import {
 } from "../src/places/files/review/index.ts";
 import type { SampleOptions, SampleReview } from "../src/places/files/review/sample.ts";
 import { screensById } from "../../../generated/screens.ts";
+import { setArmDelay } from "../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const html = (s: SampleReview, el: ReactElement): string =>
   renderToStaticMarkup(<ReviewDataProvider value={s.data}>{el}</ReviewDataProvider>).replaceAll("<!-- -->", "");

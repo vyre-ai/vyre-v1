@@ -10,7 +10,7 @@ A signer opened the envelope
 | Visibility | space |
 | Label | none |
 | Replay | pure |
-| Automation trigger | no |
+| Automation trigger | A signer opens a document |
 | Notification | none |
 | Retention | default |
 
@@ -20,5 +20,6 @@ A signer opened the envelope
 type Payload = {
   envelopeId: string;
   signer: string;
+  recordId?: string;
 };
 ```

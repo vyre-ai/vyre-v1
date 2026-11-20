@@ -50,8 +50,6 @@ const STATE_RANK: Record<string, number> = {
 };
 
 export const DAY = 86_400_000;
-/** A task nobody has moved in this long folds into Assistant's line. */
-export const QUIET_MS = 14 * DAY;
 
 export const isOpenState = (s: TaskState): boolean => s !== "done" && s !== "canceled";
 /** Whose move it is: the Assigned while the work is open, the Reviewer in review, the Approver in approval. */
@@ -70,11 +68,10 @@ const dayStart = (ms: number, offsetMin: number): number => {
 export interface Sections {
   now: TaskRow[];
   next: TaskRow[];
-  quiet: TaskRow[];
   waiting: TaskRow[];
 }
 
-/** Mine, in the order that helps: what is late or due today or under way, then the rest. Quiet tasks fold into one line; what someone else holds waits underneath. Needs you is read apart (tasks.needs_you). */
+/** Mine, in the order that helps: what is late or due today or under way, then the rest. What nobody has touched for two weeks is asked about on the Still need these card (the server decides, tasks.still_needed); what someone else holds waits underneath. Needs you is read apart (tasks.needs_you). */
 export function sectionsOf(
   rows: readonly TaskRow[],
   me: string,
@@ -82,7 +79,7 @@ export function sectionsOf(
   offsetMin: number,
   needIds: ReadonlySet<string>,
 ): Sections {
-  const out: Sections = { now: [], next: [], quiet: [], waiting: [] };
+  const out: Sections = { now: [], next: [], waiting: [] };
   const end = dayStart(now, offsetMin) + DAY;
   for (const t of rows) {
     if (needIds.has(t.id)) continue;
@@ -94,11 +91,9 @@ export function sectionsOf(
       out.waiting.push(t);
       continue;
     }
-    if (t.due === undefined && t.state !== "doing" && now - t.updatedAt > QUIET_MS) {
-      out.quiet.push(t);
-      continue;
-    }
-    if ((t.due !== undefined && t.due < end) || t.state === "doing") out.now.push(t);
+    // an Approve sent back is open for its thread and nobody waits on it: it is never "under way"
+    const underWay = t.state === "doing" && t.kind !== "approve";
+    if ((t.due !== undefined && t.due < end) || underWay) out.now.push(t);
     else out.next.push(t);
   }
   out.now = byDue(out.now);
@@ -275,9 +270,9 @@ export type Entry =
   | { kind: "head"; key: string; title: string; count: number; quiet?: boolean }
   | { kind: "need"; key: string; item: NeedItem }
   | { kind: "task"; key: string; row: TaskRow }
-  | { kind: "quiet"; key: string; rows: readonly TaskRow[] }
   | { kind: "add"; key: string }
   | { kind: "done"; key: string; count: number; open: boolean }
+  | { kind: "more"; key: string; count: number; open: boolean }
   | { kind: "empty"; key: string; text: string };
 
 /** Children in the order they were made: a plan reads top to bottom. */
@@ -321,9 +316,9 @@ export const HEIGHT: Record<Entry["kind"], number> = {
   head: 44,
   need: 54,
   task: 48,
-  quiet: 76,
   add: 44,
   done: 40,
+  more: 40,
   empty: 80,
 };
 export const heightOf = (e: Entry): number => HEIGHT[e.kind];
@@ -334,15 +329,19 @@ export interface BuildIn {
   me: string;
   now: number;
   offsetMin: number;
-  scope: ScopeKind | "project" | "snoozed";
+  scope: ScopeKind | "project" | "snoozed" | "archived";
   group: GroupKey;
   sort: SortKey;
   filter: Filter;
   doneRows: readonly TaskRow[] | null;
   doneCount: number;
   names: Names;
-  quietOff: boolean;
+  /** Needs you shows five rows; the rest wait under "N more" until this is true */
+  needsOpen?: boolean;
 }
+
+/** Needs you is small and true: this many rows, the rest under "N more". */
+export const NEEDS_SHOWN = 5;
 
 /** The list the page draws, flat, so one virtual list holds it all. */
 export function buildEntries(b: BuildIn): Entry[] {
@@ -361,12 +360,14 @@ export function buildEntries(b: BuildIn): Entry[] {
     const needs = b.needs.filter((n) => n.handledBy === undefined && n.yourTurn === true);
     if (needs.length > 0 && !isFiltered(b.filter)) {
       out.push({ kind: "head", key: "h:needs", title: "Needs you", count: needs.length });
-      for (const n of needs) out.push({ kind: "need", key: `n:${n.task.id}`, item: n });
+      const shown = b.needsOpen === true ? needs : needs.slice(0, NEEDS_SHOWN);
+      for (const n of shown) out.push({ kind: "need", key: `n:${n.task.id}`, item: n });
+      if (needs.length > NEEDS_SHOWN)
+        out.push({ kind: "more", key: "more", count: needs.length - NEEDS_SHOWN, open: b.needsOpen === true });
     }
     const s = sectionsOf(rows, b.me, b.now, b.offsetMin, new Set(needs.map((n) => n.task.id)));
     push("now", "Now", s.now);
     push("next", "Next", s.next);
-    if (s.quiet.length > 0 && !b.quietOff) out.push({ kind: "quiet", key: "quiet", rows: s.quiet });
     push("waiting", "Waiting on others", s.waiting);
   } else {
     const open = rows.filter((t) => isOpenState(t.state));
@@ -378,7 +379,9 @@ export function buildEntries(b: BuildIn): Entry[] {
           ? "In this project"
           : b.scope === "snoozed"
             ? "Snoozed"
-            : "Open",
+            : b.scope === "archived"
+              ? "Archived"
+              : "Open",
       open,
     );
   }
@@ -392,8 +395,12 @@ export function buildEntries(b: BuildIn): Entry[] {
           ? "Nothing on your list."
           : b.scope === "snoozed"
             ? "Nothing is snoozed."
-            : "No tasks here yet.",
+            : b.scope === "archived"
+              ? "Nothing is archived."
+              : "No tasks here yet.",
     });
+  // Archived is what was put away: nothing is added there and nothing in it is done
+  if (b.scope === "archived") return out;
   out.push({ kind: "add", key: "add" });
   if (b.doneCount > 0 || b.doneRows !== null) {
     out.push({ kind: "done", key: "done", count: b.doneCount, open: b.doneRows !== null });
@@ -424,6 +431,12 @@ export function dueLabel(
             ? WEEKDAY[partsIn(due, z.space).dow]!
             : dateIn(due, z.space).replace(/^\w+ /, "");
   return { text, late: days < 0, title: titleOf(due, z) };
+}
+
+/** Why a task is archived, as the second line of its row: the sentence it was put away with, else who put it away. */
+export function archivedLine(a: NonNullable<TaskRow["archived"]>, me: string, nameOf: (id: string) => string): string {
+  if (a.why !== "") return `Archived · ${a.why}`;
+  return a.by === me ? "Archived by you" : a.by.startsWith("svc_") ? "Archived" : `Archived by ${nameOf(a.by)}`;
 }
 
 export const KIND_TITLE: Record<string, string> = {

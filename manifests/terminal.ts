@@ -370,7 +370,7 @@ export default defineManifest({
     ),
     write(
       "terminal.run",
-      "Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns",
+      "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       {
         in: {
           command: t.str(),
@@ -378,15 +378,19 @@ export default defineManifest({
           session: t.opt(
             t.str({
               maxLength: 80,
-              description:
-                "The name of the tab to run it in; made when there is none. Left out: your own tab (a helper's is named for the helper)",
+              description: "Tab name, made when there is none. Left out: your own tab",
             }),
           ),
           host: t.opt(t.enm("agent_computer", "device")),
           agentId: t.opt(id.agent),
           cwd: t.opt(t.str()),
           timeoutSec: t.opt(t.int({ minimum: 1, maximum: 3600 })),
-          env: t.opt(t.rec(t.str({ description: "Literal or a #Handle.field reference" }))),
+          env: t.opt(t.rec(t.str({ description: "Literal or #Handle.field" }))),
+          background: t.opt(
+            t.bool({
+              description: "Keep a long command running; wait with wait_for on run.node_ended",
+            }),
+          ),
         },
         out: {
           terminalId: id.terminal,

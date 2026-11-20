@@ -56,6 +56,32 @@ export class FakeCaddy {
       this.config = JSON.parse(JSON.stringify(body)) as Json;
       return reply(200, "");
     }
+    // any other path of the config tree: read, create (PUT), replace (PATCH), the way Caddy's admin API does for objects
+    const cfg = /^\/config\/(.+)$/.exec(path);
+    if (cfg && !/^apps\/http\/servers\/[^/]+\/routes$/.test(cfg[1]!)) {
+      const keys = cfg[1]!.replace(/\/$/, "").split("/");
+      let node: Json | undefined = this.config ?? undefined;
+      for (const k of keys.slice(0, -1)) node = node?.[k] as Json | undefined;
+      const last = keys[keys.length - 1]!;
+      if (method === "GET") {
+        // as Caddy answers: 404 when the key is missing, 400 "invalid traversal path" when a parent of it is missing as well
+        if (!node || typeof node !== "object")
+          return reply(400, JSON.stringify({ error: `invalid traversal path at: config/${keys.join("/")}` }));
+        const v = node[last];
+        return v === undefined
+          ? reply(404, JSON.stringify({ error: "invalid traversal path" }))
+          : reply(200, JSON.stringify(v));
+      }
+      if ((method === "PUT" || method === "PATCH") && node && typeof node === "object") {
+        if (method === "PUT" && last in node) return reply(409, JSON.stringify({ error: "key already exists" }));
+        if (method === "PATCH" && !(last in node))
+          return reply(404, JSON.stringify({ error: "invalid traversal path" }));
+        node[last] = JSON.parse(JSON.stringify(body)) as Json;
+        return reply(200, "");
+      }
+      if (method === "PUT" || method === "PATCH")
+        return reply(400, JSON.stringify({ error: "invalid traversal path" }));
+    }
     const id = path.startsWith("/id/") ? decodeURIComponent(path.slice(4)) : null;
     if (id !== null) {
       const hit = this.find(id);

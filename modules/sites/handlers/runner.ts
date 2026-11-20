@@ -15,6 +15,8 @@ import path from "node:path";
 import { tarFiles } from "./tar.ts";
 import type { TarEntry } from "./tar.ts";
 import type { SitePlan } from "./plan.ts";
+import type { DockerStats } from "../ops/metrics.ts";
+import { TarFirst } from "../ops/tarread.ts";
 
 export interface Limits {
   cpus: number;
@@ -61,6 +63,8 @@ export interface Runner {
     dir: string;
     plan: SitePlan;
     onLine(line: string): void;
+    /** when it fires the build is cut off: the call to the runner is closed, and the runner closes its own to the engine, which stops the build */
+    signal?: AbortSignal;
   }): Promise<{ ok: true; image: string } | { ok: false; reason: string }>;
   run(a: {
     siteId: string;
@@ -78,6 +82,22 @@ export interface Runner {
   /** running, or how it ended: oom when the memory cap stopped it */
   state(containerId: string): Promise<{ running: boolean; exitCode?: number; oom?: boolean } | null>;
   logs(containerId: string, tail: number): Promise<string[]>;
+  /** one reading of a running container's CPU and memory (Docker waits a second to measure it); null when it is not running */
+  stats(containerId: string): Promise<DockerStats | null>;
+  /** what a container printed since a time (whole seconds), at most the last 2000 lines, each led by Docker's own timestamp */
+  logsSince(containerId: string, sinceSec: number): Promise<string[]>;
+  /** the environment a container was started with, which is what a job or a worker of the same site runs with (the Vault is never read again outside a person's call); null when it is gone */
+  envOf(containerId: string): Promise<Record<string, string> | null>;
+  /** a process of the site's image with its own command and no port: a worker or a one-shot job. Docker never restarts it; the supervisor decides (ops/workers.ts, ops/jobs.ts) */
+  startProcess(a: {
+    siteId: string;
+    id: string;
+    kind: "service" | "job";
+    image: string;
+    cmd: string[];
+    env: Record<string, string>;
+    limits: Limits;
+  }): Promise<{ containerId: string; name: string; note?: string }>;
   remove(containerId: string): Promise<void>;
   removeImage(image: string): Promise<void>;
   imageExists(image: string): Promise<boolean>;
@@ -89,6 +109,16 @@ export interface Runner {
   removeAddon(siteId: string, kind: AddonKind): Promise<void>;
   /** run a command in a site's container, as its own user; the env values go only through the exec's environment */
   exec(containerId: string, cmd: string[], env: Record<string, string>): Promise<{ code: number; out: string }>;
+  /** one file a command wrote under /tmp/vyre-backup, handed over in parts as it arrives (Docker sends it inside a tar), and its size; a file over maxBytes is refused at its header */
+  getFileParts(
+    containerId: string,
+    path: string,
+    maxBytes: number,
+    partBytes: number,
+    onPart: (part: Uint8Array) => Promise<void>,
+  ): Promise<number>;
+  /** like state, but a container that is not there (404) is null and any other failure of the engine throws: "unknown" is not "gone" */
+  stateStrict(containerId: string): Promise<{ running: boolean; exitCode?: number; oom?: boolean } | null>;
   /** put one file into a container's folder */
   put(containerId: string, dir: string, name: string, bytes: Uint8Array): Promise<void>;
 }
@@ -331,8 +361,13 @@ export function dockerRunner(link: RunnerLink): Runner {
   function lines(
     r: { method: string; path: string; body?: Uint8Array; contentType?: string; timeoutMs: number },
     onLine: (line: string) => void,
+    signal?: AbortSignal,
   ): Promise<number> {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error("canceled"));
+        return;
+      }
       const q = http.request(
         {
           socketPath: link.socketPath,
@@ -366,7 +401,12 @@ export function dockerRunner(link: RunnerLink): Runner {
       );
       const timer = setTimeout(() => q.destroy(new Error("timed out")), r.timeoutMs);
       timer.unref?.();
-      q.on("close", () => clearTimeout(timer));
+      const cut = (): void => void q.destroy(new Error("canceled"));
+      signal?.addEventListener("abort", cut, { once: true });
+      q.on("close", () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", cut);
+      });
       q.on("error", reject);
       q.end(r.body ? Buffer.from(r.body) : undefined);
     });
@@ -531,6 +571,7 @@ export function dockerRunner(link: RunnerLink): Runner {
             if (j.aux?.ID) built = true;
             if (/^Successfully (built|tagged)/.test(j.stream ?? "")) built = true;
           },
+          a.signal,
         );
         if (status !== 200) return { ok: false, reason: error || `The build was refused (${status}).` };
       } catch (e) {
@@ -538,7 +579,9 @@ export function dockerRunner(link: RunnerLink): Runner {
           ok: false,
           reason: /timed out/.test(String(e))
             ? "The build took longer than 15 minutes."
-            : `The build stopped: ${e instanceof Error ? e.message : String(e)}`,
+            : a.signal?.aborted
+              ? "The build was canceled."
+              : `The build stopped: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
       if (error || !built)
@@ -612,6 +655,63 @@ export function dockerRunner(link: RunnerLink): Runner {
       return r.status === 200 ? frames(r.body).slice(-n) : [];
     },
 
+    async stats(containerId) {
+      const r = await call({
+        method: "GET",
+        path: `/containers/${containerId}/stats`,
+        query: { stream: "false" },
+        timeoutMs: 15_000,
+      });
+      return r.status === 200 ? (parse(r.body) as DockerStats | null) : null;
+    },
+
+    async logsSince(containerId, sinceSec) {
+      const r = await call({
+        method: "GET",
+        path: `/containers/${containerId}/logs`,
+        query: {
+          stdout: "1",
+          stderr: "1",
+          timestamps: "1",
+          tail: "2000",
+          since: String(Math.max(0, Math.trunc(sinceSec))),
+        },
+        timeoutMs: 15_000,
+      });
+      return r.status === 200 ? frames(r.body) : [];
+    },
+
+    async envOf(containerId) {
+      const r = await call({ method: "GET", path: `/containers/${containerId}/json` });
+      if (r.status !== 200) return null;
+      const env = (parse(r.body) as { Config?: { Env?: string[] } } | null)?.Config?.Env ?? [];
+      const out: Record<string, string> = {};
+      for (const e of env) {
+        const i = e.indexOf("=");
+        if (i > 0) out[e.slice(0, i)] = e.slice(i + 1);
+      }
+      return out;
+    },
+
+    async startProcess(a) {
+      const net = await ensureNetwork(a.siteId);
+      const name = `vyre-site-${hex(a.siteId).slice(-12)}-${a.kind === "job" ? "job" : "svc"}${hex(a.id).slice(-10)}`;
+      const env = { ...a.env };
+      delete env["PORT"];
+      delete env["HOST"];
+      const made = await create(name, {
+        Image: a.image,
+        Cmd: a.cmd,
+        Env: Object.entries(env).map(([k, v]) => `${k}=${v}`),
+        Labels: { "vyre.site": a.siteId, "vyre.process": a.id, "vyre.kind": "app" },
+        HostConfig: hostConfig(net.name, a.limits, {
+          RestartPolicy: { Name: "no" },
+          Tmpfs: { "/tmp": `rw,nosuid,size=${Math.min(512, Math.max(64, Math.floor(a.limits.memoryMb / 2)))}m` },
+        }),
+      });
+      return { containerId: made.id, name, ...(made.note ? { note: made.note } : {}) };
+    },
+
     async remove(containerId) {
       const r = await call({ method: "DELETE", path: `/containers/${containerId}`, query: { force: "true" } });
       if (r.status !== 204 && r.status !== 404)
@@ -679,6 +779,104 @@ export function dockerRunner(link: RunnerLink): Runner {
       const name = addonName(siteId, kind);
       await call({ method: "DELETE", path: `/containers/${name}`, query: { force: "true", v: "true" } });
       await call({ method: "DELETE", path: `/volumes/${name}-data` });
+    },
+
+    async getFileParts(containerId, path, maxBytes, partBytes, onPart) {
+      const tar = new TarFirst(maxBytes, partBytes);
+      let total = 0;
+      let chain: Promise<void> = Promise.resolve();
+      let chainErr: unknown = null;
+      await new Promise<void>((resolve, reject) => {
+        let failed = false;
+        const q = http.request(
+          {
+            socketPath: link.socketPath,
+            method: "GET",
+            path: `/containers/${containerId}/archive?${new URLSearchParams({ path }).toString()}`,
+            headers: { authorization: `Bearer ${link.token()}` },
+          },
+          (res) => {
+            if (res.statusCode !== 200) {
+              const bad: Buffer[] = [];
+              res.on("data", (c: Buffer) => bad.length < 8 && bad.push(c));
+              res.on("end", () =>
+                reject(
+                  new Error(
+                    `Could not copy the file out: ${message(new Uint8Array(Buffer.concat(bad)), res.statusCode ?? 0)}`,
+                  ),
+                ),
+              );
+              return;
+            }
+            const fail = (e: unknown): void => {
+              failed = true;
+              q.destroy();
+              reject(e);
+            };
+            // parts are handed over one at a time and the connection waits for each: no more than one part and one chunk is ever held
+            const hand = (): void => {
+              const parts = tar.takeParts();
+              if (parts.length === 0) return;
+              res.pause();
+              chain = chain
+                .then(async () => {
+                  for (const p of parts) {
+                    total += p.length;
+                    await onPart(p);
+                  }
+                })
+                .then(
+                  () => void res.resume(),
+                  (e) => {
+                    chainErr = e;
+                    fail(e);
+                  },
+                );
+            };
+            res.on("data", (c: Buffer) => {
+              try {
+                tar.push(c);
+              } catch (e) {
+                return fail(e);
+              }
+              hand();
+              if (tar.done) q.destroy();
+            });
+            res.on("end", () => resolve());
+            res.on("error", (e) => (tar.done && !failed ? resolve() : reject(e)));
+          },
+        );
+        const timer = setTimeout(() => q.destroy(new Error("the copy took longer than 10 minutes")), 10 * 60_000);
+        timer.unref?.();
+        q.on("close", () => clearTimeout(timer));
+        q.on("error", (e) => (tar.done && !failed ? resolve() : reject(e)));
+        q.end();
+      });
+      await chain;
+      if (chainErr) throw chainErr;
+      for (const p of tar.takeParts()) {
+        total += p.length;
+        await onPart(p);
+      }
+      if (!tar.done) throw new Error("The file was not in what the container sent.");
+      return total;
+    },
+
+    async stateStrict(containerId) {
+      const r = await call({ method: "GET", path: `/containers/${containerId}/json` });
+      if (r.status === 404) return null;
+      if (r.status !== 200) throw new Error(`the engine answered ${r.status}`);
+      const st =
+        (
+          parse(r.body) as {
+            State?: { Running?: boolean; Restarting?: boolean; ExitCode?: number; OOMKilled?: boolean };
+          } | null
+        )?.State ?? {};
+      return {
+        running: st.Running === true && st.Restarting !== true,
+        ...(typeof st.ExitCode === "number" ? { exitCode: st.ExitCode } : {}),
+        ...(st.OOMKilled ? { oom: true } : {}),
+      };
     },
 
     async put(containerId, dir, name, bytes) {

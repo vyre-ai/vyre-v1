@@ -1,0 +1,1 @@
+When everyone has signed, each signer with an email gets the signed copy attached, and the sender is mailed when a request runs out, both through the Space's templates (signature.signed_copy, signature.expired) with plain text as the fallback.

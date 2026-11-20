@@ -69,6 +69,12 @@ export interface Task {
   reviewLoops: number;
   snoozedUntil?: number;
   expiresAt?: number;
+  /** When the task stops mattering (tasks_moment); a due date is not a moment. The clock puts it away one grace period after. */
+  relevantUntil?: number;
+  /** false when the Space guessed the moment (the default an agent gets): it asks, it never archives by itself */
+  momentStated?: boolean;
+  /** What proves it is done (tasks_proof): the event that closes it with the proof as its note */
+  doneWhen?: { kind: DoneWhenKind; key: string };
   /** Gate holds: the decision and payload hash the approval token is bound to (set once, never edited). */
   decisionId?: string;
   payloadHash?: string;
@@ -94,6 +100,24 @@ export interface Task {
   createdAt: number;
   updatedAt: number;
   version: number;
+  /** Put away, not deleted (tasks_archive): when, by whom, the rule and the one sentence a person reads. The task keeps its state. */
+  archived?: Archived;
+}
+/** hand: someone archived it. asked: they answered Archive when asked. passed: its moment passed. gone: what it waited for is gone. quiet: nobody answered the ask. */
+export type DoneWhenKind = "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+export const DONE_WHEN_KINDS: readonly DoneWhenKind[] = [
+  "vault_item",
+  "message_sent",
+  "meeting_ended",
+  "connection_on",
+];
+export type ArchiveCode = "hand" | "asked" | "passed" | "gone" | "quiet";
+export const ARCHIVE_CODES: readonly ArchiveCode[] = ["hand", "asked", "passed", "gone", "quiet"];
+export interface Archived {
+  at: number;
+  by: string;
+  code: ArchiveCode;
+  why: string;
 }
 
 export interface Db {
@@ -109,6 +133,8 @@ export interface TasksCtx {
   space: string;
   principal: { kind: string; id: string };
   actingFor?: string;
+  /** the capability that made this call, from inside another (the pipeline sets it; a caller cannot): how the Gate, a Run step or a module is told from a person or an agent at the top of a call */
+  callerCap?: string;
   trace: { traceId: string };
   device?: string;
   run?: string;
@@ -159,13 +185,31 @@ export interface Policy {
   reviewLoopLimit: number;
   allowSelfReview: boolean;
   requireHumanApprover: boolean;
+  /** living tasks: ask about and put away what no longer matters; days untouched before asking; days after a moment before putting away */
+  tidy: boolean;
+  askAfterDays: number;
+  momentGraceDays: number;
+  /** the daily look: one batched model call over the unclear tasks, proposals only */
+  assistantLook: boolean;
 }
-export const POLICY_DEFAULTS: Policy = { reviewLoopLimit: 2, allowSelfReview: false, requireHumanApprover: false };
+export const POLICY_DEFAULTS: Policy = {
+  reviewLoopLimit: 2,
+  allowSelfReview: false,
+  requireHumanApprover: false,
+  tidy: true,
+  askAfterDays: 14,
+  momentGraceDays: 1,
+  assistantLook: false,
+};
 
 const POLICY_KEYS: ReadonlySet<string> = new Set([
   "tasks.review_loop_limit",
   "tasks.allow_self_review",
   "tasks.require_human_approver",
+  "tasks.tidy",
+  "tasks.ask_after_days",
+  "tasks.moment_grace_days",
+  "tasks.assistant_look",
 ]);
 export function readPolicy(db: Db): Policy {
   const p: Policy = { ...POLICY_DEFAULTS };
@@ -183,6 +227,12 @@ export function readPolicy(db: Db): Policy {
       p.reviewLoopLimit = v;
     if (r.policy_key === "tasks.allow_self_review" && typeof v === "boolean") p.allowSelfReview = v;
     if (r.policy_key === "tasks.require_human_approver" && typeof v === "boolean") p.requireHumanApprover = v;
+    if (r.policy_key === "tasks.tidy" && typeof v === "boolean") p.tidy = v;
+    if (r.policy_key === "tasks.ask_after_days" && typeof v === "number" && Number.isInteger(v) && v >= 3 && v <= 90)
+      p.askAfterDays = v;
+    if (r.policy_key === "tasks.assistant_look" && typeof v === "boolean") p.assistantLook = v;
+    if (r.policy_key === "tasks.moment_grace_days" && typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 14)
+      p.momentGraceDays = v;
   }
   return p;
 }
@@ -211,8 +261,9 @@ const SELECT = `SELECT c.id AS id, m.kind AS kind, c.title AS title, c.summary A
   m.review_loops AS review_loops, m.snoozed_until AS snoozed_until, m.expires_at AS expires_at, m.decision_id AS decision_id,
   m.payload_hash AS payload_hash, c.handled_by AS handled_by, c.handled_at AS handled_at, c.responsible AS responsible,
   c.created_by AS created_by, c.created_at AS created_at, c.updated_at AS updated_at, m.version AS version,
-  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for
-  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id`;
+  c.key AS key, c.key_no AS key_no, c.priority AS priority, c.labels AS labels, c.start_at AS start_at, c.fields AS fields, c.recur AS recur, c.worker_thread AS worker_thread, c.created_for AS created_for,
+  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why, mo.until AS moment_until, mo.stated AS moment_stated, pf.kind AS proof_kind, pf.key AS proof_key
+  FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id LEFT JOIN tasks_moment mo ON mo.task_id = c.id LEFT JOIN tasks_proof pf ON pf.task_id = c.id`;
 
 type Raw = Record<string, unknown>;
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
@@ -300,6 +351,21 @@ function rowToTask(r: Raw): Task {
   if (worker !== undefined) t.workerThread = worker;
   const createdFor = str(r.created_for);
   if (createdFor !== undefined) t.createdFor = createdFor;
+  const until = num(r.moment_until);
+  if (until !== undefined) {
+    t.relevantUntil = until;
+    t.momentStated = r.moment_stated !== 0;
+  }
+  if (typeof r.proof_kind === "string" && typeof r.proof_key === "string")
+    t.doneWhen = { kind: r.proof_kind as DoneWhenKind, key: r.proof_key };
+  const archivedAt = num(r.archived_at);
+  if (archivedAt !== undefined)
+    t.archived = {
+      at: archivedAt,
+      by: String(r.archived_by ?? ""),
+      code: (str(r.archived_code) ?? "hand") as ArchiveCode,
+      why: typeof r.archived_why === "string" ? r.archived_why : "",
+    };
   return t;
 }
 
@@ -309,6 +375,20 @@ const js = (v: unknown): string => JSON.stringify(v);
 /** Insert or replace both halves of the row. The caller sets updatedAt; version counts writes. */
 export function saveTask(db: Db, t: Task): void {
   if (t.keyNo === undefined) mintKey(db, t);
+  if (t.doneWhen !== undefined)
+    db.run(
+      "INSERT OR REPLACE INTO tasks_proof (task_id, kind, key) VALUES (?, ?, ?)",
+      t.id,
+      t.doneWhen.kind,
+      t.doneWhen.key.trim().toLowerCase(),
+    );
+  if (t.relevantUntil !== undefined)
+    db.run(
+      "INSERT OR REPLACE INTO tasks_moment (task_id, until, stated) VALUES (?, ?, ?)",
+      t.id,
+      t.relevantUntil,
+      t.momentStated === false ? 0 : 1,
+    );
   db.run(
     `INSERT OR REPLACE INTO tasks_core (id, title, summary, state, actions, file_ids, record_id, created_by, created_at, updated_at, handled_by, handled_at, responsible, key, key_no, priority, labels, start_at, fields, recur, worker_thread, created_for)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -430,10 +510,40 @@ export function getTask(ctx: TasksCtx, id: string): Task {
 export function allTasks(db: Db, where = "", ...args: unknown[]): Task[] {
   return (
     db.all(
-      `${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""} ORDER BY c.created_at DESC, c.id DESC`,
+      // a where that names its own ORDER BY (the clock's passes take the oldest first) keeps it; the default is newest first
+      `${SELECT} WHERE m.deleted_at IS NULL${where ? ` AND ${where}` : ""}${/\sORDER BY\s/i.test(where) ? "" : " ORDER BY c.created_at DESC, c.id DESC"}`,
       ...args,
     ) as Raw[]
   ).map(rowToTask);
+}
+
+/** The SQL that leaves archived tasks out of a read made with allTasks (alias a is the archive mark). */
+export const NOT_ARCHIVED = "a.task_id IS NULL";
+
+/** The archive mark of a task: set it, or take it off. The task row itself does not change; the caller touches it so every list sees the change. */
+export function markArchived(db: Db, t: Task, a: Archived, proof?: unknown): void {
+  db.run(
+    "INSERT OR REPLACE INTO tasks_archive (task_id, at, by, code, why, proof) VALUES (?, ?, ?, ?, ?, ?)",
+    t.id,
+    a.at,
+    a.by,
+    a.code,
+    a.why,
+    proof === undefined ? null : JSON.stringify(proof),
+  );
+  t.archived = a;
+}
+/** The task no longer has a moment (a person put it back after it passed: it still matters). */
+export function clearMoment(db: Db, t: Task): void {
+  db.run("DELETE FROM tasks_moment WHERE task_id = ?", t.id);
+  delete t.relevantUntil;
+  delete t.momentStated;
+}
+export function clearArchived(db: Db, t: Task): boolean {
+  const had = t.archived !== undefined;
+  db.run("DELETE FROM tasks_archive WHERE task_id = ?", t.id);
+  delete t.archived;
+  return had;
 }
 
 /** Bump version and updatedAt, then write. */
@@ -458,7 +568,8 @@ export interface OpenIndex {
 
 export function openIndex(db: Db): OpenIndex {
   const rows = db.all(
-    "SELECT c.id AS id, m.kind AS kind, m.parent_task AS parent_task, m.depends_on AS depends_on FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.state NOT IN ('done', 'canceled') AND m.deleted_at IS NULL",
+    // an archived task is put away: it waits on nothing and nothing waits on it
+    "SELECT c.id AS id, m.kind AS kind, m.parent_task AS parent_task, m.depends_on AS depends_on FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE c.state NOT IN ('done', 'canceled') AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM tasks_archive a WHERE a.task_id = c.id)",
   ) as Raw[];
   const idx: OpenIndex = { open: new Set(), unblockParents: new Set(), blocking: new Set(), waiters: new Map() };
   for (const r of rows) idx.open.add(r.id as string);
@@ -527,6 +638,9 @@ export function toOut(t: Task, idx: OpenIndex): Record<string, unknown> {
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
     version: t.version,
+    relevantUntil: t.relevantUntil,
+    doneWhen: t.doneWhen,
+    archived: t.archived,
   });
 }
 /** The row a caller reads: the task, and whether the next move is theirs. */
@@ -682,6 +796,8 @@ export function page<T>(
 }
 
 const DAY = 86_400_000;
+/** The grace after a moment before the task is put away. */
+export const MOMENT_GRACE_MS = DAY;
 export type Reason = "ready" | "due_today" | "overdue" | "blocking";
 export interface NeedsItem {
   task: Task;
@@ -719,7 +835,7 @@ const sentBack = (t: Task): boolean => t.kind === "approve" && t.state === "doin
  * back to them with fixes; work someone else gave them that nobody has started; a group or role task of theirs nobody took yet. Never a blocked task, and never one that is closed.
  */
 export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
-  if (!isOpen(t.state) || isBlocked(t, idx) || !actionableByMe(ctx, t)) return false;
+  if (!isOpen(t.state) || t.archived !== undefined || isBlocked(t, idx) || !actionableByMe(ctx, t)) return false;
   if (isRequest(t.kind)) return !sentBack(t);
   if (t.kind !== "work") return false;
   if (t.state === "in_review" || t.state === "awaiting_approval") return true;
@@ -735,6 +851,13 @@ export function isMyTurn(ctx: TasksCtx, t: Task, idx: OpenIndex): boolean {
   );
 }
 
+/** Freshness of a Needs you row, 1 down to 0: whole until it is 2 days late, then halved every 3 days. Rows that are not late are 1. */
+export function needsScore(reason: Reason, due: number | undefined, startOfToday: number): number {
+  if (reason !== "overdue" || due === undefined) return 1;
+  const lateDays = (startOfToday - due) / DAY;
+  return Math.pow(0.5, Math.max(0, lateDays - 2) / 3);
+}
+
 /** The Needs you rule of spec 2.8: my Ready requests (Approve, Review, Answer, Unblock), or tasks due today or overdue, or tasks that block someone.
  *  Snoozed requests are hidden until their time. Requests I did not get to because a role-mate acted show "handled by". */
 export function needsYou(ctx: TasksCtx): NeedsItem[] {
@@ -745,7 +868,14 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
   const sod = startOfDayIn(now, ctx.principal.kind === "person" ? tzOf(ctx.db, who.actingFor ?? who.id) : undefined);
   const eod = sod + DAY;
   const items: NeedsItem[] = [];
-  for (const t of allTasks(ctx.db, "c.state NOT IN ('done', 'canceled')")) {
+  // what is on the card "Still need these?" is asked about, not shown on top of Needs you
+  const asked = new Set(
+    (ctx.db.all("SELECT task_id FROM tasks_ask WHERE kept_until IS NULL") as { task_id: string }[]).map(
+      (r) => r.task_id,
+    ),
+  );
+  for (const t of allTasks(ctx.db, `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED}`)) {
+    if (asked.has(t.id)) continue;
     const mine =
       actionableByMe(ctx, t) ||
       (t.assigned.kind !== "group" && t.assigned.kind !== "role" && involved(t, whoOn(ctx, t)));
@@ -775,12 +905,14 @@ export function needsYou(ctx: TasksCtx): NeedsItem[] {
       continue;
     items.push({ task: t, reason: "ready", handledBy: t.handledBy });
   }
-  const rank: Record<Reason, number> = { overdue: 0, due_today: 1, blocking: 2, ready: 3 };
+  // What is asked of the person, times how fresh it is: a late due date loses weight (half every 3 days after the 2nd), so work from two weeks ago is not the top row
+  const base: Record<Reason, number> = { overdue: 4, due_today: 4, blocking: 3, ready: 2 };
   const handledLast = (i: NeedsItem): number => (i.handledBy === undefined ? 0 : 1);
+  const score = (i: NeedsItem): number => needsScore(i.reason, i.task.due, sod) * base[i.reason];
   items.sort(
     (a, b) =>
       handledLast(a) - handledLast(b) ||
-      rank[a.reason] - rank[b.reason] ||
+      score(b) - score(a) ||
       (a.task.due ?? Infinity) - (b.task.due ?? Infinity) ||
       b.task.createdAt - a.task.createdAt,
   );
@@ -810,6 +942,7 @@ export function listTasks(ctx: TasksCtx, f: ListFilter): Task[] {
           ? allTasks(ctx.db, "c.created_by = ?", who.id)
           : allTasks(ctx.db);
   return pool.filter((t) => {
+    if (t.archived !== undefined) return false; // put away: the Archived list is tasks.index with archived
     const w = whoOn(ctx, t);
     if (f.scope === "mine" && !(involved(t, w) || actionableByMe(ctx, t))) return false;
     if (f.scope === "following" && !t.followers.includes(w.id)) return false;
@@ -830,7 +963,9 @@ export function myWork(
   section: Section,
 ): { tasks: Task[]; counts: { open: number; assignedByMe: number; done: number } } {
   const on = (t: Task): Who => whoOn(ctx, t);
-  const all = allTasks(ctx.db).filter((t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t));
+  const all = allTasks(ctx.db, NOT_ARCHIVED).filter(
+    (t) => involved(t, on(t)) || t.createdBy === on(t).id || actionableByMe(ctx, t),
+  );
   const open = all.filter((t) => isOpen(t.state) && (involved(t, on(t)) || actionableByMe(ctx, t)));
   const byMe = all.filter((t) => isOpen(t.state) && t.createdBy === on(t).id && !(t.assigned.id === on(t).id));
   const done = all.filter((t) => !isOpen(t.state) && (involved(t, on(t)) || t.createdBy === on(t).id));

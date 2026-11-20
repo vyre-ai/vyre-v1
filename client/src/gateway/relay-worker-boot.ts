@@ -1,0 +1,5 @@
+// The one statement of the page's first script (apps/app/src/startup/boot.ts) that asks the page's own address whether the relay still holds it. It lives in the client layer because apps never
+// fetch (boundary B4). Run when the relay's worker is in charge of the page: if /__vyre/info.json is not the relay's answer, the name has moved to a server of its own, so the relay's worker is
+// removed and the page loads again once (never twice in one tab), and nothing keeps routing the page through the relay.
+export const RETIRE_RELAY_WORKER_JS =
+  'fetch("/__vyre/info.json",{cache:"no-store"}).then(function(r){var j=r.ok&&/json/.test(r.headers.get("content-type")||"");if(j)return;return navigator.serviceWorker.getRegistrations().then(function(rs){return Promise.all(rs.map(function(g){var w=g.active||g.waiting||g.installing;return w&&/\\/__vyre\\/sw\\.js$/.test(new URL(w.scriptURL).pathname)?g.unregister():0;}))}).then(function(){try{if(sessionStorage.getItem("vyre:retired"))return;sessionStorage.setItem("vyre:retired","1");}catch(e){}location.reload();});}).catch(function(){});';

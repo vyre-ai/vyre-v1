@@ -1,5 +1,5 @@
 // mail (lane L5): mailboxes, Gmail/Graph/IMAP sync, the single send API (mail.send), drafts, inbound routes,
-// sending domains with SPF/DKIM/DMARC checks, shared inboxes. Spec 2.18 (Sending, Message status), 2.19, 2.10 (mail sync).
+// sending domains with SPF/DKIM/DMARC checks (at Resend, at Mailgun, or over SMTP on any mail server), shared inboxes. Spec 2.18 (Sending, Message status), 2.19, 2.10 (mail sync).
 // DECISION: events for email are `mail.received` plus the spec names message.sent/delivered/bounced/complained.
 // Spec 2.18 calls the inbound event `message.received`, but the chat module already declares `message.received`
 // (ARCHITECTURE 6.1), so email uses `mail.received` and SMS uses `sms.received` (telephony).
@@ -32,7 +32,41 @@ const privacy = t.enm("private", "space", "people");
 const mboxState = t.enm("pending", "syncing", "paused", "error", "disconnected");
 const msgStatus = t.enm("draft", "queued", "sent", "delivered", "bounced", "complained", "failed", "received");
 const dnsState = t.enm("pass", "fail", "pending");
-const sendProvider = t.enm("resend", "mailgun");
+const sendProvider = t.enm("resend", "mailgun", "smtp");
+const setupStep = t.enm("choose_provider", "connect_server", "add_domain", "publish_dns", "set_default", "ready");
+const smtpSecurity = t.enm("starttls", "tls");
+const smtpServer = {
+  host: t.opt(t.str({ examples: ["smtp.example.com"] })),
+  port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
+  security: t.opt(smtpSecurity),
+  username: t.opt(t.str({ description: "On reads only the first two letters and the domain are returned" })),
+};
+const smtpState = {
+  configured: t.bool(),
+  ...smtpServer,
+  state: t.enm("none", "unchecked", "ok", "failed"),
+  detail: t.opt(t.str({ description: "Why the last test failed, in a sentence a person can act on" })),
+  checkedAt: t.opt(t.ts()),
+};
+
+const tplField = t.obj({ key: t.str(), fallback: t.opt(t.str()) });
+const tplOut = t.obj({
+  key: t.str(),
+  title: t.str(),
+  subject: t.str(),
+  text: t.str(),
+  html: t.opt(t.str()),
+  source: t.enm("document", "space", "builtin"),
+  recordType: t.opt(id.recordType),
+  version: t.int({ minimum: 1 }),
+  updatedAt: t.opt(t.ts()),
+  fields: t.arr(tplField),
+});
+const tplKey = t.str({
+  pattern: "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
+  maxLength: 60,
+  examples: ["signature.request"],
+});
 
 const mailboxRow = t.obj({
   id: id.mailbox,
@@ -109,6 +143,17 @@ const routeRow = t.obj({
   localPart: t.str({ examples: ["hello"] }),
   mailboxId: id.mailbox,
   provider: sendProvider,
+});
+const addressRow = t.obj({
+  address: email,
+  domainId: id.domain,
+  kind: t.enm("mailbox", "alias"),
+  mailboxId: id.mailbox,
+  mailboxTitle: t.str(),
+  routeId: t.opt(rteId),
+  receives: t.bool({
+    description: "false on a domain at your own mail server: the address can send, mail to it arrives there",
+  }),
 });
 const composed = {
   to: t.arr(recipient, { minItems: 1 }),
@@ -226,11 +271,18 @@ const manifest = defineManifest({
       retention: "audit",
     }),
     ev("mail.received", "An email arrived in a mailbox (deduped across inboxes)", {
-      p: { messageId: emlId, mailboxId: id.mailbox, from: email, subject: t.str(), contactId: t.opt(id.record) },
+      p: {
+        messageId: emlId,
+        mailboxId: id.mailbox,
+        from: email,
+        subject: t.str(),
+        contactId: t.opt(id.record),
+        auto: t.opt(t.bool()),
+      },
       subject: ["mailbox", "/mailboxId"],
       label: "subject",
       redact: ["/subject"],
-      trigger: { title: "An email arrives", fields: ["/mailboxId", "/from"] },
+      trigger: { title: "An email arrives", fields: ["/mailboxId", "/from", "/auto"] },
     }),
     ev("message.sent", "A message left the Space (email or text)", {
       p: {
@@ -396,6 +448,7 @@ const manifest = defineManifest({
       },
       out: { mailbox: mailboxRow },
       perm: "connectors.manage",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       emits: ["mailbox.created"],
       idem: "key",
       tool: "inbox",
@@ -406,6 +459,7 @@ const manifest = defineManifest({
       out: { mailbox: mailboxRow },
       on: ["mailbox", "/mailboxId"],
       level: "manage",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       tool: "inbox",
     }),
     write("mail.mailbox.set_privacy", "Mark a mailbox private, shared with the Space or shared with chosen people", {
@@ -413,6 +467,7 @@ const manifest = defineManifest({
       out: { mailbox: mailboxRow },
       on: ["mailbox", "/mailboxId"],
       level: "manage",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       emits: ["mailbox.privacy_changed"],
       audit: "always",
       tool: "inbox",
@@ -422,6 +477,7 @@ const manifest = defineManifest({
       out: { mailbox: mailboxRow },
       on: ["mailbox", "/mailboxId"],
       level: "manage",
+      gate: { act: "send", when: "mail.non_sync_actor(input)" },
       emits: ["mailbox.paused"],
       audit: "always",
       tool: "inbox",
@@ -431,23 +487,21 @@ const manifest = defineManifest({
       out: { mailbox: mailboxRow },
       on: ["mailbox", "/mailboxId"],
       level: "manage",
+      gate: { act: "send", when: "mail.non_sync_actor(input)" },
       emits: ["mailbox.resumed"],
       audit: "always",
       tool: "inbox",
     }),
-    write(
-      "mail.mailbox.set_sync_state",
-      "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
-      {
-        in: { mailboxId: id.mailbox, state: t.enm("error", "syncing"), reason: t.opt(t.str()) },
-        out: { mailbox: mailboxRow },
-        on: ["mailbox", "/mailboxId"],
-        level: "use",
-        emits: ["mailbox.sync_failed"],
-        tool: "inbox",
-        idem: "natural",
-      },
-    ),
+    write("mail.mailbox.set_sync_state", "A connection reports its sign-in lost (error) or working again (syncing)", {
+      in: { mailboxId: id.mailbox, state: t.enm("error", "syncing"), reason: t.opt(t.str()) },
+      out: { mailbox: mailboxRow },
+      on: ["mailbox", "/mailboxId"],
+      level: "use",
+      gate: { act: "send", when: "mail.non_sync_actor(input)" },
+      emits: ["mailbox.sync_failed"],
+      tool: "inbox",
+      idem: "natural",
+    }),
     write("mail.mailbox.disconnect", "Remove a mailbox connection (mail already filed to records stays)", {
       in: { mailboxId: id.mailbox },
       out: { disconnected: t.bool() },
@@ -458,34 +512,31 @@ const manifest = defineManifest({
       tool: "inbox",
       gate: { act: "delete", when: "actor.kind != 'person'" },
     }),
-    write(
-      "mail.connect",
-      "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
-      {
-        in: {
-          provider: t.enm("google", "microsoft", "imap"),
-          address: email,
-          privacy: t.opt(privacy),
-          imap: t.opt(
-            t.obj({ host: t.str(), port: t.int(), secure: t.bool(), username: t.str(), passwordHandle: id.handle }),
-          ),
-          connectionId: t.opt(
-            t.str({
-              pattern: "^(gua|mua)_[0-9a-f]{32}$",
-              examples: ["gua_0123456789abcdef0123456789abcdef"],
-              description:
-                "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
-            }),
-          ),
-        },
-        out: { mailbox: mailboxRow },
-        emits: ["mailbox.connected"],
-        idem: "key",
-        tool: "inbox",
-        offline: "online",
-        errors: ["provider.auth_failed", "validation.duplicate"],
+    write("mail.connect", "Connect the caller's own Gmail, Outlook or IMAP mailbox", {
+      in: {
+        provider: t.enm("google", "microsoft", "imap"),
+        address: email,
+        privacy: t.opt(privacy),
+        imap: t.opt(
+          t.obj({ host: t.str(), port: t.int(), secure: t.bool(), username: t.str(), passwordHandle: id.handle }),
+        ),
+        connectionId: t.opt(
+          t.str({
+            pattern: "^(gua|mua)_[0-9a-f]{32}$",
+            examples: ["gua_0123456789abcdef0123456789abcdef"],
+            description:
+              "A person's own Gmail or Outlook sign-in (google.user.*, ms.user.*) the mailbox reads and sends through",
+          }),
+        ),
       },
-    ),
+      out: { mailbox: mailboxRow },
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      emits: ["mailbox.connected"],
+      idem: "key",
+      tool: "inbox",
+      offline: "online",
+      errors: ["provider.auth_failed", "validation.duplicate"],
+    }),
     write(
       "mail.member_pause",
       "The connector stops a member's delegated mailbox, or starts it again; what is already in Vyre stays theirs",
@@ -530,23 +581,19 @@ const manifest = defineManifest({
       tool: "inbox",
       label: "check",
     }),
-    read(
-      "mail.thread.get",
-      "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
-      {
-        in: { threadId: t.str({ examples: ["18c2a1f04e9b"] }), images: t.opt(t.bool()) },
-        out: {
-          threadId: t.str(),
-          subject: t.str(),
-          role: threadRole,
-          participants: t.arr(threadParty),
-          messages: t.arr(threadMessage),
-        },
-        tool: "inbox",
-        label: "check",
-        errors: ["validation.bad_input"],
+    read("mail.thread.get", "Read one email thread whole, oldest first, with your role in it", {
+      in: { threadId: t.str({ examples: ["18c2a1f04e9b"] }), images: t.opt(t.bool()) },
+      out: {
+        threadId: t.str(),
+        subject: t.str(),
+        role: threadRole,
+        participants: t.arr(threadParty),
+        messages: t.arr(threadMessage),
       },
-    ),
+      tool: "inbox",
+      label: "check",
+      errors: ["validation.bad_input"],
+    }),
     read("mail.message.list", "List messages of a mailbox, thread or contact", {
       in: {
         mailboxId: t.opt(id.mailbox),
@@ -589,7 +636,7 @@ const manifest = defineManifest({
         senderId: t.opt(
           t.str({
             description:
-              "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+              "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             examples: ["mbx_a1b2c3"],
           }),
         ),
@@ -605,61 +652,63 @@ const manifest = defineManifest({
       level: "use",
       tool: "inbox",
     }),
-    outward(
-      "mail.send",
-      "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
-      {
-        in: {
-          mailboxId: id.mailbox,
-          senderId: t.opt(
-            t.str({
-              description:
-                "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
-              examples: ["mbx_a1b2c3"],
-            }),
-          ),
-          route: t.opt(t.enm("mailbox", "space_domain")),
-          ...composed,
-          sendAt: t.opt(t.ts()),
-          unsubscribe: t.opt(t.bool()), // carry an unsubscribe link and the List-Unsubscribe headers: every Automations email does
-        },
-        out: {
-          messageId: t.opt(emlId),
-          status: t.enm("queued", "sent", "held", "suppressed"),
-          taskId: t.opt(id.task),
-          suppressed: t.arr(email),
-          note: t.opt(
-            t.str({
-              description: "Set when the Space sending window or speed limit held the message: why, and when it leaves",
-            }),
-          ),
-        },
-        on: ["mailbox", "/mailboxId"],
-        level: "use",
-        gate: "send",
-        emits: ["message.sent", "message.suppressed", "message.failed"],
-        tool: "inbox",
-        offline: "queue",
-        cli: "vyre mail send",
-        errors: [
-          "permission.needs_approval",
-          "validation.precondition_failed",
-          "provider.auth_failed",
-          "provider.rate_limited",
-          "permission.above_clearance",
-        ],
-        ex: {
-          input: {
-            idempotencyKey: "idem_1",
-            mailboxId: "mbx_a1b2c3",
-            to: [{ address: "maya@example.com" }],
-            subject: "Hello",
-            text: "Hi Maya",
-          },
-          output: { messageId: "eml_a1b2c3", status: "queued", suppressed: [] },
-        },
+    outward("mail.send", "Send an email (suppression, limits and the Gate apply)", {
+      in: {
+        mailboxId: id.mailbox,
+        senderId: t.opt(
+          t.str({
+            description:
+              "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
+            examples: ["mbx_a1b2c3"],
+          }),
+        ),
+        route: t.opt(t.enm("mailbox", "space_domain")),
+        ...composed,
+        // a template names the subject and the body: send `templateKey` (with the document and record it is about, and any values) in place of subject and text
+        subject: t.opt(t.str()),
+        templateKey: t.opt(tplKey),
+        documentId: t.opt(id.file),
+        recordId: t.opt(id.record),
+        vars: t.opt(t.rec()),
+        sendAt: t.opt(t.ts()),
+        unsubscribe: t.opt(t.bool()), // carry an unsubscribe link and the List-Unsubscribe headers: every Automations email does
       },
-    ),
+      out: {
+        messageId: t.opt(emlId),
+        status: t.enm("queued", "sent", "held", "suppressed"),
+        taskId: t.opt(id.task),
+        suppressed: t.arr(email),
+        note: t.opt(
+          t.str({
+            description: "Set when the Space sending window or speed limit held the message: why, and when it leaves",
+          }),
+        ),
+      },
+      on: ["mailbox", "/mailboxId"],
+      level: "use",
+      gate: "send",
+      emits: ["message.sent", "message.suppressed", "message.failed"],
+      tool: "inbox",
+      offline: "queue",
+      cli: "vyre mail send",
+      errors: [
+        "permission.needs_approval",
+        "validation.precondition_failed",
+        "provider.auth_failed",
+        "provider.rate_limited",
+        "permission.above_clearance",
+      ],
+      ex: {
+        input: {
+          idempotencyKey: "idem_1",
+          mailboxId: "mbx_a1b2c3",
+          to: [{ address: "maya@example.com" }],
+          subject: "Hello",
+          text: "Hi Maya",
+        },
+        output: { messageId: "eml_a1b2c3", status: "queued", suppressed: [] },
+      },
+    }),
     // DECISION: shared-inbox sends need comms.shared_send and agent sends need comms.agent_send; the handler checks the key
     // that matches the sender because a capability carries one permission field.
     outward(
@@ -671,7 +720,7 @@ const manifest = defineManifest({
           senderId: t.opt(
             t.str({
               description:
-                "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+                "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
               examples: ["mbx_a1b2c3"],
             }),
           ),
@@ -685,7 +734,7 @@ const manifest = defineManifest({
         errors: ["provider.auth_failed", "provider.rate_limited"],
       },
     ),
-    write("mail.draft", "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)", {
+    write("mail.draft", "Create or update a draft (an agent's waits for a person)", {
       in: { mailboxId: id.mailbox, ...composed, to: t.opt(t.arr(recipient)), subject: t.opt(t.str()) },
       out: {
         draftId: emlId,
@@ -783,6 +832,188 @@ const manifest = defineManifest({
         idem: "natural",
       },
     ),
+    // ---- delivery trail and soft-bounce retries (lane r42-email-in)
+    read("mail.delivery.trail", "Delivery trail of a sent message: events, retries, blocked addresses", {
+      in: { messageId: emlId },
+      out: {
+        messageId: emlId,
+        state: t.enm("waiting", "sent", "delivered", "retrying", "held", "bounced", "complained", "failed"),
+        sentBy: t.opt(t.obj({ kind: t.str(), id: t.str() })),
+        events: t.arr(
+          t.obj({
+            kind: t.enm(
+              "queued",
+              "held",
+              "sent",
+              "delivered",
+              "opened",
+              "clicked",
+              "soft_bounced",
+              "bounced",
+              "complained",
+              "failed",
+              "retry_scheduled",
+              "retried",
+              "gave_up",
+            ),
+            at: t.ts(),
+            label: t.str(),
+            address: t.opt(t.str()),
+            detail: t.opt(t.str()),
+          }),
+        ),
+        blocked: t.arr(t.obj({ address: t.str(), reason: t.str() })),
+        retry: t.opt(
+          t.obj({ address: t.str(), attempt: t.int({ minimum: 0 }), of: t.int({ minimum: 1 }), nextAt: t.opt(t.ts()) }),
+        ),
+      },
+      label: "check",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.delivery.retry", "Vyre-only: resend a soft-bounced message to that address", {
+      in: { messageId: emlId, address: t.str(), attempt: t.int({ minimum: 1, maximum: 3 }) },
+      out: { outcome: t.enm("sent", "skipped", "gave_up", "rescheduled", "held"), messageId: t.opt(emlId) },
+      // the retry resends a message that already passed the Gate once; carrying the same act makes the provider call inside it count as cleared, never asked a second time
+      gate: "send",
+      emits: ["message.sent", "message.suppressed", "message.failed", "message.bounced", "message.delivered"],
+      idem: "natural",
+    }),
+    // ---- named email templates (lane r42-email-in)
+    read("mail.template.list", "List email templates", {
+      out: {
+        templates: t.arr(
+          t.obj({
+            key: t.str(),
+            title: t.str(),
+            subject: t.str(),
+            source: t.enm("space", "builtin"),
+            customised: t.bool(),
+            updatedAt: t.opt(t.ts()),
+          }),
+        ),
+      },
+    }),
+    read("mail.template.get", "Read an email template (a document's own wording with documentId)", {
+      in: { key: tplKey, documentId: t.opt(id.file) },
+      out: { template: tplOut },
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.template.save", "Save the Space's email template; text may hold {{field}} or {{field|fallback}}", {
+      in: {
+        key: tplKey,
+        title: t.opt(t.str()),
+        subject: t.str(),
+        text: t.str(),
+        html: t.opt(t.str()),
+        recordType: t.opt(id.recordType),
+      },
+      out: { template: tplOut },
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      perm: "comms.templates",
+      idem: "natural",
+      errors: ["validation.bad_input"],
+    }),
+    write("mail.template.reset", "Reset a template to the one that ships with Vyre", {
+      in: { key: tplKey },
+      out: { reset: t.bool() },
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      perm: "comms.templates",
+      idem: "natural",
+    }),
+    read("mail.template.preview", "Preview a template or draft filled from a record and values; names blank fields", {
+      in: {
+        key: t.opt(tplKey),
+        documentId: t.opt(id.file),
+        subject: t.opt(t.str()),
+        text: t.opt(t.str()),
+        html: t.opt(t.str()),
+        recordId: t.opt(id.record),
+        vars: t.opt(t.rec()),
+      },
+      out: {
+        subject: t.str(),
+        text: t.str(),
+        html: t.opt(t.str()),
+        source: t.enm("document", "space", "builtin", "draft"),
+        blanks: t.arr(t.str()),
+        fallbacks: t.arr(t.str()),
+      },
+      label: "check",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    read("mail.template.for_document.get", "The template a document uses, and whether it has its own", {
+      in: { documentId: id.file, key: tplKey },
+      out: { override: t.bool(), template: tplOut },
+      on: ["file", "/documentId"],
+      // (no MCP tool: mail.template.get with documentId reads it, and a person clears it in the document)
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.template.for_document.set", "Give a document its own email template wording", {
+      in: { documentId: id.file, key: tplKey, subject: t.str(), text: t.str(), html: t.opt(t.str()) },
+      out: { template: tplOut },
+      on: ["file", "/documentId"],
+      level: "edit",
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      perm: "comms.templates",
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    write("mail.template.for_document.clear", "Return a document to the Space's template", {
+      in: { documentId: id.file, key: tplKey },
+      out: { cleared: t.bool() },
+      on: ["file", "/documentId"],
+      level: "edit",
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      perm: "comms.templates",
+      // (no MCP tool: mail.template.get with documentId reads it, and a person clears it in the document)
+      idem: "natural",
+    }),
+    // ---- watching inboxes (lane r42-email-in)
+    read("mail.inbox.monitor", "Inbox health: how fed, last received, what failed and the fix; unrouted addresses", {
+      in: { mailboxId: t.opt(id.mailbox) },
+      out: {
+        inboxes: t.arr(
+          t.obj({
+            mailboxId: id.mailbox,
+            address: email,
+            kind: mailboxKind,
+            how: t.enm("imap", "google", "microsoft", "provider_webhook"),
+            state: t.enm("ok", "late", "failing", "paused"),
+            lastReceivedAt: t.opt(t.ts()),
+            lastSyncAt: t.opt(t.ts()),
+            receivedToday: t.int({ minimum: 0 }),
+            problem: t.opt(t.obj({ reason: t.str(), fix: t.str(), at: t.ts() })),
+          }),
+        ),
+        unrouted: t.arr(t.obj({ address: t.str(), reason: t.str(), fix: t.str(), at: t.ts() })),
+      },
+      label: "check",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
+    // the one tool for templates and the one for delivery: models are shown these two, not eleven (the capabilities above stay for screens and the API)
+    write("mail.templates", "Email templates: list|get|set|preview|reset; documentId = one document's", {
+      in: {
+        action: t.enm("list", "get", "set", "preview", "reset"),
+        key: t.opt(tplKey),
+        documentId: t.opt(id.file),
+        subject: t.opt(t.str()),
+        text: t.opt(t.str()),
+        recordType: t.opt(id.recordType),
+        recordId: t.opt(id.record),
+        vars: t.opt(t.rec()),
+      },
+      out: { result: t.json() },
+      gate: { act: "send", when: "actor.kind != 'person' and (input.action == 'set' or input.action == 'reset')" },
+      tool: "inbox",
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
+    }),
+    read("mail.delivery_state", "A message's delivery trail (messageId), else inbox health", {
+      in: { messageId: t.opt(emlId), mailboxId: t.opt(id.mailbox) },
+      out: { result: t.json() },
+      tool: "inbox",
+      errors: ["validation.bad_input", "validation.not_found"],
+    }),
     write(
       "mail.unsubscribe",
       "Inbound: a person pressed the unsubscribe link in an email; writes the Suppression list",
@@ -804,14 +1035,193 @@ const manifest = defineManifest({
       on: ["domain", "/domainId"],
       tool: "inbox",
     }),
-    write("mail.domain.add", "Add a sending domain at Resend or Mailgun and return the DNS records to publish", {
+    read("mail.setup.status", "The Space's email setup in one read: how it sends, what is missing and the next step", {
+      in: {},
+      out: {
+        provider: sendProvider,
+        smtp: t.obj(smtpState),
+        domains: t.arr(domainRow),
+        rechecks: t.arr(
+          t.obj({
+            domainId: id.domain,
+            failures: t.int({ minimum: 1 }),
+            why: t.opt(t.str()),
+            checkedAt: t.opt(t.ts()),
+          }),
+        ),
+        cleanups: t.arr(
+          t.obj({
+            id: t.str(),
+            kind: t.enm("provider_route", "duplicate_route"),
+            note: t.str(),
+            attempts: t.int({ minimum: 0 }),
+            lastError: t.opt(t.str()),
+            createdAt: t.ts(),
+          }),
+        ),
+        done: t.arr(setupStep),
+        step: setupStep,
+        next: t.str({ description: "The next thing to do, one sentence" }),
+        ready: t.bool(),
+      },
+      perm: "comms.domains",
+    }),
+    read(
+      "mail.address.list",
+      "Every address on the Space's domains: inbox addresses and aliases, with the inbox each lands in",
+      {
+        in: { ...pageIn, domainId: t.opt(id.domain) },
+        out: { addresses: t.arr(addressRow), ...pageOut },
+        perm: "comms.domains",
+      },
+    ),
+    write(
+      "mail.address.add",
+      "Make an address on a Space domain. With an inbox it is an alias that delivers there; without one a shared inbox is made for it. Who may send as it is a share on the inbox (access.share)",
+      {
+        in: {
+          domainId: id.domain,
+          localPart: t.str({ description: "billing, support, hello", examples: ["billing"] }),
+          mailboxId: t.opt(id.mailbox),
+          title: t.opt(t.str()),
+        },
+        out: { address: addressRow },
+        on: ["domain", "/domainId"],
+        perm: "comms.domains",
+        gate: { act: "send", when: "actor.kind != 'person'" },
+        audit: "always",
+        emits: ["inbound_route.saved", "mailbox.created", "mailbox.disconnected"],
+        idem: "key",
+        errors: ["validation.duplicate"],
+      },
+    ),
+    write(
+      "mail.address.move",
+      "Point an address that exists at another inbox. Names the inbox it goes to now and the one it will go to; the person must be able to use the new inbox",
+      {
+        in: {
+          domainId: id.domain,
+          localPart: t.str({ examples: ["billing"] }),
+          fromMailboxId: id.mailbox,
+          mailboxId: id.mailbox,
+        },
+        out: { address: addressRow, from: t.str(), to: t.str() },
+        on: ["domain", "/domainId"],
+        perm: "comms.domains",
+        audit: "always",
+        emits: ["inbound_route.saved"],
+        idem: "key",
+        gate: { act: "send", when: "actor.kind != 'person'" },
+        errors: ["validation.duplicate"],
+      },
+    ),
+    outward(
+      "mail.setup.test_send",
+      "Send one short test email to an address you type, from an address on the default verified domain. It goes through mail.send, so limits, suppression and the Gate apply",
+      {
+        in: { to: email },
+        out: {
+          messageId: t.opt(emlId),
+          status: t.enm("queued", "sent", "held", "suppressed"),
+          from: email,
+          note: t.opt(t.str()),
+        },
+        perm: "comms.domains",
+        gate: "send",
+        idem: "key",
+        offline: "online",
+        errors: ["validation.bad_input", "validation.precondition_failed"],
+      },
+    ),
+    outward(
+      "mail.configure",
+      "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      {
+        in: {
+          action: t.enm(
+            "status",
+            "test",
+            "smtp_get",
+            "smtp_set",
+            "smtp_verify",
+            "address_list",
+            "address_add",
+            "address_move",
+          ),
+          to: t.opt(email),
+          host: t.opt(t.str()),
+          port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
+          security: t.opt(smtpSecurity),
+          username: t.opt(t.str()),
+          passwordHandle: t.opt(id.handle),
+          domainId: t.opt(id.domain),
+          localPart: t.opt(t.str()),
+          mailboxId: t.opt(id.mailbox),
+          fromMailboxId: t.opt(id.mailbox),
+          title: t.opt(t.str()),
+          nonce: t.opt(t.str()),
+        },
+        out: { result: t.json() },
+        tool: "inbox",
+        gate: {
+          act: "none",
+          reason:
+            "Routes to the setup capabilities, which keep their own permission, Gate and audit; mail.send holds the one that sends a test",
+        },
+        offline: "online",
+        idem: "natural",
+        errors: [
+          "validation.bad_input",
+          "validation.not_found",
+          "validation.duplicate",
+          "validation.precondition_failed",
+          "permission.no_grant",
+        ],
+      },
+    ),
+    // ---- the Space's own mail server (SMTP)
+    read("mail.smtp.get", "The Space's mail server (SMTP) and its last test", {
+      in: {},
+      out: smtpState,
+      perm: "comms.domains",
+    }),
+    write("mail.smtp.set", "Save the Space's SMTP server; password stays in the Vault", {
+      in: {
+        host: t.str({ examples: ["smtp.example.com"] }),
+        port: t.int({ minimum: 1, maximum: 65535 }),
+        security: t.opt(smtpSecurity),
+        username: t.str(),
+        passwordHandle: id.handle,
+      },
+      out: smtpState,
+      perm: "comms.domains",
+      audit: "always",
+      gate: { act: "send", when: "actor.kind != 'person'" },
+      idem: "natural",
+      errors: ["validation.bad_input"],
+    }),
+    outward("mail.smtp.verify", "Test an SMTP server (sign in only, nothing sent); no input tests the saved one", {
+      in: { ...smtpServer, passwordHandle: t.opt(id.handle) },
+      out: {
+        ok: t.bool(),
+        reason: t.opt(t.enm("blocked", "refused", "unknown_host", "address", "auth", "tls", "failed")),
+        message: t.str(),
+        ms: t.int(),
+      },
+      perm: "comms.domains",
+      gate: { act: "send", when: "mail.smtp_override(input)" },
+      offline: "online",
+      errors: ["validation.bad_input"],
+    }),
+    write("mail.domain.add", "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish", {
       in: { name: t.str({ examples: ["mail.example.com"] }), provider: sendProvider },
       out: { domain: domainRow, records: t.arr(dnsRecord) },
       perm: "comms.domains",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       emits: ["sending_domain.added"],
       idem: "key",
       tool: "inbox",
-      errors: ["validation.duplicate", "provider.auth_failed"],
+      errors: ["validation.duplicate", "provider.auth_failed", "validation.precondition_failed"],
     }),
     write("mail.domain.check", "Re-check SPF, DKIM and DMARC for a domain (mailauth) and ask the provider to verify", {
       in: { domainId: id.domain },
@@ -826,6 +1236,7 @@ const manifest = defineManifest({
       out: { domain: domainRow },
       on: ["domain", "/domainId"],
       perm: "comms.domains",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       tool: "inbox",
       errors: ["validation.precondition_failed"],
     }),
@@ -856,6 +1267,7 @@ const manifest = defineManifest({
         out: { route: routeRow },
         on: ["domain", "/domainId"],
         perm: "comms.domains",
+        gate: { act: "send", when: "actor.kind != 'person'" },
         emits: ["inbound_route.saved"],
         idem: "key",
         tool: "inbox",
@@ -866,6 +1278,7 @@ const manifest = defineManifest({
       out: { removed: t.bool() },
       on: ["domain", "/domainId"],
       perm: "comms.domains",
+      gate: { act: "send", when: "actor.kind != 'person'" },
       emits: ["inbound_route.removed"],
       tool: "inbox",
     }),
@@ -909,6 +1322,15 @@ const manifest = defineManifest({
       primary: "New shared inbox",
       needs: ["connectors.manage"],
     }),
+    screen("mail.templates", "console", "ui:EmailTemplates", {
+      q: { templates: ["mail.templates", { action: "list" }, true] },
+      a: {
+        save: ["mail.templates", { action: "set", key: "/state/key", subject: "/state/subject", text: "/state/text" }],
+        reset: ["mail.templates", { action: "reset", key: "/state/key" }, "Use the template that ships with Vyre?"],
+      },
+      empty: "No templates yet",
+      needs: ["comms.templates"],
+    }),
     screen("mail.connections", "settings", "ui:MailConnections", {
       q: { mailboxes: ["mail.mailbox.list", { scope: "/state/scope" }, true] },
       a: {
@@ -933,7 +1355,7 @@ const manifest = defineManifest({
     }),
   ],
   settings: [
-    setting("mail.provider", "space", "comms", "Space sending provider", t.enm("resend", "mailgun"), "resend"),
+    setting("mail.provider", "space", "comms", "Space sending provider", t.enm("resend", "mailgun", "smtp"), "resend"),
     // Console > Messaging > Rules, sending limits. mail.send and telephony.send_sms read them (lib/send-limits.ts): over the daily limit a send is refused (send_cap_reached), outside the window or over the speed it is queued
     setting(
       "send.cap",

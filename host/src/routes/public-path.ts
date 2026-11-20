@@ -9,6 +9,7 @@
 // anything reads the request, Set-Cookie never leaves, every answer carries the sandbox policy with no allow-same-origin and noindex, and nothing under /p/ falls through to a signed-in route.
 import type http from "node:http";
 import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
+import { safeUrl } from "../safe-url.ts";
 import { verifiedVisitor, visitorOfRequest } from "../seams/visitor-proof.ts";
 
 export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
@@ -247,7 +248,7 @@ export async function serve(
 export function createPublicPathRoute(deps: PublicPathDeps): Inner {
   const route: Inner = {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       // an artifact's plain address: the app opens it for whoever is signed in. Only a token below it serves anything
       const plain = /^\/a\/(sit_[a-z0-9]{1,64})\/?$/.exec(url.pathname);
       // an address under /a/ that is not an artifact's (a mistyped or cut link): a plain page with the way to the Space, never the gateway's raw JSON "There is no such endpoint"

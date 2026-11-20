@@ -330,3 +330,21 @@ test("boot upgrade: an assistant still called by the old name waits for its rena
   assert.equal(text, ASSISTANT_AGENT_MD("Dana’s Assistant"));
   assert.equal(hn.world.files.get(mdOf(hn, dana!))!.versions.length, 2);
 });
+
+test("instructions given at creation (a saved piece of work's brief) get their own section above Learned; with none the file is as it was", async () => {
+  const hn = harness();
+  const plain = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Prices bids.", idempotencyKey: `md${++n}` }))
+    .agent;
+  const made = (
+    await h["agents.create"]!(hn.ctx, {
+      name: "Pricer",
+      role: "Prices bids.",
+      instructions: "Use the 2025 sheet.\nQuote the page.",
+      idempotencyKey: `md${++n}`,
+    })
+  ).agent;
+  const text = hn.world.text(mdOf(hn, made.agentId));
+  assert.equal(section(text, "Instructions"), "Use the 2025 sheet.\nQuote the page.");
+  assert.ok(text.indexOf("## Instructions") < text.indexOf("## Learned"), "above what it learns");
+  assert.ok(!hn.world.text(mdOf(hn, plain.agentId)).includes("## Instructions"));
+});

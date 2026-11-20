@@ -1,7 +1,8 @@
 // Ask about this note: Ask Vyre on the right of the grid (the grid stays). It opens the person's own Ask thread scoped to this note (chat.start kind ask, scope note:<id>, one per note,
 // so asking again returns to it), never the chat open elsewhere in the shell. On top, the note it is about; then the conversation with its composer ("Ask about this note") and two
 // follow-ups under the last answer; at the foot, whether Vyre may read this note here. The assistant reads the note itself with notes_get, which follows the note's audience.
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { lazyPart } from "../../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SidePane } from "../../../../../../ui/src/SidePane/index.tsx";
@@ -16,7 +17,7 @@ import { askWords, firstLine, noteName } from "./model.ts";
 import type { Note } from "./model.ts";
 import { Btn, IconBtn } from "./parts.tsx";
 
-const ChatsConversation = lazy(() =>
+const ChatsConversation = lazyPart(() =>
   import("../../../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })),
 );
 

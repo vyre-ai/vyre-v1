@@ -45,6 +45,9 @@ test("the release counter orders exactly as semver does: beta below rc below the
     "0.3.0-beta.39",
     "0.3.0-rc.1",
     "0.3.0-rc.2",
+    "0.3.0-rc.39",
+    "0.3.0-rc.40",
+    "0.3.0-rc.58",
     "0.3.0",
     "0.3.1",
     "1.0.0-rc.1",
@@ -57,7 +60,10 @@ test("the release counter orders exactly as semver does: beta below rc below the
   assert.equal(releaseCounter("v0.3.0-rc.2"), releaseCounter("0.3.0-rc.2"));
   assert.equal(releaseCounter("0.3.0-rc.2"), 300042);
   assert.equal(releaseCounter("0.3.0"), 300099);
-  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.40", "1000.0.0", ""])
+  assert.equal(releaseCounter("1.0.0-rc.40"), 100000080);
+  assert.equal(releaseCounter("1.0.0-rc.58"), 100000098);
+  assert.equal(tagVersion("v1.0.0-rc.41"), "1.0.0-rc.41");
+  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.59", "1.2.3-beta.40", "1000.0.0", ""])
     assert.throws(() => releaseCounter(bad), bad);
 });
 
@@ -467,7 +473,7 @@ test("the command line: tag checks the version against package.json, and pack ma
   };
   const saved = process.env["VYRE_IMAGE"];
   // the pack reads every image name from the environment; the test runner sets local build names (scripts/test-run.ts) that are not pinned by digest, so this test packs with only its own
-  const others = ["VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
+  const others = ["VYRE_AGENT_IMAGE", "VYRE_BROWSER_IMAGE", "VYRE_WORKSPACE_IMAGE", "VYRE_CONVERTER_IMAGE", "VYRE_SANDBOX_IMAGE"] as const;
   const savedOthers = others.map((k) => [k, process.env[k]] as const);
   for (const k of others) delete process.env[k];
   try {

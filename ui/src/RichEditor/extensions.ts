@@ -20,6 +20,8 @@ import Paragraph from "@tiptap/extension-paragraph";
 import Strike from "@tiptap/extension-strike";
 import Text from "@tiptap/extension-text";
 import { tableExtensions } from "./table.ts";
+import { docExtensions } from "./doc/extensions.ts";
+import type { DocOptions } from "./doc/extensions.ts";
 
 // The starter kit is not used: the lockfile resolves its extensions to 2.27.3 while @tiptap/core is pinned at 2.11.5, and the horizontal rule of 2.27.3 imports a name 2.11.5 does not export.
 // Each extension below loads against core 2.11.5; the divider is written here.
@@ -50,6 +52,7 @@ const Keeps = Extension.create({
   name: "mdKeeps",
   addGlobalAttributes() {
     const quiet = (v: unknown) => ({ default: v, rendered: false });
+    const hidden = (v: unknown) => ({ default: v, rendered: false, keepOnSplit: false, parseHTML: () => null });
     return [
       {
         types: [
@@ -65,10 +68,24 @@ const Keeps = Extension.create({
           "mdTable",
           "liveBlock",
         ],
-        attributes: { tight: quiet(false), blockId: { default: null, rendered: false, keepOnSplit: false } },
+        attributes: {
+          tight: quiet(false),
+          blanks: { default: 0, rendered: false, keepOnSplit: false },
+          blockId: { default: null, rendered: false, keepOnSplit: false },
+        },
       },
       { types: ["bulletList", "orderedList", "taskList"], attributes: { marker: quiet("-"), delim: quiet(".") } },
-      { types: ["listItem", "taskItem"], attributes: { gap: quiet(false) } },
+      // the text a paragraph or heading was read from, and a fingerprint of its words (mdtree.ts keeps it while the words are unchanged)
+      {
+        types: ["paragraph", "heading"],
+        // never read from pasted or dropped HTML: only the reader of a Markdown file sets them
+        attributes: { src: hidden(null), ck: hidden(null) },
+      },
+      { types: ["codeBlock"], attributes: { line: hidden(null), lang0: hidden(null), open: hidden(false) } },
+      {
+        types: ["listItem", "taskItem"],
+        attributes: { gap: quiet(false), inline: { default: false, rendered: false, keepOnSplit: false } },
+      },
       { types: ["codeBlock"], attributes: { fence: quiet("```") } },
       { types: ["horizontalRule"], attributes: { mark: quiet("---") } },
     ];
@@ -115,6 +132,8 @@ export interface MarkdownExtensionOptions {
   liveBlock?: LiveBlockRenderer;
   /** Cmd+K: the editor opens its link field. */
   onLink?: () => void;
+  /** A Vyre document page: field chips and tracked changes (see doc/). Left out, the editor is the plain Markdown editor. */
+  doc?: DocOptions;
 }
 
 export const Link = Mark.create<MarkdownExtensionOptions>({
@@ -361,5 +380,6 @@ export function markdownExtensions(options: MarkdownExtensionOptions = {}): Exte
     RawBlock,
     ...tableExtensions,
     LiveBlock.configure({ render: options.liveBlock }),
+    ...(options.doc ? docExtensions(options.doc) : []),
   ];
 }

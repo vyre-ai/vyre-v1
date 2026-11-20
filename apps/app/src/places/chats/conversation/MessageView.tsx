@@ -765,6 +765,11 @@ const SHEET_GROUPS: readonly (readonly string[])[] = [
 const FOOT: ReadonlySet<string> = new Set(["Edit", "Retry", "Delete"]);
 const FREQUENT = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F389}", "\u{1F440}"];
 
+/** Takes focus the moment the element appears (web only): the safe row of an ask, so a stray Enter or Space on a keyboard never confirms it. */
+const focusOnMount = (el: { focus?: () => void } | null): void => {
+  if (el && Platform.OS === "web") el.focus?.();
+};
+
 /** The message's actions as a bottom sheet (a long press on a phone): what it acts on in one line, the frequent reactions, then the same entries as the menu in groups, Delete last and alone. */
 function ActionSheet({
   open,
@@ -798,9 +803,10 @@ function ActionSheet({
     take(SHEET_GROUPS[2]!),
     items.filter((e) => e.label === "Delete"),
   ].filter((g) => g.length > 0);
-  const row = (e: (typeof items)[number], danger = false, onPress?: () => void): ReactElement => (
+  const row = (e: (typeof items)[number], danger = false, onPress?: () => void, focus = false): ReactElement => (
     <Pressable
       key={e.label}
+      {...(focus ? { ref: focusOnMount as never } : {})}
       accessibilityRole="button"
       accessibilityLabel={e.label}
       testID={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -827,7 +833,7 @@ function ActionSheet({
               onClose();
               items.find((e) => e.label === "Delete")?.onSelect?.();
             })}
-            {row({ label: "Cancel" }, false, () => setAsking(false))}
+            {row({ label: "Cancel" }, false, () => setAsking(false), true)}
           </View>
         ) : (
           <>

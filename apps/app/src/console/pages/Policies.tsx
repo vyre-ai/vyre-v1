@@ -16,6 +16,7 @@ import { Empty, Group } from "../shell/ui.tsx";
 import { SecuritySheet } from "../../places/settings/SecuritySheet.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, useAction, useRead } from "./shared.tsx";
 import { SsoSections } from "./SsoSections.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type SignIn = MembersSignInPolicyGetOut;
 type GithubApp = MembersSignInGithubGetOut["github"];
 type PolicyRow = { id: string; title: string; note: string; area: string; page?: string };
@@ -401,27 +402,29 @@ function SignInPolicy({ editing = false, onSaved }: { editing?: boolean; onSaved
           ) : null}
           {confirm ? (
             <>
-              <Note>
-                Save these sign-in requirements? They apply to the next account creation and sign-in. Current sessions
-                stay available; only the Owner can lower an existing requirement.
-              </Note>
-              <Actions>
-                <Button label="Cancel review" onPress={() => setConfirm(false)} />
-                <Button
-                  label="Confirm sign-in policy"
-                  testID="policy-signin-confirm"
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action.run("members.sign_in_policy.set", { policy }, "Sign-in policy saved").then((result) => {
-                      if (result) {
-                        setDraft(null);
-                        setConfirm(false);
-                        onSaved?.();
-                      }
-                    })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                danger={false}
+                question={
+                  <>
+                    Save these sign-in requirements? They apply to the next account creation and sign-in. Current
+                    sessions stay available; only the Owner can lower an existing requirement.
+                  </>
+                }
+                cancelLabel="Cancel review"
+                confirmLabel="Confirm sign-in policy"
+                confirmTestID="policy-signin-confirm"
+                disabled={action.busy}
+                onConfirm={() =>
+                  action.run("members.sign_in_policy.set", { policy }, "Sign-in policy saved").then((result) => {
+                    if (result) {
+                      setDraft(null);
+                      setConfirm(false);
+                      onSaved?.();
+                    }
+                  })
+                }
+                onCancel={() => setConfirm(false)}
+              />
             </>
           ) : (
             <Button
@@ -487,33 +490,35 @@ function ProviderVaultOpen({ editing = false }: { editing?: boolean }): ReactEle
           />
           {confirm ? (
             <>
-              <Note>
-                {next === "off"
-                  ? "Turn this off? Every member's saved key on this server is deleted, and each types their password once per device to use their own AI accounts."
-                  : "Turn this on? Each member's key is kept the next time they sign in with their password."}
-              </Note>
-              <Actions>
-                <Button label="Cancel review" onPress={() => setConfirm(false)} />
-                <Button
-                  label="Confirm"
-                  testID="policy-provider-vault-confirm"
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action
-                      .run(
-                        "access.policies.set",
-                        { key: PROVIDER_VAULT_POLICY, scope: "space", value: next === "on" },
-                        next === "on" ? "Turned on" : "Turned off",
-                      )
-                      .then((result) => {
-                        if (result) {
-                          setDraft(null);
-                          setConfirm(false);
-                        }
-                      })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                danger={false}
+                question={
+                  <>
+                    {next === "off"
+                      ? "Turn this off? Every member's saved key on this server is deleted, and each types their password once per device to use their own AI accounts."
+                      : "Turn this on? Each member's key is kept the next time they sign in with their password."}
+                  </>
+                }
+                cancelLabel="Cancel review"
+                confirmLabel="Confirm"
+                confirmTestID="policy-provider-vault-confirm"
+                disabled={action.busy}
+                onConfirm={() =>
+                  action
+                    .run(
+                      "access.policies.set",
+                      { key: PROVIDER_VAULT_POLICY, scope: "space", value: next === "on" },
+                      next === "on" ? "Turned on" : "Turned off",
+                    )
+                    .then((result) => {
+                      if (result) {
+                        setDraft(null);
+                        setConfirm(false);
+                      }
+                    })
+                }
+                onCancel={() => setConfirm(false)}
+              />
             </>
           ) : (
             <Button
@@ -565,33 +570,35 @@ function PublicLinks({ editing = false, onSaved }: { editing?: boolean; onSaved?
           />
           {confirm ? (
             <>
-              <Note>
-                Allow {LINK_OPTIONS.find((item) => item.key === draft)?.title.toLowerCase()} to create new public links?
-                Existing links remain unchanged.
-              </Note>
-              <Actions>
-                <Button label="Cancel review" onPress={() => setConfirm(false)} />
-                <Button
-                  label="Confirm public-link policy"
-                  testID="policy-links-confirm"
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action
-                      .run(
-                        "access.policies.set",
-                        { key: "sharing.public_links", scope: "space", value: draft },
-                        "Public-link policy saved",
-                      )
-                      .then((result) => {
-                        if (result) {
-                          setDraft(null);
-                          setConfirm(false);
-                          onSaved?.();
-                        }
-                      })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                danger={false}
+                question={
+                  <>
+                    Allow {LINK_OPTIONS.find((item) => item.key === draft)?.title.toLowerCase()} to create new public
+                    links? Existing links remain unchanged.
+                  </>
+                }
+                cancelLabel="Cancel review"
+                confirmLabel="Confirm public-link policy"
+                confirmTestID="policy-links-confirm"
+                disabled={action.busy}
+                onConfirm={() =>
+                  action
+                    .run(
+                      "access.policies.set",
+                      { key: "sharing.public_links", scope: "space", value: draft },
+                      "Public-link policy saved",
+                    )
+                    .then((result) => {
+                      if (result) {
+                        setDraft(null);
+                        setConfirm(false);
+                        onSaved?.();
+                      }
+                    })
+                }
+                onCancel={() => setConfirm(false)}
+              />
             </>
           ) : (
             <Button

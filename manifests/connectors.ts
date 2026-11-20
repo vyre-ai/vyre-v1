@@ -83,19 +83,22 @@ const connectionRow = t.obj({
   lastSyncAt: t.opt(t.ts()),
   createdAt: t.ts(),
   handles: t.arr(id.handle, { description: "The Vault handles this connection uses. Names only, never a value." }),
-  filled: t.arr(t.str(), {
-    description:
-      "The secret slots that hold a Vault handle. A slot the connector declares and this list lacks is still empty.",
-  }),
+  filled: t.arr(t.str(), { description: "Secret slots holding a Vault handle; a declared slot not listed is empty." }),
+  /** The connector's addresses, when not all are allowed yet: what approve_hosts takes */
+  pendingHosts: t.opt(t.arr(t.str())),
 });
 
 const serviceChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+  options: t.arr(
+    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), revision: t.str() }),
+  ),
 });
 const serviceRow = t.obj({
   key: id.connector,
+  /** The server's count of this connector's publishes: changes on every publish, whatever the version text says */
+  revision: t.str(),
   title: t.str(),
   scope: t.enm("person", "space"),
   mode,
@@ -151,6 +154,8 @@ const bindingIn = {
 
 // ---- SyncSpec: the one document an agent fills to bring an app's records into Records
 const specPointer = t.str({ description: "JSON pointer such as /id; / is all" });
+// the pointer is explained where a person or agent first meets it (the list, the id, each field path); the rest of the spec says only that the value is one
+const ptr = t.str();
 const specField = t.obj({
   path: specPointer,
   label: t.str(),
@@ -177,12 +182,12 @@ const specField = t.obj({
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
   key: t.opt(fieldKey),
-  onlyWhen: t.opt(t.obj({ path: specPointer, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
+  onlyWhen: t.opt(t.obj({ path: ptr, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
   param: t.opt(t.str()),
-  next: t.opt(specPointer),
+  next: t.opt(ptr),
   size: t.opt(t.int({ minimum: 1 })),
   sizeParam: t.opt(t.str()),
   start: t.opt(t.int({ minimum: 0 })),
@@ -192,7 +197,7 @@ const specWrite = t.obj({
   method: t.opt(t.enm("POST", "PUT", "PATCH", "DELETE")),
   evidence: t.str(),
   bodyAt: t.opt(t.str()),
-  idAt: t.opt(specPointer),
+  idAt: t.opt(ptr),
 });
 const specObject = t.obj({
   remote: t.str(),
@@ -212,7 +217,7 @@ const specObject = t.obj({
   update: t.opt(specWrite),
   delete: t.opt(specWrite),
   id: specPointer,
-  updatedAt: t.opt(specPointer),
+  updatedAt: t.opt(ptr),
   itemsAt: specPointer,
   openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
@@ -231,9 +236,9 @@ const specMapping = t.obj({
   recordType: id.recordType,
   title: t.opt(t.str()),
   fields: t.arr(t.obj({ path: specPointer, field: t.opt(fieldKey), direction: t.enm("both", "pull", "push", "off") })),
-  match: t.opt(t.arr(specPointer)),
-  stagesFrom: t.opt(specPointer),
-  titleField: t.opt(t.union(specPointer, t.arr(specPointer, { minItems: 1, maxItems: 5 }))),
+  match: t.opt(t.arr(ptr)),
+  stagesFrom: t.opt(ptr),
+  titleField: t.opt(t.union(ptr, t.arr(ptr, { minItems: 1, maxItems: 5 }))),
   deletes: t.opt(deletes),
   createAtSource: t.opt(t.bool()),
   link: t.opt(t.json()),
@@ -252,7 +257,10 @@ const syncSpec = t.obj({
   }),
   auth: t.obj({
     vaultHandle: id.handle,
-    style: t.enm("bearer", "header", "basic", "query", "oauth"),
+    style: t.enm("bearer", "header", "basic", "query", "oauth", "oauth_refresh"),
+    tokenUrl: t.opt(
+      t.str({ description: "oauth_refresh: the https address that trades the refresh token for an access token" }),
+    ),
     header: t.opt(t.str()),
     prefix: t.opt(t.str()),
     headers: t.opt(t.rec(t.str())),
@@ -468,6 +476,8 @@ export default defineManifest({
     ),
     create("connectors.init", "Scaffold a connector folder: connector.toml, transforms.js, tests, README", {
       in: { key: id.connector, title: t.str(), mode, docsUrl: t.opt(t.str()), source: t.opt(t.bool()) },
+      // the key names the new connector, so a repeat names the same thing: it asks for no idempotency key (a repeat is refused as a duplicate, which is what the key was for)
+      idem: "natural",
       out: { key: id.connector, folderId: t.opt(id.folder) },
       // The key names the new connector, never an existing parent. Authorize its Space; connector.created registers the new resource there.
       perm: "connectors.manage",
@@ -478,19 +488,24 @@ export default defineManifest({
     }),
     write(
       "connectors.define",
-      "Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.",
+      "Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.",
       {
         in: {
           key: id.connector,
           title: t.opt(t.str()),
           domains: t.arr(t.str(), { minItems: 1 }),
           auth: t.obj({
-            type: t.enm("none", "api_key", "bearer"),
+            // basic: HTTP Basic from declared secrets (user and password); header: one header whose value is a template over declared secrets, such as Token token="{secret.Key}" or sso-key {secret.Key}:{secret.Secret}
+            type: t.enm("none", "api_key", "bearer", "basic", "header"),
             secret: t.opt(t.str()),
             header: t.opt(t.str()),
             prefix: t.opt(t.str()),
+            user: t.opt(t.str()),
+            password: t.opt(t.str()),
+            template: t.opt(t.str()),
           }),
           secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
+          health: t.opt(t.str()),
           actions: t.arr(
             t.obj({
               name: t.str(),
@@ -498,6 +513,20 @@ export default defineManifest({
               url: t.str(),
               headers: t.opt(t.rec(t.str())),
               query: t.opt(t.rec(t.str())),
+              body: t.opt(t.json()),
+              form: t.opt(t.rec(t.str())),
+              basic: t.opt(t.obj({ user: t.str(), pass: t.opt(t.str()) })),
+              paginate: t.opt(
+                t.obj({
+                  kind: t.enm("page", "cursor", "offset", "link"),
+                  param: t.opt(t.str()),
+                  next: t.opt(t.str()),
+                  items: t.str(),
+                  id: t.str(),
+                  size: t.opt(t.int({ minimum: 1 })),
+                  start: t.opt(t.int({ minimum: 0 })),
+                }),
+              ),
               output: t.opt(t.str()),
               write: t.opt(t.bool()),
             }),
@@ -663,6 +692,7 @@ export default defineManifest({
           ownerKind: t.enm("person", "space"),
           secrets: t.opt(t.rec(id.handle)),
           scopes: t.opt(t.arr(t.str())),
+          pin: t.opt(t.arr(t.str())),
         },
         out: { connection: connectionRow, authUrl: t.opt(t.str()) },
         make: ["connection", "/connector"],
@@ -814,6 +844,7 @@ export default defineManifest({
         },
         out: { hosts: t.arr(t.str()) },
         on: ["connection", "/connectionId"],
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         level: "manage",
         audit: "always",
         agent: false,
@@ -1028,6 +1059,7 @@ export default defineManifest({
       {
         in: { spec: syncSpec },
         out: specChecks,
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "connectors.manage",
         tool: "records",
         cli: "vyre sync-spec validate",
@@ -1066,6 +1098,7 @@ export default defineManifest({
             }),
           ),
         },
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "connectors.manage",
         tool: "records",
         errors: ["validation.bad_input", "internal.unavailable"],
@@ -1109,6 +1142,7 @@ export default defineManifest({
           ),
           estimate: t.opt(t.obj({ count: t.int(), source: t.str() })),
         },
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "connectors.manage",
         tool: "records",
         cli: "vyre sync-spec sample",
@@ -1132,6 +1166,7 @@ export default defineManifest({
             }),
           ),
         },
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "connectors.manage",
         tool: "records",
         errors: ["validation.bad_input", "permission.no_grant", "internal.unavailable"],
@@ -1152,6 +1187,7 @@ export default defineManifest({
             t.str({ description: "The address to give the app by hand when its docs show no subscribe call" }),
           ),
         },
+        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
         perm: "connectors.manage",
         idem: "key",
         audit: "always",

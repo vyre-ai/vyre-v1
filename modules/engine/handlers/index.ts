@@ -24,6 +24,9 @@ import {
   setModel,
   stop,
   stopAll,
+  pause,
+  resumePaused,
+  subagentStop,
   switchEngine,
 } from "./control.ts";
 import { extraHandlers } from "./extra/index.ts";
@@ -56,6 +59,9 @@ export const handlers = {
   "engine.interrupt": interrupt,
   "engine.drop_queued": dropQueued,
   "engine.stop": stop,
+  "engine.pause": pause,
+  "engine.subagent.stop": subagentStop,
+  "engine.resume_paused": resumePaused,
   "engine.stop_all": stopAll,
   "engine.live_turns": liveTurns,
   "engine.helpers.status": helpersStatus,

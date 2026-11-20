@@ -1,6 +1,6 @@
 # sites.host
 
-What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs
+What this Space can host: address, whether Vyre runs apps, the sites address, custom domain needs
 
 | | |
 |---|---|

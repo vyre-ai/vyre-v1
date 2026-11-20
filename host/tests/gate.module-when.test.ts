@@ -1,4 +1,6 @@
 // P-L4_LIVE: a capability's `when` that names a module function (git.push: git.is_protected(input.branch)) is answered by that module, not read as an unknown expression that always holds.
+import { effectiveRule } from "../../modules/gate/projections.ts";
+import type { PrincipalRef } from "../../modules/gate/projections.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createGateHook } from "../src/daemon/gate-hook.ts";
@@ -13,7 +15,11 @@ const seed = { principal: { kind: "person" as const, id: "usr_noah" } } as never
 
 function hook(evaluators?: Parameters<typeof createGateHook>[0]["evaluators"]) {
   return createGateHook({
-    call: async (cap) => (cap === "gate.effective_rule" ? { hold: true } : null),
+    call: async (cap, input) => {
+      if (cap !== "gate.effective_rule") return null;
+      const i = input as { principal: PrincipalRef; act: string };
+      return { hold: effectiveRule({ all: () => [], run: () => ({ changes: 0 }) }, i.principal, i.act).hold };
+    },
     unseal: () => new Uint8Array(),
     now: () => 0,
     hold: () => null,

@@ -11,7 +11,7 @@ Read up to 12 paths of an app at once, read-only, and say for each what lists it
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

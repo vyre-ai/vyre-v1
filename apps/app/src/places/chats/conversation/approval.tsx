@@ -2,6 +2,7 @@
 // The card reads that task and answers it here: what the agent wants to do, a short excerpt, Allow and Deny. Deny asks for an optional reason that goes back to the agent. An answered card
 // collapses to one line ("Allowed · edit Q4 pricing.docx"). The same task is in Needs you; answering in either place answers both: the card reads the task on every change in the Space, so it never offers a
 // choice that is gone, and a press that was too late hears "Already decided.".
+import { hostWords } from "./host-words.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -26,6 +27,8 @@ import {
 import type { DiffLine } from "./approval-model.ts";
 import { Face } from "../needsyou/parts.tsx";
 import { HeldCard } from "./held-card.tsx";
+import { HoldNote } from "./hold-note.tsx";
+import { madeByGate } from "../needsyou/model.ts";
 import type { HeldEditor } from "./held-card.tsx";
 import { webReadParts } from "../../../../../../lib/hold-words.ts";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
@@ -77,6 +80,11 @@ const clock = (at: number, timeZone?: string): string => {
   }
 };
 
+const PENDING_LINE = "Couldn't load where the key may go. Try again.";
+const SAVE_FAILED_AFTER_RECORD = "Where the key may go is saved. Saving the key's approval failed. Try again.";
+const DENIED_LINE = "You can't see this connection. Ask its owner to allow it.";
+const CHANGED_LINE = "This changed since you looked. Check the list and press Allow again.";
+
 export function ApprovalCard({
   taskId,
   agent,
@@ -119,10 +127,32 @@ export function ApprovalCard({
     items: { itemId: string; handle: string; name: string }[];
     hosts: string[];
   } | null>(null);
+  /** A held set_secret's connection: the addresses its record does not allow yet, as they were when the card loaded. This list is what the card names and what Allow submits, never a later read. */
+  const [pending, setPending] = useState<string[] | "failed" | "denied" | null>(null);
   const mounted = useRef(true);
   const described = useRef(false);
 
   // the task on every change; what the held call touches only once, because it does not change
+  /** The addresses a connection's record does not allow yet, as the server says them now: a list, null when nothing waits, "failed" when the answer could not be read. */
+  const readPending = useCallback(
+    async (connectionId: string): Promise<string[] | "failed" | "denied" | null> => {
+      try {
+        const r = (await data.call("connections.get", { connectionId })) as {
+          connection?: { pendingHosts?: string[] };
+        } | null;
+        if (!r || typeof r !== "object" || !r.connection) return "failed";
+        const p = r.connection.pendingHosts;
+        return Array.isArray(p) && p.length > 0 ? p : null;
+      } catch (e) {
+        // an invisible or foreign connection is refused for good: a retry would be refused again
+        const code =
+          (e as { code?: unknown; error?: { code?: unknown } } | null)?.code ??
+          (e as { error?: { code?: unknown } } | null)?.error?.code;
+        return typeof code === "string" && /^(permission\.|validation\.not_found)/.test(code) ? "denied" : "failed";
+      }
+    },
+    [data],
+  );
   const load = useCallback(async (): Promise<void> => {
     try {
       const t = ((await data.call("tasks.get", { taskId })) as CapMap["tasks.get"]["out"]).task;
@@ -166,7 +196,14 @@ export function ApprovalCard({
               () => ({ found: false, items: [], hosts: [] }),
             )
           : null;
+      const pend =
+        h.cap === "connections.set_secret" && typeof h.input["connectionId"] === "string"
+          ? await readPending(h.input["connectionId"])
+          : null;
       if (mounted.current) {
+        setPending(pend);
+        if (pend === "failed") setLine(PENDING_LINE);
+        if (pend === "denied") setLine(DENIED_LINE);
         setSubject(s);
         setDiff(d);
         setTheirTz(tz);
@@ -176,7 +213,7 @@ export function ApprovalCard({
     } catch {
       if (mounted.current) setTask((was) => was ?? null);
     }
-  }, [data, taskId]);
+  }, [data, taskId, readPending]);
   useEffect(() => {
     mounted.current = true;
     void load();
@@ -376,18 +413,72 @@ export function ApprovalCard({
     setLine(null);
     // allowing a key binding approves every domain it names for every key it binds, then lets the binding through: the key's page lists them under Sent to
     if (key === "approve" && keyBind?.found) {
-      const saves = keyBind.items.flatMap((i) =>
-        keyBind.hosts.map((host) =>
-          Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
-        ),
-      );
-      void Promise.all(saves).then(
-        () => answerTask(key, note),
-        () => {
+      // the connection's own record of where its key may go is the connector module's, apart from the Vault's list: a held set_secret on a connection allows what was shown there too
+      const connectionId = held.cap === "connections.set_secret" ? held.input["connectionId"] : undefined;
+      if (typeof connectionId === "string" && pending === "denied") {
+        // not the person's to see: nothing is saved or answered, and a retry would only be refused again
+        setBusy(false);
+        setLine(DENIED_LINE);
+        return;
+      }
+      // where the key may go could not be read: the hold is not answered and nothing is saved; the list is read again, and Allow stays off until that ends
+      if (typeof connectionId === "string" && pending === "failed") {
+        setLine(PENDING_LINE);
+        void readPending(connectionId).then((p) => {
+          if (!mounted.current) return;
+          setPending(p);
+          setBusy(false);
+          if (p === "denied") setLine(DENIED_LINE);
+          else if (p !== "failed") setLine(null);
+        });
+        return;
+      }
+      /** true when the connection's record took the list; false when it was refused (the card shows why and the list as it is now) */
+      const record = async (): Promise<boolean> => {
+        if (typeof connectionId !== "string" || pending === null || pending === "failed" || pending === "denied")
+          return true;
+        try {
+          // the list the card named: approve_hosts refuses when the connector's addresses are no longer exactly these
+          await data.call("connections.approve_hosts", { connectionId, hosts: pending });
+          return true;
+        } catch (e) {
+          const fresh = await readPending(connectionId);
+          if (mounted.current) {
+            setPending(fresh);
+            setBusy(false);
+            setLine(e instanceof Error && e.message ? e.message : CHANGED_LINE);
+          }
+          return false;
+        }
+      };
+      // the Vault's list is written only after the connection's record took the same list: a refusal or a failed read saves nothing anywhere
+      void record()
+        .then(async (done) => {
+          if (!done) return;
+          try {
+            await Promise.all(
+              keyBind.items.flatMap((i) =>
+                keyBind.hosts.map((host) =>
+                  Promise.resolve(data.call("automations.key_hosts.allow", { vaultItemId: i.itemId, host })),
+                ),
+              ),
+            );
+          } catch {
+            // the connection's record took the list, the Vault's did not: say exactly that, so the retry is understood
+            setBusy(false);
+            setLine(
+              typeof connectionId === "string" && pending !== null
+                ? SAVE_FAILED_AFTER_RECORD
+                : "Could not save where the key may go. Try again.",
+            );
+            return;
+          }
+          answerTask(key, note);
+        })
+        .catch(() => {
           setBusy(false);
           setLine("Could not save where the key may go. Try again.");
-        },
-      );
+        });
       return;
     }
     answerTask(key, note);
@@ -426,12 +517,15 @@ export function ApprovalCard({
     );
   };
   // an outside agent asking its person: what happens, that it runs as them, and every input
-  const rows = held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap);
+  // the sentence above says it is a preview copy: the raw flag is not also listed as a row
+  const rows = (
+    held.plain ? plainRows(held) : held.what ? askRows(task.blocks) : excerptLines(held.input, 5, held.cap)
+  ).filter((r) => !(held.note && r.label === "Plain ok"));
   // a key's test read names the key the server resolved, with its name, and the host: "Scout wants to send #Notely (Notely API key) to api.notely.com"
   const both = (xs: readonly string[]): string =>
     xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : (xs[0] ?? "");
   const bindLine = keyBind?.found
-    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both(keyBind.hosts)}`
+    ? `${agent} wants to use ${both(keyBind.items.map((i) => i.handle))} with ${both([...new Set([...keyBind.hosts, ...(Array.isArray(pending) ? pending : [])].map(hostWords))])}`
     : null;
   const keyLine =
     bindLine ??
@@ -491,6 +585,9 @@ export function ApprovalCard({
         title={headline}
         lead={<Face name={agent} seedId={face ?? faceSeed ?? agentId} kind={face ? "person" : "agent"} size={20} />}
       />
+      {held.note && madeByGate(task) ? (
+        <HoldNote note={held.note} names={held.noteSigners} testID={`approval-note-${taskId}`} inset={CARD_INSET} />
+      ) : null}
       {diff && diff.lines.length > 0 ? (
         <View testID={`approval-diff-${taskId}`} style={st.excerpt}>
           {collect(
@@ -556,10 +653,24 @@ export function ApprovalCard({
         <CardActions
           busy={busy}
           secondary={[
-            ...(allowable ? [{ label: "Always allow", onPress: always, testID: `approval-always-${taskId}` }] : []),
+            ...(allowable
+              ? [
+                  {
+                    label: "Always allow",
+                    onPress: always,
+                    testID: `approval-always-${taskId}`,
+                    disabled: pending === "denied",
+                  },
+                ]
+              : []),
             { label: "Deny", onPress: () => setDenying(true), testID: `approval-deny-${taskId}` },
           ]}
-          primary={{ label: "Allow", onPress: () => act("approve"), testID: `approval-allow-${taskId}` }}
+          primary={{
+            label: "Allow",
+            onPress: () => act("approve"),
+            testID: `approval-allow-${taskId}`,
+            disabled: pending === "denied",
+          }}
           error={line}
         />
       )}

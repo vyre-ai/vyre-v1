@@ -15,10 +15,10 @@
     "settings.pages@1": "9cac5b162fe3f5132634adaa25312d682827a2869f256a53fb047b35906b9570",
     "settings.public_of@1": "6efa60146892e931205d8b5e994697af6b4ef2db65a7c8f0ed0f248226465cf0",
     "settings.reset@1": "fb1b2709f976c3d765f293431d160bb063c33500fd3db7bec8c87633de492c56",
-    "settings.reset_space@1": "131c452d68779c7a755c6ade122e187e298ff4dac4750c89d5e78309de1a66fd",
+    "settings.reset_space@1": "f1bb09a34f7b9589cfb7705d75d3d0bf8c8448048d81967d1c67a3db495ef2e3",
     "settings.search@1": "fee1aa89471244f05b7774e017a54a13165901f16308a072f350edc4664a93de",
     "settings.set@1": "bb66d4bd066d7666ca17bef82d01dccb297f5874daf7945633d369cef70c029d",
-    "settings.set_space@1": "a33b6432ba5d4997c3bb78e47d312ac2449e41afcfdc1614e6b3974a219c8dc1"
+    "settings.set_space@1": "5190f37ffbe1c2f48a18c7c34958cd97353f8051aeb5aa27a489c2ff961689d4"
   },
   "events": {
     "settings.changed": "21494486dd388c5f01060a6abb6944689173f6081de579a26132ea3906271d99",

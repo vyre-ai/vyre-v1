@@ -705,6 +705,8 @@ write_config() {
     [ -z "$(lock_get VYRE_BROWSER_IMAGE)" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$(lock_get VYRE_BROWSER_IMAGE)"
     # the agent workspace image of this release, by digest, the same way
     [ -z "$(lock_get VYRE_WORKSPACE_IMAGE)" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$(lock_get VYRE_WORKSPACE_IMAGE)"
+    # the Word to PDF converter image, by digest: named here, fetched by the server on first use (not pulled at install)
+    [ -z "$(lock_get VYRE_CONVERTER_IMAGE)" ] || printf 'VYRE_DOC_CONVERTER_IMAGE=%s\n' "$(lock_get VYRE_CONVERTER_IMAGE)"
     printf 'VYRE_PORT=8420\n'
     printf 'VYRE_SPACE=%s\n' "$(space_id)"
     [ -z "$DOMAIN" ] || printf 'VYRE_ADDRESS=%s\n' "$DOMAIN"
@@ -1126,7 +1128,27 @@ $NODE_PORTS
     depends_on:
       vyred:
         condition: service_started
-    command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    # r40: when vyred restarts, the namespace Caddy joined is dead (its network card is gone) and nothing answers until Caddy starts again; this exits so Docker starts it on the new one (compute role: vyred listens on nothing, so the card is what is watched)
+    command:
+      - sh
+      - -c
+      - |
+        caddy run --resume --config /etc/caddy/Caddyfile --adapter caddyfile &
+        pid=\$\$!
+        trap 'kill \$\$pid 2>/dev/null; wait \$\$pid; exit 143' TERM INT
+        miss=0
+        while kill -0 \$\$pid 2>/dev/null; do
+          sleep 3 &
+          wait \$\$!
+          if [ -e /sys/class/net/eth0 ]; then miss=0; else miss=\$\$((miss + 1)); fi
+          if [ \$\$miss -ge 5 ]; then
+            echo "vyred's network is gone from this namespace; leaving so Docker starts Caddy on the one vyred has now" >&2
+            kill \$\$pid 2>/dev/null
+            wait \$\$pid
+            exit 1
+          fi
+        done
+        wait \$\$pid
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ./caddy/data:/data

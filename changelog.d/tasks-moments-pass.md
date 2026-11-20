@@ -1,0 +1,1 @@
+A task can name the moment it stops mattering; one day after it the Space puts the task away with the reason ("It was for Thu 5 Nov."), and Put back undoes it. An agent that names none gets one, so nothing an agent opens waits forever. A due date alone never puts a task away.

@@ -24,3 +24,5 @@ export { CaddyRouter } from "./router.ts";
 export type { CertState, RouteSpec, RouterOptions } from "./router.ts";
 export { connectPeer, judgeCert } from "./tls.ts";
 export type { CertInfo, PeerCert, PeerFn } from "./tls.ts";
+export { accessLogConfig, ensureAccessLog, startAccessSink } from "./accesslog.ts";
+export type { AccessSink } from "./accesslog.ts";

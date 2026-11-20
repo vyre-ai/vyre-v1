@@ -1,0 +1,481 @@
+// Backups of a site's own Postgres (r42-sites-run, slice 5): a gzipped dump kept on the server (ctx.blobs, readable by whoever can see the site), listed with its size, trimmed by ops/backups.ts, restorable.
+// A backup runs in the background of the call that asked for it; the row says queued, running, then ready or failed with one sentence. After a restart a backup still marked running is failed (ops/backups.ts).
+// The dump is made inside the Postgres container (pg_dump over its own socket, gzip) and read out of /tmp/vyre-backup.gz, so no password and no connection string leave the site's network.
+import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
+import { fail, isNull, mustSite, nid, one, optBool, rec, reqStr, str } from "./deploy.ts";
+import { siteRunner } from "./route.ts";
+import { SAFETY_DAYS, due as dueNow, expired, stepBackup } from "../ops/backups.ts";
+import { TooBig } from "../ops/tarread.ts";
+import type { Backup, BackupEvent } from "../ops/backups.ts";
+import * as st from "../ops/store.ts";
+
+type Db = Ctx["db"];
+const DUMP = "/tmp/vyre-backup.gz";
+const SIZE_CMD = ["psql", "-U", "app", "-d", "app", "-tAc", "select pg_database_size('app')"];
+/** pg_dump writes the compressed file itself (no pipe, so its failure is the command's), and the file is tested before it counts as a backup */
+const DUMP_CMD = ["sh", "-c", `pg_dump -U app -d app --no-owner -Z gzip -f ${DUMP} && gunzip -t ${DUMP}`];
+/** A dump is kept in parts of this size, so neither a backup nor a restore ever holds more than one part in memory. */
+export const PART_BYTES = 32 * 1024 * 1024;
+let partBytes = PART_BYTES;
+/** for tests: a small part size so a short dump is several parts */
+export const _test = {
+  setRetryMs: (n: number): void => void (retryMs = n),
+  setPartBytes: (n: number): void => void (partBytes = n),
+  clearSizes: (): void => sizes.clear(),
+};
+export const MAX_PINNED = 3;
+const RESTORE_GLOB = "/tmp/vyre-restore.*.gz";
+const SQL = (...c: string[]): string[] => [
+  "psql",
+  "-U",
+  "app",
+  "-d",
+  "postgres",
+  "-v",
+  "ON_ERROR_STOP=1",
+  "-q",
+  ...c.flatMap((x) => ["-c", x]),
+];
+/** Put back in three steps so a failure never costs the live database: a new one is made and filled; only when that worked are the names swapped (the old one stays as app_old until the next restore). */
+const NEW_DB = SQL("DROP DATABASE IF EXISTS app_restore WITH (FORCE)", "CREATE DATABASE app_restore OWNER app");
+/** the whole dump is tested first: a pipe's status is its last command's, so a damaged file would otherwise load nothing and read as success */
+const LOAD = [
+  "sh",
+  "-c",
+  `cat ${RESTORE_GLOB} | gunzip -t && cat ${RESTORE_GLOB} | gunzip | psql -U app -d app_restore -v ON_ERROR_STOP=1 -q`,
+];
+const OLD_SIZE = ["psql", "-U", "app", "-d", "postgres", "-tAc", "select pg_database_size('app_old')"];
+const DROP_OLD = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
+const DROP_NEW = SQL("DROP DATABASE IF EXISTS app_restore WITH (FORCE)");
+/** The switch in separate steps: the old copy is dropped, new connections are refused and the live ones ended, then the names are swapped. Ending connections is asynchronous, so the first rename is retried briefly before it counts as failed. */
+const DROP_OLD_FIRST = SQL("DROP DATABASE IF EXISTS app_old WITH (FORCE)");
+const CUT = SQL(
+  "ALTER DATABASE app ALLOW_CONNECTIONS false",
+  "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'app'",
+);
+const RENAME_LIVE = SQL("ALTER DATABASE app RENAME TO app_old");
+const RENAME_NEW = SQL("ALTER DATABASE app_restore RENAME TO app");
+const REOPEN = SQL("ALTER DATABASE app ALLOW_CONNECTIONS true");
+const RENAME_BACK = SQL("ALTER DATABASE app_old RENAME TO app");
+let retryMs = 1000;
+const RENAME_TRIES = 6;
+/** A dump bigger than this is not kept here; the sentence says to dump it by hand. */
+export const MAX_BACKUP_BYTES = 512 * 1024 * 1024;
+const running = new Set<string>();
+/** the database size is asked of Postgres at most once a minute per site */
+const sizes = new Map<string, { at: number; bytes: number; oldBytes?: number }>();
+
+export interface BackupOut {
+  backupId: string;
+  siteId: string;
+  state: string;
+  by: string;
+  at: number;
+  endedAt?: number;
+  bytes?: number;
+  note?: string;
+  pinned?: boolean;
+  keepUntil?: number;
+}
+const out = (b: Backup): BackupOut => ({
+  backupId: b.id,
+  siteId: b.siteId,
+  state: b.state,
+  by: b.by,
+  at: b.at,
+  ...(b.endedAt !== undefined ? { endedAt: b.endedAt } : {}),
+  ...(b.bytes !== undefined ? { bytes: b.bytes } : {}),
+  ...(b.note ? { note: b.note } : {}),
+  ...(b.pinned ? { pinned: true } : {}),
+  ...(b.keepUntil !== undefined ? { keepUntil: b.keepUntil } : {}),
+});
+
+function postgres(ctx: Ctx, siteId: string): string | null {
+  const a = one(ctx, "SELECT * FROM sites_addon WHERE site_id = ? AND kind = ?", siteId, "postgres");
+  return a && a.state === "ready" && !isNull(a.container_id) ? str(a.container_id) : null;
+}
+
+function move(db: Db, b: Backup, ev: BackupEvent): Backup {
+  const s = stepBackup(b, ev);
+  if (!s.ok || s.same) return b;
+  st.saveBackup(db, s.backup, b.state);
+  return s.backup;
+}
+
+const lastLine = (text: string): string =>
+  text
+    .trim()
+    .split("\n")
+    .slice(-1)[0]
+    ?.replace(/^(pg_dump|psql|sh):\s*(error:\s*)?/i, "")
+    .slice(0, 160) ?? "";
+
+const tooBig = (bytes: number): string =>
+  `The dump is ${Math.round(bytes / 1048576)} MB, more than the ${MAX_BACKUP_BYTES / 1048576} MB kept here. Dump it from the database's own address instead.`;
+
+/** Make one backup: dump in the container, check its size before copying it, copy it out with the cap applied as it arrives, keep it as a blob. Ends the row either way; returns the sentence on failure. Takes no lock. */
+export async function dump(
+  ctx: Ctx,
+  b0: Backup,
+  container: string,
+): Promise<{ ok: true; backup: Backup } | { ok: false; note: string }> {
+  const r = siteRunner();
+  const db = ctx.db;
+  let b = b0;
+  const stop = (note: string): { ok: false; note: string } => {
+    move(db, b, { t: "fail", at: ctx.now(), note });
+    return { ok: false, note };
+  };
+  try {
+    if (!r) return stop("This server cannot reach the database.");
+    if (!ctx.blobs) return stop("This server cannot keep backups.");
+    b = move(db, b, { t: "start", at: ctx.now() });
+    const made = await r.exec(container, DUMP_CMD, {});
+    if (made.code !== 0) return stop(`The dump failed: ${lastLine(made.out) || "the database did not answer"}.`);
+    const size = await r.exec(container, ["stat", "-c", "%s", DUMP], {});
+    const have = Number(size.out.trim().split("\n").slice(-1)[0]);
+    if (size.code === 0 && have > MAX_BACKUP_BYTES) {
+      await r.exec(container, ["rm", "-f", DUMP], {}).catch(() => undefined);
+      return stop(tooBig(have));
+    }
+    const ids: string[] = [];
+    let total = 0;
+    try {
+      total = await r.getFileParts(container, DUMP, MAX_BACKUP_BYTES, partBytes, async (part) => {
+        const blob = await ctx.blobs!.put(part, "application/gzip", {
+          resource: { type: "site_backup", id: b.siteId },
+        });
+        ids.push(blob.id);
+      });
+    } catch (e) {
+      for (const id of ids) await ctx.blobs.delete(id).catch(() => false);
+      if (e instanceof TooBig) return stop(tooBig(e.size));
+      throw e;
+    }
+    await r.exec(container, ["rm", "-f", DUMP], {}).catch(() => undefined);
+    const done = move(db, b, { t: "done", at: ctx.now(), bytes: total, fileId: ids.join(",") });
+    // the row must really be ready (something else may have ended it): else the parts are not kept
+    if (st.getBackup(db, b.id)?.state !== "ready") {
+      for (const id of ids) await ctx.blobs.delete(id).catch(() => false);
+      return { ok: false, note: "The backup was cut short." };
+    }
+    return { ok: true, backup: done };
+  } catch (e) {
+    return stop(`The backup stopped: ${(e instanceof Error ? e.message : String(e)).slice(0, 160)}`);
+  }
+}
+
+const HELD: Record<string, string> = {
+  backup: "A backup of this database is being made. Wait for it to finish.",
+  restore: "A backup is being put back into this database. Wait for it to finish.",
+};
+/** One backup or restore at a time per site: the second is refused with the reason. */
+function takeLock(ctx: Ctx, siteId: string, kind: string): void {
+  const got = st.lockSite(ctx.db, siteId, kind, ctx.now());
+  if (!got.ok)
+    fail(ctx, "validation.precondition_failed", HELD[got.heldBy.kind] ?? "Another backup or restore is running.");
+}
+
+/** The work of one backup asked for by a person or a schedule: the dump, then the clean-up of old ones, then the lock is let go. Never throws. */
+export async function runBackup(ctx: Ctx, b0: Backup, container: string): Promise<void> {
+  try {
+    const out = await dump(ctx, b0, container);
+    if (out.ok) await removeBackups(ctx, expired(st.listBackups(ctx.db, b0.siteId), ctx.now()));
+  } finally {
+    running.delete(b0.id);
+    st.unlockSite(ctx.db, b0.siteId);
+  }
+}
+
+async function removeBackups(ctx: Ctx, ids: readonly string[]): Promise<void> {
+  for (const id of ids) {
+    const b = st.getBackup(ctx.db, id);
+    for (const f of b?.fileId?.split(",") ?? []) if (f) await ctx.blobs?.delete(f).catch(() => false);
+  }
+  st.deleteBackups(ctx.db, ids);
+}
+
+async function backupsList(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ backups: BackupOut[]; database?: { bytes?: number; replacedBytes?: number }; hasDatabase: boolean }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const siteId = str(site.id);
+  const list = st.listBackups(ctx.db, siteId);
+  // a backup still marked running that this process is not running was cut off by a restart
+  for (const b of list)
+    if ((b.state === "running" || b.state === "queued") && !running.has(b.id))
+      move(
+        ctx.db,
+        b,
+        b.state === "queued"
+          ? { t: "fail", at: ctx.now(), note: "The server restarted before it began. Back up again." }
+          : { t: "lost", at: ctx.now() },
+      );
+  const container = postgres(ctx, siteId);
+  const r = siteRunner();
+  let seen = sizes.get(siteId);
+  if (!seen || ctx.now() - seen.at >= 60_000) {
+    seen = undefined;
+    if (container && r) {
+      try {
+        const size = await r.exec(container, SIZE_CMD, {});
+        const n = Number(size.out.trim().split("\n").slice(-1)[0]);
+        if (size.code === 0 && Number.isFinite(n)) {
+          const old = await r.exec(container, OLD_SIZE, {});
+          const on = Number(old.out.trim().split("\n").slice(-1)[0]);
+          let oldBytes = old.code === 0 && Number.isFinite(on) ? on : undefined;
+          // the database a restore replaced stays only while the backup made before it is kept; after that it is dropped, so it never fills the disk
+          const live = st.listBackups(ctx.db, siteId).some((x) => x.keepUntil !== undefined && x.keepUntil > ctx.now());
+          if (oldBytes !== undefined && !live && st.lockSite(ctx.db, siteId, "cleanup", ctx.now()).ok) {
+            try {
+              if ((await r.exec(container, DROP_OLD, {})).code === 0) oldBytes = undefined;
+            } finally {
+              st.unlockSite(ctx.db, siteId);
+            }
+          }
+          seen = { at: ctx.now(), bytes: n, ...(oldBytes !== undefined ? { oldBytes } : {}) };
+          sizes.set(siteId, seen);
+        }
+      } catch {
+        /* the size is a nicety */
+      }
+    }
+  }
+  return {
+    backups: st.listBackups(ctx.db, siteId).map(out),
+    hasDatabase: container !== null,
+    ...(seen
+      ? { database: { bytes: seen.bytes, ...(seen.oldBytes !== undefined ? { replacedBytes: seen.oldBytes } : {}) } }
+      : {}),
+  };
+}
+
+async function backupCreate(ctx: Ctx, input: unknown): Promise<{ backup: BackupOut }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const siteId = str(site.id);
+  const container = postgres(ctx, siteId);
+  if (!container)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "This site has no running Postgres to back up. Add one in Settings first.",
+    );
+  takeLock(ctx, siteId, "backup");
+  const by = optBool(ctx, o, "scheduled") === true ? "schedule" : "person";
+  const b: Backup = { id: nid(ctx, "bkp"), siteId, kind: "postgres", state: "queued", by, at: ctx.now() };
+  st.insertBackup(ctx.db, b);
+  running.add(b.id);
+  void runBackup(ctx, b, container);
+  return { backup: out(b) };
+}
+
+async function backupDelete(ctx: Ctx, input: unknown): Promise<{ removed: boolean }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const b = st.getBackup(ctx.db, reqStr(ctx, o, "backupId"));
+  if (!b || b.siteId !== str(site.id)) fail(ctx, "validation.not_found", "That backup does not exist.");
+  if (b.state === "running" || b.state === "queued")
+    fail(ctx, "validation.precondition_failed", "It is still being made.");
+  await removeBackups(ctx, [b.id]);
+  return { removed: true };
+}
+
+async function backupPin(ctx: Ctx, input: unknown): Promise<{ backup: BackupOut }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const b = st.getBackup(ctx.db, reqStr(ctx, o, "backupId"));
+  if (!b || b.siteId !== str(site.id)) fail(ctx, "validation.not_found", "That backup does not exist.");
+  const pinned = optBool(ctx, o, "pinned") ?? true;
+  if (pinned && !b.pinned && st.listBackups(ctx.db, str(site.id)).filter((x) => x.pinned).length >= MAX_PINNED)
+    fail(ctx, "validation.precondition_failed", `You can keep ${MAX_PINNED} backups for good. Let one go first.`);
+  st.setPinned(ctx.db, b.id, pinned);
+  return { backup: out({ ...b, ...(pinned ? { pinned } : { pinned: undefined }) }) };
+}
+
+/** Put a backup back without ever losing what is there: a backup of the live database is made first (kept seven days, and the restore is refused if it cannot be made), the dump is loaded into a new database, and only when that worked are the names swapped. */
+/** The switch. Returns null when it worked, or the reason when it did not (the live database is then back under its own name and open). */
+async function swap(r: NonNullable<ReturnType<typeof siteRunner>>, container: string): Promise<string | null> {
+  const fail1 = (out: string): string => lastLine(out) || "the database refused it";
+  const dropped = await r.exec(container, DROP_OLD_FIRST, {});
+  if (dropped.code !== 0) return fail1(dropped.out);
+  const cut = await r.exec(container, CUT, {});
+  if (cut.code !== 0) {
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return fail1(cut.out);
+  }
+  let renamed = false;
+  let why = "";
+  for (let i = 0; i < RENAME_TRIES && !renamed; i++) {
+    const t = await r.exec(container, RENAME_LIVE, {});
+    renamed = t.code === 0;
+    if (!renamed) {
+      why = fail1(t.out);
+      if (retryMs > 0) await new Promise((x) => setTimeout(x, retryMs));
+    }
+  }
+  if (!renamed) {
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return why;
+  }
+  const second = await r.exec(container, RENAME_NEW, {});
+  if (second.code !== 0) {
+    await r.exec(container, RENAME_BACK, {}).catch(() => undefined);
+    await r.exec(container, REOPEN, {}).catch(() => undefined);
+    return fail1(second.out);
+  }
+  await r.exec(container, REOPEN, {}).catch(() => undefined);
+  return null;
+}
+
+async function backupRestore(ctx: Ctx, input: unknown): Promise<{ ok: boolean; detail: string }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const siteId = str(site.id);
+  const b = st.getBackup(ctx.db, reqStr(ctx, o, "backupId"));
+  if (!b || b.siteId !== siteId) fail(ctx, "validation.not_found", "That backup does not exist.");
+  if (b.state !== "ready" || !b.fileId)
+    fail(ctx, "validation.precondition_failed", "Only a finished backup can be put back.");
+  const container = postgres(ctx, siteId);
+  const r = siteRunner();
+  if (!container || !r)
+    fail(ctx, "validation.precondition_failed", "This site has no running Postgres to put it back into.");
+  const files = b.fileId.split(",").filter(Boolean);
+  for (const f of files)
+    if (!(await ctx.blobs?.stat(f)))
+      fail(ctx, "validation.not_found", "The file of that backup is gone from this server.");
+  takeLock(ctx, siteId, "restore");
+  try {
+    const safety: Backup = {
+      id: nid(ctx, "bkp"),
+      siteId,
+      kind: "postgres",
+      state: "queued",
+      by: "person",
+      at: ctx.now(),
+      keepUntil: ctx.now() + SAFETY_DAYS * 86_400_000,
+    };
+    st.insertBackup(ctx.db, safety);
+    // the list marks a backup that this process is not making as lost; this one is being made
+    running.add(safety.id);
+    let first: Awaited<ReturnType<typeof dump>>;
+    try {
+      first = await dump(ctx, safety, container);
+    } finally {
+      running.delete(safety.id);
+    }
+    if (!first.ok)
+      return {
+        ok: false,
+        detail: `It was not put back: what is in the database now could not be backed up first (${first.note.replace(/\.$/, "")}). Nothing changed.`,
+      };
+    // a part left by an earlier restore that was cut off would be loaded after this dump: the folder is cleared first
+    await r.exec(container, ["sh", "-c", `rm -f ${RESTORE_GLOB}`], {}).catch(() => undefined);
+    // the dump goes in part by part: one part is in memory at a time
+    for (const [i, f] of files.entries()) {
+      const part = await ctx.blobs?.get(f);
+      if (!part)
+        return {
+          ok: false,
+          detail: "It was not put back: the file of that backup is gone from this server. Nothing changed.",
+        };
+      await r.put(container, "/tmp", `vyre-restore.${String(i).padStart(4, "0")}.gz`, part.bytes);
+    }
+    try {
+      const made = await r.exec(container, NEW_DB, {});
+      if (made.code !== 0)
+        return {
+          ok: false,
+          detail: `It was not put back: ${lastLine(made.out) || "a new database could not be made"}. The database was not touched.`,
+        };
+      const load = await r.exec(container, LOAD, {});
+      if (load.code !== 0) {
+        await r.exec(container, DROP_NEW, {}).catch(() => undefined);
+        return {
+          ok: false,
+          detail: `It was not put back: the dump stopped part way (${lastLine(load.out) || "the database refused it"}). The database was not touched.`,
+        };
+      }
+      const swapped = await swap(r, container);
+      if (swapped) {
+        await r.exec(container, DROP_NEW, {}).catch(() => undefined);
+        return {
+          ok: false,
+          detail: `It was not put back: the switch to the new database failed (${swapped}). The database was left as it was.`,
+        };
+      }
+      return {
+        ok: true,
+        detail: `The database is back as that backup had it. What was there before is kept for ${SAFETY_DAYS} days, as a backup in the list and as the replaced database.`,
+      };
+    } finally {
+      await r.exec(container, ["sh", "-c", `rm -f ${RESTORE_GLOB}`], {}).catch(() => undefined);
+    }
+  } finally {
+    st.unlockSite(ctx.db, siteId);
+  }
+}
+
+/** Where a backup can be fetched from, for whoever can see the site: one address a part (a dump over 32 MB is kept in parts; join them in order with `cat`). */
+async function backupDownload(
+  ctx: Ctx,
+  input: unknown,
+): Promise<{ files: { name: string; url: string; bytes?: number }[]; note?: string }> {
+  const o = rec(ctx, input);
+  const site = mustSite(ctx, reqStr(ctx, o, "siteId"));
+  const b = st.getBackup(ctx.db, reqStr(ctx, o, "backupId"));
+  if (!b || b.siteId !== str(site.id)) fail(ctx, "validation.not_found", "That backup does not exist.");
+  if (b.state !== "ready" || !b.fileId)
+    fail(ctx, "validation.precondition_failed", "Only a finished backup can be downloaded.");
+  const ids = b.fileId.split(",").filter(Boolean);
+  const day = new Date(b.at).toISOString().slice(0, 10);
+  const files: { name: string; url: string; bytes?: number }[] = [];
+  for (const [i, id] of ids.entries()) {
+    const meta = await ctx.blobs?.stat(id);
+    if (!meta) fail(ctx, "validation.not_found", "The file of that backup is gone from this server.");
+    files.push({
+      name: ids.length === 1 ? `${day}.sql.gz` : `${day}.sql.gz.part${i + 1}`,
+      url: `/spaces/${ctx.space}/blobs/${id}`,
+      bytes: meta.size,
+    });
+  }
+  return { files, ...(ids.length > 1 ? { note: "Join the parts in order: cat *.part* > backup.sql.gz" } : {}) };
+}
+
+/** A daily backup that could not even start (its owner can no longer act): a failed row says why, shows on the page, and holds the next try off for an hour. */
+export function recordSkippedBackup(ctx: Pick<Ctx, "db">, siteId: string, now: number, why: string): void {
+  st.insertBackup(ctx.db, {
+    id: `bkp_${now.toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    siteId,
+    kind: "postgres",
+    state: "failed",
+    by: "schedule",
+    at: now,
+    endedAt: now,
+    note: `The daily backup could not run: ${why.slice(0, 120)}.`,
+  });
+}
+
+/** Sites whose database has had no backup for a day: the host runs sites.backup_create for each as the site's owner. */
+export function dueBackupSites(ctx: Pick<Ctx, "db">, now: number): { siteId: string; as: string }[] {
+  const out: { siteId: string; as: string }[] = [];
+  const sites = ctx.db.all(
+    "SELECT s.id AS id, s.owner AS owner FROM sites_site s JOIN sites_addon a ON a.site_id = s.id WHERE s.deleted_at IS NULL AND a.kind = 'postgres' AND a.state = 'ready' AND a.container_id IS NOT NULL",
+  ) as Record<string, unknown>[];
+  for (const r of sites) {
+    const id = str(r.id);
+    if (dueNow(st.listBackups(ctx.db, id), now)) out.push({ siteId: id, as: str(r.owner) });
+  }
+  return out;
+}
+
+export const backupHandlers = {
+  "sites.backup_download": (ctx: Ctx, input: unknown) => backupDownload(ctx, input),
+  "sites.backups_list": (ctx: Ctx, input: unknown) => backupsList(ctx, input),
+  "sites.backup_create": (ctx: Ctx, input: unknown) => backupCreate(ctx, input),
+  "sites.backup_delete": (ctx: Ctx, input: unknown) => backupDelete(ctx, input),
+  "sites.backup_pin": (ctx: Ctx, input: unknown) => backupPin(ctx, input),
+  "sites.backup_restore": (ctx: Ctx, input: unknown) => backupRestore(ctx, input),
+};

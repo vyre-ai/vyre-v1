@@ -14,6 +14,7 @@ import { MemoryKeys } from "./MemoryKeys.tsx";
 import { useSaved } from "./saved.tsx";
 import { SettingsRow, SmallButton, pointer, s as ui } from "./ui.tsx";
 import type { KeyEventLike } from "./ui.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 export type Place = "public" | "private";
 export interface ProfileFact {
@@ -290,19 +291,15 @@ export function AboutYou(): ReactElement {
         />
         {erasing === f.factId ? (
           <View style={st.confirm} testID={`about-erase-confirm-${f.factId}`} accessibilityRole="alert">
-            <Text style={st.confirmText}>
-              Erase this completely? It is removed from history with every earlier version and every place an agent used
-              it. This can't be undone.
-            </Text>
-            <View style={st.pair}>
-              <SmallButton
-                label="Erase completely"
-                danger
-                testID={`about-erase-${f.factId}`}
-                onPress={() => eraseNow(f)}
-              />
-              <SmallButton label="Cancel" testID={`about-erase-cancel-${f.factId}`} onPress={() => setErasing(null)} />
-            </View>
+            <InlineConfirm
+              question="Erase this completely?"
+              note="It is removed from history with every earlier version and every place an agent used it. This can't be undone."
+              confirmLabel="Erase completely"
+              confirmTestID={`about-erase-${f.factId}`}
+              cancelTestID={`about-erase-cancel-${f.factId}`}
+              onConfirm={() => eraseNow(f)}
+              onCancel={() => setErasing(null)}
+            />
           </View>
         ) : null}
       </View>

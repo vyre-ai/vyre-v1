@@ -2,12 +2,15 @@ import { activationUrl, isPackagedOrigin, storedPlace } from "./space-catalog.ts
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { holdOpen } from "../reach/open-link.ts";
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { forgetKey, keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { KeyGate } from "./KeyGate.tsx";
+import { AfterLoad } from "../../startup/after-load.tsx";
+import { loadShellHost, loadedShellHost } from "../../startup/shell-load.ts";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
@@ -85,18 +88,26 @@ import { HaveAccount } from "../../join/HaveAccount.tsx";
 import { knownIdentity } from "../../join/identity.ts";
 import type { Carried, KnownIdentity } from "../../join/identity.ts";
 import { carried, checkKnownCode, haveAccountDeps, knownProof, rememberAccount } from "../../join/carry-wiring.ts";
+import { retryPendingRevokes } from "./revoke-token.ts";
 import type { SignInOptions, StoredSession } from "./stored.ts";
 import { SSO_FAILED_LINE, SSO_SECOND_FACTOR_LINE, ssoStartUrl, takeSsoReturn } from "./sso.ts";
 import { GITHUB_FAILED_LINE, GITHUB_SECOND_FACTOR_LINE, githubStartUrl, takeGithubReturn } from "./github.ts";
 
-const RecoveryAccount = lazy(() =>
+const RecoveryAccount = lazyPart(() =>
   import("../../join/RecoveryAccount.tsx").then((m) => ({ default: m.RecoveryAccount })),
 );
-const ResetAccount = lazy(() => import("../../join/ResetAccount.tsx").then((m) => ({ default: m.ResetAccount })));
-const LocalClaim = lazy(() => import("../../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
-const JoinProviderSetup = lazy(() => import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })));
-const SignedInShell = lazy(() => import("./ShellHost.tsx").then((m) => ({ default: m.ShellHost })));
-const AllowScreen = lazy(() => import("../../oauth/AllowScreen.tsx").then((m) => ({ default: m.AllowScreen })));
+const ResetAccount = lazyPart(() => import("../../join/ResetAccount.tsx").then((m) => ({ default: m.ResetAccount })));
+const LocalClaim = lazyPart(() => import("../../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
+const JoinProviderSetup = lazyPart(() =>
+  import("./JoinProviderSetup.tsx").then((m) => ({ default: m.JoinProviderSetup })),
+);
+const shellReady = (): boolean => loadedShellHost() !== null;
+/** The shell, drawn directly once its module is loaded (startup/shell-load.ts: the page's warm-up may have fetched it already); until then it suspends and loads it. One element type either way, so a failed preload that is retried never remounts the signed-in shell, and a failed load is asked for again. */
+const SignedInShell = lazyPart(
+  () => loadShellHost().then((m) => ({ default: m.ShellHost })),
+  () => loadedShellHost()?.ShellHost,
+);
+const AllowScreen = lazyPart(() => import("../../oauth/AllowScreen.tsx").then((m) => ({ default: m.AllowScreen })));
 
 export interface SessionGateProps {
   baseUrl?: string | null;
@@ -1010,6 +1021,10 @@ const signInDevice = (): { deviceName: string; deviceClass: "desktop" | "web" } 
 export function SessionGate(props: SessionGateProps): ReactElement {
   // What the first-launch screen reads about this window (the desktop app, the Mac, the width) is known only in the browser: the static page is drawn without it, so the first client
   // render must be drawn without it too (a different door count or title is a hydration mismatch, React #418); it is read right after mount and follows the window size.
+  // a Sign Out whose revoke did not get its answer (the page was left, the Space was out of reach) is sent again at the start
+  useEffect(() => {
+    void retryPendingRevokes();
+  }, []);
   const [windowKnown, setWindowKnown] = useState(false);
   const [windowWidth, setWindowWidth] = useState(1280);
   useEffect(() => {
@@ -1572,20 +1587,22 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         onForgot={() => setForgot(true)}
       >
         <Suspense fallback={<View style={styles.fill} />}>
-          <SignedInShell
-            key={phase.stored.baseUrl + phase.stored.personId}
-            stored={phase.stored}
-            open={open}
-            onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
-            onHub={onHub}
-            voice={props.voice}
-            onSwitchSpace={(id) => void switchSpace(id)}
-            onAddSpace={() => {
-              setReturnSession(phase.stored);
-              setEntryStart("choice");
-              setEntry(true);
-            }}
-          />
+          <AfterLoad load={loadShellHost} ready={shellReady} fallback={<View style={styles.fill} />}>
+            <SignedInShell
+              key={phase.stored.baseUrl + phase.stored.personId}
+              stored={phase.stored}
+              open={open}
+              onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
+              onHub={onHub}
+              voice={props.voice}
+              onSwitchSpace={(id) => void switchSpace(id)}
+              onAddSpace={() => {
+                setReturnSession(phase.stored);
+                setEntryStart("choice");
+                setEntry(true);
+              }}
+            />
+          </AfterLoad>
         </Suspense>
       </KeyGate>
     );

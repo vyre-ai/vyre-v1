@@ -1,4 +1,4 @@
-// connection_change and signin_change always stop for a person with the right role, in every mode, even from a task or an automation. A person pressing it themselves is let through by the capability's own `when`, before the rule is read.
+// connection_change, signin_change and deploy (running code with a site's production keys) always stop for a person with the right role, in every mode, even from a task or an automation. A person pressing it themselves is let through by the capability's own `when`, before the rule is read.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
@@ -7,7 +7,7 @@ import { effectiveRule, ACTS } from "../impl.ts";
 import { findHold, putRule } from "../projections.ts";
 
 const owner = { id: "usr_owner", kind: "person" as const };
-const ACT_KEYS = ["connection_change", "github_approval", "signin_change", "agent_erase"] as const;
+const ACT_KEYS = ["connection_change", "github_approval", "signin_change", "agent_erase", "access", "deploy"] as const;
 
 for (const act of ACT_KEYS) {
   test(`${act} holds for an agent, a service and a Run that runs as a person, with a person of the right role to decide`, () => {
@@ -19,8 +19,10 @@ for (const act of ACT_KEYS) {
       assert.equal(e.peopleOnly, true);
       assert.equal(
         e.approvers,
-        act === "github_approval" || act === "agent_erase" ? "asker" : "role:admin",
-        "GitHub is the asker's own: the person the session acts for decides, not an admin",
+        act === "github_approval" || act === "agent_erase" || act === "access" || act === "deploy"
+          ? "asker"
+          : "role:admin",
+        "GitHub, an agent's delete and a change of the rules of access are the asker's own: the person the agent acts for decides (a member's plan needs no admin), not an admin",
       );
     }
   });

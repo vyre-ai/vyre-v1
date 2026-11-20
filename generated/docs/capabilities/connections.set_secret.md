@@ -50,6 +50,7 @@ type Out = {
     createdAt: number;
     handles: Array<string>;
     filled: Array<string>;
+    pendingHosts?: Array<string>;
   };
 };
 ```
@@ -90,6 +91,9 @@ type Out = {
         "kind": "person"
       },
       "pausedBy": "example",
+      "pendingHosts": [
+        "example"
+      ],
       "scopes": [
         "example"
       ],

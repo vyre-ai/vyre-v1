@@ -79,7 +79,7 @@ export function listKey(e: ListKey, at: At | null, mac: boolean): ListAction | n
 }
 
 /** The entries the arrow keys land on, in order: every row, head, "N more" and the Tasks row; never a skeleton, an error or the empty line. */
-export const LANDS_ON: readonly LayoutEntry["type"][] = ["tasks", "row", "head", "more", "less", "hint"];
+export const LANDS_ON: readonly LayoutEntry["type"][] = ["tasks", "row", "head", "more", "less"];
 
 /** The key after a move: Up and Down by one, Home and End to the ends, staying put at an end. `from` is the key under the cursor, or null when the cursor is not on the list yet. */
 export function moveKey(

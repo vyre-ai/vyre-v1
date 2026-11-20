@@ -32,6 +32,8 @@ export interface Member {
   startedAt: number;
   endedAt?: number;
   elapsedMs: number;
+  /** the node of the Run tree that stands for this member, when it has one yet */
+  runId?: string;
   model?: string;
   provider?: string;
   accountLabel?: string;
@@ -192,6 +194,41 @@ export async function crewStatus(ctx: EngineCtx, input: { threadId: string }) {
     if (m.kind === "subagent") continue;
     const t = testsOf(ctx.db, m.id);
     if (t) m.tests = t;
+  }
+  // the node behind each member, for the tile to read its step, need, stuck and dependencies; a member with no node yet (or none this person may read) has none
+  try {
+    const found = (await ctx.call("runs.node.find", {
+      threadIds: members
+        .filter((m) => m.kind !== "subagent")
+        .map((m) => m.id)
+        .slice(0, 50),
+      keys: members
+        .filter((m) => m.kind === "subagent")
+        .map((m) => `sub:${m.parentThreadId}:${m.id}`)
+        .slice(0, 50),
+    })) as { byThread?: Record<string, string>; byKey?: Record<string, string> };
+    for (const m of members) {
+      const id = m.kind === "subagent" ? found.byKey?.[`sub:${m.parentThreadId}:${m.id}`] : found.byThread?.[m.id];
+      if (id) m.runId = id;
+    }
+    // a member whose own chat never started (a helper that was to start after another that failed) still reads "working" there: its node knows better. A failed or stopped node ends it, and the totals follow.
+    for (const m of members) {
+      if (!m.runId || (m.state !== "working" && m.state !== "needs_you")) continue;
+      const n = (await ctx.call("runs.node.get", { runId: m.runId }).catch(() => undefined)) as
+        | { node?: { status?: string; endedAt?: number } }
+        | undefined;
+      const st = n?.node?.status;
+      if (st !== "failed" && st !== "stopped") continue;
+      m.state = st;
+      const ended = n?.node?.endedAt;
+      if (ended !== undefined) {
+        m.endedAt = ended;
+        m.elapsedMs = Math.max(0, ended - m.startedAt);
+      }
+      delete m.step;
+    }
+  } catch {
+    /* no run tree to ask, or nothing there: the members stand as they were */
   }
   const by = (s: MemberState): number => members.filter((m) => m.state === s).length;
   const totals = {

@@ -3,8 +3,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { isRunning, markRunning } from "../handlers/cadence.ts";
 import { world } from "../fixtures/crm-world.ts";
 import type { RunReport, SyncEngine } from "../handlers/sync.ts";
+import { SYNC_PASS_TOKEN } from "../projections.ts";
 import type { ConnectorsCtx } from "../projections.ts";
 import { ledgerSpec } from "../fixtures/crm.ts";
 
@@ -84,7 +86,8 @@ test("polling is one chain: a pass plans one poll, a poll plans the next, a paus
     ["org", "person"],
   );
   // a second pass before the poll is due plans nothing more
-  await w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_2" });
+  const again = await w.k.hs["connectors.sync_now"](w.ctx, { type: "person", idempotencyKey: "second-pass" } as never);
+  await w.k.hs["connectors.sync_run"](w.ctx, { runId: again.runId });
   assert.equal(polls().length, 2);
   // the poll runs a pass and plans the next one at the idle interval
   const before = w.passes.length;
@@ -158,6 +161,7 @@ test("a pass for a person's connection that someone else runs says the connectio
   w.state.noConn = 99;
   w.k.tx.run("UPDATE cn_connections SET owner_kind = 'person', owner_id = 'usr_other'");
   const other = { ...w.ctx, actor: "usr_me" } as ConnectorsCtx;
+  w.k.tx.run("DELETE FROM cn_sync_running"); // the first pulls the apply asked for are over: no other pass is on its way on this connection
   const poll = await w.k.hs["connectors.sync_poll"](other, { type: "person" });
   assert.equal(poll.ran, false);
   const log = (await w.k.hs["sync_types.log"]({ ...w.ctx, actor: "usr_other" } as ConnectorsCtx, { type: "person" }))
@@ -212,6 +216,43 @@ test("a run queued as the server is handed over the same way; one nobody can run
     error: { code: "provider.unavailable", message: sorry },
   });
   assert.equal(w.passes.length, before);
+  assert.equal(
+    w.k.tx.all("SELECT * FROM cn_sync_running").length,
+    0,
+    "a pass that ended here leaves no running mark: the connection's polls are not held for 30 minutes",
+  );
+});
+
+test("a pass that cannot be scheduled leaves no running mark, and a mark from a stopped process is gone at the first use after the start", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await assert.rejects(
+    w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "nomark-1" } as never),
+    (e: any) => e.error?.code === "provider.unavailable" && /could not be queued/.test(e.error?.message),
+  );
+  assert.equal(w.k.tx.all("SELECT * FROM cn_sync_running").length, 0, "nothing will run the pass: no mark");
+  const ended = finishes(w.calls).at(-1);
+  assert.equal(ended.status, "failed", "the Run does not stay started for ever");
+  assert.match(ended.error.message, /could not be queued/);
+  // a process that stopped mid-pass leaves its mark in the database; the next process does not wait for it
+  const later = world();
+  later.k.tx.exec(
+    "CREATE TABLE IF NOT EXISTS cn_sync_running (connection_id TEXT PRIMARY KEY, started_at INTEGER NOT NULL)",
+  );
+  later.k.tx.run("INSERT INTO cn_sync_running VALUES ('con_dead', ?)", later.k.clock.t);
+  assert.equal(
+    isRunning(later.k.tx, "con_dead", later.k.clock.t),
+    false,
+    "a mark from before this start is not waited for",
+  );
+  markRunning(later.k.tx, "con_live", later.k.clock.t);
+  assert.equal(isRunning(later.k.tx, "con_live", later.k.clock.t), true, "a mark made in this process still counts");
 });
 
 test("a poll the server cannot hand to anyone ends its chain and says why, instead of failing every few minutes", async () => {
@@ -231,4 +272,111 @@ test("a poll the server cannot hand to anyone ends its chain and says why, inste
   );
   const log = (await w.k.hs["sync_types.log"](w.ctx, { type: "person" })).entries;
   assert.match(log[0]!.summary, /^Syncing is paused/);
+});
+
+test("a poll that finds another pass on its way on the same connection waits its turn and looks again in a few seconds", async () => {
+  const w = await setup();
+  const before = w.passes.length;
+  const poll = await w.k.hs["connectors.sync_poll"](w.ctx, { type: "person" });
+  assert.equal(poll.ran, false);
+  assert.equal(w.passes.length, before, "no second pass on the connection");
+  const next = w.k.tx.get<{ at: number }>(
+    "SELECT at FROM cn_sync_poll WHERE sync_type_id = (SELECT sync_type_id FROM cn_synced_types WHERE type = 'person')",
+  )!;
+  assert.ok(next.at > w.k.clock.t && next.at - w.k.clock.t < 30_000, "the poll was planned again soon");
+});
+
+test("a sync that cannot be queued does not clear the mark of a pass that is live on the same connection", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const conn = w.k.tx.get<{ connection_id: string }>(
+    "SELECT connection_id FROM cn_synced_types WHERE type = 'person'",
+  )!.connection_id;
+  markRunning(w.k.tx, conn, w.k.clock.t); // a pass that is running
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await assert.rejects(
+    w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "live-1" } as never),
+    (e: any) => e.error?.code === "provider.unavailable",
+  );
+  assert.equal(isRunning(w.k.tx, conn, w.k.clock.t), true, "the live pass keeps its mark");
+});
+
+test("the pass token is made from random bytes, long and not guessable from the time", () => {
+  assert.match(SYNC_PASS_TOKEN, /^sp_[0-9a-f]{48}$/);
+});
+
+test("the same ask again after its pass could not be queued starts a new Run, not the failed one", async () => {
+  const w = await setup();
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  const ask = { type: "person", idempotencyKey: "retry-key" } as never;
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, ask));
+  const failed = finishes(w.calls).at(-1);
+  assert.equal(failed.status, "failed");
+  const again = await w.k.hs["connectors.sync_now"](w.ctx, ask);
+  assert.notEqual(again.runId, failed.runId, "a Run that has failed is finished: the retry is a new Run");
+  const ran = await w.k.hs["connectors.sync_run"](w.ctx, { runId: again.runId });
+  assert.equal(ran.ok, true, "and it runs");
+  // asking again with the same key now is the same ask: the Run is the one just made
+  const same = await w.k.hs["connectors.sync_now"](w.ctx, ask);
+  assert.equal(same.runId, again.runId);
+});
+
+test("a Run that has finished is not run again: a second delivery of its job is refused, and a failed queue leaves no request behind", async () => {
+  const w = await setup();
+  const first = await w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_2" });
+  assert.equal(first.ok, true);
+  const before = w.passes.length;
+  await assert.rejects(
+    w.k.hs["connectors.sync_run"](w.ctx, { runId: "run_2" }),
+    (e: any) => e.error?.code === "validation.not_found" && /already finished/.test(e.error?.message),
+  );
+  assert.equal(w.passes.length, before, "no second pass");
+  // the queue refuses: the Run ends failed, and a job queued just before has no request to run
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "late-1" } as never));
+  const failedRun = finishes(w.calls).at(-1).runId;
+  await assert.rejects(
+    w.k.hs["connectors.sync_run"](w.ctx, { runId: failedRun }),
+    (e: any) => e.error?.code === "validation.not_found",
+  );
+  assert.equal(w.passes.length, before, "the late job ran nothing");
+});
+
+test("the keys kept for a failed queue are dropped when a day old, and an ask without a key writes none", async () => {
+  const w = await setup();
+  const failing: ConnectorsCtx = {
+    ...w.ctx,
+    schedule: async () => {
+      throw new Error("the queue is not there");
+    },
+  };
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "old-key" } as never));
+  assert.equal(w.k.tx.all("SELECT * FROM cn_sync_failed_keys WHERE key = 'old-key'").length, 1);
+  w.k.clock.t += 25 * 60 * 60_000;
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, { type: "person", idempotencyKey: "new-key" } as never));
+  const keys = w.k.tx.all<{ key: string }>("SELECT key FROM cn_sync_failed_keys").map((r) => r.key);
+  assert.deepEqual(keys, ["new-key"], "the day-old one is gone");
+  w.k.tx.run("DELETE FROM cn_sync_running");
+  await assert.rejects(w.k.hs["connectors.sync_now"](failing, { type: "person" } as never));
+  assert.ok(
+    !w.k.tx.all<{ key: string }>("SELECT key FROM cn_sync_failed_keys").some((r) => r.key === ""),
+    "no empty key",
+  );
 });

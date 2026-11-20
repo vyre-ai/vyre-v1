@@ -1,4 +1,6 @@
-// mail.domain.* (spec 2.18 Sending: Space sending goes through Resend or Mailgun on the Space's own domain, DNS checks shown green or red).
+// mail.domain.* (spec 2.18 Sending: Space sending goes through Resend, Mailgun or SMTP on the Space's own domain, DNS checks shown green or red).
+// An SMTP domain has no provider to register it at: Vyre makes the domain's DKIM key itself (the private half goes to the Vault, the public half is the record to publish),
+// asks for an SPF record that names the mail server and a DMARC record, and the domain is verified when SPF and DKIM are found and the mail server itself last tested well.
 // add registers the domain at the provider (resend.domains.create / mailgun.domains.create) and keeps the DNS records it must publish.
 // check looks the records up (SPF, DKIM, DMARC), then asks the provider to verify. A domain is verified when the provider says so and SPF and
 // DKIM both pass; DMARC is shown but does not block, since a policy is the owner's choice. Only a verified domain can be the default sender.
@@ -8,10 +10,19 @@ import { bad, first, isId, missing, newId, num, rowsOf, str } from "../../projec
 import type { MailCtx, Row } from "../../projections.ts";
 import { duplicate, ensureAll, idemRef, pageOf, parsePage, preconditionFailed, rememberIdem } from "./common.ts";
 import type { PageIn } from "./common.ts";
-import { checkDmarc, checkRecord, dnsFor } from "./dns.ts";
+import { ensureSpaceFolder } from "../../../../lib/space-folder.ts";
+import { ensureSmtp } from "../smtp.ts";
+import { clearStrikes } from "../watch.ts";
+import { checkDmarc, checkRecord, checkSpfPublished, dnsFor } from "./dns.ts";
 import type { DnsState, PublishedRecord } from "./dns.ts";
 
-type Provider = "resend" | "mailgun";
+type Provider = "resend" | "mailgun" | "smtp";
+const providerOf = (row: Row): Provider => {
+  const p = str(row, "provider");
+  return p === "mailgun" || p === "smtp" ? p : "resend";
+};
+/** The DKIM selector of a domain Vyre signs for. */
+export const DKIM_SELECTOR = "vyre";
 const HOST = /^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const PURPOSES = new Set(["spf", "dkim", "dmarc", "mx", "verify"]);
 const TYPES = new Set(["TXT", "CNAME", "MX"]);
@@ -33,6 +44,8 @@ interface Stored {
   ref: string;
   providerVerified: boolean;
   records: PublishedRecord[];
+  /** an SMTP domain: the Vault handle of the DKIM private key Vyre signs with */
+  dkimHandle?: string;
 }
 
 const state = (v: unknown): DnsState => (v === "pass" || v === "fail" ? v : "pending");
@@ -49,11 +62,17 @@ function liveDomain(ctx: MailCtx, id: string): Row {
 
 function readStored(row: Row): Stored {
   try {
-    const o = JSON.parse(str(row, "records")) as { ref?: unknown; providerVerified?: unknown; records?: unknown };
+    const o = JSON.parse(str(row, "records")) as {
+      ref?: unknown;
+      providerVerified?: unknown;
+      records?: unknown;
+      dkimHandle?: unknown;
+    };
     return {
       ref: typeof o.ref === "string" ? o.ref : "",
       providerVerified: o.providerVerified === true,
       records: cleanRecords(o.records),
+      ...(typeof o.dkimHandle === "string" && o.dkimHandle ? { dkimHandle: o.dkimHandle } : {}),
     };
   } catch {
     return { ref: "", providerVerified: false, records: [] };
@@ -84,7 +103,7 @@ function domainOut(row: Row): DomainOut {
   const out: DomainOut = {
     id: str(row, "id"),
     name: str(row, "name"),
-    provider: str(row, "provider") === "mailgun" ? "mailgun" : "resend",
+    provider: providerOf(row),
     spf: state(str(row, "spf")),
     dkim: state(str(row, "dkim")),
     dmarc: state(str(row, "dmarc")),
@@ -162,6 +181,91 @@ function parseCreated(
   };
 }
 
+/** Where mail.send finds the DKIM key of an SMTP domain: the selector and the Vault handle, or null for a domain a provider signs. */
+export function dkimOf(row: Row): { selector: string; handle: string } | null {
+  const stored = readStored(row);
+  return providerOf(row) === "smtp" && stored.dkimHandle
+    ? { selector: DKIM_SELECTOR, handle: stored.dkimHandle }
+    : null;
+}
+
+const b64 = (buf: ArrayBuffer): string => Buffer.from(buf).toString("base64");
+/** A 2048-bit RSA pair for DKIM (WebCrypto, as the signing seal makes its keys): the private half as PKCS 8 PEM, the public half as the base64 the DNS record carries. */
+async function dkimPair(): Promise<{ privatePem: string; publicB64: string }> {
+  const subtle = globalThis.crypto.subtle;
+  const keys = (await subtle.generateKey(
+    { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" },
+    true,
+    ["sign", "verify"],
+  )) as CryptoKeyPair;
+  const body = b64(await subtle.exportKey("pkcs8", keys.privateKey))
+    .replace(/(.{64})/g, "$1\n")
+    .trim();
+  const dashes = "-".repeat(5);
+  return {
+    privatePem: `${dashes}BEGIN PRIVATE KEY${dashes}\n${body}\n${dashes}END PRIVATE KEY${dashes}\n`,
+    publicB64: b64(await subtle.exportKey("spki", keys.publicKey)),
+  };
+}
+
+/** The mail server the Space saved (mail.smtp.set), or null. */
+function smtpServer(ctx: MailCtx): Row | null {
+  ensureSmtp(ctx);
+  return first(ctx.db.all(`SELECT * FROM mail_smtp WHERE id = ?`, "space"));
+}
+
+/**
+ * An SMTP domain's own records. The DKIM key pair is made here: the private half goes straight into the Vault (the Space's Connections folder) and only its handle is kept;
+ * the public half is the TXT record. SPF names the mail server, so mail from it passes whatever else the domain already allows.
+ */
+async function smtpRecords(
+  ctx: MailCtx,
+  name: string,
+  key: string,
+): Promise<{ records: PublishedRecord[]; dkimHandle: string }> {
+  const server = smtpServer(ctx);
+  if (!server) preconditionFailed(ctx, "Add the mail server first, then the domain it sends for.");
+  const pair = await dkimPair();
+  const folder = await ensureSpaceFolder((cap, input) => ctx.call(cap, input), {
+    name: "Connections",
+    idem: `connections-folder:shared:${ctx.space}`,
+  });
+  const made = obj(
+    obj(
+      await ctx.call("vault.item.put", {
+        folderId: folder,
+        name: `Smtp Dkim ${name.replace(/[^a-z0-9]+/g, " ").trim()}`,
+        kind: "other",
+        fields: [{ key: "key", value: pair.privatePem, secret: true }],
+        idempotencyKey: `${key}:dkim`,
+      }),
+    ).item,
+  );
+  const handle = typeof made.handle === "string" ? made.handle : "";
+  if (!handle)
+    throw fail("provider.bad_response", ctx.trace.traceId, { message: "The Vault did not keep the signing key." });
+  return {
+    dkimHandle: handle,
+    records: [
+      { purpose: "spf", type: "TXT", name, value: `v=spf1 a:${str(server, "host")} ~all`, state: "pending" },
+      {
+        purpose: "dkim",
+        type: "TXT",
+        name: `${DKIM_SELECTOR}._domainkey.${name}`,
+        value: `v=DKIM1; k=rsa; p=${pair.publicB64}`,
+        state: "pending",
+      },
+      {
+        purpose: "dmarc",
+        type: "TXT",
+        name: `_dmarc.${name}`,
+        value: `v=DMARC1; p=none; rua=mailto:dmarc@${name}`,
+        state: "pending",
+      },
+    ],
+  };
+}
+
 export async function domainAdd(ctx: MailCtx, input: { name: string; provider: Provider; idempotencyKey: string }) {
   ensureAll(ctx);
   const prior = idemRef(ctx, input.idempotencyKey, "domadd");
@@ -171,19 +275,26 @@ export async function domainAdd(ctx: MailCtx, input: { name: string; provider: P
   }
   const name = typeof input.name === "string" ? input.name.trim().toLowerCase().replace(/\.$/, "") : "";
   if (!HOST.test(name)) bad(ctx, "That is not a domain name. Use something like mail.example.com.");
-  if (input.provider !== "resend" && input.provider !== "mailgun") bad(ctx, "Provider must be resend or mailgun.");
+  if (input.provider !== "resend" && input.provider !== "mailgun" && input.provider !== "smtp")
+    bad(ctx, "Provider must be resend, mailgun or smtp.");
   if (first(ctx.db.all(`SELECT id FROM mail_domain WHERE name = ? AND deleted_at IS NULL`, name)))
     duplicate(ctx, "That domain is already added.");
 
-  const made = parseCreated(
-    input.provider,
-    await ctx.call(`${input.provider}.domains.create`, { name, idempotencyKey: `${input.idempotencyKey}:create` }),
-  );
-  if (!made.ref)
-    throw fail("provider.bad_response", ctx.trace.traceId, { message: "The provider did not return the domain." });
+  let stored: Stored;
+  if (input.provider === "smtp") {
+    const own = await smtpRecords(ctx, name, input.idempotencyKey);
+    stored = { ref: name, providerVerified: false, records: own.records, dkimHandle: own.dkimHandle };
+  } else {
+    const made = parseCreated(
+      input.provider,
+      await ctx.call(`${input.provider}.domains.create`, { name, idempotencyKey: `${input.idempotencyKey}:create` }),
+    );
+    if (!made.ref)
+      throw fail("provider.bad_response", ctx.trace.traceId, { message: "The provider did not return the domain." });
+    stored = { ref: made.ref, providerVerified: false, records: made.records };
+  }
   const id = newId("dom", ctx.now());
   const now = ctx.now();
-  const stored: Stored = { ref: made.ref, providerVerified: false, records: made.records };
   ctx.db.run(
     `INSERT INTO mail_domain (id, name, provider, spf, dkim, dmarc, verified, "isDefault", records, "checkedAt", version, updated_at, deleted_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -219,13 +330,21 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
   ensureAll(ctx);
   const row = liveDomain(ctx, domId(ctx, input.domainId));
   const name = str(row, "name");
-  const provider: Provider = str(row, "provider") === "mailgun" ? "mailgun" : "resend";
+  const provider = providerOf(row);
   const stored = readStored(row);
   const dns = dnsFor(ctx);
 
   const [records, dmarc] = await Promise.all([
     Promise.all(
-      stored.records.map(async (r): Promise<PublishedRecord> => ({ ...r, state: await checkRecord(name, r, dns) })),
+      stored.records.map(
+        async (r): Promise<PublishedRecord> => ({
+          ...r,
+          state:
+            provider === "smtp" && r.purpose === "spf"
+              ? await checkSpfPublished(name, dns, r.state)
+              : await checkRecord(name, r, dns),
+        }),
+      ),
     ),
     checkDmarc(name, dns, state(str(row, "dmarc"))),
   ]);
@@ -234,20 +353,25 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
 
   // Ask the provider to look too. It may not have caught up with DNS yet; a failed ask keeps what it said last time.
   let providerVerified = stored.providerVerified;
-  try {
-    const answer = obj(
-      await ctx.call(
-        `${provider}.domains.verify`,
-        provider === "resend"
-          ? { providerDomainId: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` }
-          : { name: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` },
-      ),
-    );
-    const d = obj(answer.domain);
-    providerVerified = provider === "resend" ? d.status === "verified" : d.state === "active";
-  } catch (e) {
-    ctx.log.warn("mail.domain.check provider verify failed", { domainId: str(row, "id"), code: codeOf(e) });
-  }
+  if (provider === "smtp") {
+    // no provider to ask: the mail server itself must have tested well (mail.smtp.verify)
+    const server = smtpServer(ctx);
+    providerVerified = !!server && str(server, "state") === "ok";
+  } else
+    try {
+      const answer = obj(
+        await ctx.call(
+          `${provider}.domains.verify`,
+          provider === "resend"
+            ? { providerDomainId: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` }
+            : { name: stored.ref, idempotencyKey: `mail.domain.check:${str(row, "id")}:${ctx.now()}` },
+        ),
+      );
+      const d = obj(answer.domain);
+      providerVerified = provider === "resend" ? d.status === "verified" : d.state === "active";
+    } catch (e) {
+      ctx.log.warn("mail.domain.check provider verify failed", { domainId: str(row, "id"), code: codeOf(e) });
+    }
   const verified = providerVerified && spf === "pass" && dkim === "pass";
   const now = ctx.now();
   save(ctx, row, {
@@ -256,10 +380,26 @@ export async function domainCheck(ctx: MailCtx, input: { domainId: string }) {
     dmarc,
     verified: verified ? 1 : 0,
     checkedAt: now,
-    records: JSON.stringify({ ref: stored.ref, providerVerified, records } satisfies Stored),
+    records: JSON.stringify({
+      ref: stored.ref,
+      providerVerified,
+      records,
+      ...(stored.dkimHandle ? { dkimHandle: stored.dkimHandle } : {}),
+    } satisfies Stored),
     // A domain that stops verifying cannot stay the default sender.
     ...(verified ? {} : { isDefault: 0 }),
   });
+  // A pass, by whoever pressed it (a person, the daily check, an agent), ends the failures counted against the domain, so a domain that is verified again never carries a hidden count. If it had been stopped and was the default
+  // sender, it is the default again unless somebody else took the place.
+  if (verified) {
+    const back = clearStrikes(ctx, str(row, "id"));
+    if (
+      back.wasStopped &&
+      back.wasDefault &&
+      !first(ctx.db.all(`SELECT id FROM mail_domain WHERE "isDefault" = ? AND deleted_at IS NULL`, 1))
+    )
+      ctx.db.run(`UPDATE mail_domain SET "isDefault" = ?, updated_at = ? WHERE id = ?`, 1, ctx.now(), str(row, "id"));
+  }
   ctx.emit("sending_domain.checked", `domain/${str(row, "id")}`, { domainId: str(row, "id"), spf, dkim, dmarc });
   return withRecords(liveDomain(ctx, str(row, "id")));
 }
@@ -285,7 +425,7 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
   const existing = first(ctx.db.all(`SELECT * FROM mail_domain WHERE id = ?`, id));
   if (!existing) missing(ctx, "Sending domain does not exist.");
   if (existing.deleted_at !== null && existing.deleted_at !== undefined) return { removed: true }; // a retry after success
-  const provider: Provider = str(existing, "provider") === "mailgun" ? "mailgun" : "resend";
+  const provider = providerOf(existing);
   const stored = readStored(existing);
 
   // The provider goes first, so a refusal there leaves our rows exactly as they were. Inbound routes of the domain, each at its provider,
@@ -302,7 +442,7 @@ export async function domainRemove(ctx: MailCtx, input: { domainId: string }): P
         }),
       );
   }
-  if (stored.ref) {
+  if (stored.ref && provider !== "smtp") {
     await forgive(() =>
       ctx.call(
         `${provider}.domains.delete`,

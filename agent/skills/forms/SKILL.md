@@ -20,8 +20,8 @@ A Vyre form writes straight into Records, so it is the first choice for collecti
 
 ## Where answers go
 - Each answer is a record of that type, with the source "link holder". `forms_submissions` lists them. `forms_survey_results` sums a survey. `forms_attribution_get` says where a person came from.
-- To act on an answer, make an automation with the form_submit trigger. Find step kinds with `automations_steps_list`.
-- A link for one person that asks only what is missing: `forms_link_create`. `forms_link_revoke` ends it.
+- To act on an answer, make an automation with the form_submit trigger. The run reads the answers as `{{trigger.record.<field>}}` and the record id as `{{trigger.recordId}}`. Find step kinds with `automations_steps_list`.
+- A link for one person that asks only what is missing: `forms_link_create`. `forms_link_revoke` ends it. Inside an automation the same is the "Make a form link" step (`forms.link_create`); a later email step reads its address as `{{steps.<id>.out.url}}`.
 - Bookings: `bookings_page_create`, then `bookings_list`.
 
 ## Addresses

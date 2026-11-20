@@ -28,7 +28,7 @@ import {
 } from "../projections.ts";
 import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
-import { SEALABLE_FROM, openJob, putInVault, writeRefs } from "./seal.ts";
+import { SEALABLE_FROM, openJob, putInVault, writeRefsMany } from "./seal.ts";
 import type { Move } from "./seal.ts";
 import type { GapRule, LayoutSection, ViewRow } from "./describe.ts";
 
@@ -84,6 +84,10 @@ export interface ApplyHandlers {
     input: { ops: SchemaOp[]; previewToken?: string; confirm?: string[]; reason?: string },
   ): Promise<{ changeId: string; applied: number; items: DiffItem[] }>;
   "schema.set_label"(ctx: SchemaCtx, input: { type: string; field?: string; label: Label }): Promise<{ ok: boolean }>;
+  "schema.set_mergeable"(
+    ctx: SchemaCtx,
+    input: { type: string; field: string; mergeable: boolean },
+  ): Promise<{ ok: boolean }>;
   "schema.infer"(
     ctx: SchemaCtx,
     input: { text?: string; fileId?: string; name?: string; sheet?: string },
@@ -341,6 +345,29 @@ export function heldRows(deps: SchemaDeps, type: string): number {
 }
 
 /** Fields a manifest declared on a system type: they stay (title and label may change). */
+/** The "Can go in emails" switch is the one change a system field's options accept: everything but `mergeable` must stay as it is. */
+function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
+  const strip = (v: unknown): string => {
+    const o = { ...((v && typeof v === "object" ? v : {}) as Record<string, unknown>) };
+    delete o["mergeable"];
+    return JSON.stringify(o, Object.keys(o).sort());
+  };
+  return strip(was) === strip(next);
+}
+
+/** Field kinds whose values must never go into an email: sealed (secret), files, signatures, buttons, and relations (they hold ids). */
+const NEVER_IN_EMAILS = new Set([
+  "sealed",
+  "files",
+  "signature",
+  "button",
+  "relation",
+  "person",
+  "created_by",
+  "modified_by",
+]);
+// (computed kinds, formula, rollup and lookup, are refused too: they can read a private field and still carry a public label)
+
 function manifestField(deps: SchemaDeps, d: TypeDefT, field: string): boolean {
   return (
     d.system === true &&
@@ -391,6 +418,19 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
   if (isDerived(deps.registry, f.type) && (f.required || f.unique))
     no(`field ${f.key}: a ${f.type} field is computed, so it cannot be required or unique`);
   if (f.type === "sealed" && f.unique) no(`field ${f.key}: a sealed field cannot be unique`);
+  // "Can go in emails": a switch for fields that are fine to read out loud. A private or secret field can never be switched on, by anyone.
+  const mergeable = (f.options ?? {})["mergeable"];
+  if (mergeable !== undefined && typeof mergeable !== "boolean") no(`field ${f.key}: mergeable is yes or no`);
+  if (mergeable === true) {
+    const label = f.label ?? t.label;
+    if (
+      NEVER_IN_EMAILS.has(f.type) ||
+      isDerived(deps.registry, f.type) ||
+      (label !== "public" && label !== "internal") ||
+      (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0)
+    )
+      no(`field ${f.key} cannot go in emails: it is private or secret, or its kind cannot be read into text`);
+  }
   const o = f.options ?? {};
   const own = new Set(t.fields.map((x) => x.key));
   switch (f.type) {
@@ -536,6 +576,57 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
       ? no("name the field")
       : (t.fields.find((f) => f.key === key) ?? no(`${t.key} has no field ${key}`));
 
+  /**
+   * The other end of a relation field a type was made with. relation.add makes both ends; a relation field inside type.create used to make one (an agent building a firm's types through the API
+   * got matter.client with no client.matters, 18 Nov 2026), so it makes the other end now, named by options.inverse when the field says one and otherwise by the type's own name.
+   */
+  const addFarEnd = (t: TypeDefT, f: FieldDefT): void => {
+    const target = f.options?.["target"];
+    const to = typeof target === "string" ? st.get(target) : undefined;
+    if (!to) return; // checkField already refused a target that is not a record type
+    const named = typeof f.options?.["inverse"] === "string" ? (f.options["inverse"] as string) : undefined;
+    if (named !== undefined) {
+      const have = to.fields.find((x) => x.key === named);
+      if (have) {
+        // the far end is already there when it points back at this field (a type made earlier in the same call); anything else is a clash
+        const o = have.options ?? {};
+        if (
+          have.type === "relation" &&
+          o["target"] === t.key &&
+          (o["inverse"] === f.key || o["inverse"] === undefined) &&
+          !(to === t && named === f.key)
+        ) {
+          have.options = { ...o, inverse: f.key };
+          return;
+        }
+        throw new Problem(`${to.key} already has a field ${named}`, true);
+      }
+      if (to === t && named === f.key) throw new Problem(`${to.key} already has a field ${named}`, true);
+    }
+    const free = (k: string): boolean => !to.fields.some((x) => x.key === k) && !(to === t && k === f.key);
+    const plural = `${t.key}s`;
+    const candidates = to === t ? [`${f.key}_of`, `${f.key}_back`] : [plural, `${t.key}_${f.key}`];
+    const pick = (): string => {
+      const first = candidates.find(free);
+      if (first !== undefined) return first;
+      const base = candidates[candidates.length - 1]!;
+      let n = 2;
+      while (!free(`${base}_${n}`)) n++;
+      return `${base}_${n}`;
+    };
+    const key = named ?? pick();
+    f.options = { ...(f.options ?? {}), target: to.key, inverse: key };
+    const far: FieldDefT = {
+      key,
+      type: "relation",
+      title: named === undefined && key === plural ? t.plural : titleCase(key),
+      options: { target: t.key, inverse: f.key },
+    };
+    to.fields.push(far);
+    checkField(deps, st, to, far);
+    plan.touched.add(to.key);
+  };
+
   for (const op of ops) {
     try {
       switch (op.op) {
@@ -572,6 +663,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           st.set(t.key, t);
           for (const f of t.fields) checkField(deps, st, t, f);
           checkType(st, t);
+          for (const f of [...t.fields]) if (f.type === "relation") addFarEnd(t, f);
           plan.created.add(t.key);
           plan.touched.add(t.key);
           add(op, `Create record type ${t.title} with ${t.fields.length} field${t.fields.length === 1 ? "" : "s"}`);
@@ -643,7 +735,11 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of Object.keys(patch)) {
             if (!(FIELD_PATCH as readonly string[]).includes(k))
               no(`${k} cannot be changed with field.update: use field.retype or field.rename`);
-            if (manifestField(deps, t, f.key) && !["title", "label"].includes(k))
+            if (
+              manifestField(deps, t, f.key) &&
+              !["title", "label"].includes(k) &&
+              !(k === "options" && onlyMergeableDiffers(f.options, patch[k]))
+            )
               no(`${f.key} is part of the ${t.key} system type: only its title and label can change`);
             const v = patch[k];
             if (v === null || v === undefined) delete (f as unknown as Record<string, unknown>)[k];
@@ -682,9 +778,13 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           )
             to.options = clone(from.options ?? {});
           if (typeof op.def?.["title"] === "string") to.title = op.def["title"];
+          // the field keeps its label through a retype; a label named in the retype's def replaces it (an agent sealing a field says "restricted" in the same call)
+          if (typeof op.def?.["label"] === "string") to.label = op.def["label"] as Label;
           delete to.default;
           Object.assign(f, to);
           checkField(deps, st, t, f);
+          if (f.label !== from.label)
+            plan.labelChanges.push({ type: t.key, field: f.key, from: from.label ?? t.label, to: f.label ?? t.label });
           if (f.unique && hasDuplicates(deps, t.key, f.key)) no(`${f.key} has duplicate values`);
           const rows = countValues(deps, t.key, f.key);
           if (sealing) {
@@ -785,8 +885,23 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           const to = needType(String(d["to"] ?? no("relation.add needs def.to")));
           const inverse = typeof d["inverse"] === "string" ? d["inverse"] : undefined;
           if (!inverse) no("relation.add needs def.inverse: the field on the other record type");
-          if (t.fields.some((x) => x.key === key)) throw new Problem(`${t.key} already has a field ${key}`, true);
-          if (to.fields.some((x) => x.key === inverse) || (to.key === t.key && inverse === key))
+          // both ends already there as this very relation (type.create made them): nothing to do, and no error
+          const nearHave = t.fields.find((x) => x.key === key);
+          const farHave = to.fields.find((x) => x.key === inverse);
+          if (
+            nearHave?.type === "relation" &&
+            farHave?.type === "relation" &&
+            !(to.key === t.key && inverse === key) &&
+            nearHave.options?.["target"] === to.key &&
+            nearHave.options?.["inverse"] === inverse &&
+            farHave.options?.["target"] === t.key &&
+            farHave.options?.["inverse"] === key
+          ) {
+            add(op, `${t.title} is already related to ${to.title} through ${key} and ${inverse}`);
+            break;
+          }
+          if (nearHave) throw new Problem(`${t.key} already has a field ${key}`, true);
+          if (farHave || (to.key === t.key && inverse === key))
             throw new Problem(`${to.key} already has a field ${inverse}`, true);
           const near: FieldDefT = {
             key,
@@ -974,6 +1089,8 @@ interface ApplyOpts {
   previewToken?: string;
   skipConfirm?: boolean;
   extraEvents?: boolean;
+  /** schema.label_changed is declared by schema.set_label and not by schema.apply: a call that does not declare it cannot emit it (the host refuses an undeclared event, so a label changed through schema.apply failed whole). */
+  labelEvents?: boolean;
 }
 
 async function execute(
@@ -1029,8 +1146,12 @@ async function execute(
   if (moved.length) await store.define({ change_types: moved.map((k) => bridgeOf(deps, plan, k, prior)) });
   const trash: { type: string; field: string | null; rows: number; payload: unknown }[] = [];
   // sealing: the values go into the Vault now (the field is already sealed in the bridge type), and the job that cleans the old copies is owed once this commits
-  for (const [e, moves] of sealMoves) {
-    if (e.k === "seal") openJob(deps, e.type, e.field, await writeRefs(deps, e.type, e.field, moves), changeId, now);
+  const sealedBy = new Map<string, Map<string, Move[]>>();
+  for (const [e, moves] of sealMoves)
+    if (e.k === "seal") (sealedBy.get(e.type) ?? sealedBy.set(e.type, new Map()).get(e.type)!).set(e.field, moves);
+  for (const [type, byField] of sealedBy) {
+    const counts = await writeRefsMany(deps, type, byField);
+    for (const [field, n] of counts) openJob(deps, type, field, n, changeId, now);
   }
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
@@ -1137,13 +1258,14 @@ async function execute(
       destructive: destructive.length > 0,
     });
   for (const k of plan.dropped) ctx.emit("schema.type_dropped", `record_type/${k}`, { type: k, changeId });
-  for (const l of plan.labelChanges)
-    ctx.emit("schema.label_changed", `record_type/${l.type}`, {
-      type: l.type,
-      ...(l.field !== undefined ? { field: l.field } : {}),
-      from: l.from,
-      to: l.to,
-    });
+  if (o.labelEvents === true)
+    for (const l of plan.labelChanges)
+      ctx.emit("schema.label_changed", `record_type/${l.type}`, {
+        type: l.type,
+        ...(l.field !== undefined ? { field: l.field } : {}),
+        from: l.from,
+        to: l.to,
+      });
   return { changeId, applied: plan.items.length, items: plan.items };
 }
 
@@ -1324,7 +1446,21 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
         input.field === undefined
           ? { op: "type.update", type: t.key, def: { label: input.label } }
           : { op: "field.update", type: t.key, field: input.field, def: { label: input.label } };
-      await execute(deps, ctx, [op], { skipConfirm: true });
+      await execute(deps, ctx, [op], { skipConfirm: true, labelEvents: true });
+      return { ok: true };
+    },
+
+    "schema.set_mergeable": async (ctx, input) => {
+      if (typeof input.mergeable !== "boolean") refuse(ctx, "validation.bad_input", "mergeable is yes or no.");
+      const t = await needType(ctx, input.type);
+      const f = t.fields.find((x) => x.key === input.field);
+      if (!f) refuse(ctx, "validation.not_found", `${input.field} is not a field of ${t.title}.`);
+      const options: Record<string, unknown> = { ...(f!.options ?? {}) };
+      if (input.mergeable) options["mergeable"] = true;
+      else delete options["mergeable"];
+      await execute(deps, ctx, [{ op: "field.update", type: t.key, field: f!.key, def: { options } }], {
+        skipConfirm: true,
+      });
       return { ok: true };
     },
 

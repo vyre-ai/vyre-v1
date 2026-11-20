@@ -124,6 +124,10 @@ export function paging(
 
 const ready = new WeakSet<object>();
 const migrationSql = readFileSync(fileURLToPath(new URL("./migrations/0001_vault.sql", import.meta.url)), "utf8");
+const backingSql = readFileSync(
+  fileURLToPath(new URL("./migrations/0009_backing_folders.sql", import.meta.url)),
+  "utf8",
+);
 
 export function statements(sql: string): string[] {
   const out: string[] = [];
@@ -152,7 +156,43 @@ export function ensure(ctx: Pick<VaultCtx, "db">): void {
   } catch {
     for (const statement of statements(migrationSql)) ctx.db.run(statement);
   }
+  // folders the server keeps for stored sealed record values: the table is made once, and that one time the Sealed fields folder a Space already has is marked (a later folder of that name is a person's)
+  try {
+    ctx.db.all(`SELECT "folderId" FROM vault_backing_folder WHERE "folderId" = ?`, "probe");
+  } catch {
+    for (const statement of statements(backingSql)) ctx.db.run(statement);
+    markBackingFolders(ctx);
+  }
   ready.add(ctx.db);
+}
+
+/**
+ * The Sealed fields folder a Space already has is marked as one the server keeps, run once when the marker table is made. Never by name alone: a person's own folder of that name holds their own
+ * items. It is the sealing code's folder when it is shared, top level and every item in it is named as a sealed value is (type.field.rec_...), and it holds at least one.
+ */
+export function markBackingFolders(ctx: Pick<VaultCtx, "db">): void {
+  for (const f of ctx.db.all(
+    `SELECT * FROM vault_folder WHERE "name" = ? AND "scope" = ?`,
+    "Sealed fields",
+    "shared",
+  )) {
+    const row = f as Record<string, unknown>;
+    if (typeof row["id"] !== "string" || (row["parentId"] !== null && row["parentId"] !== undefined)) continue;
+    const items = ctx.db
+      .all(`SELECT * FROM vault_meta WHERE "folderId" = ?`, row["id"])
+      .filter((r) => (r as Record<string, unknown>)["deleted_at"] == null) as Record<string, unknown>[];
+    if (
+      items.length > 0 &&
+      items.every((r) => /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*\.rec_[A-Za-z0-9_]+$/.test(String(r["name"])))
+    )
+      ctx.db.run(`INSERT OR IGNORE INTO vault_backing_folder ("folderId") VALUES (?)`, row["id"]);
+  }
+}
+
+/** Is this folder one the server keeps for the values of sealed record fields? Its items are not people's items: no list, search, match or health check shows them. */
+export function isBackingFolder(ctx: Pick<VaultCtx, "db">, folderId: unknown): boolean {
+  if (typeof folderId !== "string" || folderId === "") return false;
+  return ctx.db.all(`SELECT "folderId" FROM vault_backing_folder WHERE "folderId" = ?`, folderId).length > 0;
 }
 
 // ---- levels

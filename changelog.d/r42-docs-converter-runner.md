@@ -1,0 +1,1 @@
+On a Team server the Word converter runs through the sites runner, whose policy lets only the converter image run, pinned by digest, with no network, no capabilities, memory and process caps and nothing mounted.

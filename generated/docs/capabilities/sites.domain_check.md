@@ -1,6 +1,6 @@
 # sites.domain_check
 
-The state of a custom domain: waiting for DNS, issuing the certificate, or live
+A custom domain's state: waiting for DNS, issuing the certificate, or live
 
 | | |
 |---|---|

@@ -1,6 +1,6 @@
 # sites.addon_add
 
-Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys
+Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys
 
 | | |
 |---|---|

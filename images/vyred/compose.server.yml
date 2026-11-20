@@ -38,6 +38,8 @@ services:
       VYRE_SPACE_BROWSER_IMAGE: ${VYRE_SPACE_BROWSER_IMAGE:-}
       # the agent workspace image of this release, by digest (the same way): every agent's shell and tmux live in a container from it
       VYRE_WORKSPACE_IMAGE: ${VYRE_WORKSPACE_IMAGE:-}
+      # the Word to PDF converter image of this release, by digest: fetched by the server the first time a Word file becomes a PDF, never at install (images/doc-converter)
+      VYRE_DOC_CONVERTER_IMAGE: ${VYRE_DOC_CONVERTER_IMAGE:-}
     env_file:
       - path: ./vyre.env
         required: false
@@ -98,7 +100,29 @@ services:
       vyred:
         condition: service_started
     # --resume: the routes vyred wrote come back after a restart; the Caddyfile is only the first start
-    command: ["caddy", "run", "--resume", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    # r40: when vyred restarts (a crash, an update) Docker gives it a new network namespace and the one Caddy joined is dead: nothing answers on 443 until Caddy starts again. Docker restarts a container only when it
+    # exits, so this one exits when its shared namespace has lost its network card (eth0, which Docker removes with the namespace's owner), and "restart: unless-stopped" starts it on vyred's new namespace with no
+    # step by hand. It never exits on silence: a vyred that is slow to start (a big Space, a migration) has its card from its first second, so Caddy keeps serving its routes meanwhile. (The $$ is compose's escape for one dollar sign.)
+    command:
+      - sh
+      - -c
+      - |
+        caddy run --resume --config /etc/caddy/Caddyfile --adapter caddyfile &
+        pid=$$!
+        trap 'kill $$pid 2>/dev/null; wait $$pid; exit 143' TERM INT
+        miss=0
+        while kill -0 $$pid 2>/dev/null; do
+          sleep 3 &
+          wait $$!
+          if [ -e /sys/class/net/eth0 ]; then miss=0; else miss=$$((miss + 1)); fi
+          if [ $$miss -ge 5 ]; then
+            echo "vyred's network is gone from this namespace; leaving so Docker starts Caddy on the one vyred has now" >&2
+            kill $$pid 2>/dev/null
+            wait $$pid
+            exit 1
+          fi
+        done
+        wait $$pid
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

@@ -28,6 +28,7 @@ import {
   suggestionTitle,
 } from "./model.ts";
 import type { AgentRow, Routine, Suggestion } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 type ConfigOut = CapMap["agents.config.get"]["out"];
 type RoutinesOut = CapMap["agents.routines.list"]["out"];
@@ -280,21 +281,20 @@ export function SettingsTab({
               key: "t-confirm",
               type: "block",
               node: (
-                <View testID="trash-confirm" accessibilityRole="alert" style={st.confirm}>
-                  <Text style={st.confirmText}>Move this agent to Trash?</Text>
-                  <TextButton
-                    label="Move to Trash"
-                    primary
-                    testID="trash-yes"
-                    onPress={() =>
-                      void moveToTrash(deps, agentId, name).then((ok) => {
-                        setTrash(false);
-                        if (ok) data.nav.closePage();
-                      })
-                    }
-                  />
-                  <TextButton label="Cancel" testID="trash-no" onPress={() => setTrash(false)} />
-                </View>
+                <InlineConfirm
+                  testID="trash-confirm"
+                  question="Move this agent to Trash?"
+                  confirmLabel="Move to Trash"
+                  confirmTestID="trash-yes"
+                  cancelTestID="trash-no"
+                  onConfirm={() =>
+                    moveToTrash(deps, agentId, name).then((ok) => {
+                      setTrash(false);
+                      if (ok) data.nav.closePage();
+                    })
+                  }
+                  onCancel={() => setTrash(false)}
+                />
               ),
             }
           : {

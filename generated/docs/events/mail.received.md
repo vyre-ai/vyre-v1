@@ -23,5 +23,6 @@ type Payload = {
   from: string;
   subject: string;
   contactId?: string;
+  auto?: boolean;
 };
 ```

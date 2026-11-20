@@ -541,8 +541,23 @@ function TaskHead({
   const steps = isBaton(view) || task.reviewer || task.approver ? stepsOf(view) : [];
   const labels: ReactElement[] = [];
   for (const l of (task.labels ?? []).slice(0, 4)) labels.push(<Text key={l} style={st.label}>{`#${l}`}</Text>);
+  const put = task.archived;
   return (
     <View testID="task-head" style={st.col}>
+      {put ? (
+        // put away, not gone: who or what archived it and why, and one press puts it back exactly where it was
+        <View testID="task-archived" style={st.archived}>
+          <View style={st.archivedText}>
+            <Text style={st.archivedTitle}>{archivedTitle(put, rt.me.id, nameOf)}</Text>
+            {put.why !== "" ? (
+              <Text testID="task-archived-why" style={st.archivedWhy}>
+                {put.why}
+              </Text>
+            ) : null}
+          </View>
+          <Btn label="Put back" testID="task-put-back" onPress={() => void run("tasks.unarchive", {})} />
+        </View>
+      ) : null}
       <View style={st.crumbs}>
         {back ? (
           <Pressable
@@ -2251,6 +2266,9 @@ function Rail({
           );
         }}
       />
+      {isOpenState(task.state as TaskState) && !task.archived ? (
+        <RailLink label="Archive" testID="rail-archive" onPress={() => void run("tasks.archive", {})} />
+      ) : null}
       {task.recordId ? (
         <RailLink
           label="Open in Records"
@@ -2264,6 +2282,19 @@ function Rail({
       {railFootnote(kidsCount) ? <Text style={st.quiet}>{railFootnote(kidsCount)}</Text> : null}
     </ScrollView>
   );
+}
+
+/** The head of the line that says a task is archived: by the person reading, by someone they know, or by a rule of the Space (the sentence under it says which). */
+export function archivedTitle(
+  a: NonNullable<TaskFull["archived"]>,
+  me: string,
+  nameOf: (id: string) => string,
+): string {
+  return a.by === me
+    ? "Archived by you"
+    : a.by.startsWith("svc_")
+      ? "Archived by itself"
+      : `Archived by ${nameOf(a.by)}`;
 }
 
 /** The line at the foot of the rail: only what sits under the task. The kind is never printed bare ("Approve" says nothing). */
@@ -2392,6 +2423,20 @@ const st = StyleSheet.create({
   // a gutter of its own, so the page in a side pane or on a phone does not touch the edges
   col: { width: "100%", maxWidth: 672, alignSelf: "center", paddingTop: 26, paddingHorizontal: 16 },
   crumbs: { flexDirection: "row", alignItems: "center", gap: 10, minHeight: 24 },
+  archived: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingLeft: 14,
+    paddingRight: 10,
+    marginBottom: 14,
+    borderRadius: 14,
+    backgroundColor: "var(--sunk)" as string,
+  },
+  archivedText: { flex: 1, minWidth: 0, gap: 1 },
+  archivedTitle: { fontSize: 14, fontWeight: "600", color: "var(--ink)" as string },
+  archivedWhy: { fontSize: 13, lineHeight: 18, color: "var(--ink-2)" as string },
   key: { marginRight: 8, fontSize: 12, color: "var(--ink-3)" as string, fontVariant: ["tabular-nums"] },
   label: { fontSize: 12, color: "var(--ink-3)" as string },
   iconBtn: { width: 26, height: 26, alignItems: "center", justifyContent: "center", borderRadius: 7 },

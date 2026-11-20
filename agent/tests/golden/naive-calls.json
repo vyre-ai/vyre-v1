@@ -1111,8 +1111,14 @@
   "chrome_plan": {
     "goal": "Quarterly planning"
   },
+  "chrome_read": {
+    "url": "https://acme.test/plan"
+  },
   "chrome_resume": {},
   "chrome_screenshot": {},
+  "chrome_search": {
+    "query": "how to authenticate API calls"
+  },
   "chrome_send": {
     "heldId": "Quarterly planning"
   },
@@ -1529,6 +1535,14 @@
   },
   "documents_fill": {
     "templateFileId": "fil_a1b2c3"
+  },
+  "documents_make": {
+    "template": "Service agreement",
+    "recordId": "rec_a1b2c3"
+  },
+  "documents_make_pdf": {
+    "fileId": "fil_a1b2c3",
+    "intoFolderId": "fld_a1b2c3"
   },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
@@ -3042,10 +3056,14 @@
     "messageId": "eml_a1b2c3",
     "attachmentId": "Quarterly planning"
   },
+  "mail_configure": {
+    "action": "status"
+  },
   "mail_connect": {
     "provider": "google",
     "address": "dana@acme.test"
   },
+  "mail_delivery_state": {},
   "mail_domain_add": {
     "name": "Quarterly planning",
     "provider": "resend"
@@ -3151,6 +3169,9 @@
   },
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_templates": {
+    "action": "list"
   },
   "mail_thread_get": {
     "threadId": "Quarterly planning"
@@ -4835,6 +4856,9 @@
   "sites_deploy": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_deploy_cancel": {
+    "siteId": "sit_a1b2c3"
+  },
   "sites_deployments": {
     "siteId": "sit_a1b2c3"
   },
@@ -4873,11 +4897,19 @@
   "sites_logs": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_ops": {
+    "siteId": "sit_a1b2c3",
+    "action": "Quarterly planning"
+  },
   "sites_password_set": {
     "siteId": "sit_a1b2c3",
     "password": "Quarterly planning"
   },
   "sites_plan": {},
+  "sites_preview_promote": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
   "sites_preview_rebuild": {
     "siteId": "sit_a1b2c3",
     "branch": "main"
@@ -4900,6 +4932,12 @@
   },
   "sites_service_identity": {
     "siteId": "sit_a1b2c3"
+  },
+  "sites_ship": {
+    "name": "Team dashboard",
+    "source": {
+      "repo": "acme/team-dashboard"
+    }
   },
   "sites_staging_password_set": {
     "siteId": "sit_a1b2c3",
@@ -4930,6 +4968,12 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_update": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_set": {
     "siteId": "sit_a1b2c3"
   },
   "skill_grant": {
@@ -5509,6 +5553,9 @@
     "taskId": "tsk_a1b2c3",
     "agentId": "agt_a1b2c3"
   },
+  "tasks_archive": {
+    "taskId": "tsk_a1b2c3"
+  },
   "tasks_assign": {
     "taskId": "tsk_a1b2c3",
     "slot": "assigned",
@@ -5541,6 +5588,9 @@
   "tasks_dependencies_remove": {
     "taskId": "tsk_a1b2c3",
     "dependsOnId": "tsk_a1b2c3"
+  },
+  "tasks_done_when": {
+    "taskId": "tsk_a1b2c3"
   },
   "tasks_followers_add": {
     "taskId": "tsk_a1b2c3",
@@ -5587,6 +5637,9 @@
   "tasks_transition": {
     "taskId": "tsk_a1b2c3",
     "to": "todo"
+  },
+  "tasks_unarchive": {
+    "taskId": "tsk_a1b2c3"
   },
   "tasks_update": {
     "taskId": "tsk_a1b2c3"
@@ -6015,6 +6068,10 @@
   "vault_items_list": {},
   "vault_items_match": {
     "url": "https://acme.test/plan"
+  },
+  "vault_login_check": {
+    "url": "https://acme.test/plan",
+    "password": "Quarterly planning"
   },
   "vault_policy_get": {},
   "vault_policy_set": {

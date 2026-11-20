@@ -13,6 +13,7 @@ import type { BlobResource, BlobStore } from "../ctx/blobs.ts";
 import { makeError } from "./errors.ts";
 import { agentBound } from "../../../lib/redact.ts";
 import type { ErrorCode } from "../../../packages/contracts/src/types.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface BlobCaller {
   space: string;
@@ -175,7 +176,7 @@ export function createBlobRoute(deps: BlobRouteDeps): {
 
   return {
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       const m = PATH.exec(url.pathname);
       if (!m) {
         // a path under /spaces/<space>/blobs/ that is not a blob id is still this route's to refuse
@@ -211,4 +212,17 @@ export function createBlobRoute(deps: BlobRouteDeps): {
       return true;
     },
   };
+}
+
+/**
+ * What it takes to read a blob: the view level on the resource it belongs to, except a database backup of a site (`site_backup`, named by the site's id), which holds every row of the site's database and
+ * takes manage on the site, so a member who can only view the site cannot download its data.
+ */
+export function blobReadCheck(r: BlobResource): {
+  action: { perm: null; level: "view" | "manage" };
+  resource: { type: string; id: string };
+} {
+  return r.type === "site_backup"
+    ? { action: { perm: null, level: "manage" }, resource: { type: "site", id: r.id } }
+    : { action: { perm: null, level: "view" }, resource: { type: r.type, id: r.id } };
 }

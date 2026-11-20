@@ -16,3 +16,20 @@ export const hooksHolder: { port: HooksPort | null } = { port: null };
 export const bindHooksPort = (p: HooksPort | null): void => {
   hooksHolder.port = p;
 };
+
+/**
+ * What a command-line engine's own subagent is allowed to do (r42-runtime): the vyre-hook of a call made INSIDE a subagent carries its agent_id (the id of the task that started it). The host answers whether that subagent was
+ * asked to stop (then its next call is blocked with a reason) and what it was told meanwhile (read as notes at that call). Unbound, or a subagent it does not know: nothing to say.
+ */
+export type SubagentGate = (c: {
+  threadId: string;
+  /** the Vyre agent whose command-line session this is */
+  agentId: string;
+  /** the subagent the call is made inside, when it is made inside one */
+  subagent?: string;
+  tool?: string;
+}) => Promise<{ block: string | null; notes: string[] }>;
+export const subagentGateHolder: { gate: SubagentGate | null } = { gate: null };
+export const bindSubagentGate = (g: SubagentGate | null): void => {
+  subagentGateHolder.gate = g;
+};

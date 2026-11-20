@@ -17,11 +17,12 @@ import type { CtxSeed, Invoke } from "./invoke.ts";
 import { createTracer, formatTr, parseTr } from "./trace/index.ts";
 import type { SpanSink } from "./trace/index.ts";
 import type { LogSink } from "./logsink/index.ts";
+import { requestTargetOk, safeUrl } from "./safe-url.ts";
 
 export const HEARTBEAT_MS = 15_000;
 export const HEARTBEAT_DEAD_MS = 40_000;
 const deviceClassOf = (url: string | undefined): "desktop" | "phone" | "web" => {
-  const v = new URL(url ?? "/", "http://live").searchParams.get("deviceClass");
+  const v = safeUrl(url, "http://live").searchParams.get("deviceClass");
   return v === "phone" || v === "web" ? v : "desktop";
 };
 export const MAX_FRAME_BYTES = 1 << 20;
@@ -550,6 +551,11 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   }
 
   server.on("upgrade", guardUpgrade((req, socket: Duplex) => {
+    socket.on("error", () => socket.destroy()); // r40
+    if (!requestTargetOk(req.url)) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+      return;
+    }
     if (o.claims?.(req)) return;
     void (async () => {
       const wsKey = req.headers["sec-websocket-key"];
@@ -559,7 +565,7 @@ export function createLiveHub(o: LiveOptions): LiveHub {
       }
       let session: LiveSession | null = null;
       try {
-        session = await o.session(req.headers, new URL(req.url ?? "/", "http://live"));
+        session = await o.session(req.headers, safeUrl(req.url, "http://live"));
       } catch {
         session = null;
       }

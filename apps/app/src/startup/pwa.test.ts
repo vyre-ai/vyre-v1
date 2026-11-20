@@ -200,3 +200,60 @@ test("on a phone address the relay shell's worker carries the page, and the app 
   assert.equal(run({ scriptURL: "https://space.example/sw.js" }), 1, "the app's own worker updates as before");
   assert.equal(run(null), 1);
 });
+
+test("a page held by the relay's worker on an origin that answers as a Space retires it and reloads once", async () => {
+  const { bootScript } = await import("./boot.ts");
+  const run = async (info: { ok: boolean; json: boolean }, already = false) => {
+    const on = new Map<string, () => void>();
+    const log = { unregistered: 0, reloads: 0, registered: 0 };
+    const store = new Map<string, string>(already ? [["vyre:retired", "1"]] : []);
+    const win = {
+      performance: { mark() {}, now: () => 0 },
+      location: { search: "", reload: () => void log.reloads++ },
+      URLSearchParams,
+      sessionStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+      },
+      document: { documentElement: { style: { setProperty() {} }, setAttribute() {} } },
+      fetch: async () => ({
+        ok: info.ok,
+        headers: { get: () => (info.json ? "application/json" : "text/html") },
+      }),
+      navigator: {
+        serviceWorker: {
+          controller: { scriptURL: "https://alex.vyre.run/__vyre/sw.js" },
+          getRegistrations: async () => [
+            {
+              active: { scriptURL: "https://alex.vyre.run/__vyre/sw.js" },
+              unregister: async () => void log.unregistered++,
+            },
+          ],
+          register: () => (log.registered++, { catch() {} }),
+        },
+      },
+      addEventListener: (type: string, fn: () => void) => on.set(type, fn),
+      setTimeout: (fn: () => void) => fn(),
+    };
+    new Function(...Object.keys(win), "window", bootScript())(...Object.values(win), win);
+    on.get("vyre:usable")?.();
+    on.get("load")?.();
+    await new Promise((r) => setTimeout(r, 20));
+    return log;
+  };
+  assert.deepEqual(
+    await run({ ok: false, json: false }),
+    { unregistered: 1, reloads: 1, registered: 0 },
+    "direct: retired, once",
+  );
+  assert.deepEqual(
+    await run({ ok: false, json: false }, true),
+    { unregistered: 1, reloads: 0, registered: 0 },
+    "no reload loop",
+  );
+  assert.deepEqual(
+    await run({ ok: true, json: true }),
+    { unregistered: 0, reloads: 0, registered: 0 },
+    "still the relay: left alone",
+  );
+});

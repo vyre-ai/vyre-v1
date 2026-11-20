@@ -6,6 +6,8 @@ import {
   actionableByMe,
   allTasks,
   clean,
+  clearArchived,
+  clearMoment,
   emitTask,
   ensurePrefix,
   findTask,
@@ -29,6 +31,7 @@ import {
   visibleTo,
   whoIs,
   whoOn,
+  MOMENT_GRACE_MS,
 } from "../projections.ts";
 import { ensureThread, syncThread, unseat } from "./thread.ts";
 import type {
@@ -300,6 +303,15 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
     t.takenAt = ctx.now();
     took = true;
   }
+  // a task that moves is not put away any more: the archive mark comes off with the move (a closed task is under Done, an open one is back on its lists)
+  // a moved task matters, so it is not asked about or put away for the moment it already passed a minute later (Put back does the same)
+  if (
+    t.archived !== undefined &&
+    (t.archived.code === "passed" || t.archived.code === "quiet" || t.archived.code === "asked")
+  )
+    clearMoment(ctx.db, t);
+  clearArchived(ctx.db, t);
+  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ? AND kept_until IS NULL", t.id); // a kept task keeps its 90 days
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;
@@ -548,9 +560,19 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.start !== undefined) t.start = input.start;
   if (input.recur !== undefined) t.recur = input.recur;
   if (input.recordId !== undefined) t.recordId = input.recordId;
+  // a task that says it is the Gate's is the Gate's: made by the Gate (a nested call from a gate capability, which the pipeline sets and a caller cannot) or by the server. Anyone else naming a gate source would
+  // dress their own task in the Gate's card, so it is refused.
+  if ((input.source as { kind?: string } | undefined)?.kind === "gate" && !mayMakeGateTask(ctx))
+    raise(ctx, "validation.field_locked", "Only the Gate makes a held act.", { field: "source" });
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
+  // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
+  if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
+  else if (ctx.principal.kind === "agent") {
+    t.momentStated = false;
+    t.relevantUntil = t.due !== undefined ? t.due + MOMENT_GRACE_MS : now + 14 * 86_400_000;
+  }
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
@@ -1059,6 +1081,10 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a trusted service. */
+export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
+  isTrustedService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
+
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 
 /** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
@@ -1163,7 +1189,7 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   const reserved = (RESERVED_NOTES as Record<string, "decisionId" | "payloadHash">)[key];
   if (reserved) {
-    if (t.source?.kind !== "gate")
+    if (t.source?.kind !== "gate" || !mayMakeGateTask(ctx))
       raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
     if (t[reserved] !== undefined && t[reserved] !== value)
       raise(ctx, "validation.field_locked", "That value is set once.", { field: key });

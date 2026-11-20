@@ -1,0 +1,1 @@
+A Word template is checked when it is marked: a file that is not a real .docx, is over 10 MB or carries macros is refused in plain words. A Vyre document with suggested changes still in it cannot be filled until they are accepted or rejected.

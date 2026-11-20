@@ -20,7 +20,7 @@ Requires: nothing.
 - [email_builder.saved_blocks.save](../capabilities/email_builder.saved_blocks.save.md): Save a block for reuse, or change one of mine; only the person who saved it can change it
 - [email_builder.send_test](../capabilities/email_builder.send_test.md): Send a test email to the author
 - [email_builder.snippets.delete](../capabilities/email_builder.snippets.delete.md): Delete a composer snippet
-- [email_builder.snippets.list](../capabilities/email_builder.snippets.list.md): List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space
+- [email_builder.snippets.list](../capabilities/email_builder.snippets.list.md): List composer snippets (reusable reply text), mine and shared
 - [email_builder.snippets.save](../capabilities/email_builder.snippets.save.md): Create or change a composer snippet
 - [email_builder.versions](../capabilities/email_builder.versions.md): List saved versions
 

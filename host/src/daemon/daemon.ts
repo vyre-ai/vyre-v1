@@ -1,3 +1,6 @@
+import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { protectionHolds } from "../../../lib/key-target.ts";
+import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
@@ -57,7 +60,9 @@ import {
 } from "../routes/site-host.ts";
 import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
-import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf, startAccessSink } from "../caddy/index.ts";
+import type { AccessSink } from "../caddy/index.ts";
+import { blobReadCheck } from "../routes/blobs.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -192,7 +197,15 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import {
+  createGateHook,
+  pinnedDeploy,
+  moduleFetches,
+  moduleOutward,
+  moduleWhens,
+  ownAddress,
+  payloadHash,
+} from "./gate-hook.ts";
 import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
@@ -244,6 +257,7 @@ import type { CreateCells, PeerAccessEvent, PeerAccessPort } from "../peers/sync
 import { PEER_ACCESS, accessCheck, sameContent } from "../peers/sync.ts";
 import { applyPeerJoin } from "../peers/join.ts";
 import { createAppFilesRoute, defaultAppDir } from "../routes/app-files.ts";
+import { createRelayWorkerRoute } from "../routes/relay-worker.ts";
 import type { RelayBox } from "../seams/relay.ts";
 import { createSyncLiveBridge, createSyncSeam } from "../seams/sync.ts";
 import { createVaultExportRoute } from "../routes/vault-export.ts";
@@ -303,7 +317,7 @@ import { createGitProxy } from "../seams/git-proxy.ts";
 import type { GitProxyPort } from "../seams/git-proxy.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
-import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
+import { createDocumentsHost, createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -377,6 +391,8 @@ import { openDb, readLogMeta } from "./sqlite.ts";
 import { openInviteHashes } from "./invite-hashes.ts";
 import { bindSpacePorts, unbindSpacePorts } from "./module-ports.ts";
 import type { HostDb } from "./sqlite.ts";
+import { requestTargetOk } from "../safe-url.ts";
+import { ignoreTestSwitches } from "../test-mode.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The repo (or install) root that holds generated/, modules/ and host/modules.json. */
@@ -659,6 +675,7 @@ export interface DaemonOptions {
     hooks?: number;
     sweep?: number;
     sitesPush?: number;
+    sitesOps?: number;
   };
 }
 
@@ -752,6 +769,7 @@ const bootFoldTypes: readonly string[] = [
 ];
 
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
+  ignoreTestSwitches();
   const cfg = o.config;
   const now = o.now ?? Date.now;
   // What holds a GitHub installation token for one use: the token is delivered once, to the git module's credential slot (a ref), and read back by the git host. It is no Vault item and is never stored.
@@ -1104,6 +1122,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  /** site logs, CPU and memory, jobs and workers (modules/sites/ops): a short tick of its own, since a log is followed live */
+  let sitesOps: () => Promise<void> = () => Promise.resolve();
+  let sitesTickRunning = false;
+  let sitesTickAgain = false;
+  /** Run the sites tick now. One at a time: a call while one runs asks for one more run after it, however many calls came. */
+  const nudgeSites = (): void => {
+    if (sitesTickRunning) {
+      sitesTickAgain = true;
+      return;
+    }
+    sitesTickRunning = true;
+    void (async () => {
+      try {
+        do {
+          sitesTickAgain = false;
+          await sitesTick().catch(() => undefined);
+        } while (sitesTickAgain);
+      } finally {
+        sitesTickRunning = false;
+      }
+    })();
+  };
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true,
     site: (h) => siteHosts?.site(h) ?? null,
@@ -2521,7 +2561,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       );
       webhooks = {
         has: (c) => acceptors.has(c),
-        accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a),
+        accept: async (c, a) => {
+          const out = await hookRunner.call(`${c}.accept_webhook`, a);
+          // a delivery that asks for work is run now, not at the next minute (one tick at a time: one that is running is not stacked)
+          if (c === "sites" && (out as { nudge?: boolean } | null)?.nudge === true) nudgeSites();
+          return out;
+        },
         automation: (a) => hookRunner.call("automations.accept_hook", a),
       };
       computePoll = (credential, report) =>
@@ -3212,6 +3257,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 },
                 unseal: (s) => seal.unseal(s),
                 now,
+                // a held deploy that names no commit is pinned to the branch's head at hold time
+                pin: pinnedDeploy(() => keyHostCallAs),
                 evaluators: moduleWhens(
                   loaded.moduleExports,
                   () => db,
@@ -5033,6 +5080,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
       });
       const hostDrivers: Record<string, SeamDriver> = {
+        // Word to PDF: LibreOffice where this machine has it, else the converter image through the machine's Docker engine, or on a Team server through the sites runner (which alone holds the socket and lets
+        // only the converter image run); nothing where neither answers, and the module then sets the words in its plain look
+        configureDocuments: () =>
+          createDocumentsHost(
+            cfg.spaceKind !== "personal" && computersRunnerSocket()
+              ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } }
+              : {},
+          ),
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
         setRecordsVault: () => sealedVault(),
@@ -5477,6 +5532,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
+            await ensureAccessLog().catch((e: unknown) =>
+              sink.log({
+                space: spaceId,
+                level: 40,
+                msg: "sites.access_log_pending",
+                place: "sites",
+                attrs: { why: e instanceof Error ? e.message.slice(0, 160) : "" },
+              }),
+            );
             if (sitesCaddy)
               for (const x of hostsOf()) {
                 try {
@@ -5491,31 +5555,172 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   });
                 }
               }
-            const autos =
+            // what a verified GitHub delivery left (a preview to build or remove), run as whoever deployed the site last so the Vault checks their access
+            const pushes =
               (
-                sitesExports?.["autoDeploySites"] as
-                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                sitesExports?.["pendingPushes"] as
+                  | ((c: {
+                      db: unknown;
+                    }) => { id: string; siteId: string; branch: string; action: string; as: string }[])
                   | undefined
               )?.({ db: db! }) ?? [];
-            for (const a of autos) {
+            for (const a of pushes) {
               const r = await invoke(
-                "sites.deploy",
-                { siteId: a.siteId, onlyIfChanged: true },
+                a.action === "remove" ? "sites.preview_remove" : "sites.preview_rebuild",
+                { siteId: a.siteId, branch: a.branch },
                 {
                   space: spaceId,
                   principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
                   origin: "sites-push",
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
-              if ((r as { status?: string }).status !== "ok")
+              const ok = (r as { status?: string }).status === "ok";
+              // a push that ran is done; one that could not is recorded as failed, which gives its delivery id back so GitHub's redelivery takes it again
+              if (ok)
+                (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
+                  { db: db! },
+                  a.id,
+                );
+              else
+                (
+                  sitesExports?.["markPushFailed"] as
+                    | ((c: { db: unknown }, id: string, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, a.id, String((r as { e?: { message?: string } }).e?.message ?? "It could not run."));
+              if (!ok)
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.push_preview_skipped",
+                  place: "sites",
+                  attrs: { site: a.siteId, branch: a.branch },
+                });
+            }
+            // only a commit that was not deployed, and not already waiting for a person, is asked for (checked here, before the Gate)
+            const autos =
+              (await (
+                sitesExports?.["autoDeployTargets"] as
+                  | ((
+                      c: { db: unknown },
+                      headOf: (x: { siteId: string; as: string; repo: string; branch: string }) => Promise<{
+                        head: string | null;
+                        changed: boolean;
+                      }>,
+                    ) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
+                  | undefined
+              )?.({ db: db! }, async (x) => {
+                // the branch head, read with the site's own token as the person who deployed it last
+                const r = (await invoke(
+                  "sites.head_check",
+                  { siteId: x.siteId },
+                  {
+                    space: spaceId,
+                    principal: { kind: x.as.startsWith("agt_") ? "agent" : "person", id: x.as },
+                    origin: "sites-push",
+                  },
+                ).catch(() => null)) as { status?: string; output?: { head?: string; changed?: boolean } } | null;
+                return r?.status === "ok"
+                  ? { head: r.output?.head ?? null, changed: r.output?.changed !== false }
+                  : { head: null, changed: true };
+              })) ?? [];
+            for (const a of autos) {
+              const r = await invoke(
+                "sites.deploy",
+                { siteId: a.siteId, onlyIfChanged: true, ...(a.head ? { commit: a.head } : {}) },
+                {
+                  space: spaceId,
+                  principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
+                  origin: "sites-push",
+                },
+              ).catch((e: unknown) => ({ status: "error", e }));
+              if ((r as { status?: string }).status !== "ok") {
+                // the site's card says why a push's deploy did not run, not only the log: in plain words, never an exception's text
+                const e =
+                  (
+                    r as {
+                      e?: { error?: { code?: string; message?: string } };
+                      error?: { code?: string; message?: string };
+                    }
+                  ).e?.error ?? (r as { error?: { code?: string; message?: string } }).error;
+                const facts = (
+                  sitesExports?.["siteFacts"] as ((c: { db: unknown }, id: string) => SiteFacts | null) | undefined
+                )?.({ db: db! }, a.siteId);
+                const reason =
+                  (r as { status?: string }).status === "held"
+                    ? facts && protectionHolds(facts)
+                      ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
+                      : "Waiting for a person to approve it."
+                    : typeof e?.code === "string" && /^(validation|permission|conflict)\./.test(e.code) && e.message
+                      ? e.message
+                      : "The deploy could not run. The log says more.";
+                (
+                  sitesExports?.["recordDeployFailure"] as
+                    | ((
+                        c: { db: unknown },
+                        siteId: string,
+                        branch: string,
+                        why: string,
+                        sha: string | null,
+                        taskId: string | null,
+                      ) => void)
+                    | undefined
+                )?.({ db: db! }, a.siteId, a.branch, reason, a.head, (r as { taskId?: string }).taskId ?? null);
                 sink.log({
                   space: spaceId,
                   level: 30,
                   msg: "sites.push_check_skipped",
                   place: "sites",
-                  attrs: { site: a.siteId },
+                  attrs: { site: a.siteId, why: reason },
                 });
+              }
             }
+            // a database with no backup for a day gets one, as the site's owner (kept seven days, a Keep never goes)
+            const owed =
+              (
+                sitesExports?.["dueBackupSites"] as
+                  | ((c: { db: unknown }, now: number) => { siteId: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }, Date.now()) ?? [];
+            for (const o2 of owed)
+              await invoke(
+                "sites.backup_create",
+                { siteId: o2.siteId, scheduled: true },
+                { space: spaceId, principal: { kind: "person", id: o2.as }, origin: "sites-backup" },
+              ).catch((e: unknown) => {
+                (
+                  sitesExports?.["recordSkippedBackup"] as
+                    | ((c: { db: unknown }, id: string, now: number, why: string) => void)
+                    | undefined
+                )?.(
+                  { db: db! },
+                  o2.siteId,
+                  Date.now(),
+                  e instanceof Error ? e.message : "the site's owner can no longer make backups",
+                );
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.backup_skipped",
+                  place: "sites",
+                  attrs: { site: o2.siteId },
+                });
+              });
+          };
+          // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
+          let accessSink: AccessSink | null = null;
+          closers.push(() => accessSink?.close());
+          const ensureAccessLog = async (): Promise<void> => {
+            if (!sitesCaddy) return;
+            accessSink ??= await startAccessSink((line) =>
+              (sitesExports?.["accessLine"] as ((c: { db: unknown }, l: string) => void) | undefined)?.(
+                { db: db! },
+                line,
+              ),
+            );
+            await sitesCaddy.ensureAccessLog(accessSink.port);
+          };
+          sitesOps = async () => {
+            await (sitesExports?.["opsTick"] as ((c: { db: unknown }) => Promise<void>) | undefined)?.({ db: db! });
           };
           const made = createSitesHost({
             containerAddress: (c) =>
@@ -5524,6 +5729,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             deploy: {
               ...(runnerLink ? { runnerLink } : {}),
               take: takeSiteSecret,
+              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item, shares and the owner's task) is done as the host, and only that (seams/sites-as-host.ts)
+              asHost: sitesAsHost((cap, input) =>
+                invoke(cap, input, {
+                  space: spaceId,
+                  principal: { ...SYSTEM_PRINCIPAL },
+                  preAuth: true,
+                  origin: "seam",
+                }),
+              ),
               tmp: path.join(paths.root, "site-builds"),
               sitesDomain,
               domainOf: (id) =>
@@ -6915,8 +7129,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           authorize(access.snap, {
             principal: c.principal.id,
             ...(c.actingFor ? { actingFor: c.actingFor } : {}),
-            action: { perm: null, level: "view" },
-            resource: { type: r.type, id: r.id },
+            ...blobReadCheck(r),
+            now: Date.now(),
           }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) =>
@@ -7557,6 +7771,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       },
     });
     scheduler.add({
+      name: "sites.ops",
+      schedule: { everyMs: o.intervals?.sitesOps ?? 2_000 },
+      run: async () => {
+        await sitesOps();
+      },
+    });
+    scheduler.add({
       name: "sites.deployed",
       schedule: { everyMs: o.intervals?.sitesPush ?? 60_000 },
       run: async () => {
@@ -7628,6 +7849,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     );
   };
 
+  const httpLog = sink.logger({ space: space ?? "-", place: "http" });
   const gatewayUnit = async (): Promise<RunningUnit> => {
     const h = hubFactory ? hubFactory() : createLiveHub({ session: () => null });
     hub = h;
@@ -7636,6 +7858,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     const server = h.server;
     if (hubFactory)
       server.on("upgrade", guardUpgrade((req, socket, head) => {
+        // r40: a bad address closes that one socket with a 400
+        socket.on("error", () => socket.destroy());
+        if (!requestTargetOk(req.url)) {
+          socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+          return;
+        }
         takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
         if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
         else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
@@ -7680,8 +7908,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       call: (n, i) => (hooks ? hooks.call(n, i) : Promise.reject(new Error("no Space here"))),
     });
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
+    const relayWorkerRoute = createRelayWorkerRoute();
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
-    const httpLog = sink.logger({ space: space ?? "-", place: "http" });
     const onHttpError: OnError = (where, error) =>
       httpLog.error("http.handler_threw", { where, ...errorLine(error) });
     const detachBackstop = installRejectionBackstop((error) =>
@@ -7691,6 +7919,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     server.on("request", guardRequest((req, res) => {
       // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
       takeVisitor(req);
+      // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it
+      if (!requestTargetOk(req.url)) {
+        res.writeHead(400, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", connection: "close" });
+        res.end(JSON.stringify({ error: { code: "validation.bad_input", message: "That request address is not valid." } }));
+        return;
+      }
       // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
       // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
       const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
@@ -7700,6 +7934,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         return;
       }
       if (carryDoor.handle(req, res)) return;
+      if (relayWorkerRoute.handle(req, res)) return;
       if (desktopCors(req, res)) return;
       if (bearer(req.headers.authorization)?.startsWith("vas_")) {
         // Do not hand a preview to public share/forms, MCP, sync, uploads,

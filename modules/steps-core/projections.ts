@@ -70,7 +70,7 @@ export function momentMs(v: unknown, now: number): number {
 // and a short list of functions. No assignment, no calls on values, no access to anything outside the scope: it is parsed, never evaluated as code.
 
 type Tok = { t: "num" | "str" | "id" | "op" | "p"; v: string | number };
-const TWO = new Set(["==", "!=", "<=", ">=", "&&", "||"]);
+const TWO = new Set(["==", "!=", "<=", ">=", "&&", "||", "??"]);
 const ONE = new Set(["<", ">", "+", "-", "*", "/", "%", "!"]);
 const MAX_EXPR = 2000;
 
@@ -229,7 +229,7 @@ function parse(src: string): Ast {
   const cmp = (): Ast => level(["<", "<=", ">", ">="], add, ["in", "contains"]);
   const eq = (): Ast => level(["==", "!="], cmp);
   const and = (): Ast => level(["&&"], eq);
-  const or = (): Ast => level(["||"], and);
+  const or = (): Ast => level(["||", "??"], and);
   const ast = or();
   if (pos < toks.length) bad(`Unexpected "${String(toks[pos]!.v)}" in the expression.`);
   return ast;
@@ -340,6 +340,10 @@ function ev(a: Ast, scope: Scope): unknown {
         const l = ev(a.l, scope);
         return truthy(l) ? ev(a.r, scope) : l;
       }
+      if (a.op === "??") {
+        const l = ev(a.l, scope);
+        return l === null || l === undefined ? ev(a.r, scope) : l;
+      }
       if (a.op === "||") {
         const l = ev(a.l, scope);
         return truthy(l) ? l : ev(a.r, scope);
@@ -405,12 +409,20 @@ export function evalExpr(src: string, scope: Scope): unknown {
   return ev(parse(src), scope);
 }
 
-const TEMPLATE = /\{\{([\s\S]*?)\}\}/g;
-/** Fill `{{ expr }}` in a text. A text that is only one `{{ }}` keeps the type of the value; otherwise the values are written into the text. */
+/** Fill `{{ expr }}` in a text. A text that is only one `{{ }}` keeps the type of the value; otherwise the values are written into the text. One pass over the text (no backtracking on hostile input). */
 export function renderText(s: string, scope: Scope): unknown {
-  const whole = /^\s*\{\{([\s\S]*?)\}\}\s*$/.exec(s);
-  if (whole && !whole[1]!.includes("}}")) return evalExpr(whole[1]!, scope);
-  return s.replace(TEMPLATE, (_m, e: string) => text(evalExpr(e, scope)));
+  const t = s.trim();
+  if (t.startsWith("{{") && t.endsWith("}}") && t.length >= 4 && t.indexOf("}}", 2) === t.length - 2)
+    return evalExpr(t.slice(2, -2), scope);
+  let out = "";
+  let at = 0;
+  for (;;) {
+    const open = s.indexOf("{{", at);
+    const close = open < 0 ? -1 : s.indexOf("}}", open + 2);
+    if (close < 0) return out + s.slice(at);
+    out += s.slice(at, open) + text(evalExpr(s.slice(open + 2, close), scope));
+    at = close + 2;
+  }
 }
 /** Fill templates in every text of a value, to any depth. */
 export function render(v: unknown, scope: Scope): unknown {

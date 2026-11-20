@@ -1,6 +1,6 @@
 # documents.templates.list
 
-List files marked as templates the caller can open
+List templates
 
 | | |
 |---|---|
@@ -26,6 +26,8 @@ List files marked as templates the caller can open
 ```ts
 type In = {
   folder?: string;
+  recordType?: string;
+  name?: string;
   cursor?: string;
   limit?: number;
 };
@@ -41,6 +43,7 @@ type Out = {
       folderId: string;
       fields: number;
       updatedAt: number;
+      recordType?: string;
     }>;
   next?: string;
   total?: number;
@@ -62,7 +65,9 @@ type Out = {
   "input": {
     "cursor": "example",
     "folder": "fld_a1b2c3",
-    "limit": 1
+    "limit": 1,
+    "name": "example",
+    "recordType": "example"
   },
   "output": {
     "next": "example",
@@ -72,6 +77,7 @@ type Out = {
         "fileId": "fil_a1b2c3",
         "folderId": "fld_a1b2c3",
         "name": "example",
+        "recordType": "example",
         "updatedAt": 1760000000000
       }
     ],

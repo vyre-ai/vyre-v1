@@ -3,7 +3,8 @@
 // It is drawn only when an AI account is connected, and only on a step that has something to ask (said.ts ASK); before that the screen speaks the scripted words and the cards still work.
 // The top of the chat is the step's own line and suggestions (StepAsk), in place of the chat's empty state and kind note, so no placeholder words show.
 import { isAssistantRow } from "../../../../lib/agent-kind.ts";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
 import { conversationData } from "../shell/providers/chats-data.ts";
@@ -15,7 +16,7 @@ import { onboardingScreen } from "./screen-context.ts";
 import type { StepAsk as Ask } from "./said.ts";
 import { StepAsk } from "./StepAsk.tsx";
 
-const ChatsConversation = lazy(() =>
+const ChatsConversation = lazyPart(() =>
   import("../shell/providers/chats.tsx").then((m) => ({ default: m.ChatsConversation })),
 );
 

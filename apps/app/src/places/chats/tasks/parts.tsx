@@ -10,7 +10,7 @@ import { StatusDot } from "../../../../../../ui/src/TaskPage/StatusDot.tsx";
 import type { ActivityStore, LiveTurn, TurnStreams } from "../../../shell/session/turn-streams.ts";
 import { activityLine } from "../conversation/activity.ts";
 import { Glyph } from "../conversation/parts.tsx";
-import { batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
+import { archivedLine, batonMarks, dueLabel, holderOf, isOpenState, KIND_TITLE, ago } from "./model.ts";
 import { canTake } from "./moves.ts";
 import type { NeedItem, TaskRow, Who } from "./model.ts";
 import { TimePop, useZones } from "../../../../../../ui/src/Time/index.tsx";
@@ -273,6 +273,8 @@ function forWhoOf(row: TaskRow, env: RowEnv, agentId: string): { forWho?: string
 
 /** The second line of a row: what it waits on, else who took a team task (or that it waits for someone to take it), its project and its breakdown. */
 function subOf(row: TaskRow, env: RowEnv, waits: readonly string[], project: string | undefined): string {
+  // put away: the row says why, wherever it shows (the Archived list, a search)
+  if (row.archived) return archivedLine(row.archived, env.me, env.nameOf);
   if (waits.length > 0) return `Waits on ${waits.slice(0, 3).join(", ")}`;
   const team = row.assigned.kind === "group" || row.assigned.kind === "role";
   // an agent that was asked to do a person's own task: "Assistant is on it for you", whether or not it is writing right now

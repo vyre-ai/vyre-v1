@@ -1110,7 +1110,13 @@ settle_caddy() {
   cid=$(dc ps -q caddy 2>/dev/null | head -n 1 || true)
   if [ -n "$cid" ]; then
     mode=$(docker inspect -f '{{.HostConfig.NetworkMode}}' "$cid" 2>/dev/null || true)
-    [ "$mode" != "container:$vfull" ] || return 0
+    if [ "$mode" = "container:$vfull" ]; then
+      # same vyred container, but a restart (not a re-creation) gives it a new network namespace: a Caddy that started before this vyred's start is on the dead one
+      vstart=$(docker inspect -f '{{.State.StartedAt}}' "$vid" 2>/dev/null || true)
+      cstart=$(docker inspect -f '{{.State.StartedAt}}' "$cid" 2>/dev/null || true)
+      [ -n "$vstart" ] && [ -n "$cstart" ] && [ "$cstart" != "$vstart" ] || return 0
+      [ "$(printf '%s\n%s\n' "$cstart" "$vstart" | sort | head -n 1)" = "$cstart" ] || return 0
+    fi
   fi
   dc up -d --force-recreate --no-deps caddy >/dev/null 2>&1 || return 1
 }
@@ -1126,8 +1132,10 @@ sync_image() {
   # the Space browser image of this release, by digest (compose.server.yml VYRE_SPACE_BROWSER_IMAGE), the same way
   bimg=$(sed -n 's/^VYRE_BROWSER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   wimg=$(sed -n 's/^VYRE_WORKSPACE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  # the Word to PDF converter image, by digest: fetched by the server on first use
+  cimg=$(sed -n 's/^VYRE_CONVERTER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' -e '^VYRE_DOC_CONVERTER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; [ -z "$cimg" ] || printf 'VYRE_DOC_CONVERTER_IMAGE=%s\n' "$cimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
   # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine, unless the Space serves its own domain (set in the Console). In relay mode a site cannot have a custom domain, so nothing else is lost.
   if ! grep -q '^VYRE_ADDRESS=' "$DIR/compose.env"; then
@@ -1189,7 +1197,7 @@ prune_releases() {
 # untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
 # left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
 # A failure never fails the update: it prints what was removed, if anything, and returns 0.
-PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'vyred|agent-computer|agent-workspace|workspace|space-browser|vyre-browser'}
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'vyred|agent-computer|agent-workspace|workspace|space-browser|vyre-browser|doc-converter'}
 prune_images() {
   command -v docker >/dev/null 2>&1 || return 0
   docker info >/dev/null 2>&1 || return 0

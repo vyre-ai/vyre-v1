@@ -410,6 +410,12 @@ test("the AI step has an Answer or Task switch, and a step without a mode is an 
   assert.match(tag(task, "ai-mode-task"), /aria-checked="true"/);
 });
 
+test("an Answer step whose prompt asks for a skill says to switch to Task", () => {
+  const asks = panel({ id: "a", key: "ai", input: { prompt: "Load the intake skill and draft the letter" } });
+  assert.ok(has(asks, 'data-testid="ai-skill-hint"'));
+  assert.ok(!has(panel({ id: "a", key: "ai", input: { prompt: "Draft the letter" } }), 'data-testid="ai-skill-hint"'));
+});
+
 test("a task step shows the goal, the seats with faces, the deliverable as fields, what done means, and keeps the rarely used settings under More", () => {
   const schema = {
     type: "object",

@@ -11,7 +11,7 @@ Check a SyncSpec against a real sampled page of the app (read-only GET with the 
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -35,7 +35,8 @@ type In = {
     };
     auth: {
       vaultHandle: string;
-      style: "bearer" | "header" | "basic" | "query" | "oauth";
+      style: "bearer" | "header" | "basic" | "query" | "oauth" | "oauth_refresh";
+      tokenUrl?: string;
       header?: string;
       prefix?: string;
       headers?: Record<string, string>;
@@ -198,6 +199,7 @@ type Out = {
         "headers": {},
         "prefix": "example",
         "style": "bearer",
+        "tokenUrl": "example",
         "vaultHandle": "#Dana_Lawmatics"
       },
       "mapping": [

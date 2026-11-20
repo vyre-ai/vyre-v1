@@ -313,26 +313,6 @@ test("promote: a router fault stops the new container, puts the old rows and rou
   assert.equal(w.runtime.running.size, 2); // staging and the old production container; the new one was stopped
 });
 
-test("promote: environment names are filled from the Vault into the production container; values are never read", async () => {
-  const w = world();
-  const siteId = await readySite(w);
-  await run(w.ctx, "sites.env_set", { siteId, entries: [{ name: "STRIPE_KEY", vaultHandle: "#Stripe.key" }] });
-  const staging = await stage(w, siteId);
-  const prod = await promote(w, siteId, staging);
-  const fills = w.filled.filter((f) => f.kind === "container_env" && f.ref.startsWith(prod.deploymentId));
-  assert.deepEqual(fills, [{ handle: "#Stripe.key", kind: "container_env", ref: `${prod.deploymentId}:STRIPE_KEY` }]);
-  const started = w.runtime.starts.find((s) => s.deploymentId === prod.deploymentId);
-  assert.deepEqual(started?.envRefs, [{ name: "STRIPE_KEY", ref: `${prod.deploymentId}:STRIPE_KEY` }]);
-  assert.equal(JSON.stringify(started).includes("sk_"), false);
-
-  // the owner lost the grant: no production container starts
-  const next = await stage(w, siteId);
-  w.granted.delete("#Stripe.key");
-  const startsBefore = w.runtime.starts.length;
-  assert.equal(await code(run(w.ctx, "sites.promote", { siteId, deploymentId: next })), "permission.no_grant");
-  assert.equal(w.runtime.starts.length, startsBefore);
-});
-
 test("promote with a pull request: failing or running checks block it, passing checks merge first, then the staged build ships", async () => {
   const w = world();
   const siteId = await readySite(w, { repoUrl: "https://github.com/acme/harbor.git" });

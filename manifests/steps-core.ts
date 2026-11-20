@@ -98,6 +98,21 @@ export default defineManifest({
       in: { type: id.recordType, recordId: id.record, field: t.str(), toId: id.record, unlink: t.opt(t.bool()) },
       out: { record: t.rec() },
     }),
+    step("forms.link_create", "Make a form link", "data", "capability", {
+      cap: "forms.link_create",
+      effects: "write",
+      idempotency: "key",
+      errors: ["validation.bad_input", "internal.unexpected", "validation.precondition_failed"],
+      in: {
+        formId: id.form,
+        recordId: id.record,
+        singleUse: t.opt(
+          t.bool({ description: "One use only (the default); false makes a signed link that works until it expires" }),
+        ),
+        expiresInHours: t.opt(t.int({ minimum: 1 })),
+      },
+      out: { url: t.str(), expiresAt: t.opt(t.ts()) },
+    }),
     step("create_task", "Create a task", "data", "capability", {
       cap: "tasks.create",
       effects: "write",
@@ -202,6 +217,19 @@ export default defineManifest({
       idempotency: "key",
       in: { journeyId: id.journey, subjectRecordId: id.record, startStage: t.opt(t.str()) },
       out: { recordId: id.record },
+    }),
+    step("journeys.move_stage", "Move to a stage", "journey", "capability", {
+      cap: "journeys.move_stage",
+      effects: "write",
+      idempotency: "key",
+      errors: ["validation.bad_input", "internal.unexpected", "validation.precondition_failed"],
+      in: {
+        journeyId: id.journey,
+        recordId: id.record,
+        toStage: t.str({ description: "The stage key to move the record to", examples: ["review"] }),
+        reason: t.opt(tpl("Why it moves; the record's channel shows it. Filled with a plain line when left empty")),
+      },
+      out: { recordId: id.record, stage: t.str() },
     }),
     step("wait_stage", "Wait for a Journey stage", "wait", "wait", {
       effects: "read",

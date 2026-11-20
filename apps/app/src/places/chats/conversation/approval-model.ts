@@ -18,6 +18,8 @@ export interface Held {
   /** An outside agent asked the person (docs/ask-the-person.md): what happens, in the capability's own words. */ what?: string;
   /** a plain yes or no from an agent of a teammate (lane l-agentdm): nothing runs as the reader */ plain?: true;
   detail?: string;
+  /** a sentence the server wrote for this hold (a preview copy that is not the exact one): shown quietly under the title */ note?: string;
+  /** the names the held send goes to, shown apart from the note */ noteSigners?: string[];
 }
 
 /** The capability and input a hold's task carries in its first block, or an empty hold when it carries none. */
@@ -34,6 +36,10 @@ export function heldOf(blocks: readonly { type: string; data: unknown }[]): Held
     ...(text(d["holdId"]) ? { holdId: text(d["holdId"]) } : {}),
     ...(what ? { what } : {}),
     ...(d["plain"] === true ? { plain: true, detail: text(d["text"]) } : {}),
+    ...(text(d["note"]) ? { note: text(d["note"]).slice(0, 400) } : {}),
+    ...(Array.isArray(d["noteSigners"])
+      ? { noteSigners: (d["noteSigners"] as unknown[]).filter((n): n is string => typeof n === "string").slice(0, 6) }
+      : {}),
   };
 }
 

@@ -6,6 +6,10 @@ import { SettingsDataProvider } from "./data.tsx";
 import { SettingsPlace } from "./SettingsPlace.tsx";
 import { createSampleSettings, harbor, northwind } from "./sample.ts";
 import { LOOK_KEY } from "./look.ts";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 import "./controls-sweep.support.tsx"; // its timer patch: the saved line must not keep the process alive
 

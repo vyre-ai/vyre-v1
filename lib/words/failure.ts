@@ -65,6 +65,7 @@ export const FAILURE_WORDS: Readonly<Record<string, Why>> = {
     "AI plan at its limit",
   ),
   host_lost: W("transient", "The server stopped while this was running.", "", "The server kept failing"),
+  host_resumed: W("transient", "The server stopped for a moment. It carried on from its last finished step."),
   "provider.unavailable": W("transient", "Your AI provider is busy or down just now."),
   "provider.overloaded": W("transient", "Your AI provider is busy just now."),
   "provider.network": W("transient", "Your AI provider could not be reached."),

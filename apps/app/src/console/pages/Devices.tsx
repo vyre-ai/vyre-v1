@@ -5,6 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Section, Group } from "../shell/ui.tsx";
 import { Actions, Button, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type List = CapMap["devices.list"]["out"];
 export function Devices(): ReactElement {
@@ -44,34 +45,33 @@ export function Devices(): ReactElement {
       ) : null}
       {confirm ? (
         <Section title="Confirm revocation">
-          <Note>
-            {confirm.kind === "device"
-              ? "This device’s sessions end and it purges its local copy on next contact."
-              : "This session ends at once."}
-          </Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setConfirm(null)} />
-            <Button
-              label="Confirm revoke"
-              danger
-              testID="console-revoke-confirm"
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run(
-                    confirm.kind === "device" ? "devices.revoke" : "devices.sessions.revoke",
-                    confirm.kind === "device" ? { deviceId: confirm.id } : { sessionId: confirm.id },
-                    "Revoked",
-                  )
-                  .then((out) => {
-                    if (out) {
-                      setConfirm(null);
-                      setSelected(null);
-                    }
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>
+                {confirm.kind === "device"
+                  ? "This device’s sessions end and it purges its local copy on next contact."
+                  : "This session ends at once."}
+              </>
+            }
+            confirmLabel="Confirm revoke"
+            disabled={action.busy}
+            confirmTestID="console-revoke-confirm"
+            onConfirm={() =>
+              action
+                .run(
+                  confirm.kind === "device" ? "devices.revoke" : "devices.sessions.revoke",
+                  confirm.kind === "device" ? { deviceId: confirm.id } : { sessionId: confirm.id },
+                  "Revoked",
+                )
+                .then((out) => {
+                  if (out) {
+                    setConfirm(null);
+                    setSelected(null);
+                  }
+                })
+            }
+            onCancel={() => setConfirm(null)}
+          />
         </Section>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

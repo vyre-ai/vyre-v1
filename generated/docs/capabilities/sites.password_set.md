@@ -1,6 +1,6 @@
 # sites.password_set
 
-Set the password visitors type to open a site whose access is password. Kept only as a hash
+Set the password for a site whose access is password (kept as a hash)
 
 | | |
 |---|---|

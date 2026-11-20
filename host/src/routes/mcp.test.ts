@@ -88,11 +88,25 @@ test("a request to the sign-in addresses reaches the module with the address thi
     );
     assert.equal((await fetch(`${base}/oauth/authorize?client_id=x`)).status, 200);
     // a loopback request that passes a forged visitor header through, as Caddy or any local proxy would, with no valid MAC: keyed by the connection's address
-    assert.equal((await fetch(`${base}/oauth/authorize?client_id=y`, { headers: { "x-vyre-visitor": "203.0.113.77" } })).status, 200);
-    assert.equal((await fetch(`${base}/oauth/authorize?client_id=z`, { headers: { "x-vyre-visitor": "203.0.113.77", [PROOF_HEADER]: proofFor("203.0.113.9") } })).status, 200, "a MAC for another value");
+    assert.equal(
+      (await fetch(`${base}/oauth/authorize?client_id=y`, { headers: { "x-vyre-visitor": "203.0.113.77" } })).status,
+      200,
+    );
+    assert.equal(
+      (
+        await fetch(`${base}/oauth/authorize?client_id=z`, {
+          headers: { "x-vyre-visitor": "203.0.113.77", [PROOF_HEADER]: proofFor("203.0.113.9") },
+        })
+      ).status,
+      200,
+      "a MAC for another value",
+    );
     const forged = seen.filter((r) => r.search.endsWith("=y") || r.search.endsWith("=z"));
     assert.equal(forged.length, 2);
-    assert.ok(forged.every((r) => r.visitor !== "203.0.113.77"), "the forged value never became the visitor");
+    assert.ok(
+      forged.every((r) => r.visitor !== "203.0.113.77"),
+      "the forged value never became the visitor",
+    );
     seen.splice(seen.indexOf(forged[0]!), 1);
     seen.splice(seen.indexOf(forged[1]!), 1);
     assert.deepEqual(
@@ -131,7 +145,9 @@ test("an app that goes away while the runtime is still answering does not hold i
   }));
   try {
     const ctl = new AbortController();
-    const asked = fetch(s.url, { method: "GET", headers: { accept: "text/event-stream" }, signal: ctl.signal }).catch(() => undefined);
+    const asked = fetch(s.url, { method: "GET", headers: { accept: "text/event-stream" }, signal: ctl.signal }).catch(
+      () => undefined,
+    );
     await new Promise((r) => setTimeout(r, 100));
     ctl.abort();
     await asked;
@@ -146,22 +162,53 @@ test("an app that goes away while the runtime is still answering does not hold i
 });
 
 type Req = Parameters<typeof takeVisitor>[0];
-const reqOf = (headers: Record<string, string>, remote: string): Req => ({ headers: { ...headers }, socket: { remoteAddress: remote } });
+const reqOf = (headers: Record<string, string>, remote: string): Req => ({
+  headers: { ...headers },
+  socket: { remoteAddress: remote },
+});
 
 test("the visitor the relay vouched for is read once and both headers are gone: a relayed request carries no proof or visitor header onward", () => {
-  const good = reqOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9"), accept: "*/*" }, "127.0.0.1");
+  const good = reqOf(
+    { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9"), accept: "*/*" },
+    "127.0.0.1",
+  );
   takeVisitor(good);
   assert.equal(visitorOfRequest(good), "203.0.113.9");
   assert.equal(verifiedVisitor(good), true);
-  assert.deepEqual(Object.keys(good.headers), ["accept"], "nothing a proxy, a site or an outbound fetch could copy is left");
+  assert.deepEqual(
+    Object.keys(good.headers),
+    ["accept"],
+    "nothing a proxy, a site or an outbound fetch could copy is left",
+  );
 });
 
 test("a visitor with no valid MAC is keyed by the connection's address, and the headers are removed either way", () => {
   for (const [label, headers, remote, want] of [
-    ["forged header, no MAC (a local proxy that passes headers through)", { "x-vyre-visitor": "203.0.113.9" }, "127.0.0.1", "127.0.0.1"],
-    ["a MAC made for another value", { "x-vyre-visitor": "198.18.0.1", [PROOF_HEADER]: proofFor("203.0.113.9") }, "127.0.0.1", "127.0.0.1"],
+    [
+      "forged header, no MAC (a local proxy that passes headers through)",
+      { "x-vyre-visitor": "203.0.113.9" },
+      "127.0.0.1",
+      "127.0.0.1",
+    ],
+    [
+      "a MAC made for another value",
+      { "x-vyre-visitor": "198.18.0.1", [PROOF_HEADER]: proofFor("203.0.113.9") },
+      "127.0.0.1",
+      "127.0.0.1",
+    ],
     ["a wrong MAC", { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "x".repeat(64) }, "127.0.0.1", "127.0.0.1"],
-    ["a good MAC from outside the loopback", { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9") }, "198.51.100.7", "198.51.100.7"],
+    [
+      "a MAC in the first format (64 hex digits, from a build before the kernel's HMAC): refused like any wrong MAC, the connection's address stands and nothing errors or asks",
+      { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: "0123456789abcdef".repeat(4) },
+      "127.0.0.1",
+      "127.0.0.1",
+    ],
+    [
+      "a good MAC from outside the loopback",
+      { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proofFor("203.0.113.9") },
+      "198.51.100.7",
+      "198.51.100.7",
+    ],
     ["no visitor at all", {}, "198.51.100.7", "198.51.100.7"],
   ] as const) {
     const r = reqOf({ ...headers }, remote);
@@ -184,8 +231,17 @@ test("forged visitor values from one outside address are one visitor, so a forge
   assert.deepEqual([...keys], ["198.51.100.7"]);
 });
 
-test("a visitor MAC that is not 64 lower-case hex digits never throws and is never believed: non-ASCII, wrong length, upper case, with a header value the way Node decodes it", () => {
-  for (const proof of ["\u00e9".repeat(64), "\u00e9".repeat(32), "a".repeat(63), "A".repeat(64), "g".repeat(64), "", "00".repeat(32) + "0"]) {
+test("a visitor MAC that is not 43 base64url characters never throws and is never believed: non-ASCII, wrong length, upper case, with a header value the way Node decodes it", () => {
+  for (const proof of [
+    "\u00e9".repeat(64),
+    "\u00e9".repeat(43),
+    "a".repeat(42),
+    "a".repeat(44),
+    "+".repeat(43),
+    "A".repeat(43),
+    "",
+    "00".repeat(32) + "0",
+  ]) {
     const r = reqOf({ "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: proof }, "127.0.0.1");
     assert.doesNotThrow(() => takeVisitor(r), JSON.stringify(proof).slice(0, 20));
     assert.equal(verifiedVisitor(r), false);

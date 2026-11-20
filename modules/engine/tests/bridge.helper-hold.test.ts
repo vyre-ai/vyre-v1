@@ -37,6 +37,7 @@ function setup(o: {
   script?: DriverEvent[];
   held?: boolean;
   agents?: Array<{ agentId: string; mode: "lead" | "listen" }>;
+  calls?: (cap: string, input: Record<string, unknown>) => unknown;
 }) {
   const h = harness();
   const chat: Row[] = [];
@@ -48,6 +49,8 @@ function setup(o: {
     ...h.ctx,
     async call(cap: string, input: unknown) {
       const b = input as { threadId: string; messageId?: string };
+      const extra = o.calls?.(cap, input as Record<string, unknown>);
+      if (extra !== undefined) return extra;
       if (cap === "gate.grants.ask") {
         asks.push(input as (typeof asks)[number]);
         return { ok: true };
@@ -58,7 +61,15 @@ function setup(o: {
             thread: { threadId: MAIN, kind: "chat", starter: "usr_dana", agents, agentRepliesInThreads: false },
           };
         return {
-          thread: { threadId: b.threadId, kind: o.kind ?? "helper", parentThreadId: MAIN, starter: "usr_dana", agents },
+          thread: {
+            threadId: b.threadId,
+            kind: o.kind ?? "helper",
+            parentThreadId: MAIN,
+            parentMessageId: "msg_line",
+            title: "Docs",
+            starter: "usr_dana",
+            agents,
+          },
         };
       }
       if (cap === "agents.get") throw new Error("no such agent");
@@ -185,4 +196,137 @@ test("a thread that is not a helper's keeps its card where it is", async () => {
   const s = setup({ held: true, script: readLink, kind: "task" });
   await s.say("Find the current rates.", HELPER);
   assert.equal(s.chat.filter((r) => r.threadId === MAIN && r.author.kind === "agent").length, 0);
+});
+
+// a helper told to wait for others (chat.helper.start dependsOn): its node is made queued behind theirs when its brief arrives, the brief is kept and no turn starts, and when the others are done it is woken once
+function waitingRig(finish: "succeeded" | "failed" | "never") {
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const state = { dep: "running" as string, me: "queued" as string };
+  const s = setup({
+    script: reply("Docs written."),
+    calls: (cap, input) => {
+      if (cap === "chat.message.get" && input["messageId"] === "msg_line")
+        return {
+          message: {
+            blocks: [{ type: "helper", data: { helperThreadId: HELPER, agentId: LEAD, dependsOn: ["thr_numbers"] } }],
+          },
+        };
+      if (cap === "runs.node.start") {
+        calls.push({ cap, input });
+        return { node: { id: "run_docs" }, created: true };
+      }
+      if (cap === "runs.node.find") return { byThread: {}, byKey: { [`helper:${HELPER}`]: "run_docs" } };
+      if (cap === "runs.node.get")
+        return input["runId"] === "run_docs"
+          ? { node: { id: "run_docs", status: state.me, dependsOn: ["run_numbers"] } }
+          : { node: { id: "run_numbers", status: state.dep } };
+      return undefined;
+    },
+  });
+  return { s, calls, state, finish };
+}
+
+test("a helper that waits: its node is made queued behind the others, its brief is kept and nothing starts; when they are done it is woken once", async () => {
+  const { s, calls, state } = waitingRig("succeeded");
+  await s.say("Write the docs from the numbers.", HELPER);
+  assert.equal(calls.length, 1, "its node was made once");
+  assert.deepEqual(calls[0]!.input["dependsOnThreads"], ["thr_numbers"]);
+  assert.equal(calls[0]!.input["idemKey"], `helper:${HELPER}`);
+  assert.equal(calls[0]!.input["parentThread"], MAIN);
+  assert.equal(
+    s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length,
+    0,
+    "no turn started: the helper did not answer yet",
+  );
+  state.dep = "succeeded";
+  await new Promise((r) => setTimeout(r, 1800));
+  await s.engine.idle(HELPER).catch(() => undefined);
+  await s.bridge.flush();
+  assert.ok(
+    s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent" && r.body.includes("Docs written")),
+    "woken when the others were done",
+  );
+  assert.equal(calls.length, 1, "and its node was not made again");
+});
+
+test("a helper that waits for work that did not finish is never woken", async () => {
+  const { s, state } = waitingRig("failed");
+  await s.say("Write the docs from the numbers.", HELPER);
+  state.dep = "failed";
+  state.me = "failed";
+  await new Promise((r) => setTimeout(r, 1800));
+  await s.bridge.flush();
+  assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0);
+});
+
+test("a helper that waits for nothing starts as before, and its node is not made here", async () => {
+  const calls: string[] = [];
+  const s = setup({
+    script: reply("Done."),
+    calls: (cap, input) => {
+      if (cap === "chat.message.get" && input["messageId"] === "msg_line")
+        return { message: { blocks: [{ type: "helper", data: { helperThreadId: HELPER, agentId: LEAD } }] } };
+      if (cap === "runs.node.start") calls.push(cap);
+      return undefined;
+    },
+  });
+  await s.say("Find the rates.", HELPER);
+  assert.equal(calls.length, 0);
+  assert.ok(s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent"));
+});
+
+test("a helper whose dependency had already failed when its brief arrived is kept and never woken", async () => {
+  const { s, state } = waitingRig("failed");
+  state.dep = "failed";
+  state.me = "failed";
+  await s.say("Write the docs from the numbers.", HELPER);
+  await new Promise((r) => setTimeout(r, 1800));
+  await s.bridge.flush();
+  assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0);
+});
+
+test("a Retry brings a helper that failed with its dependency back to waiting, and it then starts when the new attempt is done", async () => {
+  const { s, state } = waitingRig("failed");
+  state.dep = "failed";
+  state.me = "failed";
+  await s.say("Write the docs from the numbers.", HELPER);
+  assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0, "kept, not started");
+  // the helpers it waited for is tried again and succeeds: its node is queued again behind the new one
+  state.me = "queued";
+  state.dep = "succeeded";
+  await new Promise((r) => setTimeout(r, 11_500));
+  await s.engine.idle(HELPER).catch(() => undefined);
+  await s.bridge.flush();
+  assert.ok(
+    s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent" && r.body.includes("Docs written")),
+    "it started once it was waiting again and its dependency was done",
+  );
+});
+
+test("a helper started as a retry has its node made at once, naming the thread it retries", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const s = setup({
+    script: reply("Done."),
+    calls: (cap, input) => {
+      if (cap === "chat.message.get" && input["messageId"] === "msg_line")
+        return {
+          message: {
+            blocks: [{ type: "helper", data: { helperThreadId: HELPER, agentId: LEAD, retryOf: "thr_old" } }],
+          },
+        };
+      if (cap === "runs.node.start") {
+        calls.push(input);
+        return { node: { id: "run_new" }, created: true };
+      }
+      return undefined;
+    },
+  });
+  await s.say("Add the figures again.", HELPER);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!["retriesThread"], "thr_old");
+  assert.equal(calls[0]!["dependsOnThreads"], undefined, "it waits for nothing");
+  assert.ok(
+    s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent"),
+    "and it starts as it always did",
+  );
 });

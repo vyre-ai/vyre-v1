@@ -23,7 +23,8 @@ const MAX_DONE = 1_000;
 const COLS = `c.id AS id, c.key AS key, m.kind AS kind, c.title AS title, c.state AS state, m.assigned AS assigned, m.reviewer AS reviewer, m.approver AS approver, m.taken_by AS taken_by, m.due AS due, c.start_at AS start_at,
   m.effort AS effort, c.priority AS priority, c.labels AS labels, c.record_id AS record_id, m.parent_task AS parent_task, m.depends_on AS depends_on, m.thread_id AS thread_id, c.worker_thread AS worker_thread,
   m.source_kind AS source_kind, m.source_id AS source_id, m.snoozed_until AS snoozed_until, m.followers AS followers, c.created_by AS created_by, c.created_for AS created_for, c.responsible AS responsible, c.created_at AS created_at, c.updated_at AS updated_at,
-  (m.working_notes LIKE '%"fixes"%') AS has_fixes, (m.working_notes LIKE '%"plan.parent":"1"%') AS plan_parent`;
+  (m.working_notes LIKE '%"fixes"%') AS has_fixes, (m.working_notes LIKE '%"plan.parent":"1"%') AS plan_parent,
+  a.at AS archived_at, a.by AS archived_by, a.code AS archived_code, a.why AS archived_why`;
 
 const parse = <T>(v: unknown, or: T): T => {
   if (typeof v !== "string" || v === "") return or;
@@ -130,18 +131,23 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
     args.push(like, like, like, like, like);
   }
   const snoozedOnly = input.snoozed === true;
+  // archived tasks are their own list; a search looks through them too, so nothing put away is lost
+  const archivedOnly = input.archived === true;
+  if (archivedOnly) where.push("a.task_id IS NOT NULL");
+  else if (words.length === 0) where.push("a.task_id IS NULL");
   if (scope === "given") {
     where.push("c.created_by = ?");
     args.push(who.id);
   }
   const rows = ctx.db.all(
-    `SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id WHERE ${where.join(" AND ")} ORDER BY c.created_at DESC, c.id DESC`,
+    `SELECT ${COLS} FROM tasks_core c JOIN tasks_meta m ON m.id = c.id LEFT JOIN tasks_archive a ON a.task_id = c.id WHERE ${where.join(" AND ")} ORDER BY ${archivedOnly ? "a.at DESC, c.id DESC" : "c.created_at DESC, c.id DESC"}`,
     ...args,
   ) as Raw[];
   // the rollup of a parent reads every child, seen or not: a count says nothing about a child
   const children = new Map<string, { total: number; done: number }>();
   for (const r of ctx.db.all(
-    "SELECT m.parent_task AS parent, c.state AS state, m.kind AS kind FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.parent_task IS NOT NULL AND m.deleted_at IS NULL",
+    // an archived child is put away: the rollup of its parent does not wait for it
+    "SELECT m.parent_task AS parent, c.state AS state, m.kind AS kind FROM tasks_meta m JOIN tasks_core c ON c.id = m.id WHERE m.parent_task IS NOT NULL AND m.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM tasks_archive a WHERE a.task_id = c.id)",
   ) as Raw[]) {
     if (r["kind"] !== "work") continue;
     const p = String(r["parent"]);
@@ -182,7 +188,8 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
       done += 1;
     } else if (wantDone) continue;
     const snoozed = num(r["snoozed_until"]);
-    if (open && snoozed !== undefined && snoozed > clock && !snoozedOnly) continue;
+    const archivedAt = num(r["archived_at"]);
+    if (open && snoozed !== undefined && snoozed > clock && !snoozedOnly && archivedAt === undefined) continue;
     if (out.length >= MAX_ROWS) continue;
     const id = String(r["id"]);
     const dependsOn = parse<string[]>(r["depends_on"], []);
@@ -216,7 +223,16 @@ export async function index(ctx: TasksCtx, input: In): Promise<unknown> {
         createdBy: r["created_by"],
         createdAt: r["created_at"],
         updatedAt: r["updated_at"],
-        yourTurn: open && t !== null && isMyTurn(ctx, t, idx) ? true : undefined,
+        yourTurn: open && archivedAt === undefined && t !== null && isMyTurn(ctx, t, idx) ? true : undefined,
+        archived:
+          archivedAt === undefined
+            ? undefined
+            : {
+                at: archivedAt,
+                by: String(r["archived_by"] ?? ""),
+                code: str(r["archived_code"]) ?? "hand",
+                why: typeof r["archived_why"] === "string" ? r["archived_why"] : "",
+              },
       }),
     );
   }

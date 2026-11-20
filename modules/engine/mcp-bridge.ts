@@ -15,7 +15,8 @@ import path from "node:path";
 const sock = process.argv[2];
 const token = process.env.VYRE_MCP_TOKEN ?? "";
 // vyre-hook mode: "<shim> <socket> hook <Event>" is what a CLI engine's generated hooks config runs. It sends the event the CLI wrote on stdin to Vyre and answers the way the CLI reads a hook: exit 2 with
-// the reason on stderr stops the call, a note goes out as additional context. Any trouble reaching Vyre lets the call go on: a hook never stops work by failing.
+// the reason on stderr stops the call, a note goes out as additional context. Trouble reaching Vyre (no socket, an error, no answer in time, an answer that is not one) REFUSES a call about to be made (PreToolUse): that hook
+// is where a spending limit holds the turn, so it fails closed. The events after a call (PostToolUse, the subagent events) let work go on: they cannot hold anything.
 if (process.argv[3] === "hook") {
   const event = process.argv[4] ?? "";
   let raw = "";
@@ -29,16 +30,18 @@ if (process.argv[3] === "hook") {
       if (r && Array.isArray(r.notes) && r.notes.length > 0) process.stdout.write(JSON.stringify({ hookSpecificOutput: { hookEventName: event, additionalContext: r.notes.join("\\n") } }) + "\\n");
       process.exit(0);
     };
-    if (!sock || !token) done(null);
-    const timer = setTimeout(() => done(null), 50000);
+    // an answer that did not come: a call about to be made is refused, the rest goes on
+    const lost = () => done(event === "PreToolUse" ? { block: "Could not check the spending limit, so the call was not made. Waiting for a person." } : null);
+    if (!sock || !token) lost();
+    const timer = setTimeout(lost, Number(process.env.VYRE_HOOK_TIMEOUT_MS) || 50000);
     timer.unref();
     let c;
     try {
       if (sock.startsWith("\\\\") || Buffer.byteLength(sock) <= 100) c = net.connect(sock);
       else { process.chdir(path.dirname(sock)); c = net.connect(path.basename(sock)); }
-    } catch { done(null); }
+    } catch { lost(); }
     let buf = "";
-    c.on("error", () => done(null));
+    c.on("error", () => lost());
     c.on("connect", () => {
       c.write(JSON.stringify({ auth: token }) + "\\n");
       c.write(JSON.stringify({ jsonrpc: "2.0", id: 1, method: "vyre/hook", params: { event, payload } }) + "\\n");
@@ -49,9 +52,9 @@ if (process.argv[3] === "hook") {
       if (i < 0) return;
       let r = null;
       try { r = JSON.parse(buf.slice(0, i)).result; } catch {}
-      done(r);
+      if (r && typeof r === "object") done(r); else lost();
     });
-    c.on("close", () => done(null));
+    c.on("close", () => lost());
   });
 } else {
 if (!sock || !token) { process.stderr.write("vyre mcp shim: no socket or token\\n"); process.exit(2); }

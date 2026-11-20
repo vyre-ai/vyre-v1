@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (98)
+## Capabilities (101)
 
 - [engine.account.resolve](../capabilities/engine.account.resolve.md): Resolve the account that pays for a turn: a pin (the chat's account, the agent's key, the step's key), the person's own, the Space AI accounts whose uses cover the turn (cheapest that fits, not capped), the backups, else an Unblock
 - [engine.accounts.list](../capabilities/engine.accounts.list.md): Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
@@ -12,13 +12,13 @@ Requires: nothing.
 - [engine.complete](../capabilities/engine.complete.md): One request and one answer on an account the caller can run on, for work that is not a chat (memory upkeep); returns the text and the token counts and posts nothing
 - [engine.crew.chat_repo](../capabilities/engine.crew.chat_repo.md): The repository of a chat that has its own work folder for the crew, or nothing yet
 - [engine.crew.list](../capabilities/engine.crew.list.md): The crew of a chat: one row per teammate job, newest first, with what each is on and how it stands
-- [engine.crew.merge](../capabilities/engine.crew.merge.md): Land a teammate's branch in the project repository: it is merged into the base branch when the repository is on it and clean, else it waits there as crew/<branch>. It is local: it leaves this computer only when it is pushed
+- [engine.crew.merge](../capabilities/engine.crew.merge.md): Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed
 - [engine.crew.message](../capabilities/engine.crew.message.md): Send a message to a teammate in its own thread; a teammate that stopped picks up where it left off
-- [engine.crew.push](../capabilities/engine.crew.push.md): Push the project repository's base branch, with a teammate's merged work in it, to its remote. It is an outward act: a person pressing Push is their own act; an agent goes only when the person's own message this turn asked for it, else it holds at the Gate
+- [engine.crew.push](../capabilities/engine.crew.push.md): Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate
 - [engine.crew.repo.get](../capabilities/engine.crew.repo.get.md): The project's repository for the crew, or nothing when none is set
 - [engine.crew.repo.set](../capabilities/engine.crew.repo.set.md): Say which folder on this computer holds the project's repository, and the branch teammates start from; the folder must be a git repository
 - [engine.crew.start](../capabilities/engine.crew.start.md): Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
-- [engine.crew.status](../capabilities/engine.crew.status.md): Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated
+- [engine.crew.status](../capabilities/engine.crew.status.md): Everything that works for a chat, in one read: each helper and teammate with its state, current step, model, account, branch, files changed, tokens and cost, and the crew totals. Only what is known
 - [engine.crew.stop](../capabilities/engine.crew.stop.md): Stop a teammate: its running turn ends and anything queued for it is dropped; its work stays on its branch
 - [engine.crew.wait](../capabilities/engine.crew.wait.md): Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish
 - [engine.crew.workspace](../capabilities/engine.crew.workspace.md): System: the repository copy a teammate thread works in, so the engine can make it before the first turn
@@ -52,8 +52,9 @@ Requires: nothing.
 - [engine.models_catalog](../capabilities/engine.models_catalog.md): Every AI account the asker can use with its models, what each can do (tools, images, context), a cost tier (cheap, standard or strong) and whether the probe found it available; for helpers that pick a model across accounts. Reads saved lists and the probe's marks only
 - [engine.my_ai](../capabilities/engine.my_ai.md): What AI this chat runs on and what else the person may use now: model, account and who paid, each usable account with models and limits (or not readable), and use today and this month. Ask it for what model, what else, what is left, /usage
 - [engine.now](../capabilities/engine.now.md): Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it
+- [engine.pause](../capabilities/engine.pause.md): Pause one agent's turn in a thread at its next safe point, keeping everything it did (a limit was reached)
 - [engine.placement.decide](../capabilities/engine.placement.decide.md): Decide where a turn runs: host or the asker device (private chat rules, computers, routines, phone and web askers)
-- [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now, and whether the person pinned it (not pinned is Automatic)
+- [engine.placement.options](../capabilities/engine.placement.options.md): What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)
 - [engine.placement.set](../capabilities/engine.placement.set.md): Choose where a private chat runs: one of your computers, the Space, one of your own servers, or auto. Never a teammate's machine. once with space runs the next turn on the Space once
 - [engine.policy.get](../capabilities/engine.policy.get.md): AI policies: allowed accounts, allowed models and providers, and which providers each label may reach
 - [engine.policy.set](../capabilities/engine.policy.set.md): Change AI policies (models and providers, per label provider rules, allowed accounts)
@@ -62,15 +63,16 @@ Requires: nothing.
 - [engine.providers.list](../capabilities/engine.providers.list.md): AI providers and engines (API and CLI) with whether each is connected and allowed for the open labels
 - [engine.queue.list](../capabilities/engine.queue.list.md): Messages waiting in a thread queue (steering, wakes, handoffs)
 - [engine.queue.peek](../capabilities/engine.queue.peek.md): Steering check between tool calls: the next queued messages for a running turn
+- [engine.resume_paused](../capabilities/engine.resume_paused.md): Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had already done
 - [engine.review.list](../capabilities/engine.review.list.md): Sampled turns waiting for human review
 - [engine.review.mark](../capabilities/engine.review.mark.md): Mark a sampled turn reviewed: fine, or flagged (which opens an incident)
 - [engine.reviewer.get](../capabilities/engine.reviewer.get.md): The reviewer of a chat, if one is set
-- [engine.reviewer.set](../capabilities/engine.reviewer.set.md): Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task
-- [engine.rewind.points](../capabilities/engine.rewind.points.md): The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it
-- [engine.rewind.to](../capabilities/engine.rewind.to.md): Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line
-- [engine.round.get](../capabilities/engine.round.get.md): Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind an earlier turn of its own, replied, stopped; agents asked together all work at once). Read from the engine's queue, never stored
+- [engine.reviewer.set](../capabilities/engine.reviewer.set.md): Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task
+- [engine.rewind.points](../capabilities/engine.rewind.points.md): The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it
+- [engine.rewind.to](../capabilities/engine.rewind.to.md): Put your own agent work folder back to one of your points and fold the chat's messages from that point on out of what the agents read. Never while that agent works. chat.rewind also leaves the line
+- [engine.round.get](../capabilities/engine.round.get.md): Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue
 - [engine.route.preview](../capabilities/engine.route.preview.md): Who will answer a draft message ("Intake will reply" or "No agent will reply, type @ to ask one"); same route() the client runs locally
-- [engine.running_here](../capabilities/engine.running_here.md): System: the turns running now with the chat each is in and who asked, for the desktop update screen to name the reply it waits for and to end it (host/src/daemon, GET /local/daemon/busy)
+- [engine.running_here](../capabilities/engine.running_here.md): System: the turns running now with the chat each is in and who asked, for the desktop update screen (GET /local/daemon/busy)
 - [engine.runtime.opt_in](../capabilities/engine.runtime.opt_in.md): Let the Space continue my chats when my computer is off, by wrapping my runtime key for the Space; revocable
 - [engine.set_mode](../capabilities/engine.set_mode.md): Set an agent to Leading or Listening in a thread; exactly one lead per thread
 - [engine.set_model](../capabilities/engine.set_model.md): Set the model, provider, effort and paying account of an agent in a thread
@@ -82,6 +84,7 @@ Requires: nothing.
 - [engine.step_turn](../capabilities/engine.step_turn.md): Run one AI turn for an automation step: on the owner's own account (Personal) or a Space-shared key (Space), optionally as an agent, with no tools. A repeat of the same key returns the first answer.
 - [engine.stop](../capabilities/engine.stop.md): Stop one agent working in a thread (per-agent Stop)
 - [engine.stop_all](../capabilities/engine.stop_all.md): Stop every agent working in a thread (Stop all in the conversation header)
+- [engine.subagent.stop](../capabilities/engine.subagent.stop.md): Ask one subagent of a command-line engine to stop: its next call is refused and it ends (the node that stands for it in the run tree)
 - [engine.subscription_share.set](../capabilities/engine.subscription_share.set.md): Let the Space run work on my subscription (server runs for my chats, routines and personal automations); off kills my sandbox
 - [engine.switch](../capabilities/engine.switch.md): Switch engine mid-chat: the new engine starts from the rolling summary, the last turns and a pointer to the transcript
 - [engine.thread_states](../capabilities/engine.thread_states.md): The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out
@@ -100,7 +103,7 @@ Requires: nothing.
 - [engine.turn.wait](../capabilities/engine.turn.wait.md): Park a turn until a task, an answered block, a run or a time
 - [engine.turns.list](../capabilities/engine.turns.list.md): Turns of a thread, newest first
 - [engine.turns.running](../capabilities/engine.turns.running.md): Engine only: the turns running now with the machine each runs on (agent, asker, start, place; no message or title), for the Machines page
-- [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
+- [engine.usage.get](../capabilities/engine.usage.get.md): For a chat and an account: the context used against the model window and the session and week limits as the provider reported them. A provider that reports nothing gives null
 - [engine.usage.query](../capabilities/engine.usage.query.md): Usage by day, person, agent or model; people see their own, managers their agents, admins all
 - [engine.use_policy.export](../capabilities/engine.use_policy.export.md): Export the AI use policy (models, providers, label rules, limits, accounts) as a file
 - [engine.warm](../capabilities/engine.warm.md): Hint that a thread was opened or the composer got focus: warm the engine session (drivers pool, prefix cache)

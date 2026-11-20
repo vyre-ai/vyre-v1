@@ -1,10 +1,11 @@
 {
-  "version": "1.0.0-rc.39",
+  "version": "1.0.0-rc.41",
   "lines": [
-    "Vyre opens faster still: the sign-in page loads only what it needs and is ready in about a quarter of a second.",
-    "Sharing is instant on a big Space: Share and Unshare answer in about a quarter of a second, and the change shows at once.",
-    "After a sync, Files and lists stay quick: access updates only what the sync changed.",
-    "Temporary access ends on time without slowing the server, however many records the Space holds.",
-    "A busy server keeps its logs without pausing: log lines are saved in small batches."
+    "A request the server cannot read no longer stops it, and a hostile email or page can no longer freeze it or a tab.",
+    "Tapping a Vault row on a phone shows its own title at once, and Sign Out always ends the sign-in, even before the Space answers.",
+    "A part of the app that loads on request shows a small Retry if its code fails, and keeps what you typed when it opens.",
+    "Syncs start in turns, not in one wave, so a big Space stays responsive while it syncs.",
+    "Flows know the record behind a form, button or stage move, and every {{ }} is checked when you save; older Flows keep running.",
+    "Mail in Windows-1252 shows its quotes and dashes, and a Vault fill only goes into frames of the page's own site."
   ]
 }

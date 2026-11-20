@@ -182,6 +182,8 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
 
     // a wrong key: tried first, refused, nothing kept, nothing connected
     const wrong = await ok(d, "vault.connect_card.submit", {
+      revision: ((await ok(d, "vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: "bad-key-0001" }],
@@ -193,6 +195,8 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
 
     // the right key
     const good = await ok(d, "vault.connect_card.submit", {
+      revision: ((await ok(d, "vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -220,6 +224,8 @@ test("Personal: the owner asks for Fathom, one card tries the key, keeps it in M
     await ok(d, "vault.connect_card.disconnect", { requestId });
     await ok(d, "vault.connect_card.reopen", { requestId });
     const again = await ok(d, "vault.connect_card.submit", {
+      revision: ((await ok(d, "vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -339,6 +345,9 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     assert.deepEqual([hers.state, hers.mayFill], ["admin", false]);
     assert.ok(hers.admin?.id, "an admin to ask, by id: the screen says the name");
     const refused = await mia("vault.connect_card.submit", {
+      revision: (
+        (await mia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+      ).card.service.revision,
       hosts: ["api.crmapp.example"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -360,7 +369,18 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
     const theirs = (await olivia("vault.connect_card.get", { requestId })).data.card;
     assert.deepEqual([theirs.state, theirs.mayFill], ["ask", true]);
     const itemsBefore = ((await olivia("vault.items.list", {})).data.items as unknown[]).length;
+    // an app bundle from before the card pinned a revision sends none: what the person sees
+    const oldBundle = await olivia("vault.connect_card.submit", {
+      hosts: ["api.crmapp.example"],
+      requestId,
+      fields: [{ key: "api_key", value: "bad-admin-key" }],
+    });
+    assert.ok(oldBundle.status >= 400 && oldBundle.status < 500, "an old bundle is refused");
+    assert.match(JSON.stringify(oldBundle.data), /changed since this card was shown\. Open it again\./);
     const wrong = await olivia("vault.connect_card.submit", {
+      revision: (
+        (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+      ).card.service.revision,
       hosts: ["api.crmapp.example"],
       requestId,
       fields: [{ key: "api_key", value: "bad-admin-key" }],
@@ -377,6 +397,9 @@ test("Team: a member is sent to an admin by name, the admin connects it from her
       "a Space service is kept in the Connections folder only: no Mine, no team folder",
     );
     const good = await olivia("vault.connect_card.submit", {
+      revision: (
+        (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+      ).card.service.revision,
       hosts: ["api.crmapp.example"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -440,6 +463,8 @@ test("Team: a member connects their OWN Fathom with no admin, the key in their o
       "the hosts the key goes to are said before she saves, built in or not",
     );
     const good = await a.call("vault.connect_card.submit", {
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],

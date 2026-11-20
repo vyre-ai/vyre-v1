@@ -1,10 +1,11 @@
 // A Markdown file edited in the viewer: the one Markdown editor (ui/RichEditor), saved by itself as new versions with Undo (the same rule as AGENT.md, review/useFileAutosave.ts). The row above it
 // holds the Saved state with the version number, Undo, and the Styled and Markdown switch; the text is plain .md, the same text agents read.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { MarkdownEditor, ViewSwitch } from "../../../../../../ui/src/RichEditor/index.tsx";
-import type { MarkdownView } from "../../../../../../ui/src/RichEditor/index.tsx";
+import { ownValueId } from "../../../../../../ui/src/RichEditor/index.tsx";
+import type { DocEditing, MarkdownView, OwnSave } from "../../../../../../ui/src/RichEditor/index.tsx";
 import { useFileAutosave } from "../review/useFileAutosave.ts";
 import { statusWords } from "../review/AgentFileEditor.tsx";
 
@@ -20,6 +21,8 @@ export interface FileMarkdownEditorProps {
   say?: (e: unknown) => void;
   /** Where the editor opens (a mount, a test). */
   startView?: MarkdownView;
+  /** A Vyre document: field chips and suggestions. With `author` the page offers Editing and Suggesting, and a version saved while suggesting says so in its history. */
+  doc?: DocEditing;
 }
 
 export function FileMarkdownEditor({
@@ -30,8 +33,21 @@ export function FileMarkdownEditor({
   version,
   onText,
   startView = "styled",
+  doc,
 }: FileMarkdownEditorProps): ReactElement {
-  const fa = useFileAutosave({ call, fileId, saved: text, version, reason: "Edited in the viewer" });
+  const [suggesting, setSuggesting] = useState(false);
+  const on = doc?.suggesting ?? suggesting;
+  // the save the editor last asked for: the draft that is that text came from the editor, any other draft came from outside (an agent, another person, a restore)
+  const own = useRef<OwnSave>({ text: text, id: undefined });
+  const fa = useFileAutosave({
+    call,
+    fileId,
+    saved: text,
+    version,
+    reason: doc === undefined ? "Edited in the viewer" : on ? "Suggested changes" : "Edited in the document",
+  });
+  const shown = ownValueId(own.current, fa.draft);
+  own.current = shown.own;
   const [view, setView] = useState<MarkdownView>(startView);
   useEffect(() => {
     onText?.(fa.base.text);
@@ -69,7 +85,10 @@ export function FileMarkdownEditor({
       ) : null}
       <MarkdownEditor
         value={fa.draft}
-        onChange={fa.edit}
+        onChange={(t, id) => {
+          own.current = { text: t, id };
+          fa.edit(t);
+        }}
         view={view}
         onView={setView}
         toggle={false}
@@ -77,6 +96,19 @@ export function FileMarkdownEditor({
         onSave={fa.flush}
         testID="file-md-text"
         placeholder="Write"
+        {...(doc
+          ? {
+              doc: {
+                ...doc,
+                valueId: shown.valueId,
+                suggesting: on,
+                onSuggesting: (v: boolean) => {
+                  setSuggesting(v);
+                  doc.onSuggesting?.(v);
+                },
+              },
+            }
+          : {})}
       />
     </View>
   );

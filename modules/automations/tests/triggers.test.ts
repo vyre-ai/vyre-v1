@@ -5,6 +5,7 @@ import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { alice, create, engine, goodDefinition, node } from "../fixtures/seed.ts";
 import { consumeEvent, consumers, loadRunPlan, startRun } from "../impl.ts";
+import { matches } from "../handlers/triggers.ts";
 import type { LoggedEvent } from "../handlers/triggers.ts";
 import { findRunLink, getAutomation } from "../projections.ts";
 
@@ -229,14 +230,25 @@ test("the filter narrows by type, operation, changed field and values", async ()
   assert.ok(!made.includes(wrongWhere));
 });
 
-test("a broken filter is reported, not guessed", async () => {
+test("a broken filter is refused when it is saved, and one that got in anyway is reported, not guessed", async () => {
   const h = harness();
-  const id = await live(h, {
-    definition: goodDefinition({ triggers: [{ key: "record_change", filter: { type: "contact", fields: "status" } }] }),
-  });
-  const res = await h.consumer(engine, (ctx) => consumeEvent(ctx, change()));
-  assert.deepEqual(res, [{ automationId: id, result: { dropped: "filter_error" } }]);
-  assert.deepEqual(h.events[0]!.payload, { automationId: id, eventId: "evt_c1", reason: "filter_error" });
+  await refused(
+    h.call(
+      "automations.create",
+      create({
+        definition: goodDefinition({
+          triggers: [{ key: "record_change", filter: { type: "contact", fields: "status" } }],
+        }),
+      }),
+      alice,
+    ),
+    "validation.bad_input",
+  );
+  // an old definition saved before the check still meets the same answer at run time
+  assert.equal(
+    matches({ key: "record_change", filter: { type: "contact", fields: "status" } }, change()),
+    "filter_error",
+  );
 });
 
 test("a paused Automation reports each event it ignores; one that is off stays silent", async () => {

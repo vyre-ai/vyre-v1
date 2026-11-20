@@ -155,6 +155,8 @@ export default defineManifest({
         emits: ["settings.changed"],
         audit: "always",
         tool: "engineer",
+        // the setting that decides how the whole Space sends email (mail.provider) is held for an agent; every other setting is as before
+        gate: { act: "send", when: "mail.is_provider_setting(input.key)" },
         errors: ["validation.field_locked"],
       },
     ),
@@ -166,6 +168,7 @@ export default defineManifest({
       emits: ["settings.changed"],
       audit: "always",
       tool: "engineer",
+      gate: { act: "send", when: "mail.is_provider_setting(input.key)" },
     }),
     read("settings.search", "Find settings rows by words (Cmd-F)", {
       ...V,

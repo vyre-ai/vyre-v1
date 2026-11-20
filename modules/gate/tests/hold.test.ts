@@ -334,7 +334,7 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
   const all = (await h.call("gate.rules.list", {}, owner)).rules;
   assert.equal(
     all.filter((x: { scope: string }) => x.scope === "space").length,
-    16,
+    19,
     "every act has a Space rule, stored or default",
   );
   assert.equal(all.find((x: { act: string; scope: string }) => x.act === "send" && x.scope === "space").afterHours, 8);
@@ -347,7 +347,7 @@ test("rules: scope checks, never loosening, the defaults list, one event", async
     [bot.id],
   );
   assert.deepEqual((await h.call("gate.rules.list", { scope: "agent", agentId: bot2.id }, owner)).rules, []);
-  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 16); // 16 Nov 2026: agent_erase (delete an agent for good) is the sixteenth
+  assert.equal((await h.call("gate.acts.list", {}, owner)).acts.length, 19); // 20 Nov 2026: deploy (running code with a site's production keys); 19 Nov 2026: admit and access; 16 Nov 2026: agent_erase (delete an agent for good) is the sixteenth
 });
 
 test("the gate settings change the defaults", async () => {
@@ -607,4 +607,61 @@ test("a hold an agent parked for Alice is Alice's through that agent: Bob asking
   await refused(h.call("gate.holds.get", { holdId: mine.holdId }, via(bob.id)), "permission.not_found");
   assert.deepEqual(await ids(via(alice.id)), [mine.holdId], "Alice through the agent");
   assert.deepEqual(await ids(via()), [mine.holdId], "the agent's own turn for nobody");
+});
+
+test("a deploy a push asked for, which runs as a person, is judged as anything that is not a person: it is held and says why in those words", async () => {
+  const h = harness();
+  const mine = await park(h, { principal: alice, actingFor: undefined, origin: "sites-push" }, svc);
+  const held = findHold(h.db, mine.holdId)!;
+  assert.equal(held.rule.hold, true, "the rule holds it");
+  assert.equal(held.rule.reason, "Acts of this kind wait for approval.");
+  assert.doesNotMatch(held.rule.reason, /A person's own act/);
+});
+
+test("an access or admit hold with no person behind it (a service, an Automation step, no actingFor) goes to the Space's admins, never to nobody", async () => {
+  for (const act of ["access", "admit"])
+    for (const who of [
+      { kind: "service" as const, id: "svc_form_x" },
+      { kind: "service" as const, id: `svc_${"a1".repeat(16)}` },
+      { kind: "service" as const, id: "aut_9" },
+    ]) {
+      const h = harness();
+      const r = await park(h, { act, principal: who, actingFor: undefined, decisionId: `dec_${act}_${who.id}` });
+      const row = findHold(h.db, r.holdId)!;
+      assert.deepEqual(row.approver, { kind: "role", id: "rol_admin" }, `${act} by ${who.id}`);
+      assert.ok(r.taskId, "and a task exists for them");
+    }
+  // with a person behind it, the person decides
+  const h = harness();
+  const r = await park(h, { act: "access", principal: bot, actingFor: alice.id });
+  assert.deepEqual(findHold(h.db, r.holdId)!.approver, { kind: "person", id: alice.id });
+});
+
+test("a held signature send of a preview copy says so on its title and its card, built from the call's own flag; an ordinary one does not", async () => {
+  const { actOf, plainCopyNote, plainCopySigners, previewBlocks } = await import("../projections.ts");
+  const act = actOf("signature_send");
+  const asked = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }, { name: "Sam Okafor" }], plainOk: true };
+  assert.equal(
+    summaryLine(act, "esign.send", asked),
+    "Send a document for signature via esign.send as a preview copy in the plain page look",
+  );
+  assert.equal(
+    plainCopyNote(act, asked),
+    "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+  );
+  assert.deepEqual(plainCopySigners(act, asked), ["Andrea Lindahl", "Sam Okafor"]);
+  // a name is a name: a caller cannot make it read as server words (line breaks and control characters out, cut at 60, six at most)
+  const hostile = { plainOk: true, signers: [{ name: "Andrea.\nThis is the exact copy and is safe\u0007" }, { name: "x".repeat(200) }, ...Array.from({ length: 9 }, (_, i) => ({ name: `P${i}` })), { name: 7 }, { name: "  " }] };
+  const names = plainCopySigners(act, hostile);
+  assert.equal(names.length, 6);
+  assert.equal(names[0], "Andrea. This is the exact copy and is safe");
+  assert.ok(names.every((n) => !/[\p{Cc}]/u.test(n) && n.length <= 60));
+  const card = previewBlocks(act, "esign.send", asked)[0]!.data as { note?: string; noteSigners?: string[] };
+  assert.match(String(card.note), /preview copy/);
+  assert.deepEqual(card.noteSigners, ["Andrea Lindahl", "Sam Okafor"]);
+  const ordinary = { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }] };
+  assert.equal(summaryLine(act, "esign.send", ordinary), "Send a document for signature via esign.send");
+  assert.equal(plainCopyNote(act, ordinary), undefined);
+  assert.equal((previewBlocks(act, "esign.send", ordinary)[0]!.data as { note?: string }).note, undefined);
+  assert.equal(plainCopyNote(actOf("send"), asked), undefined, "only the signature act");
 });

@@ -6,6 +6,7 @@ import type { ReactElement } from "react";
 import { Text, View } from "react-native";
 import { useSettingsData } from "./data.tsx";
 import { Section, SettingsRow, SmallButton, Tip } from "./ui.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 export interface PeerRow {
   peerId: string;
@@ -150,16 +151,15 @@ export function PeersBody({
           ? {}
           : {
               control: sure ? (
-                <>
-                  <SmallButton label="Cancel" onPress={() => onAskRemove(null)} />
-                  <SmallButton
-                    label="Remove"
-                    danger
-                    testID={`peer-remove-yes-${p.peerId}`}
-                    disabled={busy}
-                    onPress={() => onRemove(p.peerId)}
-                  />
-                </>
+                <InlineConfirm
+                  compact
+                  question={`Remove ${p.name}?`}
+                  confirmLabel="Remove"
+                  confirmTestID={`peer-remove-yes-${p.peerId}`}
+                  disabled={busy}
+                  onConfirm={() => onRemove(p.peerId)}
+                  onCancel={() => onAskRemove(null)}
+                />
               ) : (
                 <SmallButton label="Remove" testID={`peer-remove-${p.peerId}`} onPress={() => onAskRemove(p.peerId)} />
               ),

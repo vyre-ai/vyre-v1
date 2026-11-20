@@ -1,0 +1,1 @@
+A person in a chat where helpers are working can see that they are working and how far, as Helper 1 and Helper 2, without seeing what they were asked or found, and the Running and asleep list can read everything that is going on.

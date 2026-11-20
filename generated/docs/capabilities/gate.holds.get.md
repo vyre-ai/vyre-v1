@@ -35,7 +35,7 @@ type In = {
 type Out = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
     capName: string;
     taskId: string;
     runId?: string;

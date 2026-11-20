@@ -7,10 +7,12 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.act": Handler<"tasks.act", X>;
   "tasks.agent_on_it": Handler<"tasks.agent_on_it", X>;
+  "tasks.archive": Handler<"tasks.archive", X>;
   "tasks.ask": Handler<"tasks.ask", X>;
   "tasks.assign": Handler<"tasks.assign", X>;
   "tasks.block": Handler<"tasks.block", X>;
   "tasks.by_key": Handler<"tasks.by_key", X>;
+  "tasks.changes": Handler<"tasks.changes", X>;
   "tasks.clock": Handler<"tasks.clock", X>;
   "tasks.count_needs_you": Handler<"tasks.count_needs_you", X>;
   "tasks.create": Handler<"tasks.create", X>;
@@ -20,6 +22,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.dependencies.add": Handler<"tasks.dependencies.add", X>;
   "tasks.dependencies.remove": Handler<"tasks.dependencies.remove", X>;
   "tasks.digest": Handler<"tasks.digest", X>;
+  "tasks.done_when": Handler<"tasks.done_when", X>;
   "tasks.escalate": Handler<"tasks.escalate", X>;
   "tasks.followers.add": Handler<"tasks.followers.add", X>;
   "tasks.followers.remove": Handler<"tasks.followers.remove", X>;
@@ -38,9 +41,12 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "tasks.rev": Handler<"tasks.rev", X>;
   "tasks.review": Handler<"tasks.review", X>;
   "tasks.snooze": Handler<"tasks.snooze", X>;
+  "tasks.still_answer": Handler<"tasks.still_answer", X>;
+  "tasks.still_needed": Handler<"tasks.still_needed", X>;
   "tasks.submit": Handler<"tasks.submit", X>;
   "tasks.take": Handler<"tasks.take", X>;
   "tasks.transition": Handler<"tasks.transition", X>;
+  "tasks.unarchive": Handler<"tasks.unarchive", X>;
   "tasks.update": Handler<"tasks.update", X>;
   "tasks.withdraw": Handler<"tasks.withdraw", X>;
   "tasks.working_notes.delete": Handler<"tasks.working_notes.delete", X>;

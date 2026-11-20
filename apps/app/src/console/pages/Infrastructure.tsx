@@ -23,6 +23,7 @@ import {
   useFileDownload,
 } from "./shared.tsx";
 import { byteSize, logFilter } from "./infra-model.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type Logs = CapMap["logs.query"]["out"];
 const stateName = (state: string): string =>
   state === "healthy" ? "Healthy" : state === "degraded" ? "Degraded" : state === "down" ? "Down" : state;
@@ -90,27 +91,24 @@ function Services(): ReactElement {
         {!result.data.services.length ? <Empty icon="doc">No supervised services are registered</Empty> : null}
         {confirm ? (
           <>
-            <Note>Restart {confirm}? Work using this service may pause while it restarts.</Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setConfirm("")} />
-              <Button
-                label="Confirm restart"
-                testID="infra-restart-confirm"
-                danger
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run<CapMap["health.service_restart"]["out"]>(
-                      "health.service_restart",
-                      { service: confirm },
-                      () => "Restart requested. The supervisor will update its status.",
-                    )
-                    .then((out) => {
-                      if (out) setConfirm("");
-                    })
-                }
-              />
-            </Actions>
+            <InlineConfirm
+              question={<>Restart {confirm}? Work using this service may pause while it restarts.</>}
+              confirmLabel="Confirm restart"
+              disabled={action.busy}
+              confirmTestID="infra-restart-confirm"
+              onConfirm={() =>
+                action
+                  .run<CapMap["health.service_restart"]["out"]>(
+                    "health.service_restart",
+                    { service: confirm },
+                    () => "Restart requested. The supervisor will update its status.",
+                  )
+                  .then((out) => {
+                    if (out) setConfirm("");
+                  })
+              }
+              onCancel={() => setConfirm("")}
+            />
           </>
         ) : null}
         {action.note ? <Note>{action.note}</Note> : null}

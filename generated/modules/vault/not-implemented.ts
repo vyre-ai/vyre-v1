@@ -47,6 +47,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "vault.item.put": async (ctx) => { throw new VyreErr(notImplemented("vault.item.put", ctx.trace)); },
   "vault.item.restore": async (ctx) => { throw new VyreErr(notImplemented("vault.item.restore", ctx.trace)); },
   "vault.item.reveal": async (ctx) => { throw new VyreErr(notImplemented("vault.item.reveal", ctx.trace)); },
+  "vault.item.rotate_field": async (ctx) => { throw new VyreErr(notImplemented("vault.item.rotate_field", ctx.trace)); },
   "vault.item.update": async (ctx) => { throw new VyreErr(notImplemented("vault.item.update", ctx.trace)); },
   "vault.item.usage": async (ctx) => { throw new VyreErr(notImplemented("vault.item.usage", ctx.trace)); },
   "vault.items.export_mine": async (ctx) => { throw new VyreErr(notImplemented("vault.items.export_mine", ctx.trace)); },

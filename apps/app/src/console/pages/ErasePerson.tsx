@@ -6,6 +6,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
 import { Tick } from "./ai-controls.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Finding = CapMap["governance.erase.find"]["out"];
 type EraseKind = Finding["groups"][number]["kind"];
@@ -181,28 +182,28 @@ export function ErasePerson(): ReactElement {
             {error ? <Note>{error}</Note> : null}
             {reviewed ? (
               <>
-                <Note>
-                  This permanently erases {reviewed.include.join(", ")}. Tombstones will prevent restore from bringing
-                  the data back.
-                </Note>
-                <Actions>
-                  <Button label="Back" onPress={() => setReviewed(null)} />
-                  <Button
-                    label="Start erasure"
-                    danger
-                    disabled={action.busy}
-                    onPress={() =>
-                      void action
-                        .run<CapMap["governance.erase.apply"]["out"]>("governance.erase.apply", reviewed, (out) => {
-                          setRunId(out.runId);
-                          return `Erasure run ${out.runId} started`;
-                        })
-                        .then((out) => {
-                          if (out) setReviewed(null);
-                        })
-                    }
-                  />
-                </Actions>
+                <InlineConfirm
+                  question={
+                    <>
+                      This permanently erases {reviewed.include.join(", ")}. Tombstones will prevent restore from
+                      bringing the data back.
+                    </>
+                  }
+                  cancelLabel="Back"
+                  confirmLabel="Start erasure"
+                  disabled={action.busy}
+                  onConfirm={() =>
+                    action
+                      .run<CapMap["governance.erase.apply"]["out"]>("governance.erase.apply", reviewed, (out) => {
+                        setRunId(out.runId);
+                        return `Erasure run ${out.runId} started`;
+                      })
+                      .then((out) => {
+                        if (out) setReviewed(null);
+                      })
+                  }
+                  onCancel={() => setReviewed(null)}
+                />
               </>
             ) : (
               <Button label="Review erasure" danger disabled={action.busy} onPress={review} />

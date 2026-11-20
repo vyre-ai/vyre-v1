@@ -1,0 +1,1 @@
+- Under a sent email, Vyre now keeps the whole delivery trail (sent, delivered, opened, bounced and why). A soft bounce is tried again up to three times with growing waits, to that one address only, never twice for the same try, and a message only counts as bounced once the tries run out; a hard bounce or a spam complaint still stops that address at once.

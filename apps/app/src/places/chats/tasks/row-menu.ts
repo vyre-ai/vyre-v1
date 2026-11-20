@@ -5,6 +5,8 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 export interface TaskRowFacts {
   done: boolean;
   selected: boolean;
+  /** put away: the row offers Put back and little else */
+  archived?: boolean;
 }
 export interface TaskRowDo {
   open(): void;
@@ -22,10 +24,23 @@ export interface TaskRowDo {
   follow?(): void;
   copyLink?(): void;
   duplicate(): void;
+  /** Put it away with Undo: it leaves the lists and stays in Archived and in search. */
+  archive(): void;
+  putBack(): void;
   remove(): void;
 }
 
 export function taskRowEntries(f: TaskRowFacts, d: TaskRowDo): MenuEntry[] {
+  if (f.archived === true)
+    return [
+      { label: "Open", onSelect: d.open },
+      { label: f.selected ? "Deselect" : "Select", onSelect: d.toggleSelect },
+      { separator: true },
+      { label: "Put Back", onSelect: d.putBack },
+      { separator: true },
+      ...(d.copyLink ? [{ label: "Copy Link", onSelect: d.copyLink }] : []),
+      { label: "Delete", danger: true, onSelect: d.remove },
+    ];
   return [
     { label: "Open", onSelect: d.open },
     { label: f.selected ? "Deselect" : "Select", onSelect: d.toggleSelect },
@@ -44,6 +59,8 @@ export function taskRowEntries(f: TaskRowFacts, d: TaskRowDo): MenuEntry[] {
     { separator: true },
     ...(d.copyLink ? [{ label: "Copy Link", onSelect: d.copyLink }] : []),
     { label: "Duplicate", onSelect: d.duplicate },
+    // a closed task is put away already
+    ...(f.done ? [] : [{ label: "Archive", onSelect: d.archive }]),
     { label: "Delete", danger: true, onSelect: d.remove },
   ];
 }

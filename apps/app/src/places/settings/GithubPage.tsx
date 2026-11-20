@@ -9,6 +9,7 @@ import { useSettingsData } from "./data.tsx";
 import { useSaved } from "./saved.tsx";
 import { whenLabel } from "./pages-b.tsx";
 import { Choice, Glyph, GithubAvatar, IconTile, Section, SettingsRow, SmallButton } from "./ui.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Status = CapMap["github.me.status"]["out"];
 type Reach = CapMap["github.me.reach"]["out"];
@@ -105,13 +106,12 @@ export function GithubPage(): ReactElement {
       },
     );
   };
-  const disconnect = (): void => {
-    void Promise.resolve(data.call("github.me.disconnect", {})).then(() => {
+  const disconnect = (): Promise<unknown> =>
+    Promise.resolve(data.call("github.me.disconnect", {})).then(() => {
       setSure(false);
       setStatus({ connected: false, needsReconnect: false });
       saved.saved("GitHub disconnected");
     }, fail);
-  };
   const setLevel = (key: keyof Policy, v: Level): void => {
     const was = policy;
     if (was) setPolicy({ ...was, [key]: v });
@@ -197,10 +197,14 @@ export function GithubPage(): ReactElement {
           sub={`Signs you in to Vyre · through ${via}`}
           control={
             sure ? (
-              <>
-                <SmallButton label="Cancel" onPress={() => setSure(false)} />
-                <SmallButton label="Disconnect" danger testID="gh-disconnect-yes" onPress={disconnect} />
-              </>
+              <InlineConfirm
+                compact
+                question="Disconnect GitHub?"
+                confirmLabel="Disconnect"
+                confirmTestID="gh-disconnect-yes"
+                onConfirm={disconnect}
+                onCancel={() => setSure(false)}
+              />
             ) : (
               <SmallButton label="Disconnect" testID="gh-disconnect" onPress={() => setSure(true)} />
             )

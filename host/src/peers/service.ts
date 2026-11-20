@@ -40,6 +40,7 @@ import { packagedOrigin } from "../daemon/desktop-cors.ts";
 import { createPeerSync } from "./sync.ts";
 import type { CreateCells, PeerAccessPort, PeerSync } from "./sync.ts";
 import { EVERY_COMPUTER } from "./runner.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const ASK_TTL_MS = 10 * 60_000;
 const REQUEST_TTL_MS = 10 * 60_000;
@@ -1029,7 +1030,7 @@ export function createPeerService(d: PeerServiceDeps): PeerService {
   }
 
   function handle(req: http.IncomingMessage, res: http.ServerResponse): boolean {
-    const url = new URL(req.url ?? "/", "http://vyred");
+    const url = safeUrl(req.url, "http://vyred");
     if (url.pathname.startsWith("/local/peers/") && req.method === "POST") {
       void local(req, res, url);
       return true;

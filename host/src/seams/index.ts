@@ -7,6 +7,7 @@
 import { createComputersHost } from "./computers-host.ts";
 import type { TerminalHostSeamShape } from "./terminal-host.ts";
 import type { ComputersHostDeps, ComputersHostSeam } from "./computers-host.ts";
+import { createDocumentsHost } from "./documents-pdf.ts";
 import { createDropboxHost } from "./dropbox.ts";
 import type { DropboxHostSeam } from "./dropbox.ts";
 import { createEngineHost } from "./engine.ts";
@@ -32,7 +33,7 @@ import { createTalkHost } from "./talk.ts";
 import type { TalkHostSeam } from "./talk.ts";
 import type { FetchedResponse, SeamFetch, SpaceBlobs, SpaceFiles, SpaceMembers, VaultPort } from "./ports.ts";
 
-export { createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
+export { createDocumentsHost, createGithubHost, createStripeHost, createTwilioHost, createZoomHost };
 export type { GithubHostSeam, StripeHostSeam, TwilioHostSeam, ZoomHostSeam, FillerPort };
 export {
   createComputersHost,
@@ -91,6 +92,17 @@ export interface SeamSetters {
   setGoogleHost?: ((h: GoogleHostSeam | null) => void) | undefined;
   setMsHost?: ((h: MsHostSeam | null) => void) | undefined;
   setImapSecretResolver?: ((fn: ImapSecretResolver | null) => void) | undefined;
+  /** a Space file's bytes for an email attachment the mail module sends over SMTP */
+  setMailFileBytes?:
+    | ((
+        fn:
+          | ((
+              ctx: { space: string; trace: { traceId: string } },
+              fileId: string,
+            ) => Promise<{ name: string; mime: string; bytes: Uint8Array }>)
+          | null,
+      ) => void)
+    | undefined;
   /** the sources module's deps.secret: webhook signing secrets from the Vault */
   setSourcesSecretResolver?: ((fn: SourcesSecretResolver | null) => void) | undefined;
   /** the Space sending backends (P-L5_05): key, files, downloads; Mailgun also uploads and the public address */
@@ -176,6 +188,7 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setGoogleHost: (d: SeamDriverDeps) => createGoogleHost({ ...d.common, publicUrl: d.publicUrl }),
   setMsHost: (d: SeamDriverDeps) => createMsHost({ ...d.common, publicUrl: d.publicUrl }),
   setImapSecretResolver: (d: SeamDriverDeps) => createImapSecretResolver(d.vault),
+  setMailFileBytes: (d: SeamDriverDeps) => (ctx: { space: string }, fileId: string) => d.files.read(ctx.space, fileId),
   setSourcesSecretResolver: (d: SeamDriverDeps) => createSourcesSecretResolver(d.vault, d.space),
   setResendHost: (d: SeamDriverDeps) =>
     createResendHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
@@ -189,6 +202,8 @@ export const BUILTIN_DRIVERS: Readonly<Record<string, SeamDriver>> = Object.free
   setDropboxHost: (d: SeamDriverDeps) =>
     createDropboxHost({ vault: d.vault, fetch: d.fetch, files: d.files, blobs: d.blobs, publicUrl: d.publicUrl }),
   setTalkHost: (d: SeamDriverDeps) => createTalkHost({ vault: d.vault, fetch: d.fetch }),
+  /** Word to PDF for the documents module: LibreOffice where this machine has it, nothing where it does not */
+  configureDocuments: () => createDocumentsHost(),
   setPluginsHost: (d: SeamDriverDeps) =>
     createPluginsHost({
       fetch: d.fetch,

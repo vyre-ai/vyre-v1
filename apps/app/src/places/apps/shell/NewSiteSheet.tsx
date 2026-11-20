@@ -8,6 +8,8 @@ import type { CapMap } from "../../../../../../generated/types.ts";
 import { useAppsData } from "./data.tsx";
 import type { AppsData } from "./data.tsx";
 import { actionKey, errorMessage } from "./mutations.ts";
+import { foundLines, repoOf } from "./site/model.ts";
+import type { Plan } from "./site/model.ts";
 
 type Way = "repo" | "upload" | "agent";
 interface Picked {
@@ -138,6 +140,37 @@ export function NewSiteSheet({ onClose, onMade }: { onClose(): void; onMade(site
     [error, setError] = useState<string | null>(null);
   const [keys, setKeys] = useState<readonly { handle: string; name: string }[]>([]);
   const nameTouched = useRef(false);
+  // what Vyre reads from the repo as soon as it is one: what it is, how it builds, what it needs. Read once the typing has stopped; an answer for an earlier address is dropped.
+  const [found, setFound] = useState<{ repo: string; plan?: Plan; why?: string } | null>(null);
+  const asked = repoOf(repo);
+  useEffect(() => {
+    setFound(null);
+    if (way !== "repo" || asked === null) return undefined;
+    let live = true;
+    const t = setTimeout(() => {
+      void (
+        d.call("sites.plan", {
+          source: {
+            repo: asked,
+            ...(branch.trim() ? { branch: branch.trim() } : {}),
+            ...(root.trim() ? { root: root.trim() } : {}),
+            ...(token ? { tokenHandle: token } : {}),
+          },
+        }) as Promise<Plan>
+      ).then(
+        (plan) => {
+          if (live) setFound({ repo: asked, plan });
+        },
+        (e: unknown) => {
+          if (live) setFound({ repo: asked, why: errorMessage(e) });
+        },
+      );
+    }, 700);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  }, [d, way, asked, branch, root, token]);
   useEffect(() => {
     let live = true;
     void (d.call("vault.items.list", { limit: 200 }) as Promise<CapMap["vault.items.list"]["out"]>).then(
@@ -237,6 +270,15 @@ export function NewSiteSheet({ onClose, onMade }: { onClose(): void; onMade(site
               autoCorrect={false}
               style={s.input}
             />
+            {asked !== null ? (
+              <Text style={s.text} testID="new-site-found">
+                {found === null
+                  ? "Reading it"
+                  : found.plan
+                    ? foundLines(found.plan).join(" ")
+                    : (found.why ?? "It could not be read. Check the address, or pick a token for a private repo.")}
+              </Text>
+            ) : null}
             <View style={s.two}>
               <View style={s.half}>
                 <Label text="Branch" />

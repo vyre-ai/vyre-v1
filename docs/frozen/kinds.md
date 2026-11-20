@@ -109,6 +109,9 @@ Example: `send`.
 | site_promote | Promote a site to production | high | yes | deploy |
 | spend_raise | Raise a spend cap | medium | no | table |
 | signin_change | Change how people sign in to the Space | high | no | record_card |
+| deploy | Run code with a site's production keys | high | no | deploy |
+| admit | Let someone in or change who can reach what | medium | no | record_card |
+| access | Change the rules of access | high | no | record_card |
 | approve | Allow this step | medium | no | doc_excerpt |
 | github_approval | Let a session use my GitHub | high | no | table |
 | transfer | Hand over ownership | high | no | record_card |

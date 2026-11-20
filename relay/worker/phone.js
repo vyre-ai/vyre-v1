@@ -820,6 +820,18 @@ export async function onHost(request, env, name, artifact = false) {
       status: 302,
       headers: { location: `/#subject=artifact:${plain[1]}`, "cache-control": "no-store" },
     });
+  // The Space was on its own domain before and moved back to the relay: a browser that opened it there still has the app's worker (/sw.js, scope /), which would keep answering this name from its
+  // cache. The browser's own update check asks for /sw.js from the network; this answers with a worker that removes itself and sends the open pages here again (the mirror of host/src/routes/relay-worker.ts).
+  if (url.pathname === "/sw.js" && (request.method === "GET" || request.method === "HEAD"))
+    return new Response(request.method === "HEAD" ? null : RETIRING_APP_WORKER, {
+      status: 200,
+      headers: {
+        "content-type": "text/javascript; charset=utf-8",
+        "cache-control": "no-store",
+        "service-worker-allowed": "/",
+        "x-content-type-options": "nosniff",
+      },
+    });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
     return json(200, {
@@ -875,3 +887,17 @@ export async function onHost(request, env, name, artifact = false) {
   }
   return new Response(request.method === "HEAD" ? null : shellPage(info.label, name), { status: 200, headers });
 }
+
+/** The worker the app registered on an address of its own (/sw.js), replaced by one that retires itself when the name comes back to the relay. */
+export const RETIRING_APP_WORKER = `// Vyre: this address is the relay's again. This worker removes itself.
+self.addEventListener("install", () => { self.skipWaiting(); });
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    await self.clients.claim();
+    await self.registration.unregister();
+    const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const c of open) { try { await c.navigate(c.url); } catch (e) { /* reloads itself at its next start */ } }
+  })());
+});
+self.addEventListener("fetch", () => {});
+`;

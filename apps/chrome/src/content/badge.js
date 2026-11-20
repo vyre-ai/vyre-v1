@@ -131,7 +131,10 @@
             return;
           }
           if (r.data.blocked) {
-            note.textContent = "Filling is turned off for this site.";
+            note.textContent =
+              r.data.blocked === "frame"
+                ? "Vyre does not fill inside another site's frame."
+                : "Filling is turned off for this site.";
             pick.append(note);
             return;
           }

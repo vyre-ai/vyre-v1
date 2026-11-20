@@ -23,6 +23,12 @@ import { screenAnswer, settleAnswer } from "./answer-audience.ts";
 import { ANSWER_HELD } from "../../agent/src/turn-engine/engine.ts";
 import { clearReads } from "../../host/src/seams/answer-reads.ts";
 import { createCrewWatcher } from "./crew-watch.ts";
+import { createNodeMirror } from "./node-mirror.ts";
+import { activeSubNodes } from "./sub-nodes.ts";
+import { createSpendGate, holdOff } from "./spend-hold.ts";
+import { bindSubagentGate } from "../../agent/src/tools/hooks.ts";
+import { nameTag, nodeNoteBody } from "../../lib/helper-result.ts";
+import { UNNAMED_AGENT, agentDisplay } from "./agent-names.ts";
 import { createBackground } from "./background.ts";
 import { backgroundLine } from "./own-subagents.ts";
 import type { StreamEvent } from "./handlers/bridge.ts";
@@ -101,6 +107,7 @@ import {
   sqlMessages,
   sqlQueue,
   sqlWaits,
+  sqlJournal,
 } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
@@ -209,6 +216,9 @@ const awake = createKeepAwake();
 let host: EngineHostSeam | null = null;
 let building: Promise<TurnEngine | null> | null = null;
 let closeOpener: (() => Promise<void>) | null = null;
+let detachBridge: (() => void) | null = null;
+/** ends a held command-line turn as a pause (set once the engine is built; see createSpendGate) */
+let endCliTurn: ((threadId: string, agentId: string, reason: string) => void) | null = null;
 let closeUnlockWatch: (() => void) | null = null;
 
 /** The module's seam: the daemon calls this at boot with the host half (null at shutdown). */
@@ -221,6 +231,10 @@ export function setEngineHost(h: EngineHostSeam | null): void {
   } // plugin servers end with the daemon, and so does holding the computer awake
   // At shutdown the engine processes end and MCP tokens are revoked, and then the default sandbox's wall (its egress proxy) stops: the proxy outlives nothing it served, and nothing keeps the daemon's process alive.
   if (h === null) {
+    // the bridge's looks-again timers stop here, before the databases close
+    detachBridge?.();
+    detachBridge = null;
+    endCliTurn = null;
     const done = (closeOpener ? closeOpener().catch(() => undefined) : Promise.resolve())
       .then(() => closeDefaultSandbox())
       .catch(() => undefined);
@@ -825,8 +839,18 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     db: ctx.db,
     now: now0,
     wake: (threadId, agentId, asker) => wakeAgent?.(threadId, agentId, asker),
+    // a task line of the engine names the call that started a subagent and its task id: a hook inside that subagent says agent_id and means the task id (sub-nodes.ts)
+    onTask: (threadId, t) => {
+      if (t.state === "start" && t.taskId) activeSubNodes()?.bindTask(threadId, t.taskId, t.id);
+    },
     ...(h.log ? { log: h.log } : {}),
   });
+  bindSubagentGate(
+    createSpendGate(
+      () => activeSubNodes(),
+      (threadId, agentId, reason) => void endCliTurn?.(threadId, agentId, reason),
+    ),
+  );
   const opener = host.openSession
     ? null
     : buildOpener({
@@ -1040,7 +1064,15 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     : null;
   building ??= (async () => {
     const now = h.now ?? Date.now;
-    const crewWatch = h.postAs ? createCrewWatcher({ db: ctx.db, host: h, now }) : null;
+    // an agent's name in words for the rows of the Run tree; "An agent" is no name, so none is given
+    const nameOf = async (agentId: string): Promise<string | undefined> => {
+      const r = await agentDisplay((cap, input) => h.call(cap, input), agentId);
+      return r.name === UNNAMED_AGENT ? undefined : r.name;
+    };
+    let mirrorRef: ReturnType<typeof createNodeMirror> | null = null;
+    const crewWatch = h.postAs
+      ? createCrewWatcher({ db: ctx.db, host: h, now, nodeFor: (turnId) => mirrorRef?.nodeFor(turnId), nameOf })
+      : null;
     const live = h.stream ? coalesceLive(h.stream, { now }) : null;
     setupLine = live;
     // the chat message a turn's reply became, so the reply's Details find its turn (chat.reply_details); a reply without its turn only loses its Details, never the post
@@ -1060,7 +1092,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           now,
           stream: (e) => {
             if (e.kind === "final" && e.messageId) linkPosted(e);
-            live?.(e);
+            // what a subagent said and used is for its record only: it never reaches the live view
+            if (e.kind !== "sub") live?.(e);
             crewWatch?.(e);
           },
           addressAsker: (threadId, agentId) => {
@@ -1148,6 +1181,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       ...(h.postAs ? { postAs: h.postAs } : {}),
       ...(h.log ? { log: h.log } : {}),
     });
+    // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
+    const mirror = createNodeMirror({ call: h.call, nameOf, ...(h.log ? { log: h.log } : {}) });
+    mirrorRef = mirror;
     const engine = createTurnEngine({
       hooks: hooksPort,
       holder: h.holder,
@@ -1237,6 +1273,20 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       leases: sqlLeases(ctx.db),
       messages: sqlMessages(ctx.db, now),
       waits: sqlWaits(ctx.db),
+      journal: sqlJournal(ctx.db, now),
+      onUsage: (turn) => void mirror.usage(turn),
+      // what other nodes of this work told this turn (runs.message.take): handed over at the next step boundary
+      takeNotes: async (c) => {
+        const id = mirror.nodeFor(c.turnId);
+        if (!id) return [];
+        const r = (await h.call("runs.message.take", { runId: id })) as {
+          messages?: Array<{ body: string; fromName?: string }>;
+        };
+        return (r.messages ?? []).map((m) => ({
+          from: nameTag(m.fromName ?? "A helper") || "A helper",
+          body: nodeNoteBody(m.fromName ?? "A helper", m.body),
+        }));
+      },
       newId: (p) => mintEngineId(p, now()),
       admit: (q) => admission(h, q),
       lostTurn: (row) => lostTurnId(ctx.db, row, () => mintEngineId("trn", now())),
@@ -1327,7 +1377,11 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           }
         : {}),
       ...(apiTools
-        ? { callTool: apiTools.runner, ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}) }
+        ? {
+            callTool: apiTools.runner,
+            ...(apiTools.toolClass ? { toolClass: apiTools.toolClass } : {}),
+            ...(apiTools.toolSafety ? { toolSafety: apiTools.toolSafety } : {}),
+          }
         : {}),
       // a chat pinned to a computer that is not linked waits in the queue for it: the turn does not start (nothing reads "Working"), the chat says so once, and it starts when the computer links
       ...(h.nodes?.devices
@@ -1354,6 +1408,7 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     // The reviewer seat: after a lead turn completes, the chat's reviewer is asked to check it.
     // Every turn this engine runs is reported to engine.turn.record under the engine's own id, in order per turn, so the turn list, review sampling and the agent's Working status see it.
     const recording = new Map<string, Promise<void>>();
+    // every turn is also a node of the Run tree (node-mirror.ts); it never holds a turn up
     const report = (
       turnId: string,
       ev: Extract<
@@ -1401,6 +1456,14 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         // who stopped it travels with it: the turn's record names them (engine.turn.get), as the chat's stopped line does
         ...(ev.type === "turn.cancelled" && ev.stoppedBy ? { stoppedBy: ev.stoppedBy } : {}),
       };
+      if (phase === "completed" || phase === "failed" || phase === "cancelled") holdOff(turn.threadId, turn.agentId);
+      void mirror.turn(turn, phase, {
+        ...(ev.type === "turn.failed" ? { code: ev.code, message: ev.message } : {}),
+        ...(ev.type === "turn.cancelled" && typeof ev.reason === "string" ? { reason: ev.reason } : {}),
+        ...(ev.type === "turn.waiting" && "taskId" in ev
+          ? { taskId: ev.taskId, ...(ev.runId ? { runId: ev.runId } : {}), ...(ev.tool ? { tool: ev.tool } : {}) }
+          : {}),
+      });
       const done = (recording.get(turnId) ?? Promise.resolve())
         .then(() => h.call("engine.turn.record", input, turn.asker))
         .then(
@@ -1509,14 +1572,19 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
       else if (
         ev.type === "turn.completed" ||
         (ev.type === "turn.cancelled" && ev.asker === undefined) ||
-        (ev.type === "turn.failed" && ev.code !== "host_lost") ||
+        (ev.type === "turn.failed" && ev.code !== "host_lost" && ev.code !== "host_resumed") ||
         (ev.type === "turn.waiting" && ev.reason === "approval")
       ) {
         awake.down();
         h.turns?.(awake.running());
       }
       // a turn a dead host left is not in this engine's rows: its record is closed from what recover() knows, so the turn list, Try again and the agent's Working status are right
-      if (ev.type === "turn.failed" && ev.code === "host_lost") {
+      if (ev.type === "turn.failed" && (ev.code === "host_lost" || ev.code === "host_resumed")) {
+        void mirror.turn(
+          { id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, ...(ev.asker ? { asker: ev.asker } : {}) },
+          "failed",
+          { code: ev.code, message: "The server stopped while this turn was working." },
+        );
         void h
           .call(
             "engine.turn.record",
@@ -1539,6 +1607,9 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
           );
       } else if (ev.type === "turn.cancelled" && ev.asker !== undefined) {
         // a stopped turn a dead host left: its record is closed as cancelled from what recover() knows, as host_lost is above
+        void mirror.turn({ id: ev.turnId, threadId: ev.threadId, agentId: ev.agentId, asker: ev.asker }, "cancelled", {
+          reason: ev.reason,
+        });
         void h
           .call(
             "engine.turn.record",
@@ -1628,7 +1699,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
         }),
       );
     });
-    bridge?.attach(engine);
+    detachBridge = bridge?.attach(engine) ?? null;
+    endCliTurn = (threadId, agentId, reason) => void engine.pauseCli(threadId, { agentId, reason });
     h.extend?.(engine);
     completer = (i) => oneShot(openSession, i, now);
     dropWarm = opener ? (threadId: string) => opener.pool.drop(threadId) : null;

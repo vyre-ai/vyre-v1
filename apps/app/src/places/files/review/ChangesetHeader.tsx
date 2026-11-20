@@ -27,6 +27,7 @@ import {
 import type { GateState, GateView } from "./model.ts";
 import { Btn, IconBtn, Note, Segmented, Skeleton, TextField, anchorOf, webProps } from "./parts.tsx";
 import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 export interface ChangesetHeaderProps {
   changesetId: string;
@@ -288,8 +289,16 @@ export function ChangesetHeader({ changesetId, unsent = 0, panel: startPanel }: 
           aria-label="Discard these changes?"
         >
           <Text style={st.panelText}>Discard these changes?</Text>
-          <Btn label="Cancel" small onPress={() => setPanel(null)} testID="changeset-discard-cancel" />
-          <Btn label="Discard" small danger disabled={busy} onPress={discard} testID="changeset-discard-go" />
+          <InlineConfirm
+            compact
+            question="Discard these changes?"
+            confirmLabel="Discard"
+            disabled={busy}
+            confirmTestID="changeset-discard-go"
+            cancelTestID="changeset-discard-cancel"
+            onConfirm={discard}
+            onCancel={() => setPanel(null)}
+          />
         </View>
       ) : null}
       {panel === "request" ? (

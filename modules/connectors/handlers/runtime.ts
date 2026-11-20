@@ -10,6 +10,8 @@ import { buildDef, generateMain } from "./source.ts";
 import { shapeCreated, shapeList, ShapeError } from "./shape.ts";
 import { unflatten } from "../syncspec.ts";
 import { oauthOf, refreshSlot } from "./oauth.ts";
+import { forgetGrantOf, grantKeyOf, grantPortFor } from "./grant-port.ts";
+import { accessToken, forgetAccess, GrantError } from "../refresh-grant.ts";
 import {
   ensureTables,
   mintShort,
@@ -20,15 +22,20 @@ import {
   secretsIn,
   seedBuiltins,
   takeToken,
+  holdMsOf,
   tokenWaitMs,
   parseRetryAfter,
   noteRateLimited,
   noteServed,
   SLOW_DOWN_FIRST_MS,
+  PACE_LONGEST_MS,
+  PACE_TOTAL_MS,
   checkEgress,
   originKey,
-  recordHosts,
+  recordAllows,
+  recordFor,
   fillString,
+  fillOptional,
   withoutSecretValues,
   maskSealed,
   SYNC_PASS_TOKEN,
@@ -78,14 +85,41 @@ export interface DefineInput {
   key: string;
   title?: string;
   domains: string[];
-  auth: { type: "none" | "api_key" | "bearer"; secret?: string; header?: string; prefix?: string };
+  /** none, api_key and bearer as before; basic: HTTP Basic from declared secrets (`user` and `password` are templates such as "{secret.Shop_User}"); header: one header whose value is a template over declared secrets. */
+  auth: {
+    type: "none" | "api_key" | "bearer" | "basic" | "header";
+    secret?: string;
+    header?: string;
+    prefix?: string;
+    user?: string;
+    password?: string;
+    template?: string;
+  };
   secrets?: { name: string; description: string }[];
+  /** The action that stands in for a health check: a declared read (GET). */
+  health?: string;
   actions: {
     name: string;
     method?: string;
     url: string;
     headers?: Record<string, string>;
     query?: Record<string, string>;
+    /** A JSON template filled at run time: `{input.x}`, `{secret.X}`, and `{input.x?}` for a value that may be absent (its key is then left out). Not on a GET. */
+    body?: unknown;
+    /** A form body (instead of body), filled the same way. */
+    form?: Record<string, string>;
+    /** HTTP Basic for this one call: templates like auth.basic. */
+    basic?: { user: string; pass?: string };
+    /** How the app pages a list: the answer becomes rows and the next cursor, and `input.after` asks for the next page. */
+    paginate?: {
+      kind: string;
+      param?: string;
+      next?: string;
+      items: string;
+      id: string;
+      size?: number;
+      start?: number;
+    };
     output?: string;
     write?: boolean;
   }[];
@@ -151,6 +185,10 @@ export interface ExecOpts {
   actor?: string;
   /** Set on the one retry after a refresh, so a token the app still rejects ends in a reconnect instead of a loop. */
   refreshed?: boolean;
+  /** Asked again after a key the process had kept was rejected: nothing kept is used. */
+  fresh?: boolean;
+  /** The id of the sync pass this call belongs to (said with the process's own token): what the pass reads from the Vault is kept for the pass. Nobody else's call keeps anything. */
+  keep?: string;
   /** Called with the answer's status and text before the status is turned into an error, so a check can read a verdict from it. It must keep nothing of the text but its own verdict. */
   verdict?: (status: number, text: string) => void;
   /** Set by the runtime itself for the token call that stands before another action: only then does the token action's answer (the short-lived token) come back out of it. */
@@ -252,11 +290,22 @@ export async function clearReconnectTask(
 
 /** Run one action of a connector. Throws the catalogue error for anything that goes wrong; the message and details never hold a secret. */
 /** The sync engine's pass says so with the process's own token inside the action's input; the token is taken out before the input is used. Anyone else's input is left as it is. */
-function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string } {
-  if (input !== null && typeof input === "object" && !Array.isArray(input) && "__unmask" in input) {
-    const { __unmask, ...rest } = input as Record<string, unknown>;
+function passOf(input: unknown): { input: unknown; unmask: boolean; nonce?: string; keep?: string } {
+  if (
+    input !== null &&
+    typeof input === "object" &&
+    !Array.isArray(input) &&
+    ("__unmask" in input || "__keep" in input)
+  ) {
+    const { __unmask, __keep, ...rest } = input as Record<string, unknown>;
     const [token, nonce] = typeof __unmask === "string" ? __unmask.split(":") : [];
-    return { input: rest, unmask: token === SYNC_PASS_TOKEN && !!nonce, ...(nonce ? { nonce } : {}) };
+    const [ktoken, knonce] = typeof __keep === "string" ? __keep.split(":") : [];
+    return {
+      input: rest,
+      unmask: token === SYNC_PASS_TOKEN && !!nonce,
+      ...(nonce ? { nonce } : {}),
+      ...(ktoken === SYNC_PASS_TOKEN && knonce ? { keep: knonce } : {}),
+    };
   }
   return { input, unmask: false };
 }
@@ -268,6 +317,44 @@ function maskedText(text: string, paths: readonly string[]): string {
   } catch {
     return "";
   }
+}
+
+/** Values a pass has just read from the Vault, kept in this process only (never written anywhere) for a few seconds, per person, connection, slot and item: every page of every type of a pass asks for the same keys, and each ask was an access check and a Vault read (30 in one burst). A rejected key forgets them (see 401 below). */
+const KEPT = new Map<string, { value: string; at: number }>();
+export const SECRET_KEEP_MS = 60_000;
+export const forgetKept = (connectionId: string): void => {
+  for (const k of KEPT.keys()) if (k.split("|")[1] === connectionId) KEPT.delete(k);
+};
+export const resetKept = (): void => KEPT.clear();
+/** What may have changed who can use a key, or the key itself: nothing kept is used after it. */
+export const forgetAllKept = (): void => KEPT.clear();
+async function secretOf(
+  deps: ConnectorsDeps,
+  actor: string,
+  connector: string,
+  connectionId: string,
+  slot: string,
+  handle: string,
+  keep: string | undefined,
+  onKept: () => void,
+): Promise<string | undefined> {
+  if (keep === undefined) return deps.resolveSecret!(handle, { connector, connectionId, slot });
+  const key = `${actor}|${connectionId}|${slot}|${handle}|${keep}`;
+  const at = nowOf(deps);
+  const had = KEPT.get(key);
+  if (had && at - had.at >= 0 && at - had.at < SECRET_KEEP_MS) {
+    // what is kept is the value only: the person's access to the connection and to the Vault item is asked again for this very call, so a share taken away stops the next call (false: the host cannot say, read it again)
+    if ((await deps.recheckSecret?.(handle, { connector, connectionId, slot })) !== false) {
+      onKept();
+      return had.value;
+    }
+  }
+  const value = await deps.resolveSecret!(handle, { connector, connectionId, slot });
+  if (typeof value === "string") {
+    if (KEPT.size > 512) KEPT.clear();
+    KEPT.set(key, { value, at });
+  }
+  return value;
 }
 
 export async function executeAction(
@@ -310,7 +397,7 @@ export async function executeAction(
     refuse(ctx, "validation.bad_input", "A secret cannot be part of the address.");
   // an access token that ends within a minute is refreshed before the call that would use it (calls for one connection share one refresh)
   if (conn && def.auth.type === "oauth2" && o.persist !== false && oauthOf(deps).dueSoon(conn, def))
-    await oauthOf(deps).refresh(ctx, def, conn);
+    (await oauthOf(deps).refresh(ctx, def, conn), forgetKept(conn.connection_id));
 
   // secrets, by name, at call time
   const basic = a.basic ?? (def.auth.type === "api_key" || def.auth.type === "bearer" ? def.auth.basic : undefined);
@@ -322,7 +409,9 @@ export async function executeAction(
   ]);
   if (def.auth.type !== "none" && def.auth.type !== "client_credentials" && def.auth.secret)
     needed.add(def.auth.secret);
+  if (def.auth.type === "api_key" && def.auth.template) secretsIn(def.auth.template, needed);
   const values: Record<string, string> = {};
+  let keptUsed = false;
   for (const name of needed) {
     if (!def.secrets.some((s) => s.name === name))
       refuse(
@@ -335,7 +424,16 @@ export async function executeAction(
       const handle = connectionSecrets(conn)[name];
       if (!handle) refuse(ctx, "validation.precondition_failed", `The connection has no Vault item for ${name}.`);
       v = deps.resolveSecret
-        ? await deps.resolveSecret(handle!, { connector: def.key, connectionId: conn.connection_id, slot: name })
+        ? await secretOf(
+            deps,
+            actor,
+            def.key,
+            conn.connection_id,
+            name,
+            handle!,
+            o.fresh === true || o.keep === undefined ? undefined : o.keep,
+            () => (keptUsed = true),
+          )
         : undefined;
       if (v === undefined) refuse(ctx, "validation.precondition_failed", `The Vault item for ${name} has no value.`);
     }
@@ -348,11 +446,16 @@ export async function executeAction(
     for (const [name, handle] of Object.entries(connectionSecrets(conn))) {
       if (name in values) continue;
       try {
-        const v = await deps.resolveSecret(handle, {
-          connector: def.key,
-          connectionId: conn.connection_id,
-          slot: name,
-        });
+        const v = await secretOf(
+          deps,
+          actor,
+          def.key,
+          conn.connection_id,
+          name,
+          handle,
+          o.fresh === true || o.keep === undefined ? undefined : o.keep,
+          () => (keptUsed = true),
+        );
         if (v) everySecret.push(v);
       } catch {
         /* an unreadable item has nothing to scrub */
@@ -369,6 +472,16 @@ export async function executeAction(
       basicHeader = `Basic ${enc}`;
       everySecret.push(cred, enc, basicHeader);
     } catch (e) {
+      return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
+    }
+  }
+  // a header template: any form the app wants, with every secret it names; the filled value is scrubbed from every answer like a secret
+  let templateHeader: string | undefined;
+  if (def.auth.type === "api_key" && def.auth.template && !basicHeader) {
+    try {
+      templateHeader = fillString(def.auth.template, { input: {}, secret: values, connection: { id: "" } });
+      everySecret.push(templateHeader);
+    } catch {
       return refuse(ctx, "validation.bad_input", `The sign-in for ${actionName} could not be built.`);
     }
   }
@@ -392,6 +505,35 @@ export async function executeAction(
       tokenValue = got.output as string;
       everySecret.push(tokenValue, `Bearer ${tokenValue}`);
     }
+  }
+  // an app that issues its own OAuth client: the connection's Vault item is traded for an access token that is held in memory and renewed a minute before it ends
+  if (def.auth.type === "oauth_refresh" && !o.dryRun) {
+    const port = conn ? grantPortFor(deps, ctx, def, conn) : undefined;
+    if (!port || !def.auth.tokenUrl)
+      refuse(ctx, "validation.precondition_failed", `${def.title} has no connection to sign in with.`);
+    try {
+      tokenValue = await accessToken(grantKeyOf(deps, def, conn!), def.auth.tokenUrl!, port!, o.refreshed === true);
+    } catch (e) {
+      if (e instanceof GrantError) {
+        if (e.kind === "refused") {
+          if (persist) await markReconnect(deps, ctx, conn!);
+          return refuse(ctx, "provider.auth_failed", e.message, { status: e.status });
+        }
+        return refuse(
+          ctx,
+          e.kind === "unreachable"
+            ? "provider.network"
+            : e.kind === "busy"
+              ? "provider.rate_limited"
+              : e.kind === "unavailable" || e.kind === "not_saved"
+                ? "provider.unavailable"
+                : "provider.bad_response",
+          e.message,
+        );
+      }
+      throw e;
+    }
+    everySecret.push(tokenValue, `Bearer ${tokenValue}`);
   }
   const scrub = scrubber(everySecret);
 
@@ -422,8 +564,23 @@ export async function executeAction(
   try {
     method = a.method ?? "GET";
     const u = new URL(linked ? after! : fillString(a.url, scope, true));
-    if (!linked) for (const [k, v] of Object.entries(a.query ?? {})) u.searchParams.set(k, fillString(v, scope));
+    // an optional {input.x?} with no value leaves its key out
+    if (!linked)
+      for (const [k, v] of Object.entries(a.query ?? {})) {
+        const text = fillOptional(v, scope);
+        if (text !== undefined) u.searchParams.set(k, text);
+      }
     if (!linked && after !== undefined && a.shape?.cursor?.param) u.searchParams.set(a.shape.cursor.param, after);
+    // the first page of a page or offset list is asked for by its start, as the sync engine's own first request is
+    else if (
+      !linked &&
+      after === undefined &&
+      a.shape?.cursor?.param &&
+      a.shape.cursor.start !== undefined &&
+      (a.shape.cursor.kind === "page" || a.shape.cursor.kind === "offset") &&
+      !u.searchParams.has(a.shape.cursor.param)
+    )
+      u.searchParams.set(a.shape.cursor.param, String(a.shape.cursor.start));
     // what changed since a time: the app's own filter, on every page (a link page already carries it)
     const since = (input as Record<string, unknown>)["since"];
     if (!linked && a.shape?.since && typeof since === "number" && Number.isFinite(since)) {
@@ -450,9 +607,11 @@ export async function executeAction(
         "SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?",
         conn.connection_id,
       );
-      if (rec && !(JSON.parse(rec.hosts) as string[]).includes(originKey(url))) {
+      // a connection that can send a key always has a record; one that somehow has none allows no host, never every host
+      const list = rec ? (JSON.parse(rec.hosts) as string[]) : def.auth.type !== "none" ? [] : null;
+      if (list && !recordAllows(list, url)) {
         // a connector that gained a host since the person approved: the key does not go there on its own, and the person is told how to allow it
-        const gained = recordHosts(def).includes(originKey(url));
+        const gained = recordAllows(recordFor(def), url);
         refuse(
           ctx,
           "permission.no_grant",
@@ -466,17 +625,26 @@ export async function executeAction(
     headers = {};
     if (basicHeader) headers["Authorization"] = basicHeader;
     else if (tokenValue) headers["Authorization"] = `Bearer ${tokenValue}`;
+    else if (templateHeader !== undefined) headers[def.auth.header ?? "Authorization"] = templateHeader;
     else if (def.auth.type === "api_key" && def.auth.secret)
       headers[def.auth.header ?? "Authorization"] = `${def.auth.prefix ?? ""}${values[def.auth.secret]}`;
     else if ((def.auth.type === "bearer" || def.auth.type === "oauth2") && def.auth.secret)
       headers["Authorization"] = `Bearer ${values[def.auth.secret]}`;
-    for (const [k, v] of Object.entries(a.headers ?? {})) headers[k] = fillString(v, scope);
+    for (const [k, v] of Object.entries(a.headers ?? {})) {
+      const text = fillOptional(v, scope);
+      if (text !== undefined) headers[k] = text;
+    }
     if (a.form !== undefined && method !== "GET") {
-      body = new URLSearchParams(Object.entries(a.form).map(([k, v]) => [k, fillString(v, scope)])).toString();
+      const fields: [string, string][] = [];
+      for (const [k, v] of Object.entries(a.form)) {
+        const text = fillOptional(v, scope);
+        if (text !== undefined) fields.push([k, text]);
+      }
+      body = new URLSearchParams(fields).toString();
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/x-www-form-urlencoded";
     } else if (a.body !== undefined && method !== "GET") {
-      body = JSON.stringify(fillValue(a.body, scope));
+      body = JSON.stringify(fillValue(a.body, scope) ?? null);
       if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type"))
         headers["Content-Type"] = "application/json";
     }
@@ -507,13 +675,25 @@ export async function executeAction(
       dryRun: true,
     };
 
-  if (conn && !takeToken(conn.connection_id, def.rate, nowOf(deps)))
-    refuse(
-      ctx,
-      "rate_limit.exceeded",
-      `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
-      { retryAfterMs: Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps))) },
-    );
+  // the connection's budget: a sync pass (it says so with its own token) waits here for its turn, for 30 s at most, instead of being refused and asked again. A person's own read never queues: it is refused
+  // at once with the wait it needs, as before. A short wait is served here (in this process, in line) instead of being refused and asked again, which cost a refusal, an access check and a Vault read for every try
+  if (conn && !o.dryRun) {
+    let waited = 0;
+    while (!takeToken(conn.connection_id, def.rate, nowOf(deps))) {
+      const wait = Math.max(50, tokenWaitMs(conn.connection_id, def.rate, nowOf(deps)));
+      const held = holdMsOf(conn.connection_id, nowOf(deps));
+      if (!deps.pace || o.keep === undefined || held > 0 || wait > PACE_LONGEST_MS || waited + wait > PACE_TOTAL_MS)
+        refuse(
+          ctx,
+          "rate_limit.exceeded",
+          `The connection is at its rate limit (${def.rate ? Math.round(def.rate.rps * 60) : 0} a minute).`,
+          { retryAfterMs: wait },
+        );
+      await deps.pace(wait);
+      waited += wait;
+    }
+  }
+
   const http = o.http ?? ctx.http;
   const started = nowOf(deps);
   const logRow = (status: number | null, error: string | null): void => {
@@ -556,6 +736,11 @@ export async function executeAction(
   o.verdict?.(res.status, text);
   if (res.status === 401 || res.status === 403) {
     logRow(res.status, "rejected the sign-in");
+    // a key kept for a few seconds may be one that was just changed: forget what is kept and ask once more with the Vault's own value
+    if (conn && persist && !o.fresh && keptUsed) {
+      forgetKept(conn.connection_id);
+      return executeAction(deps, ctx, def, actionName, { ...o, fresh: true });
+    }
     // an OAuth token the app rejects is refreshed once and the call repeated; only a refresh that fails (or a repeat that is rejected again) asks the person to reconnect
     if (
       conn &&
@@ -564,8 +749,16 @@ export async function executeAction(
       def.auth.type === "oauth2" &&
       refreshSlot(def) &&
       (await oauthOf(deps).refresh(ctx, def, conn))
-    )
+    ) {
+      forgetKept(conn.connection_id);
       return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
+    }
+    // the same for an app that issues its own OAuth client: the kept access token is dropped, a new one is asked for, and the call is repeated once
+    if (conn && persist && !o.refreshed && def.auth.type === "oauth_refresh") {
+      forgetAccess(grantKeyOf(deps, def, conn));
+      forgetKept(conn.connection_id);
+      return executeAction(deps, ctx, def, actionName, { ...o, refreshed: true });
+    }
     if (conn && persist) await markReconnect(deps, ctx, conn);
     return refuse(ctx, "provider.auth_failed", "The app rejected the key or sign-in.", { status: res.status });
   }
@@ -650,6 +843,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
   const declared = new Set(def.secrets.map((s) => s.name));
   const used = new Set<string>(def.auth.secret ? [def.auth.secret] : []);
   secretsIn(def.auth.basic, used);
+  secretsIn(def.auth.template, used);
   const bad: string[] = [];
   for (const a of def.actions) {
     if (!a.url) continue;
@@ -658,7 +852,7 @@ export async function runCases(deps: ConnectorsDeps, ctx: ConnectorsCtx, def: Co
     secretsIn(a.form, used);
     secretsIn(a.basic, used);
     if (secretsIn(a.url).size || secretsIn(a.query).size) bad.push(`${a.name}: a secret in the address`);
-    const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\}/g, "x");
+    const probe = a.url.replace(/\{(input|connection)\.[A-Za-z0-9_.]+\??\}/g, "x");
     const eg = checkEgress(probe, def.domains);
     if (!eg.ok) bad.push(`${a.name}: ${eg.reason}`);
   }
@@ -1047,33 +1241,113 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         );
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
+      const kind = input.auth.type;
+      const templated = kind === "basic" || kind === "header";
+      if (templated && !(input.secrets && input.secrets.length > 0))
+        refuse(ctx, "validation.bad_input", `auth ${kind} reads secrets: declare each one in secrets.`);
       const secrets =
-        input.auth.type === "none"
+        kind === "none"
           ? []
           : input.secrets && input.secrets.length > 0
             ? input.secrets
             : [{ name: slot ?? "Key", description: `API key for ${input.title ?? live.title}` }];
+      // basic and header sign-ins are an api_key connector with a template: the secrets the template names are declared, and the header it fills is the connector's own
+      let authDoc: Record<string, unknown>;
+      if (kind === "basic") {
+        if (typeof input.auth.user !== "string" || typeof input.auth.password !== "string")
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic needs user and password (a secret like {secret.Shop_User}, or plain words).",
+          );
+        const named = secretsIn([input.auth.user, input.auth.password]);
+        const first = [...named][0];
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth basic reads at least one secret: put {secret.Name} in user or password.",
+          );
+        authDoc = { type: "api_key", secret: first, basic: { user: input.auth.user, pass: input.auth.password } };
+      } else if (kind === "header") {
+        if (typeof input.auth.header !== "string" || input.auth.header.trim() === "")
+          refuse(ctx, "validation.bad_input", "auth header needs the name of the header it fills.");
+        if (typeof input.auth.template !== "string")
+          refuse(ctx, "validation.bad_input", "auth header needs a template over its secrets.");
+        const named = secretsIn(input.auth.template);
+        const first = [...named][0];
+        if (!first)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            "auth header's template reads at least one secret: put {secret.Name} in it.",
+          );
+        authDoc = { type: "api_key", secret: first, header: input.auth.header, template: input.auth.template };
+      } else
+        authDoc = {
+          type: kind,
+          ...(kind === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }),
+          ...(input.auth.header ? { header: input.auth.header } : {}),
+          ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}),
+        };
       const main: Record<string, unknown> = {
         title: input.title ?? live.title,
         mode: live.mode,
         scope: live.scope,
         domains: input.domains,
-        auth: {
-          type: input.auth.type,
-          ...(input.auth.type === "none" ? {} : { secret: input.auth.secret ?? secrets[0]!.name }),
-          ...(input.auth.header ? { header: input.auth.header } : {}),
-          ...(input.auth.prefix !== undefined ? { prefix: input.auth.prefix } : {}),
-        },
+        auth: authDoc,
         secrets,
+        ...(input.health !== undefined ? { health: input.health } : {}),
       };
-      const docs = input.actions.map((a) => ({
-        path: `actions/${a.name}.json`,
-        doc: {
-          ...a,
-          method: (a.method ?? "GET").toUpperCase(),
-          ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}),
-        },
-      }));
+      const PAGE_KINDS = ["page", "cursor", "offset", "link"];
+      const docs = input.actions.map((a) => {
+        const { paginate, ...rest } = a;
+        let shape: Record<string, unknown> | undefined;
+        if (paginate !== undefined) {
+          const at = `${a.name}.paginate`;
+          if (!PAGE_KINDS.includes(paginate.kind))
+            refuse(ctx, "validation.bad_input", `${at}.kind is one of ${PAGE_KINDS.join(", ")}.`);
+          for (const k of ["items", "id"] as const)
+            if (typeof paginate[k] !== "string" || !(paginate[k] === "" || paginate[k].startsWith("/")))
+              refuse(
+                ctx,
+                "validation.bad_input",
+                `${at}.${k} is a JSON pointer into the answer (for example /data${k === "id" ? "" : ""}).`,
+              );
+          if (paginate.kind !== "link" && (typeof paginate.param !== "string" || paginate.param === ""))
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.param names the query parameter that carries the ${paginate.kind}.`,
+            );
+          if (paginate.kind === "cursor" && (typeof paginate.next !== "string" || !paginate.next.startsWith("/")))
+            refuse(
+              ctx,
+              "validation.bad_input",
+              `${at}.next is the pointer to the next cursor in the answer: a cursor needs next.`,
+            );
+          shape = {
+            items: paginate.items,
+            id: paginate.id,
+            cursor: {
+              kind: paginate.kind,
+              ...(paginate.param ? { param: paginate.param } : {}),
+              ...(paginate.next ? { next: paginate.next } : {}),
+              ...(paginate.size !== undefined ? { size: paginate.size } : {}),
+              ...(paginate.start !== undefined ? { start: paginate.start } : {}),
+            },
+          };
+        }
+        return {
+          path: `actions/${a.name}.json`,
+          doc: {
+            ...rest,
+            ...(shape ? { shape } : {}),
+            method: (a.method ?? "GET").toUpperCase(),
+            ...(a.write === undefined && (a.method ?? "GET").toUpperCase() !== "GET" ? { write: true } : {}),
+          },
+        };
+      });
       const def = buildDef(ctx, c.key, main, docs, []);
       // an action that is not a GET changes something in the app; it must say so, so a dry run never sends it and the Gate holds it
       for (const a of def.actions)
@@ -1169,6 +1443,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         connection: conn,
         input: pass.input,
         ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
+        ...(pass.keep ? { keep: pass.keep } : {}),
       });
       tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
       return { output: out.output };
@@ -1193,6 +1468,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         input: pass.input,
         dryRun: input.dryRun === true,
         ...(pass.unmask ? { unmask: true, passNonce: pass.nonce! } : {}),
+        ...(pass.keep ? { keep: pass.keep } : {}),
       });
       if (!out.dryRun)
         tx.run("UPDATE cn_connections SET last_sync_at = ? WHERE connection_id = ?", nowOf(deps), conn.connection_id);
@@ -1335,6 +1611,10 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           conn.connection_id,
         );
         tx.run("DELETE FROM cn_oauth WHERE connection_id = ?", conn.connection_id);
+        {
+          const full = tx.get<ConnectionDb>("SELECT * FROM cn_connections WHERE connection_id = ?", conn.connection_id);
+          if (full) await forgetGrantOf(deps, ctx, full);
+        }
         tx.run("DELETE FROM cn_connections WHERE connection_id = ?", conn.connection_id);
         ctx.emit("connection.deleted", `connection/${conn.connection_id}`, {
           connectionId: conn.connection_id,

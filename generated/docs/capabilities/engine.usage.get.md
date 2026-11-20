@@ -1,6 +1,6 @@
 # engine.usage.get
 
-For a chat and an account: the context used against the model window (from the latest turn and the model catalog) and the session and week limits exactly as the provider reported them. A provider that reports nothing gives null; nothing is estimated
+For a chat and an account: the context used against the model window and the session and week limits as the provider reported them. A provider that reports nothing gives null
 
 | | |
 |---|---|

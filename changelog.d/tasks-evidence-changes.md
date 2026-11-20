@@ -1,0 +1,1 @@
+A task can say what proves it done (a Vault item with a name, a message to a contact, a meeting that ended, a connection made) and closes itself with that proof the moment it happens. tasks.changes lists what the Space did to your tasks since a time, with the reason for each.

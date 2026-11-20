@@ -57,6 +57,7 @@ const stepRow = t.obj({
   inputRef: t.opt(t.str()),
   outputRef: t.opt(t.str()),
   error: t.opt(t.obj({ code: t.str(), message: t.str() })),
+  notes: t.opt(t.arr(t.str())),
   startedAt: t.opt(t.ts()),
   endedAt: t.opt(t.ts()),
   traceSpan: t.opt(t.str()),
@@ -73,6 +74,134 @@ const waitOn = t.union(
   t.obj({ run: id.run }),
   t.obj({ at: t.ts() }),
 );
+
+// ---- the Run node (r42-runtime): one unit of agent work in a tree; see modules/runs/node.ts
+const nodeKind = t.enm(
+  "turn",
+  "subagent",
+  "helper",
+  "crew",
+  "handoff",
+  "ask",
+  "routine",
+  "wait",
+  "watcher",
+  "terminal",
+  "job",
+  "mcp",
+  "other",
+);
+const nodeStatus = t.enm("queued", "running", "waiting", "paused", "succeeded", "failed", "stopped");
+const nodeWhy = t.enm(
+  "started",
+  "claimed",
+  "slept",
+  "woke",
+  "paused",
+  "resumed",
+  "done",
+  "failed",
+  "stopped",
+  "worker_lost",
+  "budget",
+  "stuck",
+  "parent_stopped",
+  "parent_paused",
+  "retry",
+  "lease_lost",
+);
+const nodeWake = t.obj({
+  kind: t.enm("event", "time", "process", "person", "child", "deps", "log"),
+  label: t.opt(t.str()),
+  dueAt: t.opt(t.ts()),
+  on: t.opt(t.json()),
+  wokeCount: t.opt(t.int({ minimum: 0 })),
+});
+const nodeSpent = t.obj({
+  tokensIn: t.int({ minimum: 0 }),
+  tokensOut: t.int({ minimum: 0 }),
+  cacheRead: t.int({ minimum: 0 }),
+  usdMicros: t.int({ minimum: 0 }),
+  calls: t.int({ minimum: 0 }),
+});
+const nodeStep = t.obj({
+  icon: t.enm("read", "web", "term", "edit", "find", "think", "send", "cal", "wait", "kid"),
+  text: t.str(),
+});
+const nodeRow = t.obj({
+  id: id.run,
+  rootRun: id.run,
+  parentRun: t.opt(id.run),
+  depth: t.int({ minimum: 0 }),
+  kind: nodeKind,
+  name: t.opt(t.str()),
+  owner: t.str(),
+  startedBy: t.str(),
+  whoKind: t.str(),
+  whoId: t.opt(t.str()),
+  engine: t.opt(t.str()),
+  model: t.opt(t.str()),
+  threadId: t.opt(id.thread),
+  status: nodeStatus,
+  version: t.int({ minimum: 0 }),
+  attempt: t.int({ minimum: 1 }),
+  brief: t.opt(t.json()),
+  budget: t.opt(t.json()),
+  spent: nodeSpent,
+  wake: t.opt(nodeWake),
+  can: t.opt(t.obj({ manage: t.bool() })),
+  result: t.opt(t.json()),
+  evidence: t.opt(t.json()),
+  origin: t.opt(t.json()),
+  summary: t.opt(t.str()),
+  step: t.opt(nodeStep),
+  need: t.opt(t.obj({ requestId: t.str(), what: t.str(), why: t.str() })),
+  stuck: t.opt(t.obj({ since: t.ts(), reason: t.str() })),
+  whoName: t.opt(t.str()),
+  dependsOn: t.opt(t.arr(id.run)),
+  errorCode: t.opt(t.str()),
+  reason: t.opt(t.str({ description: "Why it failed, in words a person can read; the raw error stays in the logs" })),
+  stopReason: t.opt(t.str()),
+  leaseHolder: t.opt(t.str()),
+  leaseUntil: t.opt(t.ts()),
+  startedAt: t.ts(),
+  endedAt: t.opt(t.ts()),
+  updatedAt: t.ts(),
+});
+const nodeEvent = t.obj({
+  rootRun: id.run,
+  seq: t.int({ minimum: 1 }),
+  runId: id.run,
+  at: t.ts(),
+  type: t.str({ examples: ["state", "step", "said", "usage"] }),
+  actor: t.opt(t.str()),
+  key: t.opt(t.str()),
+  payload: t.json(),
+});
+const boardEntry = t.obj({
+  id: t.str(),
+  rootRun: id.run,
+  kind: t.enm("fact", "decision", "question"),
+  topic: t.opt(t.str()),
+  text: t.str(),
+  byRun: id.run,
+  evidence: t.arr(t.str()),
+  at: t.ts(),
+  supersededBy: t.opt(t.str()),
+  answer: t.opt(t.obj({ byRun: t.str(), text: t.str(), at: t.ts() })),
+});
+const nodeMessage = t.obj({
+  id: t.str(),
+  rootRun: id.run,
+  fromRun: id.run,
+  toRun: id.run,
+  body: t.str(),
+  at: t.ts(),
+  deliveredAt: t.opt(t.ts()),
+  seenAt: t.opt(t.ts()),
+  fromName: t.opt(t.str()),
+});
+const nodeTarget = { runId: id.run };
 
 export default defineManifest({
   id: "runs",
@@ -122,6 +251,33 @@ export default defineManifest({
       subject: ["entity", "/removed"],
       retention: "audit",
     }),
+    ev("run.node_state", "A node of the agent work tree changed state", {
+      p: {
+        runId: id.run,
+        rootRun: id.run,
+        kind: nodeKind,
+        from: t.opt(nodeStatus),
+        to: nodeStatus,
+        why: nodeWhy,
+      },
+      subject: ["run", "/runId"],
+      retention: "run_logs",
+    }),
+    ev(
+      "run.node_ended",
+      "A node of the agent work tree is over (done, failed or stopped); it carries no words, so everyone who may hear of it learns state only: read the node for what it found. Native nodes only: a routine, wait or terminal Run mirrored into the tree is waited for as a Run",
+      {
+        p: {
+          runId: id.run,
+          rootRun: id.run,
+          kind: nodeKind,
+          to: t.enm("succeeded", "failed", "stopped"),
+          summary: t.opt(t.str()),
+        },
+        subject: ["run", "/runId"],
+        retention: "run_logs",
+      },
+    ),
     ev("run.started", "A Run started", {
       p: {
         runId: id.run,
@@ -189,6 +345,354 @@ export default defineManifest({
     }),
   ],
   capabilities: [
+    // ---- the Run node: one unit of agent work in a tree (r42-runtime, modules/runs/node.ts)
+    write(
+      "runs.node.start",
+      "Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watcher, terminal command or job (the engine, chat and terminal call this)",
+      {
+        in: {
+          kind: nodeKind,
+          name: t.opt(t.str()),
+          owner: t.str(),
+          parentRun: t.opt(id.run),
+          parentThread: t.opt(id.thread),
+          threadId: t.opt(id.thread),
+          whoKind: t.opt(t.str()),
+          whoId: t.opt(t.str()),
+          whoName: t.opt(t.str({ maxLength: 120 })),
+          dependsOn: t.opt(t.arr(id.run, { maxItems: 20 })),
+          dependsOnThreads: t.opt(t.arr(id.thread, { maxItems: 20 })),
+          adoptKey: t.opt(t.str()),
+          retriesThread: t.opt(id.thread),
+          engine: t.opt(t.str()),
+          model: t.opt(t.str()),
+          brief: t.opt(t.json()),
+          budget: t.opt(t.json()),
+          origin: t.opt(t.json()),
+          policy: t.opt(t.json()),
+          running: t.opt(t.bool()),
+          idemKey: t.opt(t.str()),
+        },
+        out: { node: nodeRow, created: t.bool() },
+        emits: ["run.node_state", "run.node_ended"],
+      },
+    ),
+    write("runs.node.label", "Give a node its name, once the task it was asked is known (the server)", {
+      in: { ...nodeTarget, name: t.str({ maxLength: 120 }) },
+      out: { ok: t.bool() },
+    }),
+    write(
+      "runs.node.move",
+      "Move a node to another state; the one way a node changes state (a node already there answers as a no-op, a finished one refuses)",
+      {
+        in: {
+          ...nodeTarget,
+          to: nodeStatus,
+          why: nodeWhy,
+          expectedVersion: t.opt(t.int({ minimum: 0 })),
+          expectedFrom: t.opt(nodeStatus),
+          summary: t.opt(t.str()),
+          result: t.opt(t.json()),
+          evidence: t.opt(t.json()),
+          error: t.opt(t.obj({ code: t.str(), message: t.str() })),
+          stopReason: t.opt(t.str()),
+          wake: t.opt(nodeWake),
+          checkpoint: t.opt(t.json()),
+          holder: t.opt(
+            t.str({
+              description:
+                "The lease a worker holds: a move by a worker that no longer holds it is refused; none when the node holds none",
+            }),
+          ),
+          attempt: t.int({
+            minimum: 1,
+            description: "The attempt the worker holds: a move of an older attempt is refused",
+          }),
+        },
+        out: { node: nodeRow, changed: t.bool() },
+        emits: ["run.node_state", "run.node_ended"],
+      },
+    ),
+    write(
+      "runs.node.event",
+      "Add one event to the record of a node, idempotent by key; a usage event adds to the spend of that node once",
+      {
+        in: {
+          ...nodeTarget,
+          type: t.str(),
+          key: t.opt(t.str()),
+          actor: t.opt(t.str()),
+          payload: t.opt(t.json()),
+          at: t.opt(t.ts()),
+        },
+        out: { seq: t.int({ minimum: 1 }), duplicate: t.bool() },
+      },
+    ),
+    write(
+      "runs.node.claim",
+      "Take a queued node for a worker: queued to running with a lease; returns the node, or none when it was not free",
+      {
+        in: { ...nodeTarget, holder: t.str() },
+        out: { node: t.opt(nodeRow) },
+        emits: ["run.node_state", "run.node_ended"],
+      },
+    ),
+    write(
+      "runs.node.beat",
+      "A worker's heartbeat on a node it holds; false means the lease is gone and the worker must stop",
+      {
+        in: { ...nodeTarget, holder: t.str() },
+        out: { held: t.bool() },
+      },
+    ),
+    write(
+      "runs.node.reclaim",
+      "Put nodes whose worker stopped beating back in the queue with the next attempt (the host's sweep)",
+      {
+        in: {},
+        out: { reclaimed: t.arr(id.run) },
+        emits: ["run.node_state", "run.node_ended"],
+      },
+    ),
+    write(
+      "runs.node.control",
+      "Pause, resume or stop a node and, with subtree, everything under it (the owner or someone who manages runs)",
+      {
+        in: {
+          ...nodeTarget,
+          action: t.enm("pause", "resume", "stop"),
+          reason: t.opt(t.str()),
+          subtree: t.opt(t.bool()),
+        },
+        out: { nodes: t.arr(nodeRow) },
+        on: ["run", "/runId"],
+        level: "manage",
+        emits: ["run.node_state", "run.node_ended", "run.stopped"],
+        offline: "online",
+      },
+    ),
+    read("runs.node.get", "Read one node of the agent work tree", {
+      in: nodeTarget,
+      out: { node: nodeRow },
+      on: ["run", "/runId"],
+    }),
+    read(
+      "runs.node.find",
+      "The nodes that stand for given threads and idempotency keys (for a tile to read its node), only those the person may see",
+      {
+        in: {
+          threadIds: t.opt(t.arr(id.thread, { maxItems: 50 })),
+          keys: t.opt(t.arr(t.str({ maxLength: 200 }), { maxItems: 50 })),
+        },
+        out: { byThread: t.rec(id.run), byKey: t.rec(id.run) },
+      },
+    ),
+    write(
+      "runs.node.save_as_agent",
+      "Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok",
+      {
+        in: {
+          ...nodeTarget,
+          name: t.opt(t.str({ maxLength: 60 })),
+          role: t.opt(t.str({ maxLength: 200 })),
+          instructions: t.opt(
+            t.str({
+              maxLength: 4000,
+              description: "What the person edited: told to the agent instead of the work's own brief",
+            }),
+          ),
+          sharing: t.opt(t.enm("me", "everyone")),
+        },
+        out: {
+          agent: t.json(),
+          runId: id.run,
+          toolsCarried: t.enm("kept", "narrowed", "default"),
+        },
+        on: ["run", "/runId"],
+        level: "manage",
+        gate: { act: "approve", when: "actor.kind != 'person'", reason: "Makes a new agent from this work" },
+        offline: "online",
+        errors: ["validation.precondition_failed", "validation.duplicate"],
+      },
+    ),
+    write(
+      "runs.node.rerun",
+      "Start a finished helper again beside the first, with an edited brief or another model; both are kept and read side by side with runs.node.compare",
+      {
+        in: {
+          ...nodeTarget,
+          goal: t.opt(t.str({ maxLength: 500 })),
+          instructions: t.opt(t.str({ maxLength: 20000 })),
+          model: t.opt(t.str()),
+        },
+        out: { threadId: id.thread, rerunOf: id.run },
+        on: ["run", "/runId"],
+        level: "manage",
+        emits: ["run.node_state", "run.node_ended"],
+        offline: "online",
+        errors: ["validation.precondition_failed", "validation.bad_input"],
+      },
+    ),
+    read(
+      "runs.node.compare",
+      "A finished node and everything started again from it, side by side: brief, result, cost and time of each (only for the owner or a manager of runs; someone who may only view the run is refused)",
+      {
+        in: nodeTarget,
+        out: {
+          sides: t.arr(
+            t.obj({
+              runId: t.opt(id.run),
+              threadId: t.opt(id.thread),
+              status: t.str(),
+              brief: t.opt(t.obj({ goal: t.opt(t.str()), instructions: t.opt(t.str()) })),
+              result: t.opt(t.str()),
+              usdMicros: t.int({ minimum: 0 }),
+              tokens: t.int({ minimum: 0 }),
+              seconds: t.opt(t.int({ minimum: 0 })),
+              model: t.opt(t.str()),
+            }),
+          ),
+        },
+        on: ["run", "/runId"],
+      },
+    ),
+    read(
+      "runs.tree.find",
+      "The trees of agent work that ran in a chat or in a helper's own thread, newest first, with the root of each (only those the person may see; full says whether they see all of it or only that it goes on)",
+      {
+        in: { threadId: id.thread, active: t.opt(t.bool()), limit: t.opt(t.int({ minimum: 1, maximum: 100 })) },
+        out: {
+          roots: t.arr(
+            t.obj({
+              rootRun: id.run,
+              runId: id.run,
+              kind: nodeKind,
+              status: nodeStatus,
+              startedAt: t.ts(),
+              endedAt: t.opt(t.ts()),
+              full: t.bool(),
+            }),
+          ),
+        },
+      },
+    ),
+    read(
+      "runs.tree.get",
+      "Read a whole tree of agent work: every node, with what each has spent and what it waits for",
+      {
+        in: nodeTarget,
+        out: { nodes: t.arr(nodeRow), spent: nodeSpent, lastSeq: t.int({ minimum: 0 }) },
+        on: ["run", "/runId"],
+      },
+    ),
+    read(
+      "runs.activity.list",
+      "Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first",
+      {
+        in: { scope: t.opt(t.enm("mine", "all")), limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
+        out: {
+          rows: t.arr(
+            t.obj({
+              runId: id.run,
+              rootRun: id.run,
+              kind: nodeKind,
+              name: t.opt(t.str()),
+              whoKind: t.str(),
+              whoId: t.opt(t.str()),
+              whoName: t.opt(t.str()),
+              status: nodeStatus,
+              step: t.opt(nodeStep),
+              stuck: t.opt(t.obj({ since: t.ts(), reason: t.str() })),
+              need: t.opt(t.obj({ requestId: t.str(), what: t.str(), why: t.str() })),
+              wake: t.opt(nodeWake),
+              startedAt: t.ts(),
+              updatedAt: t.ts(),
+              usdMicros: t.int({ minimum: 0 }),
+            }),
+          ),
+        },
+      },
+    ),
+    write(
+      "runs.budget.set",
+      "Set, raise or clear the limit of a node and everything under it (money, tokens or both); raising it past what was used lets the work it paused go on",
+      {
+        in: {
+          ...nodeTarget,
+          usdMicros: t.opt(t.int({ minimum: 1 })),
+          tokens: t.opt(t.int({ minimum: 1 })),
+          clear: t.opt(t.bool()),
+        },
+        out: { node: nodeRow, resumed: t.int({ minimum: 0 }) },
+        on: ["run", "/runId"],
+        level: "manage",
+        offline: "online",
+      },
+    ),
+    write(
+      "runs.board.put",
+      "A node writes to the board of its tree: a fact or decision with what it stands on, or a question",
+      {
+        in: {
+          ...nodeTarget,
+          kind: t.enm("fact", "decision", "question"),
+          text: t.str({ maxLength: 2000 }),
+          topic: t.opt(t.str({ maxLength: 120 })),
+          evidence: t.opt(t.arr(t.str({ maxLength: 500 }), { maxItems: 12 })),
+        },
+        out: { entry: boardEntry, conflict: t.opt(boardEntry) },
+        on: ["run", "/runId"],
+        level: "use",
+      },
+    ),
+    write("runs.board.answer", "The parent, the owner or a manager answers a question on the board", {
+      in: { ...nodeTarget, entryId: t.str(), text: t.str({ maxLength: 2000 }) },
+      out: { entry: boardEntry },
+      on: ["run", "/runId"],
+      level: "use",
+    }),
+    read("runs.board.list", "The board of a tree: what its nodes know together, newest last", {
+      in: { ...nodeTarget, all: t.opt(t.bool()) },
+      out: { entries: t.arr(boardEntry) },
+      on: ["run", "/runId"],
+    }),
+    write(
+      "runs.message.send",
+      "A node tells another node of its tree something (a sibling, or its parent); it is read at the receiver's next step",
+      {
+        in: { ...nodeTarget, to: t.str(), body: t.str({ maxLength: 2000 }), key: t.opt(t.str({ maxLength: 120 })) },
+        out: { message: nodeMessage, duplicate: t.bool() },
+        on: ["run", "/runId"],
+        level: "use",
+      },
+    ),
+    write("runs.message.take", "The server hands a node what waits for it and marks it delivered, once", {
+      in: nodeTarget,
+      out: { messages: t.arr(nodeMessage) },
+    }),
+    write("runs.message.seen", "The server marks delivered messages as read by their receiver", {
+      in: { messageIds: t.arr(t.str(), { maxItems: 100 }) },
+      out: { marked: t.int({ minimum: 0 }) },
+    }),
+    read(
+      "runs.message.list",
+      "The messages of a node, sent and received, with how far each got; with tree the messages of the whole tree",
+      {
+        in: { ...nodeTarget, tree: t.opt(t.bool()) },
+        out: { messages: t.arr(nodeMessage) },
+        on: ["run", "/runId"],
+      },
+    ),
+    read("runs.events.list", "A tree's events since a cursor, in order (one node's with runId)", {
+      in: {
+        ...nodeTarget,
+        since: t.opt(t.int({ minimum: 0 })),
+        limit: t.opt(t.int({ minimum: 1, maximum: 500 })),
+        only: t.opt(id.run),
+      },
+      out: { events: t.arr(nodeEvent), lastSeq: t.int({ minimum: 0 }) },
+      on: ["run", "/runId"],
+    }),
     // ---- erase and purge (P-CC_39)
     write("runs.erase", "Erase one Run for good with its steps, waits and alerts (governance erase)", {
       level: "manage",

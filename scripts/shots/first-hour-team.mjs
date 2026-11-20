@@ -386,9 +386,9 @@ const baseSteps = [
     run: async (S) => {
       await S.page.goto(`${S.web.origin}/chat`, { waitUntil: "load" });
       await S.dismissOnboarding(S.page).catch(() => undefined);
-      const hint = S.page.getByText("New goal", { exact: true }).first();
-      await hint.waitFor({ timeout: 30000 });
-      await hint.click();
+      // "New goal" is the + on the Goals head, shown while the pointer is over the head (a bare head says no sentence)
+      await S.page.getByTestId("head-goals").hover({ timeout: 30000 });
+      await S.page.getByTestId("head-plus-goals").first().click({ timeout: 10000 });
       await S.page.getByTestId("new-goal-sheet").waitFor({ timeout: 10000 });
       await S.page.getByTestId("new-goal-title").fill("Answer every open question");
       await S.page.screenshot({ path: path.join(S.out, "wf-01-new-goal-sheet.png") });
@@ -651,7 +651,11 @@ const baseSteps = [
           );
         if (!open) {
           await S.page
-            .getByText("New goal", { exact: true })
+            .getByTestId("head-goals")
+            .hover({ timeout: 8000 })
+            .catch(() => undefined);
+          await S.page
+            .getByTestId("head-plus-goals")
             .first()
             .click({ timeout: 8000 })
             .catch(() => undefined);

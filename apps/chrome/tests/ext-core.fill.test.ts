@@ -1148,6 +1148,7 @@ test("the secret check fires: a short code as its own value, as a whole token in
 async function scriptedFill(o: {
   frames: { frameId: number; origin: string; fields: { ref: string; role: string }[] }[];
   fillCall?: (c: string, i: Msg, push: (v: string) => void) => Promise<unknown>;
+
   uses?: { handle: string; fields: string[] };
   apply?: (frameId: number) => unknown;
 }) {
@@ -1257,6 +1258,46 @@ test("the page changes under a fill: the frame is gone when the value arrives, s
   assert.deepEqual(done.filled, []);
   assert.deepEqual(w.applied, []);
   assert.equal(w.f.pendingRefs, 0);
+});
+
+test("a frame of another site inside the page is offered no accounts and no cards, and its fill request is refused", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const frame = {
+    id: "ext_vyre",
+    tab: { id: 7, url: "https://login.acme.test/signin" },
+    origin: "https://evil.example",
+    url: "https://evil.example/ad",
+  };
+  for (const kind of ["login", "card"]) {
+    const list = await b.w.onMessage({ type: "vyre.accounts", kind }, frame);
+    assert.deepEqual(list.data, { blocked: "frame", rows: [] });
+  }
+  const r = await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, frame);
+  assert.equal(r.error?.code, "not_allowed");
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0, "no value was asked for");
+  // the page's own frame is served as before
+  const own = { ...frame, origin: "https://login.acme.test", url: "https://login.acme.test/signin" };
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, own)).data.rows.length, 1);
+});
+
+test("a message that says nothing about which site it comes from is treated as a foreign frame, and the badge says why in one line", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const silent = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" } };
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, silent)).data, {
+    blocked: "frame",
+    rows: [],
+  });
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, silent)).error?.code,
+    "not_allowed",
+  );
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0);
+  const src = (await import("node:fs")).readFileSync(new URL("../src/content/badge.js", import.meta.url), "utf8");
+  assert.match(src, /Vyre does not fill inside another site's frame\./);
 });
 
 test("a page cannot use the Vault comparison to try passwords: a site's logins are compared a few times a minute, then not at all until the minute passes", async () => {

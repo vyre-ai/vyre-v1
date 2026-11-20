@@ -36,6 +36,7 @@ type Out = {
   found: boolean;
   connector?: {
     key: string;
+    revision: string;
     title: string;
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
@@ -52,6 +53,7 @@ type Out = {
           label: string;
           connector: string;
           hosts: Array<string>;
+          revision: string;
         }>;
     };
     site?: string;
@@ -105,6 +107,7 @@ type Out = {
               "example"
             ],
             "label": "example",
+            "revision": "example",
             "value": "example"
           }
         ]
@@ -122,6 +125,7 @@ type Out = {
       ],
       "key": "hubspot",
       "mode": "api",
+      "revision": "example",
       "scope": "person",
       "site": "example",
       "title": "example"

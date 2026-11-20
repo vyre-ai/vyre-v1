@@ -1,6 +1,6 @@
 # sites.build
 
-Build the site from its repo (the site agent runs in the repo); test and verify
+Build the site from its repo (the agent runs in it); test, verify
 
 | | |
 |---|---|
