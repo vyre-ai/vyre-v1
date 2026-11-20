@@ -24947,6 +24947,7 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
@@ -25044,6 +25045,7 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
@@ -25142,6 +25144,7 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
@@ -57811,7 +57814,7 @@
       "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "description": "List the sites and artifacts you can see, by section, kind, folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -58113,7 +58116,7 @@
       "blocks": [],
       "cap": "sites.publish",
       "deferred": false,
-      "description": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "description": "Serve a non-public site: space or private access, or a password on its own domain",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58664,7 +58667,7 @@
       "blocks": [],
       "cap": "sites.webhook_set",
       "deferred": false,
-      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
+      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
       "effects": "write",
       "inputSchema": {
         "properties": {

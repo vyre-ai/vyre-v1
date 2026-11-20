@@ -35,6 +35,8 @@ type In = {
 type Out = {
   head?: string;
   changed: boolean;
+  repo?: boolean;
+  branch?: string;
 };
 ```
 
@@ -55,8 +57,10 @@ type Out = {
     "siteId": "sit_a1b2c3"
   },
   "output": {
+    "branch": "example",
     "changed": true,
-    "head": "example"
+    "head": "example",
+    "repo": true
   }
 }
 ```

@@ -1,6 +1,6 @@
 # sites.list
 
-List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
+List the sites and artifacts you can see, by section, kind, folder
 
 | | |
 |---|---|

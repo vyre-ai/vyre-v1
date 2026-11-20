@@ -737,7 +737,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
         { siteId: "sit_1", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } },
         { ...asAgent() } as never,
       ),
-      { act: "send" },
+      { act: name === "sites.update" || name === "sites.plan" ? "send" : "deploy" },
       `${name}: a repo on a new host is held for an agent`,
     );
   // a Vault key given to a site as env runs inside code an agent may have chosen: held for an agent, with or without a token, on any host; plain values and a person are one step
@@ -746,7 +746,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
     await site.gate.applies(site.defOf("sites.env_set"), envOf([{ name: "K", vaultHandle: "#Stripe_Key" }]), {
       ...asAgent(),
     } as never),
-    { act: "send" },
+    { act: "deploy" },
     "env_set with a Vault key is held for an agent",
   );
   assert.equal(
@@ -769,7 +769,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
       { name: "s", source: { repo: "https://github.com/a/b" }, env: [{ name: "K", vaultHandle: "#Stripe_Key" }] },
       { ...asAgent() } as never,
     ),
-    { act: "send" },
+    { act: "deploy" },
     "ship with a Vault key in env is held even for a public repo with no token",
   );
   assert.deepEqual(
@@ -782,7 +782,7 @@ test("through the real Gate: an agent sending a Vault key to a new host is held,
       },
       { ...asAgent() } as never,
     ),
-    { act: "send" },
+    { act: "deploy" },
     "an approved token host does not carry a second key in env through",
   );
   // a call that names no key is not touched by the rule
@@ -829,7 +829,7 @@ test("through a full invoke: sites.ship with a repo on a new host is parked; aft
   const ship = { name: "site", source: { repo: "https://git.elsewhere.example/a/b", tokenHandle: "#Crm_Key" } };
   const first = rig(w.opts);
   assert.equal((await first.invoke("sites.ship", { ...ship }, asAgent())).status, "held");
-  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "send" }], []]);
+  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "deploy" }], []]);
   const approved = rig(w.opts);
   await approved.gate.seen?.(
     approved.defOf("sites.ship"),
@@ -862,7 +862,7 @@ test("a Vault key given to a site as env: held for an agent unless a person appr
     "held",
     "a public repo, no token: held",
   );
-  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "send" }], []]);
+  assert.deepEqual([first.parked, first.ran], [[{ cap: "sites.ship", act: "deploy" }], []]);
   // the person says yes: the key is approved for that source
   const approved = rig(w.opts);
   await approved.gate.seen?.(
@@ -1203,7 +1203,7 @@ test("promote on a real site: a preview of the production branch is the site's o
     "held",
     "a preview of another branch of the same repo is held",
   );
-  assert.deepEqual(held.parked, [{ cap: "sites.preview_promote", act: "send" }]);
+  assert.deepEqual(held.parked, [{ cap: "sites.preview_promote", act: "deploy" }]);
   await s.yes("sites.preview_promote", { siteId, branch: "feat/x" }, "apv_p1");
   assert.deepEqual(
     hostsOf(s),

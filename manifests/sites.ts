@@ -267,7 +267,7 @@ export default defineManifest({
     }),
     read(
       "sites.list",
-      "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "List the sites and artifacts you can see, by section, kind, folder",
       {
         in: {
           section: t.opt(t.enm("personal", "shared", "space")),
@@ -306,7 +306,7 @@ export default defineManifest({
     ),
     write(
       "sites.publish",
-      "Serve a site that is not public: space or private access, or a password on its own domain",
+      "Serve a non-public site: space or private access, or a password on its own domain",
       {
         in: deployTarget,
         out: { site: siteRow },
@@ -387,7 +387,7 @@ export default defineManifest({
         },
         out: { deployment: dep },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "sites.deploy_gate(input)" },
+        gate: { act: "deploy", when: "sites.deploy_gate(input)" },
         perm: "sites.deploy",
         emits: ["site.deployed", "site.build_failed", "site.preview_removed"],
         tool: "sites",
@@ -419,7 +419,7 @@ export default defineManifest({
         },
         perm: "sites.deploy",
         tool: "sites",
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         audit: "sensitive",
         errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
       },
@@ -436,7 +436,7 @@ export default defineManifest({
     ),
     write(
       "sites.webhook_set",
-      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews",
+      "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
       {
         in: {
           siteId: id.site,
@@ -494,7 +494,7 @@ export default defineManifest({
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",
@@ -562,7 +562,7 @@ export default defineManifest({
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",

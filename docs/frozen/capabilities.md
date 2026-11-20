@@ -761,3 +761,11 @@ Changed contracts, in `manifests/gate.ts` and `manifests/sites.ts`; no capabilit
 - The gate on `sites.deploy` names `sites.deploy_gate(input)` (the key rule and the host's branch protection); `sites.webhook_set` rotating or switching on a live secret is held for an agent.
 
 Signed: lead, 20 Nov 2026
+
+## 20 Nov 2026: a gate act, deploy: running code with a site's production keys (lane r42-sites)
+
+New gate act `deploy` (`manifests/gate.ts`, `modules/gate/projections.ts`; title "Run code with a site's production keys", risk high, preview kind `deploy`, approver the asker, people only). It is not an outward act (`lib/grants.ts` OUTWARD_ACTS does not name it), so a turn's grant for an outward act (an email, a post), which lifts a default hold in an Auto chat, can never lift it; only a person's own written Always allow can.
+
+The gates of `sites.deploy` (`sites.deploy_gate(input)`), `sites.ship`, `sites.env_set` and `sites.preview_promote` (`vault.key_host_unapproved(input)`) move from act `send` to act `deploy`: they run code with the site's production keys, or put a key in front of code. `sites.create`, `sites.update`, `sites.plan` and `sites.webhook_set` keep `send` (they send a key to a host a caller names, or change what builds). The act count of `gate.acts.list` is 19.
+
+Signed: pending, lead

@@ -34353,7 +34353,7 @@ const routes6: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "send"
+    "gate": "deploy"
   },
   {
     "method": "POST",
@@ -34505,7 +34505,7 @@ const routes6: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "send"
+    "gate": "deploy"
   },
   {
     "method": "POST",
@@ -34654,7 +34654,7 @@ const routes6: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "send"
+    "gate": "deploy"
   },
   {
     "method": "POST",
@@ -34805,7 +34805,7 @@ const routes6: Route[] = [
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
-    "gate": "send"
+    "gate": "deploy"
   },
   {
     "method": "POST",

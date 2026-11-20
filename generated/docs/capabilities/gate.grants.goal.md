@@ -30,7 +30,7 @@ type In = {
   threads: Array<string>;
   until: number;
   set?: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
 };

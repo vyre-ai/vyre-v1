@@ -28,7 +28,7 @@ Requires: nothing.
 - [sites.get](../capabilities/sites.get.md): Read one site
 - [sites.head_check](../capabilities/sites.head_check.md): The commit a site's branch is at, and whether it was already deployed
 - [sites.host](../capabilities/sites.host.md): What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs
-- [sites.list](../capabilities/sites.list.md): List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder
+- [sites.list](../capabilities/sites.list.md): List the sites and artifacts you can see, by section, kind, folder
 - [sites.logs](../capabilities/sites.logs.md): A site's log: its app, or with build a deploy's build log. Text from the site
 - [sites.password_set](../capabilities/sites.password_set.md): Set the password for a site whose access is password (kept as a hash)
 - [sites.plan](../capabilities/sites.plan.md): What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for
@@ -37,7 +37,7 @@ Requires: nothing.
 - [sites.preview_remove](../capabilities/sites.preview_remove.md): Remove a preview
 - [sites.previews](../capabilities/sites.previews.md): List previews (one per branch and pull request, on their own staging address)
 - [sites.promote](../capabilities/sites.promote.md): Put a site on the public internet. Held for approval unless the person asked this turn
-- [sites.publish](../capabilities/sites.publish.md): Serve a site that is not public: space or private access, or a password on its own domain
+- [sites.publish](../capabilities/sites.publish.md): Serve a non-public site: space or private access, or a password on its own domain
 - [sites.rollback](../capabilities/sites.rollback.md): Serve an earlier build again (the previous, or the one named). Nothing is built
 - [sites.service_identity](../capabilities/sites.service_identity.md): The site service identity and its grants (capped by the owner)
 - [sites.ship](../capabilities/sites.ship.md): Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix
@@ -50,7 +50,7 @@ Requires: nothing.
 - [sites.tables](../capabilities/sites.tables.md): List site tables of a site
 - [sites.update](../capabilities/sites.update.md): Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it
 - [sites.webhook_get](../capabilities/sites.webhook_get.md): GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again
-- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn the GitHub webhook on or off, rotate its secret (shown once), or set the branches that get previews
+- [sites.webhook_set](../capabilities/sites.webhook_set.md): Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches
 
 ## Events (13)
 

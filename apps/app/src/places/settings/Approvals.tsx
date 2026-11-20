@@ -22,6 +22,7 @@ const DOES: Record<Rule["act"], string> = {
   push_protected: "push to",
   secret_export: "export a secret to",
   site_promote: "publish",
+  deploy: "run code with the keys of",
   signature_send: "send for signature to",
   spend_raise: "raise the spend limit of",
   signin_change: "change the sign-in of",

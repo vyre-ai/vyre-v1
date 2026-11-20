@@ -11,7 +11,7 @@ Serve a preview's build as production without a rebuild, with the production var
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | send when vault.key_host_unapproved(input) |
+| Gate | deploy when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

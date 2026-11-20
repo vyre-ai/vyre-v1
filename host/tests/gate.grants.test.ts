@@ -237,3 +237,20 @@ test("Always allow is read at act time and spends nothing", async () => {
     "only an agent acting for a person",
   );
 });
+
+test("a deploy hold (running code with a site's production keys) is not an outward act: an Auto turn's grant for an outward act never lifts it (a person's own Always allow rule is theirs to write)", async () => {
+  const deploy = { name: "sites.deploy", v: 1, gate: { act: "deploy" } } as unknown as CapabilityDef;
+  const ship = { name: "sites.ship", v: 1, gate: { act: "deploy" } } as unknown as CapabilityDef;
+  // in Auto, with a turn grant that would lift an outward act: an email goes through ...
+  const { h, takes } = hook({ granted: true, always: false, rule: { hold: true } });
+  assert.equal(await h.applies(mail, input, agent), null, "an outward act is lifted by the turn's grant");
+  // ... and the deploy holds, with no grant even looked for
+  const before = takes().length;
+  assert.deepEqual(await h.applies(deploy, { siteId: "sit_1" }, agent), { act: "deploy" });
+  assert.deepEqual(await h.applies(ship, { name: "App" }, agent), { act: "deploy" });
+  assert.equal(
+    takes().length,
+    before,
+    "no turn grant was even looked for",
+  );
+});
