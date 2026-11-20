@@ -7857,18 +7857,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     syncLive.setHost(h);
     const server = h.server;
     if (hubFactory)
-      server.on("upgrade", guardUpgrade((req, socket, head) => {
-        // r40: a bad address closes that one socket with a 400
-        socket.on("error", () => socket.destroy());
-        if (!requestTargetOk(req.url)) {
-          socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
-          return;
-        }
-        takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
-        if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
-        else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
-        else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
-      }, (where, error) => sink.logger({ space: space ?? "-", place: "http" }).error("http.handler_threw", { where, ...errorLine(error) })));
+      server.on(
+        "upgrade",
+        guardUpgrade(
+          (req, socket, head) => {
+            // r40: a bad address closes that one socket with a 400
+            socket.on("error", () => socket.destroy());
+            if (!requestTargetOk(req.url)) {
+              socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+              return;
+            }
+            takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
+            if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
+            else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+            else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
+          },
+          (where, error) =>
+            sink
+              .logger({ space: space ?? "-", place: "http" })
+              .error("http.handler_threw", { where, ...errorLine(error) }),
+        ),
+      );
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => {
@@ -7910,93 +7919,106 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const relayWorkerRoute = createRelayWorkerRoute();
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
-    const onHttpError: OnError = (where, error) =>
-      httpLog.error("http.handler_threw", { where, ...errorLine(error) });
+    const onHttpError: OnError = (where, error) => httpLog.error("http.handler_threw", { where, ...errorLine(error) });
     const detachBackstop = installRejectionBackstop((error) =>
       httpLog.error("process.unhandled_rejection", errorLine(error)),
     );
     server.once("close", detachBackstop);
-    server.on("request", guardRequest((req, res) => {
-      // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
-      takeVisitor(req);
-      // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it
-      if (!requestTargetOk(req.url)) {
-        res.writeHead(400, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store", connection: "close" });
-        res.end(JSON.stringify({ error: { code: "validation.bad_input", message: "That request address is not valid." } }));
-        return;
-      }
-      // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
-      // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
-      const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
-      if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) {
-        res.writeHead(403, { "content-type": "application/json" });
-        res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." }));
-        return;
-      }
-      if (carryDoor.handle(req, res)) return;
-      if (relayWorkerRoute.handle(req, res)) return;
-      if (desktopCors(req, res)) return;
-      if (bearer(req.headers.authorization)?.startsWith("vas_")) {
-        // Do not hand a preview to public share/forms, MCP, sync, uploads,
-        // exports or local credential routes, including one-time upload slots.
-        if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
-        else {
-          res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" });
+    server.on(
+      "request",
+      guardRequest((req, res) => {
+        // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
+        takeVisitor(req);
+        // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it
+        if (!requestTargetOk(req.url)) {
+          res.writeHead(400, {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+            connection: "close",
+          });
           res.end(
-            JSON.stringify({
-              error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." },
-            }),
+            JSON.stringify({ error: { code: "validation.bad_input", message: "That request address is not valid." } }),
           );
-        }
-        return;
-      }
-      const stop = req.method === "POST" && req.url === "/local/daemon/stop";
-      if (stop) {
-        if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
-          res.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "Authentication is required." } }));
           return;
         }
-        res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ data: { stopping: true } }));
-        res.once("finish", () => {
-          setImmediate(requestStop);
-        });
-        return;
-      }
-      if (artifactHostRoute.handle(req, res)) return;
-      if (siteHostRoute.handle(req, res)) return;
-      if (peerService?.handle(req, res)) return;
-      if (
-        liveTicketRoute.handle(req, res) ||
-        browserStream.handle(req, res) ||
-        publicPath.handle(req, res) ||
-        siteSigninPage.handle(req, res) ||
-        mcpRoute.handle(req, res) ||
-        (gitProxy?.handle(req, res) ?? false) ||
-        chromeBridge.handle(req, res) ||
-        chromeAgentsRoute.handle(req, res) ||
-        githubSignInRoute.handle(req, res) ||
-        githubConnectRoute.handle(req, res) ||
-        ssoSignInRoute.handle(req, res) ||
-        blobRoute?.handle(req, res) ||
-        formsPageRoute?.handle(req, res) ||
-        unsubscribeRoute.handle(req, res) ||
-        shareRoute?.handle(req, res) ||
-        portalLinkRoute?.handle(req, res) ||
-        exportRoute.handle(req, res) ||
-        webhookRoute.handle(req, res) ||
-        computeRoute.handle(req, res) ||
-        computeStream.handle(req, res) ||
-        localWorkRoute.handle(req, res) ||
-        teamLinks.handle(req, res) ||
-        fillRoute.handle(req, res) ||
-        localKeyRoute.handle(req, res) ||
-        appFiles.handle(req, res)
-      )
-        return;
-      return listener(req, res);
-    }, onHttpError));
+        // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
+        // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
+        const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
+        if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) {
+          res.writeHead(403, { "content-type": "application/json" });
+          res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." }));
+          return;
+        }
+        if (carryDoor.handle(req, res)) return;
+        if (relayWorkerRoute.handle(req, res)) return;
+        if (desktopCors(req, res)) return;
+        if (bearer(req.headers.authorization)?.startsWith("vas_")) {
+          // Do not hand a preview to public share/forms, MCP, sync, uploads,
+          // exports or local credential routes, including one-time upload slots.
+          if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
+          else {
+            res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" });
+            res.end(
+              JSON.stringify({
+                error: {
+                  code: "auth.unauthenticated",
+                  message: "This route is unavailable in a shared record preview.",
+                },
+              }),
+            );
+          }
+          return;
+        }
+        const stop = req.method === "POST" && req.url === "/local/daemon/stop";
+        if (stop) {
+          if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
+            res.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+            res.end(
+              JSON.stringify({ error: { code: "auth.unauthenticated", message: "Authentication is required." } }),
+            );
+            return;
+          }
+          res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ data: { stopping: true } }));
+          res.once("finish", () => {
+            setImmediate(requestStop);
+          });
+          return;
+        }
+        if (artifactHostRoute.handle(req, res)) return;
+        if (siteHostRoute.handle(req, res)) return;
+        if (peerService?.handle(req, res)) return;
+        if (
+          liveTicketRoute.handle(req, res) ||
+          browserStream.handle(req, res) ||
+          publicPath.handle(req, res) ||
+          siteSigninPage.handle(req, res) ||
+          mcpRoute.handle(req, res) ||
+          (gitProxy?.handle(req, res) ?? false) ||
+          chromeBridge.handle(req, res) ||
+          chromeAgentsRoute.handle(req, res) ||
+          githubSignInRoute.handle(req, res) ||
+          githubConnectRoute.handle(req, res) ||
+          ssoSignInRoute.handle(req, res) ||
+          blobRoute?.handle(req, res) ||
+          formsPageRoute?.handle(req, res) ||
+          unsubscribeRoute.handle(req, res) ||
+          shareRoute?.handle(req, res) ||
+          portalLinkRoute?.handle(req, res) ||
+          exportRoute.handle(req, res) ||
+          webhookRoute.handle(req, res) ||
+          computeRoute.handle(req, res) ||
+          computeStream.handle(req, res) ||
+          localWorkRoute.handle(req, res) ||
+          teamLinks.handle(req, res) ||
+          fillRoute.handle(req, res) ||
+          localKeyRoute.handle(req, res) ||
+          appFiles.handle(req, res)
+        )
+          return;
+        return listener(req, res);
+      }, onHttpError),
+    );
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep
     await Promise.race([
