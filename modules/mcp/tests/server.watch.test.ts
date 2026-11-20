@@ -57,18 +57,20 @@ function rig(opts: { refuseReads?: boolean; keepAliveMs?: number; unstartedMs?: 
     });
     let done = false;
     const finished = r.stream
-      ? r.stream({
-          write: (c) => {
-            for (const m of c.split("\n\n")) {
-              const d = m.split("\n").find((l) => l.startsWith("data: "));
-              if (d) lines.push(JSON.parse(d.slice(6)));
-              else if (m.startsWith(":")) lines.push({ keepAlive: true });
-            }
-          },
-          closed,
-        }).then(() => {
-          done = true;
-        })
+      ? r
+          .stream({
+            write: (c) => {
+              for (const m of c.split("\n\n")) {
+                const d = m.split("\n").find((l) => l.startsWith("data: "));
+                if (d) lines.push(JSON.parse(d.slice(6)));
+                else if (m.startsWith(":")) lines.push({ keepAlive: true });
+              }
+            },
+            closed,
+          })
+          .then(() => {
+            done = true;
+          })
       : Promise.resolve();
     return { r, lines, drop, finished, isDone: () => done };
   }
@@ -80,16 +82,25 @@ const updated = (l: any[]) => l.filter((m) => m.method === "notifications/resour
 test("a listen stream acknowledges first, names only the addresses that are this server's, and tells the app of a change it asked for", async () => {
   const r = rig();
   const s = await r.listen({
-    notifications: { resourceSubscriptions: ["vyre://records/company", "https://elsewhere.example/x", "vyre://task/tsk_1"] },
+    notifications: {
+      resourceSubscriptions: ["vyre://records/company", "https://elsewhere.example/x", "vyre://task/tsk_1"],
+    },
   });
   assert.equal(s.r.status, 200);
   assert.match(s.r.headers["content-type"] ?? "", /text\/event-stream/);
   assert.equal(r.server.listeners(), 1);
   assert.equal(s.lines[0].method, "notifications/subscriptions/acknowledged");
-  assert.deepEqual(s.lines[0].params.notifications.resourceSubscriptions, ["vyre://records/company", "vyre://task/tsk_1"]);
+  assert.deepEqual(s.lines[0].params.notifications.resourceSubscriptions, [
+    "vyre://records/company",
+    "vyre://task/tsk_1",
+  ]);
   const n = await r.server.changed(changeOf("record.updated", { type: "company", recordId: "rec_a1" })!);
   assert.equal(n, 1);
-  assert.deepEqual(updated(s.lines), ["vyre://records/company"], "the record's own address was not asked for, so it is not sent");
+  assert.deepEqual(
+    updated(s.lines),
+    ["vyre://records/company"],
+    "the record's own address was not asked for, so it is not sent",
+  );
   assert.equal(s.lines.at(-1).params._meta["io.modelcontextprotocol/subscriptionId"], 1);
   s.drop();
   await s.finished;
@@ -106,7 +117,11 @@ test("an app hears of nothing it did not ask for, and nothing when the read that
   await s.finished;
   const denied = rig({ refuseReads: true });
   const d = await denied.listen({ notifications: { resourceSubscriptions: ["vyre://task/tsk_9"] } });
-  assert.equal(await denied.server.changed(changeOf("task.updated", { taskId: "tsk_9" })!), 0, "an app that cannot read it hears nothing");
+  assert.equal(
+    await denied.server.changed(changeOf("task.updated", { taskId: "tsk_9" })!),
+    0,
+    "an app that cannot read it hears nothing",
+  );
   assert.deepEqual(updated(d.lines), []);
   d.drop();
   await d.finished;
@@ -146,7 +161,12 @@ test("a stream ends at once when the sign-in is gone, and says so with a closing
   const late = await r.server.handle({
     method: "POST",
     headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "subscriptions/listen",
+      params: { notifications: {}, _meta: META },
+    }),
   });
   assert.equal(late.status, 401);
   assert.equal(late.stream, undefined);
@@ -159,7 +179,12 @@ test("a changed app removed from the host (end) closes its streams; one app hold
   const ninth = await r.server.handle({
     method: "POST",
     headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 9, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 9,
+      method: "subscriptions/listen",
+      params: { notifications: {}, _meta: META },
+    }),
   });
   assert.equal(ninth.status, 429);
   assert.equal(r.server.listeners(), 8);
@@ -174,7 +199,12 @@ test("a listen request that is malformed is refused with a reason, not hung", as
   const bad = await r.server.handle({
     method: "POST",
     headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "subscriptions/listen", params: { notifications: [], _meta: META } }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 3,
+      method: "subscriptions/listen",
+      params: { notifications: [], _meta: META },
+    }),
   });
   assert.equal(bad.stream, undefined);
   assert.equal(JSON.parse(bad.body).error.code, -32602);
@@ -209,6 +239,7 @@ test("the GET stream of the handshake revisions is told about what the app subsc
   const get = await r.server.handle({
     method: "GET",
     headers: { authorization: "Bearer out", accept: "text/event-stream", "mcp-session-id": sid },
+    body: "",
   });
   assert.equal(get.status, 200);
   const s = r.open(get);
@@ -218,7 +249,7 @@ test("the GET stream of the handshake revisions is told about what the app subsc
   s.drop();
   await s.finished;
   assert.equal(r.server.listeners(), 0);
-  const noAuth = await r.server.handle({ method: "GET", headers: { accept: "text/event-stream" } });
+  const noAuth = await r.server.handle({ method: "GET", headers: { accept: "text/event-stream" }, body: "" });
   assert.equal(noAuth.status, 401);
 });
 
@@ -250,7 +281,12 @@ test("a burst of requests cannot all pass the stream check: exactly the cap open
     r.server.handle({
       method: "POST",
       headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: i + 1,
+        method: "subscriptions/listen",
+        params: { notifications: {}, _meta: META },
+      }),
     });
   const burst = await Promise.all(Array.from({ length: 20 }, (_, i) => ask(i)));
   const opened = burst.filter((x) => x.status === 200);
@@ -281,7 +317,12 @@ test("a live stream keeps its place for as long as it lives, not for the time a 
     r.server.handle({
       method: "POST",
       headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: i + 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: i + 1,
+        method: "subscriptions/listen",
+        params: { notifications: {}, _meta: META },
+      }),
     });
   const eight = await Promise.all(Array.from({ length: 8 }, (_, i) => ask(i)));
   const live = eight.map((x) => r.open(x));
@@ -304,7 +345,12 @@ test("a client that drops during setup leaves no place taken: the stream starts 
   const res = await r.server.handle({
     method: "POST",
     headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "subscriptions/listen",
+      params: { notifications: {}, _meta: META },
+    }),
   });
   assert.equal(res.status, 200);
   assert.equal(r.server.streamSlots(), 1, "the place is taken when the response is given out");
@@ -317,7 +363,12 @@ test("a client that drops during setup leaves no place taken: the stream starts 
     const x = await r.server.handle({
       method: "POST",
       headers: { authorization: "Bearer out", "mcp-protocol-version": V, "mcp-method": "subscriptions/listen" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: i + 2, method: "subscriptions/listen", params: { notifications: {}, _meta: META } }),
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: i + 2,
+        method: "subscriptions/listen",
+        params: { notifications: {}, _meta: META },
+      }),
     });
     assert.equal(x.status, 200, `request ${i} was not refused for places left behind`);
     await x.stream!({ write: () => undefined, closed: Promise.resolve() });
