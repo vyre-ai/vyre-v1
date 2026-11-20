@@ -11,7 +11,7 @@ Where to fetch a finished backup from: one address per part (a dump over 32 MB i
 | Grant level | view |
 | Risk | low |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | secret_export when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

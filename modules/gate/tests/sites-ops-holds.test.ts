@@ -104,7 +104,6 @@ test("sites.ops: job_create, worker_add and a job_update that changes the comman
     "backups",
     "backup_create",
     "backup_pin",
-    "backup_download",
     "backup_delete",
   ])
     assert.equal(await g(OPS("sit_keys", a), w.agent), false, `${a} is not held`);
@@ -121,6 +120,16 @@ test("sites.ops backup_restore replaces the live database: held for any agent, w
   for (const id of ["sit_keys", "sit_none", "sit_plain"])
     assert.equal(await g(OPS(id, "backup_restore"), w.agent), true, id);
   assert.equal(await g(OPS("sit_keys", "backup_restore"), w.person), false);
+});
+
+test("sites.ops backup_download hands out the whole database dump: held for any agent whether or not the site stores keys, a person goes through, and a log read is not held", async () => {
+  const w = world();
+  const g = w.when["sites.ops_gate"]!;
+  for (const id of ["sit_keys", "sit_none", "sit_plain"]) {
+    assert.equal(await g(OPS(id, "backup_download"), w.agent), true, `${id} agent`);
+    assert.equal(await g(OPS(id, "backup_download"), w.person), false, `${id} person`);
+  }
+  assert.equal(await g(OPS("sit_none", "backups"), w.agent), false);
 });
 
 test("a site with a database addon and no Vault rows still holds an agent: the database password is in the env the command would get, and a person goes through", async () => {
