@@ -15,6 +15,8 @@ import { currentHold, dropHold, heldBy, setHold, touchHold } from "./hold.ts";
 import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.ts";
 import { signInSites } from "./sites.ts";
 import { fitPngOffLoop } from "../png-fit.ts";
+import { warmAnswer, warmBrowser } from "./warm.ts";
+import { dropPause, pausedBy, setPause } from "./pause.ts";
 
 const TICKET_MS = 5 * 60_000;
 
@@ -142,7 +144,78 @@ async function rowOf(ctx: CompCtx, sb: SpaceBrowser, agentId: string, access: Ex
     paused: false,
   };
   const { takeoverBy: _was, ...rest } = base;
-  return rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access);
+  return withPause(
+    ctx,
+    agentId,
+    rowOut({ ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) }, access),
+  );
+}
+
+/** Who paused the browser, as the module's table says (sbrowser/pause.ts): on the row, so the desk shows Resume. */
+const withPause = <T extends object>(ctx: CompCtx, pid: string, row: T): T & { pausedBy?: string } => {
+  const by = pausedBy(ctx, pid);
+  return by ? { ...row, pausedBy: by } : row;
+};
+
+interface HeldView {
+  count: number;
+  first?: { holdId: string; taskId: string; what: string; mayAnswer: boolean };
+}
+/**
+ * The sends, posts and payments of each agent that wait for approval (the Gate holds on computers.chrome.send), for the desk's bar: how many, and the oldest in one line with whether this caller may answer it
+ * (the Approve task offers them Allow). Read through the Gate and the tasks the caller already may read; a read that fails says nothing is waiting, never a guess. One Gate read for all agents, one task read for each agent that has one waiting.
+ */
+async function heldSends(ctx: CompCtx): Promise<Map<string, HeldView>> {
+  const out = new Map<string, HeldView>();
+  let holds: Array<{
+    id: string;
+    capName: string;
+    taskId: string;
+    principal: { id: string };
+    askedBy?: { id: string };
+    createdAt: number;
+  }> = [];
+  try {
+    holds = ((await ctx.call("gate.holds.list", { states: ["held"] })) as { holds?: typeof holds }).holds ?? [];
+  } catch {
+    return out;
+  }
+  // a send a shared agent holds for another person is theirs: its count is not shown to someone else, unless they administer the Space (the person it was asked for sees it on their own row)
+  const me = ctx.principal.kind === "person" ? ctx.principal.id : "";
+  const admin = isAdmin(ctx);
+  const mine = holds
+    .filter((h) => h.capName === "computers.chrome.send")
+    .filter((h) => h.askedBy === undefined || h.askedBy.id === me || admin)
+    .sort((a, b) => a.createdAt - b.createdAt);
+  // the count is every hold; the one-line is the oldest hold this caller may answer, found among the first few (a task that cannot be read, or that offers the caller no Allow, is passed over, never shown)
+  const byAgent = new Map<string, typeof mine>();
+  for (const h of mine) byAgent.set(h.principal.id, [...(byAgent.get(h.principal.id) ?? []), h]);
+  for (const [agent, list] of byAgent) {
+    // a send can carry a client's words: the one-line of it goes only to a caller the Approve task lets answer it; anyone else who may watch gets the count and nothing of what it says
+    let first: HeldView["first"];
+    for (const h of list.slice(0, 5)) {
+      try {
+        const t = (
+          (await ctx.call("tasks.get", { taskId: h.taskId })) as {
+            task?: { title?: string; actions?: Array<{ key: string }> };
+          }
+        ).task;
+        if (t?.actions?.some((a) => a.key === "approve") === true) {
+          first = {
+            holdId: h.id,
+            taskId: h.taskId,
+            what: (t.title ?? "A send waits for approval").replace(/\s+/g, " ").trim().slice(0, 120),
+            mayAnswer: true,
+          };
+          break;
+        }
+      } catch {
+        /* passed over: nothing about it is shown */
+      }
+    }
+    out.set(agent, { count: list.length, ...(first ? { first } : {}) });
+  }
+  return out;
 }
 
 export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
@@ -161,7 +234,11 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
         const { takeoverBy: _t, ...base } = row;
         out.push(
           asAgent(
-            rowOut({ ...base, takeover: held !== undefined, ...(held ? { takeoverBy: held } : {}) }, "owner"),
+            withPause(
+              ctx,
+              row.profileId,
+              rowOut({ ...base, takeover: held !== undefined, ...(held ? { takeoverBy: held } : {}) }, "owner"),
+            ),
             agentId,
           ),
         );
@@ -175,10 +252,14 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
     const { takeoverBy: _was, ...rest } = row;
     if (access !== "none")
       out.push(
-        rowOut(
-          { ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) },
-          access,
-          waitingNote(ctx.db, row.profileId) ?? roomWaitLine(row.profileId),
+        withPause(
+          ctx,
+          row.profileId,
+          rowOut(
+            { ...rest, takeover: by !== undefined, ...(by ? { takeoverBy: by } : {}) },
+            access,
+            waitingNote(ctx.db, row.profileId) ?? roomWaitLine(row.profileId),
+          ),
         ),
       );
   }
@@ -211,6 +292,12 @@ export async function profiles(ctx: CompCtx, _input: Record<string, never>) {
           waitingNote(ctx.db, id) ?? roomWaitLine(id),
         ),
       );
+  }
+  // what each agent's browser has waiting for approval, on its row (the desk's bar asks the caller to Allow or Deny it)
+  const heldMap = await heldSends(ctx);
+  for (let i = 0; i < out.length; i++) {
+    const h = heldMap.get(out[i]!.agentId);
+    if (h) out[i] = { ...out[i]!, held: h };
   }
   // the browser slots of this server, for one quiet line in Console > Computers: how many run now (every Space's on this server), how many it holds at once, how many calls wait for one
   const slots = {
@@ -358,6 +445,8 @@ export async function takeOver(ctx: CompCtx, input: { agentId: string }) {
     raise(ctx, "validation.precondition_failed", "Someone else has the controls.");
   // the table first, then browserd: an agent's call that reads the table after this line waits, and one that read it before cannot undo it (browserd never releases on a call)
   setHold(ctx, pid, person);
+  // you steer now: a pause is over (nothing waits behind a take-over)
+  dropPause(ctx, pid);
   let got: { reopened?: boolean } | void = undefined;
   try {
     got = await sb.takeover({ profileId: pid, personId: person, space: ctx.space });
@@ -507,7 +596,85 @@ export async function signOut(ctx: CompCtx, input: { agentId: string; site: stri
   }
 }
 
+/**
+ * The Computer tab was opened (or a person is about to look): start the agent's browser in the background, so the picture and the first step find it up. Whoever may watch this browser may ask; the person's own
+ * profile on a shared agent is the one warmed when they have one. Nothing is started for an agent that never browsed, nothing is closed to make room, and a hold is left alone (warm.ts).
+ */
+export async function warm(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  if (!mine) await mayWatch(ctx, input.agentId);
+  const state = warmAnswer(await warmBrowser(ctx, input.agentId, mine?.profileId));
+  return { state };
+}
+
+/**
+ * Pause the agent's browser: its next browser call waits, spending nothing, until Resume. The same people who may take over may pause (owner and admins of a team agent, the person for their own profile).
+ * Pausing a browser a person holds, or one already paused by someone else, is refused in words; pausing your own pause again changes nothing.
+ */
+export async function pause(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  const { person, access } = mine
+    ? { person: mine.person, access: "owner" as const }
+    : await mayWatch(ctx, input.agentId, true);
+  const pid = mine?.profileId ?? input.agentId;
+  if (heldBy(ctx, pid) !== null) raise(ctx, "validation.precondition_failed", "A person has the controls.");
+  const by = pausedBy(ctx, pid);
+  if (by !== null && by !== person && access !== "admin")
+    raise(ctx, "validation.precondition_failed", "Someone else paused it.");
+  if (by === null) setPause(ctx, pid, person);
+  return { profile: asAgent(await rowOf(ctx, sb, pid, access), input.agentId) };
+}
+
+/** Resume: the agent's waiting call goes on. Whoever paused it, or an admin, may. Resuming what is not paused changes nothing. */
+export async function resume(ctx: CompCtx, input: { agentId: string; stopped?: boolean }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  const { person, access } = mine
+    ? { person: mine.person, access: "owner" as const }
+    : await mayWatch(ctx, input.agentId, true);
+  const pid = mine?.profileId ?? input.agentId;
+  const by = pausedBy(ctx, pid);
+  if (by !== null && by !== person && access !== "admin") raise(ctx, "permission.no_grant", "Someone else paused it.");
+  // stopped: the agent was stopped while paused, so the call that waits does not run (pause.ts)
+  dropPause(ctx, pid, { stopped: input.stopped === true });
+  return { profile: asAgent(await rowOf(ctx, sb, pid, access), input.agentId) };
+}
+
+/**
+ * Where the agent last acted on its page, for the desk's cursor (lane r42-computer): the point it moved to, the box of the element it chose and its visible name, in the page's pixels, counted by `seq`. The same
+ * rule as the still picture: a look that never starts the browser, for whoever may watch it; while a person holds the browser only they get it, and a look-up that fails answers held (fails closed). Never the
+ * text of a field.
+ */
+export async function pointer(ctx: CompCtx, input: { agentId: string }) {
+  ensure(ctx.db);
+  const sb = browserOrRaise(ctx);
+  const mine = await ownProfile(ctx, input.agentId);
+  const person = mine ? mine.person : (await mayWatch(ctx, input.agentId)).person;
+  const pid = mine?.profileId ?? input.agentId;
+  let lookedUp = true;
+  const holder = (await currentHold(ctx, sb, pid).catch(() => ((lookedUp = false), null)))?.personId;
+  if (!lookedUp) return { state: "held" as const };
+  if (holder !== undefined && holder !== person) return { state: "held" as const, by: holder };
+  if (!sb.pointer) return { state: "asleep" as const };
+  try {
+    const r = await sb.pointer(pid);
+    if ("asleep" in r) return { state: "asleep" as const };
+    return r.pointer ? { state: "live" as const, pointer: r.pointer } : { state: "live" as const };
+  } catch (e) {
+    return refuse(ctx, e);
+  }
+}
+
 export const sbrowserHandlers = {
+  "computers.browser.pointer": pointer,
+  "computers.browser.pause": pause,
+  "computers.browser.resume": resume,
+  "computers.browser.warm": warm,
   "computers.browser.sessions": sessions,
   "computers.browser.my_sign_ins": mySignIns,
   "computers.browser.sign_out": signOut,

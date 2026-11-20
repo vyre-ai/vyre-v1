@@ -908,3 +908,24 @@ test("the reopened note on takeover is per person: each who saw the old page is 
     r.done();
   }
 });
+
+test("a call that arrives while a warm start is under way joins that start: one browser is launched, and the call waits only for what is left of it", async () => {
+  const r = rig();
+  try {
+    // the warm (browserd's `warm` action is manager.ensure) and the agent's first call, together, then a call after both: one launch in all
+    const [warmed, answer] = await Promise.all([r.m.ensure("agt_dex"), r.call("agt_dex", "chrome_open")]);
+    assert.equal(r.launched.length, 1, "the call did not start a second browser");
+    assert.equal(warmed.id, "agt_dex");
+    assert.equal((answer as { ok?: boolean }).ok, true);
+    // two warms together are one start as well
+    const r2 = rig();
+    try {
+      await Promise.all([r2.m.ensure("agt_scout"), r2.m.ensure("agt_scout"), r2.call("agt_scout", "chrome_state")]);
+      assert.equal(r2.launched.length, 1);
+    } finally {
+      r2.done();
+    }
+  } finally {
+    r.done();
+  }
+});

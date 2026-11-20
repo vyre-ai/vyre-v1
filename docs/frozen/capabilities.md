@@ -875,6 +875,11 @@ Signed: lead, 19 Nov 2026
 - Search provider: none is configured in this tree (no key, no connector). The one search the product already uses is DuckDuckGo, which the Space browser's address bar sends a typed phrase to; `chrome_search` asks DuckDuckGo's key-less HTML page (`SEARCH_URL` in `lib/web-read.ts`, the only place to change it). No hidden key exists.
 - Changed contract: `computers.chrome.sources` endpoints gain an optional `shape` (keys and the type of each in the JSON answer the page's call got: never a value; a key that is an id, uuid, token or email is folded into one entry; depth 4, 40 keys, 12 endpoints). The Vyre for Chrome extension fills it; an agent computer's browser leaves it out.
 - Tests: lib/tests/web-read.test.ts, modules/computers/tests/web-tools.test.ts (read, hostile page, every refusal, search, the limit), tools.contract.test.ts, apps/chrome/tests/ext-shape.test.ts and ext-agent.test.ts.
+
+## 19 Nov 2026: warming an agent's browser (lane r42-computer, lead ruling of 19 Nov)
+
+- `computers.browser.warm` (write, permission computers.watch, level use, natural idempotency, not audited): start an agent's Space browser in the background, so the Computer tab's picture and the agent's first step find it up. Answers `state`: `warming` (a start was begun), `up` (it already ran) or `skipped` (nothing was started: the agent never browsed, there is no room without closing another browser, a person has the controls, or a start is already under way). Who may watch the agent's browser may ask (the live view's own rule); an agent cannot. It starts nothing a person did not already have, and closes nothing.
+- The browser also warms without a call, when the engine starts a turn for an agent that has browsed before (`computers.browser_turns`, sbrowser/warm.ts); that path is an event consumer and adds no capability.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
@@ -897,6 +902,13 @@ Signed: lead, 19 Nov 2026
 - `settings.set_space` for `search.key` checks, when it is set, that the setter may use the named Vault item (asked as them through `vault.use`) and that a named field exists; otherwise `validation.bad_input` and nothing is saved.
 - Reader hardening (not contract): the page reader is a single pass with no backtracking pattern, so a hostile page costs time in proportion to its length; the Space refuses to read without a pinned connection (no second DNS lookup); the text carries its web-content label inside it.
 - Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts.
+
+## 19 Nov 2026: pausing an agent's browser (lane r42-computer, lead ruling of 19 Nov)
+
+- `computers.browser.pause` (write, permission computers.watch, level use, sensitive audit, natural idempotency): hold the agent's next browser step. The step does not fail and does not run: it waits, spending nothing, until `computers.browser.resume`, a take-over, a stop, or half an hour. Same people as take over (owner and admins of a team agent, the person for their own profile on a shared agent). Refused with `validation.precondition_failed` while a person holds the controls or another person's pause stands (an admin may take it over).
+- `computers.browser.resume` (write, same gate): lets the waiting step go. `stopped: true` says the agent was stopped meanwhile, and the waiting step then does not run at all (a stop is never followed by one more click). Resuming what is not paused changes nothing.
+- The profile row (`browserRow`, in `computers.browser.profiles` and every browser answer) gains `pausedBy`, the person who paused it.
+- A step that waited five minutes gives up with one plain line and has not run. The Stop button of the desk is the existing `engine.stop`; nothing new there.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
@@ -925,6 +937,10 @@ Signed: lead, 19 Nov 2026
 - `computers.chrome.search` and `computers.chrome.read` refuse, before anything leaves the Space, a query or an address in which the shared credential scanner (`lib/secret-scrub.ts`) finds a secret of a known shape, with the kind named and never the value (`validation.bad_input`). The text is cut to 4,000 characters before it is scanned. The search description tells the agent the question goes to the Space's search service.
 - Not contract: `</head` no longer ends at `</header`.
 - Tests: test/hold-words.test.ts, apps/app/src/places/chats/conversation/approval.test.tsx, modules/computers/tests/web-tools.test.ts, lib/tests/web-secret-guard.test.ts, lib/tests/web-read.test.ts, host/tests/gate.web-read.test.ts.
+
+## 19 Nov 2026: where the agent acted on its page (lane r42-computer, owner-approved desk)
+
+- `computers.browser.pointer` (read, permission computers.watch): where the agent last acted on its browser page, for the desk's cursor and the highlight on the field it works in. Answers `state` (`live`, `asleep`, `held`) and, when live and the agent has acted, `pointer`: `seq` (how many actions it has taken in this browser, so a viewer draws each once), `tool`, `x` and `y` in the page's pixels, `box` (the chosen element's rectangle, when the action named an element), `label` (that element's visible name, at most 60 characters; never the text a person typed or a page filled into a field, and a password or one-time-code field is named only by its own aria-label, placeholder or name even when its value is shown on the page) and `at`. A look: it never starts a browser and is not use. Same rule as the still picture: for whoever may watch; while a person holds the browser only they get it; a failed hold look-up answers `held` with no pointer.
 - Snapshots: docs/frozen/snapshots/computers.json.
 
 Signed: lead, 19 Nov 2026
@@ -954,3 +970,21 @@ The Gate holds one act that is not outward and is not lifted by a turn grant: `i
 Signed: lead, 2026-11-20
 
 20 Nov 2026, lane r42-runtime, the one agent call for agent work: new capability `runs.ops` (tool `runs_ops`: `action`, `id`, `args`; the shapes are in the runs skill). Actions: tree, tree_find, node, node_find, compare, events, messages, activity, board, message_send, board_put, board_answer, control, rerun, budget, save_as_agent. Each reaches the same handler as the capability of its own name, so who may see a tree, who speaks for a node, who may stop or limit it, the spend permission and the owner-or-manager rule of compare, rerun and save_as_agent are the same; a wrong first call is answered with the exact shape of that action. `save_as_agent` through it is held at the Gate for an agent (`runs.ops_gate`, act approve), as the capability of its own name is. Signed: pending, lead.
+
+## 19 Nov 2026: what an agent's browser has waiting for approval (lane r42-computer, owner-approved desk, lead ruling of 19 Nov)
+
+- The browser row (`browserRow`, in `computers.browser.profiles`) gains `held`, present only when something waits: `count` (the agent's sends, posts and payments waiting at the Gate, that is its holds on `computers.chrome.send`), and, only for a caller the Approve task lets answer it, `first`, the oldest one: `holdId`, `taskId`, `what` (the task's title, one line, at most 120 characters) and `mayAnswer` (always true when `first` is present). Anyone else who may watch gets the count and nothing of what the send says, because a send can carry a client's words. It is read through `gate.holds.list` and `tasks.get`, which the caller already may read; a read that fails answers no `held` (nothing is guessed), and an unreadable task shows no `first`.
+- The desk answers with the existing decision, `tasks.decide` (`approve` for Allow, `reject` for Not now); the Gate and the task refuse anyone who may not. No new capability.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: the retained output of terminal commands (lane r42-computer, the lead's rules of 19 Nov)
+
+- `terminal.run` also answers `commandId`: the command's own number (the number of its row in the terminal's commands), for reading part of its output later.
+- `terminal.log.list` (read, same access as reading the terminal): the commands of a terminal, newest first (`commandId`, the command as the model wrote it, at most 300 characters, `exitCode`, `startedAt`, `durationMs`), and for each whether its output is still `kept` and how many `bytes` (`cutBytes` when the start was dropped to fit the cap). Works on a closed terminal.
+- `terminal.log.read` (read, same access): part of one command's kept output, never the whole: `tail` (default the last 40 lines, at most 400), or `match` (up to five words, case-insensitive, with `context` lines around each, at most 5), or `from` and `to` (a range of lines, 1-based). Answers `lines` (`n`, `text`, each cut at 1,000 characters), `totalLines`, `bytes`, `cutBytes`, `exitCode` and `more` (more lines matched than the answer holds; an answer is at most 400 lines and 20,000 characters). A command whose output is not kept answers `validation.not_found` in words.
+- The rules: what is kept is the text the run answered, scrubbed by the Vault's scrubber before it is stored (a Vault value never reaches disk) and scrubbed again on every read; at most 5 MB per command (the oldest output goes, the cut is marked in the text and in `cutBytes`) and 200 MB per agent (the oldest commands' logs go first); kept for 7 days after the command ended, then deleted (hourly); erased when the agent is deleted; stored in the Space's data (terminal_cmd_log), never in a cache. It keeps what the run answered (up to the host's 100,000 character answer); the full pane capture of a longer output is the next step.
+- Snapshots: docs/frozen/snapshots/terminal.json.
+
+Signed: lead, 19 Nov 2026

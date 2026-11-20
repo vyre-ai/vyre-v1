@@ -70703,6 +70703,94 @@
     },
     {
       "blocks": [],
+      "cap": "terminal.log.list",
+      "deferred": false,
+      "description": "The commands of a terminal, newest first, and whether the output of each is still kept (a week after it ended)",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "limit": {
+            "maximum": 200,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terminalId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_log_list",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.log.read",
+      "deferred": false,
+      "description": "Part of what one command printed, scrubbed: the last lines, the lines that contain words (with context), or a range of lines; never the whole output",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "commandId": {
+            "description": "From terminal.run's answer or terminal.log.list",
+            "type": "integer"
+          },
+          "context": {
+            "maximum": 5,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "from": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "match": {
+            "items": {
+              "maxLength": 100,
+              "type": "string"
+            },
+            "maxItems": 5,
+            "type": "array"
+          },
+          "tail": {
+            "maximum": 400,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "to": {
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "terminalId",
+          "commandId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_log_read",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "terminal.open",
       "deferred": false,
       "description": "Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)",

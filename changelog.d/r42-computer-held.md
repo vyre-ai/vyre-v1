@@ -1,0 +1,1 @@
+- The desk's bar tells you when the agent's browser has a send, post or payment waiting for approval, what it is, and lets whoever may answer it Allow it or say Not now.

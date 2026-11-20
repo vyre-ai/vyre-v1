@@ -1,6 +1,6 @@
 // The Computer tab as drawn (AGENT-COMPUTER-2026-11-13.md part A): terminals as rows (no Attach, no Asleep chip, no paragraphs), one browser picture that opens the browser full screen, the sign-ins. The pane mounted over the
 // sample Space with stubbed workspace and browser data.
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { createRoot } from "test-renderer";
@@ -8,6 +8,8 @@ import { find, flush, installDom, mount, press, textOf } from "../../../../../..
 import { ChatRightPane } from "./ChatRightPane.tsx";
 import { RightPaneDataProvider } from "./data.tsx";
 import type { ChatRightPaneData } from "./data.tsx";
+import { DeskHost } from "./Desk.tsx";
+import { deskReset } from "./desk-store.ts";
 import { WorkSections, usesWorkModel } from "./WorkSections.tsx";
 import {
   browserHead,
@@ -22,6 +24,8 @@ import {
 } from "./work-model.ts";
 import type { BrowserData, BrowserView, WorkspaceData, WorkspaceView } from "./work-model.ts";
 import { createSample } from "./sample.ts";
+
+afterEach(() => deskReset());
 import type { PaneDeps } from "./actions.ts";
 
 const ALL = { start: 0, end: 500 };
@@ -109,6 +113,7 @@ function paneOver(s: ReturnType<typeof createSample>, over: Partial<ChatRightPan
   return (
     <RightPaneDataProvider value={data}>
       <WorkSections deps={d} window={ALL} />
+      <DeskHost />
     </RightPaneDataProvider>
   );
 }
@@ -230,15 +235,15 @@ test("mounted: the browser picture is one button that opens the browser full scr
     const k = stub(ws(), br());
     const root = await mount(createRoot, paneOver(s, { workspace: k.workspace, browser: k.browser }, depsOf([])));
     assert.ok(find(root, "the-real-view") ?? find(root, "browser-live"), "the live picture is in the box");
-    assert.equal(find(root, "browser-popup"), null, "closed until pressed");
+    assert.equal(find(root, "desk"), null, "closed until pressed");
     await press(find(root, "browser-picture"));
     await flush();
-    assert.ok(find(root, "browser-popup"), "pressing the picture opens the browser large");
+    assert.ok(find(root, "desk"), "pressing the picture opens the browser large");
     assert.ok(find(root, "browser-take"), "Take over is there, not in the pane");
     await press(find(root, "browser-take"));
     assert.ok(k.log.includes(`br.take ${s.data.agent.agentId}`));
-    await press(find(root, "browser-popup-close"));
-    assert.equal(find(root, "browser-popup"), null);
+    await press(find(root, "desk-close"));
+    assert.equal(find(root, "desk"), null);
   } finally {
     off();
   }
@@ -254,10 +259,10 @@ test("mounted: a sleeping browser shows its quiet page and the time it was last 
     assert.equal(find(root, "browser-live"), null, "no live picture while asleep");
     await press(find(root, "browser-picture"));
     await flush();
-    assert.ok(find(root, "browser-popup"));
+    assert.ok(find(root, "desk"));
     assert.ok(k.log.includes(`br.open ${s.data.agent.agentId}`), "opening it woke it");
-    assert.match(textOf(find(root, "browser-popup-bar")), /Starting the browser/);
-    await press(find(root, "browser-popup-close"));
+    assert.match(textOf(find(root, "desk-bar")), /Starting the browser/);
+    await press(find(root, "desk-close"));
     const none = stub(ws(), br({ state: "closed" }));
     const r2 = await mount(createRoot, paneOver(s, { workspace: none.workspace, browser: none.browser }, depsOf([])));
     assert.match(textOf(find(r2, "browser-caption")), /^Asleep\. Opens when .* loads a page\.$/);
@@ -275,12 +280,12 @@ test("mounted: in control, the browser sheet says so and offers Give back; closi
     assert.equal(find(root, "browser-give"), null, "never in the pane");
     await press(find(root, "browser-picture"));
     await flush();
-    assert.match(textOf(find(root, "browser-popup-bar")), /You have the browser/);
+    assert.match(textOf(find(root, "desk-bar")), /You have the browser/);
     await press(find(root, "browser-give"));
     assert.ok(k.log.includes(`br.give ${s.data.agent.agentId}`));
-    await press(find(root, "browser-popup-close"));
+    await press(find(root, "desk-close"));
     await flush();
-    assert.equal(find(root, "browser-popup"), null);
+    assert.equal(find(root, "desk"), null);
     assert.ok(k.log.filter((l) => l.startsWith("br.give")).length >= 2, "closing while you hold it gives it back");
   } finally {
     off();

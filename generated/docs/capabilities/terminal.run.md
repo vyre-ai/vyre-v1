@@ -43,6 +43,7 @@ type In = {
 ```ts
 type Out = {
   terminalId: string;
+  commandId?: number;
   exitCode: number | null;
   output: string;
   truncated: boolean;
@@ -81,6 +82,7 @@ type Out = {
     "timeoutSec": 1
   },
   "output": {
+    "commandId": 1,
     "durationMs": 1,
     "exitCode": 1,
     "output": "example",

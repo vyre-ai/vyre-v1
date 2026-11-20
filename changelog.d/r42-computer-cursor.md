@@ -1,0 +1,1 @@
+- The desk draws the agent's cursor and a soft ring on the field it is working in, and a small step ring that opens into the list of what the agent did.

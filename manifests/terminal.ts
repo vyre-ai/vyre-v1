@@ -358,6 +358,61 @@ export default defineManifest({
       label: "check",
     }),
     read(
+      "terminal.log.list",
+      "The commands of a terminal, newest first, and whether the output of each is still kept (a week after it ended)",
+      {
+        in: { ...target, limit: t.opt(t.int({ minimum: 1, maximum: 200 })) },
+        out: {
+          commands: t.arr(
+            t.obj({
+              commandId: t.int({ description: "The command's own number: terminal.log.read takes it" }),
+              command: t.str({
+                description: "As the model wrote it (Vault handles, never values), at most 300 characters",
+              }),
+              exitCode: t.nullable(t.int()),
+              startedAt: t.ts(),
+              durationMs: t.opt(t.int()),
+              kept: t.bool(),
+              bytes: t.int(),
+              cutBytes: t.opt(t.int({ description: "How much of the start was dropped to fit the per-command cap" })),
+            }),
+          ),
+        },
+        on: ["terminal", "/terminalId"],
+        tool: "terminal",
+        label: "check",
+      },
+    ),
+    read(
+      "terminal.log.read",
+      "Part of what one command printed, scrubbed: the last lines, the lines that contain words (with context), or a range of lines; never the whole output",
+      {
+        in: {
+          ...target,
+          commandId: t.int({ description: "From terminal.run's answer or terminal.log.list" }),
+          tail: t.opt(t.int({ minimum: 1, maximum: 400 })),
+          match: t.opt(t.arr(t.str({ maxLength: 100 }), { maxItems: 5 })),
+          context: t.opt(t.int({ minimum: 0, maximum: 5 })),
+          from: t.opt(t.int({ minimum: 1 })),
+          to: t.opt(t.int({ minimum: 1 })),
+        },
+        out: {
+          lines: t.arr(t.obj({ n: t.int({ description: "Line number, 1-based" }), text: t.str() })),
+          totalLines: t.int(),
+          bytes: t.int(),
+          cutBytes: t.int(),
+          exitCode: t.nullable(t.int()),
+          more: t.bool({
+            description: "More lines matched than this answer holds: ask for a narrower range or other words",
+          }),
+        },
+        on: ["terminal", "/terminalId"],
+        tool: "terminal",
+        label: "check",
+        errors: ["validation.not_found"],
+      },
+    ),
+    read(
       "terminal.attach",
       "Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands",
       {
@@ -394,6 +449,12 @@ export default defineManifest({
         },
         out: {
           terminalId: id.terminal,
+          commandId: t.opt(
+            t.int({
+              description:
+                "This command's own number: terminal.log.read and terminal.log.list take it, to read part of its output later",
+            }),
+          ),
           exitCode: t.nullable(t.int()),
           output: t.str(),
           truncated: t.bool(),

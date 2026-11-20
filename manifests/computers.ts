@@ -85,6 +85,25 @@ const browserRow = t.obj({
   state: t.enm("running", "asleep", "waiting", "error"),
   line: t.opt(t.str({ description: "Why it waits (no room on the host) or what went wrong, in a plain line" })),
   takeoverBy: t.opt(id.user),
+  pausedBy: t.opt(id.user),
+  held: t.opt(
+    t.obj(
+      {
+        count: t.int({ description: "Sends, posts and payments of this agent waiting for approval (the Gate)" }),
+        first: t.opt(
+          t.obj({
+            holdId: t.id("hld"),
+            taskId: id.task,
+            what: t.str({ description: "The oldest one, in one line; only for a caller who may answer it" }),
+            mayAnswer: t.bool({
+              description: "Always true when `first` is present: the Approve task offers the caller Allow",
+            }),
+          }),
+        ),
+      },
+      { description: "What the agent's browser has waiting for approval; absent when nothing waits" },
+    ),
+  ),
   paired: t.bool({
     description: "Vyre for Chrome in the profile is connected to the Space as this agent, so Vault logins fill",
   }),
@@ -516,6 +535,86 @@ export default defineManifest({
         },
         perm: "computers.watch",
         label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
+    read(
+      "computers.browser.pointer",
+      "Where the agent last acted on its browser page, for the desk's cursor; a look that never starts the browser. Who may watch may ask; while a person holds the browser only they get it",
+      {
+        in: { agentId: id.agent },
+        out: {
+          state: t.enm("live", "asleep", "held"),
+          by: t.opt(id.user),
+          pointer: t.opt(
+            t.obj({
+              seq: t.int({
+                description: "How many actions the agent has taken in this browser; a viewer draws each once",
+              }),
+              tool: t.str(),
+              x: t.int({ description: "In the page's pixels" }),
+              y: t.int(),
+              box: t.opt(t.obj({ x: t.int(), y: t.int(), w: t.int(), h: t.int() })),
+              label: t.opt(
+                t.str({ description: "The chosen element's visible name, cut short; never a field's text" }),
+              ),
+              at: t.ts(),
+            }),
+          ),
+        },
+        perm: "computers.watch",
+        label: "check",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
+    write(
+      "computers.browser.pause",
+      "Pause an agent's browser: its next browser call waits, spending nothing, until you resume; a take-over, a stop or half an hour also end it. Who may take over may pause",
+      {
+        in: { agentId: id.agent },
+        out: { profile: browserRow },
+        perm: "computers.watch",
+        level: "use",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: [
+          "permission.no_grant",
+          "provider.unavailable",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
+      },
+    ),
+    write(
+      "computers.browser.resume",
+      "Resume a paused agent browser: the call that waits goes on. Whoever paused it or an admin may",
+      {
+        in: {
+          agentId: id.agent,
+          stopped: t.opt(t.bool({ description: "The agent was stopped meanwhile: the call that waits does not run" })),
+        },
+        out: { profile: browserRow },
+        perm: "computers.watch",
+        level: "use",
+        audit: "sensitive",
+        idem: "natural",
+        offline: "online",
+        errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
+      },
+    ),
+    write(
+      "computers.browser.warm",
+      "Start an agent's browser in the background so the Computer tab and the agent find it up; starts nothing for an agent that never browsed and closes nothing. Whoever may watch it may ask",
+      {
+        in: { agentId: id.agent },
+        out: { state: t.enm("warming", "up", "skipped") },
+        perm: "computers.watch",
+        level: "use",
+        audit: "none",
+        idem: "natural",
         offline: "online",
         errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
       },

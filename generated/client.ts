@@ -569,13 +569,17 @@ export function createClient(transport: Transport) {
       browser: {
         give_back: call("computers.browser.give_back", 1),
         my_sign_ins: call("computers.browser.my_sign_ins", 1),
+        pause: call("computers.browser.pause", 1),
+        pointer: call("computers.browser.pointer", 1),
         preview: call("computers.browser.preview", 1),
         profiles: call("computers.browser.profiles", 1),
+        resume: call("computers.browser.resume", 1),
         sessions: call("computers.browser.sessions", 1),
         sign_out: call("computers.browser.sign_out", 1),
         stream: call("computers.browser.stream", 1),
         take_over: call("computers.browser.take_over", 1),
         timeline: call("computers.browser.timeline", 1),
+        warm: call("computers.browser.warm", 1),
       },
       chrome: {
         act: call("computers.chrome.act", 1),
@@ -3070,6 +3074,10 @@ export function createClient(transport: Transport) {
       interrupt: call("terminal.interrupt", 1),
       keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
+      log: {
+        list: call("terminal.log.list", 1),
+        read: call("terminal.log.read", 1),
+      },
       open: call("terminal.open", 1),
       open_server: call("terminal.open_server", 1),
       read: call("terminal.read", 1),

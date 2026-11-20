@@ -2292,6 +2292,8 @@ export function createWorkspaceTerminalHost(w: WorkspaceTerminalOptions): Worksp
         quietExec: (argv) => m.exec(agentId, argv, { quiet: true, ...(user === undefined ? {} : { user }) }),
         // the shell of every session starts with a private umask: what a program writes outside its own folder (in /tmp) is not readable by the other people of the computer
         shell: SESSION_SHELL,
+        // a container exec: a run is one script in the container, not a round trip per look (impl.ts RUN_SCRIPT)
+        oneExec: true,
         control: control(agentId, place),
         prefix,
       });

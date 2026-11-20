@@ -10,6 +10,8 @@ import {
   interrupt,
   keys,
   list,
+  logList,
+  logRead,
   open,
   openServer,
   read,
@@ -27,6 +29,8 @@ import {
 
 export const handlers = {
   "terminal.list": list,
+  "terminal.log.list": logList,
+  "terminal.log.read": logRead,
   "terminal.get": get,
   "terminal.status": status,
   "terminal.open": open,

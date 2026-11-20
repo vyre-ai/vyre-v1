@@ -328,7 +328,7 @@ test(
       assert.equal(await page.getByText("Steps", { exact: true }).count(), 0, "no steps list in the pane");
       await shot("browser-pane");
       await page.getByTestId("browser-picture").click();
-      await page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+      await page.getByTestId("desk").waitFor({ timeout: 10_000 });
       await shot("browser-large");
       await ctx.close();
     } finally {

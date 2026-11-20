@@ -1,0 +1,1 @@
+- A person can pause an agent's browser and resume it: while paused the agent's next step simply waits and spends nothing, and a take-over or a stop ends the pause. The computer opens in one surface beside the chat, as a full view over the app, or as a small live picture that stays when you leave the tab; F, T, Space and S work as keys.

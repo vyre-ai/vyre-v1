@@ -120,6 +120,8 @@ export interface RunResult {
   output: string;
   truncated?: boolean;
   durationMs?: number;
+  /** The whole output a host that reads the pane's history gives besides the answer. */
+  full?: string;
 }
 export type RunScript =
   | RunResult
@@ -200,6 +202,7 @@ export function fakeHost(scripts: Record<string, RunScript> = {}) {
         output: res.output,
         truncated: res.truncated ?? false,
         durationMs: res.durationMs ?? 12,
+        ...(res.full === undefined ? {} : { full: res.full }),
       };
     },
     async status(ids) {

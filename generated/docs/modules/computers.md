@@ -4,17 +4,21 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (70)
+## Capabilities (74)
 
 - [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
 - [computers.browser.my_sign_ins](../capabilities/computers.browser.my_sign_ins.md): The sites the browser profile your own turns of this agent use is signed in to, by site and when, never a value: a person who does not own a shared agent has a profile of their own on it. Nothing of another person's
+- [computers.browser.pause](../capabilities/computers.browser.pause.md): Pause an agent's browser: its next browser call waits, spending nothing, until you resume; a take-over, a stop or half an hour also end it. Who may take over may pause
+- [computers.browser.pointer](../capabilities/computers.browser.pointer.md): Where the agent last acted on its browser page, for the desk's cursor; a look that never starts the browser. Who may watch may ask; while a person holds the browser only they get it
 - [computers.browser.preview](../capabilities/computers.browser.preview.md): One still picture of an agent's browser for the Computer tab, from the Space; it never wakes the browser (asleep answers no picture). Who may watch the live view may ask; while a person has taken the browser over, only they get a picture
 - [computers.browser.profiles](../capabilities/computers.browser.profiles.md): The agent browsers in this Space's browser that you may watch: running or asleep, tabs, whether the agent is using it, and who has the controls
+- [computers.browser.resume](../capabilities/computers.browser.resume.md): Resume a paused agent browser: the call that waits goes on. Whoever paused it or an admin may
 - [computers.browser.sessions](../capabilities/computers.browser.sessions.md): The sites an agent's browser is signed in to (cookies the profile holds), by site, never a value. Wakes the browser when it is asleep. Only for a browser you may watch
 - [computers.browser.sign_out](../capabilities/computers.browser.sign_out.md): Sign an agent's browser out of a site: its cookies and storage for that site are cleared. The owner and admins only
 - [computers.browser.stream](../capabilities/computers.browser.stream.md): Live view of an agent's browser, relayed by the Space: MJPEG or a WebSocket with a ticket that opens once, for one minute; frames are live-only, never stored. Wakes the browser
 - [computers.browser.take_over](../capabilities/computers.browser.take_over.md): Take over an agent's browser ("You're in control"): its tools wait, your clicks and keys reach the page. An Assistant's or personal agent's browser is its person's alone; a team agent's goes to its owner and admins; one shared with named people may be watched by them but not taken over
 - [computers.browser.timeline](../capabilities/computers.browser.timeline.md): What an agent did in its Space browser, step by step with a picture each: the same timeline as a computer's, for the agent's profile. Only for a browser you may watch
+- [computers.browser.warm](../capabilities/computers.browser.warm.md): Start an agent's browser in the background so the Computer tab and the agent find it up; starts nothing for an agent that never browsed and closes nothing. Whoever may watch it may ask
 - [computers.chrome.act](../capabilities/computers.chrome.act.md): Click, hover, press, select, scroll or check an element; a send, post or payment is held and returns an id
 - [computers.chrome.api](../capabilities/computers.chrome.api.md): Call a site backend with the session of this browser; non-GET calls pass the Gate
 - [computers.chrome.batch](../capabilities/computers.chrome.batch.md): Run several Chrome steps in one call; stops at the first held item

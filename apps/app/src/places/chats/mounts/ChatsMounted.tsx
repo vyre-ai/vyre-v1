@@ -29,6 +29,7 @@ import type { ComposerFill, ConversationNav } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
 import { useShown } from "../crew/run/useShown.ts";
+import { DeskHost } from "../rightpane/Desk.tsx";
 import { CrewProvider } from "../crew/context.tsx";
 import { SessionProvider } from "../session/context.tsx";
 import { CrewSide } from "../crew/CrewSide.tsx";
@@ -1534,6 +1535,8 @@ export function ChatsMounted({
               ) : null}
             </View>
           ) : null}
+          {/* the agent's desk (rightpane/Desk.tsx): a full view or a small live picture over the chat, opened from the Computer tab */}
+          <DeskHost />
         </View>
       </SessionProvider>
     </CrewProvider>

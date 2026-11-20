@@ -569,13 +569,17 @@ export function stubs(ctx: CallCtx) {
       browser: {
         give_back: call("computers.browser.give_back"),
         my_sign_ins: call("computers.browser.my_sign_ins"),
+        pause: call("computers.browser.pause"),
+        pointer: call("computers.browser.pointer"),
         preview: call("computers.browser.preview"),
         profiles: call("computers.browser.profiles"),
+        resume: call("computers.browser.resume"),
         sessions: call("computers.browser.sessions"),
         sign_out: call("computers.browser.sign_out"),
         stream: call("computers.browser.stream"),
         take_over: call("computers.browser.take_over"),
         timeline: call("computers.browser.timeline"),
+        warm: call("computers.browser.warm"),
       },
       chrome: {
         act: call("computers.chrome.act"),
@@ -3070,6 +3074,10 @@ export function stubs(ctx: CallCtx) {
       interrupt: call("terminal.interrupt"),
       keys: call("terminal.keys"),
       list: call("terminal.list"),
+      log: {
+        list: call("terminal.log.list"),
+        read: call("terminal.log.read"),
+      },
       open: call("terminal.open"),
       open_server: call("terminal.open_server"),
       read: call("terminal.read"),

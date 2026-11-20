@@ -36,7 +36,9 @@ import type { HomeDeps, HomeSync, MadeFile } from "./handlers/home.ts";
 import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
-import { markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { inTurn, markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
+import { warmBrowser } from "./sbrowser/warm.ts";
+import { dropPausesOfAgent } from "./sbrowser/pause.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
   nodeHomeCheck,
@@ -1013,6 +1015,8 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
     ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
+    // calls go to browserd's own port, not one `docker exec` each (131 ms a call before); `ctl` stays as the way back wherever the port cannot be reached
+    channel: true,
   });
 }
 
@@ -1050,10 +1054,22 @@ export const consumers = {
         return;
       }
       if (event.name === "turn.started") {
-        if (typeof a === "string") turnStarted(ctx.space, a, t, ctx.now());
+        if (typeof a === "string") {
+          turnStarted(ctx.space, a, t, ctx.now());
+          // warm before asked (sbrowser/warm.ts): in the background, so the turn and the events behind it never wait for a browser to start; it never raises
+          setTimeout(() => void warmBrowser(ctx, a), 0);
+        }
         return;
       }
+      // a stop (or a failure) ends a pause on the agent's browsers by itself: whoever pressed Stop, the call that waits behind the pause never runs after it (sbrowser/pause.ts)
       turnEnded(ctx.space, typeof a === "string" ? a : "", t);
+      // only when the agent has no other turn running: an agent working in two chats is not stopped in one because the other was (a pause is the browser's, not a chat's)
+      if (
+        (event.name === "turn.cancelled" || event.name === "turn.failed") &&
+        typeof a === "string" &&
+        !inTurn(ctx.space, a, ctx.now())
+      )
+        dropPausesOfAgent(ctx, a);
     },
   },
   /** A person left the Space: their own browser profiles on shared agents go after Trash time, like their Assistant's (sbrowser/forget.ts). */
@@ -1134,7 +1150,7 @@ export const hostCalls = {
     tryRun(ctx.db, "DELETE FROM computers_recordings WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_migration WHERE agent_id = ?", i.agentId);
     tryRun(ctx.db, "DELETE FROM computers_computers WHERE agent_id = ?", i.agentId);
-    for (const t of ["computers_browser_gone", "computers_browser_hold"])
+    for (const t of ["computers_browser_gone", "computers_browser_hold", "computers_browser_pause"])
       tryRun(ctx.db, `DELETE FROM ${t} WHERE profile_id = ?`, profile ?? i.agentId);
     return {};
   },

@@ -7,13 +7,17 @@ export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> =
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "computers.browser.give_back": Handler<"computers.browser.give_back", X>;
   "computers.browser.my_sign_ins": Handler<"computers.browser.my_sign_ins", X>;
+  "computers.browser.pause": Handler<"computers.browser.pause", X>;
+  "computers.browser.pointer": Handler<"computers.browser.pointer", X>;
   "computers.browser.preview": Handler<"computers.browser.preview", X>;
   "computers.browser.profiles": Handler<"computers.browser.profiles", X>;
+  "computers.browser.resume": Handler<"computers.browser.resume", X>;
   "computers.browser.sessions": Handler<"computers.browser.sessions", X>;
   "computers.browser.sign_out": Handler<"computers.browser.sign_out", X>;
   "computers.browser.stream": Handler<"computers.browser.stream", X>;
   "computers.browser.take_over": Handler<"computers.browser.take_over", X>;
   "computers.browser.timeline": Handler<"computers.browser.timeline", X>;
+  "computers.browser.warm": Handler<"computers.browser.warm", X>;
   "computers.chrome.act": Handler<"computers.chrome.act", X>;
   "computers.chrome.api": Handler<"computers.chrome.api", X>;
   "computers.chrome.batch": Handler<"computers.chrome.batch", X>;

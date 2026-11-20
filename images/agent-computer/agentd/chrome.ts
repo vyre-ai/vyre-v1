@@ -3,6 +3,8 @@
 // What it does not answer yet (none now) and a #Handle.field is filled by main.ts from the host (vault.ts).
 //
 // Outward acts are held, not done: a click on something that sends, posts, pays or deletes answers with a heldId, and only chrome_send (behind the Gate) does it.
+import { createPointerNote, labelOf } from "./pointer.ts";
+import type { LabelInput } from "./pointer.ts";
 import { extensionStatus } from "./extension-state.ts";
 import { spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
@@ -38,7 +40,11 @@ interface Held {
   at: number;
 }
 
+export type { Pointer } from "./pointer.ts";
+
 export interface Chrome {
+  /** The agent's last action on a page, or null when it has not acted since this browser started. */
+  pointer?(): import("./pointer.ts").Pointer | null;
   ready(): Promise<void>;
   alive(): boolean;
   /** The DevTools port of this browser on 127.0.0.1, or null when it talks over its pipe and opens no port. */
@@ -376,8 +382,20 @@ export function launchChrome(
   };
 
   /** The element of a ref, scrolled into view, with where its middle is, and whether acting on it would send something out. */
+  // the agent's last action, for the desk's cursor: the element a tool chose (locate) and the point it pressed (mouse); browserd reads it (pointer)
+  const seen = createPointerNote();
   const locate = async (c: Cdp, ref: string): Promise<{ x: number; y: number; outward: boolean; label: string }> => {
-    const r = await evalIn<{ x: number; y: number; outward: boolean; label: string } | null>(
+    const r = await evalIn<{
+      x: number;
+      y: number;
+      outward: boolean;
+      label: string;
+      bx: number;
+      by: number;
+      bw: number;
+      bh: number;
+      raw: LabelInput;
+    } | null>(
       c,
       `(() => {
       const el = document.querySelector('[data-vyre-ref=${JSON.stringify(ref)}]');
@@ -385,16 +403,21 @@ export function launchChrome(
       el.scrollIntoView({ block: "center", inline: "center" });
       const b = el.getBoundingClientRect();
       const label = (el.getAttribute("aria-label") || el.innerText || el.value || el.title || el.name || "").trim().slice(0, 120);
+      const raw = { tag: el.tagName || "", type: el.getAttribute("type") || "", aria: el.getAttribute("aria-label") || "", text: el.innerText || "", value: typeof el.value === "string" ? el.value : "", title: el.title || "", name: el.getAttribute("name") || "", placeholder: el.getAttribute("placeholder") || "", id: el.id || "", autocomplete: el.getAttribute("autocomplete") || "", editable: el.isContentEditable === true, role: el.getAttribute("role") || "" };
       const form = el.closest("form");
       const text = label + " " + (el.getAttribute("type") || "") + " " + (el.getAttribute("name") || "") + " " + (form ? (form.getAttribute("aria-label") || "") : "");
-      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label };
+      return { x: Math.round(b.left + b.width / 2), y: Math.round(b.top + b.height / 2), bx: Math.round(b.left), by: Math.round(b.top), bw: Math.round(b.width), bh: Math.round(b.height), outward: new RegExp(${JSON.stringify(OUTWARD)}, "i").test(text), label, raw };
     })()`,
     );
     if (!r) throw notFound(`There is no element ${ref} on this page. Take a new snapshot.`);
-    return r;
+    // the name is made here from what the page said, never from a field's value (pointer.ts labelOf); the page's own label stays only inside the page for the outward test
+    const safe = labelOf(r.raw);
+    seen.chose({ x: r.bx, y: r.by, w: r.bw, h: r.bh, label: safe });
+    return { x: r.x, y: r.y, outward: r.outward, label: safe };
   };
 
   const mouse = async (c: Cdp, x: number, y: number, button = "left", count = 1): Promise<void> => {
+    seen.at(x, y);
     await c.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y });
     await c.send("Input.dispatchMouseEvent", { type: "mousePressed", x, y, button, clickCount: count });
     await c.send("Input.dispatchMouseEvent", { type: "mouseReleased", x, y, button, clickCount: count });
@@ -485,7 +508,7 @@ export function launchChrome(
       }
       if (Date.now() - t0 > timeoutMs)
         throw new AgentError("timeout", `Waited ${Math.round(timeoutMs / 1000)} seconds for ${until}.`);
-      await sleep(150);
+      await sleep(until === "load" ? 50 : 150);
     }
   };
 
@@ -512,6 +535,7 @@ export function launchChrome(
     }
     if (state.stopped) throw paused("The browser is stopped. Resume it first.");
     if (name === "chrome_plan") return { ok: true };
+    seen.during(name);
     await start();
     const s = (k: string): string | undefined => (typeof args[k] === "string" ? (args[k] as string) : undefined);
     const tabId = s("tabId");
@@ -538,9 +562,32 @@ export function launchChrome(
             active = t.id;
             if (PIPE) toFront(t.id);
             await c.send("Page.enable");
-            await c.send("Page.navigate", { url });
-            await sleep(100);
-            await waitFor(c, "load", undefined, 30_000).catch(() => 0);
+            // the page's own load event, not a fixed pause and a poll: the answer comes the moment the page has loaded (the old way slept 100 ms, then looked every 150 ms). The wait has one deadline of 30 s for the
+            // event and the readyState look together, so a page that never fires load (a hung subresource, a long poll) costs no more than before. A navigation with no new document (the same page with a new
+            // fragment), a download, a refusal and a navigation that is replaced mid-wait have no load event to wait for or may never get one: they fall through to the readyState look, which settles them. An event
+            // from the document that was there before is ignored (only a load after the navigation answered counts); the connection is this call's own, so its handler goes with it.
+            const until = Date.now() + 30_000;
+            let armed = false;
+            let onLoad: () => void = () => undefined;
+            const loaded = new Promise<void>((done) => {
+              onLoad = done;
+            });
+            c.on("Page.loadEventFired", () => {
+              if (armed) onLoad();
+            });
+            const nav = await c.send<{ loaderId?: string; errorText?: string }>("Page.navigate", { url });
+            armed = true;
+            if (typeof nav.loaderId === "string" && nav.errorText === undefined) {
+              let timer: ReturnType<typeof setTimeout> | undefined;
+              await Promise.race([
+                loaded,
+                new Promise<void>((done) => {
+                  timer = setTimeout(done, Math.max(0, until - Date.now()));
+                }),
+              ]);
+              if (timer !== undefined) clearTimeout(timer);
+            }
+            await waitFor(c, "load", undefined, Math.max(1, until - Date.now())).catch(() => 0);
             return {
               tabId: t.id,
               url: await evalIn<string>(c, "location.href"),
@@ -889,6 +936,7 @@ export function launchChrome(
       return connect(await pick(undefined));
     },
     heldIds: () => [...held.keys()],
+    pointer: () => seen.get(),
     extension: async () => {
       let workers = 0;
       try {

@@ -1,0 +1,1 @@
+- A terminal command's output is kept for a week so you or the agent can read part of it later: the last lines, the lines that contain a word, or a range, never the whole thing, and never a secret. The first terminal command in a tab also does one less round trip before it types.

@@ -15,11 +15,28 @@ export interface BrowserRowLike {
   viewers: number;
   lastActiveAt?: number | undefined;
   takeoverBy?: string | undefined;
+  pausedBy?: string | undefined;
+  held?:
+    | { count: number; first?: { holdId: string; taskId: string; what: string; mayAnswer: boolean } | undefined }
+    | undefined;
   paired: boolean;
   access: "owner" | "admin" | "viewer";
 }
 
 /** The profile as the pane draws it. A profile that is not listed has not started: closed, and the person's own say over it comes from the server when they ask. */
+function heldOf(r: BrowserRowLike): Pick<BrowserView, "held"> {
+  return r.held && r.held.count > 0
+    ? {
+        held: {
+          count: r.held.count,
+          what: r.held.first?.what ?? "",
+          taskId: r.held.first?.taskId ?? "",
+          mayAnswer: r.held.first?.mayAnswer === true,
+        },
+      }
+    : {};
+}
+
 export function browserView(
   agentId: string,
   rows: readonly BrowserRowLike[],
@@ -30,6 +47,7 @@ export function browserView(
   if (!r) return { state: "closed", canTakeOver: true, sites: [] };
   const may = r.access === "owner" || r.access === "admin";
   const base = {
+    ...heldOf(r),
     canTakeOver: may,
     ...(may ? {} : { cannotTakeOver: "You can watch this browser but not take it over." }),
     sites: may ? sites : [],
@@ -47,6 +65,7 @@ export function browserView(
   return {
     ...base,
     state: r.running ? "open" : "closed",
+    ...(r.running && r.pausedBy ? { paused: true, pausedBy: r.pausedBy === d.me ? "You" : d.nameOf(r.pausedBy) } : {}),
     ...(!r.running && r.lastActiveAt !== undefined ? { lastActiveAt: r.lastActiveAt } : {}),
     ...(r.running ? { tabs: r.tabs, ...(r.busy ? { caption: "Working in it now" } : {}) } : {}),
   };
@@ -143,6 +162,61 @@ export function browserData(d: {
     },
     takeOver: (agentId) => act("computers.browser.take_over", agentId),
     giveBack: (agentId) => act("computers.browser.give_back", agentId),
+    async pointer(agentId) {
+      try {
+        const r = (await d.call("computers.browser.pointer", { agentId })) as {
+          state?: string;
+          pointer?: import("../../places/chats/rightpane/desk-pointer.ts").PointerView;
+        };
+        return r.state === "live" && r.pointer ? r.pointer : null;
+      } catch {
+        return null;
+      }
+    },
+    async frame(fileId) {
+      try {
+        const r = (await d.call("files.viewer_data", { fileId })) as { previewUrl?: string };
+        return r.previewUrl ?? null;
+      } catch {
+        return null;
+      }
+    },
+    async steps(agentId) {
+      try {
+        const r = (await d.call("computers.browser.timeline", { agentId })) as {
+          steps?: Array<{
+            idx: number;
+            at: number;
+            caption: string;
+            tool: string;
+            by: "agent" | "person";
+            frameFileId?: string;
+          }>;
+        };
+        return [...(r.steps ?? [])]
+          .sort((a, b) => a.idx - b.idx)
+          .slice(-30)
+          .map((x) => ({
+            idx: x.idx,
+            at: x.at,
+            caption: x.caption,
+            tool: x.tool,
+            by: x.by,
+            ...(x.frameFileId ? { frameFileId: x.frameFileId } : {}),
+          }));
+      } catch {
+        return [];
+      }
+    },
+    pause: (agentId) => act("computers.browser.pause", agentId),
+    async resume(agentId, o) {
+      try {
+        await d.call("computers.browser.resume", { agentId, ...(o?.stopped === true ? { stopped: true } : {}) });
+      } catch (e) {
+        throw new Error(sentence(e));
+      }
+      for (const r of refreshers) r();
+    },
     async signOut(agentId, site) {
       try {
         await d.call("computers.browser.sign_out", { agentId, site });

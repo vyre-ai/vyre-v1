@@ -114,8 +114,9 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
     async available() {
       return true;
     },
-    async tool() {
-      return {};
+    async tool(a?: { tool?: string }) {
+      // a held send that the person allowed is sent
+      return a?.tool === "chrome_send" ? { sent: true } : {};
     },
     async downloads() {
       return [];
@@ -329,10 +330,10 @@ export function computersJourney(kind: "team" | "personal"): void {
         assert.match(String(refused.data?.error?.code), /^permission\./);
       }
       await me.page.getByTestId("browser-picture").click();
-      await me.page.getByTestId("browser-popup").waitFor({ timeout: 10_000 });
+      await me.page.getByTestId("desk").waitFor({ timeout: 10_000 });
       await me.page.getByTestId("browser-take").click();
       await me.page.getByTestId("browser-give").waitFor({ timeout: 20_000 });
-      assert.match(await me.page.getByTestId("browser-popup-bar").innerText(), /You have the browser/);
+      assert.match(await me.page.getByTestId("desk").innerText(), /You have the browser/);
       assert.equal(await me.page.getByTestId("browser-take").count(), 0, "while you hold it there is only Give back");
       assert.equal((await profile())?.takeoverBy, w.owner.id, "the browser service has the owner at the controls");
       await shoot(me.page, dir, "pane-in-control");
@@ -344,7 +345,7 @@ export function computersJourney(kind: "team" | "personal"): void {
       await me.page.getByTestId("browser-give").click();
       await me.page.getByTestId("browser-take").waitFor({ timeout: 20_000 });
       assert.equal((await profile())?.takeoverBy, undefined, "given back, nobody holds it");
-      await me.page.getByTestId("browser-popup-close").click();
+      await me.page.getByTestId("desk-close").click();
       assert.match(await me.page.getByTestId("browser-head").innerText(), /Live/);
       await shoot(me.page, dir, "given-back");
 

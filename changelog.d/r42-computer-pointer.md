@@ -1,0 +1,1 @@
+- The desk's cursor knows where the agent acts: the browser now reports the point and the field the agent last worked in, so the live view can show it.
