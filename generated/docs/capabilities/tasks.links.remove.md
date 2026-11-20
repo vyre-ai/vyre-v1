@@ -1,6 +1,6 @@
 # tasks.links.remove
 
-Remove a record or file link from a task
+Remove a record or file link
 
 | | |
 |---|---|

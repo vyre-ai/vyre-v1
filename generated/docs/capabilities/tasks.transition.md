@@ -1,6 +1,6 @@
 # tasks.transition
 
-Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules
+Move a task to a new status (the only writer of status); checks the state table and reviewer/approver rules
 
 | | |
 |---|---|

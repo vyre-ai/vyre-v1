@@ -1,6 +1,6 @@
 # tasks.plan
 
-Break work into tasks in one step: a parent (new, or one that exists) and its children, each with its brief, what done means, who does it and which others it waits on. A child starts by itself when what it waits on is done; the parent hears only when all are done, or one is blocked or asks
+Break work into a parent (new or existing) and children in one step, each with brief, what done means, owner and dependencies. A child starts when they are done; the parent hears only when all are done or one is blocked or asks
 
 | | |
 |---|---|

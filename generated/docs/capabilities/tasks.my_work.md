@@ -1,6 +1,6 @@
 # tasks.my_work
 
-My work: the full list, with sections Open, Assigned by me, Done
+My work: the full list in sections Open, Assigned by me, Done
 
 | | |
 |---|---|

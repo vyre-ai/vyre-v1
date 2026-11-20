@@ -1,6 +1,6 @@
 # tasks.digest
 
-What an agent should keep in mind: the task bound to this thread, its parent and siblings in a line each, then its own open tasks, the top five and a count. About 300 tokens; detail stays one tasks_get away. An agent asking for itself leaves out agentId
+What an agent should keep in mind: this thread's task, its parent and siblings, then its own open tasks (top five and a count). About 300 tokens; tasks_get has detail. Leave out agentId for yourself
 
 | | |
 |---|---|

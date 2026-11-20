@@ -1,6 +1,6 @@
 # tasks.block
 
-Report what is in the way of a task: an Unblock task opens for whoever the task escalates to, and the work waits
+Report what is in the way: an Unblock task opens for whoever the task escalates to, and the work waits
 
 | | |
 |---|---|

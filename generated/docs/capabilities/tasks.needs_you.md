@@ -1,6 +1,6 @@
 # tasks.needs_you
 
-Needs you: my Ready tasks of kind Approve, Review, Answer or Unblock, plus due today, overdue or blocking others
+Needs you: my Ready Approve, Review, Answer and Unblock tasks, plus due today, overdue or blocking
 
 | | |
 |---|---|

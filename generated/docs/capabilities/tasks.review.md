@@ -1,6 +1,6 @@
 # tasks.review
 
-Review submitted work: approve it, or send it back with numbered fixes (after the loop limit a person decides)
+Review submitted work: approve, or send back with numbered fixes (after the loop limit a person decides)
 
 | | |
 |---|---|
