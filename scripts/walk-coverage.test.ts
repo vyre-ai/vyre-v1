@@ -20,6 +20,8 @@ const workflows = fs
 export const PENDING: Readonly<Record<string, string>> = {
   "apps/app/tests/chat.newchat-open.perf.test.ts":
     "a speed budget: a perf file in test/slow.json, run on the v1-perf host by perf.yml and affected-perf (which export the app first)",
+  "test/instant.perf.test.ts":
+    "a speed budget: a perf file in test/slow.json, run on the v1-perf host by perf.yml and affected-perf (which export the app first)",
   "test/first-load.perf.test.ts":
     "a speed budget: a perf file in test/slow.json, run on the v1-perf host by perf.yml and affected-perf (which export the app first)",
   "apps/app/tests/chats-sidebar-shots.live.test.ts":
