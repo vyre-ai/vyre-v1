@@ -19,7 +19,7 @@ Make this channel a project: create the record and attach the channel, a folder 
 | HTTP | POST /v1/projects/from_channel |
 | MCP tool | projects_from_channel (records) |
 | CLI | none |
-| Emits | project.created, record.created |
+| Emits | project.created, record.created, project.folder_unfollowed |
 
 ## Input
 
