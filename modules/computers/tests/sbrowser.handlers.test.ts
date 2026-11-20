@@ -878,13 +878,42 @@ test("the one-line of a held send is the oldest one this caller may answer: an o
       tsk_new: { title: "Newest", actions: [{ key: "approve" }] },
     };
     heldHolds = [
-      { id: "hld_a", capName: "computers.chrome.send", taskId: "tsk_gone", principal: { kind: "agent", id: "agt_dex" }, createdAt: 1 },
-      { id: "hld_b", capName: "computers.chrome.send", taskId: "tsk_old", principal: { kind: "agent", id: "agt_dex" }, createdAt: 2 },
-      { id: "hld_c", capName: "computers.chrome.send", taskId: "tsk_mid", principal: { kind: "agent", id: "agt_dex" }, createdAt: 3 },
-      { id: "hld_d", capName: "computers.chrome.send", taskId: "tsk_new", principal: { kind: "agent", id: "agt_dex" }, createdAt: 4 },
+      {
+        id: "hld_a",
+        capName: "computers.chrome.send",
+        taskId: "tsk_gone",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 1,
+      },
+      {
+        id: "hld_b",
+        capName: "computers.chrome.send",
+        taskId: "tsk_old",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 2,
+      },
+      {
+        id: "hld_c",
+        capName: "computers.chrome.send",
+        taskId: "tsk_mid",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 3,
+      },
+      {
+        id: "hld_d",
+        capName: "computers.chrome.send",
+        taskId: "tsk_new",
+        principal: { kind: "agent", id: "agt_dex" },
+        createdAt: 4,
+      },
     ];
-    const row = (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles.find((p: { agentId: string }) => p.agentId === "agt_dex");
-    assert.deepEqual(row.held, { count: 4, first: { holdId: "hld_c", taskId: "tsk_mid", what: "Middle one", mayAnswer: true } });
+    const row = (await tool["computers.browser.profiles"]!(dana.ctx, {})).profiles.find(
+      (p: { agentId: string }) => p.agentId === "agt_dex",
+    );
+    assert.deepEqual(row.held, {
+      count: 4,
+      first: { holdId: "hld_c", taskId: "tsk_mid", what: "Middle one", mayAnswer: true },
+    });
   } finally {
     heldHolds = [];
     heldTasks = {};

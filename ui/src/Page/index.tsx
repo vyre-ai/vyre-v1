@@ -79,48 +79,48 @@ export function PageTabs({
   return (
     <>
       <View accessibilityRole="tablist" role="tablist" style={st.tabs}>
-          {/* ui-rows-lint: not a list (the tabs of a Page) */}
-          {shown.map((t) => (
-            <Pressable
-              key={t.id}
-              accessibilityRole="tab"
-              role="tab"
-              aria-selected={t.id === active}
-              accessibilityState={{ selected: t.id === active }}
-              testID={`${testID}-tab-${t.id}`}
-              onPress={() => onTab?.(t.id)}
-              {...(web
-                ? ({
-                    onKeyDown: (e: { key?: string; preventDefault?: () => void }) => {
-                      if (move(t.id, e.key ?? "")) e.preventDefault?.();
-                    },
-                  } as object)
-                : {})}
-              style={[st.tab, t.id === active && st.tabOn]}
-            >
-              <Text style={[st.tabText, t.id === active && st.tabTextOn]}>{t.label}</Text>
-              {t.count !== undefined ? <Text style={st.count}>{t.count}</Text> : null}
-            </Pressable>
-          ))}
-          {more.length > 0 ? (
-            <Pressable
-              accessibilityRole="button"
-              testID={`${testID}-tab-more`}
-              onPress={(e) => {
-                const p = e as { clientX?: number; clientY?: number };
-                show(
-                  more.map((t) => ({ label: t.label, onSelect: () => onTab?.(t.id) })),
-                  p.clientX ?? 0,
-                  p.clientY ?? 0,
-                  "other",
-                );
-              }}
-              style={st.tab}
-            >
-              <Text style={st.tabText}>More</Text>
-            </Pressable>
-          ) : null}
-        </View>
+        {/* ui-rows-lint: not a list (the tabs of a Page) */}
+        {shown.map((t) => (
+          <Pressable
+            key={t.id}
+            accessibilityRole="tab"
+            role="tab"
+            aria-selected={t.id === active}
+            accessibilityState={{ selected: t.id === active }}
+            testID={`${testID}-tab-${t.id}`}
+            onPress={() => onTab?.(t.id)}
+            {...(web
+              ? ({
+                  onKeyDown: (e: { key?: string; preventDefault?: () => void }) => {
+                    if (move(t.id, e.key ?? "")) e.preventDefault?.();
+                  },
+                } as object)
+              : {})}
+            style={[st.tab, t.id === active && st.tabOn]}
+          >
+            <Text style={[st.tabText, t.id === active && st.tabTextOn]}>{t.label}</Text>
+            {t.count !== undefined ? <Text style={st.count}>{t.count}</Text> : null}
+          </Pressable>
+        ))}
+        {more.length > 0 ? (
+          <Pressable
+            accessibilityRole="button"
+            testID={`${testID}-tab-more`}
+            onPress={(e) => {
+              const p = e as { clientX?: number; clientY?: number };
+              show(
+                more.map((t) => ({ label: t.label, onSelect: () => onTab?.(t.id) })),
+                p.clientX ?? 0,
+                p.clientY ?? 0,
+                "other",
+              );
+            }}
+            style={st.tab}
+          >
+            <Text style={st.tabText}>More</Text>
+          </Pressable>
+        ) : null}
+      </View>
       {element}
     </>
   );
@@ -193,7 +193,9 @@ export function Page({
           </Pressable>
         ) : null}
       </View>
-      {tabs && tabs.length > 0 ? <PageTabs tabs={tabs} tab={active} {...(onTab ? { onTab } : {})} testID={testID} /> : null}
+      {tabs && tabs.length > 0 ? (
+        <PageTabs tabs={tabs} tab={active} {...(onTab ? { onTab } : {})} testID={testID} />
+      ) : null}
       {status ? (
         <Status
           bar

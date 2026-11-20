@@ -1180,22 +1180,23 @@ export interface TerminalHostSeam {
 }
 
 /** What the daemon hands over for agent workspaces (host/src/seams/terminal-host.ts): configuration only. The module builds the Docker managers from it, as agent computers are built. */
-export interface WorkspaceConfig extends Pick<
-  WorkspaceOptions,
-  | "image"
-  | "limits"
-  | "idleMs"
-  | "home"
-  | "projectsOf"
-  | "projectAccessOf"
-  | "admit"
-  | "capacity"
-  | "log"
-  | "owner"
-  | "ownsAgent"
-  | "inTurn"
-  | "folders"
-> {
+export interface WorkspaceConfig
+  extends Pick<
+    WorkspaceOptions,
+    | "image"
+    | "limits"
+    | "idleMs"
+    | "home"
+    | "projectsOf"
+    | "projectAccessOf"
+    | "admit"
+    | "capacity"
+    | "log"
+    | "owner"
+    | "ownsAgent"
+    | "inTurn"
+    | "folders"
+  > {
   /** Is this agent in Trash now (agents_agent.deletedAt)? Read before Trash volumes go and when agent.deleted is consumed, so a restored agent never loses them (third look T2). */
   inTrash?: (agentId: string) => boolean | undefined;
   /** The Docker Engine socket of this machine. With no socket and no runner the Space has no runtime of its own, and its workspaces go on servers that joined. */
@@ -1497,7 +1498,8 @@ function accessDeps(ctx: TermCtx): AccessDeps {
     // who may read a chat is who is in it: its members (a person who left, or was never in it, has no entry on its folder)
     mayView: async (person, thread) => {
       const r = (await ctx.call?.("threads.get", { threadId: thread })) as
-        { thread?: { members?: Array<{ kind?: string; id?: string }> } } | undefined;
+        | { thread?: { members?: Array<{ kind?: string; id?: string }> } }
+        | undefined;
       if (r?.thread?.members === undefined) throw new Error("the chat could not be read");
       return r.thread.members.some((m) => m.kind === "person" && m.id === person);
     },

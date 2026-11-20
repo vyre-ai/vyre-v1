@@ -408,7 +408,11 @@ test("reading a profile after a pause ran out removes the pause and lets a waiti
     assert.equal(waitingOn("agt_dex"), 1);
     r.dana.advance(PAUSE_MAX_MS + 1);
     const list = await tool["computers.browser.profiles"]!(ctx, {});
-    assert.equal(list.profiles.find((p: { agentId: string }) => p.agentId === "agt_dex")?.pausedBy, undefined, "the list shows no pause");
+    assert.equal(
+      list.profiles.find((p: { agentId: string }) => p.agentId === "agt_dex")?.pausedBy,
+      undefined,
+      "the list shows no pause",
+    );
     assert.equal(r.dana.rows("SELECT COUNT(*) AS n FROM computers_browser_pause")[0]?.["n"], 0, "and the row is gone");
     assert.equal((await waiting).url, "https://x.test/", "the call that waited went on");
     // resuming what already ran out changes nothing and does not fail
