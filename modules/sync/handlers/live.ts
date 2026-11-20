@@ -20,6 +20,7 @@ export interface LiveOpts {
   deadMs?: number;
   window?: number;
   batch?: number;
+  yieldMs?: number;
   evBytes?: number;
   frameMax?: number;
 }
@@ -39,6 +40,7 @@ export function createSyncLiveHub(deps: PullDeps, o: LiveOpts): LiveHub {
     ...(o.deadMs !== undefined ? { deadMs: o.deadMs } : {}),
     ...(o.window !== undefined ? { window: o.window } : {}),
     ...(o.batch !== undefined ? { batch: o.batch } : {}),
+    ...(o.yieldMs !== undefined ? { yieldMs: o.yieldMs } : {}),
     ...(o.evBytes !== undefined ? { evBytes: o.evBytes } : {}),
     ...(o.frameMax !== undefined ? { frameMax: o.frameMax } : {}),
     head: () => headSeq(deps.db),

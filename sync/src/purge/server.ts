@@ -16,6 +16,18 @@ import type { Catalog } from "../server/pull/index.ts";
 import { epochOf } from "../server/pull/index.ts";
 
 /** Above this many rows in one entity the reindex also tells clients the range changed (sync.scope_changed). */
+/** What the access rescan keeps for a device (its stamp and its place in a scan): gone with the device. The tables exist once a pull has run, so a missing one is nothing to delete. */
+function forgetScope(db: Tx, person: string, device?: string): void {
+  for (const t of ["sync_scope_scan", "sync_scope_stamp"]) {
+    try {
+      if (device === undefined) db.run(`DELETE FROM ${t} WHERE person = ?`, person);
+      else db.run(`DELETE FROM ${t} WHERE person = ? AND device = ?`, person, device);
+    } catch {
+      /* no such table yet */
+    }
+  }
+}
+
 export const RESCAN_SUMMARY_ROWS = 100;
 
 export interface PurgeServerDeps {
@@ -103,6 +115,7 @@ export function bumpEpoch(d: PurgeServerDeps, input: BumpInput, traceId: string,
       );
       db.run("DELETE FROM sync_seen_rows WHERE person = ? AND device = ?", input.personId, input.deviceId);
       db.run("DELETE FROM sync_snapshots WHERE person = ? AND device = ?", input.personId, input.deviceId);
+      forgetScope(db, input.personId, input.deviceId);
     } else {
       epoch = person + 1;
       db.run(
@@ -112,6 +125,7 @@ export function bumpEpoch(d: PurgeServerDeps, input: BumpInput, traceId: string,
       );
       db.run("DELETE FROM sync_seen_rows WHERE person = ?", input.personId);
       db.run("DELETE FROM sync_snapshots WHERE person = ?", input.personId);
+      forgetScope(db, input.personId);
       if (scope === "space")
         db.run(
           "INSERT INTO sync_space_epoch (id, epoch) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET epoch = epoch + 1",

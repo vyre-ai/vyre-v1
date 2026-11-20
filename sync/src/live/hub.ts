@@ -30,6 +30,8 @@ export interface LiveDeps {
   window?: number;
   /** Most changes in one batch. */
   batch?: number;
+  /** A flush that has worked this long (ms, default 20) goes on in the next turn of the loop, so other work runs between its pulls. */
+  yieldMs?: number;
   /** The bytes of changes one `ev` frame is aimed to carry (default EV_BUDGET). */
   evBytes?: number;
   /** The most bytes one frame may weigh (default FRAME_MAX): below the relay's 1 MiB message limit with its framing. */
@@ -77,9 +79,11 @@ export function createLiveHub(d: LiveDeps): LiveHub {
   const helloMs = d.helloMs ?? 10_000;
   const window = d.window ?? 8;
   const batch = d.batch ?? 500;
+  const yieldMs = d.yieldMs ?? 20;
   const evBytes = d.evBytes ?? EV_BUDGET;
   const frameMax = d.frameMax ?? FRAME_MAX;
   const live = new Set<Impl>();
+  let flushQueued = false;
 
   interface Impl extends Session {
     flush(): void;
@@ -198,7 +202,10 @@ export function createLiveHub(d: LiveDeps): LiveHub {
       return stuck;
     }
 
+    // single flight: while a flush waits for its next turn, a flush asked for in between joins it (it reads from `sent` to the head, so it covers whatever committed meanwhile)
+    let continuing = false;
     function flush(): void {
+      if (continuing) return;
       if (closed || mode !== "live") return;
       if (blockedAt > 0) {
         if (acked < blockedAt) return;
@@ -232,8 +239,12 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         sent = Math.max(sent, res.next);
         if (!res.more) break;
         // a long answer is given in slices: the event loop runs between them (a rescan of access over a big Space is one)
-        if (performance.now() - began >= 20) {
-          setImmediate(flush);
+        if (performance.now() - began >= yieldMs) {
+          continuing = true;
+          setImmediate(() => {
+            continuing = false;
+            flush();
+          });
           return;
         }
       }
@@ -358,7 +369,13 @@ export function createLiveHub(d: LiveDeps): LiveHub {
   return {
     accept: (t, who) => open(t, who),
     commit() {
-      for (const s of [...live]) s.flush();
+      // a burst of commits is one flush for each session, on the next turn of the loop: a sync that writes a thousand times a second asked every device for a pull each time
+      if (flushQueued) return;
+      flushQueued = true;
+      setImmediate(() => {
+        flushQueued = false;
+        for (const s of [...live]) s.flush();
+      });
     },
     purge(person, epoch) {
       let n = 0;

@@ -1,0 +1,2 @@
+- A burst of commits is now one live-sync pull per device (not one per commit), the list of entities that have rows is read when the access state moves (not on every pull), and the project-folder repeat is two counts that start the full sweep only when there is work.
+- A revoke reaches a device fast on a big Space (about 60 pulls and 3 s for 12,000 rows), a removed device's rescan state is deleted with it, and a live flush that gives way to the loop is joined by the commits that come meanwhile.
