@@ -139,6 +139,8 @@ export interface TasksCtx {
   device?: string;
   run?: string;
   thread?: string;
+  /** why the engine started the turn an agent's call is made in (message, wake, resume, interrupt, handoff); absent when unknown */
+  turn?: { kind: string };
   now(): number;
   db: Db;
   emit(name: string, subject: string, payload: unknown, opts?: EmitOpts): { id: string };

@@ -106,6 +106,7 @@ export function harness(o: HarnessOptions = {}) {
       trace: { traceId: TRACE },
       ...(who.device ? { device: who.device } : {}),
       ...(who.thread ? { thread: who.thread } : {}),
+      ...((who as { turn?: { kind: string } }).turn ? { turn: (who as { turn: { kind: string } }).turn } : {}),
       now: () => clock,
       db: scopedDb("tasks", raw, TRACE),
       emit(name, subject, payload, opts) {

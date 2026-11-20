@@ -1210,7 +1210,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       injected: 0,
       info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
-    noteTurnStart(st.thread.id, item.agentId, turn.startedAt);
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, item.kind === "wake" && wait ? "resume" : item.kind);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,
