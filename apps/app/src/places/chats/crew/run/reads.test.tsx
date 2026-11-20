@@ -10,6 +10,7 @@ import {
   activityRowsOf,
   boardOf,
   findRoot,
+  ABSENT_CODE,
   isAbsent,
   messagesOf,
   nodesOf,
@@ -107,7 +108,7 @@ test("board and messages: superseded entries are not drawn, an entry without who
 
 test("a server without these reads answers nothing, never throws; a run's chat is found through its node", async () => {
   const down = async (): Promise<unknown> => {
-    throw new Error("unknown capability");
+    throw Object.assign(new Error("whatever the gateway wrote"), { code: ABSENT_CODE });
   };
   assert.equal(await readActivity(down), "absent");
   assert.equal(
@@ -168,7 +169,7 @@ test("the root of a chat's work and its nodes: a tree with no root, an unknown s
   assert.equal(await findRoot(async () => ({ roots: [] }), "thr_0"), "none");
   assert.equal(
     await findRoot(async () => {
-      throw new Error("unknown capability");
+      throw Object.assign(new Error("whatever the gateway wrote"), { code: ABSENT_CODE });
     }, "thr_0"),
     "none",
   );
@@ -262,7 +263,7 @@ test("no tree of work in the chat, a person who only watches, or a server withou
   await flush();
   assert.equal(find(b, "crew-tab-tab-board"), null, "a person who only watches gets no board");
   const down = async (): Promise<unknown> => {
-    throw new Error("unknown capability");
+    throw Object.assign(new Error("whatever the gateway wrote"), { code: ABSENT_CODE });
   };
   const c = await mount(createRoot, <CrewTabs call={down} threadId="thr_0" helpers={HELP} />);
   await flush();
@@ -352,12 +353,22 @@ test("the runtime's new row fields: step {icon,text}, need, whoName, stuck and d
 });
 
 test("only a server that says it has no such read is absent: a thread or run that is not found is one failed request", () => {
-  assert.equal(isAbsent(new Error("unknown capability runs.activity.list")), true);
+  assert.equal(
+    isAbsent(Object.assign(new Error("any words at all"), { code: "validation.unknown_capability" })),
+    true,
+    "decided by the code, whatever the message says",
+  );
+  assert.equal(
+    isAbsent({ error: { code: "validation.unknown_capability" } }),
+    true,
+    "also when the code sits in an error body",
+  );
+  assert.equal(isAbsent(new Error("unknown capability runs.activity.list")), false, "words alone do not decide");
   assert.equal(isAbsent(new Error("thread not found")), false);
   assert.equal(
-    isAbsent(Object.assign(new Error("This server cannot do that yet."), { code: "unsupported_capability" })),
+    isAbsent(Object.assign(new Error("This server cannot do that yet."), { code: ABSENT_CODE })),
     true,
-    "the stand-in for a server without the reads says so by code, in plain words",
+    "the stand-in for a server without the reads says so by the gateway code",
   );
   assert.equal(isAbsent(new Error("not_found")), false);
   assert.equal(isAbsent(new Error("network down")), false);
