@@ -8,7 +8,7 @@ import { findStuck, mintApprovalToken, readApprovalToken, TOKEN_MINUTES } from "
 import { findTask } from "../projections.ts";
 
 const HOUR = 3_600_000;
-const svc = { id: "svc_gate", kind: "service" as const };
+const svc = { id: "svc_host", kind: "service" as const };
 const asAlice = { id: alice.id, device: "dev_1" };
 
 async function create(

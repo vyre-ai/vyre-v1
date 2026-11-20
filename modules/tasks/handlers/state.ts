@@ -1,7 +1,7 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { isHostOwnService, isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe,
   allTasks,
@@ -1116,9 +1116,9 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
-/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a trusted service. */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by one of the host's own services by name (an allow-list: a service a tenant made, or any id nobody has heard of, is not one). */
 export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
-  isTrustedService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
+  isHostOwnService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
 
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 

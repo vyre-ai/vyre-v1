@@ -92,7 +92,7 @@ test("evidence never settles a held act or an Approve task, and done_when on one
   // a held act is made the way the Gate makes it: by the server
   const held = (
     await h.call("tasks.create", newTask({ title: "Held", source: { kind: "gate", id: "act_1" } }), {
-      id: "svc_system",
+      id: "svc_host",
       kind: "service",
     })
   ).task.id as string;
@@ -149,7 +149,7 @@ test("an agent states what proves a task done when it creates it, in one call; a
     h.call(
       "tasks.create",
       newTask({ title: "Held", source: { kind: "gate", id: "act_9" }, doneWhen: "vault_item:k" }),
-      { id: "svc_system", kind: "service" },
+      { id: "svc_host", kind: "service" },
     ),
   );
 });
