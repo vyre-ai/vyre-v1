@@ -167,6 +167,28 @@ test("send: the PDF goes to the provider with normalised signers, an envelope an
   );
 });
 
+test("send: a version uploaded between the exact-copy check and the read of the bytes never reaches the hosted provider", async () => {
+  const h = harness();
+  let version = 1;
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length, version },
+  }));
+  // the check passes on version 1, and a new version lands while it runs
+  h.callee("documents.signing", () => {
+    version = 2;
+    return { signers: [], places: [] };
+  });
+  const e = await send(h).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.provider.created.length, 0, "the provider was never called");
+  assert.equal(h.rows("esign_envelope").length, 0, "no envelope was kept");
+  // the head holds still: the same send reaches the provider with the bytes that were checked
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  await send(h, { idempotencyKey: "k2" });
+  assert.equal(h.provider.created.length, 1);
+  assert.deepEqual([...h.provider.created[0]!.pdf], [...PDF]);
+});
+
 test("send: an agent sends for the person it works for; a service sender gets no task; the record id is optional", async () => {
   const h = harness();
   await send(h, { recordId: undefined }, { id: "agt_clerk", kind: "agent", actingFor: "usr_dana" });
