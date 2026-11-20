@@ -13,7 +13,11 @@ const FIELDS = [
   { name: "matter.fee", kind: "money", required: true },
   { name: "signing_date", kind: "date", required: true },
 ];
-const LINES = ["Service agreement", "This agreement is between Northwind Traders and ______, dated 19 November 2026.", "The fee is ______ for the first year."];
+const LINES = [
+  "Service agreement",
+  "This agreement is between Northwind Traders and ______, dated 19 November 2026.",
+  "The fee is ______ for the first year.",
+];
 
 const door: SignData = {
   call: async (cap, input) => {
@@ -45,15 +49,26 @@ const door: SignData = {
       case "projects.files_folder":
         return { folderId: "fld_1" };
       case "documents.fill":
-        return { file: { fileId: "fil_9", name: "Service agreement - Rivera.pdf", versionId: "ver_1" }, missing: [], unused: [], signers: ["client", "firm"] };
+        return {
+          file: { fileId: "fil_9", name: "Service agreement - Rivera.pdf", versionId: "ver_1" },
+          missing: [],
+          unused: [],
+          signers: ["client", "firm"],
+        };
       case "esign.send":
         return {
           envelopeId: "env_1",
           links: [
-            { index: 0, name: "Elena Rivera", email: "elena@northwind.example", path: "/p/sign/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/" },
+            {
+              index: 0,
+              name: "Elena Rivera",
+              email: "elena@northwind.example",
+              path: "/p/sign/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+            },
             { index: 1, name: "Imran Ibarra", path: "/p/sign/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/" },
           ],
-          notice: "This Space has no sending mailbox yet, so nothing was emailed. Copy each link and send it to the person it is for.",
+          notice:
+            "This Space has no sending mailbox yet, so nothing was emailed. Copy each link and send it to the person it is for.",
         };
       case "esign.list":
         return { envelopes: [] };

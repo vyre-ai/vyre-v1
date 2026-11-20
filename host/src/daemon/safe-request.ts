@@ -23,7 +23,9 @@ export function guardRequest(
         return;
       }
       res.writeHead(500, { "content-type": "application/json", "cache-control": "no-store" });
-      res.end(JSON.stringify({ error: { code: "internal.unexpected", message: "Something went wrong on the server." } }));
+      res.end(
+        JSON.stringify({ error: { code: "internal.unexpected", message: "Something went wrong on the server." } }),
+      );
     } catch {
       res.destroy();
     }
@@ -76,7 +78,9 @@ let rejected = 0;
 /** How many unhandled rejections this process has had: a number a status page or a test can read. */
 export const rejectionCount = (): number => rejected;
 const strict = (): boolean =>
-  process.env["VYRE_STRICT_REJECTIONS"] === "1" || process.env["NODE_ENV"] === "test" || process.env["NODE_TEST_CONTEXT"] !== undefined;
+  process.env["VYRE_STRICT_REJECTIONS"] === "1" ||
+  process.env["NODE_ENV"] === "test" ||
+  process.env["NODE_TEST_CONTEXT"] !== undefined;
 /**
  * The last line: a promise that rejects with nothing waiting on it is counted and logged (scrubbed, with its stack) and the daemon goes on, where Node's default would end the process. The handler is installed once
  * and calls the newest logger given, so a second daemon in one process logs and a stopped one is not called. In a test process (NODE_ENV=test, the node test runner, or VYRE_STRICT_REJECTIONS=1) it throws again, so a stray

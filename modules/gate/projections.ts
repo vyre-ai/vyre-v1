@@ -664,7 +664,19 @@ export function plainCopyNote(a: ActDef, input: unknown): string | undefined {
 export function plainCopySigners(a: ActDef, input: unknown): string[] {
   if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true || !Array.isArray(input.signers)) return [];
   return input.signers
-    .flatMap((x) => (isObj(x) && typeof x.name === "string" ? [cut(x.name.replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ").replace(/\s+/g, " ").trim(), 60)] : []))
+    .flatMap((x) =>
+      isObj(x) && typeof x.name === "string"
+        ? [
+            cut(
+              x.name
+                .replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ")
+                .replace(/\s+/g, " ")
+                .trim(),
+              60,
+            ),
+          ]
+        : [],
+    )
     .filter((n) => n !== "")
     .slice(0, 6);
 }

@@ -38,7 +38,9 @@ export default function Mount(): ReactNode {
   const [value, setValue] = useState("");
   const controller = useMemo(() => new DocController(), []);
   useEffect(() => {
-    const p = new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ?? "template";
+    const p =
+      new URLSearchParams((globalThis as { location?: { search?: string } }).location?.search ?? "").get("part") ??
+      "template";
     setPart(p);
     setValue(p === "suggest" ? SUGGESTED : p === "agent" ? OPENING : TEMPLATE);
     if (p === "agent") {
@@ -53,7 +55,9 @@ export default function Mount(): ReactNode {
       author: "Imran Ibarra",
       remoteAuthor: "Docs agent",
       controller,
-      ...(part === "fill" || part === "suggest" || part === "agent" ? { resolve: (tag: string) => (tag in RECORD ? (RECORD[tag] ?? null) : null) } : {}),
+      ...(part === "fill" || part === "suggest" || part === "agent"
+        ? { resolve: (tag: string) => (tag in RECORD ? (RECORD[tag] ?? null) : null) }
+        : {}),
     }),
     [part, controller],
   );
@@ -61,11 +65,25 @@ export default function Mount(): ReactNode {
     <View style={{ height, flexDirection: narrow ? "column" : "row", backgroundColor: "var(--win)" as string }}>
       <View style={{ flex: 1, minWidth: 0 }}>
         {part ? (
-          <MarkdownEditor key={part} value={value} onChange={setValue} label="Service agreement" doc={doc} toggle={false} testID="docedit" />
+          <MarkdownEditor
+            key={part}
+            value={value}
+            onChange={setValue}
+            label="Service agreement"
+            doc={doc}
+            toggle={false}
+            testID="docedit"
+          />
         ) : null}
       </View>
       {part === "suggest" ? (
-        <View style={narrow ? { height: 300, borderTopWidth: 1, borderTopColor: "var(--line)" as string } : { width: 320, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }}>
+        <View
+          style={
+            narrow
+              ? { height: 300, borderTopWidth: 1, borderTopColor: "var(--line)" as string }
+              : { width: 320, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string }
+          }
+        >
           <SuggestionsPane controller={controller} />
         </View>
       ) : null}

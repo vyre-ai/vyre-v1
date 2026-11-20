@@ -55,7 +55,10 @@ test("a source with no published image, or a lookup that fails, is built for bot
   for (const mode of ["absent", "lookup-fails"] as const) {
     const r = run(mode);
     assert.equal(r.code, 0, r.stderr);
-    assert.match(r.log, /buildx build --platform linux\/amd64,linux\/arm64 .*-t ghcr.io\/vyre-ai\/doc-converter:1.2.3 -t ghcr.io\/vyre-ai\/doc-converter:src-[0-9a-f]{16} --push/);
+    assert.match(
+      r.log,
+      /buildx build --platform linux\/amd64,linux\/arm64 .*-t ghcr.io\/vyre-ai\/doc-converter:1.2.3 -t ghcr.io\/vyre-ai\/doc-converter:src-[0-9a-f]{16} --push/,
+    );
     assert.match(r.output, new RegExp(`image=ghcr.io/vyre-ai/doc-converter@${NEW}`));
   }
 });

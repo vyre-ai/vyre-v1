@@ -7,8 +7,14 @@ const KIND: ReadonlyArray<readonly [RegExp, Kind]> = [
   [/(^|[._])(export|export_start|download)($|[._])/, "export"],
   [/(^|[._])(send|remind|reply|forward|launch|invite|share|publish|deploy)($|[._])/, "send"],
   [/(^|[._])(create|add|put|make|post|save|upload|start|new|append|import|capture|request)($|[._])/, "add"],
-  [/(^|[._])(update|set|edit|rename|move|label|pin|pause|mute|assign|transition|complete|tick|change|merge|resume|decide|apply|allow|deny|discuss|assist|adopt|setup)($|[._])/, "change"],
-  [/(^|[._])(get|read|list|query|search|find|recent|history|count|counts|view|describe|types|changes|brief|context|status|check|verify|today|image|policy|for_service|public_of)($|[._])/, "read"],
+  [
+    /(^|[._])(update|set|edit|rename|move|label|pin|pause|mute|assign|transition|complete|tick|change|merge|resume|decide|apply|allow|deny|discuss|assist|adopt|setup)($|[._])/,
+    "change",
+  ],
+  [
+    /(^|[._])(get|read|list|query|search|find|recent|history|count|counts|view|describe|types|changes|brief|context|status|check|verify|today|image|policy|for_service|public_of)($|[._])/,
+    "read",
+  ],
 ];
 const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   records: ["a record", "records"],
@@ -44,8 +50,24 @@ const NOUN: Readonly<Record<string, readonly [string, string]>> = {
   search: ["the Space", "the Space"],
   vault: ["a key", "keys"],
 };
-const PAST: Record<Kind, string> = { add: "Added", read: "Read", change: "Changed", remove: "Removed", send: "Sent", export: "Exported", restore: "Restored" };
-const WANTS: Record<Kind, string> = { add: "add", read: "read", change: "change", remove: "remove", send: "send", export: "export", restore: "restore" };
+const PAST: Record<Kind, string> = {
+  add: "Added",
+  read: "Read",
+  change: "Changed",
+  remove: "Removed",
+  send: "Sent",
+  export: "Exported",
+  restore: "Restored",
+};
+const WANTS: Record<Kind, string> = {
+  add: "add",
+  read: "read",
+  change: "change",
+  remove: "remove",
+  send: "send",
+  export: "export",
+  restore: "restore",
+};
 
 /** The kind of act a capability is, and the thing it is about; null when neither is known. */
 export function actOf(cap: string | undefined): { kind: Kind; noun: readonly [string, string] | null } | null {
@@ -61,7 +83,8 @@ export function actOf(cap: string | undefined): { kind: Kind; noun: readonly [st
  */
 export function doneWords(cap: string | undefined, outcome: "ok" | "error" | "held", count = 1): string {
   const act = actOf(cap);
-  if (!act) return outcome === "held" ? "Wants to do something" : outcome === "error" ? "Tried something" : "Looked around";
+  if (!act)
+    return outcome === "held" ? "Wants to do something" : outcome === "error" ? "Tried something" : "Looked around";
   const n = Math.max(1, Math.floor(count));
   // a list, a search or a count reads many of them; a get reads one
   const many = (act.kind === "read" && !/\.get$/.test(cap as string)) || /purge/.test(cap as string);

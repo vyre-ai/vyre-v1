@@ -13,7 +13,9 @@ import { releaseImage } from "./release-images.ts";
 
 /** Random lowercase hex from the shared Web Crypto seam (host code must not import node:crypto). */
 function randomHex(bytes: number): string {
-  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(globalThis.crypto.getRandomValues(new Uint8Array(bytes)), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 export type ConverterState = "none" | "idle" | "pulling" | "ready" | "failed";

@@ -33,12 +33,15 @@ export const handlers = {
     const o = rec(ctx, input);
     // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept. A copy that could not be checked is held the same way.
     // the check says what it was about (the file's version, the hash of the bytes it read); the send refuses if the file moved by the time its bytes are read
-    const checked = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : { state: "exact" as const, pin: undefined };
+    const checked =
+      typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : { state: "exact" as const, pin: undefined };
     const state = checked.state;
     // an exact answer that names neither version nor bytes means no check had anything to compare (no plain copies in the Space, a store that names no version): there is nothing to pin, and a drive without versions can still sign.
     // Any other answer that names nothing is refused at the send.
     const pinned =
-      state === "exact" && checked.pin?.version === undefined && checked.pin?.sha === undefined ? undefined : checked.pin;
+      state === "exact" && checked.pin?.version === undefined && checked.pin?.sha === undefined
+        ? undefined
+        : checked.pin;
     // the choice to send a copy that is not known to be exact is a person's: an agent or an Automation acting for someone cannot make it
     // the choice is a person's: not an agent, not someone's agent acting for them, and not an Automation's step (which runs as its person but is a call made by another capability, so ctx.callerCap names it).
     // A person's own call has no caller capability; a held send of theirs that the Gate resumes after they pressed Allow carries the Gate's own marker, gate.release, which only the host sets.

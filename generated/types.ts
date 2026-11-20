@@ -25311,7 +25311,14 @@ export type MailAutoConnectMembersOut = {
   skipped: number;
 };
 export type MailConfigureIn = {
-  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move" | "monitor" | "template_list" | "template_get" | "template_preview" | "template_save" | "template_reset" | "doc_template_get" | "doc_template_set" | "doc_template_clear";
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  recordType?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   to?: string;
   host?: string;
   port?: number;
@@ -25395,7 +25402,6 @@ export type MailDeliveryTrailOut = {
 };
 export type MailDeliveryStateIn = {
   messageId?: string;
-  mailboxId?: string;
 };
 export type MailDeliveryStateOut = {
   result: unknown;
@@ -26406,19 +26412,6 @@ export type MailTemplateSaveOut = {
         fallback?: string;
       }>;
   };
-};
-export type MailTemplatesIn = {
-  action: "list" | "get" | "set" | "preview" | "reset";
-  key?: string;
-  documentId?: string;
-  subject?: string;
-  text?: string;
-  recordType?: string;
-  recordId?: string;
-  vars?: Record<string, unknown>;
-};
-export type MailTemplatesOut = {
-  result: unknown;
 };
 export type MailThreadGetIn = {
   threadId: string;
@@ -37587,7 +37580,7 @@ export type SchedulerWaitsRegisterOut = {
 };
 export type SchemaApplyIn = {
   ops: Array<{
-      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
+      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.mergeable" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
       type: string;
       field?: string;
       def?: Record<string, unknown>;
@@ -37676,7 +37669,7 @@ export type SchemaDescribeOut = {
 };
 export type SchemaDiffIn = {
   ops: Array<{
-      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
+      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.mergeable" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
       type: string;
       field?: string;
       def?: Record<string, unknown>;
@@ -37760,7 +37753,7 @@ export type SchemaInferIn = {
 };
 export type SchemaInferOut = {
   ops: Array<{
-      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
+      op: "type.create" | "type.update" | "type.drop" | "field.add" | "field.update" | "field.mergeable" | "field.retype" | "field.rename" | "field.drop" | "field.reorder" | "relation.add" | "relation.drop";
       type: string;
       field?: string;
       def?: Record<string, unknown>;
@@ -52363,7 +52356,6 @@ export interface CapMap {
   "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
   "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
   "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
-  "mail.templates": { in: MailTemplatesIn; out: MailTemplatesOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };

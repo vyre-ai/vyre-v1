@@ -166,6 +166,14 @@ function compileWhere(src: string, args: unknown[]): (row: Row) => boolean {
       const col = ident(m[1] ?? "");
       const pattern = likeToRegExp(String(args[i++] ?? ""));
       preds.push((row) => pattern.test(String(row[col] ?? "")));
+    } else if ((m = /^([\s\S]+?)\s*(<|>|<=|>=)\s*\?$/.exec(t))) {
+      const col = ident(m[1] ?? "");
+      const op = m[2] as "<" | ">" | "<=" | ">=";
+      const value = Number(norm(args[i++]));
+      preds.push((row) => {
+        const v = Number(row[col]);
+        return op === "<" ? v < value : op === ">" ? v > value : op === "<=" ? v <= value : v >= value;
+      });
     } else if ((m = /^([\s\S]+?)\s*=\s*\?$/i.exec(t))) {
       const col = ident(m[1] ?? "");
       const value = norm(args[i++]);

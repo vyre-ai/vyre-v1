@@ -1,81 +1,51 @@
-// The two tools models are shown for email templates and delivery (mail.templates, mail.delivery): each one door that dispatches to the capabilities behind the screens, so a model reads
-// two tool definitions instead of eleven. Nothing here decides anything the capability does not: it only routes, and asks for the right to change a template where the template
-// capabilities' manifest entries would have.
-import { fail } from "../../../../host/src/routes/errors.ts";
-import { bad } from "../../projections.ts";
+// The tool models are shown for a sent message's delivery (mail.delivery_state). With a messageId it gives that message's trail. With none (the first call a model makes, knowing nothing) it lists the
+// sent messages that need a look: bounced, marked as spam, failed, or still being retried, newest first, so the next call can name one. Templates and inbox health are actions of mail.configure.
+import { can, num, readParties, readStrings, rowsOf, str } from "../../projections.ts";
 import type { MailCtx } from "../../projections.ts";
-import { trail } from "./delivery.ts";
-import { monitor } from "./inbound.ts";
-import { forDocumentClear, forDocumentGet, forDocumentSet, get, list, preview, reset, save } from "./template.ts";
+import { ensureAll } from "./common.ts";
+import { ensureDelivery, trail } from "./delivery.ts";
 
-interface TemplatesIn {
-  action: "list" | "get" | "set" | "preview" | "reset";
-  key?: string;
-  documentId?: string;
-  subject?: string;
-  text?: string;
-  recordType?: string;
-  recordId?: string;
-  vars?: Record<string, unknown>;
-}
+const LIMIT = 20;
+const NEEDS_A_LOOK = ["bounced", "complained", "failed"];
 
-const mayEdit = (ctx: MailCtx): void => {
-  if (ctx.authorize({ perm: "comms.templates", level: "use" }, { type: "space", id: ctx.space }).effect !== "allow")
-    throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm: "comms.templates" } });
-};
-
-export async function templates(ctx: MailCtx, input: TemplatesIn): Promise<{ result: unknown }> {
-  const need = (k: keyof TemplatesIn): string => {
-    const v = input[k];
-    if (typeof v !== "string" || v === "") bad(ctx, `${k} is needed for ${input.action}.`);
-    return v as string;
-  };
-  switch (input.action) {
-    case "list":
-      return { result: await list(ctx) };
-    case "get":
-      return {
-        result: input.documentId
-          ? await forDocumentGet(ctx, { documentId: input.documentId, key: need("key") })
-          : await get(ctx, { key: need("key") }),
-      };
-    case "preview":
-      return { result: await preview(ctx, input) };
-    case "set": {
-      // a document's own wording takes the same two rights as the capability (edit on the file and comms.templates), checked inside; the Space's takes comms.templates
-      if (input.documentId)
-        return {
-          result: await forDocumentSet(ctx, {
-            documentId: input.documentId,
-            key: need("key"),
-            subject: need("subject"),
-            text: need("text"),
-          }),
-        };
-      mayEdit(ctx);
-      return {
-        result: await save(ctx, {
-          key: need("key"),
-          subject: need("subject"),
-          text: need("text"),
-          ...(input.recordType ? { recordType: input.recordType } : {}),
-        }),
-      };
-    }
-    case "reset":
-      if (input.documentId)
-        return { result: await forDocumentClear(ctx, { documentId: input.documentId, key: need("key") }) };
-      mayEdit(ctx);
-      return { result: await reset(ctx, { key: need("key") }) };
-    default:
-      return bad(ctx, "action is list, get, set, preview or reset.");
-  }
-}
-
-export async function delivery(
-  ctx: MailCtx,
-  input: { messageId?: string; mailboxId?: string },
-): Promise<{ result: unknown }> {
+export async function delivery(ctx: MailCtx, input: { messageId?: string }): Promise<{ result: unknown }> {
   if (input.messageId !== undefined) return { result: await trail(ctx, { messageId: input.messageId }) };
-  return { result: await monitor(ctx, input.mailboxId !== undefined ? { mailboxId: input.mailboxId } : {}) };
+  ensureAll(ctx);
+  ensureDelivery(ctx);
+  const ids = new Set<string>();
+  for (const status of NEEDS_A_LOOK)
+    for (const r of rowsOf(
+      ctx.db.all(
+        `SELECT id FROM mail_message WHERE direction = ? AND status = ? AND deleted_at IS NULL`,
+        "out",
+        status,
+      ),
+    ))
+      ids.add(str(r, "id"));
+  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "pending")))
+    ids.add(str(r, "messageId"));
+  for (const r of rowsOf(ctx.db.all(`SELECT "messageId" FROM mail_delivery_retry WHERE state = ?`, "held")))
+    ids.add(str(r, "messageId"));
+  const messages: { messageId: string; to: string[]; subject: string; status: string; at: number }[] = [];
+  for (const id of ids) {
+    const m = rowsOf(ctx.db.all(`SELECT * FROM mail_message WHERE id = ? AND deleted_at IS NULL`, id))[0];
+    if (!m) continue;
+    const boxes = readStrings(str(m, "inboxIds"));
+    const doors = boxes.length ? boxes : [str(m, "mailboxId")];
+    if (!doors.some((b) => can(ctx, "view", { type: "mailbox", id: b }))) continue; // a message the person may not see is not listed
+    messages.push({
+      messageId: id,
+      to: readParties(str(m, "toAddresses")).map((p) => p.address),
+      subject: str(m, "subject"),
+      status: str(m, "status"),
+      at: num(m, "sentAt"),
+    });
+  }
+  messages.sort((a, b) => b.at - a.at);
+  return {
+    result: {
+      messages: messages.slice(0, LIMIT),
+      next: "Call again with a messageId from this list for its whole trail.",
+    },
+  };
 }

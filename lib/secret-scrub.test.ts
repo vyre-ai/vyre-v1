@@ -6,7 +6,8 @@ import { redact, scrubLog } from "./secret-scrub.ts";
 
 const gone = (text: string, ...secrets: string[]): void => {
   const out = scrubLog(text);
-  for (const s of secrets) assert.ok(!out.includes(s), `${JSON.stringify(text)} -> ${JSON.stringify(out)} still has ${s}`);
+  for (const s of secrets)
+    assert.ok(!out.includes(s), `${JSON.stringify(text)} -> ${JSON.stringify(out)} still has ${s}`);
 };
 const j = (...p: string[]): string => p.join("");
 
@@ -91,9 +92,22 @@ test("the cut never splits a key: a secret across the 4000th character is gone, 
 
 test("hostile shapes take linear time: 200 KB of word boundaries, separators, quotes, headers and unfinished quotes, best of 3 under 150 ms", () => {
   const shapes = [
-    "a.".repeat(100_000), "a-".repeat(100_000), "http://".repeat(50_000), "a:/".repeat(100_000), "=".repeat(200_000), "@".repeat(200_000),
-    '"'.repeat(200_000), "password ".repeat(25_000), "password: ".repeat(20_000), "Cookie: ".repeat(25_000), '{"a":'.repeat(40_000), "-p ".repeat(60_000),
-    "x=".repeat(100_000), "key:".repeat(50_000), "a".repeat(200_000), ("x ".repeat(2000) + "password=").repeat(500),
+    "a.".repeat(100_000),
+    "a-".repeat(100_000),
+    "http://".repeat(50_000),
+    "a:/".repeat(100_000),
+    "=".repeat(200_000),
+    "@".repeat(200_000),
+    '"'.repeat(200_000),
+    "password ".repeat(25_000),
+    "password: ".repeat(20_000),
+    "Cookie: ".repeat(25_000),
+    '{"a":'.repeat(40_000),
+    "-p ".repeat(60_000),
+    "x=".repeat(100_000),
+    "key:".repeat(50_000),
+    "a".repeat(200_000),
+    ("x ".repeat(2000) + "password=").repeat(500),
   ];
   for (const text of shapes) {
     let best = Infinity;
@@ -107,7 +121,8 @@ test("hostile shapes take linear time: 200 KB of word boundaries, separators, qu
 });
 
 test("it never throws, whatever it is given", () => {
-  for (const v of [undefined, null, 0, {}, [], Symbol.iterator.toString(), "\u0000\ud800", "\n\n\n"]) assert.equal(typeof scrubLog(v as never), "string");
+  for (const v of [undefined, null, 0, {}, [], Symbol.iterator.toString(), "\u0000\ud800", "\n\n\n"])
+    assert.equal(typeof scrubLog(v as never), "string");
 });
 
 test("redact() is unchanged by the move: it is the same function the transcript uses", () => {
@@ -117,7 +132,11 @@ test("redact() is unchanged by the move: it is the same function the transcript 
 
 test("what is not a secret stays: -p and -u outside a database client or curl, JSON around a removed value, a bare carriage return after a header", () => {
   assert.equal(scrubLog("mkdir -p /tmp/x"), "mkdir -p /tmp/x");
-  assert.equal(scrubLog("curl https://h/a\nmkdir -p /tmp/x"), "curl https://h/a\nmkdir -p /tmp/x", "the client was named on an earlier line");
+  assert.equal(
+    scrubLog("curl https://h/a\nmkdir -p /tmp/x"),
+    "curl https://h/a\nmkdir -p /tmp/x",
+    "the client was named on an earlier line",
+  );
   assert.equal(scrubLog("git push -u origin main"), "git push -u origin main");
   gone("curl -u user:pass https://h", "user:pass");
   const json = scrubLog('{"secret":"abc","ok":1}');
@@ -137,7 +156,12 @@ test("a header word without its colon is prose: auth errors keep their reason, a
 });
 
 test("a header anywhere on a line takes what it carries: every cookie, a quoted curl header to its closing quote, a header after a timestamp, a JSON Basic or Bearer value", () => {
-  gone("error: Cookie: theme=dark; csrf=abcd; userid=42; sid=0123456789abcdef0123456789abcdef", "csrf=abcd", "userid=42", "theme=dark");
+  gone(
+    "error: Cookie: theme=dark; csrf=abcd; userid=42; sid=0123456789abcdef0123456789abcdef",
+    "csrf=abcd",
+    "userid=42",
+    "theme=dark",
+  );
   const curl = scrubLog('curl -H "Cookie: lang=en; uid=12345" https://h/x');
   assert.ok(!curl.includes("uid=12345") && !curl.includes("lang=en"), curl);
   assert.match(curl, /https:\/\/h\/x/, "what follows the closing quote stays");
@@ -149,8 +173,15 @@ test("a header anywhere on a line takes what it carries: every cookie, a quoted 
   gone('{"Authorization":"Basic dXNlcjpwYXNz"}', "dXNlcjpwYXNz");
   gone('{"authorization":"Bearer short"}', "short");
   gone('{"cookie":"theme=dark; sid=abc12"}', "theme=dark", "sid=abc12");
-  assert.ok(!scrubLog("Error parsing cookie: invalid format here").includes("format here"), "a known header name with its colon takes the rest of its line wherever it sits");
-  assert.equal(scrubLog("Error parsing cookie invalid format here"), "Error parsing cookie invalid format here", "the same word without a colon is prose");
+  assert.ok(
+    !scrubLog("Error parsing cookie: invalid format here").includes("format here"),
+    "a known header name with its colon takes the rest of its line wherever it sits",
+  );
+  assert.equal(
+    scrubLog("Error parsing cookie invalid format here"),
+    "Error parsing cookie invalid format here",
+    "the same word without a colon is prose",
+  );
 });
 
 test("a secret nested inside the value of another pair is found: compact JSON, braces, name:name=value", () => {
@@ -172,13 +203,24 @@ test("a secret nested inside the value of another pair is found: compact JSON, b
     ['body: "{\\"token\\":\\"abc12\\"}"', "abc12"],
     ['{"body":"{\\\\\\"password\\\\\\":\\\\\\"hunter2\\\\\\"}"}', "hunter2"],
     ['msg=\\"api_key\\":\\"abc12\\"', "abc12"],
-  ] as const) gone(text, secret);
-  assert.match(scrubLog('{"users":[{"name":"x","password":"hunter2"}]}'), /"name":"x"/, "names in an array of objects stay");
+  ] as const)
+    gone(text, secret);
+  assert.match(
+    scrubLog('{"users":[{"name":"x","password":"hunter2"}]}'),
+    /"name":"x"/,
+    "names in an array of objects stay",
+  );
   assert.match(scrubLog('{"config":{"password":"hunter2","host":"h"}}'), /"host":"h"/, "the other keys stay");
 });
 
 test("nested pairs stay linear: a 2000-character word of pairs and many such words read in under 100 ms", () => {
-  const shapes = ["a:".repeat(1000), "a=".repeat(1000), '{"a":'.repeat(400), ("k:{".repeat(600) + " ").repeat(8), '{"x":{"y":{"z":'.repeat(150)];
+  const shapes = [
+    "a:".repeat(1000),
+    "a=".repeat(1000),
+    '{"a":'.repeat(400),
+    ("k:{".repeat(600) + " ").repeat(8),
+    '{"x":{"y":{"z":'.repeat(150),
+  ];
   for (const t of shapes) {
     let best = Infinity;
     for (let i = 0; i < 3; i++) {

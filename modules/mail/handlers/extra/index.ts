@@ -20,7 +20,7 @@ import { routeList, routeRemove, routeSet } from "./routes.ts";
 import { health, statusUpdate } from "./status.ts";
 import { retry, trail } from "./delivery.ts";
 import { monitor } from "./inbound.ts";
-import { delivery, templates } from "./tools.ts";
+import { delivery } from "./tools.ts";
 import {
   forDocumentClear,
   forDocumentGet,
@@ -55,7 +55,6 @@ export const extraHandlers: Record<string, Handler> = {
   "mail.delivery.trail": (ctx, input) => trail(ctx, input),
   "mail.delivery.retry": (ctx, input) => retry(ctx, input),
   "mail.inbox.monitor": (ctx, input) => monitor(ctx, input),
-  "mail.templates": (ctx, input) => templates(ctx, input),
   "mail.delivery_state": (ctx, input) => delivery(ctx, input),
   "mail.template.list": (ctx) => templateList(ctx),
   "mail.template.get": (ctx, input) => templateGet(ctx, input),

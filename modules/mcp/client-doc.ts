@@ -28,7 +28,14 @@ export function isDocId(id: string): boolean {
   } catch {
     return false;
   }
-  return u.protocol === "https:" && u.username === "" && u.password === "" && u.hash === "" && u.pathname.length > 1 && u.hostname.includes(".");
+  return (
+    u.protocol === "https:" &&
+    u.username === "" &&
+    u.password === "" &&
+    u.hash === "" &&
+    u.pathname.length > 1 &&
+    u.hostname.includes(".")
+  );
 }
 
 export type DocRead = { clientId: string; name: string; redirectUris: string[] } | { refused: string };
@@ -44,12 +51,14 @@ export function readDoc(id: string, text: string): DocRead {
   }
   if (d === null || typeof d !== "object" || Array.isArray(d)) return { refused: "The app's page is not an object." };
   const o = d as Record<string, unknown>;
-  if (o["client_id"] !== id) return { refused: "The app's page names a different address than the one it was read from." };
+  if (o["client_id"] !== id)
+    return { refused: "The app's page names a different address than the one it was read from." };
   const raw = o["redirect_uris"];
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > MAX_REDIRECTS || raw.some((u) => typeof u !== "string"))
     return { refused: "The app's page must name between one and five redirect addresses." };
   const uris = raw as string[];
-  if (uris.some((u) => redirectKind(u) === null)) return { refused: "A redirect address must be https or a loopback address." };
+  if (uris.some((u) => redirectKind(u) === null))
+    return { refused: "A redirect address must be https or a loopback address." };
   const method = o["token_endpoint_auth_method"];
   if (method !== undefined && method !== "none") return { refused: "Only apps with no secret are accepted." };
   const name = cleanClientName(o["client_name"]);
@@ -59,7 +68,10 @@ export function readDoc(id: string, text: string): DocRead {
 /** One read of the page: the fetch is the guarded one, so a private or loopback address is refused before anything connects. A failure of any kind is a refusal with words, never a throw. */
 export async function fetchDoc(
   id: string,
-  get: (url: string, init: { method: string; headers: Record<string, string>; signal: AbortSignal }) => Promise<{
+  get: (
+    url: string,
+    init: { method: string; headers: Record<string, string>; signal: AbortSignal },
+  ) => Promise<{
     ok: boolean;
     status: number;
     body: AsyncIterable<Uint8Array> | null;
@@ -93,13 +105,16 @@ export async function fetchDoc(
  * to make room, and refuses (for a few minutes at most) when every place is in use or younger than that. Answers whether it was kept.
  */
 export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectUris: string[] }, now: number): boolean {
-  const known = (db.all("SELECT 1 AS x FROM mcp_oauth_clients WHERE client_id = ?", doc.clientId) as unknown[]).length > 0;
+  const known =
+    (db.all("SELECT 1 AS x FROM mcp_oauth_clients WHERE client_id = ?", doc.clientId) as unknown[]).length > 0;
   if (!known) {
     db.run("DELETE FROM mcp_oauth_clients WHERE used_at IS NULL AND created_at < ?", now - UNUSED_CLIENT_MS);
     // one host cannot fill the table: a few pages per host
     // counted per registered domain, compared on the parsed host (never on a pattern over the whole address, which a path or a port could match or dodge); half the table is kept for clients that have been used
     const domain = registeredDomain(new URL(doc.clientId).hostname);
-    const ids = db.all("SELECT client_id FROM mcp_oauth_clients WHERE client_id LIKE 'https://%'") as Array<Record<string, unknown>>;
+    const ids = db.all("SELECT client_id FROM mcp_oauth_clients WHERE client_id LIKE 'https://%'") as Array<
+      Record<string, unknown>
+    >;
     let mine = 0;
     for (const r of ids) {
       try {
@@ -109,7 +124,9 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
       }
     }
     if (mine >= MAX_DOCS_PER_HOST) return false;
-    const n = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+    const n = Number(
+      (db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0,
+    );
     // a full table makes room: the oldest page that nobody has ever used goes (never an app in use), so no actor can lock the others out by filling it; how fast one actor can add pages is the per-source limit in impl.ts
     if (n >= MAX_CLIENTS) {
       // one statement, so two callers at the cap cannot pick the same victim
@@ -118,7 +135,9 @@ export function keepDoc(db: Db, doc: { clientId: string; name: string; redirectU
         now - EVICT_GRACE_MS,
         now,
       );
-      const left = Number((db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0);
+      const left = Number(
+        (db.all("SELECT COUNT(*) AS n FROM mcp_oauth_clients") as Array<Record<string, unknown>>)[0]?.["n"] ?? 0,
+      );
       if (left >= MAX_CLIENTS) return false;
     }
   }

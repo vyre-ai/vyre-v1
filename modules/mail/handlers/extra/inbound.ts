@@ -326,9 +326,14 @@ export async function monitor(
 /** The most held replies one sender may have open in one mailbox. */
 export const MAX_HELD = 50;
 
+/** How long a held row is kept, for every sender; the draft itself stays until a person sends or deletes it. */
+export const HELD_KEEP_MS = 30 * 86_400_000;
+
 export function recordHeld(ctx: MailCtx, messageId: string, mailboxId: string, actor: string, reason: string): void {
   ensureInbound(ctx);
   ensureHeld(ctx);
+  // old rows of every sender go, not only the one asking now: the table stays the size of one month of held replies
+  ctx.db.run(`DELETE FROM mail_held WHERE at < ?`, ctx.now() - HELD_KEEP_MS);
   if (first(ctx.db.all(`SELECT "messageId" FROM mail_held WHERE "messageId" = ?`, messageId))) return;
   ctx.db.run(
     `INSERT INTO mail_held ("messageId", "mailboxId", actor, reason, at) VALUES (?, ?, ?, ?, ?)`,

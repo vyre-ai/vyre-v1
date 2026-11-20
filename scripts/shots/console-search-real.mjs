@@ -40,7 +40,10 @@ try {
   const sess = await page.evaluate(() => localStorage.getItem("vyre.session.v1"));
   const token = JSON.parse(sess).sessions[web.origin].token;
   const api = async (cap, data = {}) => {
-    const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, { headers: { authorization: `Bearer ${token}` }, data });
+    const r = await ctx.request.post(`${web.origin}/v1/${cap.replaceAll(".", "/")}`, {
+      headers: { authorization: `Bearer ${token}` },
+      data,
+    });
     const text = await r.text();
     let body = null;
     try {
@@ -62,30 +65,53 @@ try {
   say(made.status === 200, `a Vault item holds the key (${made.status})`);
 
   await page.goto(`${web.origin}/console#screen=console.page&page=aipolicy`, { waitUntil: "load", timeout: 60000 });
-  await page.getByText("Web search for agents").first().waitFor({ timeout: 30000 }).then(
-    () => say(true, "Console, AI use policy shows Web search for agents"),
-    () => say(false, "Console, AI use policy shows Web search for agents"),
-  );
-  await page.getByText("Search service").first().scrollIntoViewIfNeeded().catch(() => {});
+  await page
+    .getByText("Web search for agents")
+    .first()
+    .waitFor({ timeout: 30000 })
+    .then(
+      () => say(true, "Console, AI use policy shows Web search for agents"),
+      () => say(false, "Console, AI use policy shows Web search for agents"),
+    );
+  await page
+    .getByText("Search service")
+    .first()
+    .scrollIntoViewIfNeeded()
+    .catch(() => {});
   await page.screenshot({ path: path.join(out, "1-default.png") });
   say(!(await page.getByText("Vault item for").count()), "no key picker while the default is chosen");
   // choose Brave Search from the menu picker
   await page.getByText("Default (no key)").first().click();
   await page.getByText("Brave Search", { exact: true }).last().click();
-  await page.getByText("Vault item for Brave Search key").first().waitFor({ timeout: 15000 }).then(
-    () => say(true, "the Vault item picker appears once a service is chosen"),
-    () => say(false, "the Vault item picker appears once a service is chosen"),
-  );
+  await page
+    .getByText("Vault item for Brave Search key")
+    .first()
+    .waitFor({ timeout: 15000 })
+    .then(
+      () => say(true, "the Vault item picker appears once a service is chosen"),
+      () => say(false, "the Vault item picker appears once a service is chosen"),
+    );
   await page.screenshot({ path: path.join(out, "2-brave-chosen.png") });
   const prov = await api("settings.get", { key: "search.provider" });
   say(prov.body?.row?.value === "brave", `search.provider is brave (${JSON.stringify(prov.body?.row?.value)})`);
   // choose the key's Vault item
   await page.getByText("Choose a Vault item or field").first().click();
-  await page.getByText(/Brave Search · api_key/).first().click().catch(async () => page.getByText("Brave Search", { exact: true }).last().click());
+  await page
+    .getByText(/Brave Search · api_key/)
+    .first()
+    .click()
+    .catch(async () => page.getByText("Brave Search", { exact: true }).last().click());
   await sleep(1500);
   const key = await api("settings.get", { key: "search.key" });
-  say(/^#Brave_Search/.test(String(key.body?.row?.value ?? "")), `search.key holds the Vault handle (${JSON.stringify(key.body?.row?.value)})`);
-  say(!JSON.stringify(key.body).includes("BSA-never-shown-123") && !(await page.content()).includes("BSA-never-shown-123"), "the key itself is nowhere in the settings or the page");
+  say(
+    /^#Brave_Search/.test(String(key.body?.row?.value ?? "")),
+    `search.key holds the Vault handle (${JSON.stringify(key.body?.row?.value)})`,
+  );
+  say(
+    !JSON.stringify(key.body).includes("BSA-never-shown-123") &&
+      !(await page.content()).includes("BSA-never-shown-123"),
+    "the key itself is nowhere in the settings or the page",
+  );
   await page.screenshot({ path: path.join(out, "3-key-chosen.png") });
 } catch (e) {
   say(false, `walk stopped: ${e instanceof Error ? e.message : String(e)}`);

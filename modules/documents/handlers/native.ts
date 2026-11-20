@@ -312,8 +312,13 @@ async function signing(
       if (!got) throw new Error("no file");
       const size = typeof got.file?.size === "number" ? got.file.size : 0;
       const seen =
-        (ctx.db.all("SELECT 1 AS x FROM documents_plain_seen WHERE file_id = ? AND version = ?", fileId, String(ver)) as Row[])
-          .length > 0;
+        (
+          ctx.db.all(
+            "SELECT 1 AS x FROM documents_plain_seen WHERE file_id = ? AND version = ?",
+            fileId,
+            String(ver),
+          ) as Row[]
+        ).length > 0;
       if (seen) plain = true;
       else if (size > MAX_CHECK_BYTES) unchecked = true;
       else {
@@ -322,7 +327,11 @@ async function signing(
         plain = (ctx.db.all("SELECT 1 AS x FROM documents_plain WHERE sha256 = ?", sha) as Row[]).length > 0;
         // only a "yes" is kept: a "no" can turn into a "yes" when a plain copy of these bytes is made later
         if (plain)
-          ctx.db.run("INSERT OR IGNORE INTO documents_plain_seen (file_id, version) VALUES (?, ?)", fileId, String(ver));
+          ctx.db.run(
+            "INSERT OR IGNORE INTO documents_plain_seen (file_id, version) VALUES (?, ?)",
+            fileId,
+            String(ver),
+          );
       }
     } catch {
       unchecked = true;
@@ -345,7 +354,8 @@ async function signing(
   if (typeof row.version_id === "string") {
     const got = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
     const newest = [...(got.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
-    if (newest !== undefined && newest.versionId !== row.version_id) return { signers: [], places: [], stale: true, ...about };
+    if (newest !== undefined && newest.versionId !== row.version_id)
+      return { signers: [], places: [], stale: true, ...about };
   }
   const list = (v: unknown): unknown[] => {
     try {

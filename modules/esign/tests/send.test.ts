@@ -172,7 +172,15 @@ test("send: a version uploaded between the exact-copy check and the read of the 
   const h = harness();
   let version = 1;
   h.callee("files.get", (i: { fileId: string }) => ({
-    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length, version },
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: PDF.length,
+      version,
+    },
   }));
   // the check passes on version 1, and a new version lands while it runs
   h.callee("documents.signing", () => {
@@ -199,9 +207,21 @@ test("send: the bytes the check read are the bytes that go: others in place when
       x.toString(16).padStart(2, "0"),
     ).join("");
   h.callee("files.get", (i: { fileId: string }) => ({
-    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length },
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: PDF.length,
+    },
   }));
-  h.callee("files.read", () => ({ base64: toBase64(bytes), mime: "application/pdf", size: bytes.length, truncated: false }));
+  h.callee("files.read", () => ({
+    base64: toBase64(bytes),
+    mime: "application/pdf",
+    size: bytes.length,
+    truncated: false,
+  }));
   h.callee("documents.signing", async () => {
     const seen = await sha(bytes);
     bytes = later;

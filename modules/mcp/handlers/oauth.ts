@@ -211,17 +211,25 @@ export function oauthReplayed(ctx: McpCtx, input: { agentId: string; person: str
 const SAME_RUN_MS = 10 * 60 * 1000;
 /** The latest thing an app did, in plain words: the newest calls of the same kind in a row count as one line. */
 function lastDid(ctx: McpCtx, agentId: string): string | null {
-  const rows = ctx.db.all("SELECT cap, outcome, at FROM mcp_activity WHERE agent_id = ? ORDER BY at DESC, id DESC LIMIT 20", agentId) as Row[];
+  const rows = ctx.db.all(
+    "SELECT cap, outcome, at FROM mcp_activity WHERE agent_id = ? ORDER BY at DESC, id DESC LIMIT 20",
+    agentId,
+  ) as Row[];
   const first = rows[0];
   if (!first) return null;
   const key = groupKey(first["cap"] ? String(first["cap"]) : undefined);
   let n = 0;
   for (const r of rows) {
-    if (String(r["outcome"]) !== String(first["outcome"]) || groupKey(r["cap"] ? String(r["cap"]) : undefined) !== key) break;
+    if (String(r["outcome"]) !== String(first["outcome"]) || groupKey(r["cap"] ? String(r["cap"]) : undefined) !== key)
+      break;
     if (Number(first["at"]) - Number(r["at"]) > SAME_RUN_MS) break;
     n += 1;
   }
-  return doneWords(first["cap"] ? String(first["cap"]) : undefined, String(first["outcome"]) as "ok" | "error" | "held", n);
+  return doneWords(
+    first["cap"] ? String(first["cap"]) : undefined,
+    String(first["outcome"]) as "ok" | "error" | "held",
+    n,
+  );
 }
 
 export function connectedList(ctx: McpCtx, input: { all?: boolean } = {}) {

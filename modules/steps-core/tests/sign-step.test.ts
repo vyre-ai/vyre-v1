@@ -75,10 +75,19 @@ test("a sign step on a file that is not the exact copy stops in the step's own w
   });
   const run = await new MiniRun(
     h,
-    [node("sg", "sign", { fileId: "fil_agreement", signers: [{ name: "Andrea Lindahl", email: "a@northwind.example" }] }), node("after", "stop", {})],
+    [
+      node("sg", "sign", {
+        fileId: "fil_agreement",
+        signers: [{ name: "Andrea Lindahl", email: "a@northwind.example" }],
+      }),
+      node("after", "stop", {}),
+    ],
     {},
   ).run();
   assert.equal(run.state, "failed");
-  assert.equal(run.error?.message, "This file isn't the exact Word copy, so the step stopped. Send it by hand or fix the template.");
+  assert.equal(
+    run.error?.message,
+    "This file isn't the exact Word copy, so the step stopped. Send it by hand or fix the template.",
+  );
   assert.doesNotMatch(String(run.error?.message), /send this one anyway/);
 });

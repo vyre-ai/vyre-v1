@@ -975,6 +975,20 @@ test("Can go in emails: a switch per field, for fields that are fine to read out
     k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "boss", mergeable: true }),
     code("validation.precondition_failed"),
   );
+  // a computed field can read a private one and still carry a public label: never mergeable
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.add", type: "acme_person", def: { key: "made_at", type: "created_time", title: "Made at" } }],
+  });
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "made_at", mergeable: true }),
+    code("validation.precondition_failed"),
+  );
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [{ op: "field.update", type: "acme_person", field: "made_at", def: { options: { mergeable: true } } }],
+    }),
+    code("validation.precondition_failed"),
+  );
   // a sealed (secret) field kind can never be switched on
   await k.h["schema.apply"](k.ctx, {
     ops: [{ op: "field.add", type: "acme_person", def: { key: "secret_note", type: "text", title: "Secret note" } }],
@@ -991,4 +1005,46 @@ test("Can go in emails: a switch per field, for fields that are fine to read out
       k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "secret_note", mergeable: true }),
       code("validation.precondition_failed"),
     );
+});
+
+import { onlyMergeableDiffers } from "../handlers/apply.ts";
+test("a system field's options accept the Can go in emails switch and nothing else: a nested change is refused", () => {
+  const choices = (v: string) => ({ choices: [{ key: "good", title: v }], mergeable: false });
+  assert.equal(
+    onlyMergeableDiffers(
+      { choices: [{ key: "good", title: "Good" }] },
+      { choices: [{ key: "good", title: "Good" }], mergeable: true },
+    ),
+    true,
+  );
+  assert.equal(onlyMergeableDiffers(choices("a"), { ...choices("a"), mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(undefined, { mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(choices("a"), choices("b")), false, "a changed nested choice is not the switch");
+  assert.equal(onlyMergeableDiffers({ min: 1, nested: { x: 1 } }, { min: 1, nested: { x: 999, y: 2 } }), false);
+  assert.equal(
+    onlyMergeableDiffers({ a: 1, b: 2 }, { b: 2, a: 1, mergeable: true }),
+    true,
+    "key order does not matter",
+  );
+  assert.equal(onlyMergeableDiffers({ choices: [1, 2] }, { choices: [2, 1] }), false, "list order does");
+});
+
+test("schema.apply takes a field.mergeable op: the same switch, through the one schema tool, with every rule of a field update", async () => {
+  const k = kit();
+  await base(k);
+  const mergeable = async (field: string) =>
+    (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.[
+      "mergeable"
+    ];
+  const op = (field: string, on: unknown) => ({
+    ops: [{ op: "field.mergeable" as const, type: "acme_person", field, def: { mergeable: on } }],
+  });
+  await k.h["schema.apply"](k.ctx, op("name", true));
+  assert.equal(await mergeable("name"), true);
+  await k.h["schema.apply"](k.ctx, op("name", false));
+  assert.equal(await mergeable("name"), undefined);
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("name", "yes")), code("validation.precondition_failed"));
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("nope", true)), code("validation.precondition_failed"));
+  await k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "email", label: "restricted" });
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("email", true)), code("validation.precondition_failed"));
 });

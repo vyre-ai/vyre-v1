@@ -539,7 +539,11 @@ test("resume: an agent continues a background wait and no wait that is a person'
     ] as const) {
       const h = harness();
       const id = await mk(h, { owner: alice.id });
-      await h.call("runs.mark_waiting", { runId: id, reason, ...(reason === "approval" ? { taskId: "tsk_g1" } : {}) }, engine);
+      await h.call(
+        "runs.mark_waiting",
+        { runId: id, reason, ...(reason === "approval" ? { taskId: "tsk_g1" } : {}) },
+        engine,
+      );
       h.callee("tasks.create", () => ({ task: { id: "tsk_n1" } }));
       const go = h.call("runs.resume", { runId: id, reason }, who as never);
       if (ok) {

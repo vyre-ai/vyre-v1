@@ -80,7 +80,11 @@ test("Authorization reaches the daemon on /mcp alone, Cookie never, and a visito
   assert.equal(mcp?.headers.cookie, undefined);
   assert.equal(mcp?.headers["x-vyre-via"], "relay");
   assert.equal(mcp?.headers["x-vyre-visitor"], "203.0.113.5");
-  assert.equal(mcp?.headers["x-vyre-visitor-mac"], proofFor("203.0.113.5"), "the relay vouches for the visitor it saw, with a MAC of that value");
+  assert.equal(
+    mcp?.headers["x-vyre-visitor-mac"],
+    proofFor("203.0.113.5"),
+    "the relay vouches for the visitor it saw, with a MAC of that value",
+  );
   assert.equal(del?.method, "DELETE");
   assert.equal(token?.headers.authorization, undefined);
   assert.equal(form?.headers.authorization, undefined);
