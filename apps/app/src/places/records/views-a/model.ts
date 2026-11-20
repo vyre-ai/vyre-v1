@@ -148,10 +148,11 @@ export function laneClause(f: FieldDef, lane: Lane): Clause {
 }
 
 /** The view's own filter and the lane, joined with and. The lane field's own clauses are dropped: a lane is that choice, so the filter menu cannot empty the board. */
-function inLane(v: TableViewState, titleField: string, f: FieldDef, lane: Lane): unknown {
+function inLane(v: TableViewState, titleField: string, f: FieldDef, lane: Lane, swim?: Clause | null): unknown {
   const own = filterOf({ ...v, clauses: v.clauses.filter((c) => c.field !== f.key) }, titleField);
   const clause = laneClause(f, lane);
-  return own === undefined ? clause : { and: [own, clause] };
+  const parts = [own, clause, swim ?? undefined].filter((x) => x !== undefined);
+  return parts.length === 1 ? parts[0] : { and: parts };
 }
 
 /** What one lane asks the local copy for: its cards, a page at a time, in the view's sort. */
@@ -162,10 +163,11 @@ export function laneSpec(
   f: FieldDef,
   lane: Lane,
   limit: number,
+  swim?: Clause | null,
 ): CapMap["records.query"]["in"] {
   return {
     type,
-    filter: inLane(v, titleField, f, lane),
+    filter: inLane(v, titleField, f, lane, swim),
     ...(v.sort.length ? { sort: v.sort.map((s) => ({ ...s })) } : {}),
     offset: 0,
     limit,
@@ -179,8 +181,9 @@ export function laneCountSpec(
   titleField: string,
   f: FieldDef,
   lane: Lane,
+  swim?: Clause | null,
 ): CapMap["records.counts"]["in"] {
-  return { type, filter: inLane(v, titleField, f, lane) };
+  return { type, filter: inLane(v, titleField, f, lane, swim) };
 }
 
 /** The lane a record sits in. */
@@ -272,8 +275,8 @@ const faceOf = (v: unknown): CardFace | undefined => {
   return { preset: c.preset, fields, mark: c.mark !== false };
 };
 /** The face a card has: a person's own (their view's `config.card`), else the type's, else the plain one. A value that is not a face is passed over. */
-export function cardFaceOf(def: TypeDef, saved?: Pick<ViewRow, "config">): CardFace {
-  return faceOf(saved?.config?.["card"]) ?? faceOf((def as { card?: unknown }).card) ?? PLAIN_FACE;
+export function cardFaceOf(def: TypeDef, saved?: Pick<ViewRow, "config">, fallback: CardFace = PLAIN_FACE): CardFace {
+  return faceOf(saved?.config?.["card"]) ?? faceOf((def as { card?: unknown }).card) ?? fallback;
 }
 
 /** The field a gallery card and a list row show as a tag: the type's first status, else its first choice. */

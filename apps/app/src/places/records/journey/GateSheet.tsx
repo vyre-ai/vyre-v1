@@ -28,51 +28,22 @@ export interface GateSheetProps {
   onClose(): void;
 }
 
-export function GateSheet({
-  call,
-  journeyId,
-  plainField,
-  type,
+/** The input of each field a stage is waiting on: a text box, the choices of a choice field, Yes and No for a checkbox. The sheet and the card's own form both draw this. */
+export function GateFields({
   def,
-  row,
-  toStage,
-  stageTitle,
-  missing: first,
-  onDone,
-  onClose,
-}: GateSheetProps): ReactElement {
-  const [missing, setMissing] = useState(first);
-  const [entered, setEntered] = useState<Entered>({});
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const put = (key: string, v: string | boolean): void => {
-    setEntered((e) => ({ ...e, [key]: v }));
-    setError(null);
-  };
-  const save = (): void => {
-    if (busy) return;
-    setBusy(true);
-    setError(null);
-    fillAndMove(call, {
-      ...(journeyId ? { journeyId } : {}),
-      ...(plainField ? { plainField } : {}),
-      type,
-      row,
-      def,
-      missing,
-      entered,
-      toStage,
-    })
-      .then((r) => {
-        if (r.ok) {
-          onDone();
-          return;
-        }
-        setError(r.message);
-        if (r.missing) setMissing(r.missing);
-      })
-      .finally(() => setBusy(false));
-  };
+  missing,
+  entered,
+  put,
+  save,
+  compact = false,
+}: {
+  def: Pick<TypeDef, "fields">;
+  missing: readonly MissingField[];
+  entered: Entered;
+  put: (key: string, v: string | boolean) => void;
+  save: () => void;
+  compact?: boolean;
+}): ReactElement {
   const rows: ReactElement[] = [];
   for (const m of missing) {
     const f = def.fields.find((x) => x.key === m.key);
@@ -123,6 +94,54 @@ export function GateSheet({
       </View>,
     );
   }
+  return <View style={compact ? s.listTight : s.list}>{rows}</View>;
+}
+
+export function GateSheet({
+  call,
+  journeyId,
+  plainField,
+  type,
+  def,
+  row,
+  toStage,
+  stageTitle,
+  missing: first,
+  onDone,
+  onClose,
+}: GateSheetProps): ReactElement {
+  const [missing, setMissing] = useState(first);
+  const [entered, setEntered] = useState<Entered>({});
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const put = (key: string, v: string | boolean): void => {
+    setEntered((e) => ({ ...e, [key]: v }));
+    setError(null);
+  };
+  const save = (): void => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    fillAndMove(call, {
+      ...(journeyId ? { journeyId } : {}),
+      ...(plainField ? { plainField } : {}),
+      type,
+      row,
+      def,
+      missing,
+      entered,
+      toStage,
+    })
+      .then((r) => {
+        if (r.ok) {
+          onDone();
+          return;
+        }
+        setError(r.message);
+        if (r.missing) setMissing(r.missing);
+      })
+      .finally(() => setBusy(false));
+  };
   return (
     <Dialog
       title={`Before it moves to ${stageTitle}`}
@@ -137,7 +156,7 @@ export function GateSheet({
       <Text style={s.lead}>
         {missing.length === 1 ? "One field needs an answer." : `${missing.length} fields need an answer.`}
       </Text>
-      <View style={s.list}>{rows}</View>
+      <GateFields def={def} missing={missing} entered={entered} put={put} save={save} />
       {error ? (
         <Text style={s.error} accessibilityRole="alert" testID="gate-error">
           {error}
@@ -150,6 +169,7 @@ export function GateSheet({
 const s = StyleSheet.create({
   lead: { fontSize: 13, color: "var(--ink-2)" as string, marginBottom: 10 },
   list: { gap: 12 },
+  listTight: { gap: 8 },
   row: { gap: 5 },
   label: { fontSize: 12.5, fontWeight: "600", color: "var(--ink-2)" as string },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: 2 },
