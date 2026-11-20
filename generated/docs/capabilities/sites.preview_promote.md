@@ -1,6 +1,6 @@
 # sites.preview_promote
 
-Serve a preview's build as production without a rebuild, using production variables
+Serve a preview's build as production without a rebuild, with production variables
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Serve a preview's build as production without a rebuild, using production variab
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | send when vault.key_host_unapproved(input) |
+| Gate | deploy when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

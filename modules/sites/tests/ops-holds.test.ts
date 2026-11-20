@@ -40,10 +40,10 @@ test("every held site-operation call has words in the table", () => {
 });
 
 test("sites.ops, and the plain calls behind its held actions, name the key-class Gate conditions (evaluated in modules/gate/tests/sites-ops-holds.test.ts)", () => {
-  assert.deepEqual(gate("sites.ops"), { act: "delete", when: "sites.ops_gate(input)" });
-  assert.deepEqual(gate("sites.job_create"), { act: "delete", when: "sites.run_gate(input)" });
-  assert.deepEqual(gate("sites.service_add"), { act: "delete", when: "sites.run_gate(input)" });
-  assert.deepEqual(gate("sites.job_update"), { act: "delete", when: "sites.run_update_gate(input)" });
+  assert.deepEqual(gate("sites.ops"), { act: "deploy", when: "sites.ops_gate(input)" });
+  assert.deepEqual(gate("sites.job_create"), { act: "deploy", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.service_add"), { act: "deploy", when: "sites.run_gate(input)" });
+  assert.deepEqual(gate("sites.job_update"), { act: "deploy", when: "sites.run_update_gate(input)" });
   assert.equal(gate("sites.backup_restore")?.when, "actor.kind != 'person'");
   // the calls that change no command are not held
   for (const n of [

@@ -141,6 +141,7 @@ test("gate acts follow spec 2.14", () => {
     "approve",
     "connection_change",
     "delete",
+    "deploy", // 20 Nov 2026: running code with a site's production keys, never an outward act (signed in docs/frozen/capabilities.md)
     "enroll_node",
     "github_approval",
     "install",

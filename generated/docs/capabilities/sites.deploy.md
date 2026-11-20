@@ -11,7 +11,7 @@ Build a site from its source and run it (Dockerfile, Node, Vite, Python, static)
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | send when sites.deploy_gate(input) |
+| Gate | deploy when sites.deploy_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

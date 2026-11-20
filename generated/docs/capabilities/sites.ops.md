@@ -11,7 +11,7 @@ Site ops: logs, metrics, jobs, workers, backups; read the sites skill
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | delete when sites.ops_gate(input) |
+| Gate | deploy when sites.ops_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

@@ -341,7 +341,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read("sites.list", "List the sites and artifacts you can see, by section, kind, folder", {
+    read("sites.list", "List sites and artifacts you can see, by section, kind, folder", {
       in: {
         section: t.opt(t.enm("personal", "shared", "space")),
         folderId: t.opt(id.folder),
@@ -455,7 +455,7 @@ export default defineManifest({
         },
         out: { deployment: dep },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "sites.deploy_gate(input)" },
+        gate: { act: "deploy", when: "sites.deploy_gate(input)" },
         perm: "sites.deploy",
         emits: ["site.deployed", "site.build_failed", "site.preview_removed"],
         tool: "sites",
@@ -487,7 +487,7 @@ export default defineManifest({
         },
         perm: "sites.deploy",
         tool: "sites",
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         audit: "sensitive",
         errors: ["validation.bad_input", "validation.precondition_failed", "permission.no_grant"],
       },
@@ -536,7 +536,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       tool: "sites",
     }),
-    read("sites.previews", "List previews (one per branch and pull request, each at its own address)", {
+    read("sites.previews", "List previews (one per branch and pull request, each at its address)", {
       in: deployTarget,
       out: { previews: t.arr(dep) },
       on: ["site", "/siteId"],
@@ -557,12 +557,12 @@ export default defineManifest({
     ),
     write(
       "sites.preview_promote",
-      "Serve a preview's build as production without a rebuild, using production variables",
+      "Serve a preview's build as production without a rebuild, with production variables",
       {
         in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",
@@ -630,7 +630,7 @@ export default defineManifest({
         in: { siteId: id.site, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+        gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
         perm: "sites.deploy",
         tool: "sites",
         audit: "sensitive",
@@ -750,7 +750,7 @@ export default defineManifest({
     }),
     write(
       "sites.artifact_thumb_set",
-      "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed",
+      "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       {
         in: { artifactId: id.site, thumb: t.str() },
         out: { set: t.bool() },
@@ -762,7 +762,7 @@ export default defineManifest({
     ),
     write(
       "sites.chat_viewing",
-      "The app says a chat is open (every 30 s). An artifact an agent publishes for that person opens in their app only while it does",
+      "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       {
         in: { threadId: id.thread },
         out: { ok: t.bool() },
@@ -779,7 +779,7 @@ export default defineManifest({
       perm: "sites.deploy",
       tool: "sites",
     }),
-    read("sites.service_identity", "The site service identity and its grants (capped by the owner)", {
+    read("sites.service_identity", "The site's service identity and grants (capped by the owner)", {
       in: deployTarget,
       out: { principal: t.str(), grants: t.arr(t.obj({ resource: t.str(), level: t.str() })) },
       on: ["site", "/siteId"],
@@ -885,7 +885,7 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        gate: { act: "delete", when: "sites.run_gate(input)" },
+        gate: { act: "deploy", when: "sites.run_gate(input)" },
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -908,7 +908,7 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        gate: { act: "delete", when: "sites.run_update_gate(input)" },
+        gate: { act: "deploy", when: "sites.run_update_gate(input)" },
       },
     ),
     write("sites.job_delete", "Delete a scheduled job and its history; a run that is going is stopped", {
@@ -967,7 +967,7 @@ export default defineManifest({
         perm: "sites.deploy",
         level: "edit",
         audit: "sensitive",
-        gate: { act: "delete", when: "sites.run_gate(input)" },
+        gate: { act: "deploy", when: "sites.run_gate(input)" },
         errors: ["validation.precondition_failed"],
       },
     ),
@@ -1068,33 +1068,29 @@ export default defineManifest({
       level: "edit",
       audit: "sensitive",
       gate: {
-        act: "delete",
+        act: "deploy",
         when: "sites.ops_gate(input)",
       },
       tool: "sites",
       errors: ["validation.precondition_failed"],
     }),
-    read(
-      "sites.plan",
-      "What a deploy of this source would do: build and start, port, databases and env names it needs",
-      {
-        in: { siteId: t.opt(id.site), source: t.opt(source) },
-        out: {
-          kind: t.str(),
-          note: t.str(),
-          build: t.opt(t.str()),
-          start: t.opt(t.str()),
-          port: t.opt(t.int()),
-          needs: t.arr(t.enm("postgres", "redis")),
-          env: t.arr(t.str()),
-          from: t.arr(t.str()),
-        },
-        gate: { act: "send", when: "vault.key_host_unapproved(input)" },
-        perm: "sites.deploy",
-        tool: "sites",
-        errors: ["validation.precondition_failed"],
+    read("sites.plan", "What a deploy of this source would do: build, start, port, databases, env names it needs", {
+      in: { siteId: t.opt(id.site), source: t.opt(source) },
+      out: {
+        kind: t.str(),
+        note: t.str(),
+        build: t.opt(t.str()),
+        start: t.opt(t.str()),
+        port: t.opt(t.int()),
+        needs: t.arr(t.enm("postgres", "redis")),
+        env: t.arr(t.str()),
+        from: t.arr(t.str()),
       },
-    ),
+      gate: { act: "send", when: "vault.key_host_unapproved(input)" },
+      perm: "sites.deploy",
+      tool: "sites",
+      errors: ["validation.precondition_failed"],
+    }),
     create(
       "sites.addon_add",
       "Give a site its own Postgres or Redis (DATABASE_URL, REDIS_URL); data survives redeploys",
@@ -1121,7 +1117,7 @@ export default defineManifest({
     }),
     write(
       "sites.db_import",
-      "Copy a Postgres into the site's: a pg_dump in Files, or a Vault key with the old connection string",
+      "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       {
         in: { siteId: id.site, fileId: t.opt(id.file), fromHandle: t.opt(id.handle) },
         out: { ok: t.bool(), detail: t.str() },

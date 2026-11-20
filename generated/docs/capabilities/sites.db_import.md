@@ -1,6 +1,6 @@
 # sites.db_import
 
-Copy a Postgres into the site's: a pg_dump in Files, or a Vault key with the old connection string
+Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string
 
 | | |
 |---|---|

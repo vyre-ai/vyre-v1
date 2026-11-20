@@ -17,6 +17,7 @@ const actKey = t.enm(
   "push_protected",
   "secret_export",
   "site_promote",
+  "deploy",
   "signature_send",
   "spend_raise",
   "signin_change",
@@ -112,6 +113,11 @@ export default defineManifest({
     }),
     gateAct("site_promote", "Promote a site to production", "high", "deploy", {
       appliesTo: { actors: ["agent", "automation"], humanToo: true },
+    }),
+    // Running code with a site's production keys (a deploy, a ship, a variable that puts a key in front of code, a preview served as production), asked by anything but a person. Not an outward act: a turn's grant for an outward act
+    // (an email, a post) can never lift it. Signed: pending, lead.
+    gateAct("deploy", "Run code with a site's production keys", "high", "deploy", {
+      approvers: { default: "asker", peopleOnly: true },
     }),
     gateAct("signature_send", "Send a document for signature", "high", "file"),
     gateAct("spend_raise", "Raise a spend cap", "medium", "table"),

@@ -11,7 +11,7 @@ Change a scheduled job: its name, schedule, command, time zone, time limit, or p
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | delete when sites.run_update_gate(input) |
+| Gate | deploy when sites.run_update_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

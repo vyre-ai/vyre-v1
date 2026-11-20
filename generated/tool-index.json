@@ -8355,7 +8355,7 @@
     {
       "deferred": false,
       "name": "sites_artifact_thumb_set",
-      "summary": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or it changed",
+      "summary": "Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed",
       "toolset": "sites"
     },
     {
@@ -8367,7 +8367,7 @@
     {
       "deferred": false,
       "name": "sites_chat_viewing",
-      "summary": "The app says a chat is open (every 30 s). An artifact an agent publishes for that person opens in their app only while it does",
+      "summary": "The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does",
       "toolset": "sites"
     },
     {
@@ -8379,7 +8379,7 @@
     {
       "deferred": false,
       "name": "sites_db_import",
-      "summary": "Copy a Postgres into the site's: a pg_dump in Files, or a Vault key with the old connection string",
+      "summary": "Copy a Postgres into the site: a pg_dump in Files, or a Vault key with the old connection string",
       "toolset": "sites"
     },
     {
@@ -8457,7 +8457,7 @@
     {
       "deferred": false,
       "name": "sites_list",
-      "summary": "List the sites and artifacts you can see, by section, kind, folder",
+      "summary": "List sites and artifacts you can see, by section, kind, folder",
       "toolset": "sites"
     },
     {
@@ -8475,13 +8475,13 @@
     {
       "deferred": false,
       "name": "sites_plan",
-      "summary": "What a deploy of this source would do: build and start, port, databases and env names it needs",
+      "summary": "What a deploy of this source would do: build, start, port, databases, env names it needs",
       "toolset": "sites"
     },
     {
       "deferred": false,
       "name": "sites_preview_promote",
-      "summary": "Serve a preview's build as production without a rebuild, using production variables",
+      "summary": "Serve a preview's build as production without a rebuild, with production variables",
       "toolset": "sites"
     },
     {
@@ -8499,7 +8499,7 @@
     {
       "deferred": false,
       "name": "sites_previews",
-      "summary": "List previews (one per branch and pull request, each at its own address)",
+      "summary": "List previews (one per branch and pull request, each at its address)",
       "toolset": "sites"
     },
     {
@@ -8523,7 +8523,7 @@
     {
       "deferred": false,
       "name": "sites_service_identity",
-      "summary": "The site service identity and its grants (capped by the owner)",
+      "summary": "The site's service identity and grants (capped by the owner)",
       "toolset": "sites"
     },
     {

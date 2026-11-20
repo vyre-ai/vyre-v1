@@ -1,6 +1,6 @@
 # sites.list
 
-List the sites and artifacts you can see, by section, kind, folder
+List sites and artifacts you can see, by section, kind, folder
 
 | | |
 |---|---|
