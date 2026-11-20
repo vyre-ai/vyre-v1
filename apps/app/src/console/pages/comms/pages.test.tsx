@@ -106,3 +106,180 @@ test("Sending domains says in one plain line what a sending domain does for noti
     );
   }
 });
+
+test("Email setup shows the next step, ticks the finished ones and shows the mail server form only for SMTP", async () => {
+  const { EmailPage, visibleSteps } = await import("./Email.tsx");
+  const base = {
+    provider: "smtp",
+    smtp: {
+      configured: true,
+      host: "smtp.fixture.example",
+      port: 587,
+      security: "starttls",
+      username: "me@fixture.example",
+      state: "failed",
+      detail: "Port 587 is blocked.",
+    },
+    domains: [],
+    rechecks: [],
+    cleanups: [],
+    done: ["choose_provider"],
+    step: "connect_server",
+    next: "The mail server test failed: Port 587 is blocked.",
+    ready: false,
+  };
+  const smtpHtml = draw(<EmailPage />, { "mail.setup.status": base });
+  assert.match(smtpHtml, /Port 587 is blocked/);
+  assert.match(smtpHtml, /smtp-host/);
+  const resend = draw(<EmailPage />, {
+    "mail.setup.status": {
+      ...base,
+      provider: "resend",
+      smtp: { configured: false, state: "none" },
+      step: "add_domain",
+      next: "Add the domain your email comes from.",
+    },
+  });
+  assert.doesNotMatch(resend, /smtp-host/);
+  assert.match(resend, /Add the domain your email comes from/);
+  assert.equal(
+    visibleSteps("resend").some((s) => s.key === "connect_server"),
+    false,
+  );
+  assert.equal(
+    visibleSteps("smtp").some((s) => s.key === "connect_server"),
+    true,
+  );
+});
+
+test("Email setup lists the addresses with where each goes, offers New address and Move on aliases, and says so when an address only sends", async () => {
+  const { EmailPage } = await import("./Email.tsx");
+  const setup = {
+    provider: "resend",
+    smtp: { configured: false, state: "none" },
+    domains: [
+      {
+        id: "dom_a",
+        name: "northwind.example",
+        provider: "resend",
+        verified: true,
+        isDefault: true,
+        spf: "pass",
+        dkim: "pass",
+        dmarc: "pass",
+      },
+    ],
+    rechecks: [],
+    cleanups: [],
+    done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
+    step: "ready",
+    next: "Email is ready to send.",
+    ready: true,
+  };
+  const addresses = [
+    {
+      address: "hello@northwind.example",
+      domainId: "dom_a",
+      kind: "mailbox",
+      mailboxId: "mbx_h",
+      mailboxTitle: "Hello",
+      receives: true,
+    },
+    {
+      address: "billing@northwind.example",
+      domainId: "dom_a",
+      kind: "alias",
+      mailboxId: "mbx_h",
+      mailboxTitle: "Hello",
+      routeId: "rte_1",
+      receives: true,
+    },
+    {
+      address: "noreply@northwind.example",
+      domainId: "dom_a",
+      kind: "mailbox",
+      mailboxId: "mbx_n",
+      mailboxTitle: "noreply",
+      receives: false,
+    },
+  ];
+  const html = draw(<EmailPage />, {
+    "mail.setup.status": setup,
+    "mail.address.list": { addresses, total: 3 },
+    "mail.mailbox.list": { mailboxes: [], total: 0 },
+  });
+  assert.match(html, /address-new/);
+  assert.match(html, /hello@northwind\.example/);
+  assert.match(html, /Delivers to Hello|Also billing@/);
+  assert.match(html, /Also billing@/);
+  assert.doesNotMatch(html, /address-move-hello@/);
+  assert.match(html, /Send only/);
+  // without a verified domain there is nowhere to make an address yet
+  const none = draw(<EmailPage />, {
+    "mail.setup.status": {
+      ...setup,
+      domains: [],
+      step: "add_domain",
+      ready: false,
+      next: "Add the domain your email comes from.",
+    },
+  });
+  assert.doesNotMatch(none, /address-new/);
+});
+
+test("Email setup offers a test send only when the setup is ready", async () => {
+  const { EmailPage } = await import("./Email.tsx");
+  const base = {
+    provider: "resend",
+    smtp: { configured: false, state: "none" },
+    domains: [
+      {
+        id: "dom_a",
+        name: "northwind.example",
+        provider: "resend",
+        verified: true,
+        isDefault: true,
+        spf: "pass",
+        dkim: "pass",
+        dmarc: "pass",
+      },
+    ],
+    rechecks: [],
+    cleanups: [],
+    done: ["choose_provider", "add_domain", "publish_dns", "set_default"],
+    step: "ready",
+    next: "Email is ready to send.",
+    ready: true,
+  };
+  const rows = { "mail.address.list": { addresses: [], total: 0 }, "mail.mailbox.list": { mailboxes: [], total: 0 } };
+  assert.match(draw(<EmailPage />, { ...rows, "mail.setup.status": base }), /test-open/);
+  assert.doesNotMatch(
+    draw(<EmailPage />, {
+      ...rows,
+      "mail.setup.status": { ...base, ready: false, step: "publish_dns", next: "Publish the DNS records." },
+    }),
+    /test-open/,
+  );
+});
+
+test("the daily re-check is shown on the domain: a first failure as a warning, the second as stopped, with the reason", async () => {
+  const { recheckNote } = await import("./Email.tsx");
+  assert.equal(recheckNote(undefined, true), "");
+  assert.match(
+    recheckNote({ domainId: "d", failures: 1, why: "DKIM no longer passes in DNS." }, true),
+    /^Last daily check failed: DKIM no longer passes in DNS\.$/,
+  );
+  assert.match(
+    recheckNote({ domainId: "d", failures: 2, why: "SPF no longer passes in DNS." }, false),
+    /^Stopped after two failed daily checks: SPF no longer passes in DNS\.$/,
+  );
+});
+
+test("a new template's key comes from its name, starts with a letter, and never takes a key that exists", async () => {
+  const { keyFromTitle } = await import("./Email.tsx");
+  assert.equal(keyFromTitle("Welcome aboard!", []), "welcome_aboard");
+  assert.equal(keyFromTitle("  2nd notice ", []), "t_2nd_notice");
+  assert.equal(keyFromTitle("???", []), "t_template");
+  assert.equal(keyFromTitle("Welcome", ["welcome", "welcome_2"]), "welcome_3");
+  assert.match(keyFromTitle("A".repeat(80), []), /^[a-z][a-z0-9_]{0,59}$/);
+});

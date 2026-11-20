@@ -61,6 +61,8 @@ export interface Runner {
     dir: string;
     plan: SitePlan;
     onLine(line: string): void;
+    /** when it fires the build is cut off: the call to the runner is closed, and the runner closes its own to the engine, which stops the build */
+    signal?: AbortSignal;
   }): Promise<{ ok: true; image: string } | { ok: false; reason: string }>;
   run(a: {
     siteId: string;
@@ -331,8 +333,13 @@ export function dockerRunner(link: RunnerLink): Runner {
   function lines(
     r: { method: string; path: string; body?: Uint8Array; contentType?: string; timeoutMs: number },
     onLine: (line: string) => void,
+    signal?: AbortSignal,
   ): Promise<number> {
     return new Promise((resolve, reject) => {
+      if (signal?.aborted) {
+        reject(new Error("canceled"));
+        return;
+      }
       const q = http.request(
         {
           socketPath: link.socketPath,
@@ -366,7 +373,12 @@ export function dockerRunner(link: RunnerLink): Runner {
       );
       const timer = setTimeout(() => q.destroy(new Error("timed out")), r.timeoutMs);
       timer.unref?.();
-      q.on("close", () => clearTimeout(timer));
+      const cut = (): void => void q.destroy(new Error("canceled"));
+      signal?.addEventListener("abort", cut, { once: true });
+      q.on("close", () => {
+        clearTimeout(timer);
+        signal?.removeEventListener("abort", cut);
+      });
       q.on("error", reject);
       q.end(r.body ? Buffer.from(r.body) : undefined);
     });
@@ -531,6 +543,7 @@ export function dockerRunner(link: RunnerLink): Runner {
             if (j.aux?.ID) built = true;
             if (/^Successfully (built|tagged)/.test(j.stream ?? "")) built = true;
           },
+          a.signal,
         );
         if (status !== 200) return { ok: false, reason: error || `The build was refused (${status}).` };
       } catch (e) {
@@ -538,7 +551,9 @@ export function dockerRunner(link: RunnerLink): Runner {
           ok: false,
           reason: /timed out/.test(String(e))
             ? "The build took longer than 15 minutes."
-            : `The build stopped: ${e instanceof Error ? e.message : String(e)}`,
+            : a.signal?.aborted
+              ? "The build was canceled."
+              : `The build stopped: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
       if (error || !built)

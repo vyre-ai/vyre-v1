@@ -19,16 +19,31 @@ import {
   syncNow,
 } from "./handlers/index.ts";
 import { extraHandlers } from "./handlers/extra/index.ts";
+import { ingestWatched, syncWatched } from "./handlers/extra/inbound.ts";
 import { setDefaultImapSession } from "./handlers/ingest.ts";
+import {
+  liveSmtp,
+  setDefaultSmtp,
+  setMailFileBytes,
+  setSmtpSecret,
+  smtpGet,
+  smtpSet,
+  smtpVerify,
+} from "./handlers/smtp.ts";
+import { setupStatus, setupTool, testSend } from "./handlers/setup.ts";
+import { recheckDomains } from "./handlers/recheck.ts";
+import { retryCleanups } from "./handlers/cleanup.ts";
+import { addressAdd, addressList, addressMove } from "./handlers/address.ts";
 import { setMailLinksHost, unsubscribe } from "./handlers/unsubscribe.ts";
 import type { ImapConfig, ImapMessage, ImapSession, ImapSessionFactory } from "./handlers/ingest.ts";
 import type { MailCtx, Party } from "./projections.ts";
 import { codecs, consumers, inline } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = {
-  "mail.ingest": (ctx, input) => ingest(ctx, input),
+  "mail.ingest": (ctx, input) =>
+    ingestWatched(ctx, input as { envelopeTo?: string; mailboxId?: string }, () => ingest(ctx, input)),
   "mail.connect": (ctx, input) => connect(ctx, input),
-  "mail.sync_now": (ctx, input) => syncNow(ctx, input),
+  "mail.sync_now": (ctx, input) => syncWatched(ctx, (watched) => syncNow(watched, input)),
   "mail.draft": (ctx, input) => draft(ctx, input),
   "mail.drafts.list": (ctx, input) => draftsList(ctx, input),
   "mail.drafts.discard": (ctx, input) => draftsDiscard(ctx, input),
@@ -37,6 +52,16 @@ export const handlers: Record<string, Handler> = {
   "mail.send_preview": (ctx, input) => sendPreview(ctx, input),
   "mail.unsubscribe": (ctx, input) => unsubscribe(ctx, input as { token?: unknown }),
   "mail.message.erase": (ctx, input) => messageErase(ctx, input),
+  // the Space's own mail server (SMTP): saved, tested, and used by mail.send when the sending provider is smtp
+  "mail.configure": (ctx, input) => setupTool(ctx, input),
+  "mail.setup.status": (ctx) => setupStatus(ctx),
+  "mail.setup.test_send": (ctx, input) => testSend(ctx, input),
+  "mail.address.list": (ctx, input) => addressList(ctx, input),
+  "mail.address.add": (ctx, input) => addressAdd(ctx, input),
+  "mail.address.move": (ctx, input) => addressMove(ctx, input),
+  "mail.smtp.get": (ctx) => smtpGet(ctx),
+  "mail.smtp.set": (ctx, input) => smtpSet(ctx, input),
+  "mail.smtp.verify": (ctx, input) => smtpVerify(ctx, input),
   // mailbox admin, message reads, attachment save, health, status updates, auto-connect, sending domains and routes (P-L5_01c)
   ...extraHandlers,
 };
@@ -83,6 +108,18 @@ const consumersAll = {
   },
 };
 
+/** Each sending domain is looked at once a day (the job runs hourly and skips what was checked within 23 hours): each sending domain's DNS and mail server are looked at again; two failures in a row stop a domain. */
+export const periodic = {
+  "mail.recheck_domains": {
+    everyMs: 60 * 60_000, // hourly: a domain whose check finished within the day is skipped, one whose check could not run is tried again
+    run: (ctx: MailCtx) => recheckDomains(ctx),
+  },
+  /** Every five minutes: a provider route that had to be deleted and was not is tried again, backing off up to six hours, until it is gone. */
+  "mail.cleanup_retry": {
+    everyMs: 5 * 60_000,
+    run: (ctx: MailCtx) => retryCleanups(ctx),
+  },
+};
 export const projections = { inline, consumers: consumersAll };
 export { codecs, inline, consumersAll as consumers };
 
@@ -326,8 +363,13 @@ export function createLiveImapFactory(deps: LiveImapDeps = defaultDeps): ImapSes
 setDefaultImapSession(createLiveImapFactory());
 
 /** Where the host registers the IMAP secret resolver at boot (ruling 31): the loader reads this export. */
+// SMTP reads its password and its DKIM key through the same Vault reader IMAP logs in with
+setSmtpSecret((ctx, handle) => vaultSecret(handle, ctx));
+setDefaultSmtp(liveSmtp);
+
 export const hostSeams: import("../../host/src/seams/index.ts").SeamSetters = {
   setImapSecretResolver,
+  setMailFileBytes,
   setMailLinksHost,
 };
 

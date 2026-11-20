@@ -8,7 +8,7 @@ import { toolsFor, searchTools } from "../agent/src/tools/access.ts";
 import { createEngineApiTools } from "../modules/engine/api-tools.ts";
 import { loadGenerated } from "../modules/mcp/projections.ts";
 
-const DORMANT = ["sites_build", "sites_previews", "sites_table_create", "sites_staging_password_set"];
+const DORMANT = ["sites_build", "sites_table_create", "sites_staging_password_set"];
 const ctx = {
   space: "spc_1",
   agentId: "agt_1",

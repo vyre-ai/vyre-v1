@@ -18,6 +18,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "schema.restore_field": async () => ({"ok":true} as unknown) as never,
   "schema.sensitivity.scan": async () => ({"suggestions":[{"field":"phone","kind":"id_number","matches":1,"seal":true,"suggestedLabel":"public"}]} as unknown) as never,
   "schema.set_label": async () => ({"ok":true} as unknown) as never,
+  "schema.set_mergeable": async () => ({"ok":true} as unknown) as never,
   "schema.trash.list": async () => ({"items":[{"droppedAt":1760000000000,"expiresAt":1760000000000,"field":"phone","rows":1,"type":"contact"}]} as unknown) as never,
   "schema.types.get": async () => ({"type":{"attribution":true,"fields":[{"default":{},"key":"phone","label":"public","lockAfter":"approval","merge":"lww","options":{},"required":true,"title":"example","type":"text","unique":true,"validate":{"expr":"example","message":"example"},"writeOnlyBy":["example"]}],"group":"example","icon":"example","key":"contact","label":"public","ownerField":"phone","plural":"example","retention":"example","scope":"example","statusField":"phone","summaryField":"phone","syncedFrom":"example","system":true,"template":"project","title":"example","titleField":"phone","version":1,"workspace":true}} as unknown) as never,
   "schema.types.list": async () => ({"next":"example","total":1,"types":[{"fieldCount":1,"group":"example","icon":"example","key":"contact","label":"public","plural":"example","rowCount":1,"scope":"example","syncedFrom":"example","system":true,"title":"example"}]} as unknown) as never,

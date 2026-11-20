@@ -20,9 +20,12 @@ export type ActKey =
   | "push_protected"
   | "secret_export"
   | "site_promote"
+  | "deploy"
   | "signature_send"
   | "spend_raise"
   | "signin_change"
+  | "admit"
+  | "access"
   | "github_approval"
   | "agent_erase"
   | "approve";
@@ -91,11 +94,14 @@ export const ACTS: readonly ActDef[] = [
   act("push_protected", "Push to a protected branch", "high", "diff", "role:admin", { humanToo: true }),
   act("secret_export", "Export secrets", "high", "table", "role:admin", { humanToo: true }),
   act("site_promote", "Promote a site to production", "high", "deploy", "role:admin", { humanToo: true }),
+  act("deploy", "Run code with a site's production keys", "high", "deploy", "asker", { alwaysStops: true }),
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", {
     alwaysStops: true,
   }),
+  act("admit", "Let someone in or change who can reach what", "medium", "record_card", "asker"),
+  act("access", "Change the rules of access", "high", "record_card", "asker", { alwaysStops: true }),
   act("agent_erase", "Delete an agent for good", "high", "record_card", "asker", {
     alwaysStops: true,
     personOnly: true,

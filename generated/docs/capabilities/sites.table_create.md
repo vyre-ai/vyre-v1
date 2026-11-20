@@ -1,6 +1,6 @@
 # sites.table_create
 
-Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site
+Create a site table (a site-scoped record type)
 
 | | |
 |---|---|

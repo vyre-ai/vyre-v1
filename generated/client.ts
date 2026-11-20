@@ -40,6 +40,7 @@ export function createClient(transport: Transport) {
         remove: call("access.exceptions.remove", 1),
         set: call("access.exceptions.set", 1),
       },
+      folder_narrow: call("access.folder_narrow", 1),
       grants: {
         list: call("access.grants.list", 1),
         update: call("access.grants.update", 1),
@@ -1631,11 +1632,22 @@ export function createClient(transport: Transport) {
       set: call("machines.set", 1),
     },
     mail: {
+      address: {
+        add: call("mail.address.add", 1),
+        list: call("mail.address.list", 1),
+        move: call("mail.address.move", 1),
+      },
       attachment: {
         save: call("mail.attachment.save", 1),
       },
       auto_connect_members: call("mail.auto_connect_members", 1),
+      configure: call("mail.configure", 1),
       connect: call("mail.connect", 1),
+      delivery: {
+        retry: call("mail.delivery.retry", 1),
+        trail: call("mail.delivery.trail", 1),
+      },
+      delivery_state: call("mail.delivery_state", 1),
       domain: {
         add: call("mail.domain.add", 1),
         check: call("mail.domain.check", 1),
@@ -1650,6 +1662,9 @@ export function createClient(transport: Transport) {
         list: call("mail.drafts.list", 1),
       },
       health: call("mail.health", 1),
+      inbox: {
+        monitor: call("mail.inbox.monitor", 1),
+      },
       ingest: call("mail.ingest", 1),
       mailbox: {
         create: call("mail.mailbox.create", 1),
@@ -1678,8 +1693,30 @@ export function createClient(transport: Transport) {
       send: call("mail.send", 1),
       send_as: call("mail.send_as", 1),
       send_preview: call("mail.send_preview", 1),
+      setup: {
+        status: call("mail.setup.status", 1),
+        test_send: call("mail.setup.test_send", 1),
+      },
+      smtp: {
+        get: call("mail.smtp.get", 1),
+        set: call("mail.smtp.set", 1),
+        verify: call("mail.smtp.verify", 1),
+      },
       status_update: call("mail.status_update", 1),
       sync_now: call("mail.sync_now", 1),
+      template: {
+        for_document: {
+          clear: call("mail.template.for_document.clear", 1),
+          get: call("mail.template.for_document.get", 1),
+          set: call("mail.template.for_document.set", 1),
+        },
+        get: call("mail.template.get", 1),
+        list: call("mail.template.list", 1),
+        preview: call("mail.template.preview", 1),
+        reset: call("mail.template.reset", 1),
+        save: call("mail.template.save", 1),
+      },
+      templates: call("mail.templates", 1),
       thread: {
         get: call("mail.thread.get", 1),
       },
@@ -2491,6 +2528,7 @@ export function createClient(transport: Transport) {
         scan: call("schema.sensitivity.scan", 1),
       },
       set_label: call("schema.set_label", 1),
+      set_mergeable: call("schema.set_mergeable", 1),
       trash: {
         list: call("schema.trash.list", 1),
       },
@@ -2577,6 +2615,7 @@ export function createClient(transport: Transport) {
       db_import: call("sites.db_import", 1),
       delete: call("sites.delete", 1),
       deploy: call("sites.deploy", 1),
+      deploy_cancel: call("sites.deploy_cancel", 1),
       deployments: call("sites.deployments", 1),
       domain_add: call("sites.domain_add", 1),
       domain_check: call("sites.domain_check", 1),
@@ -2585,11 +2624,13 @@ export function createClient(transport: Transport) {
       env_list: call("sites.env_list", 1),
       env_set: call("sites.env_set", 1),
       get: call("sites.get", 1),
+      head_check: call("sites.head_check", 1),
       host: call("sites.host", 1),
       list: call("sites.list", 1),
       logs: call("sites.logs", 1),
       password_set: call("sites.password_set", 1),
       plan: call("sites.plan", 1),
+      preview_promote: call("sites.preview_promote", 1),
       preview_rebuild: call("sites.preview_rebuild", 1),
       preview_remove: call("sites.preview_remove", 1),
       previews: call("sites.previews", 1),
@@ -2597,6 +2638,7 @@ export function createClient(transport: Transport) {
       publish: call("sites.publish", 1),
       rollback: call("sites.rollback", 1),
       service_identity: call("sites.service_identity", 1),
+      ship: call("sites.ship", 1),
       signin_link: call("sites.signin_link", 1),
       staging_password_set: call("sites.staging_password_set", 1),
       status: call("sites.status", 1),
@@ -2605,6 +2647,8 @@ export function createClient(transport: Transport) {
       table_promote: call("sites.table_promote", 1),
       tables: call("sites.tables", 1),
       update: call("sites.update", 1),
+      webhook_get: call("sites.webhook_get", 1),
+      webhook_set: call("sites.webhook_set", 1),
     },
     skills: {
       add: call("skills.add", 1),

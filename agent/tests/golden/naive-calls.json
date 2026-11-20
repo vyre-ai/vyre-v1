@@ -2976,10 +2976,14 @@
     "messageId": "eml_a1b2c3",
     "attachmentId": "Quarterly planning"
   },
+  "mail_configure": {
+    "action": "status"
+  },
   "mail_connect": {
     "provider": "google",
     "address": "dana@acme.test"
   },
+  "mail_delivery_state": {},
   "mail_domain_add": {
     "name": "Quarterly planning",
     "provider": "resend"
@@ -3073,6 +3077,9 @@
   },
   "mail_sync_now": {
     "mailboxId": "mbx_a1b2c3"
+  },
+  "mail_templates": {
+    "action": "list"
   },
   "mail_thread_get": {
     "threadId": "Quarterly planning"
@@ -4717,6 +4724,9 @@
   "sites_deploy": {
     "siteId": "sit_a1b2c3"
   },
+  "sites_deploy_cancel": {
+    "siteId": "sit_a1b2c3"
+  },
   "sites_deployments": {
     "siteId": "sit_a1b2c3"
   },
@@ -4756,6 +4766,10 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_plan": {},
+  "sites_preview_promote": {
+    "siteId": "sit_a1b2c3",
+    "branch": "main"
+  },
   "sites_preview_rebuild": {
     "siteId": "sit_a1b2c3",
     "branch": "main"
@@ -4778,6 +4792,12 @@
   },
   "sites_service_identity": {
     "siteId": "sit_a1b2c3"
+  },
+  "sites_ship": {
+    "name": "Team dashboard",
+    "source": {
+      "repo": "acme/team-dashboard"
+    }
   },
   "sites_staging_password_set": {
     "siteId": "sit_a1b2c3",
@@ -4808,6 +4828,12 @@
     "siteId": "sit_a1b2c3"
   },
   "sites_update": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_get": {
+    "siteId": "sit_a1b2c3"
+  },
+  "sites_webhook_set": {
     "siteId": "sit_a1b2c3"
   },
   "skill_grant": {

@@ -22,6 +22,7 @@ const TEST_ONLY: Readonly<Record<string, string>> = {
   "modules/engine:bindCompleter": "a stand-in for tests; the runtime sets its own completer when it starts",
   "modules/mail:bindDns": "a per-context stand-in for tests; a real Space uses setDefaultDns",
   "modules/mail:bindImapSession": "a per-context stand-in for tests; a real Space uses setDefaultImapSession",
+  "modules/mail:bindSmtp": "a per-context stand-in for tests; a real Space uses setDefaultSmtp",
 };
 
 /**

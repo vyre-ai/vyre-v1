@@ -11,7 +11,7 @@ Check a SyncSpec against a real sampled page of the app (read-only GET with the 
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

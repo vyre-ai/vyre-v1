@@ -1,3 +1,6 @@
+import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { protectionHolds } from "../../../lib/key-target.ts";
+import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
@@ -192,7 +195,15 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import {
+  createGateHook,
+  pinnedDeploy,
+  moduleFetches,
+  moduleOutward,
+  moduleWhens,
+  ownAddress,
+  payloadHash,
+} from "./gate-hook.ts";
 import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
@@ -1104,6 +1115,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  let sitesTickRunning = false;
+  let sitesTickAgain = false;
+  /** Run the sites tick now. One at a time: a call while one runs asks for one more run after it, however many calls came. */
+  const nudgeSites = (): void => {
+    if (sitesTickRunning) {
+      sitesTickAgain = true;
+      return;
+    }
+    sitesTickRunning = true;
+    void (async () => {
+      try {
+        do {
+          sitesTickAgain = false;
+          await sitesTick().catch(() => undefined);
+        } while (sitesTickAgain);
+      } finally {
+        sitesTickRunning = false;
+      }
+    })();
+  };
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true,
     site: (h) => siteHosts?.site(h) ?? null,
@@ -2501,7 +2532,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       );
       webhooks = {
         has: (c) => acceptors.has(c),
-        accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a),
+        accept: async (c, a) => {
+          const out = await hookRunner.call(`${c}.accept_webhook`, a);
+          // a delivery that asks for work is run now, not at the next minute (one tick at a time: one that is running is not stacked)
+          if (c === "sites" && (out as { nudge?: boolean } | null)?.nudge === true) nudgeSites();
+          return out;
+        },
         automation: (a) => hookRunner.call("automations.accept_hook", a),
       };
       computePoll = (credential, report) =>
@@ -3192,6 +3228,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 },
                 unseal: (s) => seal.unseal(s),
                 now,
+                // a held deploy that names no commit is pinned to the branch's head at hold time
+                pin: pinnedDeploy(() => keyHostCallAs),
                 evaluators: moduleWhens(
                   loaded.moduleExports,
                   () => db,
@@ -5471,30 +5509,124 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   });
                 }
               }
-            const autos =
+            // what a verified GitHub delivery left (a preview to build or remove), run as whoever deployed the site last so the Vault checks their access
+            const pushes =
               (
-                sitesExports?.["autoDeploySites"] as
-                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                sitesExports?.["pendingPushes"] as
+                  | ((c: {
+                      db: unknown;
+                    }) => { id: string; siteId: string; branch: string; action: string; as: string }[])
                   | undefined
               )?.({ db: db! }) ?? [];
-            for (const a of autos) {
+            for (const a of pushes) {
               const r = await invoke(
-                "sites.deploy",
-                { siteId: a.siteId, onlyIfChanged: true },
+                a.action === "remove" ? "sites.preview_remove" : "sites.preview_rebuild",
+                { siteId: a.siteId, branch: a.branch },
                 {
                   space: spaceId,
                   principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
                   origin: "sites-push",
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
-              if ((r as { status?: string }).status !== "ok")
+              const ok = (r as { status?: string }).status === "ok";
+              // a push that ran is done; one that could not is recorded as failed, which gives its delivery id back so GitHub's redelivery takes it again
+              if (ok)
+                (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
+                  { db: db! },
+                  a.id,
+                );
+              else
+                (
+                  sitesExports?.["markPushFailed"] as
+                    | ((c: { db: unknown }, id: string, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, a.id, String((r as { e?: { message?: string } }).e?.message ?? "It could not run."));
+              if (!ok)
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.push_preview_skipped",
+                  place: "sites",
+                  attrs: { site: a.siteId, branch: a.branch },
+                });
+            }
+            // only a commit that was not deployed, and not already waiting for a person, is asked for (checked here, before the Gate)
+            const autos =
+              (await (
+                sitesExports?.["autoDeployTargets"] as
+                  | ((
+                      c: { db: unknown },
+                      headOf: (x: { siteId: string; as: string; repo: string; branch: string }) => Promise<{
+                        head: string | null;
+                        changed: boolean;
+                      }>,
+                    ) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
+                  | undefined
+              )?.({ db: db! }, async (x) => {
+                // the branch head, read with the site's own token as the person who deployed it last
+                const r = (await invoke(
+                  "sites.head_check",
+                  { siteId: x.siteId },
+                  {
+                    space: spaceId,
+                    principal: { kind: x.as.startsWith("agt_") ? "agent" : "person", id: x.as },
+                    origin: "sites-push",
+                  },
+                ).catch(() => null)) as { status?: string; output?: { head?: string; changed?: boolean } } | null;
+                return r?.status === "ok"
+                  ? { head: r.output?.head ?? null, changed: r.output?.changed !== false }
+                  : { head: null, changed: true };
+              })) ?? [];
+            for (const a of autos) {
+              const r = await invoke(
+                "sites.deploy",
+                { siteId: a.siteId, onlyIfChanged: true, ...(a.head ? { commit: a.head } : {}) },
+                {
+                  space: spaceId,
+                  principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
+                  origin: "sites-push",
+                },
+              ).catch((e: unknown) => ({ status: "error", e }));
+              if ((r as { status?: string }).status !== "ok") {
+                // the site's card says why a push's deploy did not run, not only the log: in plain words, never an exception's text
+                const e =
+                  (
+                    r as {
+                      e?: { error?: { code?: string; message?: string } };
+                      error?: { code?: string; message?: string };
+                    }
+                  ).e?.error ?? (r as { error?: { code?: string; message?: string } }).error;
+                const facts = (
+                  sitesExports?.["siteFacts"] as ((c: { db: unknown }, id: string) => SiteFacts | null) | undefined
+                )?.({ db: db! }, a.siteId);
+                const reason =
+                  (r as { status?: string }).status === "held"
+                    ? facts && protectionHolds(facts)
+                      ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
+                      : "Waiting for a person to approve it."
+                    : typeof e?.code === "string" && /^(validation|permission|conflict)\./.test(e.code) && e.message
+                      ? e.message
+                      : "The deploy could not run. The log says more.";
+                (
+                  sitesExports?.["recordDeployFailure"] as
+                    | ((
+                        c: { db: unknown },
+                        siteId: string,
+                        branch: string,
+                        why: string,
+                        sha: string | null,
+                        taskId: string | null,
+                      ) => void)
+                    | undefined
+                )?.({ db: db! }, a.siteId, a.branch, reason, a.head, (r as { taskId?: string }).taskId ?? null);
                 sink.log({
                   space: spaceId,
                   level: 30,
                   msg: "sites.push_check_skipped",
                   place: "sites",
-                  attrs: { site: a.siteId },
+                  attrs: { site: a.siteId, why: reason },
                 });
+              }
             }
           };
           const made = createSitesHost({
@@ -5504,6 +5636,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             deploy: {
               ...(runnerLink ? { runnerLink } : {}),
               take: takeSiteSecret,
+              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item, shares and the owner's task) is done as the host, and only that (seams/sites-as-host.ts)
+              asHost: sitesAsHost((cap, input) =>
+                invoke(cap, input, {
+                  space: spaceId,
+                  principal: { ...SYSTEM_PRINCIPAL },
+                  preAuth: true,
+                  origin: "seam",
+                }),
+              ),
               tmp: path.join(paths.root, "site-builds"),
               sitesDomain,
               domainOf: (id) =>

@@ -1,6 +1,6 @@
 # sites.env_list
 
-List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet
+A site's env var names and sources (never values), and names the app looks for that are not set
 
 | | |
 |---|---|
@@ -37,6 +37,9 @@ type Out = {
       name: string;
       vaultName: string;
       injected: boolean;
+      kind: "secret" | "plain";
+      value?: string;
+      scope: "all" | "production" | "previews";
     }>;
   wanted?: Array<string>;
 };
@@ -62,7 +65,10 @@ type Out = {
     "entries": [
       {
         "injected": true,
+        "kind": "secret",
         "name": "example",
+        "scope": "all",
+        "value": "example",
         "vaultName": "example"
       }
     ],

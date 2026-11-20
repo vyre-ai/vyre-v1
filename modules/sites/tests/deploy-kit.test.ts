@@ -33,7 +33,21 @@ export function docker(...a: string[]): { status: number | null; stdout: string;
 export function deployWorld(o: { vault?: Record<string, string>; members?: string[] } = {}) {
   const base = harness();
   const db = new DatabaseSync(":memory:");
-  for (const f of ["0001_sites_core.sql", "0002_promote_tables.sql", "0003_routes.sql", "0004_deploy.sql"])
+  for (const f of [
+    "0001_sites_core.sql",
+    "0002_promote_tables.sql",
+    "0003_routes.sql",
+    "0004_deploy.sql",
+    "0005_deploy_steps.sql",
+    "0006_env_plain.sql",
+    "0007_webhook.sql",
+    "0009_hook_failures.sql",
+    "0013_hook_order.sql",
+    "0014_hook_seq.sql",
+    "0015_built_from.sql",
+    "0016_branch_protection.sql",
+    "0017_hook_vault.sql",
+  ])
     db.exec(fs.readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"));
   const sdb = {
     all: (s: string, ...a: unknown[]) => db.prepare(s).all(...(a as never[])),

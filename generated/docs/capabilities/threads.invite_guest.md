@@ -11,7 +11,7 @@ Invite someone by email as a guest of this channel chat only: no files folder, n
 | Grant level | use |
 | Risk | medium |
 | Resource | thread (/threadId) |
-| Gate | none |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

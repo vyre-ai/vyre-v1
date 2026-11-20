@@ -11,7 +11,7 @@ Dry run of a SyncSpec: the record types it would make, three sample records draw
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

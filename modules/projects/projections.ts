@@ -137,6 +137,28 @@ export async function tolerant<T>(ctx: ProjectsCtx, cap: string, input: unknown,
     return fallback;
   }
 }
+/**
+ * A files folder follows its record: it is open to exactly who may see the record. When the call is refused (a caller without Manage on the folder, a tenant's service) the folder must not stay wider than
+ * its record, and the caller's own rights cannot narrow it either (the same Manage is needed). So the refusal is written as an event, and the host's own consumer (projects.folder_unfollowed, which
+ * runs as svc_host) narrows the folder, names the original caller in its log line, and tells the owner. Returns whether it follows.
+ */
+export async function followRecord(ctx: ProjectsCtx, folderId: string, recordId: string): Promise<boolean> {
+  if (!ctx.call) return false;
+  try {
+    await ctx.call("access.audience_set", { resource: { type: "folder", id: folderId }, follows: recordId });
+    return true;
+  } catch (e) {
+    const why = e instanceof Error ? e.message.slice(0, 200) : codeOf(e);
+    ctx.log.warn("projects: a folder could not follow its record", { folderId, recordId, error: why });
+    ctx.emit("project.folder_unfollowed", `folder/${folderId}`, {
+      folderId,
+      recordId,
+      by: ctx.principal.id,
+      why: `${codeOf(e)}: ${why}`.slice(0, 200),
+    });
+    return false;
+  }
+}
 /** The code of an error thrown by a call, if it has one. */
 export const codeOf = (e: unknown): string => {
   const x = e as { error?: { code?: string }; code?: string };

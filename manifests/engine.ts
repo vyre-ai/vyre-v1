@@ -1527,6 +1527,7 @@ export default defineManifest({
         in: { enabled: t.bool() },
         out: { enabled: t.bool(), sandboxStopped: t.bool() },
         emits: ["engine.subscription_share_changed"],
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         tool: "meta",
         audit: "always",
         idem: "natural",

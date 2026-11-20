@@ -11,7 +11,7 @@ Owner one-click export: a zip of records, files, chats and settings; never secre
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -1,6 +1,6 @@
 # sites.deploy
 
-Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends
+Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Build the site from its source (GitHub repo, folder or zip in Files, or a folder
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | deploy when sites.deploy_gate(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
@@ -37,6 +37,8 @@ type In = {
   };
   wait?: boolean;
   onlyIfChanged?: boolean;
+  commit?: string;
+  fp?: string;
 };
 ```
 
@@ -52,6 +54,7 @@ type Out = {
     url?: string;
     branch?: string;
     commit?: string;
+    message?: string;
     at: number;
     by?: string;
     note?: string;
@@ -59,6 +62,12 @@ type Out = {
     fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
     current?: boolean;
     finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
   };
 };
 ```
@@ -79,15 +88,17 @@ type Out = {
 {
   "name": "example",
   "input": {
+    "commit": "example",
+    "fp": "example",
     "onlyIfChanged": true,
     "siteId": "sit_a1b2c3",
     "source": {
-      "branch": "main",
+      "branch": "example",
       "fileId": "fil_a1b2c3",
       "folderId": "fld_a1b2c3",
       "path": "example",
-      "repo": "https://github.com/acme/cx-dashboard",
-      "root": "apps/web",
+      "repo": "example",
+      "root": "example",
       "tokenHandle": "#Dana_Lawmatics"
     },
     "wait": true
@@ -103,10 +114,19 @@ type Out = {
       "env": "staging",
       "finishedAt": 1760000000000,
       "fix": "set_env",
+      "message": "example",
       "note": "example",
       "problem": "example",
       "siteId": "sit_a1b2c3",
       "state": "queued",
+      "steps": [
+        {
+          "key": "fetch",
+          "ms": 1,
+          "startedAt": 1760000000000,
+          "state": "waiting"
+        }
+      ],
       "url": "example"
     }
   }

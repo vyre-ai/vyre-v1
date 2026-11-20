@@ -93,6 +93,8 @@ export interface CtxSeed {
   sharedKey?: boolean | undefined;
   /** an approval token for exactly this payload, from the Gate resume path */
   approval?: string | undefined;
+  /** The person who pressed yes on a held call that now runs (the releaser of the hold), never the caller it runs as. Set only on the Gate resume path. */
+  approvedBy?: string | undefined;
   /** contract version; latest when omitted */
   v?: number | undefined;
   /**
@@ -898,7 +900,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       approved =
         seed.approval !== undefined &&
         deps.gate !== undefined &&
-        deps.gate.verify(seed.approval, { cap: c, input, seed });
+        deps.gate.verify(seed.approval, { cap: c, input, seed: { ...seed, trace } });
       const memberOnly = c.level === "member";
       let req: AuthReq = {
         principal: seed.principal.id,
@@ -1033,7 +1035,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return park(
           c,
           input,
-          seed,
+          { ...seed, trace },
           traceId,
           pd.decisionId,
           c.gate?.act && c.gate.act !== "none" ? c.gate.act : "approve",
@@ -1149,7 +1151,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         return park(
           c,
           input,
-          seed,
+          { ...seed, trace },
           traceId,
           d.decisionId,
           g && g.type === "gate" ? g.act : (c.gate?.act ?? "approve"),
@@ -1184,7 +1186,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     }
     // a stranger's words, carried in by an Automation's outside-started Run, never give anyone access or become a standing Automation, agent, Routine, hook or skill without a yes (lead 12 Nov)
     if (!approved && depth === 0 && (await deps.gate?.fromAutomationContent?.(c, seed).catch(() => true)) === true)
-      return park(c, input, seed, traceId, did(), "approve", null);
+      return park(c, input, { ...seed, trace }, traceId, did(), "approve", null);
     // the capability's own Gate (spec 2.14): fail closed when a Gate is declared and nothing can park the call
     if (c.gate && c.gate.act !== "none" && !approved) {
       if (!deps.gate)
@@ -1192,9 +1194,10 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           message: "Approvals are not available right now.",
           details: { cap: c.name, act: c.gate.act },
         });
-      const g = await deps.gate.applies(c, input, seed);
+      // the Gate sees this call's own trace (the handler's ctx.trace carries the same trace id), so what it notes for the handler is found under a key both sides know, also for a top-level call that arrived with no trace
+      const g = await deps.gate.applies(c, input, { ...seed, trace });
       if (g) {
-        return park(c, input, seed, traceId, did(), g.act, null);
+        return park(c, input, { ...seed, trace }, traceId, did(), g.act, null);
       }
     }
 
@@ -1210,7 +1213,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const ownReport =
         seed.mustAsk !== true && (await deps.ownTaskReport?.(c, input, seed).catch(() => false)) === true;
       if (!ownReport && (seed.mustAsk === true || !(await deps.gate?.allowed?.(c, input, seed))))
-        return park(c, input, seed, traceId, did(), c.gate?.act ?? "approve", null);
+        return park(c, input, { ...seed, trace }, traceId, did(), c.gate?.act ?? "approve", null);
     }
 
     // the read gate, before: an agent may not copy, move or send a file out of its Redacted or Not available folder (Redaction for AI)
@@ -1338,7 +1341,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     if (stored.length) deps.publish?.(stored);
     // Before the answer reaches the model: a failure to mark costs the next outward act nothing it should have, so it is logged and the answer still goes. The grant check reads the mark.
     if (deps.gate?.seen && (depth === 0 || approved))
-      await deps.gate.seen(c, input, output, seed, t).catch((e: unknown) =>
+      await deps.gate.seen(c, input, output, { ...seed, trace }, t).catch((e: unknown) =>
         log.warn("the Gate did not hear what a call brought in", {
           cap: c.name,
           traceId,
@@ -1375,7 +1378,15 @@ export function createInvoke(deps: InvokeDeps): Invoke {
         details: { cap: c.name },
       });
     if (row) await deps.audit?.(row);
-    const p = await deps.gate.park({ cap: c, input, seed, act, decisionId, traceId, ...(runAs ? { runAs } : {}) });
+    const p = await deps.gate.park({
+      cap: c,
+      input,
+      seed,
+      act,
+      decisionId,
+      traceId,
+      ...(runAs ? { runAs } : {}),
+    });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
   }
 
@@ -1494,6 +1505,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             actingFor: original.actingFor,
             run: original.run,
             thread: original.thread,
+            approvedBy: seed.principal.kind === "person" ? seed.principal.id : undefined,
           };
         }
         // CallOpts.traceId: a call that continues earlier work (a provider's callback about a call a person placed) runs on that work's trace

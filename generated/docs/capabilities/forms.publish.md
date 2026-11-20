@@ -11,7 +11,7 @@ Publish a form as a public link or embed
 | Grant level | manage |
 | Risk | medium |
 | Resource | form (/formId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

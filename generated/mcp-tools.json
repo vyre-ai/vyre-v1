@@ -14290,7 +14290,7 @@
       "blocks": [],
       "cap": "comms.senders.list",
       "deferred": false,
-      "description": "Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why",
+      "description": "Addresses and numbers the caller can send from; one that cannot send now says usable false and why",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -19293,7 +19293,7 @@
       "blocks": [],
       "cap": "email_builder.snippets.list",
       "deferred": false,
-      "description": "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
+      "description": "List composer snippets (reusable reply text), mine and shared",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -24947,9 +24947,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25042,9 +25045,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -25138,9 +25144,12 @@
               "push_protected",
               "secret_export",
               "site_promote",
+              "deploy",
               "signature_send",
               "spend_raise",
               "signin_change",
+              "admit",
+              "access",
               "install",
               "approve",
               "github_approval",
@@ -33403,7 +33412,7 @@
       "blocks": [],
       "cap": "inbox.counts",
       "deferred": false,
-      "description": "Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match",
+      "description": "Unread conversation counts per inbox and number, and how many need a match",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -33418,7 +33427,7 @@
       "blocks": [],
       "cap": "inbox.follow_set",
       "deferred": false,
-      "description": "Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)",
+      "description": "Follow a contact or set Alert me on replies",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -33869,7 +33878,7 @@
       "blocks": [],
       "cap": "inbox.thread_conversation",
       "deferred": false,
-      "description": "The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)",
+      "description": "The conversation of an email thread, from its provider thread id",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -33895,7 +33904,7 @@
       "blocks": [],
       "cap": "inbox.threads",
       "deferred": false,
-      "description": "One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role",
+      "description": "A contact's email threads, newest first, each whole, with what is new and your role",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -36484,9 +36493,103 @@
     },
     {
       "blocks": [],
+      "cap": "mail.configure",
+      "deferred": false,
+      "description": "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "effects": "outward",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "status",
+              "test",
+              "smtp_get",
+              "smtp_set",
+              "smtp_verify",
+              "address_list",
+              "address_add",
+              "address_move"
+            ],
+            "type": "string"
+          },
+          "domainId": {
+            "examples": [
+              "dom_a1b2c3"
+            ],
+            "pattern": "^dom_[a-z0-9]+$",
+            "type": "string"
+          },
+          "fromMailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "localPart": {
+            "type": "string"
+          },
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string"
+          },
+          "passwordHandle": {
+            "examples": [
+              "#Dana_Lawmatics"
+            ],
+            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+            "type": "string"
+          },
+          "port": {
+            "maximum": 65535,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "security": {
+            "enum": [
+              "starttls",
+              "tls"
+            ],
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "to": {
+            "examples": [
+              "maya@example.com"
+            ],
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "mail_configure",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.connect",
       "deferred": false,
-      "description": "Connect the caller's own mailbox: Gmail, Outlook or IMAP (member impersonation for Google and Graph, app password handle for IMAP)",
+      "description": "Connect the caller's own Gmail, Outlook or IMAP mailbox",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36574,9 +36677,39 @@
     },
     {
       "blocks": [],
+      "cap": "mail.delivery_state",
+      "deferred": false,
+      "description": "A message's delivery trail (messageId), else inbox health",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "mailboxId": {
+            "examples": [
+              "mbx_a1b2c3"
+            ],
+            "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "messageId": {
+            "examples": [
+              "eml_a1b2c3"
+            ],
+            "pattern": "^eml_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "mail_delivery_state",
+      "planMode": "allowed",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.domain.add",
       "deferred": false,
-      "description": "Add a sending domain at Resend or Mailgun and return the DNS records to publish",
+      "description": "Add a sending domain (resend, mailgun, smtp); returns the DNS records to publish",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -36596,7 +36729,8 @@
           "provider": {
             "enum": [
               "resend",
-              "mailgun"
+              "mailgun",
+              "smtp"
             ],
             "type": "string"
           }
@@ -36745,7 +36879,7 @@
       "blocks": [],
       "cap": "mail.draft",
       "deferred": false,
-      "description": "Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)",
+      "description": "Create or update a draft (an agent's waits for a person)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37225,7 +37359,7 @@
       "blocks": [],
       "cap": "mail.mailbox.set_sync_state",
       "deferred": false,
-      "description": "A connection reports that its sign-in was lost (Needs attention) or works again (Syncing); the owner sees it in Inbox and Settings",
+      "description": "A connection reports its sign-in lost (error) or working again (syncing)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -37573,7 +37707,7 @@
       "blocks": [],
       "cap": "mail.send",
       "deferred": false,
-      "description": "Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked",
+      "description": "Send an email (suppression, limits and the Gate apply)",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -37650,6 +37784,13 @@
             "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
           "draftId": {
             "examples": [
               "eml_a1b2c3"
@@ -37672,6 +37813,13 @@
               "mbx_a1b2c3"
             ],
             "pattern": "^mbx_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
             "type": "string"
           },
           "replyToMessageId": {
@@ -37697,13 +37845,21 @@
             "type": "integer"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
             "type": "string"
           },
           "subject": {
+            "type": "string"
+          },
+          "templateKey": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
             "type": "string"
           },
           "text": {
@@ -37740,12 +37896,15 @@
           },
           "unsubscribe": {
             "type": "boolean"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
           }
         },
         "required": [
           "mailboxId",
           "to",
-          "subject",
           "idempotencyKey"
         ],
         "type": "object"
@@ -37777,7 +37936,7 @@
             "type": "string"
           },
           "senderId": {
-            "description": "An id from comms.senders.list. For email it is the mailbox id and must equal mailboxId; the sender is then also checked to be connected at send time",
+            "description": "From comms.senders.list; for email the mailbox id (equal to mailboxId). Checked connected at send",
             "examples": [
               "mbx_a1b2c3"
             ],
@@ -37852,9 +38011,77 @@
     },
     {
       "blocks": [],
+      "cap": "mail.templates",
+      "deferred": false,
+      "description": "Email templates: list|get|set|preview|reset; documentId = one document's",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "action": {
+            "enum": [
+              "list",
+              "get",
+              "set",
+              "preview",
+              "reset"
+            ],
+            "type": "string"
+          },
+          "documentId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "key": {
+            "examples": [
+              "signature.request"
+            ],
+            "maxLength": 60,
+            "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*){0,3}$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "vars": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "type": "object"
+      },
+      "name": "mail_templates",
+      "planMode": "blocked",
+      "toolset": "inbox",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "mail.thread.get",
       "deferred": false,
-      "description": "Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)",
+      "description": "Read one email thread whole, oldest first, with your role in it",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -56818,7 +57045,7 @@
       "blocks": [],
       "cap": "sites.addon_add",
       "deferred": false,
-      "description": "Give a deployed site its own Postgres or Redis on this server, with its address set as DATABASE_URL or REDIS_URL. Its data stays on the server through redeploys",
+      "description": "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -56920,7 +57147,7 @@
       "blocks": [],
       "cap": "sites.artifact_thumb_set",
       "deferred": false,
-      "description": "Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one",
+      "description": "Keep a small picture of an artifact, sent by the Vyre for Chrome extension. Set only when there is none or the artifact changed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -56979,7 +57206,7 @@
       "blocks": [],
       "cap": "sites.chat_viewing",
       "deferred": false,
-      "description": "The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds",
+      "description": "The app says a chat is open for the person (every 30 s while open). An artifact an agent publishes for that person opens in their app only while this holds",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57005,7 +57232,7 @@
       "blocks": [],
       "cap": "sites.create",
       "deferred": false,
-      "description": "Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed",
+      "description": "Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57052,18 +57279,12 @@
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -57090,9 +57311,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57110,21 +57328,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -57160,7 +57369,7 @@
       "blocks": [],
       "cap": "sites.db_import",
       "deferred": false,
-      "description": "Copy an existing Postgres into the site's own: a pg_dump file in Files, or a Vault key holding the old connection string (for example from Railway)",
+      "description": "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57226,10 +57435,16 @@
       "blocks": [],
       "cap": "sites.deploy",
       "deferred": false,
-      "description": "Build the site from its source (GitHub repo, folder or zip in Files, or a folder here) and run it on this Space, like Railway: Dockerfile, Node, Next.js, Vite, Python or static. The last good build serves until the new one answers. wait returns when it ends",
+      "description": "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "commit": {
+            "type": "string"
+          },
+          "fp": {
+            "type": "string"
+          },
           "onlyIfChanged": {
             "type": "boolean"
           },
@@ -57243,9 +57458,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57263,21 +57475,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -57300,6 +57503,39 @@
         "type": "object"
       },
       "name": "sites_deploy",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.deploy_cancel",
+      "deferred": false,
+      "description": "Cancel the running deploy. The last good build keeps serving",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "deploymentId": {
+            "examples": [
+              "dpl_a1b2c3"
+            ],
+            "pattern": "^dpl_[a-z0-9]+$",
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_deploy_cancel",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1
@@ -57342,7 +57578,7 @@
       "blocks": [],
       "cap": "sites.domain_add",
       "deferred": false,
-      "description": "Add a custom domain to a site: returns the exact DNS records to set and adds the Caddy route with automatic TLS",
+      "description": "Add a custom domain: returns the DNS records to set; TLS is automatic",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57469,7 +57705,7 @@
       "blocks": [],
       "cap": "sites.env_list",
       "deferred": false,
-      "description": "List env var names and the Vault keys they come from (never values), and the names the app looks for that are not set yet",
+      "description": "A site's env var names and sources (never values), and names the app looks for that are not set",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57495,14 +57731,28 @@
       "blocks": [],
       "cap": "sites.env_set",
       "deferred": false,
-      "description": "Set the env vars of a deployed site: each name takes its value from a Vault key, filled at deploy time and never shown. The next deploy uses them",
+      "description": "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "entries": {
             "items": {
               "properties": {
+                "confirmPlain": {
+                  "type": "boolean"
+                },
                 "name": {
+                  "type": "string"
+                },
+                "scope": {
+                  "enum": [
+                    "all",
+                    "production",
+                    "previews"
+                  ],
+                  "type": "string"
+                },
+                "value": {
                   "type": "string"
                 },
                 "vaultHandle": {
@@ -57514,8 +57764,7 @@
                 }
               },
               "required": [
-                "name",
-                "vaultHandle"
+                "name"
               ],
               "type": "object"
             },
@@ -57570,7 +57819,7 @@
       "blocks": [],
       "cap": "sites.host",
       "deferred": false,
-      "description": "What this Space can host: its address, whether it is a phone address, whether Vyre can build and run apps here, the address sites get, and what a custom domain needs",
+      "description": "What this Space can host: its address, whether Vyre can run apps here, the sites address, what a custom domain needs",
       "effects": "read",
       "inputSchema": {
         "properties": {},
@@ -57585,7 +57834,7 @@
       "blocks": [],
       "cap": "sites.list",
       "deferred": false,
-      "description": "List sites and artifacts you can see, by section (Personal, Shared with me, Space), kind and folder",
+      "description": "List the sites and artifacts you can see, by section, kind, folder",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57631,7 +57880,7 @@
       "blocks": [],
       "cap": "sites.logs",
       "deferred": false,
-      "description": "The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content",
+      "description": "A site's log: its app, or with build a deploy's build log. Text from the site",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57670,7 +57919,7 @@
       "blocks": [],
       "cap": "sites.plan",
       "deferred": false,
-      "description": "What a deploy would do with this source, before running it: how it is built and started, the port, and the databases and env names it looks for (read from railway.json, nixpacks.toml, a Procfile, package.json, requirements.txt or a Dockerfile)",
+      "description": "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -57684,9 +57933,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -57704,21 +57950,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -57741,9 +57978,9 @@
     },
     {
       "blocks": [],
-      "cap": "sites.preview_rebuild",
+      "cap": "sites.preview_promote",
       "deferred": false,
-      "description": "Rebuild a preview or bring back a removed one",
+      "description": "Serve a preview's build as production without a rebuild, with the production variables",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57756,6 +57993,42 @@
             ],
             "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "siteId",
+          "branch"
+        ],
+        "type": "object"
+      },
+      "name": "sites_preview_promote",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.preview_rebuild",
+      "deferred": false,
+      "description": "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "branch": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "wait": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -57829,7 +58102,7 @@
       "blocks": [],
       "cap": "sites.promote",
       "deferred": false,
-      "description": "Put a site on the public internet at its address. Held for approval unless the person asked for it this turn",
+      "description": "Put a site on the public internet. Held for approval unless the person asked this turn",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -57863,7 +58136,7 @@
       "blocks": [],
       "cap": "sites.publish",
       "deferred": false,
-      "description": "Serve a site that is not public: space or private access, or a password on its own domain",
+      "description": "Serve a non-public site: space or private access, or a password on its own domain",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -57889,7 +58162,7 @@
       "blocks": [],
       "cap": "sites.rollback",
       "deferred": false,
-      "description": "Serve an earlier build again (the one before the current, or the one named). Its image is kept on the server, so nothing is built",
+      "description": "Serve an earlier build again (the previous, or the one named). Nothing is built",
       "effects": "outward",
       "inputSchema": {
         "properties": {
@@ -57949,6 +58222,107 @@
       },
       "name": "sites_service_identity",
       "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.ship",
+      "deferred": false,
+      "description": "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "addons": {
+            "items": {
+              "enum": [
+                "postgres",
+                "redis"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "items": {
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "string"
+                },
+                "vaultHandle": {
+                  "examples": [
+                    "#Dana_Lawmatics"
+                  ],
+                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "name": {
+            "type": "string"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          },
+          "source": {
+            "properties": {
+              "branch": {
+                "type": "string"
+              },
+              "fileId": {
+                "examples": [
+                  "fil_a1b2c3"
+                ],
+                "pattern": "^fil_[a-z0-9]+$",
+                "type": "string"
+              },
+              "folderId": {
+                "examples": [
+                  "fld_a1b2c3"
+                ],
+                "pattern": "^fld_[a-z0-9]+$",
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "repo": {
+                "type": "string"
+              },
+              "root": {
+                "type": "string"
+              },
+              "tokenHandle": {
+                "examples": [
+                  "#Dana_Lawmatics"
+                ],
+                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "wait": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "sites_ship",
+      "planMode": "blocked",
       "toolset": "sites",
       "v": 1
     },
@@ -58016,7 +58390,7 @@
       "blocks": [],
       "cap": "sites.stop",
       "deferred": false,
-      "description": "Stop serving a site. Its address answers nothing; the process on the computer keeps running",
+      "description": "Stop serving a site. Its address answers nothing",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58042,7 +58416,7 @@
       "blocks": [],
       "cap": "sites.table_create",
       "deferred": false,
-      "description": "Create a site table (a site-scoped record type); no schema permission needed for people who can edit the site",
+      "description": "Create a site table (a site-scoped record type)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58159,7 +58533,7 @@
       "blocks": [],
       "cap": "sites.update",
       "deferred": false,
-      "description": "Rename a site, change its settings, its source, its CPU and memory, auto deploy on push, where it runs or who may reach it. Making it public takes it down until it is published again",
+      "description": "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -58183,7 +58557,7 @@
             "type": "string"
           },
           "expectedUpdatedAt": {
-            "description": "The updatedAt you read; a change made since then is not replaced, and the change is refused",
+            "description": "The updatedAt you read; refused if changed since",
             "examples": [
               1760000000000
             ],
@@ -58200,18 +58574,12 @@
           "limits": {
             "properties": {
               "cpus": {
-                "maximum": 16,
-                "minimum": 0.1,
                 "type": "number"
               },
               "diskMb": {
-                "maximum": 1048576,
-                "minimum": 256,
                 "type": "integer"
               },
               "memoryMb": {
-                "maximum": 65536,
-                "minimum": 128,
                 "type": "integer"
               }
             },
@@ -58243,9 +58611,6 @@
           "source": {
             "properties": {
               "branch": {
-                "examples": [
-                  "main"
-                ],
                 "type": "string"
               },
               "fileId": {
@@ -58263,21 +58628,12 @@
                 "type": "string"
               },
               "path": {
-                "description": "A folder on the computer this Vyre runs on (an agent on its own computer)",
                 "type": "string"
               },
               "repo": {
-                "description": "A git address (https://github.com/owner/name) or owner/name on GitHub",
-                "examples": [
-                  "https://github.com/acme/cx-dashboard"
-                ],
                 "type": "string"
               },
               "root": {
-                "description": "The folder inside the repo or upload that holds the app",
-                "examples": [
-                  "apps/web"
-                ],
                 "type": "string"
               },
               "tokenHandle": {
@@ -58297,6 +58653,70 @@
         "type": "object"
       },
       "name": "sites_update",
+      "planMode": "blocked",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_get",
+      "deferred": false,
+      "description": "GitHub webhook of a site: on or off, its address, the branches that get a preview. The secret is never shown again",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_get",
+      "planMode": "allowed",
+      "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "sites.webhook_set",
+      "deferred": false,
+      "description": "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          },
+          "follow": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rotate": {
+            "type": "boolean"
+          },
+          "siteId": {
+            "examples": [
+              "sit_a1b2c3"
+            ],
+            "pattern": "^sit_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "siteId"
+        ],
+        "type": "object"
+      },
+      "name": "sites_webhook_set",
       "planMode": "blocked",
       "toolset": "sites",
       "v": 1

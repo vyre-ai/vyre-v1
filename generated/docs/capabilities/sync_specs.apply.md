@@ -11,7 +11,7 @@ Apply a validated SyncSpec: a live connector (with its own tests), a connection 
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

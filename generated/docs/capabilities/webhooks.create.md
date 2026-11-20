@@ -11,7 +11,7 @@ Create an outgoing webhook for event types with an optional filter; returns the 
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

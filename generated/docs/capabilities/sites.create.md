@@ -1,6 +1,6 @@
 # sites.create
 
-Create a site: a name, and where it runs (a port on a computer, or a folder in Files), or its source (a GitHub repo, an uploaded folder or zip) for Vyre to build and run with sites_deploy. Nothing is served until it is published or deployed
+Create a site: where it runs (a computer port or a Files folder) or its source (repo, folder or zip). Nothing is served until published or deployed
 
 | | |
 |---|---|
@@ -11,7 +11,7 @@ Create a site: a name, and where it runs (a port on a computer, or a folder in F
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (create under /folderId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |
@@ -97,6 +97,7 @@ type Out = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -104,6 +105,12 @@ type Out = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -143,20 +150,20 @@ type Out = {
     "kind": "site",
     "limits": {
       "cpus": 1,
-      "diskMb": 256,
-      "memoryMb": 128
+      "diskMb": 1,
+      "memoryMb": 1
     },
     "name": "example",
     "port": 1,
     "repoUrl": "example",
     "slug": "example",
     "source": {
-      "branch": "main",
+      "branch": "example",
       "fileId": "fil_a1b2c3",
       "folderId": "fld_a1b2c3",
       "path": "example",
-      "repo": "https://github.com/acme/cx-dashboard",
-      "root": "apps/web",
+      "repo": "example",
+      "root": "example",
       "tokenHandle": "#Dana_Lawmatics"
     },
     "templateKit": "kit_a1b2c3"
@@ -190,16 +197,25 @@ type Out = {
         "env": "staging",
         "finishedAt": 1760000000000,
         "fix": "set_env",
+        "message": "example",
         "note": "example",
         "problem": "example",
         "siteId": "sit_a1b2c3",
         "state": "queued",
+        "steps": [
+          {
+            "key": "fetch",
+            "ms": 1,
+            "startedAt": 1760000000000,
+            "state": "waiting"
+          }
+        ],
         "url": "example"
       },
       "limits": {
         "cpus": 1,
-        "diskMb": 256,
-        "memoryMb": 128
+        "diskMb": 1,
+        "memoryMb": 1
       },
       "live": true,
       "name": "example",
@@ -217,12 +233,12 @@ type Out = {
       "siteId": "sit_a1b2c3",
       "slug": "example",
       "source": {
-        "branch": "main",
+        "branch": "example",
         "fileId": "fil_a1b2c3",
         "folderId": "fld_a1b2c3",
         "path": "example",
-        "repo": "https://github.com/acme/cx-dashboard",
-        "root": "apps/web",
+        "repo": "example",
+        "root": "example",
         "tokenHandle": "#Dana_Lawmatics"
       },
       "stagingUrl": "example",

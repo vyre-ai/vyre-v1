@@ -649,6 +649,8 @@ export interface ThreadView {
   viaOf?(mailboxId: string): string;
   /** Record chips the history put on an email. */
   chipsOf?(messageId: string): { title: string; recordId?: string }[];
+  /** What happened to a message this person sent: delivered, bounced and why. */
+  trailOf?(messageId: string): ReactElement | null;
   onChip?(title: string, recordId?: string): void;
   /** A phone width: the message head keeps the name and the time and drops the rest. */
   narrow?: boolean;
@@ -856,6 +858,7 @@ function ThreadMessage({ m, v }: { m: ThreadMsg; v: ThreadView }): ReactElement 
           </Text>
         )}
       </View>
+      {out ? (v.trailOf?.(m.id) ?? null) : null}
       {m.imagesHeld ? (
         <View style={th.imgoff} testID={`images-held:${m.id}`}>
           <Icon name="file" size={13} />

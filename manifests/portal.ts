@@ -74,6 +74,7 @@ export default defineManifest({
       in: { accountId, fileId: id.file, expiresInMinutes: t.int({ minimum: 1 }) },
       out: { url: t.str(), expiresAt: t.ts() },
       on: ["file", "/fileId"],
+      gate: { act: "send", when: "actor.kind != 'person'" },
       level: "manage",
       tool: "sites",
       team: true,

@@ -11,6 +11,8 @@
 import { bad, first, isId, missing, num, readParties, rowsOf, str, strOrNull } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
 import { ensureAll } from "./common.ts";
+import { childDelivered, childEnded, ensureDelivery, giveUp, planRetry, recordTrail, rootOf } from "./delivery.ts";
+import type { TrailKind } from "./delivery.ts";
 
 // ---- mail.health
 
@@ -149,6 +151,22 @@ export async function statusUpdate(
   }
   if (!msg || !messageId) return { suppressed }; // not recorded yet or not ours: nothing stored, so a retry once the send is saved applies it
 
+  ensureDelivery(ctx);
+  const root = rootOf(ctx, messageId);
+  const soft = input.status === "bounced" && input.kind !== "hard";
+  // every event is on the trail, even one that arrives late or after a higher status; the status below only ever moves up
+  recordTrail(
+    ctx,
+    root,
+    {
+      kind: (soft ? "soft_bounced" : input.status === "failed" ? "failed" : input.status) as TrailKind,
+      at: input.at,
+      ...(address ? { address } : {}),
+      ...(input.reason ? { detail: input.reason } : {}),
+    },
+    key,
+  );
+
   const subject = `mail_message/${messageId}`;
   const current = str(msg, "status");
   const rank = LADDER[current] ?? 0;
@@ -158,9 +176,20 @@ export async function statusUpdate(
         setStatus(ctx, msg, "delivered");
         ctx.emit("message.delivered", subject, { messageId, channel: "email" });
       }
+      if (root !== messageId && address) childDelivered(ctx, root, address);
       break;
     case "bounced":
       if (rank < FINAL) {
+        // a soft bounce is retried (to that address only) before it is called a bounce; when the tries run out the message the person sent is bounced too
+        if (soft && address) {
+          if (await planRetry(ctx, root, address, input.reason, input.at)) break;
+          if (root !== messageId) {
+            const rootMsg = first(ctx.db.all(`SELECT * FROM mail_message WHERE id = ?`, root));
+            if (rootMsg) await giveUp(ctx, rootMsg, address, input.reason ?? FALLBACK_REASON);
+            setStatus(ctx, msg, "bounced"); // the child ends quietly: the message the person sent already announced the bounce
+            break;
+          }
+        }
         setStatus(ctx, msg, "bounced");
         const payload: Record<string, unknown> = {
           messageId,
@@ -197,6 +226,12 @@ export async function statusUpdate(
       ctx.emit("message.clicked", subject, payload);
       break;
     }
+  }
+  // a retry child that ended for good ends the message the person sent too, and closes its retry
+  if (root !== messageId && address) {
+    if (hardBounce) childEnded(ctx, root, address, "bounced", input.reason);
+    else if (complaint) childEnded(ctx, root, address, "complained", input.reason);
+    else if (input.status === "failed") childEnded(ctx, root, address, "failed", input.reason);
   }
   ctx.db.run(
     `INSERT OR IGNORE INTO mail_status_log ("eventKey", "messageId", suppressed, "appliedAt") VALUES (?, ?, ?, ?)`,

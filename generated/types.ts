@@ -328,6 +328,12 @@ export type AccessExceptionsSetOut = {
     at: number;
   };
 };
+export type AccessFolderNarrowIn = {
+  folderId: string;
+};
+export type AccessFolderNarrowOut = {
+  audience: "space" | "added" | "me";
+};
 export type AccessGrantsListIn = {
   resource?: {
     type: "space" | "record_type" | "record" | "project" | "folder" | "file" | "channel" | "thread" | "inbox" | "mailbox" | "vault_folder" | "vault_item" | "automation_group" | "automation" | "agent" | "connector" | "connection" | "site" | "form" | "kit" | "terminal" | "computer" | "task" | "run" | "number" | "domain" | "calendar" | "skill";
@@ -17418,7 +17424,7 @@ export type FormsUpdateOut = {
 export type GateActsListIn = Record<string, unknown>;
 export type GateActsListOut = {
   acts: Array<{
-      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      key: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       title: string;
       risk: "low" | "medium" | "high";
       humanToo: boolean;
@@ -17430,7 +17436,7 @@ export type GateAllowListOut = {
   rules: Array<{
       id: string;
       kind: "standing" | "always" | "goal";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       agentId?: string;
       threadId?: string;
@@ -17447,7 +17453,7 @@ export type GateAllowRemoveOut = {
   ok: boolean;
 };
 export type GateAllowSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   target: string;
   agentId?: string;
   threadId?: string;
@@ -17458,7 +17464,7 @@ export type GateAllowSetOut = {
   rule: {
     id: string;
     kind: "standing" | "always" | "goal";
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
     target: string;
     agentId?: string;
     threadId?: string;
@@ -17482,7 +17488,7 @@ export type GateEffectiveRuleIn = {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
   };
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   adminOnly?: boolean;
 };
 export type GateEffectiveRuleOut = {
@@ -17510,7 +17516,7 @@ export type GateGrantsAskIn = {
   threadId: string;
   messageId: string;
   asked: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
   links?: Array<string>;
@@ -17531,7 +17537,7 @@ export type GateGrantsGoalIn = {
   threads: Array<string>;
   until: number;
   set?: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
     }>;
 };
@@ -17545,7 +17551,7 @@ export type GateGrantsSetIn = {
   press: "save" | "on";
   steps: Array<{
       stepId: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       targets: Array<string>;
       computed: boolean;
       changed: boolean;
@@ -17554,13 +17560,13 @@ export type GateGrantsSetIn = {
 export type GateGrantsSetOut = {
   grants: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       stepId?: string;
     }>;
 };
 export type GateGrantsTakeIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   targets: Array<string>;
   step?: {
     automationId: string;
@@ -17589,7 +17595,7 @@ export type GateHoldsGetIn = {
 export type GateHoldsGetOut = {
   hold: {
     id: string;
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
     capName: string;
     taskId: string;
     runId?: string;
@@ -17610,7 +17616,7 @@ export type GateHoldsGetOut = {
 };
 export type GateHoldsListIn = {
   states?: Array<"held" | "approved" | "denied" | "expired">;
-  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act?: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   runId?: string;
   cursor?: string;
   limit?: number;
@@ -17618,7 +17624,7 @@ export type GateHoldsListIn = {
 export type GateHoldsListOut = {
   holds: Array<{
       id: string;
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       capName: string;
       taskId: string;
       runId?: string;
@@ -17661,7 +17667,7 @@ export type GateParkIn = {
   capVersion: number;
   input: unknown;
   payloadHash: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   principal: {
     kind: "person" | "agent" | "actor" | "service";
     id: string;
@@ -17676,6 +17682,7 @@ export type GateParkIn = {
     defHash: string;
     ask?: boolean;
   };
+  origin?: string;
   ask?: {
     by: {
       kind: "person" | "agent" | "actor" | "service";
@@ -17711,7 +17718,7 @@ export type GateRulesListIn = {
 };
 export type GateRulesListOut = {
   rules: Array<{
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       mode: "hold" | "allow";
       approvers: string;
       peopleOnly: boolean;
@@ -17725,7 +17732,7 @@ export type GateRulesListOut = {
     }>;
 };
 export type GateRulesSetIn = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   mode: "hold" | "allow";
@@ -17737,7 +17744,7 @@ export type GateRulesSetIn = {
 };
 export type GateRulesSetOut = {
   rule: {
-    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+    act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
     mode: "hold" | "allow";
     approvers: string;
     peopleOnly: boolean;
@@ -25085,6 +25092,62 @@ export type MachinesSetOut = {
       }>;
   };
 };
+export type MailAddressAddIn = {
+  domainId: string;
+  localPart: string;
+  mailboxId?: string;
+  title?: string;
+  idempotencyKey: string;
+};
+export type MailAddressAddOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+};
+export type MailAddressListIn = {
+  cursor?: string;
+  limit?: number;
+  domainId?: string;
+};
+export type MailAddressListOut = {
+  addresses: Array<{
+      address: string;
+      domainId: string;
+      kind: "mailbox" | "alias";
+      mailboxId: string;
+      mailboxTitle: string;
+      routeId?: string;
+      receives: boolean;
+    }>;
+  next?: string;
+  total?: number;
+};
+export type MailAddressMoveIn = {
+  domainId: string;
+  localPart: string;
+  fromMailboxId: string;
+  mailboxId: string;
+  idempotencyKey: string;
+};
+export type MailAddressMoveOut = {
+  address: {
+    address: string;
+    domainId: string;
+    kind: "mailbox" | "alias";
+    mailboxId: string;
+    mailboxTitle: string;
+    routeId?: string;
+    receives: boolean;
+  };
+  from: string;
+  to: string;
+};
 export type MailAttachmentSaveIn = {
   messageId: string;
   attachmentId: string;
@@ -25106,6 +25169,24 @@ export type MailAutoConnectMembersOut = {
   created: number;
   notified: number;
   skipped: number;
+};
+export type MailConfigureIn = {
+  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  to?: string;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  domainId?: string;
+  localPart?: string;
+  mailboxId?: string;
+  fromMailboxId?: string;
+  title?: string;
+  nonce?: string;
+};
+export type MailConfigureOut = {
+  result: unknown;
 };
 export type MailConnectIn = {
   provider: "google" | "microsoft" | "imap";
@@ -25135,16 +25216,60 @@ export type MailConnectOut = {
     lastSyncAt?: number;
   };
 };
+export type MailDeliveryRetryIn = {
+  messageId: string;
+  address: string;
+  attempt: number;
+};
+export type MailDeliveryRetryOut = {
+  outcome: "sent" | "skipped" | "gave_up" | "rescheduled" | "held";
+  messageId?: string;
+};
+export type MailDeliveryTrailIn = {
+  messageId: string;
+};
+export type MailDeliveryTrailOut = {
+  messageId: string;
+  state: "waiting" | "sent" | "delivered" | "retrying" | "held" | "bounced" | "complained" | "failed";
+  sentBy?: {
+    kind: string;
+    id: string;
+  };
+  events: Array<{
+      kind: "queued" | "held" | "sent" | "delivered" | "opened" | "clicked" | "soft_bounced" | "bounced" | "complained" | "failed" | "retry_scheduled" | "retried" | "gave_up";
+      at: number;
+      label: string;
+      address?: string;
+      detail?: string;
+    }>;
+  blocked: Array<{
+      address: string;
+      reason: string;
+    }>;
+  retry?: {
+    address: string;
+    attempt: number;
+    of: number;
+    nextAt?: number;
+  };
+};
+export type MailDeliveryStateIn = {
+  messageId?: string;
+  mailboxId?: string;
+};
+export type MailDeliveryStateOut = {
+  result: unknown;
+};
 export type MailDomainAddIn = {
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
   idempotencyKey: string;
 };
 export type MailDomainAddOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25167,7 +25292,7 @@ export type MailDomainCheckOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25190,7 +25315,7 @@ export type MailDomainGetOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25214,7 +25339,7 @@ export type MailDomainListOut = {
   domains: Array<{
       id: string;
       name: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
       spf: "pass" | "fail" | "pending";
       dkim: "pass" | "fail" | "pending";
       dmarc: "pass" | "fail" | "pending";
@@ -25238,7 +25363,7 @@ export type MailDomainSetDefaultOut = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";
@@ -25335,6 +25460,32 @@ export type MailHealthOut = {
   state: "healthy" | "degraded" | "down";
   detail?: string;
   latencyMs?: number;
+};
+export type MailInboxMonitorIn = {
+  mailboxId?: string;
+};
+export type MailInboxMonitorOut = {
+  inboxes: Array<{
+      mailboxId: string;
+      address: string;
+      kind: "personal" | "shared" | "agent" | "service";
+      how: "imap" | "google" | "microsoft" | "provider_webhook";
+      state: "ok" | "late" | "failing" | "paused";
+      lastReceivedAt?: number;
+      lastSyncAt?: number;
+      receivedToday: number;
+      problem?: {
+        reason: string;
+        fix: string;
+        at: number;
+      };
+    }>;
+  unrouted: Array<{
+      address: string;
+      reason: string;
+      fix: string;
+      at: number;
+    }>;
 };
 export type MailIngestIn = {
   source: "google" | "microsoft" | "imap" | "resend" | "mailgun";
@@ -25752,7 +25903,7 @@ export type MailRouteListOut = {
       domainId: string;
       localPart: string;
       mailboxId: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
     }>;
   next?: string;
   total?: number;
@@ -25776,7 +25927,7 @@ export type MailRouteSetOut = {
     domainId: string;
     localPart: string;
     mailboxId: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
   };
 };
 export type MailSendIn = {
@@ -25798,13 +25949,17 @@ export type MailSendIn = {
       name?: string;
       contactId?: string;
     }>;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
   draftId?: string;
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   sendAt?: number;
   unsubscribe?: boolean;
   idempotencyKey: string;
@@ -25865,6 +26020,101 @@ export type MailSendPreviewOut = {
     }>;
   providerRoute: "mailbox" | "space_domain";
 };
+export type MailSetupStatusIn = Record<string, unknown>;
+export type MailSetupStatusOut = {
+  provider: "resend" | "mailgun" | "smtp";
+  smtp: {
+    configured: boolean;
+    host?: string;
+    port?: number;
+    security?: "starttls" | "tls";
+    username?: string;
+    state: "none" | "unchecked" | "ok" | "failed";
+    detail?: string;
+    checkedAt?: number;
+  };
+  domains: Array<{
+      id: string;
+      name: string;
+      provider: "resend" | "mailgun" | "smtp";
+      spf: "pass" | "fail" | "pending";
+      dkim: "pass" | "fail" | "pending";
+      dmarc: "pass" | "fail" | "pending";
+      verified: boolean;
+      isDefault: boolean;
+      checkedAt?: number;
+    }>;
+  rechecks: Array<{
+      domainId: string;
+      failures: number;
+      why?: string;
+      checkedAt?: number;
+    }>;
+  cleanups: Array<{
+      id: string;
+      kind: "provider_route" | "duplicate_route";
+      note: string;
+      attempts: number;
+      lastError?: string;
+      createdAt: number;
+    }>;
+  done: Array<"choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready">;
+  step: "choose_provider" | "connect_server" | "add_domain" | "publish_dns" | "set_default" | "ready";
+  next: string;
+  ready: boolean;
+};
+export type MailSetupTestSendIn = {
+  to: string;
+  idempotencyKey: string;
+};
+export type MailSetupTestSendOut = {
+  messageId?: string;
+  status: "queued" | "sent" | "held" | "suppressed";
+  from: string;
+  note?: string;
+};
+export type MailSmtpGetIn = Record<string, unknown>;
+export type MailSmtpGetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpSetIn = {
+  host: string;
+  port: number;
+  security?: "starttls" | "tls";
+  username: string;
+  passwordHandle: string;
+};
+export type MailSmtpSetOut = {
+  configured: boolean;
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  state: "none" | "unchecked" | "ok" | "failed";
+  detail?: string;
+  checkedAt?: number;
+};
+export type MailSmtpVerifyIn = {
+  host?: string;
+  port?: number;
+  security?: "starttls" | "tls";
+  username?: string;
+  passwordHandle?: string;
+  idempotencyKey: string;
+};
+export type MailSmtpVerifyOut = {
+  ok: boolean;
+  reason?: "blocked" | "refused" | "unknown_host" | "address" | "auth" | "tls" | "failed";
+  message: string;
+  ms: number;
+};
 export type MailStatusUpdateIn = {
   providerId: string;
   status: "delivered" | "bounced" | "complained" | "opened" | "clicked" | "failed";
@@ -25883,6 +26133,152 @@ export type MailSyncNowIn = {
 };
 export type MailSyncNowOut = {
   runId: string;
+};
+export type MailTemplateForDocumentClearIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentClearOut = {
+  cleared: boolean;
+};
+export type MailTemplateForDocumentGetIn = {
+  documentId: string;
+  key: string;
+};
+export type MailTemplateForDocumentGetOut = {
+  override: boolean;
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateForDocumentSetIn = {
+  documentId: string;
+  key: string;
+  subject: string;
+  text: string;
+  html?: string;
+};
+export type MailTemplateForDocumentSetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateGetIn = {
+  key: string;
+  documentId?: string;
+};
+export type MailTemplateGetOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplateListIn = Record<string, unknown>;
+export type MailTemplateListOut = {
+  templates: Array<{
+      key: string;
+      title: string;
+      subject: string;
+      source: "space" | "builtin";
+      customised: boolean;
+      updatedAt?: number;
+    }>;
+};
+export type MailTemplatePreviewIn = {
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  html?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatePreviewOut = {
+  subject: string;
+  text: string;
+  html?: string;
+  source: "document" | "space" | "builtin" | "draft";
+  blanks: Array<string>;
+  fallbacks: Array<string>;
+};
+export type MailTemplateResetIn = {
+  key: string;
+};
+export type MailTemplateResetOut = {
+  reset: boolean;
+};
+export type MailTemplateSaveIn = {
+  key: string;
+  title?: string;
+  subject: string;
+  text: string;
+  html?: string;
+  recordType?: string;
+};
+export type MailTemplateSaveOut = {
+  template: {
+    key: string;
+    title: string;
+    subject: string;
+    text: string;
+    html?: string;
+    source: "document" | "space" | "builtin";
+    recordType?: string;
+    version: number;
+    updatedAt?: number;
+    fields: Array<{
+        key: string;
+        fallback?: string;
+      }>;
+  };
+};
+export type MailTemplatesIn = {
+  action: "list" | "get" | "set" | "preview" | "reset";
+  key?: string;
+  documentId?: string;
+  subject?: string;
+  text?: string;
+  recordType?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
+};
+export type MailTemplatesOut = {
+  result: unknown;
 };
 export type MailThreadGetIn = {
   threadId: string;
@@ -36469,6 +36865,14 @@ export type SchemaSetLabelIn = {
 export type SchemaSetLabelOut = {
   ok: boolean;
 };
+export type SchemaSetMergeableIn = {
+  type: string;
+  field: string;
+  mergeable: boolean;
+};
+export type SchemaSetMergeableOut = {
+  ok: boolean;
+};
 export type SchemaTrashListIn = Record<string, unknown>;
 export type SchemaTrashListOut = {
   items: Array<{
@@ -37341,6 +37745,7 @@ export type SitesCreateOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37348,6 +37753,12 @@ export type SitesCreateOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -37392,6 +37803,8 @@ export type SitesDeployIn = {
   };
   wait?: boolean;
   onlyIfChanged?: boolean;
+  commit?: string;
+  fp?: string;
 };
 export type SitesDeployOut = {
   deployment: {
@@ -37402,6 +37815,7 @@ export type SitesDeployOut = {
     url?: string;
     branch?: string;
     commit?: string;
+    message?: string;
     at: number;
     by?: string;
     note?: string;
@@ -37409,6 +37823,41 @@ export type SitesDeployOut = {
     fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
     current?: boolean;
     finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
+  };
+};
+export type SitesDeployCancelIn = {
+  siteId: string;
+  deploymentId?: string;
+};
+export type SitesDeployCancelOut = {
+  deployment: {
+    deploymentId: string;
+    siteId: string;
+    env: "staging" | "preview" | "production";
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    url?: string;
+    branch?: string;
+    commit?: string;
+    message?: string;
+    at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
   };
 };
 export type SitesDeploymentsIn = {
@@ -37425,6 +37874,7 @@ export type SitesDeploymentsOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37432,6 +37882,12 @@ export type SitesDeploymentsOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     }>;
   next?: string;
   total?: number;
@@ -37489,6 +37945,9 @@ export type SitesEnvListOut = {
       name: string;
       vaultName: string;
       injected: boolean;
+      kind: "secret" | "plain";
+      value?: string;
+      scope: "all" | "production" | "previews";
     }>;
   wanted?: Array<string>;
 };
@@ -37496,7 +37955,10 @@ export type SitesEnvSetIn = {
   siteId: string;
   entries: Array<{
       name: string;
-      vaultHandle: string;
+      vaultHandle?: string;
+      value?: string;
+      scope?: "all" | "production" | "previews";
+      confirmPlain?: boolean;
     }>;
 };
 export type SitesEnvSetOut = {
@@ -37547,6 +38009,7 @@ export type SitesGetOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37554,6 +38017,12 @@ export type SitesGetOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -37569,6 +38038,15 @@ export type SitesGetOut = {
     autoDeploy?: boolean;
     passwordSet?: boolean;
   };
+};
+export type SitesHeadCheckIn = {
+  siteId: string;
+};
+export type SitesHeadCheckOut = {
+  head?: string;
+  changed: boolean;
+  repo?: boolean;
+  branch?: string;
 };
 export type SitesHostIn = Record<string, unknown>;
 export type SitesHostOut = {
@@ -37630,6 +38108,7 @@ export type SitesListOut = {
         url?: string;
         branch?: string;
         commit?: string;
+        message?: string;
         at: number;
         by?: string;
         note?: string;
@@ -37637,6 +38116,12 @@ export type SitesListOut = {
         fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
         current?: boolean;
         finishedAt?: number;
+        steps?: Array<{
+            key: "fetch" | "build" | "start" | "check";
+            state: "waiting" | "running" | "ok" | "failed" | "skipped";
+            ms?: number;
+            startedAt?: number;
+          }>;
       };
       limits?: {
         cpus: number;
@@ -37664,6 +38149,13 @@ export type SitesLogsIn = {
 export type SitesLogsOut = {
   lines: Array<string>;
   state?: "queued" | "building" | "ready" | "failed" | "stopped";
+  steps?: Array<{
+      key: "fetch" | "build" | "start" | "check";
+      state: "waiting" | "running" | "ok" | "failed" | "skipped";
+      ms?: number;
+      startedAt?: number;
+      from?: number;
+    }>;
 };
 export type SitesPasswordSetIn = {
   siteId: string;
@@ -37694,9 +38186,40 @@ export type SitesPlanOut = {
   env: Array<string>;
   from: Array<string>;
 };
+export type SitesPreviewPromoteIn = {
+  siteId: string;
+  branch: string;
+  wait?: boolean;
+};
+export type SitesPreviewPromoteOut = {
+  deployment: {
+    deploymentId: string;
+    siteId: string;
+    env: "staging" | "preview" | "production";
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    url?: string;
+    branch?: string;
+    commit?: string;
+    message?: string;
+    at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
+  };
+};
 export type SitesPreviewRebuildIn = {
   siteId: string;
   branch: string;
+  wait?: boolean;
 };
 export type SitesPreviewRebuildOut = {
   deployment: {
@@ -37707,6 +38230,7 @@ export type SitesPreviewRebuildOut = {
     url?: string;
     branch?: string;
     commit?: string;
+    message?: string;
     at: number;
     by?: string;
     note?: string;
@@ -37714,6 +38238,12 @@ export type SitesPreviewRebuildOut = {
     fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
     current?: boolean;
     finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
   };
 };
 export type SitesPreviewRemoveIn = {
@@ -37735,6 +38265,7 @@ export type SitesPreviewsOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37742,6 +38273,12 @@ export type SitesPreviewsOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     }>;
 };
 export type SitesPromoteIn = {
@@ -37790,6 +38327,7 @@ export type SitesPromoteOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37797,6 +38335,12 @@ export type SitesPromoteOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -37858,6 +38402,7 @@ export type SitesPublishOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37865,6 +38410,12 @@ export type SitesPublishOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -37895,6 +38446,7 @@ export type SitesRollbackOut = {
     url?: string;
     branch?: string;
     commit?: string;
+    message?: string;
     at: number;
     by?: string;
     note?: string;
@@ -37902,6 +38454,12 @@ export type SitesRollbackOut = {
     fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
     current?: boolean;
     finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
   };
 };
 export type SitesServiceIdentityIn = {
@@ -37913,6 +38471,58 @@ export type SitesServiceIdentityOut = {
       resource: string;
       level: string;
     }>;
+};
+export type SitesShipIn = {
+  siteId?: string;
+  name?: string;
+  source?: {
+    repo?: string;
+    branch?: string;
+    tokenHandle?: string;
+    folderId?: string;
+    fileId?: string;
+    path?: string;
+    root?: string;
+  };
+  env?: Array<{
+      name: string;
+      vaultHandle?: string;
+      value?: string;
+    }>;
+  addons?: Array<"postgres" | "redis">;
+  wait?: boolean;
+};
+export type SitesShipOut = {
+  ok: boolean;
+  siteId: string;
+  address?: string;
+  say: string;
+  failedStep?: "setup" | "deploy" | "fetch" | "build" | "start" | "check";
+  problem?: string;
+  fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+  deployment?: {
+    deploymentId: string;
+    siteId: string;
+    env: "staging" | "preview" | "production";
+    state: "queued" | "building" | "ready" | "failed" | "stopped";
+    url?: string;
+    branch?: string;
+    commit?: string;
+    message?: string;
+    at: number;
+    by?: string;
+    note?: string;
+    problem?: string;
+    fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
+    current?: boolean;
+    finishedAt?: number;
+    steps?: Array<{
+        key: "fetch" | "build" | "start" | "check";
+        state: "waiting" | "running" | "ok" | "failed" | "skipped";
+        ms?: number;
+        startedAt?: number;
+      }>;
+  };
 };
 export type SitesSigninLinkIn = {
   siteId: string;
@@ -37984,6 +38594,7 @@ export type SitesStopOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -37991,6 +38602,12 @@ export type SitesStopOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -38103,6 +38720,7 @@ export type SitesUpdateOut = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -38110,6 +38728,12 @@ export type SitesUpdateOut = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -38125,6 +38749,43 @@ export type SitesUpdateOut = {
     autoDeploy?: boolean;
     passwordSet?: boolean;
   };
+};
+export type SitesWebhookGetIn = {
+  siteId: string;
+};
+export type SitesWebhookGetOut = {
+  enabled: boolean;
+  url?: string;
+  follow: Array<string>;
+  secret?: string;
+  vault?: string;
+  lastDeliveryAt?: number;
+  failed: Array<{
+      branch: string;
+      action: string;
+      error: string;
+      at: number;
+    }>;
+};
+export type SitesWebhookSetIn = {
+  siteId: string;
+  enabled?: boolean;
+  rotate?: boolean;
+  follow?: Array<string>;
+};
+export type SitesWebhookSetOut = {
+  enabled: boolean;
+  url?: string;
+  follow: Array<string>;
+  secret?: string;
+  vault?: string;
+  lastDeliveryAt?: number;
+  failed: Array<{
+      branch: string;
+      action: string;
+      error: string;
+      at: number;
+    }>;
 };
 export type SkillsAddIn = {
   text: string;
@@ -45774,6 +46435,7 @@ export type ThreadsMembersAddOut = {
     parentTitle?: string;
     preview?: string;
   };
+  note?: string;
 };
 export type ThreadsMembersRemoveIn = {
   threadId: string;
@@ -48385,6 +49047,7 @@ export interface CapMap {
   "access.exceptions.list": { in: AccessExceptionsListIn; out: AccessExceptionsListOut };
   "access.exceptions.remove": { in: AccessExceptionsRemoveIn; out: AccessExceptionsRemoveOut };
   "access.exceptions.set": { in: AccessExceptionsSetIn; out: AccessExceptionsSetOut };
+  "access.folder_narrow": { in: AccessFolderNarrowIn; out: AccessFolderNarrowOut };
   "access.grants.list": { in: AccessGrantsListIn; out: AccessGrantsListOut };
   "access.grants.update": { in: AccessGrantsUpdateIn; out: AccessGrantsUpdateOut };
   "access.groups.add_member": { in: AccessGroupsAddMemberIn; out: AccessGroupsAddMemberOut };
@@ -49534,9 +50197,16 @@ export interface CapMap {
   "machines.moves": { in: MachinesMovesIn; out: MachinesMovesOut };
   "machines.rooms": { in: MachinesRoomsIn; out: MachinesRoomsOut };
   "machines.set": { in: MachinesSetIn; out: MachinesSetOut };
+  "mail.address.add": { in: MailAddressAddIn; out: MailAddressAddOut };
+  "mail.address.list": { in: MailAddressListIn; out: MailAddressListOut };
+  "mail.address.move": { in: MailAddressMoveIn; out: MailAddressMoveOut };
   "mail.attachment.save": { in: MailAttachmentSaveIn; out: MailAttachmentSaveOut };
   "mail.auto_connect_members": { in: MailAutoConnectMembersIn; out: MailAutoConnectMembersOut };
+  "mail.configure": { in: MailConfigureIn; out: MailConfigureOut };
   "mail.connect": { in: MailConnectIn; out: MailConnectOut };
+  "mail.delivery.retry": { in: MailDeliveryRetryIn; out: MailDeliveryRetryOut };
+  "mail.delivery.trail": { in: MailDeliveryTrailIn; out: MailDeliveryTrailOut };
+  "mail.delivery_state": { in: MailDeliveryStateIn; out: MailDeliveryStateOut };
   "mail.domain.add": { in: MailDomainAddIn; out: MailDomainAddOut };
   "mail.domain.check": { in: MailDomainCheckIn; out: MailDomainCheckOut };
   "mail.domain.get": { in: MailDomainGetIn; out: MailDomainGetOut };
@@ -49547,6 +50217,7 @@ export interface CapMap {
   "mail.drafts.discard": { in: MailDraftsDiscardIn; out: MailDraftsDiscardOut };
   "mail.drafts.list": { in: MailDraftsListIn; out: MailDraftsListOut };
   "mail.health": { in: MailHealthIn; out: MailHealthOut };
+  "mail.inbox.monitor": { in: MailInboxMonitorIn; out: MailInboxMonitorOut };
   "mail.ingest": { in: MailIngestIn; out: MailIngestOut };
   "mail.mailbox.create": { in: MailMailboxCreateIn; out: MailMailboxCreateOut };
   "mail.mailbox.disconnect": { in: MailMailboxDisconnectIn; out: MailMailboxDisconnectOut };
@@ -49569,8 +50240,22 @@ export interface CapMap {
   "mail.send": { in: MailSendIn; out: MailSendOut };
   "mail.send_as": { in: MailSendAsIn; out: MailSendAsOut };
   "mail.send_preview": { in: MailSendPreviewIn; out: MailSendPreviewOut };
+  "mail.setup.status": { in: MailSetupStatusIn; out: MailSetupStatusOut };
+  "mail.setup.test_send": { in: MailSetupTestSendIn; out: MailSetupTestSendOut };
+  "mail.smtp.get": { in: MailSmtpGetIn; out: MailSmtpGetOut };
+  "mail.smtp.set": { in: MailSmtpSetIn; out: MailSmtpSetOut };
+  "mail.smtp.verify": { in: MailSmtpVerifyIn; out: MailSmtpVerifyOut };
   "mail.status_update": { in: MailStatusUpdateIn; out: MailStatusUpdateOut };
   "mail.sync_now": { in: MailSyncNowIn; out: MailSyncNowOut };
+  "mail.template.for_document.clear": { in: MailTemplateForDocumentClearIn; out: MailTemplateForDocumentClearOut };
+  "mail.template.for_document.get": { in: MailTemplateForDocumentGetIn; out: MailTemplateForDocumentGetOut };
+  "mail.template.for_document.set": { in: MailTemplateForDocumentSetIn; out: MailTemplateForDocumentSetOut };
+  "mail.template.get": { in: MailTemplateGetIn; out: MailTemplateGetOut };
+  "mail.template.list": { in: MailTemplateListIn; out: MailTemplateListOut };
+  "mail.template.preview": { in: MailTemplatePreviewIn; out: MailTemplatePreviewOut };
+  "mail.template.reset": { in: MailTemplateResetIn; out: MailTemplateResetOut };
+  "mail.template.save": { in: MailTemplateSaveIn; out: MailTemplateSaveOut };
+  "mail.templates": { in: MailTemplatesIn; out: MailTemplatesOut };
   "mail.thread.get": { in: MailThreadGetIn; out: MailThreadGetOut };
   "mail.unsubscribe": { in: MailUnsubscribeIn; out: MailUnsubscribeOut };
   "mailgun.domains.create": { in: MailgunDomainsCreateIn; out: MailgunDomainsCreateOut };
@@ -50140,6 +50825,7 @@ export interface CapMap {
   "schema.restore_field": { in: SchemaRestoreFieldIn; out: SchemaRestoreFieldOut };
   "schema.sensitivity.scan": { in: SchemaSensitivityScanIn; out: SchemaSensitivityScanOut };
   "schema.set_label": { in: SchemaSetLabelIn; out: SchemaSetLabelOut };
+  "schema.set_mergeable": { in: SchemaSetMergeableIn; out: SchemaSetMergeableOut };
   "schema.trash.list": { in: SchemaTrashListIn; out: SchemaTrashListOut };
   "schema.types.get": { in: SchemaTypesGetIn; out: SchemaTypesGetOut };
   "schema.types.list": { in: SchemaTypesListIn; out: SchemaTypesListOut };
@@ -50200,6 +50886,7 @@ export interface CapMap {
   "sites.db_import": { in: SitesDbImportIn; out: SitesDbImportOut };
   "sites.delete": { in: SitesDeleteIn; out: SitesDeleteOut };
   "sites.deploy": { in: SitesDeployIn; out: SitesDeployOut };
+  "sites.deploy_cancel": { in: SitesDeployCancelIn; out: SitesDeployCancelOut };
   "sites.deployments": { in: SitesDeploymentsIn; out: SitesDeploymentsOut };
   "sites.domain_add": { in: SitesDomainAddIn; out: SitesDomainAddOut };
   "sites.domain_check": { in: SitesDomainCheckIn; out: SitesDomainCheckOut };
@@ -50208,11 +50895,13 @@ export interface CapMap {
   "sites.env_list": { in: SitesEnvListIn; out: SitesEnvListOut };
   "sites.env_set": { in: SitesEnvSetIn; out: SitesEnvSetOut };
   "sites.get": { in: SitesGetIn; out: SitesGetOut };
+  "sites.head_check": { in: SitesHeadCheckIn; out: SitesHeadCheckOut };
   "sites.host": { in: SitesHostIn; out: SitesHostOut };
   "sites.list": { in: SitesListIn; out: SitesListOut };
   "sites.logs": { in: SitesLogsIn; out: SitesLogsOut };
   "sites.password_set": { in: SitesPasswordSetIn; out: SitesPasswordSetOut };
   "sites.plan": { in: SitesPlanIn; out: SitesPlanOut };
+  "sites.preview_promote": { in: SitesPreviewPromoteIn; out: SitesPreviewPromoteOut };
   "sites.preview_rebuild": { in: SitesPreviewRebuildIn; out: SitesPreviewRebuildOut };
   "sites.preview_remove": { in: SitesPreviewRemoveIn; out: SitesPreviewRemoveOut };
   "sites.previews": { in: SitesPreviewsIn; out: SitesPreviewsOut };
@@ -50220,6 +50909,7 @@ export interface CapMap {
   "sites.publish": { in: SitesPublishIn; out: SitesPublishOut };
   "sites.rollback": { in: SitesRollbackIn; out: SitesRollbackOut };
   "sites.service_identity": { in: SitesServiceIdentityIn; out: SitesServiceIdentityOut };
+  "sites.ship": { in: SitesShipIn; out: SitesShipOut };
   "sites.signin_link": { in: SitesSigninLinkIn; out: SitesSigninLinkOut };
   "sites.staging_password_set": { in: SitesStagingPasswordSetIn; out: SitesStagingPasswordSetOut };
   "sites.status": { in: SitesStatusIn; out: SitesStatusOut };
@@ -50228,6 +50918,8 @@ export interface CapMap {
   "sites.table_promote": { in: SitesTablePromoteIn; out: SitesTablePromoteOut };
   "sites.tables": { in: SitesTablesIn; out: SitesTablesOut };
   "sites.update": { in: SitesUpdateIn; out: SitesUpdateOut };
+  "sites.webhook_get": { in: SitesWebhookGetIn; out: SitesWebhookGetOut };
+  "sites.webhook_set": { in: SitesWebhookSetIn; out: SitesWebhookSetOut };
   "skills.add": { in: SkillsAddIn; out: SkillsAddOut };
   "skills.grant": { in: SkillsGrantIn; out: SkillsGrantOut };
   "skills.grants": { in: SkillsGrantsIn; out: SkillsGrantsOut };
@@ -51925,7 +52617,7 @@ export type FormSubmittedPayload = {
 };
 export type GateApprovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   forPerson?: string;
@@ -51940,7 +52632,7 @@ export type GateApprovedPayload = {
 };
 export type GateApproverMovedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   from?: {
     kind: string;
@@ -51955,7 +52647,7 @@ export type GateApproverMovedPayload = {
 };
 export type GateDeniedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   mode: "send_back" | "drop";
@@ -51971,7 +52663,7 @@ export type GateDeniedPayload = {
 };
 export type GateExpiredPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   outcome: "dropped" | "escalated";
   escalatedTo?: string;
@@ -51982,7 +52674,7 @@ export type GateExpiredPayload = {
 };
 export type GateRequestedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   capName: string;
   taskId: string;
   principal: {
@@ -51999,14 +52691,14 @@ export type GateRequestedPayload = {
 };
 export type GateRevisedPayload = {
   holdId: string;
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   taskId: string;
   by: string;
   was: string;
   now: string;
 };
 export type GateRuleChangedPayload = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   scope: "space" | "floor" | "agent";
   agentId?: string;
   by: string;
@@ -52514,6 +53206,7 @@ export type MailReceivedPayload = {
   from: string;
   subject: string;
   contactId?: string;
+  auto?: boolean;
 };
 export type MailDraftDiscardedPayload = {
   draftId: string;
@@ -53330,6 +54023,12 @@ export type ProjectFileUnpinnedPayload = {
   projectId: string;
   fileId: string;
 };
+export type ProjectFolderUnfollowedPayload = {
+  folderId: string;
+  recordId: string;
+  by: string;
+  why: string;
+};
 export type ProjectHealthSetPayload = {
   projectId: string;
   health?: "on" | "risk" | "off" | "hold" | "done";
@@ -53799,7 +54498,7 @@ export type SearchReindexedPayload = {
 export type SendingDomainAddedPayload = {
   domainId: string;
   name: string;
-  provider: "resend" | "mailgun";
+  provider: "resend" | "mailgun" | "smtp";
 };
 export type SendingDomainCheckedPayload = {
   domainId: string;
@@ -55469,6 +56168,7 @@ export interface EventMap {
   "project.dates_kept": ProjectDatesKeptPayload;
   "project.file_pinned": ProjectFilePinnedPayload;
   "project.file_unpinned": ProjectFileUnpinnedPayload;
+  "project.folder_unfollowed": ProjectFolderUnfollowedPayload;
   "project.health_set": ProjectHealthSetPayload;
   "project.item_linked": ProjectItemLinkedPayload;
   "project.item_unlinked": ProjectItemUnlinkedPayload;

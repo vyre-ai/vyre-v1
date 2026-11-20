@@ -16,6 +16,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.db_import": Handler<"sites.db_import", X>;
   "sites.delete": Handler<"sites.delete", X>;
   "sites.deploy": Handler<"sites.deploy", X>;
+  "sites.deploy_cancel": Handler<"sites.deploy_cancel", X>;
   "sites.deployments": Handler<"sites.deployments", X>;
   "sites.domain_add": Handler<"sites.domain_add", X>;
   "sites.domain_check": Handler<"sites.domain_check", X>;
@@ -24,11 +25,13 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.env_list": Handler<"sites.env_list", X>;
   "sites.env_set": Handler<"sites.env_set", X>;
   "sites.get": Handler<"sites.get", X>;
+  "sites.head_check": Handler<"sites.head_check", X>;
   "sites.host": Handler<"sites.host", X>;
   "sites.list": Handler<"sites.list", X>;
   "sites.logs": Handler<"sites.logs", X>;
   "sites.password_set": Handler<"sites.password_set", X>;
   "sites.plan": Handler<"sites.plan", X>;
+  "sites.preview_promote": Handler<"sites.preview_promote", X>;
   "sites.preview_rebuild": Handler<"sites.preview_rebuild", X>;
   "sites.preview_remove": Handler<"sites.preview_remove", X>;
   "sites.previews": Handler<"sites.previews", X>;
@@ -36,6 +39,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.publish": Handler<"sites.publish", X>;
   "sites.rollback": Handler<"sites.rollback", X>;
   "sites.service_identity": Handler<"sites.service_identity", X>;
+  "sites.ship": Handler<"sites.ship", X>;
   "sites.signin_link": Handler<"sites.signin_link", X>;
   "sites.staging_password_set": Handler<"sites.staging_password_set", X>;
   "sites.status": Handler<"sites.status", X>;
@@ -44,4 +48,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "sites.table_promote": Handler<"sites.table_promote", X>;
   "sites.tables": Handler<"sites.tables", X>;
   "sites.update": Handler<"sites.update", X>;
+  "sites.webhook_get": Handler<"sites.webhook_get", X>;
+  "sites.webhook_set": Handler<"sites.webhook_set", X>;
 }

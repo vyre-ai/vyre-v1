@@ -11,7 +11,7 @@ Point a number at the Space webhooks and the TwiML app
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

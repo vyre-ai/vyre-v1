@@ -174,6 +174,7 @@ export const PERMISSIONS: PermissionDef[] = [
   perm("comms.agent_send", "comms", "Let agents send", "high", ["owner", "admin"], ["mailbox"]),
   perm("comms.numbers", "comms", "Manage phone numbers", "medium", ["owner", "admin"], ["number"]),
   perm("comms.domains", "comms", "Manage sending domains", "medium", ["owner", "admin"], ["domain"]),
+  perm("comms.templates", "comms", "Edit email templates", "medium", ["owner", "admin"]),
   // Vault
   perm(
     "vault.shared_create",

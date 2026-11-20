@@ -11,7 +11,7 @@ Give an assistant the Connector builder role (Member permissions plus connectors
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | admit when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

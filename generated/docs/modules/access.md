@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: files.
 
-## Capabilities (76)
+## Capabilities (77)
 
 - [access.actors.create](../capabilities/access.actors.create.md): Register an outside actor and issue a one-time token (works once, within 10 minutes)
 - [access.actors.list](../capabilities/access.actors.list.md): List outside actors (registered external tools such as Claude Code or Codex)
@@ -26,6 +26,7 @@ Requires: files.
 - [access.exceptions.list](../capabilities/access.exceptions.list.md): Permission exceptions in force: who differs from their role, on what, Allowed or Not allowed, until when and why
 - [access.exceptions.remove](../capabilities/access.exceptions.remove.md): Remove a permission exception: the person or group goes back to what their role gives
 - [access.exceptions.set](../capabilities/access.exceptions.set.md): Give a person or a group a permission exception: Allowed or Not allowed on a permission or a whole area, against their role. A person beats a group beats the role; the Owner is never restricted; you give only what you hold
+- [access.folder_narrow](../capabilities/access.folder_narrow.md): System: the server closes a Files folder to the people added when it could not follow its record; only the host's own services call it
 - [access.grants.list](../capabilities/access.grants.list.md): List grants by resource, subject or source (Console Grants)
 - [access.grants.update](../capabilities/access.grants.update.md): Change the level, conditions or expiry of a grant
 - [access.groups.add_member](../capabilities/access.groups.add_member.md): Add a person or agent to a group (groups hold no groups)

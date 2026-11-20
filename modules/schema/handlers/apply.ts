@@ -84,6 +84,10 @@ export interface ApplyHandlers {
     input: { ops: SchemaOp[]; previewToken?: string; confirm?: string[]; reason?: string },
   ): Promise<{ changeId: string; applied: number; items: DiffItem[] }>;
   "schema.set_label"(ctx: SchemaCtx, input: { type: string; field?: string; label: Label }): Promise<{ ok: boolean }>;
+  "schema.set_mergeable"(
+    ctx: SchemaCtx,
+    input: { type: string; field: string; mergeable: boolean },
+  ): Promise<{ ok: boolean }>;
   "schema.infer"(
     ctx: SchemaCtx,
     input: { text?: string; fileId?: string; name?: string; sheet?: string },
@@ -341,6 +345,29 @@ export function heldRows(deps: SchemaDeps, type: string): number {
 }
 
 /** Fields a manifest declared on a system type: they stay (title and label may change). */
+/** The "Can go in emails" switch is the one change a system field's options accept: everything but `mergeable` must stay as it is. */
+function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
+  const strip = (v: unknown): string => {
+    const o = { ...((v && typeof v === "object" ? v : {}) as Record<string, unknown>) };
+    delete o["mergeable"];
+    return JSON.stringify(o, Object.keys(o).sort());
+  };
+  return strip(was) === strip(next);
+}
+
+/** Field kinds whose values must never go into an email: sealed (secret), files, signatures, buttons, and relations (they hold ids). */
+const NEVER_IN_EMAILS = new Set([
+  "sealed",
+  "files",
+  "signature",
+  "button",
+  "relation",
+  "person",
+  "created_by",
+  "modified_by",
+]);
+// (computed kinds, formula, rollup and lookup, are refused too: they can read a private field and still carry a public label)
+
 function manifestField(deps: SchemaDeps, d: TypeDefT, field: string): boolean {
   return (
     d.system === true &&
@@ -391,6 +418,19 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
   if (isDerived(deps.registry, f.type) && (f.required || f.unique))
     no(`field ${f.key}: a ${f.type} field is computed, so it cannot be required or unique`);
   if (f.type === "sealed" && f.unique) no(`field ${f.key}: a sealed field cannot be unique`);
+  // "Can go in emails": a switch for fields that are fine to read out loud. A private or secret field can never be switched on, by anyone.
+  const mergeable = (f.options ?? {})["mergeable"];
+  if (mergeable !== undefined && typeof mergeable !== "boolean") no(`field ${f.key}: mergeable is yes or no`);
+  if (mergeable === true) {
+    const label = f.label ?? t.label;
+    if (
+      NEVER_IN_EMAILS.has(f.type) ||
+      isDerived(deps.registry, f.type) ||
+      (label !== "public" && label !== "internal") ||
+      (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0)
+    )
+      no(`field ${f.key} cannot go in emails: it is private or secret, or its kind cannot be read into text`);
+  }
   const o = f.options ?? {};
   const own = new Set(t.fields.map((x) => x.key));
   switch (f.type) {
@@ -695,7 +735,11 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of Object.keys(patch)) {
             if (!(FIELD_PATCH as readonly string[]).includes(k))
               no(`${k} cannot be changed with field.update: use field.retype or field.rename`);
-            if (manifestField(deps, t, f.key) && !["title", "label"].includes(k))
+            if (
+              manifestField(deps, t, f.key) &&
+              !["title", "label"].includes(k) &&
+              !(k === "options" && onlyMergeableDiffers(f.options, patch[k]))
+            )
               no(`${f.key} is part of the ${t.key} system type: only its title and label can change`);
             const v = patch[k];
             if (v === null || v === undefined) delete (f as unknown as Record<string, unknown>)[k];
@@ -1403,6 +1447,20 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
           ? { op: "type.update", type: t.key, def: { label: input.label } }
           : { op: "field.update", type: t.key, field: input.field, def: { label: input.label } };
       await execute(deps, ctx, [op], { skipConfirm: true, labelEvents: true });
+      return { ok: true };
+    },
+
+    "schema.set_mergeable": async (ctx, input) => {
+      if (typeof input.mergeable !== "boolean") refuse(ctx, "validation.bad_input", "mergeable is yes or no.");
+      const t = await needType(ctx, input.type);
+      const f = t.fields.find((x) => x.key === input.field);
+      if (!f) refuse(ctx, "validation.not_found", `${input.field} is not a field of ${t.title}.`);
+      const options: Record<string, unknown> = { ...(f!.options ?? {}) };
+      if (input.mergeable) options["mergeable"] = true;
+      else delete options["mergeable"];
+      await execute(deps, ctx, [{ op: "field.update", type: t.key, field: f!.key, def: { options } }], {
+        skipConfirm: true,
+      });
       return { ok: true };
     },
 

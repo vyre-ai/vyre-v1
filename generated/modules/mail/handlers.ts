@@ -5,9 +5,16 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "mail.address.add": Handler<"mail.address.add", X>;
+  "mail.address.list": Handler<"mail.address.list", X>;
+  "mail.address.move": Handler<"mail.address.move", X>;
   "mail.attachment.save": Handler<"mail.attachment.save", X>;
   "mail.auto_connect_members": Handler<"mail.auto_connect_members", X>;
+  "mail.configure": Handler<"mail.configure", X>;
   "mail.connect": Handler<"mail.connect", X>;
+  "mail.delivery.retry": Handler<"mail.delivery.retry", X>;
+  "mail.delivery.trail": Handler<"mail.delivery.trail", X>;
+  "mail.delivery_state": Handler<"mail.delivery_state", X>;
   "mail.domain.add": Handler<"mail.domain.add", X>;
   "mail.domain.check": Handler<"mail.domain.check", X>;
   "mail.domain.get": Handler<"mail.domain.get", X>;
@@ -18,6 +25,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.drafts.discard": Handler<"mail.drafts.discard", X>;
   "mail.drafts.list": Handler<"mail.drafts.list", X>;
   "mail.health": Handler<"mail.health", X>;
+  "mail.inbox.monitor": Handler<"mail.inbox.monitor", X>;
   "mail.ingest": Handler<"mail.ingest", X>;
   "mail.mailbox.create": Handler<"mail.mailbox.create", X>;
   "mail.mailbox.disconnect": Handler<"mail.mailbox.disconnect", X>;
@@ -40,8 +48,22 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "mail.send": Handler<"mail.send", X>;
   "mail.send_as": Handler<"mail.send_as", X>;
   "mail.send_preview": Handler<"mail.send_preview", X>;
+  "mail.setup.status": Handler<"mail.setup.status", X>;
+  "mail.setup.test_send": Handler<"mail.setup.test_send", X>;
+  "mail.smtp.get": Handler<"mail.smtp.get", X>;
+  "mail.smtp.set": Handler<"mail.smtp.set", X>;
+  "mail.smtp.verify": Handler<"mail.smtp.verify", X>;
   "mail.status_update": Handler<"mail.status_update", X>;
   "mail.sync_now": Handler<"mail.sync_now", X>;
+  "mail.template.for_document.clear": Handler<"mail.template.for_document.clear", X>;
+  "mail.template.for_document.get": Handler<"mail.template.for_document.get", X>;
+  "mail.template.for_document.set": Handler<"mail.template.for_document.set", X>;
+  "mail.template.get": Handler<"mail.template.get", X>;
+  "mail.template.list": Handler<"mail.template.list", X>;
+  "mail.template.preview": Handler<"mail.template.preview", X>;
+  "mail.template.reset": Handler<"mail.template.reset", X>;
+  "mail.template.save": Handler<"mail.template.save", X>;
+  "mail.templates": Handler<"mail.templates", X>;
   "mail.thread.get": Handler<"mail.thread.get", X>;
   "mail.unsubscribe": Handler<"mail.unsubscribe", X>;
 }

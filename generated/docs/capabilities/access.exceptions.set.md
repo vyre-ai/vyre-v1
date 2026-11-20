@@ -11,7 +11,7 @@ Give a person or a group a permission exception: Allowed or Not allowed on a per
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | access when gate.by_actor(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

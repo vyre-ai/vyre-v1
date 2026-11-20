@@ -97,6 +97,8 @@ export interface SitesHost {
   runner?: Runner;
   /** a value the Vault filled for a deploy (kind container_env), taken once */
   take?(ref: string): string | undefined;
+  /** a call the host makes as itself (svc_host), for what a site's own action needs and the caller's hold would only stop: the Vault folder, item and shares of a webhook secret. The caller and the person it works for are named in the audit line. */
+  asHost?(cap: string, input: unknown): Promise<unknown>;
   /** true when this daemon runs in a container: a path on its disk is not an agent's */
   contained?: boolean;
   /** where a source is fetched and built from */
@@ -494,7 +496,9 @@ async function sitesUpdate(ctx: Ctx, input: unknown): Promise<{ site: unknown }>
   mustFolder(ctx, folderId);
   const cleanedName = name === undefined ? site.name : cleanName(ctx, name);
   unchangedSince(ctx, mustSite(ctx, str(site.id)), o); // the awaits above let another change land: check again in the same step as the first write
-  if (source !== null) ctx.db.run("UPDATE sites_site SET source = ? WHERE id = ?", source, site.id);
+  if (source !== null)
+    // another source is another branch on another host: what was found out about the old one is no longer known
+    ctx.db.run("UPDATE sites_site SET source = ?, protection = NULL WHERE id = ?", source, site.id);
   if (limits !== null) ctx.db.run("UPDATE sites_site SET limits = ? WHERE id = ?", limits, site.id);
   if (auto !== undefined) ctx.db.run("UPDATE sites_site SET auto_deploy = ? WHERE id = ?", auto ? 1 : 0, site.id);
   // becoming public is an outward act: it comes down here and goes back up through sites.promote and the Gate
@@ -1039,6 +1043,28 @@ export function routeByHost(
         ) as Row[]
       )[0];
   }
+  // a preview's own address: the site's row, with the preview's container and port, behind sign-in whatever the site's access is (a preview is never public and has no password)
+  if (!r && sitesDomain && h.endsWith(`.${sitesDomain}`)) {
+    const p = (
+      ctx.db.all(
+        "SELECT * FROM sites_deployment WHERE host = ? AND env = 'preview' AND removed_at IS NULL AND container_id IS NOT NULL",
+        h,
+      ) as Row[]
+    )[0];
+    const site = p
+      ? (ctx.db.all("SELECT * FROM sites_site WHERE id = ? AND deleted_at IS NULL", p.site_id) as Row[])[0]
+      : undefined;
+    if (p && site) {
+      const access = str(site.access) === "public" || str(site.access) === "password" ? "space" : str(site.access);
+      const row = { ...site, access, live: 1, container_id: p.container_id, port: isNull(p.port) ? site.port : p.port };
+      return {
+        ...served(row),
+        owner: str(site.owner),
+        passwordHash: null,
+        name: `${str(site.name)} (${str(p.branch)})`,
+      };
+    }
+  }
   if (!r) {
     const d = (ctx.db.all("SELECT site_id FROM sites_domain WHERE domain = ?", h) as Row[])[0];
     if (d)
@@ -1075,6 +1101,12 @@ export function deployedHosts(
     ...(isNull(r.port) ? {} : { port: num(r.port) }),
     hosts: [
       ...(sitesDomain && !isNull(r.slug) ? [`${str(r.slug)}.${sitesDomain}`] : []),
+      ...(
+        ctx.db.all(
+          "SELECT host FROM sites_deployment WHERE site_id = ? AND env = 'preview' AND removed_at IS NULL AND host IS NOT NULL AND container_id IS NOT NULL",
+          r.id,
+        ) as Row[]
+      ).map((d) => str(d.host)),
       ...(ctx.db.all("SELECT domain FROM sites_domain WHERE site_id = ?", r.id) as Row[]).map((d) => str(d.domain)),
     ],
   }));

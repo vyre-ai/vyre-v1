@@ -19,7 +19,7 @@ export function hostServices(o: HostServicesOptions): NonNullable<InvokeDeps["se
   return (seed, cap) => ({
     ...(o.base?.(seed, cap) ?? {}),
     seal: o.seal,
-    schedule: o.queue.forCtx(seed),
+    schedule: o.queue.forCtx(seed, (cap as { module?: string }).module ?? cap.name.split(".")[0]!),
     ...(o.blobs
       ? {
           blobs: o.blobs.forModule((cap as { module?: string }).module ?? cap.name.split(".")[0]!, seed.trace?.traceId),

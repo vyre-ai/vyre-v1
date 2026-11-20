@@ -6,10 +6,10 @@ Requires: calendar, mail, telephony.
 
 ## Capabilities (21)
 
-- [comms.senders.list](../capabilities/comms.senders.list.md): Every address the caller can send from: mailboxes (Gmail, Outlook, IMAP, shared, agent, service), the Space sending domain (Resend or Mailgun) and texting numbers (Twilio). Senders the caller may not use are left out; ones that cannot send now come with usable false and why
+- [comms.senders.list](../capabilities/comms.senders.list.md): Addresses and numbers the caller can send from; one that cannot send now says usable false and why
 - [comms.senders.set_default](../capabilities/comms.senders.set_default.md): Choose the default sender of a channel for me; it must be a usable sender from comms.senders.list
-- [inbox.counts](../capabilities/inbox.counts.md): Conversations with unread messages, for the sidebar: per inbox, per number, the total, and how many need a match
-- [inbox.follow_set](../capabilities/inbox.follow_set.md): Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)
+- [inbox.counts](../capabilities/inbox.counts.md): Unread conversation counts per inbox and number, and how many need a match
+- [inbox.follow_set](../capabilities/inbox.follow_set.md): Follow a contact or set Alert me on replies
 - [inbox.following](../capabilities/inbox.following.md): Contacts that reach your Inbox and why: owner, project, follow or shared inbox
 - [inbox.item.erase](../capabilities/inbox.item.erase.md): Erase the conversation entries of one message, text or call for good: previews, subjects and participants go, the conversation keeps only what other items still say (governance erase)
 - [inbox.link_message](../capabilities/inbox.link_message.md): Shared linking step for a stored message, text or call: sure matches link, unsure go to Needs you, unowned replies route to the shared inbox
@@ -23,8 +23,8 @@ Requires: calendar, mail, telephony.
 - [inbox.recipients_search](../capabilities/inbox.recipients_search.md): Ranked recipient search across contacts, members, inboxes and groups (the shared Recipients field)
 - [inbox.send_options](../capabilities/inbox.send_options.md): Channels and sending inboxes for a contact; the default is the inbox the thread came in on
 - [inbox.thread](../capabilities/inbox.thread.md): The whole history of one contact: emails, texts, calls, meetings and record chips
-- [inbox.thread_conversation](../capabilities/inbox.thread_conversation.md): The conversation an email thread opens in, found by the mail provider thread id a mail tool returned (a chat link to an email thread uses it)
-- [inbox.threads](../capabilities/inbox.threads.md): One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role
+- [inbox.thread_conversation](../capabilities/inbox.thread_conversation.md): The conversation of an email thread, from its provider thread id
+- [inbox.threads](../capabilities/inbox.threads.md): A contact's email threads, newest first, each whole, with what is new and your role
 - [inbox.unmatch](../capabilities/inbox.unmatch.md): Undo a match; the sender goes back to Unmatched
 - [inbox.unmatched](../capabilities/inbox.unmatched.md): The Unmatched list: senders with no record that did not raise Needs a match
 
