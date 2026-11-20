@@ -59,9 +59,8 @@ export const PAGES: readonly PageDef[] = [
   p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   // the setting engine.egress, saved with settings.set_space (policy.manage), so the page shows to whoever may set Space policy, like the Space defaults below
   p("internet", "Internet access", "AI", "internet", "policy.manage", "access.policies"),
-  // two pages draw the sending-domains screen: a link to the screen alone ("mail.domains", an app's Add sending domain, a deep link to one domain) opens the first, so Sending domains stays first; the Email page is reached by its own name (the sidebar passes it)
-  p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("email", "Email setup", "Comms", "mail", "comms.domains", "mail.domains"),
+  p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
   p("templates", "Email templates", "Comms", "mail", "comms.templates", "mail.templates"),
@@ -120,6 +119,30 @@ export const GROUPS: readonly string[] = [
 
 export function pageById(id: string): PageDef | undefined {
   return PAGES.find((x) => x.id === id);
+}
+
+/**
+ * Several pages draw one screen (a screen is the registry's unit, a page is the Console's). A link that names the screen alone opens that screen's own page, named here, whatever order the sidebar lists
+ * the pages in; a link that wants another of them names the page (args.page). Every screen two or more pages draw must be named: a test fails for one that is not.
+ */
+export const PRIMARY_PAGE: Readonly<Record<string, string>> = {
+  "access.people": "people",
+  "access.policies": "policies",
+  "console.agents-register": "agents",
+  "console.backups": "backups",
+  "console.ai-models": "models",
+  "console.ai-spend": "spend",
+  "mail.domains": "domains",
+  "console.integrations": "connectors",
+  "console.machines": "machines",
+  "console.network": "network",
+  "spaces.console": "spacedel",
+};
+
+/** The page a link to a screen alone opens: the screen's own page when several draw it, else the one page that does. */
+export function pageOfScreen(screen: string, pages: readonly PageDef[] = PAGES): PageDef | undefined {
+  const own = PRIMARY_PAGE[screen];
+  return (own ? pages.find((x) => x.id === own) : undefined) ?? pages.find((x) => x.screen === screen);
 }
 
 /** The pages this person sees, in nav order. */
