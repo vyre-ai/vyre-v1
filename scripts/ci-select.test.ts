@@ -24,6 +24,7 @@ import {
   type CacheEnv,
   type Marker,
 } from "./cache/pass-cache.ts";
+import { timeCpu, wallCeiling } from "../testkit/src/cpu-time.ts";
 
 const files: Record<string, string> = {
   "manifests/vault.ts": "export const vault = {};",
@@ -201,11 +202,14 @@ test("perf: select on a 2,000-file graph stays inside the 8 s worst-case row (ci
     f[`lib/m${i}.ts`] = i ? `import './m${i - 1 - (i % 7)}.ts'; export const v${i} = ${i};` : "export const v0 = 0;";
   for (let i = 0; i < 500; i++) f[`lib/t${i}.test.ts`] = `import './m${(i * 3) % 1500}.ts';`;
   const tr = new Set(Object.keys(f));
-  const t0 = performance.now();
-  const r = selectAffected({ changed: ["lib/m1400.ts"], tracked: tr, read: (p) => f[p]! });
-  const ms = performance.now() - t0;
-  t.diagnostic(`PERF select 2000 files: ${ms.toFixed(0)} ms (budget 8000 ms), selected ${r.files.length}`);
+  const {
+    out: r,
+    cpuMs: ms,
+    wallMs,
+  } = timeCpu(() => selectAffected({ changed: ["lib/m1400.ts"], tracked: tr, read: (p) => f[p]! }));
+  t.diagnostic(`PERF select 2000 files: ${ms.toFixed(0)} ms of CPU (budget 8000 ms), selected ${r.files.length}`);
   assert.ok(ms < 8000);
+  assert.ok(wallMs < wallCeiling(8000), `${wallMs.toFixed(0)} ms of wall time (hang guard)`);
 });
 
 test("the CLI runs on the real repo and prints a selection", () => {

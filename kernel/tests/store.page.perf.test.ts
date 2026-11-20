@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { openRecordStore } from "../src/store/records.ts";
 import { mintRecordId } from "../../lib/ids.ts";
+import { timeCpuAsync, wallCeiling } from "../../testkit/src/cpu-time.ts";
 
 const TOTAL = 50_000;
 const BUDGET_MS = 2_000;
@@ -36,17 +37,22 @@ test("a type of 50,000 records is listed in pages of 500 within the budget, in o
     );
   }
   host.tx.exec("COMMIT");
-  const started = performance.now();
   const seen: string[] = [];
-  let cursor: string | undefined;
-  do {
-    const p = await store.query("matter", { page: { limit: 500, ...(cursor ? { cursor } : {}) } });
-    for (const r of p.rows) seen.push(r.id);
-    cursor = p.next_cursor;
-  } while (cursor);
-  const tookMs = Math.round(performance.now() - started);
-  process.stderr.write(`[page-perf] ${TOTAL} records listed in ${tookMs} ms\n`);
+  const timed = await timeCpuAsync(async () => {
+    let cursor: string | undefined;
+    do {
+      const p = await store.query("matter", { page: { limit: 500, ...(cursor ? { cursor } : {}) } });
+      for (const r of p.rows) seen.push(r.id);
+      cursor = p.next_cursor;
+    } while (cursor);
+  });
+  const tookMs = Math.round(timed.cpuMs);
+  process.stderr.write(`[page-perf] ${TOTAL} records listed in ${tookMs} ms of CPU\n`);
   assert.equal(seen.length, TOTAL);
   assert.deepEqual(seen, [...ids].sort());
-  assert.ok(tookMs <= BUDGET_MS, `listing took ${tookMs} ms (budget ${BUDGET_MS} ms)`);
+  assert.ok(tookMs <= BUDGET_MS, `listing took ${tookMs} ms of CPU (budget ${BUDGET_MS} ms)`);
+  assert.ok(
+    timed.wallMs < wallCeiling(BUDGET_MS),
+    `listing took ${Math.round(timed.wallMs)} ms of wall time (hang guard)`,
+  );
 });

@@ -9,6 +9,7 @@ import type { PullCtx } from "../handlers/index.ts";
 import { openSync } from "../impl.ts";
 import { seedContacts } from "../fixtures/seed.ts";
 import { ADA, BO, NOW, buildAccess } from "../fixtures/world.ts";
+import { timeCpuAsync, wallCeiling } from "../../../testkit/src/cpu-time.ts";
 
 const TRACE = "0123456789abcdef0123456789abcdef";
 const ROWS = 100_000;
@@ -26,25 +27,32 @@ test("snapshot of 100,000 rows: pages of at most 5000, ordered, resumable, under
   const h = s.handlers;
 
   // Ada sees everything. Server work only: begin, every page cut, gzipped.
-  const t0 = performance.now();
-  const begin = await h["sync.snapshot.begin"](ctx(ADA), { deviceClass: "desktop" });
-  assert.deepEqual(begin.plan, [{ entity: "contact", estimatedRows: ROWS }]);
-  assert.equal(begin.asOfSeq, 0);
-  const pages: Uint8Array[] = [];
-  let after: string | undefined;
-  for (;;) {
-    const page = await h["sync.snapshot.page"](ctx(ADA), {
-      entity: "contact",
-      ...(after !== undefined ? { after } : {}),
-      asOf: begin.asOfSeq,
-    });
-    pages.push(encodePage(page));
-    if (page.done) break;
-    after = page.last;
-    assert.ok(pages.length < 50);
-  }
-  const ms = performance.now() - t0;
-  assert.ok(ms < 10_000, `100k rows took ${ms.toFixed(0)} ms, budget 10000 ms`);
+  // one run in CPU time (a busy runner stretches the clock, not the work); the wall ceiling is a hang guard
+  const timed = await timeCpuAsync(async () => {
+    const begin = await h["sync.snapshot.begin"](ctx(ADA), { deviceClass: "desktop" });
+    assert.deepEqual(begin.plan, [{ entity: "contact", estimatedRows: ROWS }]);
+    assert.equal(begin.asOfSeq, 0);
+    const out: Uint8Array[] = [];
+    let after: string | undefined;
+    for (;;) {
+      const page = await h["sync.snapshot.page"](ctx(ADA), {
+        entity: "contact",
+        ...(after !== undefined ? { after } : {}),
+        asOf: begin.asOfSeq,
+      });
+      out.push(encodePage(page));
+      if (page.done) break;
+      after = page.last;
+      assert.ok(out.length < 50);
+    }
+    return { begin, pages: out };
+  });
+  const { begin, pages } = timed.out;
+  assert.ok(timed.cpuMs < 10_000, `100k rows took ${timed.cpuMs.toFixed(0)} ms of CPU, budget 10000 ms`);
+  assert.ok(
+    timed.wallMs < wallCeiling(10_000),
+    `100k rows took ${timed.wallMs.toFixed(0)} ms of wall time (hang guard)`,
+  );
 
   // The client side: decode every page, count, order.
   let total = 0,
