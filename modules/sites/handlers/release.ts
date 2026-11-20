@@ -1192,15 +1192,6 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
       return { deployment: depRow(last, current) };
     if (!head) fail(ctx, "validation.precondition_failed", "The repo could not be read just now.");
   }
-  if (newSource !== null) {
-    ctx.db.run(
-      "UPDATE sites_site SET source = ?, protection = NULL, updated_at = ? WHERE id = ?",
-      newSource,
-      ctx.now(),
-      siteId,
-    );
-    site = mustSite(ctx, siteId);
-  }
   // what the host says about the production branch, for the Gate (a person's deploy, or one a person approved, keeps it current)
   if (source.repo) {
     const seen = await refreshProtection(ctx, siteId, source, token);
@@ -1211,6 +1202,18 @@ async function sitesDeploy(ctx: Ctx, input: unknown): Promise<{ deployment: unkn
         "validation.precondition_failed",
         `Anyone who can push to ${source.branch || "the production branch"} can use this site's keys, and it is not protected on GitHub right now. Protect the branch, or ask a person to deploy.`,
       );
+  }
+  // a new source is kept once the deploy is going ahead: every refusal above comes before this write (ruling 90). What was found out about the old source's branch is forgotten unless this deploy just looked at the new one
+  if (newSource !== null) {
+    ctx.db.run(
+      source.repo
+        ? "UPDATE sites_site SET source = ?, updated_at = ? WHERE id = ?"
+        : "UPDATE sites_site SET source = ?, protection = NULL, updated_at = ? WHERE id = ?",
+      newSource,
+      ctx.now(),
+      siteId,
+    );
+    site = mustSite(ctx, siteId);
   }
   const busy = one(
     ctx,
