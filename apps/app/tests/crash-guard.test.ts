@@ -95,3 +95,13 @@ test("a build whose terminal screen (xterm.js) cannot load or start is a crash: 
   });
   await assert.rejects(() => g.check("terminal opened"), /terminal opened: a crash was logged/);
 });
+
+test("the xterm line is a crash even when its tail carries a network error that the noise rule would let through", async () => {
+  const { page, handlers } = fakePage("fine");
+  const g = guardCrashes(page);
+  handlers.console[0]!({
+    type: () => "error",
+    text: () => "xterm screen unavailable: the chunk did not load: net::ERR_INTERNET_DISCONNECTED",
+  });
+  await assert.rejects(() => g.check("offline"), /offline: a crash was logged/);
+});

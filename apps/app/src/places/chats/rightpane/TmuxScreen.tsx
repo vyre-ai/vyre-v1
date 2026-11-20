@@ -321,8 +321,11 @@ export function TmuxScreen({
       .catch((e: unknown) => {
         const why = String((e as { message?: unknown } | null)?.message ?? e).slice(0, 160);
         // the person keeps the plain screen, but a build that cannot load the terminal screen is an error the shots and the report can see, never a silent fallback
-        console.error(`xterm screen unavailable: the chunk did not load: ${why}`);
-        if (live) setXWhy(why);
+        // only while this screen is still open: a fast open and close with no network is not a build fault
+        if (live) {
+          console.error(`xterm screen unavailable: the chunk did not load: ${why}`);
+          setXWhy(why);
+        }
       });
     return () => {
       live = false;
