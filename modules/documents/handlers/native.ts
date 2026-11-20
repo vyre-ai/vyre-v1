@@ -285,6 +285,8 @@ async function signing(
   stale?: true;
   plain?: true;
   unchecked?: true;
+  checkedVersion?: string;
+  checkedSha256?: string;
   templateFileId?: string;
   recordId?: string;
 }> {
@@ -294,27 +296,42 @@ async function signing(
   // answered `unchecked`, never "not plain": the sender then chooses (make the exact copy again, or send it anyway).
   let plain = false;
   let unchecked = false;
+  // what this answer is about, so a send can tell if the file moved after it: the version the file store names, and the hash of the bytes when they were read for the check
+  let checkedVersion: string | undefined;
+  let checkedSha256: string | undefined;
+  let got: { file?: { size?: unknown; version?: unknown } } | undefined;
+  try {
+    got = (await ctx.call("files.get", { fileId })) as typeof got;
+  } catch {
+    got = undefined;
+  }
+  const ver = got?.file?.version === undefined || got.file.version === null ? undefined : String(got.file.version);
+  checkedVersion = ver;
   if ((ctx.db.all("SELECT 1 AS x FROM documents_plain LIMIT 1") as Row[]).length > 0) {
     try {
-      const got = (await ctx.call("files.get", { fileId })) as { file?: { size?: unknown; version?: unknown } };
+      if (!got) throw new Error("no file");
       const size = typeof got.file?.size === "number" ? got.file.size : 0;
-      const ver = String(got.file?.version);
       const seen =
-        (ctx.db.all("SELECT 1 AS x FROM documents_plain_seen WHERE file_id = ? AND version = ?", fileId, ver) as Row[])
+        (ctx.db.all("SELECT 1 AS x FROM documents_plain_seen WHERE file_id = ? AND version = ?", fileId, String(ver)) as Row[])
           .length > 0;
       if (seen) plain = true;
       else if (size > MAX_CHECK_BYTES) unchecked = true;
       else {
         const sha = await sha256Of(await templateBytes(ctx, fileId));
+        checkedSha256 = sha;
         plain = (ctx.db.all("SELECT 1 AS x FROM documents_plain WHERE sha256 = ?", sha) as Row[]).length > 0;
         // only a "yes" is kept: a "no" can turn into a "yes" when a plain copy of these bytes is made later
         if (plain)
-          ctx.db.run("INSERT OR IGNORE INTO documents_plain_seen (file_id, version) VALUES (?, ?)", fileId, ver);
+          ctx.db.run("INSERT OR IGNORE INTO documents_plain_seen (file_id, version) VALUES (?, ?)", fileId, String(ver));
       }
     } catch {
       unchecked = true;
     }
   }
+  const about = {
+    ...(checkedVersion !== undefined ? { checkedVersion } : {}),
+    ...(checkedSha256 !== undefined ? { checkedSha256 } : {}),
+  };
   const row = (ctx.db.all("SELECT * FROM documents_signing WHERE file_id = ?", fileId) as Row[])[0];
   if (!row)
     return {
@@ -322,12 +339,13 @@ async function signing(
       places: [],
       ...(plain ? { plain: true as const } : {}),
       ...(unchecked ? { unchecked: true as const } : {}),
+      ...about,
     };
   // a newer version of the file is a different page: the places belong to the version they were set on
   if (typeof row.version_id === "string") {
     const got = (await ctx.call("files.versions", { fileId })) as { versions?: { versionId?: unknown; n?: unknown }[] };
     const newest = [...(got.versions ?? [])].sort((a, b) => Number(b.n) - Number(a.n))[0];
-    if (newest !== undefined && newest.versionId !== row.version_id) return { signers: [], places: [], stale: true };
+    if (newest !== undefined && newest.versionId !== row.version_id) return { signers: [], places: [], stale: true, ...about };
   }
   const list = (v: unknown): unknown[] => {
     try {
@@ -340,6 +358,7 @@ async function signing(
   return {
     ...(plain ? { plain: true as const } : {}),
     ...(unchecked ? { unchecked: true as const } : {}),
+    ...about,
     signers: list(row.roles).filter((r): r is string => typeof r === "string"),
     places: list(row.places),
     ...(typeof row.template_file_id === "string" ? { templateFileId: row.template_file_id } : {}),

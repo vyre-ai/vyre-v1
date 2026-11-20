@@ -751,3 +751,12 @@ Signed: lead, 17 Nov 2026
 - Snapshots: docs/frozen/snapshots/documents.json, docs/frozen/snapshots/esign.json.
 
 Signed: lead, 19 Nov 2026
+
+## 20 Nov 2026: documents.signing says what its answer was about (lane r42-docs), for the lead to sign
+
+- What changed in contracts, additive: `documents.signing@1` gains two optional output fields, `checkedVersion` (string, the version of the file the answer is about, when the file store names one) and `checkedSha256` (string, the SHA-256 of the bytes it read for the plain-copy check, when it read them). No input changes, no existing field changes, no new capability.
+- Why: `esign.send` pins what the exact-copy check saw and refuses if the file moved before its bytes are read (a version uploaded in between could be sent unchecked). The check's own read is the only read used for the pin, so the send does not read the file an extra time.
+- Not a contract change: the send is refused with `validation.version_conflict` when the bytes or the version moved, and with `validation.precondition_failed` when the answer names neither.
+- Snapshots: docs/frozen/snapshots/documents.json.
+
+Signed: pending, the lead

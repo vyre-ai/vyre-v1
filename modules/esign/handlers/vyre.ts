@@ -402,12 +402,24 @@ export type CopyState = "exact" | "plain" | "unchecked" | "error";
  * failed just now. Only a Space with no documents module is `exact` without asking. The send holds for all three, and a person's explicit "send this one anyway" gets past each (and is logged), so a
  * legitimate send is never blocked for good.
  */
-export async function copyState(ctx: Ctx, fileId: string): Promise<CopyState> {
+export async function copyState(ctx: Ctx, fileId: string): Promise<{ state: CopyState; pin: Pin | undefined }> {
   try {
-    const got = (await ctx.call("documents.signing", { fileId })) as { plain?: unknown; unchecked?: unknown };
-    return got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact";
+    const got = (await ctx.call("documents.signing", { fileId })) as {
+      plain?: unknown;
+      unchecked?: unknown;
+      checkedVersion?: unknown;
+      checkedSha256?: unknown;
+    };
+    const pin: Pin = {
+      ...(typeof got.checkedVersion === "string" ? { version: got.checkedVersion } : {}),
+      ...(typeof got.checkedSha256 === "string" ? { sha: got.checkedSha256 } : {}),
+    };
+    return { state: got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact", pin };
   } catch (e) {
-    return vyreErrorOf(e)?.code === "internal.not_implemented" ? "exact" : "error";
+    // no documents module: nothing was checked, so there is nothing to pin
+    return vyreErrorOf(e)?.code === "internal.not_implemented"
+      ? { state: "exact", pin: undefined }
+      : { state: "error", pin: undefined };
   }
 }
 

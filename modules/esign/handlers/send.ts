@@ -288,33 +288,18 @@ export function assigneeOf(ctx: Ctx): { kind: "person" | "agent"; id: string } |
 
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
-/** What the exact-copy check is about to be asked of: the file's version and the SHA-256 of its bytes, read once before the check. `sha` is null when the bytes could not be read whole (the send refuses those itself). */
+/**
+ * What the exact-copy check was about, handed back by documents.signing: the version of the file it looked at and, when it read the bytes, their SHA-256. The send reads the bytes after the check, so a version
+ * uploaded in between would be sent although the check saw an older one: `assertHead` compares the bytes about to be sent with the hash (when there is one) and the head with the version (when there is one),
+ * and refuses on a difference. The check's own read is the only extra read: the send does not read the file twice. An answer that names neither is refused.
+ */
 export interface Pin {
-  version: unknown;
-  sha: string | null;
+  version?: string;
+  sha?: string;
 }
 async function shaOfBytes(bytes: Uint8Array): Promise<string> {
   const d = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
   return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-async function versionOf(ctx: Ctx, fileId: string): Promise<unknown> {
-  const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
-  return got.file?.version;
-}
-/**
- * Pinned before the exact-copy check. The send reads the bytes after that check, so a version uploaded in between would be sent although the check saw an older one. The pin holds the bytes' hash, so it
- * does not depend on the file store naming a version; `assertHead` compares the bytes about to be sent with it (and the version too, when there is one). A send that can pin neither is refused.
- */
-export async function pinHead(ctx: Ctx, fileId: string): Promise<Pin> {
-  const version = await versionOf(ctx, fileId);
-  let sha: string | null = null;
-  try {
-    const body = (await ctx.call("files.read", { fileId, as: "base64" })) as { base64?: string; truncated?: boolean };
-    if (typeof body.base64 === "string" && body.truncated !== true) sha = await shaOfBytes(fromBase64(body.base64));
-  } catch {
-    sha = null;
-  }
-  return { version, sha };
 }
 export async function assertHead(ctx: Ctx, fileId: string, pin: Pin, bytes: Uint8Array): Promise<void> {
   const moved = (): never =>
@@ -324,15 +309,19 @@ export async function assertHead(ctx: Ctx, fileId: string, pin: Pin, bytes: Uint
       "This file changed while it was being sent. Nothing was sent. Check the new version and send again.",
       { field: "fileId", changed: true },
     );
-  if (pin.sha === null && pin.version === undefined)
+  if (pin.sha === undefined && pin.version === undefined)
     fail(
       ctx,
       "validation.precondition_failed",
-      "This file could not be pinned for sending (no version, and it could not be read whole). Nothing was sent. Try again.",
+      "This file could not be pinned for sending (the check named neither a version nor the bytes it read). Nothing was sent. Try again.",
       { field: "fileId" },
     );
-  if (pin.sha !== null && (await shaOfBytes(bytes)) !== pin.sha) moved();
-  if (pin.version !== undefined && (await versionOf(ctx, fileId)) !== pin.version) moved();
+  if (pin.sha !== undefined && (await shaOfBytes(bytes)) !== pin.sha) moved();
+  if (pin.version !== undefined) {
+    const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+    const v = got.file?.version;
+    if ((v === undefined || v === null ? undefined : String(v)) !== pin.version) moved();
+  }
 }
 
 async function send(ctx: Ctx, input: unknown, pinned?: Pin): Promise<{ envelopeId: string }> {

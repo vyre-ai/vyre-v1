@@ -186,6 +186,12 @@ export default defineManifest({
                 "True when the file could not be checked (too big, or unreadable just now): sending it asks the sender first",
             }),
           ),
+          checkedVersion: t.opt(
+            t.str({ description: "The version of the file this answer was about, when the file store names one" }),
+          ),
+          checkedSha256: t.opt(
+            t.str({ description: "The SHA-256 of the bytes this answer was read from, when they were read" }),
+          ),
           templateFileId: t.opt(id.file),
           recordId: t.opt(id.record),
         },

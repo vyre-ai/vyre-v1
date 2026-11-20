@@ -38,6 +38,8 @@ type Out = {
   stale?: boolean;
   plain?: boolean;
   unchecked?: boolean;
+  checkedVersion?: string;
+  checkedSha256?: string;
   templateFileId?: string;
   recordId?: string;
 };
@@ -60,6 +62,8 @@ type Out = {
     "fileId": "fil_a1b2c3"
   },
   "output": {
+    "checkedSha256": "example",
+    "checkedVersion": "example",
     "places": [
       {}
     ],

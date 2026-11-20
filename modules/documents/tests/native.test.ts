@@ -75,7 +75,11 @@ test("a Vyre document fills to a PDF with no converter, makes one file, and reme
   }
   // the template is left alone and a PDF of any other file has no places
   assert.equal(bytesOf(w, id).toString("utf8"), AGREEMENT);
-  assert.deepEqual(await handlers["documents.signing"](w.ctx, { fileId: id }), { signers: [], places: [] });
+  assert.deepEqual(await handlers["documents.signing"](w.ctx, { fileId: id }), {
+    signers: [],
+    places: [],
+    checkedVersion: "1",
+  });
 });
 
 test("the same template and values give the same PDF bytes", async () => {
@@ -387,7 +391,10 @@ test("the plain check answers unchecked for a file it cannot read or that is too
     format: "pdf",
   });
   const reads = () => w.calls.filter((c) => c.cap === "files.read").length;
-  assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
+  const firstAsk = await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId });
+  assert.equal(firstAsk.plain, true);
+  assert.match(String(firstAsk.checkedSha256), /^[a-f0-9]{64}$/, "the answer says which bytes it read");
+  assert.equal(firstAsk.checkedVersion, "1", "and which version of the file");
   const after = reads();
   assert.equal((await handlers["documents.signing"](w.ctx, { fileId: plain.file.fileId })).plain, true);
   assert.equal(reads(), after, "found plain once, not read again for this version");

@@ -177,35 +177,44 @@ test("send: a version uploaded between the exact-copy check and the read of the 
   // the check passes on version 1, and a new version lands while it runs
   h.callee("documents.signing", () => {
     version = 2;
-    return { signers: [], places: [] };
+    return { checkedVersion: "1", signers: [], places: [] };
   });
   const e = await send(h).catch((x) => x);
   assert.equal(e.error.code, "validation.version_conflict");
   assert.equal(h.provider.created.length, 0, "the provider was never called");
   assert.equal(h.rows("esign_envelope").length, 0, "no envelope was kept");
   // the head holds still: the same send reaches the provider with the bytes that were checked
-  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  h.callee("documents.signing", () => ({ checkedVersion: String(version), signers: [], places: [] }));
   await send(h, { idempotencyKey: "k2" });
   assert.equal(h.provider.created.length, 1);
   assert.deepEqual([...h.provider.created[0]!.pdf], [...PDF]);
 });
 
-test("send: with a file store that names no version, bytes that change between the check and the send never reach the hosted provider", async () => {
+test("send: the bytes the check read are the bytes that go: others in place when the send reads never reach the hosted provider, and an answer that names nothing pins nothing", async () => {
   const h = harness();
   const later = new Uint8Array([...PDF, 10, 32]);
   let bytes: Uint8Array = PDF;
+  const sha = async (b: Uint8Array) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as Uint8Array<ArrayBuffer>)), (x) =>
+      x.toString(16).padStart(2, "0"),
+    ).join("");
   h.callee("files.get", (i: { fileId: string }) => ({
     file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length },
   }));
   h.callee("files.read", () => ({ base64: toBase64(bytes), mime: "application/pdf", size: bytes.length, truncated: false }));
-  h.callee("documents.signing", () => {
+  h.callee("documents.signing", async () => {
+    const seen = await sha(bytes);
     bytes = later;
-    return { signers: [], places: [] };
+    return { checkedSha256: seen, signers: [], places: [] };
   });
   const e = await send(h).catch((x) => x);
   assert.equal(e.error.code, "validation.version_conflict");
   assert.equal(h.provider.created.length, 0, "the provider was never called");
   assert.equal(h.rows("esign_envelope").length, 0);
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  const e2 = await send(h, { idempotencyKey: "k2" }).catch((x) => x);
+  assert.equal(e2.error.code, "validation.precondition_failed");
+  assert.equal(h.provider.created.length, 0, "nothing was pinned, so the provider was never called");
 });
 
 test("send: an agent sends for the person it works for; a service sender gets no task; the record id is optional", async () => {

@@ -2,7 +2,7 @@
 
 import { hookHandlers } from "./documenso.ts";
 import { prime } from "./providers.ts";
-import { defaultProvider, fail, pinHead, one, providerOf, rec, reqStr, sendHandlers } from "./send.ts";
+import { defaultProvider, fail, one, providerOf, rec, reqStr, sendHandlers } from "./send.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import {
   cancelVyre,
@@ -32,9 +32,10 @@ export const handlers = {
   "esign.send": async (ctx: Ctx, input: unknown) => {
     const o = rec(ctx, input);
     // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept. A copy that could not be checked is held the same way.
-    // the file's version is read once, before the check; the send refuses if the head moved by the time its bytes are read
-    const pinned = typeof o.fileId === "string" ? await pinHead(ctx, o.fileId) : undefined;
-    const state = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : "exact";
+    // the check says what it was about (the file's version, the hash of the bytes it read); the send refuses if the file moved by the time its bytes are read
+    const checked = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : { state: "exact" as const, pin: undefined };
+    const state = checked.state;
+    const pinned = checked.pin;
     // the choice to send a copy that is not known to be exact is a person's: an agent or an Automation acting for someone cannot make it
     // the choice is a person's: not an agent, not someone's agent acting for them, and not an Automation's step (which runs as its person but is a call made by another capability, so ctx.callerCap names it).
     // A person's own call has no caller capability; a held send of theirs that the Gate resumes after they pressed Allow carries the Gate's own marker, gate.release, which only the host sets.

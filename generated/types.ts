@@ -12920,6 +12920,8 @@ export type DocumentsSigningOut = {
   stale?: boolean;
   plain?: boolean;
   unchecked?: boolean;
+  checkedVersion?: string;
+  checkedSha256?: string;
   templateFileId?: string;
   recordId?: string;
 };

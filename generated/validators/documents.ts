@@ -586,6 +586,8 @@ for (let i2762 = 0; i2762 < a2762.length; i2762++) {
 if ("stale" in o2760) lf(o2760["stale"], p + "/stale", e, L3);
 if ("plain" in o2760) lf(o2760["plain"], p + "/plain", e, L3);
 if ("unchecked" in o2760) lf(o2760["unchecked"], p + "/unchecked", e, L3);
+if ("checkedVersion" in o2760) lf(o2760["checkedVersion"], p + "/checkedVersion", e, L1);
+if ("checkedSha256" in o2760) lf(o2760["checkedSha256"], p + "/checkedSha256", e, L1);
 if ("templateFileId" in o2760) lf(o2760["templateFileId"], p + "/templateFileId", e, L35);
 if ("recordId" in o2760) lf(o2760["recordId"], p + "/recordId", e, L28);
 }
