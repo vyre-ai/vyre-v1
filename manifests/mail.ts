@@ -991,8 +991,8 @@ const manifest = defineManifest({
       errors: ["validation.bad_input", "validation.not_found"],
     }),
     // the tool for a sent message's delivery: its trail (mail.delivery.trail). The retry behind it is the host's own follow-up and is not reachable by a person or an agent
-    read("mail.delivery_state", "A sent message's delivery trail: events, retries, blocked addresses", {
-      in: { messageId: emlId },
+    read("mail.delivery_state", "A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried", {
+      in: { messageId: t.opt(emlId) },
       out: { result: t.json() },
       tool: "inbox",
       errors: ["validation.bad_input", "validation.not_found"],

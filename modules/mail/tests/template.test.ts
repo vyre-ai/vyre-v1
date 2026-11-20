@@ -14,7 +14,7 @@ import {
   save,
 } from "../handlers/extra/template.ts";
 import { fillTokens, tokensIn, unsafeUrl } from "../../../lib/merge-tokens.ts";
-import { script } from "../handlers/extra/kit.ts";
+import { script, seedSent } from "../handlers/extra/kit.ts";
 import { codeOf, contractErrors, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -419,6 +419,13 @@ test("the template actions of mail.configure route to the template capabilities 
   assert.equal(await said({ action: "monitor", box: "x" }), "mail.configure monitor takes {mailboxId?}; not used: box.");
   assert.equal(seen.length, 11);
   // delivery: a message id gives its trail; none is asked for
-  await assert.rejects(delivery(h.ctx, {}), (e) => codeOf(e) === "validation.bad_input");
+  // no id (a first call that knows nothing): the sent messages that need a look, so the next call can name one
+  seedSent(h, { id: "eml_b1", mailboxId: "mbx_maya", providerId: "re_b1", status: "bounced" });
+  seedSent(h, { id: "eml_ok", mailboxId: "mbx_maya", providerId: "re_ok", status: "delivered" });
+  const listed = (await delivery(h.ctx, {})).result as { messages: { messageId: string }[] };
+  assert.deepEqual(listed.messages.map((m) => m.messageId), ["eml_b1"]);
+  assert.deepEqual(contractErrors("mail.delivery_state", "out", { result: listed }), []);
+  h.denied.add("mbx_maya");
+  assert.deepEqual(((await delivery(h.ctx, {})).result as { messages: unknown[] }).messages, [], "a message the caller may not see is not listed");
   await assert.rejects(delivery(h.ctx, { messageId: "eml_none" }), (e) => codeOf(e) === "validation.not_found");
 });
