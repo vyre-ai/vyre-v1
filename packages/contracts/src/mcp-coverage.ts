@@ -98,7 +98,7 @@ const APP = "App plumbing: the app's own screen reads it to draw a card or a til
 const VIA_MAIL_CONFIGURE =
   "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move); the Gate, permission and audit apply as when a person presses the button.";
 const VIA_SITES_OPS =
-  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's ownership checks apply, and sites.ops_gate holds an agent's backup_restore and backup_download, and its job_create, job_update and worker_add on a site with keys or a database.";
+  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*). The Gate holds the risky ones for an agent (sites.ops_gate): backup_restore and backup_download, and job_create, job_update and worker_add on a site with keys or a database. The hold on the delete actions is r42-sites-run's open item.";
 const DOC_SIGNING =
   "A read esign.send makes (where a PDF's signers sign, and whether the copy is exact); agents get the roles from documents_make (signers) and esign_send.";
 const SERVICES_LIST =
