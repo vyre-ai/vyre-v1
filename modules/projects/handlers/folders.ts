@@ -552,7 +552,7 @@ export async function onFolderUnfollowed(
   if (!folderId || !recordId) return;
   // asked again before anything changes: a folder that follows its record by now (a retry or the sweep made it so) is left exactly as it is
   // (access.shares_of says what a folder follows, from the access store the follow writes; the Files tree's own parent is not that)
-  const now = await tolerant<{ inherits?: string }>(
+  const now = await tolerant<{ inherits?: string; audience?: string }>(
     ctx,
     "access.shares_of",
     { resource: { type: "folder", id: folderId } },
@@ -575,6 +575,8 @@ export async function onFolderUnfollowed(
       return;
     }
   }
+  // narrowing a folder that is already closed to the people added changes nobody's access: nothing to do, nothing to tell
+  if (now.audience === "added") return;
   let narrowed = true;
   try {
     await call(ctx, "access.folder_narrow", { folderId });

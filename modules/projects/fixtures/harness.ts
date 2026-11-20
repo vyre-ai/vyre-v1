@@ -77,6 +77,8 @@ export function fakeWorld(clock: { t: number }) {
   ]);
   const down = new Set<string>();
   /** access.audience_set refuses the follows branch (a caller without Manage on the folder). */
+  /** Files folders closed to the people added (what access.folder_narrow does). */
+  const closed = new Set<string>();
   const refuse: { follows: boolean; code: string; times?: number } = { follows: false, code: "permission.no_grant" };
   /** Principals and groups the Space does not know: access.principals.get and access.groups.get refuse them, as the real module does. */
   const unknown = new Set<string>();
@@ -206,6 +208,7 @@ export function fakeWorld(clock: { t: number }) {
       i.resource.type === "folder"
         ? {
             shares: [],
+            audience: closed.has(i.resource.id) ? "added" : "space",
             ...(folders.get(i.resource.id)?.parentId?.startsWith("rec_")
               ? { inherits: folders.get(i.resource.id)!.parentId }
               : {}),
@@ -353,7 +356,10 @@ export function fakeWorld(clock: { t: number }) {
       }
       return { revoked: before - grants.length };
     },
-    "access.folder_narrow": () => ({ audience: "added" }),
+    "access.folder_narrow": (i) => {
+      closed.add(i.folderId);
+      return { audience: "added" };
+    },
     "access.audience_set": (i) => {
       if (i.follows !== undefined && refuse.follows && (refuse.times === undefined || refuse.times-- > 0))
         fail(refuse.code, "only a manager attaches a folder to its record");
@@ -410,6 +416,7 @@ export function fakeWorld(clock: { t: number }) {
     root,
     down,
     refuse,
+    closed,
     unknown,
     next,
     agents,
