@@ -18,6 +18,7 @@ const task = (plain: boolean) => ({
     title: "Approve: Send a document for signature",
     state: "awaiting_approval",
     source: { kind: "gate", id: "gh_1" },
+    payloadHash: "a".repeat(64),
     blocks: [
       {
         type: "file",
