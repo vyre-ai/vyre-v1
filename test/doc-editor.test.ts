@@ -935,3 +935,49 @@ test("type, an agent writes, the file is reverted: the page keeps its own save, 
   assert.ok(m);
   assert.equal(mdOf(s.apply(m.tr)), T1);
 });
+
+test("block-by-block writing stays equal to whole writing when a warm cache meets an unclosed fence, a list gaining an item, or a loose list made tight", () => {
+  const same = (s: EditorState, texts: WeakMap<object, string>, what: string): void =>
+    assert.equal(docToMarkdownCached(s.doc, texts, D), docToMarkdown(s.doc.toJSON(), D), what);
+  const para = (text: string) => schema.nodes["paragraph"]!.create(null, schema.text(text));
+  // an unclosed fence last, then a paragraph after it: the fence is closed and the paragraph is outside the code
+  {
+    const texts = new WeakMap<object, string>();
+    let s = stateOf("intro\n\n```js\nlet a = 1;", false);
+    same(s, texts, "warm, fence last");
+    s = s.apply(s.tr.insert(s.doc.content.size, para("after")));
+    same(s, texts, "paragraph after an unclosed fence");
+    const back = markdownToDoc(docToMarkdownCached(s.doc, texts, D), D).content ?? [];
+    assert.deepEqual(
+      back.map((b) => b.type),
+      ["paragraph", "codeBlock", "paragraph"],
+    );
+  }
+  // an unclosed fence last in a list item, then a new sibling item
+  {
+    const texts = new WeakMap<object, string>();
+    let s = stateOf("- a\n  ```js\n  x\n", false);
+    same(s, texts, "warm, fence in an item");
+    const list = s.doc.child(0);
+    const item = schema.nodes["listItem"]!.create(null, para("b"));
+    s = s.apply(s.tr.insert(list.nodeSize - 1, item));
+    same(s, texts, "a sibling after a fence that ends an item");
+    const back = markdownToDoc(docToMarkdownCached(s.doc, texts, D), D).content?.[0];
+    assert.equal(back?.content?.length, 2, "two items on reading it again");
+  }
+  // an ordered list gaining an item, and a loose list made tight, each after the cache was warm
+  {
+    const texts = new WeakMap<object, string>();
+    let s = stateOf("1. a\n2. b\n\ntail\n", false);
+    same(s, texts, "warm, ordered list");
+    s = s.apply(s.tr.insert(s.doc.child(0).nodeSize - 1, schema.nodes["listItem"]!.create(null, para("c"))));
+    same(s, texts, "ordered list gaining an item");
+    s = s.apply(s.tr.setNodeMarkup(0, undefined, { ...s.doc.child(0).attrs, tight: true }));
+    same(s, texts, "list made tight");
+    const loose = stateOf("- a\n\n- b\n\n- c\n", false);
+    const t2 = new WeakMap<object, string>();
+    same(loose, t2, "warm, loose list");
+    const edited = loose.apply(loose.tr.setNodeMarkup(0, undefined, { ...loose.doc.child(0).attrs, tight: true }));
+    same(edited, t2, "loose list made tight");
+  }
+});
