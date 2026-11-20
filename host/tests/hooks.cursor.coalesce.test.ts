@@ -131,3 +131,97 @@ test("an idle server stores the cursors it held back: they reach the head within
   assert.equal(db.get("m.x"), 3);
   await r.close();
 });
+
+test("the idle flush does not write while a pass is running: the pass stores what it moved, and only then", async () => {
+  const events = [ev(1, "other")];
+  const db = new Map([["m.x", 0], ["m.none", 0]]);
+  const inserts: number[] = [];
+  const names = ["m.x", "m.none"];
+  let release: () => void = () => undefined;
+  const slow = new Promise<void>((r) => (release = r));
+  let writesAtDelivery = -1;
+  const sqls: string[] = [];
+  const holder: { r?: ReturnType<typeof createHookRunner> } = {};
+  let head = 0;
+  const hooks: ModuleHooks[] = [
+    {
+      module: "m",
+      periodic: [],
+      consumers: names.map((name) => ({
+        name,
+        module: "m",
+        on: name === "m.x" ? ["x"] : ["never"],
+        run: async () => {
+          if (name !== "m.x") return;
+          await slow; // the pass is busy past the second the idle timer waits
+          writesAtDelivery = inserts.length;
+        },
+      })) as never,
+    },
+  ];
+  const invoke = (async (cap: string, input: unknown) => ({ status: "ok", output: await holder.r!.handlers[cap]!({} as never, input as never), traceId: "t" })) as unknown as Invoke;
+  holder.r = createHookRunner({
+    space: "spc_t",
+    now: () => 1,
+    invoke,
+    emitsOf: () => [],
+    capOf: () => undefined,
+    warn: () => undefined,
+    hooks,
+    db: {
+      all: (_s: string, name?: unknown) => (db.has(String(name)) ? [{ seq: db.get(String(name)) }] : []),
+      run: (sql: string, ...a: unknown[]) => {
+        sqls.push(sql.split(" ")[0]!);
+        if (sql.startsWith("INSERT")) {
+          db.set(String(a[0]), Number(a[1]));
+          inserts.push(Number(a[1]));
+        }
+        return { changes: 1 };
+      },
+    },
+    log: {
+      read: async ({ after = 0, limit = 200, types }: { after?: number; limit?: number; types?: string[] }) =>
+        events.filter((e) => e.seq > after && (!types || types.includes(e.type))).slice(0, limit) as never,
+      currentHead: async () => ({ seq: head }),
+    },
+  } as never);
+  const r = holder.r!;
+  head = 1;
+  await r.pump(); // stores both at 1
+  events.push(ev(2, "other"));
+  head = 2;
+  await r.pump(); // coalesced: the idle timer is armed for a second from now
+  assert.equal(db.get("m.none"), 1);
+  events.push(ev(3, "x"));
+  head = 3;
+  const before = inserts.length;
+  const pass = r.pump(); // delivers event 3 and waits for `slow`
+  await new Promise((x) => setTimeout(x, 1_300)); // the idle timer's second passes while the pass is still on
+  assert.equal(inserts.length, before, "nothing was written while the pass was running");
+  release();
+  await pass;
+  assert.equal(writesAtDelivery, before, "the idle timer wrote nothing in the middle of the pass");
+  assert.equal(db.get("m.x"), 3, "the pass stored what it delivered");
+  await r.close();
+});
+
+test("a stop right after a pass stores the held-back cursors, and nothing is written after it", async () => {
+  const names = ["m.x", "m.none"];
+  const db = new Map(names.map((n) => [n, 0] as const));
+  const events = [ev(1, "other")];
+  const sqls: string[] = [];
+  const { r, setHead } = make(db, events, [], names);
+  setHead(1);
+  await r.pump();
+  events.push(ev(2, "other"), ev(3, "other"));
+  setHead(3);
+  await r.pump(); // coalesced
+  assert.equal(db.get("m.none"), 1, "held back");
+  await r.close();
+  assert.equal(db.get("m.none"), 3, "the stop stored them");
+  assert.equal(db.get("m.x"), 3);
+  const snapshot = JSON.stringify([...db]);
+  await new Promise((x) => setTimeout(x, 1_300));
+  assert.equal(JSON.stringify([...db]), snapshot, "the idle timer was cancelled: nothing is written after the stop");
+  void sqls;
+});

@@ -581,6 +581,14 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       if (idleTimer) clearTimeout(idleTimer);
       idleTimer = null;
       const pass = running;
+      if (!pass && !abandoned) {
+        // no pass is running to store what the coalescing held back: store it now, before the database goes
+        try {
+          flush();
+        } catch (err) {
+          d.warn("the consumers' cursors could not be stored at the stop", { error: err instanceof Error ? err.message : String(err) });
+        }
+      }
       if (!pass || abandoned) return Promise.resolve();
       if (boundMs === undefined) return pass;
       return new Promise<void>((done) => {
