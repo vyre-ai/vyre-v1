@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0-rc.40",
+  "version": "1.0.0-rc.41",
   "lines": [
     "A request the server cannot read no longer stops it, and a hostile email or page can no longer freeze it or a tab.",
     "Tapping a Vault row on a phone shows its own title at once, and Sign Out always ends the sign-in, even before the Space answers.",

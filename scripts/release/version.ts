@@ -7,7 +7,8 @@ const VERSION = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 
 /**
  * A number that only ever goes up, made from the version alone (no state to forget or reset): it orders exactly as semver does, a prerelease below the release it leads to.
- * counter = ((major * 1000 + minor) * 1000 + patch) * 100 + phase; phase beta.N = N (1 to 39), rc.N = 40 + N (41 to 79), a release = 99.
+ * counter = ((major * 1000 + minor) * 1000 + patch) * 100 + phase; phase beta.N = N (1 to 39), rc.N = 40 + N (41 to 98, so rc.1 to rc.58), a release = 99.
+ * rc.40 was refused by an rc cap of 39 that the phase never needed: rc.N stays below the release (99) up to rc.58.
  */
 export function releaseCounter(version: string): number {
   const m = RELEASE.exec(String(version).replace(/^v/, ""));
@@ -17,7 +18,8 @@ export function releaseCounter(version: string): number {
   let phase = 99;
   if (m[4] !== undefined) {
     const n = Number(m[5]);
-    if (!(n >= 1 && n <= 39)) throw new Error(`prerelease number out of range (1 to 39): ${version}`);
+    const max = m[4] === "beta" ? 39 : 58;
+    if (!(n >= 1 && n <= max)) throw new Error(`prerelease number out of range (1 to ${max}): ${version}`);
     phase = m[4] === "beta" ? n : 40 + n;
   }
   return ((major * 1000 + minor) * 1000 + patch) * 100 + phase;

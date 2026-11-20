@@ -45,6 +45,9 @@ test("the release counter orders exactly as semver does: beta below rc below the
     "0.3.0-beta.39",
     "0.3.0-rc.1",
     "0.3.0-rc.2",
+    "0.3.0-rc.39",
+    "0.3.0-rc.40",
+    "0.3.0-rc.58",
     "0.3.0",
     "0.3.1",
     "1.0.0-rc.1",
@@ -57,7 +60,10 @@ test("the release counter orders exactly as semver does: beta below rc below the
   assert.equal(releaseCounter("v0.3.0-rc.2"), releaseCounter("0.3.0-rc.2"));
   assert.equal(releaseCounter("0.3.0-rc.2"), 300042);
   assert.equal(releaseCounter("0.3.0"), 300099);
-  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.40", "1000.0.0", ""])
+  assert.equal(releaseCounter("1.0.0-rc.40"), 100000080);
+  assert.equal(releaseCounter("1.0.0-rc.58"), 100000098);
+  assert.equal(tagVersion("v1.0.0-rc.41"), "1.0.0-rc.41");
+  for (const bad of ["1.2", "1.2.3-alpha.1", "1.2.3-rc.0", "1.2.3-rc.59", "1.2.3-beta.40", "1000.0.0", ""])
     assert.throws(() => releaseCounter(bad), bad);
 });
 
