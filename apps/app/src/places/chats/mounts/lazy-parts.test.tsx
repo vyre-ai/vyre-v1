@@ -20,6 +20,10 @@ test("a note opened from a link shows the loading mark on the first frame while 
       r.render(<NotesPage rt={{} as never} nameOf={() => "x"} noteId="note_1" />);
     });
     assert.ok(find(r.container as never, "notes-loading"), "the loading mark is there on the first frame");
+    // the stand-in runtime of this test must not outlive it: the editor's code arrives later in this process, and a page still mounted would draw it with this empty runtime
+    act(() => {
+      r.unmount();
+    });
   } finally {
     undo();
   }
