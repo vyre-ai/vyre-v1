@@ -23,6 +23,7 @@ import {
   dana,
   fromBase64,
   harness,
+  toBase64,
   refused,
 } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
@@ -187,6 +188,24 @@ test("send: a version uploaded between the exact-copy check and the read of the 
   await send(h, { idempotencyKey: "k2" });
   assert.equal(h.provider.created.length, 1);
   assert.deepEqual([...h.provider.created[0]!.pdf], [...PDF]);
+});
+
+test("send: with a file store that names no version, bytes that change between the check and the send never reach the hosted provider", async () => {
+  const h = harness();
+  const later = new Uint8Array([...PDF, 10, 32]);
+  let bytes: Uint8Array = PDF;
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: PDF.length },
+  }));
+  h.callee("files.read", () => ({ base64: toBase64(bytes), mime: "application/pdf", size: bytes.length, truncated: false }));
+  h.callee("documents.signing", () => {
+    bytes = later;
+    return { signers: [], places: [] };
+  });
+  const e = await send(h).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.provider.created.length, 0, "the provider was never called");
+  assert.equal(h.rows("esign_envelope").length, 0);
 });
 
 test("send: an agent sends for the person it works for; a service sender gets no task; the record id is optional", async () => {

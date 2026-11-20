@@ -31,7 +31,7 @@ import {
   tellThread,
   toBase64,
 } from "./send.ts";
-import type { EnvelopeRow, EnvelopeStatus, ProviderKey } from "./send.ts";
+import type { EnvelopeRow, EnvelopeStatus, Pin, ProviderKey } from "./send.ts";
 import type { HttpFn } from "./documenso.ts";
 import { setHostedAccess } from "./providers.ts";
 import { ensureSeal, fingerprintOf, isSpaceCert } from "./seal.ts";
@@ -437,7 +437,7 @@ async function placesFromDocument(ctx: Ctx, fileId: string, signerCount: number)
 
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
-export async function sendVyre(ctx: Ctx, input: unknown, pinned?: { version: unknown }): Promise<Row> {
+export async function sendVyre(ctx: Ctx, input: unknown, pinned?: Pin): Promise<Row> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const recordId = optStr(ctx, o, "recordId");
@@ -479,7 +479,7 @@ export async function sendVyre(ctx: Ctx, input: unknown, pinned?: { version: unk
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
   const original = fromBase64(body.base64);
-  if (pinned) await assertHead(ctx, fileId, pinned.version);
+  if (pinned) await assertHead(ctx, fileId, pinned, original);
   if (places === undefined) places = await placesFromDocument(ctx, fileId, signers.length);
   if (original.length === 0 || original.length > MAX_VYRE_BYTES)
     fail(ctx, "validation.too_large", "Built-in signing takes a PDF up to 20 MB.", { field: "fileId" });

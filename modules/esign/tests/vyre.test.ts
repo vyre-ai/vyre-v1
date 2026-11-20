@@ -706,6 +706,37 @@ test("a version uploaded between the exact-copy check and the read of the bytes 
   assert.equal(h.rows("esign_envelope").length, 1);
 });
 
+test("the pin does not depend on a version: with a file store that names none, bytes that change between the check and the send are refused, and a file that cannot be pinned is refused", async () => {
+  const other = await samplePdf(3);
+  const h = await setup();
+  let bytes: Uint8Array | undefined;
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+  }));
+  h.callee("files.read", () => ({ base64: toBase64(bytes ?? other), mime: "application/pdf", size: 1000, truncated: false }));
+  bytes = await samplePdf(2);
+  // the check passes on the first bytes, and different bytes are in place when the send reads them
+  h.callee("documents.signing", () => {
+    bytes = other;
+    return { signers: [], places: [] };
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.rows("esign_envelope").length, 0, "nothing was created or sent");
+  // steady bytes and still no version: sent
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  assert.match((await send(h, [ANDREA])).envelopeId, /^env_/);
+  // no version and bytes that cannot be read whole: nothing can be pinned, so nothing is sent
+  const h2 = await setup();
+  h2.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+  }));
+  h2.callee("files.read", () => ({ base64: toBase64(other), mime: "application/pdf", size: 1000, truncated: true }));
+  const e2 = await send(h2, [ANDREA]).catch((x) => x);
+  assert.ok(e2.error, "refused");
+  assert.equal(h2.rows("esign_envelope").length, 0);
+});
+
 test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {
   const h = await setup();
   h.callee("documents.signing", () => {
