@@ -3,7 +3,16 @@
 // much was left out. Times are in the Space's time.
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+  useWindowDimensions,
+  type ScrollViewInstance,
+} from "react-native";
 import { MenuIcon } from "../../../../../../../ui/src/Menu/index.tsx";
 import { useSpaceZone } from "../../../../../../../ui/src/Time/index.tsx";
 import { deviceZone } from "../../../../../../../lib/zones.ts";
@@ -117,7 +126,7 @@ export function SiteLogs({ siteId, height = 520 }: { siteId: string; height?: nu
   }, [d, siteId, f, follow, loaded]);
 
   const shown = useMemo(() => rows(lines, zone), [lines, zone]);
-  const ref = useRef<ScrollView | null>(null);
+  const ref = useRef<ScrollViewInstance | null>(null);
   const atEnd = useRef(true);
   useEffect(() => {
     if (atEnd.current) ref.current?.scrollToEnd({ animated: false });
