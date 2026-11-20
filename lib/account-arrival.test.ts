@@ -20,16 +20,16 @@ test("what an event says about an AI account: connected, saved, or nothing", asy
   assert.equal(await accountArrival({ name: "turn.completed", payload: {} }), null);
 });
 
-test("a changed item is an account only when the Vault says its kind is an AI sign-in or key; unreadable means no", async () => {
+test("a changed item is an account only when the Vault says its kind is an AI sign-in or key; an unreadable kind counts as saved so a re-sign-in resumes", async () => {
   const read = kinds({ a: "api_key", s: "ai_subscription", l: "login", o: "other" });
   const up = (itemId: string) => ({ name: "vault.item_updated", payload: { itemId } });
   assert.equal(await accountArrival(up("a"), read), "saved");
   assert.equal(await accountArrival(up("s"), read), "saved");
   assert.equal(await accountArrival(up("l"), read), null, "a login edit");
   assert.equal(await accountArrival(up("o"), read), null, "a token refresh of another kind");
-  assert.equal(await accountArrival(up("missing"), read), null, "an item that cannot be read");
-  assert.equal(await accountArrival(up("a")), null, "no way to read the kind");
-  assert.equal(await accountArrival(up("a"), async () => Promise.reject(new Error("down"))), null);
+  assert.equal(await accountArrival(up("missing"), read), "saved", "an item that cannot be read");
+  assert.equal(await accountArrival(up("a")), "saved", "no way to read the kind");
+  assert.equal(await accountArrival(up("a"), async () => Promise.reject(new Error("down"))), "saved");
   assert.equal(await accountMayHaveArrived(up("a"), read), true);
   assert.equal(await accountMayHaveArrived(up("l"), read), false);
 });
@@ -43,7 +43,7 @@ test("an update carries its own kind; the Vault is asked only when it does not, 
   assert.equal(await accountArrival(up("ai_subscription"), refuse), "saved");
   assert.equal(await accountArrival(up("login"), refuse), null);
   assert.equal(await accountArrival(up("api_key")), "saved", "no reader needed when the event has the kind");
-  assert.equal(await accountArrival(up(), refuse), null, "an older event the Vault refuses fails closed");
+  assert.equal(await accountArrival(up(), refuse), "saved", "an older event the Vault refuses still resumes");
   // the event's kind wins over the Vault
   assert.equal(await accountArrival(up("login"), kinds({ v: "api_key" })), null);
 });
