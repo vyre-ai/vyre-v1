@@ -330,10 +330,6 @@ export function fitBlocks(blocks: readonly PostBlock[]): PostBlock[][] {
   return out;
 }
 
-/** How often, and how long apart (this many ms, then twice, thrice...), a thread just made is looked at again while its person cannot see it yet: about 3.6 seconds at most. */
-const THREAD_SEEN_TRIES = 8;
-const THREAD_SEEN_MS = 100;
-
 export function createBridge(o: BridgeOptions): Bridge {
   let engine: TurnEngine | null = null;
   const opened = new Set<string>();
@@ -1477,21 +1473,7 @@ export function createBridge(o: BridgeOptions): Bridge {
             const made = (await reader(ctx, authorId, home)("chat.thread", { threadId: home, messageId })) as {
               thread: { threadId: string };
             };
-            // the thread was only just made: for a moment the person may not see it yet (its access follows a step behind the commit, and on a slow or busy server that is seconds). Look again a few times before the
-            // reply is given up to the chat, so the main chat keeps only the ask and the thread's footer (a cold first run showed the lead's reply and its helper strip in the main chat when it did not)
-            let opened = await open(ctx, made.thread.threadId, messageId, authorId);
-            for (
-              let again = 1;
-              !opened && again <= THREAD_SEEN_TRIES && unreadable.has(made.thread.threadId);
-              again++
-            ) {
-              await new Promise<void>((r) => {
-                const t = setTimeout(r, THREAD_SEEN_MS * again);
-                (t as { unref?: () => void }).unref?.();
-              });
-              opened = await open(ctx, made.thread.threadId, messageId, authorId);
-            }
-            if (opened) {
+            if (await open(ctx, made.thread.threadId, messageId, authorId)) {
               threadId = made.thread.threadId;
               homeOf.set(threadId, home);
               // the thread answers as the chat does: who leads there is who leads in the chat, as the engine holds it now

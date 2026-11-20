@@ -36,10 +36,7 @@ function setup(o: {
   script?: DriverEvent[];
   held?: boolean;
   agents?: Array<{ agentId: string; mode: "lead" | "listen" }>;
-  /** how many times the person's read of the thread just made is refused as not found before it is let through (its access lags the commit on a slow server) */
-  unseen?: number;
 }) {
-  let unseen = o.unseen ?? 0;
   const h = harness();
   const chat: Row[] = [];
   const made: Array<{ threadId: string; messageId: string }> = [];
@@ -65,12 +62,6 @@ function setup(o: {
               agentRepliesInThreads: o.on ?? true,
             },
           };
-        if (unseen > 0 && b.threadId.startsWith("thr_under_")) {
-          unseen -= 1;
-          throw Object.assign(new Error("There is no thread by that name that you can see."), {
-            error: { code: "permission.not_found" },
-          });
-        }
         return { thread: { threadId: b.threadId, kind: "thread", parentThreadId: MAIN, starter: "usr_dana", agents } };
       }
       if (cap === "agents.get") throw new Error("no such agent");
@@ -182,21 +173,6 @@ test("in a project chat with the switch on, the agent's reply lands in the threa
     s.asks.some((a) => a.threadId === `thr_under_${id}`),
     "what the person asked opens its acts in the thread where the turn runs",
   );
-});
-
-test("a thread just made that its person cannot see yet is looked at again, and the reply still lands in the thread, not in the chat", async () => {
-  const s = setup({ script: reply("Harbor looks best."), unseen: 3 });
-  const { id } = await s.say("Compare the two quotes.");
-  const posts = agentPosts(s);
-  assert.equal(posts.length, 1);
-  assert.equal(posts[0]!.threadId, `thr_under_${id}`, "in the thread");
-  assert.equal(s.chat.filter((r) => r.threadId === MAIN).length, 1, "the main chat holds the ask and nothing else");
-});
-
-test("a thread that stays unreadable is given up after a few looks: the reply is in the chat, as before", async () => {
-  const s = setup({ script: reply("Harbor looks best."), unseen: 1000 });
-  await s.say("Compare the two quotes.");
-  assert.equal(agentPosts(s)[0]?.threadId, MAIN);
 });
 
 test("a channel behaves the same: the reply goes to the thread of the message that asked", async () => {
