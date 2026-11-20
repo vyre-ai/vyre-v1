@@ -872,6 +872,46 @@ export const unmetDeps = (db: Db, id: string): Node[] =>
 /**
  * A node that starts after work that did not finish never starts: it fails, saying which. The host's sweep, every few seconds. (A node whose dependencies are all done is claimed by its worker as usual.)
  */
+/**
+ * A failed node is tried again and a new node stands in its place: the nodes that failed ONLY because it did (dependency_failed) go back to waiting, on the new one, and so do the nodes that failed because of those, down the chain.
+ * One Retry repairs the chain; if the new one fails too, they fail again with the same reason (settleDeps). Returns the nodes brought back.
+ */
+export function rearmDependents(ctx: RunsCtx, failedId: string, replacementId: string, depth = 0): string[] {
+  if (depth > 64) return [];
+  const back: string[] = [];
+  const rows = ctx.db.all(
+    `SELECT d.run_id AS id FROM runs_dep d JOIN runs_node n ON n.run_id = d.run_id
+     WHERE d.on_run = ? AND n.status = 'failed' AND n.error_code = 'dependency_failed'`,
+    failedId,
+  ) as Row[];
+  for (const r of rows) {
+    const id = String(r["id"]);
+    if (replacementId !== failedId) {
+      ctx.db.run("DELETE FROM runs_dep WHERE run_id = ? AND on_run = ?", id, failedId);
+      ctx.db.run("INSERT OR IGNORE INTO runs_dep (run_id, on_run) VALUES (?, ?)", id, replacementId);
+    }
+    const now = ctx.now();
+    const changed = ctx.db.run(
+      `UPDATE runs_node SET status = 'queued', version = version + 1, attempt = attempt + 1, ended_at = NULL, error_code = NULL, error_message = NULL,
+         updated_at = ?, lease_holder = NULL, lease_until = NULL, stuck_json = NULL
+       WHERE run_id = ? AND status = 'failed'`,
+      now,
+      id,
+    ).changes;
+    if (changed !== 1) continue;
+    const node = getNode(ctx, id);
+    writeEvent(ctx, id, {
+      type: "state",
+      key: `state:${node.version}`,
+      actor: ctx.principal.id,
+      payload: { from: "failed", to: "queued", why: "resumed", attempt: node.attempt },
+    });
+    announce(ctx, node, "failed", "queued", "resumed");
+    back.push(id, ...rearmDependents(ctx, id, id, depth + 1));
+  }
+  return back;
+}
+
 export function settleDeps(ctx: RunsCtx): Node[] {
   const out: Node[] = [];
   const waiting = ctx.db.all(

@@ -944,6 +944,7 @@ export async function helperStart(
     crew?: boolean;
     taskId?: string;
     dependsOn?: string[];
+    retryOf?: string;
     idempotencyKey?: string;
   },
 ) {
@@ -973,6 +974,15 @@ export async function helperStart(
         reason: "no_such_helper",
       });
     if (!waitsFor.includes(rows[0]!.id)) waitsFor.push(rows[0]!.id);
+  }
+  // a retry names the helper of this chat it starts again: the helpers that waited for it and failed with it go back to waiting
+  if (input.retryOf !== undefined) {
+    const was = ctx.db.all(
+      "SELECT id FROM chat_thread WHERE id = ? AND parentThreadId = ? AND kind = 'helper' AND deleted_at IS NULL",
+      input.retryOf,
+      parent.id,
+    ) as Array<{ id: string }>;
+    if (!was[0]) raise(ctx, "validation.bad_input", "That is not a helper of this chat.", { reason: "no_such_helper" });
   }
   // a helper can only wait for work of the same job (the live turn the parent works in): one of an earlier job is refused here, so the agent that asked knows, not started at once as if it had waited
   if (waitsFor.length > 0 && ctx.call) {
@@ -1053,6 +1063,7 @@ export async function helperStart(
           ...(chosen ? { pick: chosen.pick } : {}),
           ...(input.crew === true ? { crew: true } : {}),
           ...(waitsFor.length > 0 ? { dependsOn: waitsFor } : {}),
+          ...(input.retryOf !== undefined ? { retryOf: input.retryOf } : {}),
         },
         state: "live",
         traceId: ctx.trace.traceId,

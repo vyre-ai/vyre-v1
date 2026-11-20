@@ -5,13 +5,33 @@
 import { raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
 import { canSee, mayManage } from "../projections.ts";
-import { findNode, getNode, isTerminal, nodesOfThread, startNode } from "../node.ts";
+import { findNode, getNode, isTerminal, nodesOfThread, rearmDependents, startNode } from "../node.ts";
 import type { Node } from "../node.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 type Brief = { goal?: string; instructions?: string };
 
 const MAX_TEXT = 4000;
+
+type RerunEntry = { seq: number; at: number; goal?: string; instructions?: string; model?: string; threadId?: string };
+type SaveEntry = { seq: number; at: number; name?: string; instructions?: string };
+type Origin = {
+  rerunSeq?: number;
+  reruns?: RerunEntry[];
+  saveSeq?: number;
+  saves?: SaveEntry[];
+  [k: string]: unknown;
+};
+/**
+ * Change a node's origin in one step, from what is stored NOW: the read and the write have no await between them, so two presses at once cannot lose each other's entry. The counters only go up, so a key made from one
+ * is never made again (a list that is cut to its last entries does not reuse a number).
+ */
+function editOrigin<T>(ctx: RunsCtx, id: string, f: (o: Origin) => T): T {
+  const o = { ...((getNode(ctx, id).origin as Origin | undefined) ?? {}) };
+  const out = f(o);
+  ctx.db.run("UPDATE runs_node SET origin_json = ?, updated_at = ? WHERE run_id = ?", JSON.stringify(o), ctx.now(), id);
+  return out;
+}
 const cut = (s: string, n = MAX_TEXT): string => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
 /** The node, for someone who may see all of it (not a watcher): a brief and a result are not shown to one. */
@@ -79,13 +99,22 @@ export async function saveAsAgent(ctx: RunsCtx, input: In): Promise<unknown> {
     ctx.authorize?.({ perm: null, level: "manage" }, { type: "agent", id: n.whoId }).effect === "allow";
   const carried = tools ? { allowed: mayCarry ? strs(tools.allowed) : [], denied: strs(tools.denied) } : undefined;
   const role = (input.role ? String(input.role) : (brief?.goal ?? n.name ?? "").split("\n")[0]!).trim().slice(0, 200);
+  const wantText = cut(edited !== "" ? edited : textOf(brief!));
+  // the same save again (the same name and words) is the one made already; another is another agent: the key is a number kept on the work that is never used twice, found by comparing what was kept, not by a mark of it
+  const seq = editOrigin(ctx, n.id, (o) => {
+    const saves = o.saves ?? [];
+    const found = saves.find((x) => (x.name ?? "") === name && (x.instructions ?? "") === wantText);
+    if (found) return found.seq;
+    o.saveSeq = (o.saveSeq ?? 0) + 1;
+    o.saves = [...saves, { seq: o.saveSeq, at: ctx.now(), name, instructions: wantText }].slice(-20);
+    return o.saveSeq;
+  });
   const made = (await ctx.call?.("agents.create", {
     name,
     ...(role !== "" ? { role } : {}),
     ...(n.model ? { model: n.model } : {}),
-    instructions: cut(edited !== "" ? edited : textOf(brief!)),
-    // a second press names the same agent: the key is the work's, so the agents module answers with the one it made
-    idempotencyKey: `save:${n.id}`,
+    instructions: wantText,
+    idempotencyKey: `save:${n.id}:${seq}`,
     ...(carried ? { tools: carried } : {}),
     ...(input.sharing ? { sharing: input.sharing } : {}),
   })) as { agent?: unknown } | undefined;
@@ -122,17 +151,30 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.bad_input", "Change the brief or the model, or there is nothing to compare.", {
       reason: "nothing_changed",
     });
-  // the same press again (the same goal, instructions and model from the same work) is the one already started, not another: compared as they were kept, never by a mark of them
+  // the same press again (the same goal, instructions and model from the same work) is the one already started, not another: compared as they were kept. Reserved before anything is started, in one step, so two presses at once
+  // find each other: the second takes the first's number, and the chat's own idempotency answers both with the one helper
   const model = input.model ?? n.model ?? "";
-  type Entry = { threadId: string; at: number; goal?: string; instructions?: string; model?: string };
-  const before = ((n.origin as { reruns?: Entry[] } | undefined)?.reruns ?? []) as Entry[];
-  const prior = before.find(
-    (r) =>
-      (r.goal ?? "") === (next.goal ?? "") &&
-      (r.instructions ?? "") === (next.instructions ?? "") &&
-      (r.model ?? "") === model,
-  );
-  if (prior) return { threadId: prior.threadId, rerunOf: n.id };
+  const mine = editOrigin(ctx, n.id, (o) => {
+    const list = o.reruns ?? [];
+    const found = list.find(
+      (r) =>
+        (r.goal ?? "") === (next.goal ?? "") &&
+        (r.instructions ?? "") === (next.instructions ?? "") &&
+        (r.model ?? "") === model,
+    );
+    if (found) return found;
+    o.rerunSeq = (o.rerunSeq ?? 0) + 1;
+    const entry: RerunEntry = {
+      seq: o.rerunSeq,
+      at: ctx.now(),
+      ...(next.goal !== undefined ? { goal: next.goal } : {}),
+      ...(next.instructions !== undefined ? { instructions: next.instructions } : {}),
+      model,
+    };
+    o.reruns = [...list, entry].slice(-20);
+    return entry;
+  });
+  if (mine.threadId !== undefined) return { threadId: mine.threadId, rerunOf: n.id };
   const parent = n.parentRun === undefined ? undefined : findNode(ctx.db, n.parentRun);
   const parentThread = parent?.threadId;
   if (parentThread === undefined)
@@ -145,28 +187,15 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
     instruction: next.instructions ?? next.goal ?? "",
     ...(n.whoId ? { agentId: n.whoId } : {}),
     ...((input.model ?? n.model) ? { model: input.model ?? n.model } : {}),
-    idempotencyKey: `rerun:${n.id}:${before.length}`,
+    idempotencyKey: `rerun:${n.id}:${mine.seq}`,
   })) as { helper?: { threadId?: string } } | undefined;
   const threadId = started?.helper?.threadId;
   if (!threadId) raise(ctx, "internal.unexpected", "The helper was not started.");
-  // the link lives on the first node: the threads of what was started again from it, in order
-  const origin = (n.origin as { reruns?: Entry[] } | undefined) ?? {};
-  const reruns = [
-    ...(origin.reruns ?? []),
-    {
-      threadId: threadId!,
-      at: ctx.now(),
-      ...(next.goal !== undefined ? { goal: next.goal } : {}),
-      ...(next.instructions !== undefined ? { instructions: next.instructions } : {}),
-      model,
-    },
-  ].slice(-20);
-  ctx.db.run(
-    "UPDATE runs_node SET origin_json = ?, updated_at = ? WHERE run_id = ?",
-    JSON.stringify({ ...origin, reruns }),
-    ctx.now(),
-    n.id,
-  );
+  // the link lives on the first node: the threads of what was started again from it, in order (the entry reserved above gets its thread)
+  editOrigin(ctx, n.id, (o) => {
+    const e = (o.reruns ?? []).find((r) => r.seq === mine.seq);
+    if (e) e.threadId = threadId!;
+  });
   // its node stands from now. A re-run's tools are those of the first one's agent (chat.helper.start is given that agent and no tools of its own, and this capability takes no tool input), so it has what the first had and no more;
   // the node also carries the first one's recorded policy (the limits its tools had), so a save from the re-run says the same
   const have = nodesOfThread(ctx.db, threadId!, false, 1)[0];
@@ -196,11 +225,14 @@ export async function rerun(ctx: RunsCtx, input: In): Promise<unknown> {
         origin: carried.origin,
         idemKey: `helper:${threadId}`,
       });
+    let made: { node: Node };
     try {
-      mk(n.parentRun);
+      made = mk(n.parentRun);
     } catch {
-      mk(); // the chat's turn has ended: it stands as work of its own
+      made = mk(); // the chat's turn has ended: it stands as work of its own
     }
+    // a failed helper tried again: the helpers that failed only because of it go back to waiting, on this one
+    if (n.status === "failed") rearmDependents(ctx, n.id, made.node.id);
   }
   return { threadId: threadId!, rerunOf: n.id };
 }
@@ -252,7 +284,9 @@ async function sideOf(ctx: RunsCtx, n: Node): Promise<Side> {
 /** The first and everything started again from it, side by side. A re-run that has not begun its first turn yet shows as starting. */
 export async function compare(ctx: RunsCtx, input: In): Promise<unknown> {
   const n = fullNode(ctx, input.runId, true);
-  const reruns = ((n.origin as { reruns?: Array<{ threadId: string }> } | undefined)?.reruns ?? []).slice(0, 20);
+  const reruns = ((n.origin as Origin | undefined)?.reruns ?? [])
+    .filter((r): r is RerunEntry & { threadId: string } => r.threadId !== undefined)
+    .slice(0, 20);
   const sides: Side[] = [await sideOf(ctx, n)];
   for (const r of reruns) {
     const m = nodesOfThread(ctx.db, r.threadId, false, 1)[0];

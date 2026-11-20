@@ -264,3 +264,88 @@ test("a helper cannot wait for one of earlier work: chat.helper.start refuses it
     await stop(d);
   }
 });
+
+test("a Retry repairs the chain: Epsilon fails, Delta fails with it, Retry Epsilon, Delta waits again, Epsilon succeeds, Delta runs", async () => {
+  const calls: Record<string, number> = { EPSILON: 0, DELTA: 0 };
+  const model = scriptedModel(async function* (input) {
+    const body = String(input.trigger?.body ?? "");
+    if (/HOLD/.test(body)) await new Promise<void>(() => undefined);
+    if (body.includes("EPSILON")) {
+      calls["EPSILON"] = (calls["EPSILON"] ?? 0) + 1;
+      if (calls["EPSILON"] === 1) {
+        yield { type: "error", code: "model.failed", message: "first try failed at /srv/secret/path" };
+        return;
+      }
+      yield { type: "text", text: "epsilon done" };
+    } else if (body.includes("DELTA")) {
+      calls["DELTA"] = (calls["DELTA"] ?? 0) + 1;
+      yield { type: "text", text: "delta done" };
+    }
+  });
+  const dir = seededDir();
+  const d = await boot(dir, model);
+  try {
+    await connect(d);
+    const agent = await makeAgent(d, "Lead");
+    const chat = await startChat(d, agent, "rt");
+    await ok(d, "threads.set_mode", { threadId: chat, mode: "auto", idempotencyKey: "rt-auto" });
+    await ok(d, "chat.post", {
+      threadId: chat,
+      body: "HOLD the job",
+      mentions: [{ kind: "agent", id: agent }],
+      idempotencyKey: "rt-hold",
+    });
+    const lead = await waitFor(async () => {
+      const rows = (await ok(d, "runs.activity.list", {})).rows as Array<{
+        runId: string;
+        kind: string;
+        status: string;
+      }>;
+      return rows.find((r) => r.kind === "turn" && r.status === "running") ?? null;
+    }, 20_000);
+    const nodes = async (): Promise<
+      Array<{ id: string; name?: string; status: string; reason?: string; threadId?: string; dependsOn?: string[] }>
+    > => (await ok(d, "runs.tree.get", { runId: lead.runId })).nodes;
+    const named = async (name: string, status?: string) =>
+      (await nodes()).filter((n) => n.name === name && (status === undefined || n.status === status)).at(-1);
+    const eps = await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Epsilon",
+      instruction: "EPSILON: the numbers",
+      agentId: agent,
+      idempotencyKey: "rt-eps",
+    });
+    await waitFor(async () => ((await named("Epsilon"))?.status === "failed" ? true : null), 30_000);
+    const failed = await named("Epsilon");
+    assert.equal(failed?.reason, "It could not finish.", "the raw error is not shown");
+    await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Delta",
+      instruction: "DELTA: after epsilon",
+      agentId: agent,
+      dependsOn: ["Epsilon"],
+      idempotencyKey: "rt-del",
+    });
+    await waitFor(async () => ((await named("Delta"))?.status === "failed" ? true : null), 30_000);
+    assert.equal(calls["DELTA"], 0);
+
+    // Retry: the same helper started again, naming the one it retries
+    await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: "Epsilon",
+      instruction: "EPSILON: the numbers",
+      agentId: agent,
+      retryOf: eps.helper.threadId,
+      idempotencyKey: "rt-eps2",
+    });
+    await waitFor(async () => {
+      const delta = await named("Delta");
+      return delta && delta.status !== "failed" ? delta : null;
+    }, 30_000);
+    await waitFor(async () => ((await named("Epsilon", "succeeded")) ? true : null), 30_000);
+    await waitFor(async () => ((await named("Delta"))?.status === "succeeded" ? true : null), 40_000);
+    assert.equal(calls["DELTA"], 1, "Delta ran once, after the retry succeeded");
+  } finally {
+    await stop(d);
+  }
+});

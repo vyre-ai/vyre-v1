@@ -284,3 +284,49 @@ test("a helper whose dependency had already failed when its brief arrived is kep
   await s.bridge.flush();
   assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0);
 });
+
+test("a Retry brings a helper that failed with its dependency back to waiting, and it then starts when the new attempt is done", async () => {
+  const { s, state } = waitingRig("failed");
+  state.dep = "failed";
+  state.me = "failed";
+  await s.say("Write the docs from the numbers.", HELPER);
+  assert.equal(s.chat.filter((r) => r.threadId === HELPER && r.author.kind === "agent").length, 0, "kept, not started");
+  // the helpers it waited for is tried again and succeeds: its node is queued again behind the new one
+  state.me = "queued";
+  state.dep = "succeeded";
+  await new Promise((r) => setTimeout(r, 11_500));
+  await s.engine.idle(HELPER).catch(() => undefined);
+  await s.bridge.flush();
+  assert.ok(
+    s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent" && r.body.includes("Docs written")),
+    "it started once it was waiting again and its dependency was done",
+  );
+});
+
+test("a helper started as a retry has its node made at once, naming the thread it retries", async () => {
+  const calls: Array<Record<string, unknown>> = [];
+  const s = setup({
+    script: reply("Done."),
+    calls: (cap, input) => {
+      if (cap === "chat.message.get" && input["messageId"] === "msg_line")
+        return {
+          message: {
+            blocks: [{ type: "helper", data: { helperThreadId: HELPER, agentId: LEAD, retryOf: "thr_old" } }],
+          },
+        };
+      if (cap === "runs.node.start") {
+        calls.push(input);
+        return { node: { id: "run_new" }, created: true };
+      }
+      return undefined;
+    },
+  });
+  await s.say("Add the figures again.", HELPER);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]!["retriesThread"], "thr_old");
+  assert.equal(calls[0]!["dependsOnThreads"], undefined, "it waits for nothing");
+  assert.ok(
+    s.chat.some((r) => r.threadId === HELPER && r.author.kind === "agent"),
+    "and it starts as it always did",
+  );
+});

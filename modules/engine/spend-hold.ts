@@ -8,7 +8,9 @@ export const holdOn = (threadId: string, agentId: string, reason: string = HOLD_
 /** How many calls of a held turn were refused, by chat and agent: a model that goes on asking spends a step each time. */
 const refused = new Map<string, number>();
 /** After this many refused calls the turn ends as a pause (the engine's own doing), keeping its place. */
-export const REFUSALS_BEFORE_END = 3;
+export const REFUSALS_BEFORE_END = 2;
+/** The plain reason the turn is ended with. */
+export const END_WORDS = "This reached its spending limit.";
 export const holdOff = (threadId: string, agentId?: string): number => {
   let n = 0;
   for (const key of [...held.keys()])
@@ -45,7 +47,7 @@ export const createSpendGate =
       // refused again and again: each is a model step that spends, so the turn ends here (once), the hold stays until the limit is raised
       if (n === REFUSALS_BEFORE_END)
         try {
-          end?.(c.threadId, c.agentId, hold);
+          end?.(c.threadId, c.agentId, END_WORDS);
         } catch {
           /* the turn is ending or gone: the refusal still stands */
         }

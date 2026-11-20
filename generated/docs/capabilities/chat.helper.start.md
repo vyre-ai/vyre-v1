@@ -36,6 +36,7 @@ type In = {
   why?: string;
   crew?: boolean;
   taskId?: string;
+  retryOf?: string;
   dependsOn?: Array<string>;
 };
 ```
@@ -128,6 +129,7 @@ type Out = {
     "instruction": "example",
     "model": "example",
     "provider": "example",
+    "retryOf": "thr_a1b2c3",
     "taskId": "tsk_a1b2c3",
     "threadId": "thr_a1b2c3",
     "title": "example",

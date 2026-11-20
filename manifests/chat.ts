@@ -1929,6 +1929,7 @@ export default defineManifest({
           ),
           crew: t.opt(t.bool()),
           taskId: t.opt(id.task),
+          retryOf: t.opt(id.thread),
           dependsOn: t.opt(
             t.arr(t.str({ maxLength: 120 }), {
               maxItems: 8,
