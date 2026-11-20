@@ -2,7 +2,7 @@
 // being kept, and with two kept places side by side.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { act, useState } from "react";
+import { Activity, act, useState } from "react";
 import type { ReactElement } from "react";
 import { createRoot } from "test-renderer";
 import { flush, installDom } from "../../../../../../ui/src/testing/dom.ts";
@@ -127,6 +127,43 @@ test("a place shown again after being kept (its effects start again) leaves the 
       r1.unmount();
       r3.unmount();
     });
+  } finally {
+    undo();
+  }
+});
+
+test("after a kept place is shown again (Activity hides it and shows it), a real pane toggle on that chat is saved and comes back on the next return", async () => {
+  const undo = installDom();
+  try {
+    forgetPanes();
+    const c = ctl();
+    const r = createRoot();
+    const draw = (mode: "visible" | "hidden"): ReactElement => (
+      <Activity mode={mode}>
+        <Place start="plans" ctl={c} />
+      </Activity>
+    );
+    await act(async () => r.render(draw("visible")));
+    await settle();
+    await act(async () => r.render(draw("hidden"))); // another place is shown
+    await settle();
+    await act(async () => r.render(draw("visible"))); // and this one again: its effects start again
+    await settle();
+    assert.equal(c.pane(), false);
+    await act(async () => c.toggle()); // a real toggle after the return
+    await settle();
+    assert.equal(c.pane(), true);
+    assert.deepEqual(
+      PANE_MEMORY.get("plans"),
+      { open: true },
+      "the toggle was saved (the arrival's skip did not swallow it)",
+    );
+    await act(async () => c.open("other"));
+    await settle();
+    await act(async () => c.open("plans"));
+    await settle();
+    assert.equal(c.pane(), true, "and it comes back open on the next return");
+    await act(async () => r.unmount());
   } finally {
     undo();
   }
