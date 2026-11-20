@@ -96,9 +96,9 @@ const LOW =
   "A reading no agent needs to write a call (a quota number, a teammate's profile line, a policy it cannot act on): the person sees it in Settings or the Console.";
 const APP = "App plumbing: the app's own screen reads it to draw a card or a tile; an agent has no use for it.";
 const VIA_MAIL_CONFIGURE =
-  "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move); the Gate, permission and audit apply as when a person presses the button.";
+  "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move, monitor, template_list, template_get, template_preview, template_save, template_reset, doc_template_get, doc_template_set, doc_template_clear); each routes to the capability behind it, so its permission and Gate apply as when a person presses the button.";
 const VIA_SITES_OPS =
-  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*). The Gate holds the risky ones for an agent (sites.ops_gate): backup_restore and backup_download, and job_create, job_update and worker_add on a site with keys or a database. The hold on the delete actions is r42-sites-run's open item.";
+  "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*). The Gate holds the risky ones for an agent (sites.ops_gate): backup_restore and backup_download, job_create, job_update and worker_add on a site with keys or a database, and the three deletes (backup_delete, job_delete, worker_remove).";
 const DOC_SIGNING =
   "A read esign.send makes (where a PDF's signers sign, and whether the copy is exact); agents get the roles from documents_make (signers) and esign_send.";
 const SERVICES_LIST =
@@ -109,6 +109,12 @@ const VIA_TASKS_ARCHIVE =
   "An agent puts an archived task back through tasks_archive (back: true); the app's Put back calls this one.";
 const HEAD_CHECK =
   "A read the host's deploy makes (it reads a branch's head with the site's token before it asks the Gate); agents get its answer through sites_deploy.";
+const VIA_MAIL_DELIVERY =
+  "An agent reaches it through the mail_delivery_state tool: with a messageId it gives that message's trail, and with no input it lists the sent messages that bounced or are being retried.";
+const VIA_SCHEMA_APPLY =
+  "An agent reaches it through the schema_apply tool (op field.mergeable, with def {mergeable: true|false}); schema.apply's permission and Gate apply.";
+const HOST_RETRY =
+  "The host's own follow-up: only the host service runs it, and anyone else is refused before the Gate. A manual retry by a person or an agent would be a new feature (a held send of the stored message).";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -581,7 +587,13 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],
   [/^tasks\.unarchive$/, VIA_TASKS_ARCHIVE],
-  [/^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move))$/, VIA_MAIL_CONFIGURE],
+  [
+    /^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move)|inbox\.monitor|template\.(list|get|preview|save|reset)|template\.for_document\.(get|set|clear))$/,
+    VIA_MAIL_CONFIGURE,
+  ],
+  [/^mail\.delivery\.trail$/, VIA_MAIL_DELIVERY],
+  [/^mail\.delivery\.retry$/, HOST_RETRY],
+  [/^schema\.set_mergeable$/, VIA_SCHEMA_APPLY],
   [
     /^sites\.(logs_read|metrics|jobs_list|job_(create|update|delete|run|cancel|runs)|service_(add|restart|stop|remove)|backups_list|backup_(create|pin|delete|download|restore))$/,
     VIA_SITES_OPS,
