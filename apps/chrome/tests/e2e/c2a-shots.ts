@@ -142,7 +142,15 @@ export async function shootExtension(scheme: "light" | "dark", skin: "paper" | "
       await call("chrome_stop");
       await call("chrome_resume");
       await call("chrome_snapshot");
-      await press(page, "button", "Take over");
+      // a press that lands while the bar is being drawn again is lost (a slow runner showed it): press again until the bar says it is theirs, and still require the Give back button at the end
+      for (let tries = 0; tries < 3; tries++) {
+        await press(page, "button", "Take over");
+        const got = await boxOf(page, "button", "Give back", 2500).then(
+          () => true,
+          () => false,
+        );
+        if (got) break;
+      }
       await boxOf(page, "button", "Give back");
       await new Promise((x) => setTimeout(x, 200));
       await r.shot(page, name("agent-takeover", size));
