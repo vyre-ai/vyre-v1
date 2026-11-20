@@ -37,6 +37,19 @@ test("a tool is never also on the no-tool list, and every tool named exists", ()
   }
 });
 
+test("no capability that has its own tool matches a no-tool rule (a rule may name only what it is true of)", () => {
+  const over = reg.capabilities
+    .filter((c) => c.surfaces?.mcp)
+    .flatMap((c) =>
+      NO_TOOL.filter(([re]) => re.test(c.name)).map(([re]) => `${c.name} matches ${String(re).slice(0, 70)}`),
+    );
+  assert.deepEqual(
+    over,
+    [],
+    "narrow the rule in packages/contracts/src/mcp-coverage.ts so it names only capabilities without a tool",
+  );
+});
+
 test("every reason still matches something, so a stale reason cannot hide a gap", () => {
   for (const [re] of NO_TOOL)
     assert.ok(
