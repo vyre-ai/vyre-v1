@@ -189,19 +189,14 @@ test("an upgrade that throws closes its socket and does not take the process dow
 });
 
 test("scrub takes time proportional to its input: a hostile run of word boundaries cannot freeze the daemon while it logs", () => {
-  // the budget is CPU time (what the scrub itself costs), not wall time: a busy machine slows a clock, not a computation. A wall ceiling still catches a hang.
-  const best = (text: string): { cpu: number; wall: number } => {
-    let cpu = Infinity;
-    let wall = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const c = process.cpuUsage();
-      const t = performance.now();
-      scrub(text);
-      wall = Math.min(wall, performance.now() - t);
-      const u = process.cpuUsage(c);
-      cpu = Math.min(cpu, (u.user + u.system) / 1000);
-    }
-    return { cpu, wall };
+  // one run, no retry. The budget is CPU time (what the scrub itself costs), not wall time: a busy machine slows a clock, not a computation. A wall ceiling still catches a hang.
+  const once = (text: string): { cpu: number; wall: number } => {
+    const c = process.cpuUsage();
+    const t = performance.now();
+    scrub(text);
+    const wall = performance.now() - t;
+    const u = process.cpuUsage(c);
+    return { cpu: (u.user + u.system) / 1000, wall };
   };
   for (const text of [
     "a.".repeat(100_000),
@@ -210,10 +205,10 @@ test("scrub takes time proportional to its input: a hostile run of word boundari
     "a:/".repeat(100_000),
     ("x ".repeat(2000) + "password=").repeat(500),
   ]) {
-    const { cpu, wall } = best(text);
+    const { cpu, wall } = once(text);
     const out = scrub(text);
-    assert.ok(cpu < 100, `${cpu.toFixed(0)} ms of CPU (best of 3) for ${text.slice(0, 12)}`);
-    assert.ok(wall < 1000, `${wall.toFixed(0)} ms of wall time (best of 3) for ${text.slice(0, 12)}`);
+    assert.ok(cpu < 100, `${cpu.toFixed(0)} ms of CPU for ${text.slice(0, 12)}`);
+    assert.ok(wall < 1000, `${wall.toFixed(0)} ms of wall time for ${text.slice(0, 12)}`);
     assert.ok(out.length <= 4000 + 100);
   }
 });
