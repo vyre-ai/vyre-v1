@@ -234,6 +234,46 @@ test(
       await page.mouse.wheel(0, 3000);
       await page.waitForTimeout(400);
       assert.ok((await top()) > up, "a wheel down scrolls it back");
+      // scrolled up to read, new output does not yank the screen down; at the bottom it follows again
+      await page.mouse.wheel(0, -800);
+      await page.waitForTimeout(400);
+      const reading = await top();
+      await page.keyboard.type("echo new-output-while-reading", { delay: 0 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        () =>
+          /new-output-while-reading\n/.test(
+            (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+          ),
+        undefined,
+        { timeout: 15_000 },
+      );
+      await page.waitForTimeout(600);
+      assert.ok(
+        Math.abs((await top()) - reading) < 40,
+        `new output does not move a screen that was scrolled up to read (${reading} to ${await top()})`,
+      );
+      await page.mouse.wheel(0, 5000);
+      await page.waitForTimeout(400);
+      await page.keyboard.type("echo follows-at-the-bottom", { delay: 0 });
+      await page.keyboard.press("Enter");
+      await page.waitForFunction(
+        () =>
+          /follows-at-the-bottom\n/.test(
+            (document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null)?.innerText ?? "",
+          ),
+        undefined,
+        { timeout: 15_000 },
+      );
+      await page.waitForTimeout(600);
+      const gap = await page.evaluate(() => {
+        const e = document.querySelector("[data-testid=terminal-screen]") as HTMLElement;
+        return e.scrollHeight - e.scrollTop - e.clientHeight;
+      });
+      assert.ok(gap < 40, `at the bottom the screen follows new output (gap ${gap})`);
+      // the xterm screen is what is drawn: a build whose chunk cannot load is a red test, not a quiet fallback
+      assert.equal(await page.getByTestId("terminal-screen").getAttribute("data-renderer"), "xterm");
+      await k.guard.check();
       await k.guard.check();
     } finally {
       await k.close();

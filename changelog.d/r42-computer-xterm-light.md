@@ -1,0 +1,1 @@
+- On the light skin the terminal's colours are darker, so blue, cyan, green and yellow stay readable (4.5 to 1 contrast or better).
