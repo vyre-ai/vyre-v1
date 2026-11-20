@@ -77,6 +77,7 @@ test("the reads reach the same handlers: tree, node, events, activity, board, me
 
 test("the rules of the handlers hold through it: someone who may only watch the chat does not see a helper's brief, cannot steer, and cannot compare", async () => {
   const { h, root } = await world();
+  h.callee("runs.budget.set", (i: Record<string, unknown>) => h.call("runs.budget.set", i, watcher));
   const asWatcher = (input: Record<string, unknown>) => h.call("runs.ops", input, watcher).catch((e) => e);
   const seen = (await asWatcher({ action: "node", id: root.id })) as { result?: { node?: { name?: string } } };
   assert.notEqual(seen.result?.node?.name, "Supplier review", "a watcher gets the redacted view, not the name");
@@ -107,7 +108,14 @@ test("steering through it: the owner puts a question on the board, answers nothi
     ),
     "permission.not_found",
   );
+  // the limit is asked of runs.budget.set (so it is held there as it is on the direct door); here that call is answered by the real handler
+  const asked: Array<Record<string, unknown>> = [];
+  h.callee("runs.budget.set", (i: Record<string, unknown>) => {
+    asked.push(i);
+    return h.call("runs.budget.set", i, owner);
+  });
   const limited = await ops(h, owner, { action: "budget", id: root.id, args: { tokens: 5000 } });
+  assert.deepEqual(asked, [{ runId: root.id, tokens: 5000 }], "the same call the direct door makes");
   assert.equal(limited.node.budget.tokens, 5000);
   await h.call("runs.node.move", { ...hold(h, root.id), runId: root.id, to: "succeeded", why: "done" }, engine);
   h.callee("agents.create", () => ({ agent: { agentId: `agt_${"d".repeat(32)}`, name: "Reviewer" } }));
@@ -121,4 +129,48 @@ test("steering through it: the owner puts a question on the board, answers nothi
     await msg(ops(h, owner, { action: "rerun", id: root.id, args: { instructions: "x" } })),
     "Only a helper can be started again with another brief.",
   );
+});
+
+test("a member who can see the tree but is not its owner and has no runs.manage is refused on every write action through the tool", async () => {
+  // bob may view everything here and manage nothing: the owner is alice
+  const h = harness({
+    authorize: (who, action) => who.id === alice.id || (who.id === bob.id && action.level === "view"),
+  });
+  h.advance(1);
+  const root = (
+    await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: THREAD, running: true }, engine)
+  ).node as { id: string };
+  const put = await h.call(
+    "runs.ops",
+    { action: "board_put", id: root.id, args: { kind: "question", text: "Which sheet?" } },
+    owner,
+  );
+  const entryId = (put as { result: { entry: { id: string } } }).result.entry.id;
+  h.callee("runs.budget.set", (i: Record<string, unknown>) => h.call("runs.budget.set", i, watcher));
+  h.callee("agents.create", () => ({ agent: { agentId: `agt_${"d".repeat(32)}`, name: "x" } }));
+  h.callee("chat.helper.start", () => ({ helper: { threadId: `thr_${"e".repeat(32)}` } }));
+  await h.call("runs.node.move", { ...hold(h, root.id), runId: root.id, to: "succeeded", why: "done" }, engine);
+  const calls: Array<[string, Record<string, unknown>]> = [
+    ["message_send", { to: root.id, body: "hi" }],
+    ["board_put", { kind: "question", text: "x" }],
+    ["board_answer", { entryId, text: "x" }],
+    ["control", { action: "stop" }],
+    ["budget", { tokens: 10 }],
+    ["rerun", { instructions: "x" }],
+    ["save_as_agent", { name: "x", instructions: "x" }],
+  ];
+  for (const [action, args] of calls) {
+    const r = await h.call("runs.ops", { action, id: root.id, args }, watcher).catch((e) => e);
+    assert.ok(
+      r instanceof Error || codeOf(r),
+      `${action} is refused to a member who is not the owner and cannot manage`,
+    );
+    assert.ok(
+      codeOf(r)?.startsWith("permission."),
+      `${action} is a permission refusal, not a mistake of shape: ${codeOf(r)}`,
+    );
+  }
+  const asked: unknown[] = [];
+  h.callee("agents.create", (i: unknown) => (asked.push(i), { agent: {} }));
+  assert.equal(asked.length, 0, "nothing was made");
 });

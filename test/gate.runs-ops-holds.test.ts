@@ -1,5 +1,5 @@
-// Two things an agent asks for through the runs tool wait for a person's yes (r42-runtime): saving finished work as an agent, and raising a spending limit (an agent giving itself more of the Space's money), through runs.ops and through
-// runs.budget.set itself. A person's own press, a lower limit and the first limit go straight through; so does everything else the tool does. The real Gate conditions (host/src/daemon/gate-hook.ts moduleWhens), the real
+// Two things an agent asks for wait for a person's yes (r42-runtime): saving finished work as an agent (through runs.ops), and raising a spending limit, an agent giving itself more of the Space's money. A limit raised through the tool is
+// asked of runs.budget.set itself, so one raise has one rule (act spend_raise, one approver, one card) whichever door an agent used. A person's own press, a lower limit and the first limit go straight through; so does everything else the tool does. The real Gate conditions (host/src/daemon/gate-hook.ts moduleWhens), the real
 // budgetRaise over a real SQLite with the runs migrations.
 // @reads ../modules/runs/migrations/0006_run_nodes.sql
 import test from "node:test";
@@ -9,6 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { moduleWhens } from "../host/src/daemon/gate-hook.ts";
 import { budgetRaise } from "../modules/runs/impl.ts";
 import { wantsFromInput } from "../lib/hold-words.ts";
+import { HOLD_PHRASES } from "../lib/hold-phrases.ts";
 import type { CtxSeed } from "../host/src/invoke.ts";
 
 function world() {
@@ -67,36 +68,52 @@ const person = { principal: { kind: "person", id: "usr_1" } } as unknown as CtxS
 const direct = (runId: string, over: Record<string, unknown>) => ({ runId, ...over });
 const viaOps = (id: string, args: Record<string, unknown>) => ({ action: "budget", id, args });
 
-test("runs.budget.set and runs.ops budget: an agent raising a limit is held; an agent lowering it, setting the first one or asking the same is not; a person raising it is not", async () => {
+test("runs.budget.set: an agent raising a limit is held; an agent lowering it, setting the first one or asking the same is not; a person raising it is not", async () => {
   const w = world();
-  for (const [name, gate, make] of [
-    ["runs.budget.set", "runs.budget_raise_gate", direct],
-    ["runs.ops budget", "runs.ops_gate", viaOps],
-  ] as const) {
-    const g = w.when[gate]!;
-    const raise = (over: Record<string, unknown>) => make("run_limited", over) as never;
-    assert.equal(await g(raise({ usdMicros: 5_000_000 }), agent), true, `${name}: a bigger money limit, agent`);
-    assert.equal(await g(raise({ tokens: 50_000 }), agent), true, `${name}: a bigger token limit, agent`);
-    assert.equal(
-      await g(raise({ usdMicros: 500_000, tokens: 10_000 }), agent),
-      false,
-      `${name}: lower money, same tokens`,
-    );
-    assert.equal(await g(raise({ usdMicros: 1_000_000, tokens: 10_000 }), agent), false, `${name}: the same limit`);
-    assert.equal(await g(raise({ clear: true }), agent), true, `${name}: taking the limit away is a raise`);
-    assert.equal(await g(raise({ usdMicros: 5_000_000 }), person), false, `${name}: a person raising, not held`);
-    assert.equal(await g(raise({ clear: true }), person), false);
-    assert.equal(
-      await g(make("run_free", { usdMicros: 5_000_000 }) as never, agent),
-      false,
-      `${name}: the first limit only reduces`,
-    );
-    assert.equal(
-      await g(make("run_none", { usdMicros: 5_000_000 }) as never, agent),
-      false,
-      `${name}: no such work is the handler's to refuse`,
-    );
-  }
+  const g = w.when["runs.budget_raise_gate"]!;
+  const raise = (over: Record<string, unknown>) => direct("run_limited", over) as never;
+  assert.equal(await g(raise({ usdMicros: 5_000_000 }), agent), true, "a bigger money limit, agent");
+  assert.equal(await g(raise({ tokens: 50_000 }), agent), true, "a bigger token limit, agent");
+  assert.equal(await g(raise({ usdMicros: 500_000, tokens: 10_000 }), agent), false, "lower money, same tokens");
+  assert.equal(await g(raise({ usdMicros: 1_000_000, tokens: 10_000 }), agent), false, "the same limit");
+  assert.equal(await g(raise({ clear: true }), agent), true, "taking the limit away is a raise");
+  assert.equal(await g(raise({ usdMicros: 5_000_000 }), person), false, "a person raising, not held");
+  assert.equal(await g(raise({ clear: true }), person), false);
+  assert.equal(
+    await g(direct("run_free", { usdMicros: 5_000_000 }) as never, agent),
+    false,
+    "the first limit only reduces",
+  );
+  assert.equal(
+    await g(direct("run_none", { usdMicros: 5_000_000 }) as never, agent),
+    false,
+    "no such work is the handler's to refuse",
+  );
+});
+
+test("one raise, one rule: the tool's budget action is asked of runs.budget.set (same act, same approver, same card), and runs.ops itself holds nothing of it", async () => {
+  const w = world();
+  const caps = (
+    JSON.parse(fs.readFileSync(new URL("../generated/registry.json", import.meta.url), "utf8")) as {
+      capabilities: Array<{ name: string; gate?: { act?: string; when?: string } }>;
+    }
+  ).capabilities;
+  const set = caps.find((c) => c.name === "runs.budget.set")!.gate;
+  assert.deepEqual(set, {
+    act: "spend_raise",
+    when: "runs.budget_raise_gate(input)",
+    reason: "Lets this work spend more",
+  });
+  // the tool does not hold it a second time under another act: the held call is the one runs.budget.set makes
+  assert.equal(
+    await w.when["runs.ops_gate"]!({ action: "budget", id: "run_limited", args: { usdMicros: 5_000_000 } }, agent),
+    false,
+  );
+  assert.ok(HOLD_PHRASES["runs.budget.set"], "and the card has its words");
+  assert.equal(
+    wantsFromInput("runs.budget.set", { runId: "run_limited", usdMicros: 5_000_000 }),
+    "let this work spend up to $5.00",
+  );
 });
 
 test("runs.ops: save_as_agent is held for an agent and not for a person; every other action goes through for both", async () => {
@@ -118,6 +135,7 @@ test("runs.ops: save_as_agent is held for an agent and not for a person; every o
     "board_answer",
     "control",
     "rerun",
+    "budget",
   ])
     assert.equal(await g({ action: a, id: "run_limited" }, agent), false, `${a} is not held`);
   assert.equal(await g(null, agent), false, "no input holds nothing");
@@ -134,13 +152,13 @@ test("a limit this cannot read holds: with no runs module behind it an agent's r
   assert.equal(await bare["runs.budget_raise_gate"]!(direct("run_limited", { usdMicros: 1 }), person), false);
 });
 
-test("the card says how much more the work may spend, through either door, and what saving makes", () => {
+test("the card says how much more the work may spend, and what saving makes", () => {
   assert.equal(
     wantsFromInput("runs.budget.set", { runId: "run_a", usdMicros: 5_000_000 }),
     "let this work spend up to $5.00",
   );
   assert.equal(
-    wantsFromInput("runs.ops", { action: "budget", id: "run_a", args: { usdMicros: 2_500_000, tokens: 200_000 } }),
+    wantsFromInput("runs.budget.set", { runId: "run_a", usdMicros: 2_500_000, tokens: 200_000 }),
     "let this work spend up to $2.50 and use up to 200,000 tokens",
   );
   assert.equal(

@@ -753,11 +753,9 @@ export function moduleWhens(
     }
   };
   out["runs.budget_raise_gate"] = (input, seed) => seed.principal.kind !== "person" && budgetRaises(input);
-  out["runs.ops_gate"] = (input, seed) => {
-    if (seed.principal.kind === "person") return false;
-    const action = (input as { action?: unknown } | null)?.action;
-    return action === "save_as_agent" || (action === "budget" && budgetRaises(input));
-  };
+  // saving work as an agent makes a new agent. A limit raised through the tool is not held here: the tool calls runs.budget.set, which holds it under the spend act, so both doors have one rule
+  out["runs.ops_gate"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { action?: unknown } | null)?.action === "save_as_agent";
   out["vault.after_approved_key_use"] = async (input, seed) => {
     const use = keySendOf(input);
     const h = db();

@@ -493,7 +493,7 @@ export default defineManifest({
       gate: {
         act: "approve",
         when: "runs.ops_gate(input)",
-        reason: "Makes a new agent from this work, or lets work spend more",
+        reason: "Makes a new agent from this work",
       },
       emits: ["run.node_state", "run.node_ended", "run.stopped"],
       tool: "agents",
