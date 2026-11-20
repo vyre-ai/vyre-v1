@@ -122,9 +122,13 @@ export function createNodeMirror(h: MirrorHost) {
     });
   }
 
-  async function toolLimits(agentId: string): Promise<{ tools: { allowed: string[]; denied: string[] } } | undefined> {
+  /** Read as the person the helper works for: a private agent answers its own person, and a read as the server is refused (rc.43), which dropped the limits from the record and let what was made of the work start without them. */
+  async function toolLimits(
+    agentId: string,
+    asker: string,
+  ): Promise<{ tools: { allowed: string[]; denied: string[] } } | undefined> {
     try {
-      const a = (await h.call("agents.get", { agentId })) as {
+      const a = (await h.call("agents.get", { agentId }, asker)) as {
         agent?: { toolsAllowed?: unknown; toolsDenied?: unknown };
       } | null;
       const list = (v: unknown): string[] =>
@@ -132,8 +136,12 @@ export function createNodeMirror(h: MirrorHost) {
       const allowed = list(a?.agent?.toolsAllowed);
       const denied = list(a?.agent?.toolsDenied);
       return allowed.length + denied.length > 0 ? { tools: { allowed, denied } } : undefined;
-    } catch {
-      return undefined; // not readable here: no limits recorded, the node is made all the same
+    } catch (err) {
+      h.log?.("a helper's tool limits could not be read, so none are recorded on its node", {
+        agentId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return undefined; // the node is made all the same
     }
   }
 
@@ -146,7 +154,7 @@ export function createNodeMirror(h: MirrorHost) {
       agentNames.set(turn.agentId, await h.nameOf?.(turn.agentId).catch(() => undefined));
     const who = agentNames.get(turn.agentId);
     // what the helper's tools were limited to when it began, so what is made of the work later (saved as an agent, started again) has the same limits and says so truthfully; an agent with no limits has none to record
-    const policy = kind === "helper" && phase === "started" ? await toolLimits(turn.agentId) : undefined;
+    const policy = kind === "helper" && phase === "started" ? await toolLimits(turn.agentId, asker) : undefined;
     const started = (await h.call("runs.node.start", {
       kind,
       owner: asker,
