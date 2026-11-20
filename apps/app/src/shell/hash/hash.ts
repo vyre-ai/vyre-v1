@@ -71,6 +71,8 @@ const SUBJECT_PLACE: Readonly<Record<string, string>> = {
   vault: "vault",
   item: "vault",
 };
+/** Every kind of item a link can name (a test keeps screen kinds of the phone clear of them). */
+export const subjectTypes = (): string[] => Object.keys(SUBJECT_PLACE);
 export function placeForSubject(type: string): string | null {
   return SUBJECT_PLACE[type] ?? null;
 }

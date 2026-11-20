@@ -11,6 +11,8 @@ import type { PlaceId } from "../rail/kits.ts";
 export const PHONE_BELOW = 700;
 
 const TAB_PLACES: readonly PlaceId[] = ["chats", "inbox", "records", "files"];
+/** The screen kind of a link to a view of a tab's place. No subject type is called this (a subject opens as `<type>:<id>`: "view" is a saved view's), and a test walks every type to keep it so. */
+export const TAB_VIEW = "tabview";
 
 export function tabOf(place: PlaceId): TabId {
   return (TAB_PLACES as readonly string[]).includes(place) ? (place as TabId) : "you";
@@ -95,7 +97,7 @@ export function entryFor(place: PlaceId, hash: string): Entry {
   if (t.subject) return { tab: tabOf(place), screen: `${t.subject.type}:${t.subject.id}` };
   // a link to a view of a tab's place (the Inbox's Unmatched list, Meetings, a filter): the screen keeps the whole hash, so the place opens on that view. It used to be dropped, and a phone landed on the place's list.
   if ((TAB_PLACES as readonly string[]).includes(place) && (t.screen || Object.keys(t.args).length > 0))
-    return { tab: place as TabId, screen: `view:${place}:${encodeURIComponent(hash)}` };
+    return { tab: place as TabId, screen: `${TAB_VIEW}:${place}:${encodeURIComponent(hash)}` };
   if ((TAB_PLACES as readonly string[]).includes(place)) return { tab: place as TabId, screen: place };
   if (place === "settings") return { tab: "you", screen: "you:settings", title: "Settings" };
   if (place === "automations") return { tab: "you", screen: "you:automations", title: "Automations" };
@@ -114,8 +116,8 @@ export function placeOf(e: Entry): { place: PlaceId; hash: string } | null {
   const kind = i < 0 ? e.screen : e.screen.slice(0, i);
   if (i < 0) return (TAB_PLACES as readonly string[]).includes(kind) ? { place: kind as PlaceId, hash: "" } : null;
   if (kind === "desktop") return null;
-  if (kind === "view") {
-    const m = /^view:([a-z]+):(.*)$/.exec(e.screen);
+  if (kind === TAB_VIEW) {
+    const m = new RegExp(`^${TAB_VIEW}:([a-z]+):(.*)$`).exec(e.screen);
     if (m && (TAB_PLACES as readonly string[]).includes(m[1]!)) {
       try {
         return { place: m[1] as PlaceId, hash: decodeURIComponent(m[2]!) };
