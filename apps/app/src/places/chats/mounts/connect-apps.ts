@@ -1,12 +1,14 @@
 // Connect an app, one app at a time (lane r42-mcp, 19 Nov 2026): the four apps people use and "another app". Each says honestly what it takes. Cursor and Claude Code get a button or one line; Claude and ChatGPT
 // only take a pasted address, so they get Copy and the two places to press. Pure: the address comes in.
+import type { IconName } from "../rightpane/parts.tsx";
+
 export type AppId = "claude" | "chatgpt" | "cursor" | "code" | "other";
 
 export interface AppHow {
   id: AppId;
   name: string;
   /** A glyph name the sheet's Icon knows. */
-  icon: string;
+  icon: IconName;
   /** What to do, in order, in plain words. */
   steps: readonly string[];
   /** The things to copy, labelled. */
@@ -15,7 +17,7 @@ export interface AppHow {
   open?: { label: string; href: string };
 }
 
-export const APPS: ReadonlyArray<{ id: AppId; name: string; icon: string }> = [
+export const APPS: ReadonlyArray<{ id: AppId; name: string; icon: IconName }> = [
   { id: "claude", name: "Claude", icon: "bolt" },
   { id: "chatgpt", name: "ChatGPT", icon: "chat" },
   { id: "cursor", name: "Cursor", icon: "edit" },
@@ -23,7 +25,10 @@ export const APPS: ReadonlyArray<{ id: AppId; name: string; icon: string }> = [
 ];
 
 const b64 = (s: string): string => {
-  const g = globalThis as { btoa?: (x: string) => string; Buffer?: { from(x: string): { toString(e: string): string } } };
+  const g = globalThis as {
+    btoa?: (x: string) => string;
+    Buffer?: { from(x: string): { toString(e: string): string } };
+  };
   return g.btoa ? g.btoa(s) : (g.Buffer?.from(s).toString("base64") ?? "");
 };
 
@@ -35,7 +40,11 @@ export function howTo(id: AppId, link: { url: string; claudeCode: string }): App
         id,
         name: "Claude",
         icon: "bolt",
-        steps: ["Copy the address.", "In Claude, open Settings, then Connectors, then Add custom connector, and paste it.", "Press Allow here once."],
+        steps: [
+          "Copy the address.",
+          "In Claude, open Settings, then Connectors, then Add custom connector, and paste it.",
+          "Press Allow here once.",
+        ],
         copy: [url],
       };
     case "chatgpt":
@@ -43,7 +52,11 @@ export function howTo(id: AppId, link: { url: string; claudeCode: string }): App
         id,
         name: "ChatGPT",
         icon: "chat",
-        steps: ["Copy the address.", "In ChatGPT, open Settings, then Connectors, add a custom connector, and paste it.", "Press Allow here once."],
+        steps: [
+          "Copy the address.",
+          "In ChatGPT, open Settings, then Connectors, add a custom connector, and paste it.",
+          "Press Allow here once.",
+        ],
         copy: [url],
       };
     case "cursor":

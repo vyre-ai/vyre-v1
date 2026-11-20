@@ -3,8 +3,9 @@
 // (test/outside-agents.cli.live.test.ts); what this sheet says about other apps stays honest about what has not been tried.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
+import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { Icon, TextButton } from "../rightpane/parts.tsx";
 import { LayerHead, Sheet } from "./Layers.tsx";
 import { errorWords } from "./live.ts";
@@ -99,41 +100,35 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
       />
       <View style={st.body}>
         {link && app === null ? (
-          <View testID="connect-pick" style={st.grid}>
+          <View testID="connect-pick">
             {APPS.map((a) => (
-              <Pressable
+              <Row
                 key={a.id}
-                accessibilityRole="button"
-                accessibilityLabel={a.name}
-                testID={`connect-app-${a.id}`}
+                id={`connect-app-${a.id}`}
+                title={a.name}
+                leading={<Icon name={a.icon} size={16} color="var(--ink-2)" />}
                 onPress={() => setApp(a.id)}
-                style={st.appTile}
-              >
-                <View style={st.tile}>
-                  <Icon name={a.icon} size={16} color="var(--ink-2)" />
-                </View>
-                <Text style={st.appName}>{a.name}</Text>
-              </Pressable>
+              />
             ))}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Another app"
-              testID="connect-app-other"
-              onPress={() => setApp("other")}
-              style={st.otherRow}
-            >
-              <Text style={st.appName}>Another app</Text>
-            </Pressable>
+            <Row id="connect-app-other" title="Another app" onPress={() => setApp("other")} />
           </View>
         ) : link && app !== null ? (
           <>
+            {/* ui-rows-lint: not a list (numbered instructions, each a line of text with nothing to press) */}
             {howTo(app, link).steps.map((t, i) => (
               <Text key={t} testID={`connect-step-${i + 1}`} style={st.help}>
                 {`${i + 1}. ${t}`}
               </Text>
             ))}
+            {/* ui-rows-lint: not a list (each is a labelled address to copy, a field with its Copy button) */}
             {howTo(app, link).copy.map((c) => (
-              <Copyable key={c.testID} label={c.label} text={c.text} testID={c.testID} onCopy={() => copy(c.label.toLowerCase(), c.text)} />
+              <Copyable
+                key={c.testID}
+                label={c.label}
+                text={c.text}
+                testID={c.testID}
+                onCopy={() => copy(c.label.toLowerCase(), c.text)}
+              />
             ))}
             {howTo(app, link).open ? (
               <TextButton
@@ -170,18 +165,6 @@ export function ConnectOutsideAgent({ call, onClose, say }: ConnectProps): React
 }
 
 const st = StyleSheet.create({
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  appTile: {
-    width: "48%",
-    minHeight: 84,
-    borderRadius: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "var(--sunk)" as string,
-  },
-  appName: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string },
-  otherRow: { width: "100%", minHeight: 40, justifyContent: "center", paddingHorizontal: 10 },
   tile: {
     width: 34,
     height: 34,

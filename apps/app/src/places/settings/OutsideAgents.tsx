@@ -32,6 +32,7 @@ function Lately({ agentId }: { agentId: string }): ReactElement | null {
   if (rows === null || rows.length === 0) return null;
   return (
     <View testID={`outside-lately-${agentId}`}>
+      {/* ui-rows-lint: not a list (each line is a SettingsRow, which draws a ui/Row itself) */}
       {rows.map((r, i) => (
         <SettingsRow
           key={r.id}
@@ -96,7 +97,15 @@ export function OutsideAgents(): ReactElement {
         onPress={() => setOpen(shown ? null : a.agentId)}
         control={
           <>
-            {on ? <Text accessibilityLabel="Working now" testID={`outside-live-${a.agentId}`} style={{ color: "var(--accent)" }}>{"\u25CF"}</Text> : null}
+            {on ? (
+              <Text
+                accessibilityLabel="Working now"
+                testID={`outside-live-${a.agentId}`}
+                style={{ color: "var(--accent)" }}
+              >
+                {"\u25CF"}
+              </Text>
+            ) : null}
             <Value text={appWhen(a, clock)} />
             <Glyph name={shown ? "chevD" : "chevR"} size={13} />
           </>
@@ -110,7 +119,7 @@ export function OutsideAgents(): ReactElement {
           key={`${a.agentId}-setup`}
           id={`outside.${a.agentId}.setup`}
           label="Act for me, including setup"
-          sub={a.redirectHost ? `Connected from ${a.redirectHost}` : undefined}
+          {...(a.redirectHost ? { sub: `Connected from ${a.redirectHost}` } : {})}
           indent
           control={
             <Switch
@@ -128,7 +137,14 @@ export function OutsideAgents(): ReactElement {
           sub="Its sign-in ends at once."
           indent
           danger
-          control={<SmallButton label="Remove" danger testID={`outside-remove-${a.agentId}`} onPress={() => remove(a.agentId)} />}
+          control={
+            <SmallButton
+              label="Remove"
+              danger
+              testID={`outside-remove-${a.agentId}`}
+              onPress={() => remove(a.agentId)}
+            />
+          }
         />,
         ...(data.nav.openAgent
           ? [

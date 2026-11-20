@@ -109,7 +109,16 @@ test("the page list in a Team Space is You, then one way to the Console, and no 
   const out = html(createSampleSettings(northwind));
   assert.deepEqual(
     PAGES.filter((p) => p.group === "you" && p.hidden !== true).map((p) => p.title),
-    ["Profile", "Your AI", "GitHub", "Notifications", "Appearance", "This device", "Privacy and security", "Connected apps"],
+    [
+      "Profile",
+      "Your AI",
+      "GitHub",
+      "Notifications",
+      "Appearance",
+      "This device",
+      "Privacy and security",
+      "Connected apps",
+    ],
   );
   assert.deepEqual(
     PAGES.filter((p) => p.group === "space").map((p) => p.title),
