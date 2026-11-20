@@ -5795,6 +5795,13 @@
     "terminalId": "trm_a1b2c3"
   },
   "terminal_list": {},
+  "terminal_log_list": {
+    "terminalId": "trm_a1b2c3"
+  },
+  "terminal_log_read": {
+    "terminalId": "trm_a1b2c3",
+    "commandId": 1
+  },
   "terminal_open": {},
   "terminal_open_server": {},
   "terminal_read": {
