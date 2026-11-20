@@ -10,6 +10,7 @@
 import http from "node:http";
 import crypto from "node:crypto";
 import type { Duplex } from "node:stream";
+import { errorLine, guardUpgrade } from "./daemon/safe-request.ts";
 import type { EventEnvelope } from "../../packages/contracts/src/envelope.ts";
 import { HostError } from "./invoke.ts";
 import type { CtxSeed, Invoke } from "./invoke.ts";
@@ -549,19 +550,13 @@ export function createLiveHub(o: LiveOptions): LiveHub {
     }
   }
 
-  server.on("upgrade", (req, socket: Duplex) => {
-    // r40: nothing a client sends may end the process; a bad address or a claim that throws closes that one socket
-    socket.on("error", () => socket.destroy());
-    try {
-      if (!requestTargetOk(req.url)) {
-        socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
-        return;
-      }
-      if (o.claims?.(req)) return;
-    } catch {
-      socket.destroy();
+  server.on("upgrade", guardUpgrade((req, socket: Duplex) => {
+    socket.on("error", () => socket.destroy()); // r40
+    if (!requestTargetOk(req.url)) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
       return;
     }
+    if (o.claims?.(req)) return;
     void (async () => {
       const wsKey = req.headers["sec-websocket-key"];
       if (String(req.headers["upgrade"]).toLowerCase() !== "websocket" || typeof wsKey !== "string") {
@@ -656,7 +651,11 @@ export function createLiveHub(o: LiveOptions): LiveHub {
         c.closed = true;
       });
     })();
-  });
+  }, (where, error) =>
+    o.sink
+      ?.logger({ space: "-", place: "ws" })
+      .error("ws.upgrade_threw", { where, ...errorLine(error) }),
+  ));
 
   // heartbeat and dead-peer detection
   const timer = setInterval(() => {

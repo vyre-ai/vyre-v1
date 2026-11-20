@@ -4,7 +4,7 @@ Lane L7a. Kind module. Version 0.1.0.
 
 Requires: access.
 
-## Capabilities (58)
+## Capabilities (59)
 
 - [providers.add](../capabilities/providers.add.md): Connect a provider with a pasted API key (stored once, used by handle) or a local model address
 - [providers.catalog](../capabilities/providers.catalog.md): The provider gallery from the definition files: name, logo, connection kinds, model list source, engine
@@ -54,6 +54,7 @@ Requires: access.
 - [vault.items.export_mine](../capabilities/vault.items.export_mine.md): A person exports their own Mine items (also for 30 days after removal); one pull link, audited
 - [vault.items.list](../capabilities/vault.items.list.md): List items (names and metadata only, never values) by section, folder, kind or text
 - [vault.items.match](../capabilities/vault.items.match.md): Items that fit a website address (the Chrome extension offers them to fill)
+- [vault.login.check](../capabilities/vault.login.check.md): Is a login a page just submitted already saved? The password is compared inside the Vault: known, changed or new
 - [vault.policy.get](../capabilities/vault.policy.get.md): The Space vault policy: who may export, longest pull link, Restricted never exported, reveal reasons
 - [vault.policy.set](../capabilities/vault.policy.set.md): Set the Space vault policy
 - [vault.report_scrub_miss](../capabilities/vault.report_scrub_miss.md): System: the filler reports a value it could not scrub from an output stream

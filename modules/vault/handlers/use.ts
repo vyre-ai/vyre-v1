@@ -5,6 +5,7 @@
 // DECISION: an export is sealed by the filler when the link is made; the database keeps only the hash of the pull token. exportPull is what the pull route calls; the route itself belongs to the gateway.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { isSystemCall } from "../../../lib/trust.ts";
+import { codeToType, isSeedField } from "../../../lib/totp.ts";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -212,7 +213,8 @@ export function secretPort(db: VaultDb): SecretPort {
           ? fields.find((x) => x.secret)
           : undefined;
     if (!hit) throw new Error(`Name a field after ${handle}.`);
-    return hit.value;
+    // the engine and the agent computers read a value through here: a one-time-code seed comes out as its current code, never as the seed
+    return (await valueToUse(str(meta, "kind"), hit.key, hit.value, str(meta, "id"), `read:${asker ?? "host"}`)).value;
   };
   const edge = (): VaultCtx => ({
     space: "",
@@ -341,6 +343,56 @@ function parseHandle(ctx: VaultCtx, handle: unknown): { name: string; field?: st
   return { name: m[1]!, ...(m[2] ? { field: m[2] } : {}) };
 }
 
+/** The clock a code is made on, for both ways it leaves the Vault (a fill and the port): one source, so a code and its window never disagree. A test sets its own. */
+let clock: () => number = () => Date.now();
+export function setTotpClock(f: (() => number) | null): void {
+  clock = f ?? (() => Date.now());
+}
+const realWait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+let wait = realWait;
+/** For a test: how a code waits for the next window (null: really). */
+export function setTotpSleep(f: ((ms: number) => Promise<void>) | null): void {
+  wait = f ?? realWait;
+}
+/** At most this many codes of one item to one actor in a window: a code is a second factor, and a loop that asks for them is stopped. */
+const CODES = { n: 6, windowMs: 10 * 60_000 } as const;
+const codesGiven = new Map<string, number[]>();
+function codeAllowed(itemId: string, actor: string): boolean {
+  const t = clock();
+  const key = `${itemId}|${actor}`;
+  const recent = (codesGiven.get(key) ?? []).filter((x) => t - x < CODES.windowMs);
+  if (recent.length >= CODES.n) {
+    codesGiven.set(key, recent);
+    return false;
+  }
+  recent.push(t);
+  codesGiven.set(key, recent);
+  if (codesGiven.size > 1000)
+    for (const [k, v] of codesGiven) if (v.every((x) => t - x >= CODES.windowMs)) codesGiven.delete(k);
+  return true;
+}
+/** For a test: forget the codes given. */
+export function resetCodeLimit(): void {
+  codesGiven.clear();
+}
+
+/** The text to type or send for one field: the value as stored, except a one-time-code seed, whose value is never handed out. Its current code is, with at least five seconds of its window left (with less, the next window's code after the wait), so the seed stays in the Vault and only the digits leave. `fromSeed` says a code was made, so the caller can record it. */
+async function valueToUse(
+  kind: string,
+  key: string,
+  stored: string,
+  itemId: string,
+  actor: string,
+): Promise<{ value: string; fromSeed: boolean }> {
+  if (!isSeedField(kind, key, stored)) return { value: stored, fromSeed: false };
+  const made = codeToType(stored, clock());
+  if (!made) throw new Error("That item's secret is not a one-time-code seed, so no code can be made from it.");
+  if (!codeAllowed(itemId, actor))
+    throw new Error("Too many one-time codes for this item in a short time. Wait a few minutes and try again.");
+  if (made.waitMs > 0) await wait(made.waitMs);
+  return { value: made.code, fromSeed: true };
+}
+
 function pick(ctx: VaultCtx, r: Row, fields: Field[], name?: string): Field {
   if (name) {
     const f = fields.find((x) => x.key === name);
@@ -375,9 +427,23 @@ export async function fill(
   if (!sink && input.returnValue !== true)
     throw fail("internal.unavailable", ctx.trace.traceId, { message: `This server has no place to fill ${kind} yet.` });
   reachable(ctx, str(r, "id"), "use"); // recheck after asynchronous Mine-key decryption
+  // a one-time-code seed is never filled: its code is
+  let value: string;
+  let fromSeed = false;
+  try {
+    ({ value, fromSeed } = await valueToUse(
+      str(r, "kind"),
+      f.key,
+      f.value,
+      str(r, "id"),
+      `${ctx.principal.kind}:${ctx.principal.id}`,
+    ));
+  } catch (e) {
+    return bad(ctx, e instanceof Error ? e.message : "No code can be made from that item.");
+  }
   if (sink)
     await sink(
-      { value: f.value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") },
+      { value, ref, handle: str(r, "handle"), field: f.key, itemId: str(r, "id") },
       {
         space: ctx.space,
         principal: ctx.principal,
@@ -387,12 +453,13 @@ export async function fill(
         depth: ctx.depth ?? 0,
       },
     );
-  touch(ctx, r, { field: f.key });
+  // every code made is its own use in the item's history and its own vault.used event (item, field, who: the event's actor, and where it went: the kind of place), and never the code
+  touch(ctx, r, { field: f.key, ...(fromSeed ? { purpose: `one-time code, ${kind}` } : {}) });
   return {
     filled: sink !== undefined,
     field: f.key,
     where: viaOf(r),
-    ...(input.returnValue === true ? { value: f.value } : {}),
+    ...(input.returnValue === true ? { value } : {}),
   };
 }
 

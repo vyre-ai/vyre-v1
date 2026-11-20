@@ -170,6 +170,20 @@ export function createTraffic(cdp, o = {}) {
       }
       return { endpoints: endpoints.slice(0, 200), scripts: scripts.slice(0, 200) };
     },
+    /** The finished successful XHR and fetch requests, newest first, one per method and address: the ones whose answers can be reduced to a shape. @param {number} tabId */
+    answered(tabId) {
+      const seen = new Set();
+      const out = [];
+      for (const r of [...of(tabId).requests].reverse()) {
+        if (!(r.type === "XHR" || r.type === "Fetch") || !r.finished || r.failed) continue;
+        if (!(Number(r.status) >= 200 && Number(r.status) < 300) || !/json/i.test(r.mime ?? "")) continue;
+        const key = `${r.method} ${maskUrl(r.url).split("?")[0] ?? ""}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ key, id: r.id });
+      }
+      return out;
+    },
     /** @param {number} tabId */
     inflight: (tabId) => of(tabId).inflight,
     /** @param {number} tabId */

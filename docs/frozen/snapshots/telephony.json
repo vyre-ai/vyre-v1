@@ -3,7 +3,7 @@
   "capabilities": {
     "telephony.answer@1": "d0451810f0200cdfb6dd0ee51c7a3b23425a9051f184c798d2d642ea3e6d062e",
     "telephony.call.attach_summary@1": "ad59c15c989a5d044be6e7d9b3d41cd873f46d8eb61a2ef1cf05dd50e6489b99",
-    "telephony.call.erase@1": "af7c702fca2a3e8d1c0ad579eedc98cb128c4ecbdc25928046c99f8f638d4db2",
+    "telephony.call.erase@1": "40cdc905f43f80f5a49726934a2cd99440c90a36bea5a0209b705eda438aba48",
     "telephony.call.get@1": "67800d87fd45d3bba9b261bb1e2b24dfa9aac062d0866f05671861813e334394",
     "telephony.call.list@1": "4ebd291781ece32e223b88540906823a67c8d22d28b5e98b189771d012def3ba",
     "telephony.call.log_task@1": "dea4e75a2b28adf821db52f6fdba8f1357022bfb2d39505ff3bbd8968b21631a",
@@ -31,7 +31,7 @@
     "telephony.registration.save@1": "fe6b84cfde6032769700ed47fba1961285650e48deb9599693a631d90671e494",
     "telephony.registration.submit@1": "d85c37079dc1b1ede2182d235ec1af861fb7bfb14b98ed134b7ec48d37bb0c89",
     "telephony.send_sms@1": "dd9bde3d98675e84103b5313bc710b1c58faf7d205d580b95472e92694de2981",
-    "telephony.sms.erase@1": "42d119e9dbb6513ff5054982c958d6eb1ef87cb7638d099b44bbf4024d2d4299",
+    "telephony.sms.erase@1": "e3995addbd7671ba1ede1ff7f28d4f6f625a35b49a5d8c8c0527b1d84f632f43",
     "telephony.sms.list@1": "0c18b8ecca3f8f1f591d5c49d6e2f2f7040caab23c69597dedf511117b994a69",
     "telephony.transfer@1": "393bb29d770bf040fb12bd1453afc42b19853549d1dc88c29abce6467366baa7",
     "telephony.voice_token@1": "1ee3f7fae0345a9908a9cddeb95b55f33689c30dd207cb5cbbcc66a5f95b965e"

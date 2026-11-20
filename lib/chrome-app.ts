@@ -19,6 +19,7 @@
 
 export const CHROME_CAPABILITIES = Object.freeze([
   "vault.items.match",
+  "vault.login.check",
   "vault.items.list",
   "vault.use",
   "vault.fill",
@@ -573,6 +574,20 @@ export function createChromeApp(deps: ChromeAppDeps) {
           return chatThread(input);
         case "records.match":
           return recordsMatch(input);
+        case "login.check": {
+          // a login a page submitted, compared inside the Vault: the app learns known, changed or new and never a stored password
+          session();
+          const out = await call("vault.login.check", {
+            url: str(input["origin"], 2000),
+            username: str(input["username"], 320),
+            password: typeof input["password"] === "string" ? input["password"] : "",
+          });
+          const state = out?.state === "known" || out?.state === "changed" ? out.state : "new";
+          return {
+            state,
+            ...(state === "changed" && out?.itemId ? { itemId: out.itemId, name: str(out.name, 200) } : {}),
+          };
+        }
         default:
           throw new AppError("not_available", "The Vyre app cannot answer that here.");
       }

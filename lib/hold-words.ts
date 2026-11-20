@@ -87,6 +87,31 @@ export function verbPhrase(words: string): string {
 }
 
 /** The address a link points at, as a person says it: "example.com". */
+/** For a held `chrome_read`: the host, and the whole address as the card shows it (control and bidi characters written out). Null when it is not a web address. */
+export function webReadParts(input: Obj | undefined): { host: string; address: string } | null {
+  const url = str(obj(input)["url"]);
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return null;
+    return { host: u.hostname.replace(/^www\./, ""), address: visibleAddress(url) };
+  } catch {
+    return null;
+  }
+}
+
+/** An address as a card shows it: every control, zero-width and bidi-direction character is written out as its code, so it can neither hide nor reorder what is read. */
+export function visibleAddress(raw: string): string {
+  // every control and format character (Unicode Cc and Cf: bidi marks and overrides, zero-width, the Arabic letter mark, tag characters), unassigned code points, lone surrogates, combining and enclosing marks, line and
+  // paragraph separators, private-use characters and variation selectors is written out as its code, so none of them can hide, combine with or reorder what is read
+  return raw.replace(
+    /[\p{Cc}\p{Cf}\p{Cn}\p{Cs}\p{Mn}\p{Me}\p{Zl}\p{Zp}\p{Co}\u180e\ufe00-\ufe0f\u{e0100}-\u{e01ef}]/gu,
+    (c) => {
+      const code = c.codePointAt(0) ?? 0;
+      return `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+    },
+  );
+}
+
 export function hostOfLink(raw: string): string {
   try {
     return new URL(raw).hostname.replace(/^www\./, "");
@@ -218,7 +243,30 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";
   }
+  // approving where a Vault key may be sent: the card always names the host, so nobody approves a destination blind (r-review, 19 Nov)
+  if (cap === "automations.key_hosts.allow" || cap === "automations.key_hosts.remove") {
+    const raw = str(obj(input)["host"]).trim();
+    const host = raw === "" ? "" : hostOfLink(/^[a-z]+:\/\//i.test(raw) ? raw : `https://${raw}`).slice(0, 80);
+    if (cap === "automations.key_hosts.allow")
+      return host ? `let a key be sent to ${host}` : "let a key be sent to another host";
+    return host ? `stop a key being sent to ${host}` : "stop a key being sent to a host";
+  }
   if (cap === "automations.read_docs") return "read the documentation";
+  // an agent read of a page it chose itself: the card names the host, then the WHOLE address, so what a person approves is exactly what would be opened (never cut: whatever was cut could be the payload).
+  // Control and bidi characters are shown as codes, so they cannot change how the card reads. An address that is not a web address is refused by the read itself and never reaches a card.
+  if (cap === "computers.chrome.read") {
+    const url = str(obj(input)["url"]);
+    let host = "";
+    try {
+      const u = new URL(url);
+      if (u.protocol === "https:" || u.protocol === "http:") host = u.hostname.replace(/^www\./, "");
+    } catch {
+      host = "";
+    }
+    return host === ""
+      ? "read an address that is not a web address"
+      : `read a web page on ${host}: ${visibleAddress(url)}`;
+  }
   // "Ada wants to change the Space time zone to Pacific Time": the zone is named in the person's words, not as an id
   if (cap === "spaces.timezone.set") {
     const zone = str(obj(input)["timezone"]);

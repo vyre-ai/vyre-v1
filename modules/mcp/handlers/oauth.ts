@@ -17,6 +17,7 @@ import {
   sessionBy,
 } from "../projections.ts";
 import type { McpCtx } from "../projections.ts";
+import { doneWords, groupKey } from "../words.ts";
 import {
   clientBy,
   grantBy,
@@ -207,6 +208,22 @@ export function oauthReplayed(ctx: McpCtx, input: { agentId: string; person: str
 
 // ---- yours --------------------------------------------------------------------------------------------------------------------------------------------
 
+const SAME_RUN_MS = 10 * 60 * 1000;
+/** The latest thing an app did, in plain words: the newest calls of the same kind in a row count as one line. */
+function lastDid(ctx: McpCtx, agentId: string): string | null {
+  const rows = ctx.db.all("SELECT cap, outcome, at FROM mcp_activity WHERE agent_id = ? ORDER BY at DESC, id DESC LIMIT 20", agentId) as Row[];
+  const first = rows[0];
+  if (!first) return null;
+  const key = groupKey(first["cap"] ? String(first["cap"]) : undefined);
+  let n = 0;
+  for (const r of rows) {
+    if (String(r["outcome"]) !== String(first["outcome"]) || groupKey(r["cap"] ? String(r["cap"]) : undefined) !== key) break;
+    if (Number(first["at"]) - Number(r["at"]) > SAME_RUN_MS) break;
+    n += 1;
+  }
+  return doneWords(first["cap"] ? String(first["cap"]) : undefined, String(first["outcome"]) as "ok" | "error" | "held", n);
+}
+
 export function connectedList(ctx: McpCtx, input: { all?: boolean } = {}) {
   ensure(ctx.db);
   const me = actorOf(ctx);
@@ -221,6 +238,7 @@ export function connectedList(ctx: McpCtx, input: { all?: boolean } = {}) {
           .flatMap((p) => grantsOfPerson(ctx.db, p))
       : grantsOfPerson(ctx.db, me);
   const agents = grants.map((g) => {
+    const did = lastDid(ctx, g.agentId);
     const s = g.sessionId ? sessionBy(ctx.db, "session_id", g.sessionId) : null;
     return {
       agentId: g.agentId,
@@ -229,6 +247,7 @@ export function connectedList(ctx: McpCtx, input: { all?: boolean } = {}) {
       connectedAt: g.createdAt,
       ...(s?.lastCallAt === undefined ? {} : { lastSeenAt: s.lastCallAt }),
       calls: s?.calls ?? 0,
+      ...(did ? { lastDid: did } : {}),
       setup: hasSetup(ctx.db, g.agentId, g.person),
       ...(input.all === true ? { person: g.person } : {}),
     };
@@ -318,6 +337,7 @@ export function activityList(ctx: McpCtx, input: { agentId: string; cursor?: str
     tool: String(r["tool"]),
     ...(r["cap"] ? { cap: String(r["cap"]) } : {}),
     outcome: String(r["outcome"]) as "ok" | "error" | "held",
+    did: doneWords(r["cap"] ? String(r["cap"]) : undefined, String(r["outcome"]) as "ok" | "error" | "held"),
     ...(r["thread_id"] ? { threadId: String(r["thread_id"]) } : {}),
     ...(r["task_id"] ? { taskId: String(r["task_id"]) } : {}),
     at: Number(r["at"]),

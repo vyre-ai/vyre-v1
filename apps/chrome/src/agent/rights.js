@@ -68,6 +68,12 @@ export function createRights({ list, mode, now = Date.now }) {
       );
       return mine && mine.right === "act" ? "act" : "read";
     },
+    /** Did the person put this site in Vault > Connections > Browser? Only then may an agent read its network calls. @param {{ agent: { id: string, name: string }, space: string }} call @param {string} host */
+    async listed(call, host) {
+      const sites = await sitesFor(call);
+      if (sites === null) return false;
+      return sites.some((s) => hostUnder(host, String(s.host)));
+    },
     forget() {
       cache.clear();
     },

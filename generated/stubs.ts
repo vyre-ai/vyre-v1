@@ -589,8 +589,10 @@ export function stubs(ctx: CallCtx) {
         net: call("computers.chrome.net"),
         open: call("computers.chrome.open"),
         plan: call("computers.chrome.plan"),
+        read: call("computers.chrome.read"),
         resume: call("computers.chrome.resume"),
         screenshot: call("computers.chrome.screenshot"),
+        search: call("computers.chrome.search"),
         send: call("computers.chrome.send"),
         snapshot: call("computers.chrome.snapshot"),
         sources: call("computers.chrome.sources"),
@@ -3218,6 +3220,9 @@ export function stubs(ctx: CallCtx) {
         export_mine: call("vault.items.export_mine"),
         list: call("vault.items.list"),
         match: call("vault.items.match"),
+      },
+      login: {
+        check: call("vault.login.check"),
       },
       policy: {
         get: call("vault.policy.get"),

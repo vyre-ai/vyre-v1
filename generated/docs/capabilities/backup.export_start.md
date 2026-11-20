@@ -17,7 +17,7 @@ Start the owner full export as a zip (never secret values, never other people pr
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/backup/export_start |
-| MCP tool | none |
+| MCP tool | backup_export_start (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

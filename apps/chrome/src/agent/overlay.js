@@ -153,8 +153,22 @@ export function overlayShow(o) {
       e.stopPropagation();
       if (port) port.postMessage({ type: "takeover" });
     });
+    // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
+    // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
+    let lastTouch = 0;
+    const onTouch = (/** @type {any} */ e) => {
+      if (!e.isTrusted || !port || s.paused) return;
+      const path = typeof e.composedPath === "function" ? e.composedPath() : [];
+      if (path.includes(host)) return;
+      const t = Date.now();
+      if (t - lastTouch < 500) return;
+      lastTouch = t;
+      port.postMessage({ type: "touch" });
+    };
+    for (const type of ["pointerdown", "wheel", "touchstart"]) g.addEventListener(type, onTouch, true);
     const onKey = (/** @type {any} */ e) => {
       if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" });
+      else onTouch(e);
     };
     g.addEventListener("keydown", onKey, true);
     s = {

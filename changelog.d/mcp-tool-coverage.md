@@ -1,0 +1,1 @@
+Apps and agents connected to Vyre can now reach more of what a person can do: chat search, goals, memory profile, change feeds, signing reminders and sending from your own mailbox. Every capability a member can call is now either a tool or has a stated reason it is not.

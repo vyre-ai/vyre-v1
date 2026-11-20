@@ -10824,6 +10824,16 @@ export type ComputersChromePlanOut = {
   note?: string;
   ok: boolean;
 };
+export type ComputersChromeReadIn = {
+  url: string;
+};
+export type ComputersChromeReadOut = {
+  url: string;
+  title: string;
+  text: string;
+  truncated: boolean;
+  source: string;
+};
 export type ComputersChromeResumeIn = {
   computerId?: string;
   inMyChrome?: boolean;
@@ -10849,6 +10859,19 @@ export type ComputersChromeScreenshotOut = {
   pageWidth?: number;
   pageHeight?: number;
   scale?: number;
+};
+export type ComputersChromeSearchIn = {
+  query: string;
+  site?: string;
+};
+export type ComputersChromeSearchOut = {
+  query: string;
+  results: Array<{
+      title: string;
+      url: string;
+      snippet: string;
+    }>;
+  source: string;
 };
 export type ComputersChromeSendIn = {
   computerId?: string;
@@ -10895,6 +10918,7 @@ export type ComputersChromeSourcesOut = {
   endpoints: Array<{
       method: string;
       url: string;
+      shape?: unknown;
     }>;
 };
 export type ComputersChromeStateIn = {
@@ -22461,6 +22485,7 @@ export type IdentityGithubLinkOut = {
 };
 export type IdentityGithubSignInIn = {
   code: string;
+  verifier?: string;
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
 };
@@ -22564,6 +22589,7 @@ export type IdentityLinkAccountOut = {
 };
 export type IdentityPairCreateIn = {
   purpose: "app" | "phone" | "extension" | "daemon";
+  challenge?: string;
   idempotencyKey: string;
 };
 export type IdentityPairCreateOut = {
@@ -26640,6 +26666,7 @@ export type McpActivityListOut = {
       tool: string;
       cap?: string;
       outcome: "ok" | "error" | "held";
+      did: string;
       threadId?: string;
       taskId?: string;
       at: number;
@@ -26663,6 +26690,7 @@ export type McpConnectedListOut = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      lastDid?: string;
       setup?: boolean;
       person?: string;
     }>;
@@ -50357,6 +50385,16 @@ export type VaultItemsMatchOut = {
       username?: string;
     }>;
 };
+export type VaultLoginCheckIn = {
+  url: string;
+  username?: string;
+  password: string;
+};
+export type VaultLoginCheckOut = {
+  state: "known" | "changed" | "new";
+  itemId?: string;
+  name?: string;
+};
 export type VaultPolicyGetIn = Record<string, unknown>;
 export type VaultPolicyGetOut = {
   policy: {
@@ -51482,8 +51520,10 @@ export interface CapMap {
   "computers.chrome.net": { in: ComputersChromeNetIn; out: ComputersChromeNetOut };
   "computers.chrome.open": { in: ComputersChromeOpenIn; out: ComputersChromeOpenOut };
   "computers.chrome.plan": { in: ComputersChromePlanIn; out: ComputersChromePlanOut };
+  "computers.chrome.read": { in: ComputersChromeReadIn; out: ComputersChromeReadOut };
   "computers.chrome.resume": { in: ComputersChromeResumeIn; out: ComputersChromeResumeOut };
   "computers.chrome.screenshot": { in: ComputersChromeScreenshotIn; out: ComputersChromeScreenshotOut };
+  "computers.chrome.search": { in: ComputersChromeSearchIn; out: ComputersChromeSearchOut };
   "computers.chrome.send": { in: ComputersChromeSendIn; out: ComputersChromeSendOut };
   "computers.chrome.snapshot": { in: ComputersChromeSnapshotIn; out: ComputersChromeSnapshotOut };
   "computers.chrome.sources": { in: ComputersChromeSourcesIn; out: ComputersChromeSourcesOut };
@@ -53393,6 +53433,7 @@ export interface CapMap {
   "vault.items.export_mine": { in: VaultItemsExportMineIn; out: VaultItemsExportMineOut };
   "vault.items.list": { in: VaultItemsListIn; out: VaultItemsListOut };
   "vault.items.match": { in: VaultItemsMatchIn; out: VaultItemsMatchOut };
+  "vault.login.check": { in: VaultLoginCheckIn; out: VaultLoginCheckOut };
   "vault.policy.get": { in: VaultPolicyGetIn; out: VaultPolicyGetOut };
   "vault.policy.set": { in: VaultPolicySetIn; out: VaultPolicySetOut };
   "vault.report_scrub_miss": { in: VaultReportScrubMissIn; out: VaultReportScrubMissOut };

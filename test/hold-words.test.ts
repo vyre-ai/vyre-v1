@@ -169,5 +169,74 @@ test("a held rotation says which site and that GitHub must be given the new secr
   assert.equal(
     holdShort("sites.webhook_set", { siteId: "s", rotate: true }, { site: { name: "Dash", keys: [] } }),
     "rotate the webhook secret for Dash; GitHub must be given the new one",
+
+test("a held read of a web page names the host, then the whole address: never cut, control and bidi characters written out, an address that is not a web address is not worded as a host", () => {
+  const url = "https://docs.vendor.example/guide/auth?topic=tokens&page=2";
+  assert.equal(wantsFromInput("computers.chrome.read", { url }), `read a web page on docs.vendor.example: ${url}`);
+  const long = `https://a.example/${"x".repeat(1982)}?d=THE-END-OF-THE-ADDRESS`;
+  assert.ok(long.length > 2000);
+  const words = wantsFromInput("computers.chrome.read", { url: long })!;
+  assert.ok(words.endsWith(long), "the whole address, to its last character");
+  assert.ok(words.includes("THE-END-OF-THE-ADDRESS"));
+  const bidi = wantsFromInput("computers.chrome.read", {
+    url: "https://a.example/\u202Egpj.exe?x=1\nnewline\u200Bzero",
+  })!;
+  assert.ok(!/[\u202E\n\u200B]/.test(bidi), "none of them is in the text");
+  assert.ok(bidi.includes("[U+202E]") && bidi.includes("[U+000A]") && bidi.includes("[U+200B]"), bidi);
+  for (const bad of ["", "not a url", "ftp://x.example/", "javascript:alert(1)", "https://"])
+    assert.equal(
+      wantsFromInput("computers.chrome.read", { url: bad }),
+      "read an address that is not a web address",
+      bad,
+    );
+  assert.equal(HOLD_PHRASES["computers.chrome.read"], "read a web page it chose itself");
+});
+
+test("every control and format character is written out on a card: bidi marks, the Arabic letter mark, tag characters, variation selectors, separators", () => {
+  const nasty = "https://a.example/p\u061Cq\u2066r\u2069s\u{E0041}t\uFE0Fu\u2028v\u{E0100}w\u00ADx\uE000y";
+  const shown = wantsFromInput("computers.chrome.read", { url: nasty })!;
+  assert.ok(!/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Co}\uFE0F\u{E0100}]/u.test(shown), "none reaches the card as itself");
+  for (const code of ["061C", "2066", "2069", "E0041", "FE0F", "2028", "E0100", "00AD", "E000"])
+    assert.ok(shown.includes(`[U+${code}]`), code);
+  assert.ok(shown.includes("pqrs") === false && shown.includes("p[U+061C]q"), shown);
+});
+
+test("a held approval of where a key may be sent always names the host", () => {
+  assert.equal(
+    holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "api.fathom.video" }),
+    "Let a key be sent to api.fathom.video",
+  );
+  assert.equal(
+    holdTitle("automations.key_hosts.allow", { itemId: "vit_1", host: "https://www.Example.com/x" }).includes(
+      "example.com",
+    ),
+    true,
+  );
+  assert.equal(
+    holdTitle("automations.key_hosts.remove", { itemId: "vit_1", host: "api.fathom.video" }),
+    "Stop a key being sent to api.fathom.video",
+  );
+  assert.match(holdTitle("automations.key_hosts.allow", {}), /another host/);
+  assert.ok(
+    holdTitle("automations.key_hosts.allow", { host: "h".repeat(300) + ".com" }).length < 120,
+    "a long host is cut",
+  );
+});
+
+test("a host written with a user name, a port or an address in brackets is read as its host, never the part before the @", () => {
+  assert.match(holdTitle("automations.key_hosts.allow", { host: "ok.com@evil.example/x" }), /evil\.example/);
+  assert.ok(!holdTitle("automations.key_hosts.allow", { host: "ok.com@evil.example/x" }).includes("ok.com"));
+  assert.match(holdTitle("automations.key_hosts.allow", { host: "[::1]:8080" }), /::1|\[::1\]/);
+});
+
+test("unassigned code points, lone surrogates and combining marks are written out on a card too, so a path cannot look different from what is read", () => {
+  const url = "https://a.example/p\u034Fq\u0378r\uD800s\u20DDt";
+  const shown = wantsFromInput("computers.chrome.read", { url })!;
+  for (const code of ["034F", "0378", "D800", "20DD"]) assert.ok(shown.includes(`[U+${code}]`), `${code}: ${shown}`);
+  assert.ok(!/[\u034F\u0378\uD800\u20DD]/.test(shown), "none reaches the card as itself");
+  assert.equal(
+    wantsFromInput("computers.chrome.read", { url: "https://a.example/plain/path?x=1&y=%C3%A9" }),
+    "read a web page on a.example: https://a.example/plain/path?x=1&y=%C3%A9",
+    "ordinary addresses are shown as they are",
   );
 });

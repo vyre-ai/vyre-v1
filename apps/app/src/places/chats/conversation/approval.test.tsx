@@ -952,6 +952,29 @@ test("a held send of a preview copy shows the server's sentence quietly under th
     ({
       call: async (cap: string) =>
         cap === "tasks.get" ? t : cap === "files.get" ? { file: { name: "Agreement.pdf" } } : {},
+
+test("a held read of a web page: the host on the first line, the whole address in a block of its own, escaped, never cut", async () => {
+  const long = `https://docs.vendor.example/a/${"x".repeat(1990)}?d=THE-END-OF-THE-ADDRESS`;
+  const held = (url: string) =>
+    ({
+      call: async (cap: string) =>
+        cap === "tasks.get"
+          ? {
+              task: {
+                id: "tsk_w",
+                kind: "approve",
+                title: "Approve: read a web page",
+                state: "awaiting_approval",
+                blocks: [
+                  { type: "doc_excerpt", v: 1, data: { act: "approve", cap: "computers.chrome.read", input: { url } } },
+                ],
+                actions: [
+                  { key: "approve", label: "Approve" },
+                  { key: "reject", label: "Send back", note: "required" },
+                ],
+              },
+            }
+          : {},
       nav: { openBeside: () => undefined },
     }) as never;
   const root = await mount(
@@ -978,4 +1001,25 @@ test("a held send of a preview copy shows the server's sentence quietly under th
     <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
   );
   assert.equal(find(plain, "approval-note-tsk_9"), null);
+
+    <ApprovalCard taskId="tsk_w" agent="Intake" agentId="agt_1" data={held(long)} />,
+  );
+  assert.match(textOf(root), /Intake wants to read a web page on docs\.vendor\.example/);
+  const block = textOf(find(root, "approval-address-tsk_w"));
+  assert.ok(block.includes("THE-END-OF-THE-ADDRESS"), "the whole address, to its last character");
+  assert.ok(block.includes(long), "exactly as written");
+  assert.match(block, /2\d{3} characters/, "its length is said");
+  const odd = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_w"
+      agent="Intake"
+      agentId="agt_1"
+      data={held("https://a.example/\u202Egpj.exe?x=1\nfoo")}
+    />,
+  );
+  const shown = textOf(find(odd, "approval-address-tsk_w"));
+  assert.ok(!/[\u202E\n]/.test(shown), "no bidi override or newline reaches the card");
+  assert.ok(shown.includes("[U+202E]") && shown.includes("[U+000A]"), shown);
+  assert.ok(find(root, "approval-allow-tsk_w") && find(root, "approval-deny-tsk_w"), "still answerable");
 });

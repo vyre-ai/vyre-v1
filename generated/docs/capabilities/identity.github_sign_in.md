@@ -26,6 +26,7 @@ Sign in with GitHub once the Space is named
 ```ts
 type In = {
   code: string;
+  verifier?: string;
   deviceName: string;
   deviceClass: "desktop" | "phone" | "web" | "extension" | "daemon";
 };
@@ -75,7 +76,8 @@ type Out = {
   "input": {
     "code": "example",
     "deviceClass": "desktop",
-    "deviceName": "example"
+    "deviceName": "example",
+    "verifier": "examplexxxxxxxxx"
   },
   "output": {
     "challengeId": "chl_a1b2c3",

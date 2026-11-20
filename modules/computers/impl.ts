@@ -73,6 +73,7 @@ export {
 } from "./projections.ts";
 export type { ComputerHost, CompCtx, Probe, RecordResult, SessionInfo } from "./projections.ts";
 import { sleepIdle } from "./handlers/lifecycle.ts";
+import { setSearchHost } from "./search-host.ts";
 export { sleepIdle, awaken } from "./handlers/lifecycle.ts";
 export { createHomeSync } from "./handlers/home.ts";
 /** What the daemon binds for the agent workspaces: how a waiting one starts, and the workspace half of the one-time move of a computer. */
@@ -1021,7 +1022,7 @@ export function setComputerHost(c: ComputersHostConfig | null): void {
 }
 
 // Only the setters the daemon wires are host seams (the loader reports any other function here as a driver left unwired); what a computer that joined needs is exported beside them.
-export const hostSeams = { setComputersFill, setComputerHost };
+export const hostSeams = { setComputersFill, setComputerHost, setSearchHost };
 export { nodeRun };
 /** The move reads nothing from an old desktop until the Space browser can take it: the container runtime answers and the service is healthy (its image is checked by f-sbrowser's start, not here). */
 bindMigrationPort("browserReady", async () => {

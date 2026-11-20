@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness, codeOf, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
-import { admin, alice, bob, engine, newRun, MINUTE, NOW } from "../fixtures/seed.ts";
+import { admin, alice, bob, bot, engine, newRun, MINUTE, NOW } from "../fixtures/seed.ts";
 import { allSteps, readExtra, readWait } from "../projections.ts";
 
 const names = (h: Harness): string[] => h.events.map((e) => e.name);
@@ -526,4 +526,29 @@ test("who manages runs is asked of the Space, so the Space's manager lists every
   assert.deepEqual((await h.call("runs.people_counts", {}, admin)).people, []);
   assert.ok(asked.includes("runs.manage:space"));
   await refused(h.call("runs.list", { scope: "all" }, bob), "permission.role_lacks_permission");
+});
+
+// an agent never answers the wait it is held on (r-review, 19 Nov): approval and key waits are continued by the decision, background waits by anyone who may
+test("resume: an agent continues a background wait and no wait that is a person's decision; a person and the engine continue each kind", async () => {
+  const agent = bot;
+  for (const reason of ["approval", "key", "background"] as const) {
+    for (const [who, label, ok] of [
+      [agent, "agent", reason === "background"],
+      [alice, "person", true],
+      [engine, "engine", true],
+    ] as const) {
+      const h = harness();
+      const id = await mk(h, { owner: alice.id });
+      await h.call("runs.mark_waiting", { runId: id, reason, ...(reason === "approval" ? { taskId: "tsk_g1" } : {}) }, engine);
+      h.callee("tasks.create", () => ({ task: { id: "tsk_n1" } }));
+      const go = h.call("runs.resume", { runId: id, reason }, who as never);
+      if (ok) {
+        await go;
+        assert.equal((await get(h, id)).status, "running", `${label} continues a ${reason} wait`);
+      } else {
+        await refused(go, "permission.no_grant", "wait_is_a_decision");
+        assert.equal((await get(h, id)).status, "waiting", `${label} left the ${reason} wait as it was`);
+      }
+    }
+  }
 });

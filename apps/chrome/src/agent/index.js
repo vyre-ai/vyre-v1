@@ -19,6 +19,7 @@ import { OVERLAY_PORT, errorOf, fail, parseCommand } from "./protocol.js";
 import { createRights } from "./rights.js";
 import { createSessions } from "./sessions.js";
 import { createTools } from "./tools.js";
+import { linkedExt } from "../worker/link.js";
 import { createTransport } from "./transport.js";
 
 const FILL_WAIT_MS = 3000;
@@ -55,7 +56,7 @@ export function createAgentControl(ext, o = {}) {
 
   const transport =
     o.transport ??
-    createTransport(ext, {
+    createTransport(linkedExt(ext), {
       onMessage: (m) => {
         void onIncoming(m);
       },
@@ -85,6 +86,8 @@ export function createAgentControl(ext, o = {}) {
     ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}),
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
   });
+
+  cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
 
   /** The agent's Space must be the one active here, and the person (or the agent computer's owner) must have opened Chrome to it. @param {{ space: string }} call */
   async function authorize(call) {
@@ -228,6 +231,7 @@ export function createAgentControl(ext, o = {}) {
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
+      else if (m.type === "touch") void sessions.touched(tabId);
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.
@@ -237,7 +241,30 @@ export function createAgentControl(ext, o = {}) {
     if (reason === "canceled_by_user") void sessions.pause(agent.id, "person");
     else void sessions.release(tabId, "detached");
   });
-  cdp.onEvent((tabId, method) => {
+  // A tab dragged out of the agent's group (or into another) is the person's: the agent stops at once and the bar says so.
+  if (ext.tabs.onUpdated)
+    ext.tabs.onUpdated.addListener((/** @type {number} */ tabId, /** @type {any} */ info) => {
+      if (info.groupId === undefined) return;
+      const agent = sessions.driverOf(tabId);
+      if (!agent) return;
+      void sessions.inGroup(agent.id, tabId).then((inside) => {
+        if (!inside) void sessions.pause(agent.id, "takeover");
+      });
+    });
+  /** The site each tab was last seen on, so what a tab recorded on one site is dropped when it goes to another and is never handed back later. @type {Map<number, string>} */
+  const siteOf = new Map();
+  cdp.onEvent((tabId, method, params) => {
+    if (method === "Page.frameNavigated" && params && params.frame && !params.frame.parentId) {
+      let host = "";
+      try {
+        host = new URL(String(params.frame.url)).hostname;
+      } catch {
+        host = "";
+      }
+      const before = siteOf.get(tabId);
+      siteOf.set(tabId, host);
+      if (before !== undefined && before !== host) traffic.forget(tabId);
+    }
     if (method === "Page.loadEventFired") void sessions.redraw(tabId);
   });
   ext.tabs.onRemoved.addListener((/** @type {number} */ id) => {
@@ -252,6 +279,8 @@ export function createAgentControl(ext, o = {}) {
     transport,
     rights,
     connect: () => transport.connect(),
+    /** Release any debugger Chrome still holds for this extension that no agent is driving (see cdp.sweep). */
+    sweepStray: () => cdp.sweep(sessions.driven),
     run: tools.run,
     onIncoming,
     get optedIn() {
@@ -275,6 +304,17 @@ function start() {
     control.connect();
   };
   boot();
+  // A worker that slept while an agent drove a tab left the debugger attached with nothing to detach it: let go of those now and every minute.
+  const sweep = () => {
+    if (control) void control.sweepStray();
+  };
+  sweep();
+  if (ext.alarms && ext.alarms.create && ext.alarms.onAlarm) {
+    ext.alarms.create("vyre.agent.sweep", { periodInMinutes: 1 });
+    ext.alarms.onAlarm.addListener((/** @type {{ name: string }} */ a) => {
+      if (a.name === "vyre.agent.sweep") sweep();
+    });
+  }
   if (ext.permissions && ext.permissions.onAdded) ext.permissions.onAdded.addListener(boot);
 }
 

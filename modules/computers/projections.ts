@@ -631,6 +631,18 @@ export function rememberSecrets(computerId: string, secrets: readonly Secret[], 
     handedOut.set(computerId, h);
   }
 }
+/** Does this text hold a value the Vault handed to any agent computer (a key, a password) as written or URL-decoded? For a reader that sends text outward: a path or query must never carry one. Values under 8 characters (a PIN) are not matched, since they would refuse ordinary addresses; other encodings (base64, hex, split values) are not matched either: this is a net, not a guarantee. */
+export function holdsHandedOutSecret(text: string): boolean {
+  let decoded = text;
+  try {
+    decoded = decodeURIComponent(text);
+  } catch {
+    /* read it as written */
+  }
+  for (const list of secretsByComputer.values())
+    for (const x of list) if (x.value.length >= 8 && (text.includes(x.value) || decoded.includes(x.value))) return true;
+  return false;
+}
 export function forgetSecrets(computerId: string): void {
   secretsByComputer.delete(computerId);
   handedOut.delete(computerId);

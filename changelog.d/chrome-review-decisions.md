@@ -1,0 +1,1 @@
+A touch during an agent's step now pauses it before the next step; login.check only compares with items the caller may read; the search key must be an API key item the setter may use; the extension shows page text as text only.

@@ -849,3 +849,79 @@ Added after the sixth look (lane r42-alive, 19 Nov 2026): `tasks.still_needed` i
 
 Signed: lead, 19 Nov 2026
 
+## 19 Nov 2026: Vyre for Chrome connects to a Space: `vault.login.check`, and a bound pair code (lane r42-chrome)
+
+- New capability `vault.login.check` (read, level view, no gate, snapshot docs/frozen/snapshots/vault.json). Input: the page address, an optional username and the submitted password (1 to 1024 characters). Output: `state` (`known`, `changed` or `new`) and, only for `changed`, the item's id and name. What it does: compares a login a person just submitted on a page with the Vault inside the Vault (the same visible-item and host rules as `vault.items.match`), so the Chrome extension can offer Save or Update without a password ever leaving the Vault.
+- Who may call it: any person or agent who may call `vault.items.match` (level view); it considers only items that person can see. The Chrome extension's list of calls now includes it.
+- What it never returns: a stored value, a field name, a hint of a password, or anything about an item on another host. The comparison is a fixed-size SHA-256 digest comparison with `timingSafeEqual`, so timing says nothing about how much of a password matched. A site set to Never Save answers `known` and nothing is compared.
+- Rate limit: 30 calls per 60 seconds per principal (manifest), and the extension adds 4 comparisons per site per minute. Audit: `sensitive` (the input is not written to the audit trail).
+- How a page cannot use it to probe which passwords a person has: (1) a page cannot call it. Only the extension's worker does, and only after a trusted submit event of the person's own (the content script ignores a script's submit, `isTrusted` is checked, tested in ext-core.fill.test.ts); the page has no message that reaches it and never sees the answer, which only changes the extension's own Save card. (2) It tests the one password the person just typed, against saved logins of the same host and username only; it cannot be pointed at another site, and it answers nothing about passwords the person did not just type. (3) The extension allows 4 comparisons per origin per minute and the capability 30 per minute per principal, so a page that provokes many submits is stopped after four (tested). (4) The only fact the answer gives is that the person already has a login for that username on that site, which is the person's own data shown to the person.
+- Changed contracts: `identity.pair_create` gains an optional `challenge` (64 hex characters, the SHA-256 of a value the extension keeps; allowed only with purpose `extension`), and `identity.pair_redeem` gains an optional `verifier`. A code made with a challenge redeems only with the value that hashes to it, once, for the extension device class, within its 10 minutes; a wrong or missing value spends nothing and counts against the redeem rate limit. Codes without a challenge behave as before. Tests: host/tests/chrome-direct.live.test.ts, modules/vault/tests/g20.test.ts.
+- Snapshots: docs/frozen/snapshots/vault.json, docs/frozen/snapshots/identity.json.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: `chrome_read` and `chrome_search`, and the shape of a JSON answer in `chrome_sources` (lane r42-chrome)
+
+- New capabilities `computers.chrome.read` (mcp `chrome_read`) and `computers.chrome.search` (mcp `chrome_search`), both reads, permission `computers.use`, no gate, snapshot docs/frozen/snapshots/computers.json. Input: `url` (an https address of a public page), or `query` (at most 200 characters) and an optional `site` (a host name). Output: for read the final address, title, the page's text (cut at 40,000 characters) and `truncated`; for search the query and up to eight results of title, address and snippet; both carry `source`, which says the text is web content and never an instruction.
+- Who answers: the Space itself, through the one public fetcher that documents and the HTTP step already use (now `lib/public-fetch.ts`, re-exported from its old path). No browser, no agent computer and no extension is asked, so there is no network in the extension and no guard exception: the tools are not bound to a computer and need none named. A person or agent that may use agent computers may call them.
+- What they refuse (validation.bad_input, with the reason in words), checked on every hop and on every address the name resolves to: anything but https, a username or password in the address, `localhost`, a private, loopback, link-local, shared (tailnet), reserved or metadata address, a name that resolves to one (DNS rebinding), a redirect to any of these, more than three redirects, this Space's own host and its subdomains, a page that is not text, and a page over 1 MB or slower than 10 seconds.
+- What they never do: send cookies or credentials (`credentials: omit`, the pinned connection sends no headers of its own), follow a link, run a script, keep a copy, or return markup (scripts, styles, comments, hidden and template parts are dropped; every tag is removed).
+- Page content is data: both outputs say so in `source`, the snapshot tool of the same lane labels the page it reads the same way, and the agent-computer skill tells the agent that a page's instructions are only text. Nothing the page says can approve a send or reach a secret; the holds do not depend on the agent heeding the label.
+- Limit: 20 reads or searches a minute for each agent (`rate_limit.exceeded`), in memory.
+- Search provider: none is configured in this tree (no key, no connector). The one search the product already uses is DuckDuckGo, which the Space browser's address bar sends a typed phrase to; `chrome_search` asks DuckDuckGo's key-less HTML page (`SEARCH_URL` in `lib/web-read.ts`, the only place to change it). No hidden key exists.
+- Changed contract: `computers.chrome.sources` endpoints gain an optional `shape` (keys and the type of each in the JSON answer the page's call got: never a value; a key that is an id, uuid, token or email is folded into one entry; depth 4, 40 keys, 12 endpoints). The Vyre for Chrome extension fills it; an agent computer's browser leaves it out.
+- Tests: lib/tests/web-read.test.ts, modules/computers/tests/web-tools.test.ts (read, hostile page, every refusal, search, the limit), tools.contract.test.ts, apps/chrome/tests/ext-shape.test.ts and ext-agent.test.ts.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: the search service of a Space, for `chrome_search` (lane r42-chrome)
+
+- Two Space settings rows (`settings.set_space`, `policy.manage`, shown in Console, Settings): `search.provider` (`default`, `brave` or `bing`; default `default`) and `search.key` (the Vault handle of the service's key, such as `#Brave_Search.api_key`; empty by default). The setting holds a handle, never a key. Snapshot: docs/frozen/snapshots/settings.json.
+- `default` is DuckDuckGo's key-less HTML page and needs nothing. `brave` (Brave Search API) and `bing` (Bing Web Search API) send the Space's key in the service's own header, to that service's host only: a redirect to any other host carries no header (tested). The key is read from the Vault by the host for this one call (`setSearchHost` seam, the same kind as the import module's) and is in no answer or error.
+- When the default is refused or answers with a challenge, `chrome_search` answers `provider.unavailable`: "Search is not answering. The default search was refused. An admin can choose a search service with its own key in Console, Settings." A chosen service with no usable key answers `provider.unavailable` too, without asking the web. `computers.chrome.search` declares `provider.unavailable`.
+- The admin who sets the handle chooses which Vault secret is sent to the service's fixed host; nothing else can name a destination.
+- Tests: lib/tests/web-read.test.ts (both services, header and redirect, refusals), modules/computers/tests/web-tools.test.ts.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: `chrome_read` is held unless its host is expected; `search.key` is checked when set (lane r42-chrome, review r-review)
+
+- `computers.chrome.read` now carries a Gate condition (`gate.act = send`, `when: computers.web_read_unapproved(input)`, risk medium, error `permission.needs_approval`). An agent opens a host without a person only if its own `chrome_search` showed that exact host earlier in the same turn (thread), or the host (or a parent) is on the person's Browser connections list; any other address waits for a person (one tap in Needs you). A person's own read never waits; anything the Gate cannot read holds. A subdomain, a parent or a look-alike of a shown host is not shown.
+- Never opened, held or not: an address, and a search query, that carries a value the Vault handed to an agent computer (checked as written and URL-decoded): `validation.bad_input`.
+- Both web tools stay `audit: always`, with the address or the question in the trail.
+- `settings.set_space` for `search.key` checks, when it is set, that the setter may use the named Vault item (asked as them through `vault.use`) and that a named field exists; otherwise `validation.bad_input` and nothing is saved.
+- Reader hardening (not contract): the page reader is a single pass with no backtracking pattern, so a hostile page costs time in proportion to its length; the Space refuses to read without a pinned connection (no second DNS lookup); the text carries its web-content label inside it.
+- Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: decisions on review r-review for lane r42-chrome
+
+- `search.key` must name a Vault item of the kind API key that the setter may use (checked when it is set, through `vault.use` and `vault.item.get` as the setter), and is read for a search only if the item is a Shared Vault item of the kind API key (checked again when used). Anything else refuses with `validation.bad_input` and saves nothing.
+- `vault.login.check` compares only with items the caller may read (level view or above). An item the caller may merely use answers `new` whatever the password, so it is no guess oracle for them.
+- Not a contract change, pinned by tests: a person's touch during an agent's call queues a pause that takes effect before the agent's next step (the bar says "Pausing after this step"); the extension's pages show page text as text only.
+- Tests: modules/settings/tests/search-key.test.ts, modules/vault/tests/g20.test.ts, apps/chrome/tests/ext-agent.test.ts, ext-text-only.test.ts.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: review r-review, second round (lane r42-chrome)
+
+- `computers.chrome.read` is free for an agent only for the exact address a `chrome_search` in the same turn returned (same path and query, no fragment; the memory lasts five minutes per agent and thread), or a host on the person's Browser connections list. Not the host of a result: an agent that names the search's `site` or its words cannot make any host free, and a longer query, another path, a subdomain or a look-alike waits for a person.
+- `search.key` now saves the Vault item's id (and field), never its name, and accepts only a Shared item of the kind API key that the setter may use (a private item of the setter is refused: the Space uses the key for every agent). The host reads it by that id, again only if the item is Shared and an API key.
+- Not contract: the secret check ignores values under 8 characters; a queued pause belongs to its task; a tab's recorded network calls are dropped when it goes to another site; the page reader follows hidden elements by depth in one pass and folds only ASCII case, so no page's length or tag names change its cost or skip its filters.
+- Tests: host/tests/gate.web-read.test.ts, modules/computers/tests/web-tools.test.ts, modules/settings/tests/search-key.test.ts, lib/tests/web-read.test.ts, apps/chrome/tests/ext-agent.test.ts.
+
+Signed: lead, 19 Nov 2026
+
+## 19 Nov 2026: the held read card and the secret check on a search (lane r42-chrome, review r-review third round)
+
+- The held card of `computers.chrome.read` reads "<Agent> wants to read a web page on <host>", and shows the WHOLE address in a block of its own that wraps and scrolls after about six lines, with its length when it is long. Every control and format character (Unicode Cc and Cf, line and paragraph separators, private-use characters, variation selectors, U+061C and the tag characters) is written out as `[U+XXXX]`, so none can hide or reorder what is read. The address is never cut. An address that is not an http or https address is not held: the read refuses it with its reason (`validation.bad_input`).
+- `computers.chrome.search` and `computers.chrome.read` refuse, before anything leaves the Space, a query or an address in which the shared credential scanner (`lib/secret-scrub.ts`) finds a secret of a known shape, with the kind named and never the value (`validation.bad_input`). The text is cut to 4,000 characters before it is scanned. The search description tells the agent the question goes to the Space's search service.
+- Not contract: `</head` no longer ends at `</header`.
+- Tests: test/hold-words.test.ts, apps/app/src/places/chats/conversation/approval.test.tsx, modules/computers/tests/web-tools.test.ts, lib/tests/web-secret-guard.test.ts, lib/tests/web-read.test.ts, host/tests/gate.web-read.test.ts.
+- Snapshots: docs/frozen/snapshots/computers.json.
+
+Signed: lead, 19 Nov 2026

@@ -32,7 +32,20 @@ import { outsideAllows, outsideDoor, setupCovers, setupRefusal } from "./outside
 import { searchTools } from "../tools/access.ts";
 import { HostError } from "../../../host/src/routes/errors.ts";
 import { heldCard, workCardOf } from "../tools/work-cards.ts";
-import type { McpCaller, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
+import type { McpCaller, McpChange, McpHttpRequest, McpHttpResponse, McpServer, McpServerDeps } from "./types.ts";
+import {
+  LIST_READS,
+  RESOURCE_TEMPLATES,
+  asBytes,
+  completionsOf,
+  contentsOf,
+  isSkillName,
+  listedResources,
+  needsBytes,
+  promptOf,
+  promptsOf,
+  routeOf,
+} from "./resources.ts";
 
 /** structuredContent for a machine: the error as a model reads it, plus `code` (the same value as supportCode). */
 function withMachineCode(v: unknown): unknown {
@@ -42,7 +55,43 @@ function withMachineCode(v: unknown): unknown {
     : v;
 }
 
-export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-03-26", "2024-11-05"];
+/** The revisions a client opens with `initialize` (the handshake era). The first is what a client that asks for one we do not serve is given. */
+export const PROTOCOL_VERSIONS: readonly string[] = ["2025-06-18", "2025-11-25", "2025-03-26", "2024-11-05"];
+/** The revisions with no handshake and no session: every request says its version in `_meta`, and is answered on its own (2026-07-28 and later). */
+export const MODERN_VERSIONS: readonly string[] = ["2026-07-28"];
+/** Every revision this endpoint serves, newest first: what `server/discover` and a version refusal name. */
+export const SUPPORTED_VERSIONS: readonly string[] = [...MODERN_VERSIONS, ...[...PROTOCOL_VERSIONS].sort().reverse()];
+const META_VERSION = "io.modelcontextprotocol/protocolVersion";
+const META_CLIENT = "io.modelcontextprotocol/clientInfo";
+const META_CLIENT_CAPS = "io.modelcontextprotocol/clientCapabilities";
+const META_SERVER = "io.modelcontextprotocol/serverInfo";
+const META_SUBSCRIPTION = "io.modelcontextprotocol/subscriptionId";
+/** The most addresses one app watches, and the most streams one sign-in holds open. */
+const MAX_WATCHED = 100;
+const MAX_STREAMS = 8;
+/** The most streams the whole Space holds open, whoever asks: each costs a timer and a sign-in check every keep-alive. */
+const MAX_TOTAL_STREAMS = 200;
+/** A reserved stream whose response never started (the client went away between the answer and the first write) frees its place after this. */
+const UNSTARTED_MS = 10_000;
+/** A proof read that failed is not tried again for the same address and app for this long. */
+const DENIED_MS = 5_000;
+const KEEP_ALIVE_MS = 20_000;
+const SSE_HEADERS = { "content-type": "text/event-stream", "cache-control": "no-store", "x-accel-buffering": "no" };
+const sse = (message: unknown): string => `event: message\ndata: ${JSON.stringify(message)}\n\n`;
+/** Error codes the 2026-07-28 revision defines (its reserved range, -32020 to -32099). */
+export const HEADER_MISMATCH = -32020;
+export const UNSUPPORTED_PROTOCOL_VERSION = -32022;
+/** How long a client may keep a list before asking again. A list differs by caller, so it is never shared between sign-ins. */
+const LIST_TTL_MS = 5 * 60_000;
+const DISCOVER_TTL_MS = 60 * 60_000;
+/** "Resource not found" as the handshake revisions say it; 2026-07-28 says it as invalid params. */
+const RESOURCE_NOT_FOUND = -32002;
+/** Methods whose `params.name` or `params.uri` is mirrored in the Mcp-Name header. */
+const NAMED: Readonly<Record<string, "name" | "uri">> = {
+  "tools/call": "name",
+  "prompts/get": "name",
+  "resources/read": "uri",
+};
 export const MAX_RESULT_CHARS = 512 * 1024;
 const MAX_BODY = 1024 * 1024;
 const RECHECK_MS = 30_000;
@@ -108,6 +157,10 @@ interface Session {
   clientName: string | undefined;
   /** Asks this session already drew a card for: a repeat returns the same hold, and draws no second card. */
   asked: Set<string>;
+  /** The addresses a client of a handshake revision asked to watch (resources/subscribe): its GET stream is told when one changes. A client of the current revision names them on its listen request instead. */
+  subs: Set<string>;
+  /** The deferred tools this caller is listed from the start, whatever it searched for since: a stateless client's list never changes because of its own earlier requests. */
+  fixed: ReadonlySet<string>;
   /** Settles when the session ends: a call in flight stops waiting and fails. */
   gone: Promise<"gone">;
   end: () => void;
@@ -232,6 +285,10 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const threadId = caller.threadId ?? caller.sessionId;
     if (caller.preload) tools.preload(threadId, caller.preload);
     tools.preload(threadId, caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD);
+    const fixed = new Set([
+      ...(caller.preload ?? []),
+      ...(caller.kind === "outside" ? OUTSIDE_PRELOAD : ENGINE_PRELOAD),
+    ]);
     const ctx: ToolCtx = {
       space: caller.space,
       agentId: caller.principal.id,
@@ -259,6 +316,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       ctx,
       tokenKey,
       asked: new Set<string>(),
+      subs: new Set<string>(),
+      fixed,
       checkedAt: now(),
       protocol: PROTOCOL_VERSIONS[0] ?? "2025-06-18",
       clientName,
@@ -310,6 +369,15 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     ...listTools(s).map(toolView),
     ...(s.caller.kind === "outside" || !s.ctx.thread.planMode ? [USE_TOOL_VIEW] : []),
   ];
+  /** The list for a client with no handshake: the same for every request of this caller, in name order, so the client and the model's prompt cache can keep it. What tool_search found is called with use_tool. */
+  function stableToolViews(s: Session): unknown[] {
+    const set = s.tools.toolsFor(s.ctx);
+    const tools = [...set.listed, ...set.searchable.filter((t) => s.fixed.has(t.name))]
+      .filter((t) => allowed(s, t))
+      .map(toolView);
+    if (s.caller.kind === "outside" || !s.ctx.thread.planMode) tools.push(USE_TOOL_VIEW);
+    return tools.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+  }
 
   /** The text a model reads. The same data also travels as structuredContent unless it had to be cut: a cut answer is never sent twice. */
   const textResult = (value0: unknown, isError: boolean, structured0?: unknown): Record<string, unknown> => {
@@ -643,33 +711,171 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return { result: textResult(structured, true, structured) };
   }
 
-  async function dispatch(s: Session | null, req: Request): Promise<Response | null> {
+  /**
+   * A read made for a resource or a prompt: the named read tool, through this caller's tool session, so the access check, what stays with people and the audit are a tool call's. Null when it was refused,
+   * failed or is not there: the caller is never told which. `note` puts it on the app's activity, as a tool call is; the reads a list is built from are not noted one by one.
+   */
+  async function readFor(
+    s: Session,
+    tool: string,
+    args: Record<string, unknown>,
+    note: boolean,
+  ): Promise<{ data: unknown } | null> {
+    const t = deps.catalog.byName(tool);
+    if (!t || t.effects !== "read" || !allowed(s, t)) return null;
+    s.tools.preload(s.ctx.thread.threadId, [t.name]);
+    let data: { data: unknown } | null = null;
+    try {
+      const out = await Promise.race([s.tools.call(s.ctx, t.name, args), s.gone]);
+      if (out !== "gone" && out.kind === "result") data = { data: (out.result.content as { data?: unknown }).data };
+    } catch {
+      /* a read that failed adds nothing */
+    }
+    if (note) deps.onCall?.(s.caller, t.name, data ? "ok" : "error", { cap: t.cap, threadId: s.ctx.thread.threadId });
+    return data;
+  }
+
+  /**
+   * One message. `modern` is a request of the 2026-07-28 revision or later: it was not preceded by a handshake, so nothing here reads what an earlier request left behind, and its result says it is complete,
+   * who answered, and (for a list) how long it may be kept.
+   */
+  async function dispatch(s: Session | null, req: Request, modern = false): Promise<Response | null> {
     const id: Id = req.id ?? null;
     const isNote = req.id === undefined;
+    const done = (result: Record<string, unknown>, ttlMs?: number): Response =>
+      ok(
+        id,
+        modern
+          ? {
+              resultType: "complete",
+              ...result,
+              ...(ttlMs === undefined ? {} : { ttlMs, cacheScope: "private" }),
+              _meta: { ...(result["_meta"] as Record<string, unknown> | undefined), [META_SERVER]: info },
+            }
+          : result,
+      );
+    const instructions = s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS;
+    // an app connected from outside also gets the Space's things as resources and its skills as prompts; a CLI engine the host runs has both through its own tools, and is offered tools only
+    const more =
+      s?.caller.kind === "outside"
+        ? { resources: { subscribe: true }, prompts: { listChanged: true }, completions: {} }
+        : {};
+    const params = (req.params ?? {}) as Record<string, unknown>;
     switch (req.method) {
       case "initialize":
         return isNote
           ? null
           : ok(id, {
               protocolVersion: s?.protocol,
-              capabilities: { tools: { listChanged: false } },
+              capabilities: { tools: { listChanged: false }, ...more },
               serverInfo: info,
-              instructions: s?.caller.kind === "outside" ? OUTSIDE_INSTRUCTIONS : INSTRUCTIONS,
+              instructions,
             });
+      case "server/discover":
+        // the handshake's answer for a client that has none: asked for at any time, or never
+        if (!modern) break;
+        return isNote
+          ? null
+          : done(
+              { supportedVersions: SUPPORTED_VERSIONS, capabilities: { tools: {}, ...more }, instructions },
+              DISCOVER_TTL_MS,
+            );
+      case "resources/list": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        const [types, files, templates] = await Promise.all(
+          (["types", "files", "templates"] as const).map((k) =>
+            readFor(s, LIST_READS[k].tool, LIST_READS[k].args, false),
+          ),
+        );
+        return done(
+          { resources: listedResources({ types: types?.data, files: files?.data, templates: templates?.data }) },
+          LIST_TTL_MS,
+        );
+      }
+      case "resources/templates/list":
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        return done({ resourceTemplates: RESOURCE_TEMPLATES }, LIST_TTL_MS);
+      case "resources/read": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const uri = params["uri"];
+        // a thing the caller may not see and a thing that is not there are the same answer
+        const missing = (): Response =>
+          err(id, modern ? INVALID_PARAMS : RESOURCE_NOT_FOUND, "Resource not found", {
+            uri: typeof uri === "string" ? uri.slice(0, 512) : null,
+          });
+        const route = routeOf(uri);
+        if (!route) return missing();
+        let got = await readFor(s, route.tool, route.args, true);
+        if (got && needsBytes(route, got.data)) got = (await readFor(s, route.tool, asBytes(route).args, false)) ?? got;
+        if (!got) return missing();
+        return done({ contents: contentsOf(route, uri as string, got.data) }, 0);
+      }
+      case "resources/subscribe":
+      case "resources/unsubscribe": {
+        // the handshake revisions: what this session's GET stream is told about. The current revision names its addresses on subscriptions/listen.
+        if (modern) break;
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const uri = params["uri"];
+        if (typeof uri !== "string" || !routeOf(uri))
+          return err(id, RESOURCE_NOT_FOUND, "Resource not found", {
+            uri: typeof uri === "string" ? uri.slice(0, 512) : null,
+          });
+        if (req.method === "resources/unsubscribe") s.subs.delete(uri);
+        else if (s.subs.size < MAX_WATCHED) s.subs.add(uri);
+        else return err(id, INVALID_PARAMS, `One app watches at most ${MAX_WATCHED} addresses.`);
+        return ok(id, {});
+      }
+      case "prompts/list": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        if (params["cursor"] !== undefined) return err(id, INVALID_PARAMS, "That cursor is not one this server gave.");
+        const skills = await readFor(s, "skills_list", { agentId: s.caller.principal.id }, false);
+        return done({ prompts: promptsOf(skills?.data) }, LIST_TTL_MS);
+      }
+      case "prompts/get": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const name = params["name"];
+        const loaded = isSkillName(name)
+          ? await readFor(s, "load_skill", { name, agentId: s.caller.principal.id }, true)
+          : null;
+        const prompt = promptOf(
+          loaded?.data,
+          (params["arguments"] as Record<string, unknown> | undefined)?.["request"],
+        );
+        return prompt
+          ? done(prompt)
+          : err(id, INVALID_PARAMS, `Unknown prompt: ${typeof name === "string" ? name.slice(0, 64) : ""}`);
+      }
+      case "completion/complete": {
+        if (isNote) return null;
+        if (!s || s.caller.kind !== "outside") break;
+        const types = await readFor(s, LIST_READS.types.tool, LIST_READS.types.args, false);
+        return done({ completion: completionsOf(params["ref"], params["argument"], types?.data) });
+      }
       case "notifications/initialized":
       case "notifications/cancelled":
         return null;
       case "ping":
+        // gone from the protocol with the handshake
+        if (modern) break;
         return isNote ? null : ok(id, {});
       case "tools/list":
         if (isNote) return null;
-        return s ? ok(id, { tools: toolViews(s) }) : err(id, INVALID_REQUEST, "No session.");
+        if (!s) return err(id, INVALID_REQUEST, "No session.");
+        return modern ? done({ tools: stableToolViews(s) }, LIST_TTL_MS) : ok(id, { tools: toolViews(s) });
       case "tools/call": {
         if (isNote) return null;
         if (!s) return err(id, INVALID_REQUEST, "No session.");
         try {
           const r = await callTool(s, req.params, `${s.caller.sessionId}:${String(id)}`);
-          return "invalid" in r ? err(id, INVALID_PARAMS, r.invalid) : ok(id, r.result);
+          return "invalid" in r ? err(id, INVALID_PARAMS, r.invalid) : done(r.result);
         } catch {
           return err(id, INTERNAL_ERROR, "Something went wrong on our side.");
         }
@@ -718,8 +924,76 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
         return ok(id, { block: v.block ? v.block.reason : null, notes: [...told, ...v.notes] });
       }
       default:
-        return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);
+        break;
     }
+    return isNote ? null : err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`);
+  }
+
+  /** The value of a mirrored header: as sent, or the text inside the `=?base64?...?=` wrapping a client uses for a name that is not plain ASCII. Null when the wrapping is broken. */
+  const headerValue = (raw: string): string | null => {
+    const m = /^=\?base64\?([A-Za-z0-9+/]*={0,2})\?=$/.exec(raw);
+    if (!m) return raw;
+    try {
+      return new TextDecoder("utf-8", { fatal: true }).decode(
+        Uint8Array.from(atob(m[1] as string), (c) => c.charCodeAt(0)),
+      );
+    } catch {
+      return null;
+    }
+  };
+
+  /**
+   * A request that says its own version (2026-07-28): what is wrong with how it was sent, as the answer to give, or null when it is in order. The headers repeat the body so a proxy can route on them, and
+   * a request whose headers and body disagree is refused, so nothing in between can be told one thing while this server does another.
+   */
+  function modernRefusal(
+    req: Request,
+    meta: Record<string, unknown>,
+    headers: McpHttpRequest["headers"],
+  ): Response | null {
+    const id: Id = req.id ?? null;
+    const version = meta[META_VERSION];
+    const sent = headers["mcp-protocol-version"];
+    if (typeof version !== "string")
+      return err(id, INVALID_PARAMS, `Every request names its protocol version in _meta["${META_VERSION}"].`);
+    if (sent === undefined)
+      return err(id, HEADER_MISMATCH, "Header mismatch: the MCP-Protocol-Version header is missing.");
+    if (sent !== version)
+      return err(
+        id,
+        HEADER_MISMATCH,
+        `Header mismatch: MCP-Protocol-Version header value '${sent}' does not match body value '${version}'`,
+      );
+    if (!MODERN_VERSIONS.includes(version))
+      return err(id, UNSUPPORTED_PROTOCOL_VERSION, "Unsupported protocol version", {
+        supported: SUPPORTED_VERSIONS,
+        requested: version,
+      });
+    const caps = meta[META_CLIENT_CAPS];
+    if (caps === null || typeof caps !== "object" || Array.isArray(caps))
+      return err(
+        id,
+        INVALID_PARAMS,
+        `Every request carries _meta["${META_CLIENT_CAPS}"], an object (empty when there are none).`,
+      );
+    const method = headers["mcp-method"];
+    if (method === undefined) return err(id, HEADER_MISMATCH, "Header mismatch: the Mcp-Method header is missing.");
+    if (method !== req.method)
+      return err(
+        id,
+        HEADER_MISMATCH,
+        `Header mismatch: Mcp-Method header value '${method}' does not match body value '${req.method}'`,
+      );
+    const key = NAMED[req.method];
+    if (key) {
+      const named = (req.params as Record<string, unknown> | null | undefined)?.[key];
+      const raw = headers["mcp-name"];
+      if (raw === undefined) return err(id, HEADER_MISMATCH, "Header mismatch: the Mcp-Name header is missing.");
+      const value = headerValue(raw);
+      if (value === null || value !== named)
+        return err(id, HEADER_MISMATCH, `Header mismatch: Mcp-Name header does not match the ${key} in the body.`);
+    }
+    return null;
   }
 
   /** The session this token belongs to, or null. An outside agent's token is read on every request: it may have expired, or its sign-in may have ended, since the last one. */
@@ -759,6 +1033,186 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     return made;
   }
 
+  // ---- watching: the streams that stay open -------------------------------------------------------------------------------------------------------------------
+
+  interface Listener {
+    s: Session;
+    /** The addresses it watches now. */
+    uris(): ReadonlySet<string>;
+    prompts: boolean;
+    /** One notification, in the shape of its revision. */
+    notify(method: string, params: Record<string, unknown>): void;
+    /** Is its sign-in still good? Asked before it is told anything. */
+    valid(): Promise<boolean>;
+    end(): void;
+  }
+  /** An address that was just announced to a listener is not announced again within this time: one change often shows as several events (a task created and assigned). */
+  const QUIET_MS = 300;
+  const told = new WeakMap<Listener, Map<string, number>>();
+  /** Per listener: until when a failed proof read for a change is not made again, so a watcher of a hot address it may not read costs a read now and then, not one per event. */
+  const refused = new WeakMap<Listener, Map<string, number>>();
+  const listeners = new Set<Listener>();
+  const keepAliveMs = deps.keepAliveMs ?? KEEP_ALIVE_MS;
+  const unstartedMs = deps.unstartedMs ?? UNSTARTED_MS;
+  /** Places taken before a stream starts, so a burst of requests cannot all pass the check and then all open: the check and the taking are one step, with no wait between them. */
+  const taken = new WeakMap<Session, number>();
+  let takenTotal = 0;
+  function reserve(s: Session): { release(): void; started(): void } | null {
+    if ((taken.get(s) ?? 0) >= MAX_STREAMS || takenTotal >= MAX_TOTAL_STREAMS) return null;
+    taken.set(s, (taken.get(s) ?? 0) + 1);
+    takenTotal += 1;
+    let done = false;
+    const release = (): void => {
+      if (done) return;
+      done = true;
+      taken.set(s, Math.max(0, (taken.get(s) ?? 1) - 1));
+      takenTotal = Math.max(0, takenTotal - 1);
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(release, unstartedMs);
+    (timer as { unref?: () => void }).unref?.();
+    // a stream that has begun keeps its place until it ends: only a response that never began gives it up
+    return { release, started: () => clearTimeout(timer) };
+  }
+
+
+  /**
+   * A stream that stays open for one app. It is told only what it asked for, only while its sign-in stands (checked at every keep-alive, and before each notification), and it ends at once when the
+   * app is removed. `subId` is the listen request's id (the current revision); null is the GET stream of a handshake revision, which has no acknowledgment and no closing answer.
+   */
+  function openStream(
+    s: Session,
+    token: string,
+    origin: string | undefined,
+    subId: Id,
+    watch: { uris(): ReadonlySet<string>; prompts: boolean },
+    ack: Record<string, unknown> | null,
+    slot: { release(): void; started(): void },
+  ): McpHttpResponse {
+    const tag = subId === null ? {} : { _meta: { [META_SUBSCRIPTION]: subId } };
+    return {
+      status: 200,
+      headers: { ...SSE_HEADERS },
+      body: "",
+      stream: async ({ write, closed }) => {
+        slot.started();
+        try {
+          await run({ write, closed });
+        } finally {
+          slot.release();
+        }
+      },
+    };
+    async function run({ write, closed }: { write(chunk: string): void; closed: Promise<void> }): Promise<void> {
+      {
+        let over: (why: "ended") => void = () => undefined;
+        const ended = new Promise<"ended">((resolve) => {
+          over = resolve;
+        });
+        const l: Listener = {
+          s,
+          uris: watch.uris,
+          prompts: watch.prompts,
+          notify: (method, params) => write(sse({ jsonrpc: "2.0", method, params: { ...params, ...tag } })),
+          valid: async () => bySession.get(s.caller.sessionId) === s && (await deps.open(token, undefined, origin)) !== null,
+          end: () => over("ended"),
+        };
+        // the acknowledgment is the first thing on the stream, before any notification can be
+        if (ack)
+          write(sse({ jsonrpc: "2.0", method: "notifications/subscriptions/acknowledged", params: { ...tag, notifications: ack } }));
+        listeners.add(l);
+        const tick = setInterval(() => {
+          write(":\n\n");
+          void l.valid().then(
+            (good) => {
+              if (!good) l.end();
+            },
+            () => l.end(),
+          );
+        }, keepAliveMs);
+        (tick as { unref?: () => void }).unref?.();
+        const why = await Promise.race([closed.then(() => "client" as const), s.gone, ended]);
+        clearInterval(tick);
+        listeners.delete(l);
+        // an ending of our own doing says so, so the client knows it was not a dropped line; a client that went away is told nothing
+        if (why !== "client" && subId !== null)
+          write(sse(ok(subId, { resultType: "complete", _meta: { [META_SUBSCRIPTION]: subId, [META_SERVER]: info } })));
+      }
+    }
+  }
+
+  /** subscriptions/listen (2026-07-28): the one long request an app keeps open to be told what changed. It names what it wants; the acknowledgment names what it gets. */
+  function listen(s: Session, token: string, origin: string | undefined, req: Request): McpHttpResponse {
+    const id: Id = req.id ?? null;
+    if (s.caller.kind !== "outside")
+      return json(404, err(id, METHOD_NOT_FOUND, `Method not found: ${req.method}`));
+    const asked = (req.params as { notifications?: unknown } | null | undefined)?.notifications;
+    if (id === null || asked === null || typeof asked !== "object" || Array.isArray(asked))
+      return json(200, err(id, INVALID_PARAMS, "subscriptions/listen needs an id and a notifications object."));
+    const slot = reserve(s);
+    if (!slot)
+      return json(429, err(id, INVALID_REQUEST, `One app holds at most ${MAX_STREAMS} streams open, and this Space ${MAX_TOTAL_STREAMS}. Close one first.`));
+    const want = asked as { promptsListChanged?: unknown; resourceSubscriptions?: unknown };
+    // an address that is not one of this server's is left out of the acknowledgment, which is how the client learns it is not watched
+    const uris = new Set(
+      (Array.isArray(want.resourceSubscriptions) ? want.resourceSubscriptions : [])
+        .filter((u): u is string => typeof u === "string" && routeOf(u) !== null)
+        .slice(0, MAX_WATCHED),
+    );
+    const prompts = want.promptsListChanged === true;
+    return openStream(s, token, origin, id, { uris: () => uris, prompts }, {
+      ...(prompts ? { promptsListChanged: true } : {}),
+      ...(Array.isArray(want.resourceSubscriptions) ? { resourceSubscriptions: [...uris] } : {}),
+    }, slot);
+  }
+
+  /** Tell the apps that are watching. Each is told only after the proof read passes as that app, so what an app may not see it does not hear of. */
+  async function changed(change: McpChange): Promise<number> {
+    let sent = 0;
+    for (const l of [...listeners]) {
+      try {
+        const who = l.s.caller.actingFor ?? "";
+        const hits = (change.targets ?? []).filter(
+          (t) => l.uris().has(t.uri) && (t.people === undefined || t.people.includes(who)),
+        );
+        const prompts = change.prompts === true && l.prompts;
+        if (hits.length === 0 && !prompts) continue;
+        if (!(await l.valid())) {
+          l.end();
+          continue;
+        }
+        if (prompts) {
+          l.notify("notifications/prompts/list_changed", {});
+          sent += 1;
+        }
+        if (hits.length === 0) continue;
+        if (change.proof) {
+          const key = `${change.proof.tool} ${JSON.stringify(change.proof.args)}`;
+          const memo = refused.get(l) ?? new Map<string, number>();
+          refused.set(l, memo);
+          if (now() < (memo.get(key) ?? 0)) continue;
+          if (!(await readFor(l.s, change.proof.tool, change.proof.args, false))) {
+            memo.set(key, now() + DENIED_MS);
+            continue;
+          }
+        }
+        if (!listeners.has(l)) continue;
+        const recent = told.get(l) ?? new Map<string, number>();
+        told.set(l, recent);
+        for (const t of hits) {
+          const at = now();
+          if (at - (recent.get(t.uri) ?? -Infinity) < QUIET_MS) continue;
+          recent.set(t.uri, at);
+          l.notify("notifications/resources/updated", { uri: t.uri });
+          sent += 1;
+        }
+      } catch {
+        /* one app's stream never stops the others being told */
+      }
+    }
+    return sent;
+  }
+
   async function handle(req: McpHttpRequest): Promise<McpHttpResponse> {
     if (!originOk(req.headers["origin"])) return json(403, { error: "origin not allowed" });
     if (req.method === "DELETE") {
@@ -769,7 +1223,25 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       dropSession(s);
       return empty(204);
     }
-    // No server-initiated messages: a GET for an event stream is answered with the standard "not offered".
+    // GET is the notification stream of the handshake revisions (2025-11-25 and before), for an app that opened with initialize: it is told about the addresses it asked to watch with resources/subscribe.
+    // The current revision has no GET; its stream is the answer to a subscriptions/listen POST.
+    if (req.method === "GET" && /\btext\/event-stream\b/.test(req.headers["accept"] ?? "")) {
+      const token = bearer(req.headers["authorization"]);
+      if (!token) return unauthorized(req.origin);
+      const known = byToken.get(await sha256(token));
+      if (!known) {
+        // never seen: a sign-in that does not stand is refused so the app signs in again; a CLI engine's is told "not offered"
+        const who = await deps.open(token, undefined, req.origin);
+        if (!who) return unauthorized(req.origin, "invalid_token");
+        return empty(405, { allow: "POST, DELETE" });
+      }
+      if (known.caller.kind !== "outside") return empty(405, { allow: "POST, DELETE" });
+      const s = await sessionFor(token, known.tokenKey, undefined, req.origin);
+      if (!s) return unauthorized(req.origin, "invalid_token");
+      const slot = reserve(s);
+      if (!slot) return empty(429);
+      return openStream(s, token, req.origin, null, { uris: () => s.subs, prompts: true }, null, slot);
+    }
     if (req.method !== "POST") return empty(405, { allow: "POST, DELETE" });
     const token = bearer(req.headers["authorization"]);
     if (!token) return unauthorized(req.origin);
@@ -788,10 +1260,34 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     const tokenKey = await sha256(token);
     const init = items.find((i): i is Request => isRequest(i) && i.method === "initialize");
     const initializing = init !== undefined;
-    const named = (init?.params as { clientInfo?: { name?: unknown } } | null | undefined)?.clientInfo?.name;
+    // which era: a request that names its version in _meta (or in the header alone, which is then a request sent wrong) is answered on its own, with no handshake before it and no session after it
+    const metaOf = (i: unknown): Record<string, unknown> | null => {
+      const m = isRequest(i) ? (i.params as { _meta?: unknown } | null | undefined)?._meta : undefined;
+      return m !== null && typeof m === "object" && !Array.isArray(m) ? (m as Record<string, unknown>) : null;
+    };
+    const modern =
+      !initializing &&
+      (items.some((i) => META_VERSION in (metaOf(i) ?? {})) ||
+        MODERN_VERSIONS.includes(req.headers["mcp-protocol-version"] ?? ""));
+    const meta = modern ? (metaOf(items[0]) ?? {}) : {};
+    const named = modern
+      ? (meta[META_CLIENT] as { name?: unknown } | null | undefined)?.name
+      : (init?.params as { clientInfo?: { name?: unknown } } | null | undefined)?.clientInfo?.name;
     const clientName = typeof named === "string" ? named.slice(0, 120) : undefined;
     const s = await sessionFor(token, tokenKey, clientName, req.origin);
     if (!s) return unauthorized(req.origin, "invalid_token");
+    if (modern) {
+      const item = items[0];
+      if (batch || !isRequest(item)) return json(400, err(null, INVALID_REQUEST, "Send one request in each POST."));
+      const refusal = modernRefusal(item, meta, req.headers);
+      if (refusal) return json(400, refusal);
+      if (clientName !== undefined) s.clientName = clientName;
+      if (item.method === "subscriptions/listen") return listen(s, token, req.origin, item);
+      const r = await dispatch(s, item, true);
+      if (!r) return empty(202);
+      // an unknown method is 404 with the JSON-RPC error in the body, which is how a client tells this endpoint from an older server that has no such address
+      return json("error" in r && r.error.code === METHOD_NOT_FOUND ? 404 : 200, r);
+    }
     const header = req.headers["mcp-session-id"];
     if (header !== undefined && header !== s.caller.sessionId && !initializing) return empty(404);
 
@@ -824,5 +1320,8 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
       dropSession(s);
       return true;
     },
+    changed,
+    listeners: () => listeners.size,
+    streamSlots: () => takenTotal,
   };
 }

@@ -41,6 +41,7 @@ type Out = {
   endpoints: Array<{
       method: string;
       url: string;
+      shape?: unknown;
     }>;
 };
 ```
@@ -70,6 +71,7 @@ type Out = {
     "endpoints": [
       {
         "method": "example",
+        "shape": {},
         "url": "example"
       }
     ],

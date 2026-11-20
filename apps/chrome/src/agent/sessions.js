@@ -6,6 +6,9 @@
 import { overlayCursor, overlayHide, overlayShow } from "./overlay.js";
 import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
+/** After the last act of an agent in a tab, a real event is still its own for this long (events arrive a little after the command). */
+const TOUCH_GRACE_MS = 600;
+
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
 export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
@@ -82,9 +85,15 @@ export function createSessions({
   const plans = new Map();
   /** @type {Map<number, AgentRef>} tabs that wear a Take over or Stopped bar, and whose agent it is */
   const shown = new Map();
+  /** @type {Map<number, { n: number, last: number }>} tabs an agent is acting in right now (a tool call in flight), and when its last act ended */
+  const acts = new Map();
+  /** Agents whose tab the person touched while a call was running: they pause before their next step. @type {Set<string>} */
+  const pausing = new Set();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
+  /** Tabs being put into their agent's group right now: Chrome's group-changed event for these is our own doing, not the person's. @type {Set<number>} */
+  const grouping_ = new Set();
   /** @type {Map<string, number>} the Chrome tab group of each agent in this window set */
   const groupIds = new Map();
 
@@ -105,6 +114,15 @@ export function createSessions({
 
   /** Put a tab in its agent's group, "Vyre · <agent>", made on first use and found again by id. The group is the person's view of which tabs an agent has. @param {AgentRef} agent @param {number} tabId */
   async function group(agent, tabId) {
+    grouping_.add(tabId);
+    try {
+      await groupInner(agent, tabId);
+    } finally {
+      grouping_.delete(tabId);
+    }
+  }
+  /** @param {AgentRef} agent @param {number} tabId */
+  async function groupInner(agent, tabId) {
     if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function" || !ext.tabGroups) return;
     await quiet(async () => {
       let gid = groupIds.get(agent.id);
@@ -139,6 +157,7 @@ export function createSessions({
 
   /** @param {string} agentId */
   const goalText = (agentId) => {
+    if (pausing.has(agentId)) return "Pausing after this step";
     const g = goals.get(agentId) ?? "";
     const p = plans.get(agentId);
     return g && p && p.total > 0 ? `${g} · ${p.done} of ${p.total}` : g;
@@ -207,6 +226,9 @@ export function createSessions({
     clearTimer(d.timer);
     drivers.delete(tabId);
     refs.delete(tabId);
+    acts.delete(tabId);
+    // a touch that queued a pause belongs to the task it happened in: when the agent lets go of the tab, it does not carry over to the next task
+    pausing.delete(d.agent.id);
     for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
     await undraw(tabId);
     // The person's own tab goes back out of the agent's group when the agent lets go of it.
@@ -223,6 +245,7 @@ export function createSessions({
       const d = drivers.get(tabId);
       if (d && d.agent.id !== call.agent.id) fail("busy");
       if (!d) {
+        pausing.delete(call.agent.id);
         drivers.set(tabId, { agent: call.agent, space: call.space, since: now(), timer: null, goal: "" });
         /** @type {string} */
         let site = "";
@@ -254,6 +277,57 @@ export function createSessions({
     },
     release,
     group,
+    /** Before an agent's next step: did the person touch the tab during the last one? Then it stops here, the tab is theirs, and the answer is true. @param {string} agentId */
+    async takePausing(agentId) {
+      if (!pausing.delete(agentId)) return false;
+      await this.pause(agentId, "takeover");
+      return true;
+    },
+    /** A tool call starts acting in a tab, or ends. The agent's own clicks and keys reach the page as real events, so a person's touch counts only outside these moments. @param {number} tabId */
+    actStart(tabId) {
+      const a = acts.get(tabId) ?? { n: 0, last: 0 };
+      a.n++;
+      acts.set(tabId, a);
+    },
+    /** @param {number} tabId */
+    actEnd(tabId) {
+      const a = acts.get(tabId);
+      if (!a) return;
+      a.n = Math.max(0, a.n - 1);
+      a.last = now();
+    },
+    /** The page said the person touched it. Hands the tab to the person (the agent pauses and the bar says it is theirs) unless the agent is acting there. @param {number} tabId */
+    async touched(tabId) {
+      const d = drivers.get(tabId);
+      if (!d) return false;
+      const a = acts.get(tabId);
+      if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
+        // not lost: the agent finishes the step it is on, then stops, and the bar says so
+        if (!pausing.has(d.agent.id)) {
+          pausing.add(d.agent.id);
+          await draw(tabId, d.agent);
+        }
+        return false;
+      }
+      pausing.delete(d.agent.id);
+      await this.pause(d.agent.id, "takeover");
+      return true;
+    },
+    /**
+     * May the debugger go on this tab? In the person's own Chrome only a tab that sits in this agent's own tab group: a person's tab joins the group when they hand it over
+     * (begin puts it there), so a tab outside it is never debugged. An agent computer's browser has no groups and no person's tabs. @param {string} agentId @param {number} tabId
+     */
+    async inGroup(agentId, tabId) {
+      if (grouping_.has(tabId)) return true;
+      if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function") return true;
+      const gid = groupIds.get(agentId);
+      if (gid === undefined) return false;
+      try {
+        return (await ext.tabs.get(tabId)).groupId === gid;
+      } catch {
+        return false;
+      }
+    },
     /** The agent's cursor goes to a point; with `click`, a ring. @param {number} tabId @param {number} x @param {number} y @param {boolean} [click] */
     async cursor(tabId, x, y, click) {
       await quiet(() =>
@@ -338,6 +412,7 @@ export function createSessions({
      * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
+      pausing.delete(agentId);
       paused.set(agentId, { by, at: now() });
       for (const [tabId, d] of [...drivers]) {
         if (d.agent.id !== agentId) continue;

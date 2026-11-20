@@ -5,7 +5,7 @@
 import { hostWords } from "./host-words.ts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CARD_INSET, Card, CardActions, CardDeny, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import type { ConversationData } from "./data.tsx";
@@ -30,6 +30,7 @@ import { HeldCard } from "./held-card.tsx";
 import { HoldNote } from "./hold-note.tsx";
 import { madeByGate } from "../needsyou/model.ts";
 import type { HeldEditor } from "./held-card.tsx";
+import { webReadParts } from "../../../../../../lib/hold-words.ts";
 import { outwardOf, scheduleLine, verbOfChannel, whenWords } from "../../../../../../lib/outward.ts";
 import type { Outward, Recipient } from "../../../../../../lib/outward.ts";
 import { useFollow } from "./use-follow.ts";
@@ -563,8 +564,12 @@ export function ApprovalCard({
         {line ? <Text style={st.quietDetail}>{line}</Text> : null}
       </View>
     );
+  // a held read of a web page: the host on the first line, and the whole address in a block of its own that wraps and scrolls, so a person can read all of what would be opened
+  const webRead = held.cap === "computers.chrome.read" ? webReadParts(held.input) : null;
   // a key or a held act reads as what it wants
-  const headline = held.plain
+  const headline = webRead
+    ? `${agent} wants to read a web page on ${webRead.host}`
+    : held.plain
     ? `${agent} asks: ${task.title}`
     : held.what
       ? askLine(agent, held.what)
@@ -599,6 +604,15 @@ export function ApprovalCard({
             ),
           )}
           {diff.more > 0 ? <Text style={st.label}>{`+${diff.more} more`}</Text> : null}
+        </View>
+      ) : webRead ? (
+        <View testID={`approval-address-${taskId}`} style={st.excerpt}>
+          <Text style={st.label}>{`Address${webRead.address.length > 120 ? ` (${webRead.address.length} characters)` : ""}`}</Text>
+          <ScrollView style={st.address} nestedScrollEnabled>
+            <Text selectable style={st.mono} {...({ dataSet: { vyreAddress: "1" } } as object)}>
+              {webRead.address}
+            </Text>
+          </ScrollView>
         </View>
       ) : rows.length > 0 ? (
         <View testID={`approval-excerpt-${taskId}`} style={st.excerpt}>
@@ -682,6 +696,15 @@ const st = StyleSheet.create({
   label: { fontSize: 11.5, color: "var(--ink-3)" as string },
   link: { fontSize: 13, lineHeight: 18, color: "var(--accent)" as string },
   value: { fontSize: 13, lineHeight: 18, color: "var(--ink)" as string },
+  // about six lines of the monospaced address, then it scrolls
+  address: { maxHeight: 112 },
+  mono: {
+    fontSize: 12.5,
+    lineHeight: 18,
+    color: "var(--ink)" as string,
+    fontFamily: "monospace",
+    ...({ wordBreak: "break-all", whiteSpace: "pre-wrap" } as object),
+  },
   diffLine: { flexDirection: "row", gap: 8 },
   mark: { width: 12, fontSize: 13, fontWeight: "600" },
   del: { color: "var(--ink-3)" as string, textDecorationLine: "line-through" },

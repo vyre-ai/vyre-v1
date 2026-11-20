@@ -2,7 +2,7 @@
   "module": "gate",
   "capabilities": {
     "gate.acts.list@1": "e812f903063542c27b5a0c6511f1dadfd855652b0ed652e3e1f6694375fe8039",
-    "gate.allow.list@1": "b5cb702abdba1c44fde51c32f5e9e85807e46448c159c7e719c33e0ddc8e526b",
+    "gate.allow.list@1": "3f28f900feeb646e72c31b86fe56fa7bf81a399b43e8cf7877f322088c874b81",
     "gate.allow.remove@1": "dd3ff73999f0b00bcd69b66c14af028bb7bbe35c6d43206dbaa3417c7f79ee8d",
     "gate.allow.set@1": "2931a3792f4c82001f789cc03f66b1d72aed12af7440103b4fb6b8f32c64e5a5",
     "gate.deny@1": "14d821130834a364dc8f803e87b7cf4e1d146c64d74ca6eb1b86a51a3e088492",

@@ -17,7 +17,7 @@ What may go without asking: your Always allow rules and the automations your pre
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/gate/allow/list |
-| MCP tool | none |
+| MCP tool | gate_allow_list (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

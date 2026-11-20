@@ -219,6 +219,8 @@ export const WORDS = Object.freeze({
   no_element: "Nothing on the page matches that.",
   held_gone: "That held item is not waiting any more. Ask again.",
   not_public: "Agents browse the public web only. That address is on this computer or a private network.",
+  net_not_allowed:
+    "This site's network calls are not open to the agent. Add the site in Vault > Connections > Browser to let it read them.",
   read_only:
     "This agent may read this site but not act on it. The person gives it the Act right in Vyre, Vault, Connections, Browser.",
   not_in_batch: "That step cannot run inside a batch because it needs its own approval.",

@@ -174,3 +174,20 @@ test("composeFacts reads To, From, Subject and the message beside the control, n
     delete (globalThis as any).document;
   }
 });
+
+test("Chrome's group-changed event that arrives while the agent's own tab is being grouped is not a take-over", async () => {
+  const w = world();
+  const seen: boolean[] = [];
+  const realGroup = w.ext.tabs.group;
+  w.ext.tabs.group = async (o: any) => {
+    const made = await realGroup(o);
+    // the event for our own grouping reaches the worker before group() has returned to the sessions
+    seen.push(await w.s.inGroup("agt_scout", 1));
+    return made;
+  };
+  await w.s.begin(call(), 1);
+  assert.deepEqual(seen, [true], "still ours while grouping");
+  assert.equal(await w.s.inGroup("agt_scout", 1), true);
+  w.tabs.get(1).groupId = -1;
+  assert.equal(await w.s.inGroup("agt_scout", 1), false, "dragged out afterwards: not ours");
+});

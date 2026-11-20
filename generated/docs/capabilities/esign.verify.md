@@ -17,7 +17,7 @@ Is this file sealed, unchanged since, and sealed by this Space
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/esign/verify |
-| MCP tool | none |
+| MCP tool | esign_verify (files, deferred) |
 | CLI | none |
 | Emits | none |
 

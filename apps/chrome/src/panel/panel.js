@@ -36,6 +36,15 @@ const S = {
   selRemoved: false,
   records: /** @type {any[]} */ ([]),
   recOpen: false,
+  // connecting straight to a Space (no Vyre app): the address typed, what the panel is doing, and the Space this Chrome is connected to
+  direct: /** @type {{ name: string, address: string } | null} */ (null),
+  connect: /** @type {{ phase: "box" | "waiting", address: string, host: string, error: string, busy: boolean }} */ ({
+    phase: "box",
+    address: "",
+    host: "",
+    error: "",
+    busy: false,
+  }),
   conv: /** @type {Msg[]} */ ([]),
   threadId: /** @type {string | null} */ (null),
   sending: false,
@@ -467,6 +476,53 @@ function siteView() {
   );
 }
 
+/** Connect a Space: the address box, and the wait while the Space's own page is open in a tab. */
+function connectView() {
+  const c = S.connect;
+  if (c.phase === "waiting")
+    return [
+      h(
+        "div.xcon",
+        null,
+        mark(34),
+        h("h2", null, `Finish in the ${c.host} tab`),
+        h("div.sm.mut2", null, "Press Connect there. This panel fills in by itself."),
+        h("div.xwait", null, h("span.xspin"), "Waiting"),
+        h("button.btn.q", act("linkCancel"), "Cancel"),
+      ),
+    ];
+  return [
+    h(
+      "div.xcon",
+      null,
+      mark(34),
+      h("h2", null, "Connect a Space"),
+      h("div.sm.mut2", null, "You sign in there, the way you always do."),
+      h(
+        "div.xaddr",
+        null,
+        h("input.fld", {
+          id: "laddr",
+          value: c.address,
+          placeholder: "Space address",
+          "aria-label": "Space address",
+          autocomplete: "off",
+          spellcheck: "false",
+        }),
+        h("button.btn.pri", act("linkGo", c.busy ? { disabled: "" } : {}), "Connect"),
+      ),
+      c.error ? h("div.note.err", null, c.error) : null,
+      h(
+        "button.xfoot",
+        act("retry", { "data-tip": "Look for the Vyre app again" }),
+        ic("monitor", "s"),
+        h("span.grow", null, "Vyre app on this computer"),
+        h("span", null, "Not installed"),
+      ),
+    ),
+  ];
+}
+
 function offView() {
   /** @param {Node} big @param {string} t @param {string} d @param {Node | null} [x] */
   const e = (big, t, d, x = null) => [
@@ -478,13 +534,20 @@ function offView() {
       "Vyre is off in incognito",
       "Nothing in this window is read, captured or sent. Vault fill still works from the field badge.",
     );
-  if (S.status === "no_host")
+  // connected straight to a Space and it does not answer: say which, with a way out
+  if (S.direct && (S.status === "offline" || S.status === "no_host"))
     return e(
       mark(26),
-      "This browser can't find the Vyre app",
-      "Vyre is not set up for this browser yet. Open the Vyre app, then press Try again. If the app is not installed, install it first.",
-      h("button.btn", act("retry"), "Try again"),
+      `Can't reach ${S.direct.name}`,
+      "Check your connection. This panel reconnects when the Space answers. If this Chrome was signed out there, connect again.",
+      h(
+        "div",
+        { css: { display: "flex", gap: "8px", justifyContent: "center" } },
+        h("button.btn", act("retry"), "Try again"),
+        h("button.btn.q", act("linkOut"), "Disconnect"),
+      ),
     );
+  if (S.status === "no_host") return connectView();
   if (S.status === "needs_reload")
     return e(
       mark(26),
@@ -522,7 +585,7 @@ function render() {
   const atEnd = !conv || conv.scrollTop + conv.clientHeight >= conv.scrollHeight - 30;
   const focused = document.activeElement ? document.activeElement.id : "";
   const el = /** @type {HTMLTextAreaElement | null} */ (
-    focused === "q" || focused === "hq" || focused === "recname" ? document.activeElement : null
+    focused === "q" || focused === "hq" || focused === "recname" || focused === "laddr" ? document.activeElement : null
   );
   const caret = el ? [el.selectionStart, el.selectionEnd] : null;
   top();
@@ -633,6 +696,8 @@ async function loadState() {
       return;
     }
     S.status = st.status;
+    S.direct = st.direct ?? null;
+    if (S.direct && S.connect.phase === "waiting") S.connect = { ...S.connect, phase: "box", error: "" };
     S.locked = st.locked;
     S.spaces = st.spaces;
     S.active = st.active;
@@ -913,6 +978,56 @@ function pollRec() {
   );
 }
 
+/** @type {any} */
+let linkTimer = null;
+
+/** Open the Space's own page in a tab and wait for the Space to be linked: the panel fills in by itself. */
+async function linkGo() {
+  const c = S.connect;
+  if (c.busy) return;
+  const typed = c.address.trim();
+  if (!typed) {
+    S.connect = { ...c, error: "Type the Space's address." };
+    render();
+    return;
+  }
+  S.connect = { ...c, busy: true, error: "" };
+  render();
+  try {
+    const r = /** @type {any} */ (await ask("panel.link.begin", { address: typed }));
+    S.connect = { ...S.connect, phase: "waiting", host: new URL(r.origin).host, busy: false };
+    render();
+    clearInterval(linkTimer);
+    let tries = 0;
+    linkTimer = setInterval(async () => {
+      tries++;
+      try {
+        const l = /** @type {any} */ (await ask("panel.link.list"));
+        if (l && l.links && l.links.length) {
+          clearInterval(linkTimer);
+          await loadState();
+          return;
+        }
+      } catch {
+        /* the worker is waking */
+      }
+      // ten minutes is how long the Space's page can be answered; after that start again
+      if (tries > 400) {
+        clearInterval(linkTimer);
+        S.connect = { ...S.connect, phase: "box", error: "That took too long. Connect again." };
+        render();
+      }
+    }, 1500);
+  } catch (e) {
+    S.connect = {
+      ...S.connect,
+      busy: false,
+      error: /** @type {any} */ (e).code === "bad_input" ? "That is not a Space address." : "Could not start. Try again.",
+    };
+    render();
+  }
+}
+
 const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} */ ({
   space: (el) =>
     menu(el, [
@@ -929,6 +1044,15 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
           await loadState();
         },
       })),
+      ...(S.direct
+        ? [
+            {
+              icon: "x",
+              label: `Disconnect ${S.direct.name}`,
+              run: () => void A["linkOut"](document.body),
+            },
+          ]
+        : []),
       "-",
       { icon: "open", label: "Open Vyre", run: () => void ask("panel.open", { place: "chats" }).catch(() => {}) },
     ]),
@@ -1023,6 +1147,19 @@ const A = /** @type {Record<string, (el: HTMLElement) => void | Promise<void>>} 
   openVyre: () => void ask("panel.open", { place: "chats", id: S.threadId }).catch(() => {}),
   close: () => g.close(),
   retry: () => void loadState(),
+  linkGo: () => void linkGo(),
+  linkCancel: () => {
+    clearInterval(linkTimer);
+    S.connect = { ...S.connect, phase: "box", error: "", busy: false };
+    render();
+  },
+  linkOut: async () => {
+    if (!S.direct) return;
+    await ask("panel.link.signout", { address: S.direct.address }).catch(() => {});
+    S.direct = null;
+    S.connect = { phase: "box", address: "", host: "", error: "", busy: false };
+    await loadState();
+  },
   rec: () => {
     S.recOpen = !S.recOpen;
     render();
@@ -1331,6 +1468,7 @@ document.addEventListener("input", (e) => {
     autosize(/** @type {any} */ (t));
   }
   if (t.id === "recname") S.recName = t.value;
+  if (t.id === "laddr") S.connect.address = t.value;
   if (t.id === "hq") {
     S.hq = t.value;
     clearTimeout(searchTimer);
@@ -1351,6 +1489,11 @@ document.addEventListener("keydown", (e) => {
       e.preventDefault();
       items[(at + (e.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
     }
+    return;
+  }
+  if (t.id === "laddr" && e.key === "Enter" && !e.isComposing) {
+    e.preventDefault();
+    void linkGo();
     return;
   }
   if (t.id === "q" && e.key === "Enter" && !e.shiftKey && !e.isComposing) {

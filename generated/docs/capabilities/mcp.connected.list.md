@@ -17,7 +17,7 @@ The outside agents you connected; with all, every outside agent in the Space (ow
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/mcp/connected/list |
-| MCP tool | none |
+| MCP tool | mcp_connected_list (meta, deferred) |
 | CLI | none |
 | Emits | none |
 
@@ -40,6 +40,7 @@ type Out = {
       connectedAt: number;
       lastSeenAt?: number;
       calls: number;
+      lastDid?: string;
       setup?: boolean;
       person?: string;
     }>;
@@ -68,6 +69,7 @@ type Out = {
         "calls": 1,
         "clientName": "example",
         "connectedAt": 1760000000000,
+        "lastDid": "example",
         "lastSeenAt": 1760000000000,
         "person": "example",
         "redirectHost": "example",

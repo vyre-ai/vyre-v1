@@ -589,8 +589,10 @@ export function createClient(transport: Transport) {
         net: call("computers.chrome.net", 1),
         open: call("computers.chrome.open", 1),
         plan: call("computers.chrome.plan", 1),
+        read: call("computers.chrome.read", 1),
         resume: call("computers.chrome.resume", 1),
         screenshot: call("computers.chrome.screenshot", 1),
+        search: call("computers.chrome.search", 1),
         send: call("computers.chrome.send", 1),
         snapshot: call("computers.chrome.snapshot", 1),
         sources: call("computers.chrome.sources", 1),
@@ -3218,6 +3220,9 @@ export function createClient(transport: Transport) {
         export_mine: call("vault.items.export_mine", 1),
         list: call("vault.items.list", 1),
         match: call("vault.items.match", 1),
+      },
+      login: {
+        check: call("vault.login.check", 1),
       },
       policy: {
         get: call("vault.policy.get", 1),

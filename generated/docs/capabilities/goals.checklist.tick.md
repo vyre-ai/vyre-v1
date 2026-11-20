@@ -17,7 +17,7 @@ The owner ticks or unticks one condition of a checklist goal
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/goals/checklist/tick |
-| MCP tool | none |
+| MCP tool | goals_checklist_tick (tasks, deferred) |
 | CLI | none |
 | Emits | goal.created, goal.started, goal.updated, goal.status_changed, goal.progress, goal.woken, goal.resumed, goal.reported, goal.step_done, goal.budget_warned, goal.ended, goal.extended |
 

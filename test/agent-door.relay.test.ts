@@ -1,5 +1,6 @@
 // The box's half of the door for outside agents (host/src/seams/relay.ts): what the relay may hand to the daemon on the control socket. The public path stays as it was; the door is a short named list; an Authorization header gets
 // through on /mcp and nowhere else.
+import { proofFor } from "../host/src/seams/visitor-proof.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -79,6 +80,7 @@ test("Authorization reaches the daemon on /mcp alone, Cookie never, and a visito
   assert.equal(mcp?.headers.cookie, undefined);
   assert.equal(mcp?.headers["x-vyre-via"], "relay");
   assert.equal(mcp?.headers["x-vyre-visitor"], "203.0.113.5");
+  assert.equal(mcp?.headers["x-vyre-visitor-mac"], proofFor("203.0.113.5"), "the relay vouches for the visitor it saw, with a MAC of that value");
   assert.equal(del?.method, "DELETE");
   assert.equal(token?.headers.authorization, undefined);
   assert.equal(form?.headers.authorization, undefined);

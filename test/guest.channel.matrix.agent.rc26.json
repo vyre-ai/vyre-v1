@@ -6,7 +6,7 @@
   "reply.open": "ok",
   "reply.get": "ok",
   "reply.post": "ok",
-  "search": "error"
+  "search": "ok+finds"
  },
  "invite, agent in it": {
   "read.get": "ok",
@@ -15,7 +15,7 @@
   "reply.open": "ok",
   "reply.get": "ok",
   "reply.post": "ok",
-  "search": "error"
+  "search": "ok+finds"
  },
  "invite, owner not in it": {
   "read.get": "validation.not_found",
@@ -24,6 +24,6 @@
   "reply.open": "validation.not_found",
   "reply.get": "validation.not_found",
   "reply.post": "validation.not_found",
-  "search": "error"
+  "search": "ok"
  }
 }

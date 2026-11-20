@@ -433,12 +433,12 @@ test("Waiting on: an agent that waits on background work says so in the thread a
   );
 });
 
-test("Connect an outside agent: one link to copy, a line for Claude Code, and nothing to fill in", async () => {
+test("Connect an app: the sheet is a dialog with no token and no scope list, and a line for Claude Code that the CLI test proves", async () => {
   const s = createMountSample();
   const sheet = clean(
     renderToStaticMarkup(<ConnectOutsideAgent call={s.rt.call as ConnectProps["call"]} onClose={() => undefined} />),
   );
-  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an outside agent") && has(sheet, CONNECT_SUB));
+  assert.ok(has(sheet, 'role="dialog"') && has(sheet, "Connect an app") && has(sheet, CONNECT_SUB));
   assert.ok(!has(sheet, "token") && !has(sheet, "Reveal") && !has(sheet, "scope"), "no token and no scope list");
   assert.ok(has(sheet, 'data-testid="connect-done"'));
   const link = (await s.rt.call("mcp.connected.link", {})) as { url: string; claudeCode: string };

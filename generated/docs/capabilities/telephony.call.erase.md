@@ -11,13 +11,13 @@ Erase one call for good: its transcript, summary and recording file (governance 
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/telephony/call/erase |
-| MCP tool | none |
+| MCP tool | telephony_call_erase (inbox, deferred) |
 | CLI | none |
 | Emits | call.erased |
 

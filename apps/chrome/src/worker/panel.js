@@ -49,7 +49,7 @@ export function outgoing(chips, may, ctx) {
  *   views?: Map<number, string>,
  * }} deps
  */
-export function createPanel({ ext, bridge, store, privacy, context, views = new Map(), artifacts }) {
+export function createPanel({ ext, bridge, store, privacy, context, views = new Map(), artifacts, link }) {
   /** @type {Set<any>} */
   const ports = new Set();
   /** @type {Map<number, string>} the last selection seen in each tab */
@@ -144,6 +144,7 @@ export function createPanel({ ext, bridge, store, privacy, context, views = new 
           data: {
             off: null,
             status,
+            direct: link && link.current() ? { name: link.current().name, address: link.current().address } : null,
             view,
             locked: Boolean(hello && hello.locked),
             spaces: hello ? (hello.spaces ?? []) : [],
