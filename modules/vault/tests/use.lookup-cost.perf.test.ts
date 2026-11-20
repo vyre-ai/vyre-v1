@@ -6,11 +6,12 @@ import assert from "node:assert/strict";
 import * as v from "../handlers/index.ts";
 import * as u from "../handlers/use.ts";
 import { ROB, harness } from "../fixtures/harness.ts";
+import { assertWithinCpuAsync } from "../../../testkit/src/cpu-time.ts";
 
 type Json = Record<string, unknown>;
 const out = (x: unknown): Json => x as Json;
 
-/** The budget for 300 lookups by handle in a Vault of 1,000 items, in ms (the best of three runs). */
+/** The budget for 300 lookups by handle in a Vault of 1,000 items, in ms (one run, CPU time). */
 export const LOOKUP_300_BUDGET_MS = 600;
 
 test("lookup300: three hundred handle lookups in a Vault of a thousand items are inside the speed budget", async () => {
@@ -47,14 +48,8 @@ test("lookup300: three hundred handle lookups in a Vault of a thousand items are
     }
     return base(action, resource);
   };
-  const runs: number[] = [];
-  for (let r = 0; r < 3; r++) {
-    const t = performance.now();
+  await assertWithinCpuAsync(`300 lookups (budget ${LOOKUP_300_BUDGET_MS} ms)`, LOOKUP_300_BUDGET_MS, async () => {
     for (let i = 0; i < 300; i++) await u.use(h.ctx, { item: `#Service_${(i % 143) * 7}` });
-    runs.push(performance.now() - t);
-  }
-  const best = Math.min(...runs);
-  console.log(`lookup300 best ${best.toFixed(0)} ms (runs ${runs.map((x) => x.toFixed(0)).join(", ")})`);
-  assert.ok(best <= LOOKUP_300_BUDGET_MS, `300 lookups took ${best.toFixed(0)} ms, budget ${LOOKUP_300_BUDGET_MS}`);
+  });
   h.cleanup();
 });
