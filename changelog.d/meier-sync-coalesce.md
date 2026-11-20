@@ -3,3 +3,4 @@
 - The projection pass writes its cursor once per 20 ms slice instead of once per event.
 - New objects are registered in access a hundred to a statement in one transaction, the agent tool catalog is built in the first idle tick after the engine loads (not by the first turn), and the sealed-value pass of a sync gives the loop a turn every 15 ms.
 - A revoke hides the rows a device holds first, and a pull of a few hundred rows is one whole answer (no time cap on the change feed read).
+- A pull is cut after 120 ms of CPU (a page of 5,000 rows is five pages), the access rescan counts its budget in CPU time so a loaded machine answers as an idle one, a scan cut in the rows a device does not hold goes back to the rows it holds when access moves, and the loop-lag report names its jobs 'runningWhenNoticed'.
