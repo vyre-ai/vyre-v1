@@ -6,11 +6,17 @@ import { spawnSync } from "node:child_process";
 import { errorLine, guardRequest, guardUpgrade, rejectionCount, scrub } from "./safe-request.ts";
 import { PROOF_HEADER, proofFor, takeVisitor, visitorOfRequest } from "../seams/visitor-proof.ts";
 
-async function serve(handler: (req: http.IncomingMessage, res: http.ServerResponse) => unknown, errors: unknown[]): Promise<{ url: string; close(): Promise<void> }> {
+async function serve(
+  handler: (req: http.IncomingMessage, res: http.ServerResponse) => unknown,
+  errors: unknown[],
+): Promise<{ url: string; close(): Promise<void> }> {
   const server = http.createServer(guardRequest(handler, (_w, e) => void errors.push(e)));
   await new Promise<void>((ok) => server.listen(0, "127.0.0.1", ok));
   const port = (server.address() as { port: number }).port;
-  return { url: `http://127.0.0.1:${port}`, close: () => new Promise<void>((ok) => (server.closeAllConnections(), server.close(() => ok()))) };
+  return {
+    url: `http://127.0.0.1:${port}`,
+    close: () => new Promise<void>((ok) => (server.closeAllConnections(), server.close(() => ok()))),
+  };
 }
 
 test("a throw in pre-route code answers 500, is logged, and the next request is served", async () => {
@@ -124,9 +130,12 @@ test("what an error writes to a log is scrubbed: addresses are cut to origin and
 test("an async upgrade handler that rejects closes its socket, like a request's rejection answers 500", async () => {
   const errors: unknown[] = [];
   let destroyed = false;
-  guardUpgrade(async () => {
-    throw new Error("async injected");
-  }, (_w, e) => void errors.push(e))({} as http.IncomingMessage, { destroy: () => void (destroyed = true) } as never, Buffer.alloc(0));
+  guardUpgrade(
+    async () => {
+      throw new Error("async injected");
+    },
+    (_w, e) => void errors.push(e),
+  )({} as http.IncomingMessage, { destroy: () => void (destroyed = true) } as never, Buffer.alloc(0));
   await new Promise((r) => setTimeout(r, 20));
   assert.equal(destroyed, true);
   assert.equal(errors.length, 1);
@@ -142,14 +151,25 @@ test("hostile visitor headers through a real server: a non-ASCII, short, long an
     res.end("ok");
   }, errors);
   try {
-    const macs = [Buffer.from("é".repeat(64), "latin1").toString("latin1"), "a".repeat(63), "a".repeat(65), "z".repeat(64), proofFor("198.18.0.1")];
+    const macs = [
+      Buffer.from("é".repeat(64), "latin1").toString("latin1"),
+      "a".repeat(63),
+      "a".repeat(65),
+      "z".repeat(64),
+      proofFor("198.18.0.1"),
+    ];
     for (const mac of macs) {
-      const r = await fetch(`${s.url}/`, { headers: { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: mac } }).catch((e: unknown) => e);
+      const r = await fetch(`${s.url}/`, { headers: { "x-vyre-visitor": "203.0.113.9", [PROOF_HEADER]: mac } }).catch(
+        (e: unknown) => e,
+      );
       if (r instanceof Response) assert.equal(r.status, 200);
     }
     assert.equal((await fetch(`${s.url}/`)).status, 200, "the server is up after all of them");
     assert.equal(errors.length, 0, "none of them even threw");
-    assert.ok(seen.every((v) => v === "127.0.0.1"), "every one was keyed by its address");
+    assert.ok(
+      seen.every((v) => v === "127.0.0.1"),
+      "every one was keyed by its address",
+    );
   } finally {
     await s.close();
   }
@@ -158,27 +178,37 @@ test("hostile visitor headers through a real server: a non-ASCII, short, long an
 test("an upgrade that throws closes its socket and does not take the process down", () => {
   const errors: unknown[] = [];
   let destroyed = false;
-  guardUpgrade(() => {
-    throw new Error("injected");
-  }, (_w, e) => void errors.push(e))({} as http.IncomingMessage, { destroy: () => void (destroyed = true) } as never, Buffer.alloc(0));
+  guardUpgrade(
+    () => {
+      throw new Error("injected");
+    },
+    (_w, e) => void errors.push(e),
+  )({} as http.IncomingMessage, { destroy: () => void (destroyed = true) } as never, Buffer.alloc(0));
   assert.equal(destroyed, true);
   assert.equal(errors.length, 1);
 });
 
 test("scrub takes time proportional to its input: a hostile run of word boundaries cannot freeze the daemon while it logs", () => {
-  const best = (text: string): number => {
-    let m = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const t = performance.now();
-      scrub(text);
-      m = Math.min(m, performance.now() - t);
-    }
-    return m;
+  // one run, no retry. The budget is CPU time (what the scrub itself costs), not wall time: a busy machine slows a clock, not a computation. A wall ceiling still catches a hang.
+  const once = (text: string): { cpu: number; wall: number } => {
+    const c = process.cpuUsage();
+    const t = performance.now();
+    scrub(text);
+    const wall = performance.now() - t;
+    const u = process.cpuUsage(c);
+    return { cpu: (u.user + u.system) / 1000, wall };
   };
-  for (const text of ["a.".repeat(100_000), "a-".repeat(100_000), "http://".repeat(50_000), "a:/".repeat(100_000), ("x ".repeat(2000) + "password=").repeat(500)]) {
-    const ms = best(text);
+  for (const text of [
+    "a.".repeat(100_000),
+    "a-".repeat(100_000),
+    "http://".repeat(50_000),
+    "a:/".repeat(100_000),
+    ("x ".repeat(2000) + "password=").repeat(500),
+  ]) {
+    const { cpu, wall } = once(text);
     const out = scrub(text);
-    assert.ok(ms < 100, `${ms.toFixed(0)} ms (best of 3) for ${text.slice(0, 12)}`);
+    assert.ok(cpu < 100, `${cpu.toFixed(0)} ms of CPU for ${text.slice(0, 12)}`);
+    assert.ok(wall < 1000, `${wall.toFixed(0)} ms of wall time for ${text.slice(0, 12)}`);
     assert.ok(out.length <= 4000 + 100);
   }
 });
@@ -194,7 +224,11 @@ test("scrub removes short secrets too: a value after password= or token=, a Bear
     ["https://api.example.com/v1/x?token=abc#frag", "token=abc"],
   ];
   for (const [text, secret] of cases) assert.ok(!scrub(text).includes(secret), `${text} -> ${scrub(text)}`);
-  assert.match(scrub("fetch failed https://api.example.com/v1/x?token=abc"), /https:\/\/api\.example\.com\/v1\/x/, "the origin and path stay, they are what makes a log useful");
+  assert.match(
+    scrub("fetch failed https://api.example.com/v1/x?token=abc"),
+    /https:\/\/api\.example\.com\/v1\/x/,
+    "the origin and path stay, they are what makes a log useful",
+  );
   assert.match(scrub("password=hunter2"), /^password=/, "the name stays");
 });
 

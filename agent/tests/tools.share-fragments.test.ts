@@ -24,13 +24,18 @@ test("a shared fragment changes nothing but descriptions: every tool's schema is
   let changed = 0;
   for (const t of again) {
     assert.deepEqual(noWords(t.inputSchema), before.get(t.name), `${t.name}: shape kept`);
-    if (JSON.stringify(t.inputSchema) !== JSON.stringify(fresh.find((f) => f.name === t.name)!.inputSchema)) changed += 1;
+    if (JSON.stringify(t.inputSchema) !== JSON.stringify(fresh.find((f) => f.name === t.name)!.inputSchema))
+      changed += 1;
   }
   assert.ok(changed >= 0);
 });
 
 test("a fragment shared by three tools loses its words in the later two and nothing else; a small one is left alone", () => {
-  const big = { type: "object", properties: { a: { type: "string", description: "x".repeat(MIN_SHARED) }, b: { enum: ["p", "q"], type: "string" } }, required: ["b"] };
+  const big = {
+    type: "object",
+    properties: { a: { type: "string", description: "x".repeat(MIN_SHARED) }, b: { enum: ["p", "q"], type: "string" } },
+    required: ["b"],
+  };
   const out = shareFragments([
     { name: "a_one", inputSchema: { type: "object", properties: { cfg: big } } },
     { name: "b_two", inputSchema: { type: "object", properties: { cfg: big } } },
