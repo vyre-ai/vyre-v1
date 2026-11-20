@@ -312,3 +312,40 @@ test("a loopback address typed in the desktop app is asked like any other: a por
     done();
   }
 });
+
+test("the person pressed a Space's row: its sign-in shows the Space's name on first paint, before the Space has answered with its own", async () => {
+  installDom();
+  storage({ "vyre.spaces.v1": KNOWN });
+  const back = setQuietWaitsForTests([1, 1]);
+  let release: () => void = () => undefined;
+  const held = new Promise<void>((r) => (release = r));
+  g.fetch = (async (input: RequestInfo | URL) => {
+    const url = new URL(String(input));
+    if (url.origin !== "https://northwind.example") throw new TypeError("Failed to fetch");
+    if (url.pathname === "/healthz") return json(200, HEALTH);
+    if (url.pathname.endsWith("sign_in_options")) {
+      await held; // the Space has not answered with its own name yet
+      return json(200, { data: { ...OPTIONS.data, name: "Northwind Legal" } });
+    }
+    throw new TypeError("Failed to fetch");
+  }) as typeof fetch;
+  try {
+    desktopShell();
+    const root = await mount(createRoot, <SessionGate baseUrl={null} />);
+    await press(await until(root, "your-space-0"));
+    const user = await until(root, "si-user");
+    assert.ok(user);
+    assert.match(textOf(find(root, "step-sign-in")), /Sign in to Northwind\b/);
+    assert.doesNotMatch(textOf(find(root, "step-sign-in")), /your Space/, "no generic title");
+    release();
+    for (let i = 0; i < 20; i++) await flush();
+    assert.match(
+      textOf(find(root, "step-sign-in")),
+      /Sign in to Northwind Legal/,
+      "the Space's own name replaces it when it arrives",
+    );
+  } finally {
+    back();
+    done();
+  }
+});

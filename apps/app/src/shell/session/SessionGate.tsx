@@ -201,9 +201,16 @@ export function WithSpaceImage({ address, children }: { address: string | null; 
 }
 
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
-export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
+export function signInInvite(
+  baseUrl: string,
+  options: SignInOptions | null,
+  github = false,
+  sso = false,
+  knownName?: string,
+): JoinInvite {
   return {
-    space: spaceLabel(options?.name, baseUrl),
+    // the Space's own name once its options arrive; until then the name this device already knows it by (its row, its saved sign-in), so the title does not flash a generic line first
+    space: spaceLabel(options?.name ?? knownName, baseUrl),
     host: hostOf(baseUrl),
     by: "",
     role: "",
@@ -335,6 +342,7 @@ function SignInScreen({
   onUnreachable,
   username,
   unproven,
+  knownName,
 }: {
   baseUrl: string;
   open: NonNullable<SessionGateProps["open"]>;
@@ -347,6 +355,8 @@ function SignInScreen({
   username?: string | undefined;
   /** An address nothing proves is the Space this device knows (a second saved address): its sign-in shows the plain host, never a name or picture the address supplies. */
   unproven?: boolean;
+  /** What this device already calls the Space (its row in Your Spaces, its saved sign-in): shown as the title until the Space's own options arrive. */
+  knownName?: string | undefined;
 }): ReactElement {
   useEffect(() => {
     mark("app.usable");
@@ -405,9 +415,9 @@ function SignInScreen({
     };
   }, [anonymous, baseUrl]);
   const invite = useMemo(() => {
-    const made = signInInvite(baseUrl, options, true, true);
+    const made = signInInvite(baseUrl, options, true, true, unproven ? undefined : knownName);
     return unproven ? { ...made, space: made.host } : made;
-  }, [baseUrl, options, unproven]);
+  }, [baseUrl, options, unproven, knownName]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as {
@@ -2088,6 +2098,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       <SignInScreen
         baseUrl={activeAddress}
         unproven={unproven === activeAddress}
+        knownName={rows.find((r) => r.address === activeAddress)?.name}
         open={open}
         onSignedIn={signedIn}
         notice={notice}

@@ -89,8 +89,16 @@ test("the desktop app finds a Space where it is now: moved to the relay, moved t
       assert.match(await row("Lakeside").innerText(), /Lakeside\s+In your browser/);
       await row("Lakeside").click();
       await page.getByTestId("si-user").waitFor({ timeout: 20_000 });
-      // the Space's name arrives with its sign-in options: the screen is up first (the route table ships in the app), so wait for the name rather than read the title at once
-      await page.getByTestId("step-sign-in").getByText(/Sign in to Fresh Co/).waitFor({ timeout: 15_000 });
+      // the person pressed a row, so the screen already knows the Space's name: never the generic title first. The Space's own name replaces it when its sign-in options arrive.
+      assert.match(
+        await page.getByTestId("step-sign-in").innerText(),
+        /Sign in to (Lakeside|Fresh Co)/,
+        "the known name shows on first paint",
+      );
+      await page
+        .getByTestId("step-sign-in")
+        .getByText(/Sign in to Fresh Co/)
+        .waitFor({ timeout: 15_000 });
       assert.equal((await handedToBrowser(page)).length, 1, "nothing more went to the browser");
       await shoot(page, "12-moved-to-own-address");
       await page.getByTestId("back").click();
