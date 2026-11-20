@@ -45,6 +45,13 @@ const archived = t.obj({
   why: t.str({ description: "One sentence a person reads; empty when someone archived it by hand and gave no reason" }),
 });
 const doneWhenKind = t.enm("vault_item", "message_sent", "meeting_ended", "connection_on");
+// what proves a task done, as one string "kind:name" ("vault_item:Hosting key"); empty clears it (tasks.update)
+// a time the tools take, in the fewest words
+const ms = () => t.ts({ description: "Unix ms" });
+const doneWhenText = t.str({
+  pattern: "^((vault_item|message_sent|meeting_ended|connection_on):.+)?$",
+  examples: ["vault_item:Hosting key"],
+});
 const doneWhen = t.obj({
   kind: doneWhenKind,
   key: t.str({ minLength: 1 }),
@@ -434,11 +441,11 @@ export default defineManifest({
         assigned: assignee,
         reviewer: t.opt(assignee),
         approver: t.opt(assignee),
-        due: t.opt(t.ts()),
+        due: t.opt(ms()),
         effort: t.opt(t.int({ minimum: 0 })),
         priority: t.opt(priority),
         labels: t.opt(t.arr(t.str())),
-        start: t.opt(t.ts()),
+        start: t.opt(ms()),
         fields: t.opt(fieldValues),
         recur: t.opt(recur),
         recordId: t.opt(id.record),
@@ -446,14 +453,9 @@ export default defineManifest({
         source: t.opt(source),
         parentTaskId: t.opt(id.task),
         dependsOn: t.opt(t.arr(id.task)),
-        expiresAt: t.opt(t.ts()),
+        expiresAt: t.opt(ms()),
         relevantUntil: t.opt(t.ts({ description: "When it stops mattering" })),
-        doneWhen: t.opt(
-          t.str({
-            pattern: "^(vault_item|message_sent|meeting_ended|connection_on):.+$",
-            examples: ["vault_item:Hosting key"],
-          }),
-        ),
+        doneWhen: t.opt(doneWhenText),
         actions: t.opt(t.arr(action)),
         notes: t.opt(t.rec(t.str())), // working notes to start the task with: the brief, what done means, the schema its outputs must match
         decisionId: t.opt(t.str()),
@@ -476,7 +478,7 @@ export default defineManifest({
       label: "check",
       cli: "vyre tasks get",
     }),
-    read("tasks.list", "List tasks by scope (mine, assigned by me, following, a record, a run) and filters", {
+    read("tasks.list", "List tasks by scope (mine, given by me, following, a record, a run) and filters", {
       level: "member",
       in: {
         scope: t.enm("mine", "assigned_by_me", "following", "record", "run", "all"),
@@ -523,7 +525,7 @@ export default defineManifest({
           q: t.opt(
             t.str({
               maxLength: 200,
-              description: "Words to find in the title, key, brief, notes and summary of the tasks the reader sees",
+              description: "Words to find in title, key, brief, notes and summary",
             }),
           ),
           snoozed: t.opt(t.bool()), // only the open tasks that are snoozed
@@ -582,21 +584,22 @@ export default defineManifest({
           title: t.opt(t.str()),
           summary: t.opt(t.str()),
           why: t.opt(t.str()),
-          due: t.opt(t.nullable(t.ts())),
+          due: t.opt(t.nullable(ms())),
           effort: t.opt(t.nullable(t.int())),
           blocks: t.opt(t.arr(blockIn)),
           threadId: t.opt(id.thread),
           priority: t.opt(t.nullable(priority)),
           labels: t.opt(t.arr(t.str())),
-          start: t.opt(t.nullable(t.ts())),
+          start: t.opt(t.nullable(ms())),
           fields: t.opt(fieldValues),
           recur: t.opt(t.nullable(recur)),
+          doneWhen: t.opt(doneWhenText),
           parentTaskId: t.opt(t.nullable(id.task)),
           workerThread: t.opt(id.thread),
           expectedVersion: t.opt(
             t.int({
               minimum: 0,
-              description: "The version the editor saw; a task that moved on is refused with what changed",
+              description: "The version you saw; a task that changed is refused with what changed",
             }),
           ),
         },
@@ -676,7 +679,7 @@ export default defineManifest({
     ),
     write(
       "tasks.submit",
-      "Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done",
+      "Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else Approver, else Done",
       {
         in: {
           ...target,
@@ -695,7 +698,7 @@ export default defineManifest({
     ),
     write(
       "tasks.ask",
-      "Ask a question while you work: an Answer task opens for the requester or a named person, the work waits, the answer wakes you",
+      "Ask a question while you work: an Answer task opens for the requester or a named person, the work waits and the answer wakes you",
       {
         in: {
           ...target,
@@ -797,7 +800,7 @@ export default defineManifest({
       },
     ),
     write("tasks.snooze", "Snooze an open task until a time; null clears the snooze", {
-      in: { ...target, until: t.nullable(t.ts()) },
+      in: { ...target, until: t.nullable(ms()) },
       out: { task: taskRow },
       on: ["task", "/taskId"],
       level: "use",
@@ -817,7 +820,7 @@ export default defineManifest({
     }),
     write(
       "tasks.agent_on_it",
-      'Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only that person or the host',
+      'Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only they or the host',
       {
         in: { ...target, agentId: id.agent },
         out: { task: taskRow },
@@ -849,7 +852,7 @@ export default defineManifest({
               doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
               assigned: t.opt(assignee),
               recordId: t.opt(id.record),
-              due: t.opt(t.ts()),
+              due: t.opt(ms()),
             }),
           ),
           children: t.arr(planChild, { minItems: 1, maxItems: 50 }),
@@ -986,7 +989,7 @@ export default defineManifest({
     }),
     write(
       "tasks.working_notes.set",
-      "Write a working note (key, value) everyone on the task can read; send expectedFrom, the note as you last read it",
+      "Write a working note (key, value) everyone on the task can read; send expectedFrom: the note as you last read it",
       {
         in: {
           ...target,

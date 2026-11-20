@@ -45,6 +45,7 @@ type In = {
     every: "day" | "week" | "month";
     n?: number;
   }) | null;
+  doneWhen?: string;
   parentTaskId?: string | null;
   workerThread?: string;
   expectedVersion?: number;
@@ -153,6 +154,7 @@ type Out = {
         "v": 1
       }
     ],
+    "doneWhen": "vault_item:Hosting key",
     "due": 1760000000000,
     "effort": 1,
     "expectedVersion": 1,

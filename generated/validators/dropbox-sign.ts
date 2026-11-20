@@ -3,95 +3,29 @@
 import { checkIn, d_s_0a70adf1b7, d_s_f3add3544d, d_s_f34c269949, L0, L1, L3, L35, lf, typeOf } from './core.ts';
 import type { Check } from './core.ts';
 
-function c572_in(v: unknown, p: string, e: string[]): void {
-{
-const x2791 = v;
-const g2791 = typeOf(x2791);
-const b2791: string[] = []; lf(x2791, p, b2791, L0); if (b2791.length) e.push(...b2791);
-if (g2791 === "object") {
-if (g2791 === 'object') { const o2791 = x2791 as Record<string, unknown>;
-if (!("remoteId" in o2791)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2791) lf(o2791["remoteId"], p + "/remoteId", e, L1);
-}
-}
-}
-}
-
-function c572_out(v: unknown, p: string, e: string[]): void {
-{
-const x2792 = v;
-const g2792 = typeOf(x2792);
-const b2792: string[] = []; lf(x2792, p, b2792, L0); if (b2792.length) e.push(...b2792);
-if (g2792 === "object") {
-if (g2792 === 'object') { const o2792 = x2792 as Record<string, unknown>;
-if (!("cancelled" in o2792)) e.push(p + "/cancelled" + ': required');
-if ("cancelled" in o2792) lf(o2792["cancelled"], p + "/cancelled", e, L3);
-}
-}
-}
-}
-
-function c573_out(v: unknown, p: string, e: string[]): void {
-{
-const x2793 = v;
-const g2793 = typeOf(x2793);
-const b2793: string[] = []; lf(x2793, p, b2793, L0); if (b2793.length) e.push(...b2793);
-if (g2793 === "object") {
-if (g2793 === 'object') { const o2793 = x2793 as Record<string, unknown>;
-if (!("remoteId" in o2793)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2793) lf(o2793["remoteId"], p + "/remoteId", e, L1);
-}
-}
-}
-}
-
-function c574_in(v: unknown, p: string, e: string[]): void {
-{
-const x2794 = v;
-const g2794 = typeOf(x2794);
-const b2794: string[] = []; lf(x2794, p, b2794, L0); if (b2794.length) e.push(...b2794);
-if (g2794 === "object") {
-if (g2794 === 'object') { const o2794 = x2794 as Record<string, unknown>;
-if (!("remoteId" in o2794)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2794) lf(o2794["remoteId"], p + "/remoteId", e, L1);
-}
-}
-}
-}
-
-function c574_out(v: unknown, p: string, e: string[]): void {
-{
-const x2795 = v;
-const g2795 = typeOf(x2795);
-const b2795: string[] = []; lf(x2795, p, b2795, L0); if (b2795.length) e.push(...b2795);
-if (g2795 === "object") {
-if (g2795 === 'object') { const o2795 = x2795 as Record<string, unknown>;
-if (!("fileId" in o2795)) e.push(p + "/fileId" + ': required');
-if ("fileId" in o2795) lf(o2795["fileId"], p + "/fileId", e, L35);
-}
-}
-}
-}
-
 function c575_in(v: unknown, p: string, e: string[]): void {
 {
-const x2796 = v;
-const g2796 = typeOf(x2796);
-const b2796: string[] = []; lf(x2796, p, b2796, L0); if (b2796.length) e.push(...b2796);
-if (g2796 === "object") {
+const x2804 = v;
+const g2804 = typeOf(x2804);
+const b2804: string[] = []; lf(x2804, p, b2804, L0); if (b2804.length) e.push(...b2804);
+if (g2804 === "object") {
+if (g2804 === 'object') { const o2804 = x2804 as Record<string, unknown>;
+if (!("remoteId" in o2804)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2804) lf(o2804["remoteId"], p + "/remoteId", e, L1);
+}
 }
 }
 }
 
-function c576_in(v: unknown, p: string, e: string[]): void {
+function c575_out(v: unknown, p: string, e: string[]): void {
 {
-const x2797 = v;
-const g2797 = typeOf(x2797);
-const b2797: string[] = []; lf(x2797, p, b2797, L0); if (b2797.length) e.push(...b2797);
-if (g2797 === "object") {
-if (g2797 === 'object') { const o2797 = x2797 as Record<string, unknown>;
-if (!("remoteId" in o2797)) e.push(p + "/remoteId" + ': required');
-if ("remoteId" in o2797) lf(o2797["remoteId"], p + "/remoteId", e, L1);
+const x2805 = v;
+const g2805 = typeOf(x2805);
+const b2805: string[] = []; lf(x2805, p, b2805, L0); if (b2805.length) e.push(...b2805);
+if (g2805 === "object") {
+if (g2805 === 'object') { const o2805 = x2805 as Record<string, unknown>;
+if (!("cancelled" in o2805)) e.push(p + "/cancelled" + ': required');
+if ("cancelled" in o2805) lf(o2805["cancelled"], p + "/cancelled", e, L3);
 }
 }
 }
@@ -99,24 +33,90 @@ if ("remoteId" in o2797) lf(o2797["remoteId"], p + "/remoteId", e, L1);
 
 function c576_out(v: unknown, p: string, e: string[]): void {
 {
-const x2798 = v;
-const g2798 = typeOf(x2798);
-const b2798: string[] = []; lf(x2798, p, b2798, L0); if (b2798.length) e.push(...b2798);
-if (g2798 === "object") {
-if (g2798 === 'object') { const o2798 = x2798 as Record<string, unknown>;
-if (!("status" in o2798)) e.push(p + "/status" + ': required');
-if ("status" in o2798) lf(o2798["status"], p + "/status", e, L1);
+const x2806 = v;
+const g2806 = typeOf(x2806);
+const b2806: string[] = []; lf(x2806, p, b2806, L0); if (b2806.length) e.push(...b2806);
+if (g2806 === "object") {
+if (g2806 === 'object') { const o2806 = x2806 as Record<string, unknown>;
+if (!("remoteId" in o2806)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2806) lf(o2806["remoteId"], p + "/remoteId", e, L1);
+}
+}
+}
+}
+
+function c577_in(v: unknown, p: string, e: string[]): void {
+{
+const x2807 = v;
+const g2807 = typeOf(x2807);
+const b2807: string[] = []; lf(x2807, p, b2807, L0); if (b2807.length) e.push(...b2807);
+if (g2807 === "object") {
+if (g2807 === 'object') { const o2807 = x2807 as Record<string, unknown>;
+if (!("remoteId" in o2807)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2807) lf(o2807["remoteId"], p + "/remoteId", e, L1);
+}
+}
+}
+}
+
+function c577_out(v: unknown, p: string, e: string[]): void {
+{
+const x2808 = v;
+const g2808 = typeOf(x2808);
+const b2808: string[] = []; lf(x2808, p, b2808, L0); if (b2808.length) e.push(...b2808);
+if (g2808 === "object") {
+if (g2808 === 'object') { const o2808 = x2808 as Record<string, unknown>;
+if (!("fileId" in o2808)) e.push(p + "/fileId" + ': required');
+if ("fileId" in o2808) lf(o2808["fileId"], p + "/fileId", e, L35);
+}
+}
+}
+}
+
+function c578_in(v: unknown, p: string, e: string[]): void {
+{
+const x2809 = v;
+const g2809 = typeOf(x2809);
+const b2809: string[] = []; lf(x2809, p, b2809, L0); if (b2809.length) e.push(...b2809);
+if (g2809 === "object") {
+}
+}
+}
+
+function c579_in(v: unknown, p: string, e: string[]): void {
+{
+const x2810 = v;
+const g2810 = typeOf(x2810);
+const b2810: string[] = []; lf(x2810, p, b2810, L0); if (b2810.length) e.push(...b2810);
+if (g2810 === "object") {
+if (g2810 === 'object') { const o2810 = x2810 as Record<string, unknown>;
+if (!("remoteId" in o2810)) e.push(p + "/remoteId" + ': required');
+if ("remoteId" in o2810) lf(o2810["remoteId"], p + "/remoteId", e, L1);
+}
+}
+}
+}
+
+function c579_out(v: unknown, p: string, e: string[]): void {
+{
+const x2811 = v;
+const g2811 = typeOf(x2811);
+const b2811: string[] = []; lf(x2811, p, b2811, L0); if (b2811.length) e.push(...b2811);
+if (g2811 === "object") {
+if (g2811 === 'object') { const o2811 = x2811 as Record<string, unknown>;
+if (!("status" in o2811)) e.push(p + "/status" + ': required');
+if ("status" in o2811) lf(o2811["status"], p + "/status", e, L1);
 }
 }
 }
 }
 
 export const validators: Record<string, { in: Check; out: Check }> = {
-  "dropbox_sign.cancel@1": { in: c572_in, out: c572_out },
-  "dropbox_sign.create@1": { in: d_s_f3add3544d, out: c573_out },
-  "dropbox_sign.fetch_signed@1": { in: c574_in, out: c574_out },
-  "dropbox_sign.health@1": { in: c575_in, out: d_s_0a70adf1b7 },
-  "dropbox_sign.status@1": { in: c576_in, out: c576_out },
+  "dropbox_sign.cancel@1": { in: c575_in, out: c575_out },
+  "dropbox_sign.create@1": { in: d_s_f3add3544d, out: c576_out },
+  "dropbox_sign.fetch_signed@1": { in: c577_in, out: c577_out },
+  "dropbox_sign.health@1": { in: c578_in, out: d_s_0a70adf1b7 },
+  "dropbox_sign.status@1": { in: c579_in, out: c579_out },
 };
 
 export const eventValidators: Record<string, Check> = {

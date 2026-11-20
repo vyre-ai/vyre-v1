@@ -765,6 +765,7 @@ Added after the fifth look (lane r42-alive, 19 Nov 2026): `tasks.still_answer` a
 Added after the sixth look (lane r42-alive, 19 Nov 2026): `tasks.still_needed` items' `lookDone` is now `{ threadId, quote?, by?, at? }`: the quote, its author and time are returned only to a reader who is a member of that chat right now; anyone else gets the `threadId` alone ("Looks done, open the chat"). The reason shown for a task the look asked about is a fixed sentence; the model only picks ask or done. Signed: lead, 19 Nov 2026.
 
 Added for the tool-token budget (lane r42-alive, 20 Nov 2026, seventh look): `tasks.archive` also takes `back: true` (puts the task back, the same as `tasks.unarchive`, which stays a capability for the app but is no longer an agent tool); `tasks.create` also takes `doneWhen` as "kind:name", for example "vault_item:Hosting key" (what proves the task done, set at birth with the same refusals as `tasks.done_when`, which stays a capability and is no longer an agent tool); several tool descriptions of the tasks module are shortened. Additive; the tool-token measure is below the baseline. Signed: pending, lead.
+Added after the lead's note on the seventh look (lane r42-alive, 20 Nov 2026): `tasks.update` also takes `doneWhen` as "kind:name" (empty clears it), with the same refusals as at creation; the time inputs of `tasks.create`, `tasks.update`, `tasks.snooze` and `tasks.plan` describe themselves as "Unix ms". Additive. Signed: pending, lead.
 
 ## 19 Nov 2026: documents and signing for every Space (lane r42-docs), for the lead to sign
 

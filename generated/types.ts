@@ -12824,6 +12824,7 @@ export type DocumentsFieldsOut = {
       message: string;
       tag?: string;
     }>;
+  signers?: Array<string>;
 };
 export type DocumentsFillIn = {
   templateFileId: string;
@@ -12833,7 +12834,7 @@ export type DocumentsFillIn = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf";
+  format?: "docx" | "pdf" | "md";
   idempotencyKey: string;
 };
 export type DocumentsFillOut = {
@@ -12844,10 +12845,48 @@ export type DocumentsFillOut = {
   };
   missing: Array<string>;
   unused: Array<string>;
+  signers?: Array<string>;
+  layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
+};
+export type DocumentsMakeIn = {
+  template: string;
+  recordId: string;
+  values?: Record<string, unknown>;
+  signingDate?: string;
+  name?: string;
+  format?: "docx" | "pdf" | "md";
+};
+export type DocumentsMakeOut = {
+  file: {
+    fileId: string;
+    name: string;
+    versionId: string;
+  };
+  missing: Array<string>;
+  signers?: Array<string>;
+  layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
+};
+export type DocumentsMakePdfIn = {
+  fileId: string;
+  intoFolderId: string;
+  name?: string;
+  idempotencyKey: string;
+};
+export type DocumentsMakePdfOut = {
+  file: {
+    fileId: string;
+    name: string;
+    versionId: string;
+  };
+  pages: number;
+  signers?: Array<string>;
 };
 export type DocumentsMarkTemplateIn = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 export type DocumentsMarkTemplateOut = {
   ok: boolean;
@@ -12870,9 +12909,24 @@ export type DocumentsPreviewFillOut = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+  digest: string;
+};
+export type DocumentsSigningIn = {
+  fileId: string;
+};
+export type DocumentsSigningOut = {
+  signers: Array<string>;
+  places: Array<unknown>;
+  stale?: boolean;
+  plain?: boolean;
+  unchecked?: boolean;
+  templateFileId?: string;
+  recordId?: string;
 };
 export type DocumentsTemplatesListIn = {
   folder?: string;
+  recordType?: string;
+  name?: string;
   cursor?: string;
   limit?: number;
 };
@@ -12883,6 +12937,7 @@ export type DocumentsTemplatesListOut = {
       folderId: string;
       fields: number;
       updatedAt: number;
+      recordType?: string;
     }>;
   next?: string;
   total?: number;
@@ -15341,6 +15396,7 @@ export type EsignSendIn = {
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
   places?: Array<unknown>;
+  plainOk?: boolean;
   expiresInDays?: number;
   idempotencyKey: string;
 };
@@ -44271,6 +44327,7 @@ export type TasksUpdateIn = {
     every: "day" | "week" | "month";
     n?: number;
   }) | null;
+  doneWhen?: string;
   parentTaskId?: string | null;
   workerThread?: string;
   expectedVersion?: number;
@@ -49573,8 +49630,11 @@ export interface CapMap {
   "documenso.status": { in: DocumensoStatusIn; out: DocumensoStatusOut };
   "documents.fields": { in: DocumentsFieldsIn; out: DocumentsFieldsOut };
   "documents.fill": { in: DocumentsFillIn; out: DocumentsFillOut };
+  "documents.make": { in: DocumentsMakeIn; out: DocumentsMakeOut };
+  "documents.make_pdf": { in: DocumentsMakePdfIn; out: DocumentsMakePdfOut };
   "documents.mark_template": { in: DocumentsMarkTemplateIn; out: DocumentsMarkTemplateOut };
   "documents.preview_fill": { in: DocumentsPreviewFillIn; out: DocumentsPreviewFillOut };
+  "documents.signing": { in: DocumentsSigningIn; out: DocumentsSigningOut };
   "documents.templates.list": { in: DocumentsTemplatesListIn; out: DocumentsTemplatesListOut };
   "docusign.cancel": { in: DocusignCancelIn; out: DocusignCancelOut };
   "docusign.create": { in: DocusignCreateIn; out: DocusignCreateOut };
@@ -52276,6 +52336,7 @@ export type DocumentFilledPayload = {
 export type DocumentTemplateMarkedPayload = {
   fileId: string;
   isTemplate: boolean;
+  recordType?: string;
 };
 export type DocusignWebhookReceivedPayload = {
   providerEventId: string;
@@ -54565,11 +54626,17 @@ export type SheetRowUpdatedPayload = {
 };
 export type SignatureCancelledPayload = {
   envelopeId: string;
+  recordId?: string;
 };
 export type SignatureDeclinedPayload = {
   envelopeId: string;
   signer: string;
   reason?: string;
+  recordId?: string;
+};
+export type SignatureExpiredPayload = {
+  envelopeId: string;
+  recordId?: string;
 };
 export type SignatureSentPayload = {
   envelopeId: string;
@@ -54579,10 +54646,12 @@ export type SignatureSentPayload = {
 export type SignatureSignedPayload = {
   envelopeId: string;
   fileId: string;
+  recordId?: string;
 };
 export type SignatureViewedPayload = {
   envelopeId: string;
   signer: string;
+  recordId?: string;
 };
 export type SigninFailedPayload = {
   username: string;
@@ -56249,6 +56318,7 @@ export interface EventMap {
   "sheet.row_updated": SheetRowUpdatedPayload;
   "signature.cancelled": SignatureCancelledPayload;
   "signature.declined": SignatureDeclinedPayload;
+  "signature.expired": SignatureExpiredPayload;
   "signature.sent": SignatureSentPayload;
   "signature.signed": SignatureSignedPayload;
   "signature.viewed": SignatureViewedPayload;

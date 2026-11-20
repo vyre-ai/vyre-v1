@@ -829,6 +829,27 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("labels" in input && input.labels !== undefined) set("labels", [...new Set<string>(input.labels)]);
   if ("start" in input && input.start !== undefined) set("start", input.start ?? undefined);
   if ("recur" in input && input.recur !== undefined) set("recur", input.recur ?? undefined);
+  if ("doneWhen" in input && input.doneWhen !== undefined) {
+    // what proves the task done, "kind:name"; empty clears it. The same refusals as at creation
+    const text = String(input.doneWhen);
+    if (text === "") {
+      if (t.doneWhen !== undefined) {
+        ctx.db.run("DELETE FROM tasks_proof WHERE task_id = ?", t.id);
+        delete t.doneWhen;
+        changed.push("doneWhen");
+      }
+    } else {
+      const at = text.indexOf(":");
+      const kind = text.slice(0, at),
+        key = text.slice(at + 1);
+      await checkProof(ctx, t, kind, key);
+      const next = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+      if (JSON.stringify(t.doneWhen) !== JSON.stringify(next)) {
+        t.doneWhen = next;
+        changed.push("doneWhen");
+      }
+    }
+  }
   if ("fields" in input && input.fields !== undefined) {
     const next: Record<string, unknown> = { ...t.fields };
     for (const [k, v] of Object.entries(input.fields as Record<string, unknown>)) {

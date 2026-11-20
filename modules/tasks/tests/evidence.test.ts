@@ -162,3 +162,31 @@ test("tasks.archive with back puts a task back, the same as tasks.unarchive", as
   await h.call("tasks.archive", { taskId: id, back: true }, me);
   assert.equal((await get(h, id)).archived, undefined);
 });
+
+test("tasks.update sets, changes and clears what proves a task done, with the same refusals as at creation", async () => {
+  const h = world();
+  const id = await mk(h, "Put the key in the Vault");
+  await h.call("tasks.update", { taskId: id, doneWhen: "vault_item:Hosting Key" }, me);
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "vault_item", key: "hosting key" });
+  await h.call("tasks.update", { taskId: id, doneWhen: "message_sent:rec_client" }, me);
+  assert.deepEqual((await get(h, id)).doneWhen, { kind: "message_sent", key: "rec_client" });
+  assert.deepEqual(
+    await deliver(h, "vault.item_created", { itemId: "v", name: "hosting key" }),
+    [],
+    "the old proof no longer counts",
+  );
+  await h.call("tasks.update", { taskId: id, doneWhen: "" }, me);
+  assert.equal((await get(h, id)).doneWhen, undefined, "empty clears it");
+  assert.deepEqual(await deliver(h, "message.sent", { messageId: "m", channel: "email", contactId: "rec_client" }), []);
+  await h.call("tasks.update", { taskId: id, doneWhen: "vault_item:k2" }, me);
+  assert.deepEqual(await deliver(h, "vault.item_created", { itemId: "v", name: "k2" }), [id]);
+  // the refusals
+  const approve = (await h.call("tasks.create", newTask({ kind: "approve", title: "Approve" }), me)).task.id as string;
+  await assert.rejects(h.call("tasks.update", { taskId: approve, doneWhen: "vault_item:k" }, me));
+  const other = await mk(h, "Another");
+  await assert.rejects(h.call("tasks.update", { taskId: other, doneWhen: "nonsense:k" }, me));
+  await assert.rejects(
+    h.call("tasks.update", { taskId: other, doneWhen: "vault_item:k" }, { id: "usr_cara" }),
+    "someone not on the task cannot",
+  );
+});

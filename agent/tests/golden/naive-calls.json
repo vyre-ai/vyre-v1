@@ -1494,12 +1494,23 @@
   "documents_fill": {
     "templateFileId": "fil_a1b2c3"
   },
+  "documents_make": {
+    "template": "Service agreement",
+    "recordId": "rec_a1b2c3"
+  },
+  "documents_make_pdf": {
+    "fileId": "fil_a1b2c3",
+    "intoFolderId": "fld_a1b2c3"
+  },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
     "isTemplate": false
   },
   "documents_preview_fill": {
     "templateFileId": "fil_a1b2c3"
+  },
+  "documents_signing": {
+    "fileId": "fil_a1b2c3"
   },
   "documents_templates_list": {},
   "dropbox_files_create_folder": {

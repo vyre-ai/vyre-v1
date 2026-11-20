@@ -7,9 +7,9 @@ Requires: nothing.
 ## Capabilities (46)
 
 - [tasks.act](../capabilities/tasks.act.md): Act on a request at its source: approve, reject, send back, answer or resolve, with a note; the chat or run goes on at once
-- [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only that person or the host
+- [tasks.agent_on_it](../capabilities/tasks.agent_on_it.md): Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only they or the host
 - [tasks.archive](../capabilities/tasks.archive.md): Put away a task that no longer matters, with why; back: true puts it back. Not deleted
-- [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work: an Answer task opens for the requester or a named person, the work waits, the answer wakes you
+- [tasks.ask](../capabilities/tasks.ask.md): Ask a question while you work: an Answer task opens for the requester or a named person, the work waits and the answer wakes you
 - [tasks.assign](../capabilities/tasks.assign.md): Set or clear Assigned, Reviewer or Approver (person, agent, group, role or automation)
 - [tasks.block](../capabilities/tasks.block.md): Report what is in the way: an Unblock task opens for whoever the task escalates to, and the work waits
 - [tasks.by_key](../capabilities/tasks.by_key.md): Find a task by its short key, such as VY-123
@@ -33,7 +33,7 @@ Requires: nothing.
 - [tasks.index](../capabilities/tasks.index.md): A scope's long list in one read: a light row per task, newest first; send the last rev and an unchanged list answers nothing
 - [tasks.links.add](../capabilities/tasks.links.add.md): Link a record or file to a task
 - [tasks.links.remove](../capabilities/tasks.links.remove.md): Remove a record or file link
-- [tasks.list](../capabilities/tasks.list.md): List tasks by scope (mine, assigned by me, following, a record, a run) and filters
+- [tasks.list](../capabilities/tasks.list.md): List tasks by scope (mine, given by me, following, a record, a run) and filters
 - [tasks.my_work](../capabilities/tasks.my_work.md): My work: the full list in sections Open, Assigned by me, Done
 - [tasks.needs_you](../capabilities/tasks.needs_you.md): Needs you: my Ready Approve, Review, Answer and Unblock tasks, plus due today, overdue or blocking
 - [tasks.plan](../capabilities/tasks.plan.md): Break work into a parent (new or existing) and children in one step, each with brief, what done means, owner and dependencies. A child starts when they are done; the parent hears only when all are done or one is blocked or asks
@@ -44,14 +44,14 @@ Requires: nothing.
 - [tasks.snooze](../capabilities/tasks.snooze.md): Snooze an open task until a time; null clears the snooze
 - [tasks.still_answer](../capabilities/tasks.still_answer.md): Answer the card for one or several tasks: keep (not asked again for 90 days) or archive (put away, Put back undoes it)
 - [tasks.still_needed](../capabilities/tasks.still_needed.md): The card Still need these?: tasks the Space cannot tell about (a guessed moment passed), each with why it is asked; at most seven, oldest first
-- [tasks.submit](../capabilities/tasks.submit.md): Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else the Approver, else Done
+- [tasks.submit](../capabilities/tasks.submit.md): Hand in your part with outputs and a one-line summary; it goes to the Reviewer, else Approver, else Done
 - [tasks.take](../capabilities/tasks.take.md): Take a group or role task; the first Take locks it
 - [tasks.transition](../capabilities/tasks.transition.md): Move a task to a new status (the only writer of status); checks the state table and reviewer/approver rules
 - [tasks.unarchive](../capabilities/tasks.unarchive.md): Put an archived task back
 - [tasks.update](../capabilities/tasks.update.md): Edit title, summary, why, due, effort or blocks, or link its thread if none (status: tasks.transition)
 - [tasks.withdraw](../capabilities/tasks.withdraw.md): Withdraw open requests whose source chat or run stopped or whose item changed, or let one task go, with a note
 - [tasks.working_notes.delete](../capabilities/tasks.working_notes.delete.md): Delete a working note
-- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key, value) everyone on the task can read; send expectedFrom, the note as you last read it
+- [tasks.working_notes.set](../capabilities/tasks.working_notes.set.md): Write a working note (key, value) everyone on the task can read; send expectedFrom: the note as you last read it
 
 ## Events (28)
 

@@ -1,6 +1,6 @@
 # tasks.agent_on_it
 
-Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only that person or the host
+Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only they or the host
 
 | | |
 |---|---|

@@ -1,6 +1,6 @@
 # tasks.ask
 
-Ask a question while you work: an Answer task opens for the requester or a named person, the work waits, the answer wakes you
+Ask a question while you work: an Answer task opens for the requester or a named person, the work waits and the answer wakes you
 
 | | |
 |---|---|
