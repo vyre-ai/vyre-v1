@@ -180,6 +180,16 @@ function Board({ part }: { part: string }): ReactNode {
               { stage: "sign", count: 2, overLimit: 1 },
             ],
           };
+        // when each card entered its stage (the Journey's own read): a few days ago, so cards show their day and the late ones their late mark
+        if (cap === "journeys.stage_since") {
+          const ids = (i["recordIds"] as string[]) ?? [];
+          const since: Record<string, number> = {};
+          for (const id of ids) {
+            const r = (base.replica.rows(table) as unknown as RecordRow[]).find((x) => x.id === id);
+            if (r) since[id] = r.updatedAt;
+          }
+          return { since };
+        }
         if (cap === "records.activity") return { entries: [{ id: "e1", kind: "stage", at: NOW, actor: "usr_omar" }] };
         if (cap === "records.get")
           return { record: (base.replica.rows(table) as unknown as RecordRow[]).find((r) => r.id === i["recordId"]) };
