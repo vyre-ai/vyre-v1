@@ -56,7 +56,7 @@ test("every held site-operation call has words in the table", () => {
     assert.ok(HOLD_PHRASES[n], n);
 });
 
-test("sites.ops, and the plain calls behind its held actions, name the key-class Gate conditions (evaluated in modules/gate/tests/sites-ops-holds.test.ts)", () => {
+test("sites.ops, and the plain calls behind its held actions, name the key-class Gate conditions (evaluated in test/gate.sites-ops-holds.test.ts)", () => {
   assert.deepEqual(gate("sites.ops"), { act: "deploy", when: "sites.ops_gate(input)" });
   assert.deepEqual(gate("sites.job_create"), { act: "deploy", when: "sites.run_gate(input)" });
   assert.deepEqual(gate("sites.service_add"), { act: "deploy", when: "sites.run_gate(input)" });
