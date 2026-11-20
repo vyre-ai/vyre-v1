@@ -98,6 +98,43 @@ export async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: 
   }
 }
 
+/** The milliseconds the daemon itself reported its event loop blocked (the sum of every scheduler.loop_blocked line in its log). */
+export function loopLagMs(d: Daemon): number {
+  d.sink.flush();
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare("SELECT attrs FROM logs WHERE msg = 'scheduler.loop_blocked'")
+    .all() as Array<{ attrs: string | null }>;
+  let sum = 0;
+  for (const r of rows) {
+    try {
+      const lag = Number((JSON.parse(String(r.attrs ?? "{}")) as { lagMs?: unknown }).lagMs);
+      if (Number.isFinite(lag) && lag > 0) sum += lag;
+    } catch {
+      /* a line without attributes counts for nothing */
+    }
+  }
+  return sum;
+}
+
+/**
+ * waitFor for a thing the daemon's own scheduler does by itself (a retry, a pull). A loaded runner slips the scheduler's ticks by seconds, and the daemon
+ * says so in its log (scheduler.loop_blocked); the time it reported itself blocked is added to the deadline, so a stall the host admits to does not
+ * count against the wait, while a thing that never happens still fails (the credit is only what the log shows, and it is finite). The failure names the credit.
+ */
+export async function waitForScheduled<T>(d: Daemon, f: () => Promise<T | null>, ms = 40_000): Promise<T> {
+  const start = Date.now();
+  for (;;) {
+    const v = await f();
+    if (v !== null) return v;
+    const credit = loopLagMs(d);
+    if (Date.now() - start > ms + credit)
+      throw new Error(
+        `waitFor: it never happened within ${ms} ms plus ${credit} ms the daemon reported its loop blocked; host log ${hostLog(d)}`,
+      );
+    await new Promise<void>((r) => setTimeout(r, 200));
+  }
+}
+
 /** The owner's Claude account, the way a person connects it. */
 export async function connect(d: Daemon): Promise<string> {
   const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
