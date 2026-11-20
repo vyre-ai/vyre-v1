@@ -96,7 +96,11 @@ export interface ShellHostProps {
   initialSearchOpen?: boolean;
   voice?: LoadVoiceDevice | undefined;
   onAddSpace?: () => void;
+  /** The way out of a Space that will not open, besides trying again: the list of Spaces this device has used. */
+  onYourSpaces?: () => void;
   onSwitchSpace?: (spaceId: string) => void;
+  /** The saved Space could not be opened (not a sign-out): the gate asks where the Space is now. */
+  onUnreachable?: () => void;
 }
 
 export function ShellHost({
@@ -108,11 +112,15 @@ export function ShellHost({
   initialSearchOpen = false,
   voice,
   onAddSpace,
+  onYourSpaces,
   onSwitchSpace,
+  onUnreachable,
 }: ShellHostProps): ReactElement {
   const navRef = useRef<ShellHub | null>(null);
   const signedOutRef = useRef(onSignedOut);
   signedOutRef.current = onSignedOut;
+  const unreachableRef = useRef(onUnreachable);
+  unreachableRef.current = onUnreachable;
   const phoneGo = useRef<((p: PlaceId, hash: string) => void) | null>(null);
   const width = useWindowDimensions().width;
   const narrow = width > 0 && width < PHONE_BELOW;
@@ -256,6 +264,8 @@ export function ShellHost({
           return;
         }
         setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
+        // the gate asks where the Space is now: it may only need one more try, or it moved to Vyre's relay and opens in the browser (SessionGate shellUnreachable)
+        unreachableRef.current?.();
       });
     return () => {
       off = true;
@@ -635,6 +645,7 @@ export function ShellHost({
         next="Try again"
         retryable
         onRetry={() => setAttempt((n) => n + 1)}
+        {...(onYourSpaces ? { second: { label: "Your Spaces", onPress: onYourSpaces } } : {})}
       />
     ) : (
       <PlaceHost

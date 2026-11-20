@@ -12,12 +12,15 @@ import {
   Field,
   Foot,
   JoinFrame,
+  Links,
   Panel,
   Step,
+  TextButton,
   Title,
   Working,
 } from "./kit.tsx";
-import { NOT_AN_INVITE } from "./failure.ts";
+import { NOT_AN_INVITE, RECONNECTING } from "./failure.ts";
+import { ADDRESS_PLACEHOLDER, AddressHint } from "./Welcome.tsx";
 import { entryTarget } from "../shell/session/entry.ts";
 import type { EntryTarget } from "../shell/session/entry.ts";
 
@@ -28,11 +31,13 @@ export function SpaceEntry({
   onCreateMacServer,
   startAt,
 }: {
-  onTarget(target: EntryTarget): void | Promise<void>;
+  /** `onRetry` is called as each quiet retry starts, so the button can say Reconnecting. */
+  onTarget(target: EntryTarget, onRetry: () => void): void | Promise<void>;
   onBack(): void;
   onCreatePersonal?: () => Promise<void>;
   onCreateMacServer?: () => Promise<void>;
-  startAt?: "choice" | "join" | "team";
+  /** "add": Add a Space from Your Spaces, the one box first with Create a Space under it. */
+  startAt?: "choice" | "join" | "team" | "add";
 }): ReactElement {
   return (
     <JoinFrame>
@@ -60,19 +65,20 @@ function SpaceEntryBody({
   onCreateMacServer,
   startAt,
 }: {
-  onTarget(target: EntryTarget): void | Promise<void>;
+  onTarget(target: EntryTarget, onRetry: () => void): void | Promise<void>;
   onBack(): void;
   onCreatePersonal?: () => Promise<void>;
   onCreateMacServer?: () => Promise<void>;
-  startAt: "choice" | "join" | "team";
+  startAt: "choice" | "join" | "team" | "add";
 }): ReactElement {
-  const [page, setPage] = useState<Page>(startAt === "team" ? "create" : startAt);
+  const [page, setPage] = useState<Page>(startAt === "team" ? "create" : startAt === "add" ? "join" : startAt);
   const [value, setValue] = useState("");
   const [error, setError] = useState("");
   // create: first what (a Personal Space on this computer, or a Team Space), then for a team where it runs. A team set up from the first screen starts at the team.
   const [kind, setKind] = useState<null | "personal" | "team">(startAt === "team" ? "team" : null);
   const [where, setWhere] = useState<null | Where>(startAt === "team" && !onCreateMacServer ? "linux" : null);
   const [busy, setBusy] = useState<null | "target" | "personal" | "mac">(null);
+  const [retrying, setRetrying] = useState(false);
   const back = (): void => {
     if (busy) return;
     setError("");
@@ -87,11 +93,11 @@ function SpaceEntryBody({
       setValue("");
       return;
     }
-    if (page === "choice" || startAt === "team" || startAt === "join") {
+    if (page === "choice" || startAt === "team" || startAt === "join" || (startAt === "add" && page === "join")) {
       onBack();
       return;
     }
-    setPage("choice");
+    setPage(startAt === "add" ? "join" : "choice");
     setValue("");
     setKind(null);
     setWhere(null);
@@ -121,13 +127,15 @@ function SpaceEntryBody({
       return;
     }
     setBusy("target");
+    setRetrying(false);
     setError("");
     try {
-      await onTarget(target);
+      await onTarget(target, () => setRetrying(true));
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Couldn’t open this Space. Try again.");
     } finally {
       setBusy(null);
+      setRetrying(false);
     }
   };
   const createPersonal = async (): Promise<void> => {
@@ -161,7 +169,7 @@ function SpaceEntryBody({
   };
 
   const needsLink = page === "join" || (page === "create" && kind === "team" && where === "linux");
-  const submitLabel = busy === "target" ? "Opening" : "Continue";
+  const submitLabel = busy === "target" ? (retrying ? RECONNECTING : "Opening") : "Continue";
 
   // The waiting states replace the page: nothing to press while a server starts.
   if (busy === "personal")
@@ -185,7 +193,9 @@ function SpaceEntryBody({
     page === "choice"
       ? "Add a Space"
       : page === "join"
-        ? "Join a team"
+        ? startAt === "add"
+          ? "Add a Space"
+          : "Join a team"
         : kind === null
           ? "Create a Space"
           : kind === "personal"
@@ -195,6 +205,24 @@ function SpaceEntryBody({
               : "Where does it run?";
   return (
     <Panel
+      {...(startAt === "add" && page === "join"
+        ? {
+            below: (
+              <Links>
+                <TextButton
+                  testID="space-entry-create-link"
+                  label="Create a Space"
+                  disabled={!!busy}
+                  onPress={() => {
+                    setPage("create");
+                    setValue("");
+                    setError("");
+                  }}
+                />
+              </Links>
+            ),
+          }
+        : {})}
       bar={
         <Bar
           onBack={() => {
@@ -223,7 +251,7 @@ function SpaceEntryBody({
               testID="space-entry-join"
               icon="link"
               title="Join a Space"
-              help="An invite link or an address"
+              help="A name, an address or an invite link"
               onPress={() => setPage("join")}
             />
             <Choice
@@ -319,20 +347,24 @@ function SpaceEntryBody({
               testID="space-entry-address"
               disabled={busy === "target"}
               autoFocus={page === "join"}
-              label={page === "create" ? "Owner link" : "Invite link or address"}
+              label={page === "create" ? "Owner link" : "Space"}
               value={value}
               onChange={(next) => {
                 setValue(next);
                 setError("");
               }}
-              placeholder={page === "create" ? "https://your-server/claim/" : "your-space.vyre.run"}
+              placeholder={page === "create" ? "https://your-server/claim/" : ADDRESS_PLACEHOLDER}
               onSubmit={() => void submit()}
               error={!!error}
             />
           </View>
         ) : null}
 
-        <ErrorLine testID="space-entry-error">{error}</ErrorLine>
+        {page === "join" ? (
+          <AddressHint testID="space-entry-error" value={value} error={error} />
+        ) : (
+          <ErrorLine testID="space-entry-error">{error}</ErrorLine>
+        )}
       </Step>
     </Panel>
   );

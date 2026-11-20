@@ -207,7 +207,8 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
   assert.match(csp, /script-src 'self'/);
   assert.match(csp, /connect-src 'self' wss:\/\/relay\.vyre\.run/);
   assert.equal(shell.headers.get("cache-control"), "no-store");
-  const info = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
+  // rc.41 adds when a computer of the Space was last seen (a number while one is awake); everything else is exactly what it was
+  const { seenAt, ...info } = await (await rt.fetch("https://alex-phone.vyre.run/__vyre/info.json")).json();
   assert.deepEqual(info, {
     name: "alex-phone",
     label: "Home <laptop>",
@@ -216,6 +217,7 @@ test("the gateway: the shell while the box is online, '<nickname> is asleep' whi
     online: true,
     hooks: true,
   });
+  assert.equal(typeof seenAt, "number");
   // assets: found, the service worker may scope the origin, a missing file is a plain 404, and a write is refused
   assert.equal(await (await rt.fetch("https://alex-phone.vyre.run/__vyre/boot.js")).text(), "boot()");
   const sw = await rt.fetch("https://alex-phone.vyre.run/__vyre/sw.js");
@@ -916,6 +918,24 @@ test("info.json says the relay carries web request triggers, so the box can tell
   await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
   const j = await (await call(rt, "https://harbor.vyre.run/__vyre/info.json")).json();
   assert.equal(j.hooks, true);
+});
+
+test("any page may ask what a vyre.run name is: a held name says so with its nickname, a name nobody holds says it is free, and neither tells anything the name's own page does not get", async (t) => {
+  const rt = world(t);
+  await publicBox(t, rt, "harbor", (m, _b, ws) => reply(ws, m, 200, {}, "{}"));
+  const held = await call(rt, "https://harbor.vyre.run/__vyre/info.json");
+  assert.equal(held.status, 200);
+  assert.equal(held.headers.get("access-control-allow-origin"), "*");
+  const j = await held.json();
+  assert.equal(j.name, "harbor");
+  assert.equal(j.online, true);
+  assert.ok("seenAt" in j, "when a computer was last seen, for an asleep line said elsewhere");
+  const free = await call(rt, "https://nobody-here.vyre.run/__vyre/info.json");
+  assert.equal(free.status, 404);
+  assert.equal(free.headers.get("access-control-allow-origin"), "*");
+  assert.deepEqual(await free.json(), { name: "nobody-here", held: false });
+  // only that one address of a free name is answered here; everything else still goes to the host's own origin
+  assert.notEqual((await call(rt, "https://nobody-here.vyre.run/")).headers.get("access-control-allow-origin"), "*");
 });
 
 test("a name that came back to the relay answers /sw.js with a worker that retires the app's own (an address change leaves no stale worker)", async (t) => {
