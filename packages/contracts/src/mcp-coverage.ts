@@ -99,6 +99,8 @@ const VIA_MAIL_CONFIGURE =
   "An agent reaches it through the mail_configure tool (actions status, test, smtp_get, smtp_set, smtp_verify, address_list, address_add, address_move); the Gate, permission and audit apply as when a person presses the button.";
 const VIA_SITES_OPS =
   "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's lock, ownership checks and the Gate apply as for a person.";
+const DOC_SIGNING =
+  "System call: esign.send asks it for a PDF's signing places and exact-copy state; agents get the roles from documents_make (signers) and esign_send.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -132,9 +134,10 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^computers\.|^terminal\./, COMPUTER],
   // classified 20 Nov 2026 (rc.43 integration), each from what the code does: the server's own calls, a person's card, app plumbing, and the calls an agent already reaches through a grouped tool
   [
-    /^access\.folder_narrow$|^sites\.head_check$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$|^documents\.signing$/,
+    /^access\.folder_narrow$|^sites\.head_check$|^runs\.node\.(beat|claim|reclaim|event|label|move|start)$|^runs\.message\.(seen|take)$/,
     SYSTEM,
   ],
+  [/^documents\.signing$/, DOC_SIGNING],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move))$/, VIA_MAIL_CONFIGURE],
