@@ -1903,6 +1903,33 @@ test("Take over leaves a bar that says You're in control with Give back; giving 
   assert.match((await w.call("chrome_snapshot")).tree, /Sign in/);
 });
 
+test("the bar never obeys the agent: a press on Give back that is the agent's own click is ignored, a person's at another place is not", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchMouseEvent" && p.type === "mouseReleased") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_click", { x: 5, y: 5 });
+  await w.advance(0);
+  port.send({ type: "takeover" });
+  await w.advance(0);
+  assert.equal(w.overlay.get(7).state, "takeover");
+  port.send({ type: "giveback", x: 5, y: 6 });
+  await w.advance(0);
+  assert.equal(w.overlay.get(7)?.state, "takeover", "the agent's own click on Give back did not give the tab back");
+  port.send({ type: "giveback", x: 500, y: 300 });
+  await w.advance(0);
+  assert.equal(w.overlay.size, 0, "the person's press at another place did");
+  release();
+  await step.catch(() => undefined);
+  w.ext.debugger.sendCommand = orig;
+});
+
 test("Stopped offers Resume, which goes on, and End task, which tells the app the task ended", async () => {
   const w = await ready();
   await w.call("chrome_snapshot");

@@ -125,29 +125,41 @@ export function overlayShow(o) {
       g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
     // A button on the bar acts when it is pressed, not when it is let go: the bar is drawn again as the agent works (its line grows, it moves) and a release that lands somewhere else
     // is no click, so a person's press on Stop or Take over, the one moment it matters, would be lost. The click that follows a press is ignored; a click with no press (the keyboard) acts.
-    /** @param {any} btn @param {() => void} fn */
-    const onPress = (btn, fn) => {
-      let at = 0;
-      btn.addEventListener("pointerdown", (/** @type {any} */ e) => {
-        if (!e.isTrusted || (e.button !== undefined && e.button !== 0)) return;
-        e.preventDefault();
-        e.stopPropagation();
-        at = Date.now();
-        fn();
-      });
+    // End and Open Vyre are the exceptions: End cannot be undone and Open Vyre opens a tab, and neither is urgent, so they act when the button is let go on it and a person can slide off to cancel.
+    // Each message says where the press was (rounded), so the worker can tell the agent's own click on the bar from a person's hand and ignore it.
+    /** @param {any} btn @param {(at: { x: number, y: number } | {}) => void} fn @param {boolean} [onRelease] */
+    const onPress = (btn, fn, onRelease = false) => {
+      let pressed = false;
+      const where = (/** @type {any} */ e) =>
+        e && e.detail !== 0 && Number.isFinite(e.clientX) ? { x: Math.round(e.clientX), y: Math.round(e.clientY) } : {};
+      if (!onRelease) {
+        btn.addEventListener("pointerdown", (/** @type {any} */ e) => {
+          if (!e.isTrusted || (e.button !== undefined && e.button !== 0)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          pressed = true;
+          fn(where(e));
+        });
+        // the gesture is over when the pointer goes up or is cancelled: a press let go elsewhere must not swallow a later keyboard click
+        for (const t of ["pointerup", "pointercancel"])
+          g.addEventListener(t, () => void setTimeout(() => (pressed = false), 0), true);
+      }
       btn.addEventListener("click", (/** @type {any} */ e) => {
         e.preventDefault();
         e.stopPropagation();
-        if (Date.now() - at < 1000) return;
-        fn();
+        if (pressed) {
+          pressed = false;
+          return;
+        }
+        fn(where(e));
       });
     };
-    onPress(stop, () => port && port.postMessage({ type: "stop" }));
-    onPress(open, () => port && port.postMessage({ type: "openvyre" }));
-    onPress(give, () => port && port.postMessage({ type: "giveback" }));
-    onPress(resume, () => port && port.postMessage({ type: "giveback" }));
-    onPress(end, () => port && port.postMessage({ type: "endtask" }));
-    onPress(take, () => port && port.postMessage({ type: "takeover" }));
+    onPress(stop, (at) => port && port.postMessage({ type: "stop", ...at }));
+    onPress(open, (at) => port && port.postMessage({ type: "openvyre", ...at }), true);
+    onPress(give, (at) => port && port.postMessage({ type: "giveback", ...at }));
+    onPress(resume, (at) => port && port.postMessage({ type: "giveback", ...at }));
+    onPress(end, (at) => port && port.postMessage({ type: "endtask", ...at }), true);
+    onPress(take, (at) => port && port.postMessage({ type: "takeover", ...at }));
     // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
     // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
     let lastTouch = 0;

@@ -93,6 +93,26 @@ export function createSessions({
   const pausing = new Set();
   /** What the agent sent to each tab in the last moments: its kind (pointer, wheel, key) and, for a pointer, where. @type {Map<number, Array<{ at: number, kind: string, x: number, y: number, code: string }>>} */
   const ownAt = new Map();
+  /**
+   * Is this report from the page the agent's own input, sent a moment ago? Same kind and place or key; a match uses up the entry it matched.
+   * @param {number} tabId @param {{ kind?: string, x?: number, y?: number, code?: string } | undefined} info
+   */
+  function matchOwn(tabId, info) {
+    const t = now();
+    const kind = info?.kind === "key" || info?.kind === "wheel" ? info.kind : "pointer";
+    const sent = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
+    const at = sent.findIndex(
+      (o) =>
+        o.kind === kind &&
+        (kind === "wheel" ||
+          (kind === "key"
+            ? o.code === String(info?.code ?? "")
+            : Math.abs(o.x - Number(info?.x)) <= 3 && Math.abs(o.y - Number(info?.y)) <= 3)),
+    );
+    if (at >= 0) sent.splice(at, 1);
+    ownAt.set(tabId, sent);
+    return at >= 0;
+  }
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
@@ -275,6 +295,8 @@ export function createSessions({
     },
     /** @param {number} tabId */
     touch: arm,
+    /** A press on one of the bar's buttons, at this place: was it the agent's own click (a person's hand is not)? A match uses up the agent's input. @param {number} tabId @param {number} x @param {number} y */
+    ownPress: (tabId, x, y) => matchOwn(tabId, { kind: "pointer", x, y }),
     /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId @param {string} method @param {any} params */
     ownInput(tabId, method, params) {
       if (method !== "Input.dispatchMouseEvent" && method !== "Input.dispatchKeyEvent") return;
@@ -326,22 +348,7 @@ export function createSessions({
       const d = drivers.get(tabId);
       if (!d) return false;
       // the page's report (kind, rounded place, and for a key its physical key code, which on a normal layout names the character) reaches only this worker, is matched here and is kept nowhere
-      // what the agent sent a moment ago and the page now reports, of the same kind and place or key, is the agent's own event, used up by the match; anything else
-      // (a click elsewhere in the middle of typing, a key the agent did not send) is the person's
-      const t = now();
-      const kind = info?.kind === "key" || info?.kind === "wheel" ? info.kind : "pointer";
-      const sent = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
-      const at = sent.findIndex(
-        (o) =>
-          o.kind === kind &&
-          (kind === "wheel" ||
-            (kind === "key"
-              ? o.code === String(info?.code ?? "")
-              : Math.abs(o.x - Number(info?.x)) <= 3 && Math.abs(o.y - Number(info?.y)) <= 3)),
-      );
-      if (at >= 0) sent.splice(at, 1);
-      ownAt.set(tabId, sent);
-      if (at >= 0) return false;
+      if (matchOwn(tabId, info)) return false;
       const a = acts.get(tabId);
       if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
         // not lost: the agent finishes the step it is on, then stops, and the bar says so

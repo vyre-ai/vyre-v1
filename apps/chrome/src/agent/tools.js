@@ -23,6 +23,7 @@ import {
   markSecret,
   pageRequest,
   pointInfo,
+  pointOnBar,
   probe,
   revealElement,
   scrollTo,
@@ -231,8 +232,10 @@ export function createTools(kit) {
   const marks = (tabId) => ({ navigations: traffic.navigations(tabId), loads: traffic.loads(tabId) });
 
   /** @param {number} tabId @param {string} type @param {number} x @param {number} y @param {"left" | "right" | "middle"} [button] @param {number} [clickCount] */
-  const mouse = (tabId, type, x, y, button = "left", clickCount = 1) =>
-    cdp.send(tabId, "Input.dispatchMouseEvent", {
+  const mouse = async (tabId, type, x, y, button = "left", clickCount = 1) => {
+    // the agent never presses Vyre's own control bar (Stop, Take over, Give back, Resume): that spot is the person's
+    if (type === "mousePressed" && (await evalPage(tabId, pointOnBar, x, y))) fail("bar");
+    return cdp.send(tabId, "Input.dispatchMouseEvent", {
       type,
       x,
       y,
@@ -240,6 +243,7 @@ export function createTools(kit) {
       buttons: type === "mouseReleased" ? 0 : button === "left" ? 1 : button === "right" ? 2 : 4,
       clickCount,
     });
+  };
 
   /** @param {number} tabId @param {ReturnType<typeof parseKey>} k */
   async function sendKey(tabId, k) {

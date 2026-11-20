@@ -610,9 +610,10 @@ test(
             r.page.evaluate(
               () => (globalThis as any)[Symbol.for("vyre.agent.overlay")].bar.getBoundingClientRect().width,
             );
-          const before = await width();
           await r.page.mouse.move(at.x, at.y);
           await r.page.mouse.down();
+          await new Promise((res) => setTimeout(res, 250)); // let any redraw the press itself causes settle
+          const before = await width();
           // while the button is held down, the bar is drawn again with a longer line (what the next chrome_plan or snapshot does): it grows and its buttons move
           await r.page.evaluate(() => {
             const o = (globalThis as any)[Symbol.for("vyre.agent.overlay")];
@@ -629,6 +630,101 @@ test(
         }
       }
     } finally {
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "the agent's click on the bar is refused; a long press acts once; a press let go elsewhere does not swallow a keyboard click",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light");
+    try {
+      await r.page.goto(`${srv.url}/`);
+      await r.call("chrome_plan", { goal: "Sign in" });
+      await r.call("chrome_snapshot");
+      const take = await boxOf(r.page, "button", "Take over");
+      await assert.rejects(
+        r.call("chrome_click", { x: Math.round(take.x), y: Math.round(take.y) }),
+        (e: any) => e.code === "bar" && /control bar/.test(e.message),
+        "the agent may not click where the bar is",
+      );
+      assert.equal((await r.call("chrome_status")).paused, false, "and the bar did not obey it");
+      // a press held for two seconds acts once
+      await r.page.mouse.move(take.x, take.y);
+      await r.page.mouse.down();
+      await new Promise((res) => setTimeout(res, 1500));
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal((await r.call("chrome_status")).paused, true, "the long press took the tab over");
+      await r.call("chrome_resume");
+      await r.call("chrome_snapshot");
+      // pressed on Take over and let go elsewhere, then the keyboard: the press is over, so the keyboard click acts
+      const again = await boxOf(r.page, "button", "Take over");
+      await r.page.mouse.move(again.x, again.y);
+      await r.page.mouse.down();
+      await r.page.mouse.move(again.x, again.y - 300);
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      await r.call("chrome_resume");
+      await r.call("chrome_snapshot");
+      await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].take.click());
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(
+        (await r.call("chrome_status")).paused,
+        true,
+        "a keyboard click after a press let go elsewhere acts",
+      );
+    } finally {
+      await r.close();
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "End acts when the button is let go on it: pressing it and sliding off cancels, a plain click ends the task",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light");
+    try {
+      await r.page.goto(`${srv.url}/`);
+      await r.call("chrome_plan", { goal: "Sign in" });
+      await r.call("chrome_snapshot");
+      const stop = await boxOf(r.page, "button", "Stop");
+      await r.page.mouse.click(stop.x, stop.y);
+      const end = await boxOf(r.page, "button", "End task");
+      await r.page.mouse.move(end.x, end.y);
+      await r.page.mouse.down();
+      await r.page.mouse.move(end.x, end.y - 200);
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(
+        r.sentEvents.some((e: any) => e.event === "ended"),
+        false,
+        "pressing End and sliding off does not end the task",
+      );
+      await r.page.mouse.click(end.x, end.y);
+      await new Promise((res) => setTimeout(res, 300));
+      assert.ok(
+        r.sentEvents.some((e: any) => e.event === "ended"),
+        "a click on End ends it",
+      );
+    } finally {
+      await r.close();
       await browser.close();
       await srv.close();
     }
