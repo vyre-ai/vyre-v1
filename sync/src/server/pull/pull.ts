@@ -60,10 +60,8 @@ const stampReady = new WeakSet<object>();
 const SCAN_DDL =
   "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
 /** One slice of a rescan holds the event loop at most this long (ms). */
-const SCAN_SLICE_MS = 20;
-const SCAN_ASK_MAX = 150;
-/** A pull stops reading the change feed after this long (ms) and says there is more. */
-const PULL_SLICE_MS = 30;
+const SCAN_SLICE_MS = 25;
+const SCAN_ASK_MAX = 175;
 function ensureStamp(db: Tx): void {
   if (stampReady.has(db)) return;
   db.exec(STAMP_DDL);
@@ -227,7 +225,7 @@ function rescanChanged(
       );
       return false;
     }
-    scan = { stamp, ent: "", rid: "" };
+    scan = { stamp, ent: "h:", rid: "" };
   }
   const sees = (row: RowRec): boolean => {
     const cfg = d.catalog.get(row.entity);
@@ -262,27 +260,43 @@ function rescanChanged(
   // The scan goes through the rows in (entity, id) order, at most SCAN_SLICE_MS of work a call, and keeps its place: on a Space of hundreds of thousands of rows one pass held the event loop for
   // seconds, and every commit with an access change started another. `eff` is what the device is taken to hold at this cursor (a mark newer than the cursor is not acknowledged yet).
   // A change of the access state while a scan runs is looked at by the next scan, started when this one ends.
+  // Two passes, in this order: first the rows the device holds (a revoke must hide them at once, and a person who holds a few rows sees it in the first pull), then the rows it does not hold (a share
+  // given sends them; a slow arrival there costs a wait, not a leak). The place is kept as the pass and the last (entity, id) it looked at.
   const t0 = performance.now();
-  let ent = scan.ent,
+  let phase: "h" | "m" = scan.ent.startsWith("m:") ? "m" : "h",
+    ent = scan.ent.slice(2),
     rid = scan.rid,
     done = false;
+  const COLS = "r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields";
+  const EVIS = "(CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END)";
   for (;;) {
-    const rows = db.all<RowRec & { has: number; evis: number | null }>(
-      `SELECT r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields, (s.id IS NOT NULL) AS has,
-              (CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END) AS evis
-         FROM sync_rows r LEFT JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
-        WHERE r.deleted = 0 AND (r.entity > ? OR (r.entity = ? AND r.id > ?)) ORDER BY r.entity, r.id LIMIT 100`,
-      cursor,
-      who.person,
-      who.device,
-      ent,
-      ent,
-      rid,
-    );
+    const rows =
+      phase === "h"
+        ? db.all<RowRec>(
+            `SELECT ${COLS} FROM sync_seen_rows s JOIN sync_rows r ON r.entity = s.entity AND r.id = s.id
+              WHERE s.person = ? AND s.device = ? AND r.deleted = 0 AND ${EVIS} = 1 AND (s.entity > ? OR (s.entity = ? AND s.id > ?))
+              ORDER BY s.entity, s.id LIMIT 100`,
+            who.person,
+            who.device,
+            cursor,
+            ent,
+            ent,
+            rid,
+          )
+        : db.all<RowRec>(
+            `SELECT ${COLS} FROM sync_rows r LEFT JOIN sync_seen_rows s ON s.person = ? AND s.device = ? AND s.entity = r.entity AND s.id = r.id
+              WHERE r.deleted = 0 AND (s.id IS NULL OR ${EVIS} = 0) AND (r.entity > ? OR (r.entity = ? AND r.id > ?))
+              ORDER BY r.entity, r.id LIMIT 100`,
+            who.person,
+            who.device,
+            cursor,
+            ent,
+            ent,
+            rid,
+          );
     let full = false;
     for (const row of rows) {
-      const holds = row.has === 1 && row.evis === 1;
-      if (holds !== sees(row)) ask(row.entity, row.id);
+      if ((phase === "h") !== sees(row)) ask(row.entity, row.id);
       ent = row.entity;
       rid = row.id;
       // each row asked for is an event the log writes and the feed folds: a slice asks for at most this many; the clock is read per row, so a large row cannot carry a slice past its time
@@ -293,8 +307,13 @@ function rescanChanged(
     }
     if (full) break;
     if (rows.length < 100) {
-      done = true;
-      break;
+      if (phase === "m") {
+        done = true;
+        break;
+      }
+      phase = "m";
+      ent = "";
+      rid = "";
     }
     if (performance.now() - t0 >= SCAN_SLICE_MS) break;
   }
@@ -307,7 +326,7 @@ function rescanChanged(
       who.person,
       who.device,
       scan.stamp,
-      ent,
+      `${phase}:${ent}`,
       rid,
     );
     return true;
@@ -366,7 +385,6 @@ export function pullChanges(
       reset: "purge",
     };
   const scanning = rescanChanged(d, who, viewer, window, cursor, trace, onScope);
-  const began = performance.now();
   const scanLimit = limit * 4;
   const scan = db.all<ChangeRec>(
     `SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`,
@@ -464,8 +482,7 @@ export function pullChanges(
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
       if (
         used >= limit ||
-        (maxBytes !== undefined && weight >= maxBytes) ||
-        performance.now() - began >= PULL_SLICE_MS
+        (maxBytes !== undefined && weight >= maxBytes)
       ) {
         stopped = true;
         break;
