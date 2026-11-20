@@ -288,7 +288,43 @@ export function assigneeOf(ctx: Ctx): { kind: "person" | "agent"; id: string } |
 
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
-async function send(ctx: Ctx, input: unknown): Promise<{ envelopeId: string }> {
+/**
+ * What the exact-copy check was about, handed back by documents.signing: the version of the file it looked at and, when it read the bytes, their SHA-256. The send reads the bytes after the check, so a version
+ * uploaded in between would be sent although the check saw an older one: `assertHead` compares the bytes about to be sent with the hash (when there is one) and the head with the version (when there is one),
+ * and refuses on a difference. The check's own read is the only extra read: the send does not read the file twice. An answer that names neither is refused.
+ */
+export interface Pin {
+  version?: string;
+  sha?: string;
+}
+async function shaOfBytes(bytes: Uint8Array): Promise<string> {
+  const d = new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>));
+  return Array.from(d, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+export async function assertHead(ctx: Ctx, fileId: string, pin: Pin, bytes: Uint8Array): Promise<void> {
+  const moved = (): never =>
+    fail(
+      ctx,
+      "validation.version_conflict",
+      "This file changed while it was being sent. Nothing was sent. Check the new version and send again.",
+      { field: "fileId", changed: true },
+    );
+  if (pin.sha === undefined && pin.version === undefined)
+    fail(
+      ctx,
+      "validation.precondition_failed",
+      "This file could not be pinned for sending (the check named neither a version nor the bytes it read). Nothing was sent. Try again.",
+      { field: "fileId" },
+    );
+  if (pin.sha !== undefined && (await shaOfBytes(bytes)) !== pin.sha) moved();
+  if (pin.version !== undefined) {
+    const got = (await ctx.call("files.get", { fileId })) as { file?: { version?: unknown } };
+    const v = got.file?.version;
+    if ((v === undefined || v === null ? undefined : String(v)) !== pin.version) moved();
+  }
+}
+
+async function send(ctx: Ctx, input: unknown, pinned?: Pin): Promise<{ envelopeId: string }> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const recordId = optStr(ctx, o, "recordId");
@@ -312,6 +348,7 @@ async function send(ctx: Ctx, input: unknown): Promise<{ envelopeId: string }> {
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
   const pdf = fromBase64(body.base64);
+  if (pinned) await assertHead(ctx, fileId, pinned, pdf);
   if (pdf.length === 0 || pdf.length > MAX_PDF_BYTES)
     fail(ctx, "validation.too_large", "That PDF is empty or over 25 MB.", { field: "fileId" });
 
@@ -550,7 +587,7 @@ async function fetchSigned(ctx: Ctx, input: unknown): Promise<{ fileId: string }
 }
 
 export const sendHandlers = {
-  "esign.send": (ctx: Ctx, input: unknown) => send(ctx, input),
+  "esign.send": (ctx: Ctx, input: unknown, pinned?: Pin) => send(ctx, input, pinned),
   "esign.status": (ctx: Ctx, input: unknown) => status(ctx, input),
   "esign.cancel": (ctx: Ctx, input: unknown) => cancel(ctx, input),
   "esign.fetch_signed": (ctx: Ctx, input: unknown) => fetchSigned(ctx, input),

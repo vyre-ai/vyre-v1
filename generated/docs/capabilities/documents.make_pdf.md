@@ -17,7 +17,7 @@ Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/documents/make_pdf |
-| MCP tool | documents_make_pdf (files) |
+| MCP tool | none |
 | CLI | none |
 | Emits | file.created, file.version_added |
 

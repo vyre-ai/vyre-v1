@@ -7,6 +7,7 @@
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { vyreErrorOf } from "../../../packages/contracts/src/errors.ts";
 import {
+  assertHead,
   PROVIDER_KEYS,
   assigneeOf,
   defaultProvider,
@@ -30,7 +31,7 @@ import {
   tellThread,
   toBase64,
 } from "./send.ts";
-import type { EnvelopeRow, EnvelopeStatus, ProviderKey } from "./send.ts";
+import type { EnvelopeRow, EnvelopeStatus, Pin, ProviderKey } from "./send.ts";
 import type { HttpFn } from "./documenso.ts";
 import { setHostedAccess } from "./providers.ts";
 import { ensureSeal, fingerprintOf, isSpaceCert } from "./seal.ts";
@@ -401,12 +402,24 @@ export type CopyState = "exact" | "plain" | "unchecked" | "error";
  * failed just now. Only a Space with no documents module is `exact` without asking. The send holds for all three, and a person's explicit "send this one anyway" gets past each (and is logged), so a
  * legitimate send is never blocked for good.
  */
-export async function copyState(ctx: Ctx, fileId: string): Promise<CopyState> {
+export async function copyState(ctx: Ctx, fileId: string): Promise<{ state: CopyState; pin: Pin | undefined }> {
   try {
-    const got = (await ctx.call("documents.signing", { fileId })) as { plain?: unknown; unchecked?: unknown };
-    return got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact";
+    const got = (await ctx.call("documents.signing", { fileId })) as {
+      plain?: unknown;
+      unchecked?: unknown;
+      checkedVersion?: unknown;
+      checkedSha256?: unknown;
+    };
+    const pin: Pin = {
+      ...(typeof got.checkedVersion === "string" ? { version: got.checkedVersion } : {}),
+      ...(typeof got.checkedSha256 === "string" ? { sha: got.checkedSha256 } : {}),
+    };
+    return { state: got.plain === true ? "plain" : got.unchecked === true ? "unchecked" : "exact", pin };
   } catch (e) {
-    return vyreErrorOf(e)?.code === "internal.not_implemented" ? "exact" : "error";
+    // no documents module: nothing was checked, so there is nothing to pin
+    return vyreErrorOf(e)?.code === "internal.not_implemented"
+      ? { state: "exact", pin: undefined }
+      : { state: "error", pin: undefined };
   }
 }
 
@@ -436,7 +449,7 @@ async function placesFromDocument(ctx: Ctx, fileId: string, signerCount: number)
 
 // ---- esign.send ---------------------------------------------------------------------------------------------
 
-export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
+export async function sendVyre(ctx: Ctx, input: unknown, pinned?: Pin): Promise<Row> {
   const o = rec(ctx, input);
   const fileId = reqStr(ctx, o, "fileId");
   const recordId = optStr(ctx, o, "recordId");
@@ -478,6 +491,7 @@ export async function sendVyre(ctx: Ctx, input: unknown): Promise<Row> {
   if (typeof body.base64 !== "string" || body.truncated === true)
     fail(ctx, "validation.too_large", "The whole file could not be read for sending.", { field: "fileId" });
   const original = fromBase64(body.base64);
+  if (pinned) await assertHead(ctx, fileId, pinned, original);
   if (places === undefined) places = await placesFromDocument(ctx, fileId, signers.length);
   if (original.length === 0 || original.length > MAX_VYRE_BYTES)
     fail(ctx, "validation.too_large", "Built-in signing takes a PDF up to 20 MB.", { field: "fileId" });

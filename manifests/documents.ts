@@ -21,8 +21,8 @@ const fillIn = {
   templateFileId: id.file,
   values: t.opt(t.rec()),
   recordId: t.opt(id.record),
-  mapping: t.opt(t.rec(t.str({ description: "Record field key that feeds the template field" }))),
-  signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] })),
+  mapping: t.opt(t.rec(t.str())),
+  signingDate: t.opt(t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", examples: ["2026-10-24"] })),
 };
 
 const templateRow = t.obj({
@@ -127,14 +127,14 @@ export default defineManifest({
     ),
     write(
       "documents.make",
-      "Make a document for a record from a template by name: it lands in the record's files and the answer is the file and what was missing, never the text",
+      "Make a document for a record from a template; answers the file and what is missing",
       {
         in: {
-          template: t.str({ description: "The template's name, or its file id", examples: ["Service agreement"] }),
+          template: t.str({ examples: ["Service agreement"] }),
           recordId: id.record,
           values: t.opt(t.rec()),
           signingDate: t.opt(
-            t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", description: "ISO date", examples: ["2026-10-24"] }),
+            t.str({ pattern: "^\\d{4}-\\d{2}-\\d{2}$", examples: ["2026-10-24"] }),
           ),
           name: t.opt(t.str()),
           format: t.opt(t.enm("docx", "pdf", "md")),
@@ -162,7 +162,6 @@ export default defineManifest({
         make: ["file", "/intoFolderId"],
         perm: "files.write",
         emits: ["file.created", "file.version_added"],
-        tool: "files",
         errors: ["validation.precondition_failed", "validation.not_found", "validation.unsupported"],
       },
     ),
@@ -186,19 +185,24 @@ export default defineManifest({
                 "True when the file could not be checked (too big, or unreadable just now): sending it asks the sender first",
             }),
           ),
+          checkedVersion: t.opt(
+            t.str({ description: "The version of the file this answer was about, when the file store names one" }),
+          ),
+          checkedSha256: t.opt(
+            t.str({ description: "The SHA-256 of the bytes this answer was read from, when they were read" }),
+          ),
           templateFileId: t.opt(id.file),
           recordId: t.opt(id.record),
         },
         on: ["file", "/fileId"],
-        tool: "files",
         label: "check",
       },
     ),
     read("documents.templates.list", "List files marked as templates the caller can open", {
       in: {
         folder: t.opt(id.folder),
-        recordType: t.opt(t.str({ description: "Only templates for this record type", examples: ["customer"] })),
-        name: t.opt(t.str({ description: "Only the template with this name, any case, with or without .docx" })),
+        recordType: t.opt(t.str()),
+        name: t.opt(t.str()),
         ...pageIn,
       },
       out: { templates: t.arr(templateRow), ...pageOut },
@@ -212,9 +216,7 @@ export default defineManifest({
         in: {
           fileId: id.file,
           isTemplate: t.bool(),
-          recordType: t.opt(
-            t.str({ description: "Key of the record type this template is for", examples: ["customer"] }),
-          ),
+          recordType: t.opt(t.str({ examples: ["customer"] })),
         },
         out: { ok: t.bool() },
         on: ["file", "/fileId"],

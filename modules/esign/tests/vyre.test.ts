@@ -575,7 +575,7 @@ test("a PDF made from a Vyre document brings its own signing places: no signatur
     { signer: 1, kind: "signature", page: 2, x: 55, y: 80, w: 30, h: 5 },
     { signer: 1, kind: "date", page: 2, x: 55, y: 86, w: 30, h: 3 },
   ];
-  h.callee("documents.signing", () => ({ signers: ["client", "firm"], places: roleOf }));
+  h.callee("documents.signing", () => ({ checkedVersion: "1", signers: ["client", "firm"], places: roleOf }));
   const out = await send(h, [ANDREA, SAM]);
   const sent = h.rows("esign_doc")[0]!.sent as Uint8Array;
   assert.doesNotMatch(textOf(sent), /Signature page/);
@@ -592,6 +592,7 @@ test("a PDF made from a Vyre document brings its own signing places: no signatur
 test("places the send names win over the document's own, and a send with the wrong number of signers is refused naming the roles", async () => {
   const h = await setup();
   h.callee("documents.signing", () => ({
+    checkedVersion: "1",
     signers: ["client", "firm"],
     places: [
       { signer: 0, kind: "signature", page: 1, x: 10, y: 80, w: 30, h: 5 },
@@ -611,8 +612,8 @@ test("places the send names win over the document's own, and a send with the wro
 
 test("a document that cannot say where its signers sign (none known, stale, or the documents module not there) gets the signature page as before", async () => {
   for (const answer of [
-    () => ({ signers: [], places: [] }),
-    () => ({ signers: [], places: [], stale: true }),
+    () => ({ checkedVersion: "1", signers: [], places: [] }),
+    () => ({ checkedVersion: "1", signers: [], places: [], stale: true }),
     () => {
       throw Object.assign(new Error("not implemented"), {
         error: { code: "internal.not_implemented", message: "not implemented" },
@@ -666,7 +667,7 @@ test("an envelope nobody touches again still ends when its time runs out: told o
 
 test("a PDF of a Word file set in the plain page look is held: no send until the sender chooses, the choice is kept, and a normal PDF is not asked", async () => {
   const h = await setup();
-  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  h.callee("documents.signing", () => ({ checkedVersion: "1", signers: [], places: [], plain: true }));
   const e = await send(h, [ANDREA]).catch((x) => x);
   assert.equal(e.error.code, "validation.precondition_failed");
   assert.match(e.error.message, /Letterhead and pictures are missing in this copy/);
@@ -677,11 +678,78 @@ test("a PDF of a Word file set in the plain page look is held: no send until the
   assert.equal(kept.length, 1, "the sender's choice is logged");
   // a PDF documents does not call plain, or a Space with no documents module, is sent without asking
   const h2 = await setup();
-  h2.callee("documents.signing", () => ({ signers: [], places: [] }));
+  h2.callee("documents.signing", () => ({ checkedVersion: "1", signers: [], places: [] }));
   assert.match((await send(h2, [ANDREA])).envelopeId, /^env_/);
   const h3 = await setup();
   assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
   assert.equal(h3.rows("esign_event").filter((r) => r.kind === "plain_copy_sent").length, 0);
+});
+
+test("a version uploaded between the exact-copy check and the read of the bytes is never sent: the send is refused and nothing goes out", async () => {
+  const h = await setup();
+  let version = 1;
+  const head = (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000, version },
+  });
+  h.callee("files.get", head);
+  // the check passes on version 1, and a new version lands while it runs
+  h.callee("documents.signing", () => {
+    version = 2;
+    return { checkedVersion: "1", signers: [], places: [] };
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.match(e.error.message, /changed while it was being sent. Nothing was sent/);
+  assert.equal(h.rows("esign_envelope").length, 0, "nothing was created or sent");
+  // the head holds still: the same send goes out
+  h.callee("documents.signing", () => ({ checkedVersion: String(version), signers: [], places: [] }));
+  assert.match((await send(h, [ANDREA])).envelopeId, /^env_/);
+  assert.equal(h.rows("esign_envelope").length, 1);
+});
+
+test("the pin is the hash of the bytes the check read: with a file store that names no version, bytes that change between the check and the send are refused, and an answer that names neither is refused", async () => {
+  const first = await samplePdf(2);
+  const other = await samplePdf(3);
+  const sha = async (b: Uint8Array) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as Uint8Array<ArrayBuffer>)), (x) =>
+      x.toString(16).padStart(2, "0"),
+    ).join("");
+  const h = await setup();
+  let bytes: Uint8Array = first;
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+  }));
+  const reads = () => h.callsTo("files.read").length;
+  h.callee("files.read", () => ({ base64: toBase64(bytes), mime: "application/pdf", size: 1000, truncated: false }));
+  // the check read the first bytes and says so; different bytes are in place when the send reads them
+  h.callee("documents.signing", async () => {
+    const seen = await sha(bytes);
+    bytes = other;
+    return { checkedSha256: seen, signers: [], places: [] };
+  });
+  const e = await send(h, [ANDREA]).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.rows("esign_envelope").length, 0, "nothing was created or sent");
+  // steady bytes and still no version: sent, and the send itself read the file once
+  bytes = first;
+  h.callee("documents.signing", async () => ({ checkedSha256: await sha(bytes), signers: [], places: [] }));
+  const before = reads();
+  assert.match((await send(h, [ANDREA])).envelopeId, /^env_/);
+  assert.equal(reads() - before, 1, "the send read the file once");
+  // a check that ran and named neither a version nor the bytes (here: it could not look, and the sender chose to send anyway): nothing can be pinned, so nothing is sent
+  const h2 = await setup();
+  h2.callee("documents.signing", () => ({ unchecked: true, signers: [], places: [] }));
+  const e2 = await send(h2, [ANDREA], { plainOk: true }).catch((x) => x);
+  assert.equal(e2.error.code, "validation.precondition_failed");
+  assert.match(e2.error.message, /could not be pinned/);
+  assert.equal(h2.rows("esign_envelope").length, 0);
+  // an exact answer that names nothing means no check had anything to compare (no plain copies in the Space, a drive whose files carry no version): that send goes out
+  const h3 = await setup();
+  h3.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+  }));
+  h3.callee("documents.signing", () => ({ signers: [], places: [] }));
+  assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
 });
 
 test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {
@@ -836,7 +904,7 @@ test("when a request runs out the sender is mailed through the signature.expired
 
 test("the exact-copy check never blocks a legitimate send for good: a file that could not be checked or a check that failed is held with a plain reason and the sender's explicit choice sends it, logged", async () => {
   for (const [label, answer] of [
-    ["unchecked", () => ({ signers: [], places: [], unchecked: true })],
+    ["unchecked", () => ({ checkedVersion: "1", signers: [], places: [], unchecked: true })],
     [
       "error",
       () => {
@@ -887,7 +955,7 @@ test("the template fallback follows the mail module's contract: a Gate hold or a
 
 test("only a person can choose to send a copy that is not the exact one: an agent, or someone's agent acting for them, is stopped and asked to bring a person in", async () => {
   const h = await setup();
-  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  h.callee("documents.signing", () => ({ checkedVersion: "1", signers: [], places: [], plain: true }));
   for (const who of [
     { id: "agt_helper", kind: "agent" as const },
     { ...dana, actingFor: "usr_dana" },
@@ -909,7 +977,7 @@ test("only a person can choose to send a copy that is not the exact one: an agen
 
 test("an Automation's sign step runs as the person who built it but is not that person's choice: plainOk from inside another capability (named by callerCap) is refused like an agent's", async () => {
   const h = await setup();
-  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  h.callee("documents.signing", () => ({ checkedVersion: "1", signers: [], places: [], plain: true }));
   const e = await h
     .call(
       "esign.send",
@@ -956,7 +1024,7 @@ test("an Automation's sign step runs as the person who built it but is not that 
 
 test("a person nested inside any other capability (documents.make, a step, a hook) is not the person's choice; only their own top-level call or their own Gate-resumed call is", async () => {
   const h = await setup();
-  h.callee("documents.signing", () => ({ signers: [], places: [], plain: true }));
+  h.callee("documents.signing", () => ({ checkedVersion: "1", signers: [], places: [], plain: true }));
   for (const cap of ["documents.make", "steps-core.run_step", "automations.fire", "esign.hook"]) {
     const e = await h
       .call(
