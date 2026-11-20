@@ -210,6 +210,10 @@ test("a file the caller may not open is refused, and nothing is made", async () 
     }),
   );
   await expectCode("permission.no_grant", () => handlers["documents.signing"](w.ctx, { fileId: id }));
+  // a PDF of a document the caller may not open is refused too: the folder is the capability's resource, the source file is checked in the handler
+  const before = w.calls.filter((c) => c.cap === "files.write" || c.cap === "files.create").length;
+  await assert.rejects(() => handlers["documents.make_pdf"](w.ctx, { fileId: id, intoFolderId: FOLDER }));
+  assert.equal(w.calls.filter((c) => c.cap === "files.write" || c.cap === "files.create").length, before, "nothing was made");
 });
 
 test("places belong to the version they were set on: a newer version of the file has none, and the answer says it is stale", async () => {

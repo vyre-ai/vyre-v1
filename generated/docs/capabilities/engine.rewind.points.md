@@ -1,6 +1,6 @@
 # engine.rewind.points
 
-The points a person can go back to in a chat with an agent (one per turn of an agent that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it
+The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it
 
 | | |
 |---|---|

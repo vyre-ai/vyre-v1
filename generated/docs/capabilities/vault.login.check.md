@@ -1,6 +1,6 @@
 # vault.login.check
 
-Is a login a page just submitted already saved? The password is compared inside the Vault: known, changed or new
+Is a submitted login already saved? Compared inside the Vault: known, changed or new
 
 | | |
 |---|---|

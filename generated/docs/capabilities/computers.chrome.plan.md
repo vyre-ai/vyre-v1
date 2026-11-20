@@ -1,6 +1,6 @@
 # computers.chrome.plan
 
-Tell the person the steps about to be taken in the browser before taking them
+Tell the person the browser steps before taking them
 
 | | |
 |---|---|

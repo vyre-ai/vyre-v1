@@ -21,33 +21,33 @@ if ("version" in o107) lf(o107["version"], p + "/version", e, L1);
 
 function d_s_21a2f633a7(v: unknown, p: string, e: string[]): void {
 {
-const x209 = v;
-const g209 = typeOf(x209);
-const b209: string[] = []; lf(x209, p, b209, L0); if (b209.length) e.push(...b209);
-if (g209 === "object") {
-if (g209 === 'object') { const o209 = x209 as Record<string, unknown>;
-if (!("kitId" in o209)) e.push(p + "/kitId" + ': required');
-if (!("key" in o209)) e.push(p + "/key" + ': required');
-if (!("title" in o209)) e.push(p + "/title" + ': required');
-if (!("version" in o209)) e.push(p + "/version" + ': required');
-if (!("channel" in o209)) e.push(p + "/channel" + ': required');
-if (!("installed" in o209)) e.push(p + "/installed" + ': required');
-if (!("contents" in o209)) e.push(p + "/contents" + ': required');
-if ("kitId" in o209) lf(o209["kitId"], p + "/kitId", e, L74);
-if ("key" in o209) lf(o209["key"], p + "/key", e, L1);
-if ("title" in o209) lf(o209["title"], p + "/title", e, L1);
-if ("version" in o209) lf(o209["version"], p + "/version", e, L1);
-if ("channel" in o209) lf(o209["channel"], p + "/channel", e, L118);
-if ("installed" in o209) lf(o209["installed"], p + "/installed", e, L3);
-if ("contents" in o209) {
+const x208 = v;
+const g208 = typeOf(x208);
+const b208: string[] = []; lf(x208, p, b208, L0); if (b208.length) e.push(...b208);
+if (g208 === "object") {
+if (g208 === 'object') { const o208 = x208 as Record<string, unknown>;
+if (!("kitId" in o208)) e.push(p + "/kitId" + ': required');
+if (!("key" in o208)) e.push(p + "/key" + ': required');
+if (!("title" in o208)) e.push(p + "/title" + ': required');
+if (!("version" in o208)) e.push(p + "/version" + ': required');
+if (!("channel" in o208)) e.push(p + "/channel" + ': required');
+if (!("installed" in o208)) e.push(p + "/installed" + ': required');
+if (!("contents" in o208)) e.push(p + "/contents" + ': required');
+if ("kitId" in o208) lf(o208["kitId"], p + "/kitId", e, L74);
+if ("key" in o208) lf(o208["key"], p + "/key", e, L1);
+if ("title" in o208) lf(o208["title"], p + "/title", e, L1);
+if ("version" in o208) lf(o208["version"], p + "/version", e, L1);
+if ("channel" in o208) lf(o208["channel"], p + "/channel", e, L118);
+if ("installed" in o208) lf(o208["installed"], p + "/installed", e, L3);
+if ("contents" in o208) {
 {
-const x210 = o209["contents"];
-const g210 = typeOf(x210);
-const b210: string[] = []; lf(x210, p + "/contents", b210, L4); if (b210.length) e.push(...b210);
-if (g210 === "array") {
-if (g210 === 'array') { const a210 = x210 as unknown[];
-for (let i210 = 0; i210 < a210.length; i210++) {
-lf(a210[i210], p + "/contents" + '/' + i210, e, L119);
+const x209 = o208["contents"];
+const g209 = typeOf(x209);
+const b209: string[] = []; lf(x209, p + "/contents", b209, L4); if (b209.length) e.push(...b209);
+if (g209 === "array") {
+if (g209 === 'array') { const a209 = x209 as unknown[];
+for (let i209 = 0; i209 < a209.length; i209++) {
+lf(a209[i209], p + "/contents" + '/' + i209, e, L119);
 }
 }
 }

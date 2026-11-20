@@ -5,14 +5,14 @@ import type { Check } from './core.ts';
 
 function d_s_785f48c110(v: unknown, p: string, e: string[]): void {
 {
-const x644 = v;
-const g644 = typeOf(x644);
-const b644: string[] = []; lf(x644, p, b644, L0); if (b644.length) e.push(...b644);
-if (g644 === "object") {
-if (g644 === 'object') { const o644 = x644 as Record<string, unknown>;
-if (!("envelopeId" in o644)) e.push(p + "/envelopeId" + ': required');
-if ("envelopeId" in o644) lf(o644["envelopeId"], p + "/envelopeId", e, L305);
-if ("recordId" in o644) lf(o644["recordId"], p + "/recordId", e, L34);
+const x642 = v;
+const g642 = typeOf(x642);
+const b642: string[] = []; lf(x642, p, b642, L0); if (b642.length) e.push(...b642);
+if (g642 === "object") {
+if (g642 === 'object') { const o642 = x642 as Record<string, unknown>;
+if (!("envelopeId" in o642)) e.push(p + "/envelopeId" + ': required');
+if ("envelopeId" in o642) lf(o642["envelopeId"], p + "/envelopeId", e, L305);
+if ("recordId" in o642) lf(o642["recordId"], p + "/recordId", e, L34);
 }
 }
 }
@@ -20,23 +20,23 @@ if ("recordId" in o644) lf(o644["recordId"], p + "/recordId", e, L34);
 
 function d_s_bacd9d2655(v: unknown, p: string, e: string[]): void {
 {
-const x960 = v;
-const g960 = typeOf(x960);
-const b960: string[] = []; lf(x960, p, b960, L0); if (b960.length) e.push(...b960);
-if (g960 === "object") {
-if (g960 === 'object') { const o960 = x960 as Record<string, unknown>;
-if (!("token" in o960)) e.push(p + "/token" + ': required');
-if (!("visitor" in o960)) e.push(p + "/visitor" + ': required');
-if ("token" in o960) lf(o960["token"], p + "/token", e, L1);
-if ("visitor" in o960) {
+const x958 = v;
+const g958 = typeOf(x958);
+const b958: string[] = []; lf(x958, p, b958, L0); if (b958.length) e.push(...b958);
+if (g958 === "object") {
+if (g958 === 'object') { const o958 = x958 as Record<string, unknown>;
+if (!("token" in o958)) e.push(p + "/token" + ': required');
+if (!("visitor" in o958)) e.push(p + "/visitor" + ': required');
+if ("token" in o958) lf(o958["token"], p + "/token", e, L1);
+if ("visitor" in o958) {
 {
-const x961 = o960["visitor"];
-const g961 = typeOf(x961);
-const b961: string[] = []; lf(x961, p + "/visitor", b961, L0); if (b961.length) e.push(...b961);
-if (g961 === "object") {
-if (g961 === 'object') { const o961 = x961 as Record<string, unknown>;
-if ("ip" in o961) lf(o961["ip"], p + "/visitor" + "/ip", e, L1);
-if ("ua" in o961) lf(o961["ua"], p + "/visitor" + "/ua", e, L1);
+const x959 = o958["visitor"];
+const g959 = typeOf(x959);
+const b959: string[] = []; lf(x959, p + "/visitor", b959, L0); if (b959.length) e.push(...b959);
+if (g959 === "object") {
+if (g959 === 'object') { const o959 = x959 as Record<string, unknown>;
+if ("ip" in o959) lf(o959["ip"], p + "/visitor" + "/ip", e, L1);
+if ("ua" in o959) lf(o959["ua"], p + "/visitor" + "/ua", e, L1);
 }
 }
 }
@@ -48,18 +48,18 @@ if ("ua" in o961) lf(o961["ua"], p + "/visitor" + "/ua", e, L1);
 
 function d_s_cd35d57769(v: unknown, p: string, e: string[]): void {
 {
-const x1052 = v;
-const g1052 = typeOf(x1052);
-const b1052: string[] = []; lf(x1052, p, b1052, L0); if (b1052.length) e.push(...b1052);
-if (g1052 === "object") {
-if (g1052 === 'object') { const o1052 = x1052 as Record<string, unknown>;
-if (!("index" in o1052)) e.push(p + "/index" + ': required');
-if (!("name" in o1052)) e.push(p + "/name" + ': required');
-if ("index" in o1052) lf(o1052["index"], p + "/index", e, L2);
-if ("name" in o1052) lf(o1052["name"], p + "/name", e, L1);
-if ("email" in o1052) lf(o1052["email"], p + "/email", e, L1);
-if ("url" in o1052) lf(o1052["url"], p + "/url", e, L1);
-if ("path" in o1052) lf(o1052["path"], p + "/path", e, L1);
+const x1050 = v;
+const g1050 = typeOf(x1050);
+const b1050: string[] = []; lf(x1050, p, b1050, L0); if (b1050.length) e.push(...b1050);
+if (g1050 === "object") {
+if (g1050 === 'object') { const o1050 = x1050 as Record<string, unknown>;
+if (!("index" in o1050)) e.push(p + "/index" + ': required');
+if (!("name" in o1050)) e.push(p + "/name" + ': required');
+if ("index" in o1050) lf(o1050["index"], p + "/index", e, L2);
+if ("name" in o1050) lf(o1050["name"], p + "/name", e, L1);
+if ("email" in o1050) lf(o1050["email"], p + "/email", e, L1);
+if ("url" in o1050) lf(o1050["url"], p + "/url", e, L1);
+if ("path" in o1050) lf(o1050["path"], p + "/path", e, L1);
 }
 }
 }

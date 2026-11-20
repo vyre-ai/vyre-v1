@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { currentSignInPolicy, assertSignInPolicy } from "../policy.ts";
 import { carriedFor } from "./carry.ts";
 // Sign-in, second factor, GitHub, pairing, sessions and the TOTP factor (spec 3.13, 2.25). Passkeys are deferred (fork F-A); SSO is reserved.
@@ -265,7 +264,16 @@ const PAIR_CLASSES: Record<string, readonly string[]> = {
 
 /** A code made for the extension may be bound to a value only that extension holds: the code is kept with the hash of it, and redeeming needs the value itself. Someone who reads the code off a screen cannot use it. */
 const BOUND = "#";
-const sha256hex = (v: string): string => crypto.createHash("sha256").update(v, "utf8").digest("hex");
+const sha256hex = async (v: string): Promise<string> =>
+  Array.from(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(v))), (x) =>
+    x.toString(16).padStart(2, "0"),
+  ).join("");
+/** Same-length strings compared without stopping at the first difference. */
+const sameText = (x: string, y: string): boolean => {
+  let d = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) d |= (x.charCodeAt(i) || 0) ^ (y.charCodeAt(i) || 0);
+  return d === 0;
+};
 
 export async function pairCreate(
   ctx: IdentityCtx,
@@ -293,10 +301,9 @@ export async function pairRedeem(
       raise(ctx.trace.traceId, "auth.invalid_code");
     // a bound code opens only for the one who holds the value it was bound to; a wrong or missing value spends nothing, so the real extension can still redeem it
     if (bound) {
-      const given = typeof input.verifier === "string" ? sha256hex(input.verifier) : "";
-      const a = Buffer.from(given.padEnd(64, "0").slice(0, 64));
-      const b = Buffer.from(bound.padEnd(64, "0").slice(0, 64));
-      if (given.length !== 64 || !crypto.timingSafeEqual(a, b)) raise(ctx.trace.traceId, "auth.invalid_code");
+      const given = typeof input.verifier === "string" ? await sha256hex(input.verifier) : "";
+      if (given.length !== 64 || !sameText(given, bound.padEnd(64, "0").slice(0, 64)))
+        raise(ctx.trace.traceId, "auth.invalid_code");
     }
     spent = spendCode(ctx, "pair", normCode(input.code));
   } catch (e) {

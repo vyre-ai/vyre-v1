@@ -5,7 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as v from "../handlers/index.ts";
 import * as u from "../handlers/use.ts";
-import { codeAt, codeToType, parseSeed } from "../../../lib/totp.ts";
+import { codeAt, codeToType, parseSeed } from "../totp.ts";
 import { AGENT, MAYA, harness, refusedWith } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 

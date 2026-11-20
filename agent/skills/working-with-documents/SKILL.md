@@ -14,6 +14,7 @@ A template is a page with named blanks, called fields: `{client.name}`, `{matter
 - `documents_fields` lists what a template asks for before you fill it. `documents_templates_list` lists the templates; pass `name` to find one.
 - `documents_make_pdf` makes a PDF of a Vyre document (a `.md` file) that is already in Files: `{ fileId, intoFolderId }`. A blank still in its text stops it and is named. `documents_fill` fills a template into a folder with no record, and `documents_preview_fill` shows the result with the missing and unused fields before anything is saved.
 - `esign_send` returns a link for each signer, and emails it when the Space can.
+- A PDF that is not the exact copy of the Word page (the plain page look, or one that could not be checked) waits for a person to choose before `esign_send` sends it. You cannot make that choice for them: tell them and wait.
 - A Word template fills to Word (`format: "docx"`) or to a PDF. A Vyre document fills to a PDF, or to `md` to go on editing.
 - `layout` in the answer says whether a PDF kept the Word page (`word`) or was set in the plain page look (`simple`). Tell the person when it is `simple` and the Word page matters to them.
 

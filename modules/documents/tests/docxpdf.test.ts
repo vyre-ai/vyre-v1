@@ -48,6 +48,27 @@ const DOC = (): Buffer =>
     { "word/numbering.xml": numbering },
   );
 
+/** The CPU time (user plus system, ms) and wall time of `fn`. The timing rules below hold the CPU time to their limits, so a busy machine does not fail them; a generous wall ceiling still catches work that waits. */
+function work(fn: () => void): { cpu: number; wall: number } {
+  const c0 = process.cpuUsage();
+  const t = performance.now();
+  fn();
+  const wall = performance.now() - t;
+  const c = process.cpuUsage(c0);
+  return { cpu: (c.user + c.system) / 1000, wall };
+}
+/** The best of `n` runs, for CPU and for the clock. */
+function bestOf(n: number, fn: () => void): { cpu: number; wall: number } {
+  let cpu = Infinity;
+  let wall = Infinity;
+  for (let i = 0; i < n; i++) {
+    const w = work(fn);
+    cpu = Math.min(cpu, w.cpu);
+    wall = Math.min(wall, w.wall);
+  }
+  return { cpu, wall };
+}
+
 test("a Word file reads as blocks: heading, bold run, bullets, a table with its header row, a page break", () => {
   const blocks = docxBlocks(DOC());
   assert.deepEqual(
@@ -274,15 +295,17 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     "<w:pPr>".repeat(N),
     "<w:r><w:t ".repeat(N / 2),
   ].map((b) => docx(b));
-  const t0 = Date.now();
-  for (const f of files) {
-    try {
-      docxBlocks(f);
-    } catch {
-      /* a Word file with nothing to read is refused; what matters is how long it took */
+  const all = work(() => {
+    for (const f of files) {
+      try {
+        docxBlocks(f);
+      } catch {
+        /* a Word file with nothing to read is refused; what matters is how long it took */
+      }
     }
-  }
-  assert.ok(Date.now() - t0 < 2000, `the Word readers took ${Date.now() - t0} ms`);
+  });
+  assert.ok(all.cpu < 2000, `the Word readers took ${all.cpu.toFixed(0)} ms of CPU`);
+  assert.ok(all.wall < 20_000, `the Word readers took ${all.wall.toFixed(0)} ms on the clock`);
   // Markdown: linear means four times the input takes about four times as long; quadratic takes sixteen times. The ratio holds on a loaded machine where an absolute time does not.
   const { parse, inline } = await import("../handlers/vdoc.ts");
   const inputs = (n: number): string[] => [
@@ -302,42 +325,38 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     `# ${"a #".repeat(n)}`,
     "# a\n".repeat(n / 10),
   ];
-  const time = (n: number): number => {
-    const t = Date.now();
-    for (const md of inputs(n)) {
-      parse(md);
-      inline(md);
-    }
-    return Math.max(Date.now() - t, 20);
-  };
-  // the absolute rule as well: each hostile case under 100 ms, the best of five runs, at 25,000 repeats
-  const best = (md: string): number => {
-    let b = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const t = performance.now();
-      parse(md);
-      inline(md);
-      b = Math.min(b, performance.now() - t);
-    }
-    return b;
-  };
-  for (const md of inputs(25_000))
-    assert.ok(
-      best(md) < 100,
-      `a hostile Markdown case of ${md.length} letters took ${best(md).toFixed(0)} ms: ${md.slice(0, 12)}`,
+  const time = (n: number): number =>
+    Math.max(
+      work(() => {
+        for (const md of inputs(n)) {
+          parse(md);
+          inline(md);
+        }
+      }).cpu,
+      20,
     );
+  // the absolute rule as well: each hostile case under 100 ms, the best of five runs, at 25,000 repeats
+  for (const md of inputs(25_000)) {
+    const b = bestOf(5, () => {
+      parse(md);
+      inline(md);
+    });
+    assert.ok(
+      b.cpu < 100,
+      `a hostile Markdown case of ${md.length} letters took ${b.cpu.toFixed(0)} ms of CPU: ${md.slice(0, 12)}`,
+    );
+    assert.ok(b.wall < 1000, `a hostile Markdown case took ${b.wall.toFixed(0)} ms on the clock: ${md.slice(0, 12)}`);
+  }
   const bestWord = (f: Uint8Array): number => {
-    let b = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const t = performance.now();
+    const b = bestOf(5, () => {
       try {
         docxBlocks(f);
       } catch {
         /* refused is fine */
       }
-      b = Math.min(b, performance.now() - t);
-    }
-    return b;
+    });
+    assert.ok(b.wall < 1000, "a hostile Word case waited on the clock");
+    return b.cpu;
   };
   for (const f of [
     "<w:r ".repeat(25_000),
@@ -369,9 +388,9 @@ test("headings read as before: closing hashes and spaces are cut, inner hashes s
   assert.equal(text("### C# notes #"), "3:C# notes");
   assert.equal(text("#### Four  \t"), "3:Four");
   assert.equal(text("# a#"), "1:a");
-  const t0 = Date.now();
-  parse(`# a${" ".repeat(200_000)}x`);
-  assert.ok(Date.now() - t0 < 1500, `a heading of 200 KB took ${Date.now() - t0} ms`);
+  const heading = work(() => void parse(`# a${" ".repeat(200_000)}x`));
+  assert.ok(heading.cpu < 1500, `a heading of 200 KB took ${heading.cpu.toFixed(0)} ms of CPU`);
+  assert.ok(heading.wall < 15_000, `a heading of 200 KB took ${heading.wall.toFixed(0)} ms on the clock`);
 });
 
 test("links and pictures keep only their text, exactly as before the linear scan", async () => {
@@ -428,20 +447,13 @@ test("a template of one line of spaces at the 1 MB limit is read in under 100 ms
     ["a quote then spaces", (n) => `> ${" ".repeat(n)}x`],
     ["a fence then spaces", (n) => `\`\`\`${" ".repeat(n)}x`],
   ];
-  const best = (md: string): number => {
-    let b = Infinity;
-    for (let i = 0; i < 5; i++) {
-      const t = performance.now();
-      parse(md);
-      b = Math.min(b, performance.now() - t);
-    }
-    return b;
-  };
+  const best = (md: string): { cpu: number; wall: number } => bestOf(5, () => void parse(md));
   for (const [label, make] of shapes) {
     const big = best(make(1_000_000));
-    assert.ok(big < 100, `${label}: 1 MB took ${big.toFixed(0)} ms`);
-    const small = Math.max(best(make(250_000)), 5);
-    assert.ok(big / small < 10, `${label}: four times the input took ${(big / small).toFixed(1)} times as long`);
+    assert.ok(big.cpu < 100, `${label}: 1 MB took ${big.cpu.toFixed(0)} ms of CPU`);
+    assert.ok(big.wall < 1000, `${label}: 1 MB took ${big.wall.toFixed(0)} ms on the clock`);
+    const small = Math.max(best(make(250_000)).cpu, 5);
+    assert.ok(big.cpu / small < 10, `${label}: four times the input took ${(big.cpu / small).toFixed(1)} times as long`);
   }
 });
 
