@@ -1729,8 +1729,8 @@ export async function audienceSet(
     res.row?.["audienceChosen"] !== true
   ) {
     res.row = { ...(res.row ?? {}), audienceChosen: true };
-    changed(ctx, store, "assignment");
-    commit(ctx, store, ss, false, [res.id], false);
+    changed(ctx as AccessCtx, store, "assignment");
+    commit(ctx as AccessCtx, store, ss, false, [res.id], false);
   }
   // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
   // its folder is open to the Space from the start, and the maker's own followHome asks for that)
