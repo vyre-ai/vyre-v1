@@ -175,6 +175,14 @@ export async function bigSpaceScenario(judged: boolean): Promise<void> {
       `the desktop got the whole feed: ${desk.seen.applied} of ${desk.seen.head}`,
     );
     check(max < 960 * 1024, `no frame near the relay's 1 MiB: ${max}`);
+    // the proof above only means something if the feed was big enough to need the cut: more than one full relay frame of history in all. A future cut of the seed
+    // that left the feed smaller than that would pass the check above without proving anything, so it fails here instead.
+    const total = desk.seen.frames.reduce((n: number, f: { bytes: number }) => n + f.bytes, 0);
+    log(`desktop feed: ${desk.seen.frames.length} frames, ${total} B in all`);
+    check(
+      total > 960 * 1024,
+      `the desktop's feed is too small to prove the relay's limit is respected: ${total} B in ${desk.seen.frames.length} frames`,
+    );
     desk.sock.close();
 
     // what a person does first
