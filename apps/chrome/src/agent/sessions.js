@@ -8,6 +8,8 @@ import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
 /** After the last act of an agent in a tab, a real event is still its own for this long (events arrive a little after the command). */
 const TOUCH_GRACE_MS = 600;
+/** A real event the page reports within this long of the agent's own input is the agent's, not the person's. */
+const OWN_INPUT_MS = 400;
 
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
@@ -89,6 +91,8 @@ export function createSessions({
   const acts = new Map();
   /** Agents whose tab the person touched while a call was running: they pause before their next step. @type {Set<string>} */
   const pausing = new Set();
+  /** When the agent last sent input to each tab. @type {Map<number, number>} */
+  const ownAt = new Map();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
@@ -225,6 +229,7 @@ export function createSessions({
     if (!d) return;
     clearTimer(d.timer);
     drivers.delete(tabId);
+    ownAt.delete(tabId);
     refs.delete(tabId);
     acts.delete(tabId);
     // a touch that queued a pause belongs to the task it happened in: when the agent lets go of the tab, it does not carry over to the next task
@@ -270,6 +275,10 @@ export function createSessions({
     },
     /** @param {number} tabId */
     touch: arm,
+    /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId */
+    ownInput(tabId) {
+      ownAt.set(tabId, now());
+    },
     /** The page loaded again (a navigation, a reload): the frame went with the old document, so draw it again. @param {number} tabId */
     async redraw(tabId) {
       const d = drivers.get(tabId);
@@ -300,6 +309,7 @@ export function createSessions({
     async touched(tabId) {
       const d = drivers.get(tabId);
       if (!d) return false;
+      if (now() - (ownAt.get(tabId) ?? -Infinity) < OWN_INPUT_MS) return false;
       const a = acts.get(tabId);
       if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
         // not lost: the agent finishes the step it is on, then stops, and the bar says so

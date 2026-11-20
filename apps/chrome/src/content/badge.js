@@ -163,7 +163,7 @@
                   itemId: row.id,
                   kind: row.kind === "card" ? "card" : row.kind === "totp" || inOtpField(field) ? "otp" : "login",
                   usernameField: row.usernameField,
-                  itemKind: row.kind === "totp" ? "totp" : undefined,
+                  ...(row.kind === "totp" ? { itemKind: "totp" } : {}),
                 });
               } catch {
                 /* reloaded */

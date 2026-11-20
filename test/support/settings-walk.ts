@@ -148,8 +148,9 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
       await me.page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
       for (const p of PAGES) assert.ok(nav.includes(p.title), `${who}: the page list has ${p.title}`);
+      // the old page "Connected" is gone; "Connected apps" (the outside agents' page) is a different page and stays
       for (const gone of ["Connected", "Email and calendar", "Memory and privacy", "Skills", "About Vyre"])
-        assert.ok(!nav.includes(gone), `${who}: ${gone} left the page list`);
+        assert.ok(!nav.replaceAll("Connected apps", "").includes(gone), `${who}: ${gone} left the page list`);
       for (const p of mine) {
         await me.page.getByTestId(`row-page-${p.id}`).click();
         await me.page.getByTestId(`page-${p.id}`).waitFor({ timeout: 20_000 });
