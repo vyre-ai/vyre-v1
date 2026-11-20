@@ -3,7 +3,7 @@
 // the owner-or-manager rule of Save and Run again) are written once. Saving work as an agent is held at the Gate for an agent (runs.ops_gate).
 import { raise } from "../projections.ts";
 import type { RunsCtx } from "../projections.ts";
-import { activityList, boardAnswerCap, boardListCap, boardPutCap, budgetSet, eventsList } from "./node.ts";
+import { activityList, boardAnswerCap, boardListCap, boardPutCap, eventsList } from "./node.ts";
 import { messageListCap, messageSendCap, nodeControl, nodeFind, nodeGet, treeFind, treeGet } from "./node.ts";
 import { compare, rerun, saveAsAgent } from "./rerun.ts";
 
@@ -95,7 +95,11 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
   },
   budget: {
     // through the pipeline, not the handler: the call is then held and approved exactly as runs.budget.set is (act spend_raise, the same approver and card), whichever door an agent used
-    h: (ctx, input) => (ctx.call ? ctx.call("runs.budget.set", input) : budgetSet(ctx, input)),
+    h: (ctx, input) => {
+      // no way to ask runs.budget.set means no gate on a raise: that is a fault of the server, never a quiet bypass
+      if (!ctx.call) return raise(ctx, "internal.unexpected", "The limit could not be asked for.");
+      return ctx.call("runs.budget.set", input);
+    },
     id: { as: "runId", shape: "run" },
     may: { usdMicros: "int", tokens: "int", clear: "bool" },
     shape: "{action:'budget', id:<run id>, args:{usdMicros?, tokens?, clear?}}",
