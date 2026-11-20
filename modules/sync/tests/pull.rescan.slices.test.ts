@@ -17,7 +17,12 @@ const MAX_PULLS = 100;
 const WALL_PULL_MS = 500;
 const MAX_WALL_MS = 10_000;
 
+// the calling thread's own CPU time (user plus system): V8's helper threads (garbage collection, compiler) are not the work of the pull and are not what holds the event loop
 const cpuMs = (u: NodeJS.CpuUsage): number => (u.user + u.system) / 1000;
+const cpuNow = (prev?: NodeJS.CpuUsage): NodeJS.CpuUsage =>
+  (process as unknown as { threadCpuUsage?: (p?: NodeJS.CpuUsage) => NodeJS.CpuUsage }).threadCpuUsage
+    ? (process as unknown as { threadCpuUsage: (p?: NodeJS.CpuUsage) => NodeJS.CpuUsage }).threadCpuUsage(prev)
+    : process.cpuUsage(prev);
 
 test("a rescan over a big Space is done in slices: every pull is at most 100 ms of work, and every row is hidden within the bounds", async () => {
   const access = buildAccess();
@@ -50,9 +55,9 @@ test("a rescan over a big Space is done in slices: every pull is at most 100 ms 
   for (;;) {
     const w0 = performance.now();
     // The work of one pull is its CPU time (user plus system): that is what holds the event loop, and a pause of the machine (another process, a disk wait) is not counted against it.
-    const before = process.cpuUsage();
+    const before = cpuNow();
     const r = await pull(cur);
-    slowest = Math.max(slowest, cpuMs(process.cpuUsage(before)));
+    slowest = Math.max(slowest, cpuMs(cpuNow(before)));
     slowestWall = Math.max(slowestWall, performance.now() - w0);
     calls++;
     for (const h of r.hide) hidden.add(h.id);
@@ -182,4 +187,37 @@ test("a removed device takes its rescan state with it", async () => {
     { personId: BO, reason: "device_revoked", deviceId: "dev1" },
   );
   assert.equal(rows(), 0, "neither the scan nor the stamp is kept for a revoked device");
+});
+
+test("a revoke reaches a device that holds a few rows in its first pull, however many rows the Space has", async () => {
+  const access = buildAccess();
+  const s = openSync({ access: () => access, clock: () => NOW });
+  await s.store.define({ add_types: [CONTACT_TYPE] });
+  const mine = mintRecordId();
+  await s.store.create("contact", mine, { name: "Mine", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  for (let i = 0; i < 1500; i++)
+    await s.store.create("contact", mintRecordId(), { name: `Other ${i}`, email: "o@example.com", phone: "+1", region: "us", stage: "lead", owner: ADA });
+  const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
+  const pull = (cursor: number): Promise<PullRes> => s.handlers["sync.pull"](ctx, { cursor, epoch: 0 });
+  const first = await pull(0);
+  assert.deepEqual(first.changes.map((c) => c.id), [mine], "the device holds the one row it may see");
+  access.revokeGrant("gr_bo_record");
+  const next = await pull(first.next);
+  assert.deepEqual(next.hide.map((h) => h.id), [mine], "the revoked row is hidden in the very next pull");
+});
+
+test("a pull of a few hundred rows is whole in one answer, however slow the machine is that moment", async () => {
+  const access = buildAccess();
+  const s = openSync({ access: () => access, clock: () => NOW });
+  await s.store.define({ add_types: [CONTACT_TYPE] });
+  const ids: string[] = [];
+  for (let i = 0; i < 600; i++) {
+    const id = mintRecordId();
+    ids.push(id);
+    await s.store.create("contact", id, { name: `N${i}`, email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  }
+  const ctx: PullCtx = { trace: { traceId: TRACE }, principal: ADA, deviceId: "dev1", deviceClass: "desktop" };
+  const r = await s.handlers["sync.pull"](ctx, { cursor: 0, epoch: 0 });
+  assert.equal(r.changes.length, 600);
+  assert.equal(r.more, false, "nothing is left for a second pull");
 });
