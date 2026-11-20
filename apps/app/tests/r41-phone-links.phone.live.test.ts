@@ -70,9 +70,22 @@ test("phone: #screen=inbox.unmatched opens the Unmatched list, and one tap on a 
       idempotencyKey: "r41-ingest",
     })) as { linked: string };
     assert.equal(ingested.linked, "none", "a stranger stays unmatched");
+    await page.addInitScript(`(function () {
+      window.__sidebarFrames = 0;
+      function tick() {
+        if (document.querySelector('[data-testid="mobile-shell"]') && document.querySelector('[data-testid="inbox-sidebar"]')) window.__sidebarFrames++;
+        requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    })()`);
     await page.goto(`${new URL(page.url()).origin}/inbox#screen=inbox.unmatched`, { waitUntil: "load" });
     await page.reload({ waitUntil: "load" });
     await page.getByTestId("inbox-unmatched").waitFor({ timeout: 30_000 });
+    assert.equal(
+      await page.evaluate(`window.__sidebarFrames`),
+      0,
+      "the list of inboxes is not drawn for a frame before Unmatched",
+    );
     const row = page.getByText("Dana Fox").first();
     await row.waitFor({ timeout: 20_000 });
     const before = (await page.evaluate(SCREENS)) as string;

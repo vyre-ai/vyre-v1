@@ -286,9 +286,10 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
 
 /** The view a link in the address opens, for the state's first value: the Replies list, a meeting (Meetings) or an event (Calendar). The first frame then already draws it, with no list of inboxes for a frame on a phone. */
 function linkMain(target: { screen?: string | undefined; subject?: { type: string; id: string } | undefined }): {
-  main?: "replies" | "meetings" | "calendar";
+  main?: "replies" | "meetings" | "calendar" | "unmatched";
 } {
   if (target.screen === "inbox.replies") return { main: "replies" };
+  if (target.screen === "inbox.unmatched") return { main: "unmatched" };
   if (target.subject?.type === "meeting" || target.screen === "meetings.closeout") return { main: "meetings" };
   if (target.subject?.type === "event") return { main: "calendar" };
   return {};
