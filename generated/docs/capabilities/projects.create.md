@@ -19,7 +19,7 @@ Make a project: the record, exactly one channel and one folder (Projects/<name>)
 | HTTP | POST /v1/projects/create |
 | MCP tool | projects_create (records) |
 | CLI | vyre projects create |
-| Emits | project.created, record.created |
+| Emits | project.created, record.created, project.folder_unfollowed |
 
 ## Input
 
