@@ -2,6 +2,7 @@
 // have to invent: the idempotency key a `create` capability requires, the chat it is in, and a title the page already carries. The model may still give any of them; what it gave is kept.
 // Everything here is decided from the tool's own schema and the call's own context, never from a value in the input except the page's title.
 import type { ToolCtx, ToolDef } from "./types.ts";
+import { capText, stripTags } from "../../../lib/html-text.ts";
 
 type Schema = { properties?: Record<string, { pattern?: string; type?: string }>; required?: string[] };
 const schemaOf = (t: ToolDef): Schema => (t.inputSchema ?? {}) as Schema;
@@ -43,8 +44,7 @@ export function shortHash(s: string): string {
 
 const ENTITY: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
 const plain = (s: string): string =>
-  s
-    .replace(/<[^>]*>/g, "")
+  stripTags(capText(s, 2_000_000))
     .replace(/&(#\d+|[a-z]+);/gi, (m, e: string) =>
       e[0] === "#" ? String.fromCodePoint(Number(e.slice(1))) : (ENTITY[e.toLowerCase()] ?? m),
     )

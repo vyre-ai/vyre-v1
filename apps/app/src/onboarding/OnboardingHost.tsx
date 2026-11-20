@@ -10,7 +10,7 @@ import { ResumeChip, ResumeContext, resumeInfo, startedSetup } from "./ResumeChi
 import { detectDevice, rowFacts } from "./device.ts";
 import { useHasMailbox } from "../shell/rail/inbox-sources.ts";
 import { FirstWinCard } from "./FirstWinCard.tsx";
-import { ChromeCard } from "./ChromeCard.tsx";
+import { ChromeCard } from "./ChromeCardLazy.tsx";
 import { SessionsCard } from "./SessionsCard.tsx";
 import { FoldersCard, shellInvoke } from "./FoldersCard.tsx";
 import { InterviewCard } from "./InterviewCard.tsx";
@@ -22,7 +22,7 @@ import { OPEN_TARGETS, OpenCard } from "./OpenCard.tsx";
 import { PairPhoneCard } from "./PairPhoneCard.tsx";
 import { KitPickCard } from "./KitPickCard.tsx";
 import { SpaceAiCard } from "./SpaceAiCard.tsx";
-import { AssistantThread } from "./AssistantThread.tsx";
+import { AssistantThread } from "./AssistantThreadLazy.tsx";
 import { PreviewPane } from "./PreviewPane.tsx";
 import type { ShellRuntime } from "../shell/providers/runtime.tsx";
 import { DirectoryCard, InvitesCard, SSO_SETUP_HASH, SignInDomainCard, WorkspaceCard } from "./SuiteCards.tsx";

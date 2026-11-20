@@ -62,7 +62,9 @@ test("r32 forms: the AI, HTTP request and code steps in the one step form", asyn
         }),
       );
 
-    await make("AI reply", [{ id: "n1", key: "ai", input: { prompt: "Write a short reply to {{ trigger.name }}" } }]);
+    await make("AI reply", [
+      { id: "n1", key: "ai", input: { prompt: "Write a short reply to {{ trigger.input.name }}" } },
+    ]);
     await make("Web call", [
       {
         id: "n1",
@@ -74,7 +76,7 @@ test("r32 forms: the AI, HTTP request and code steps in the one step form", asyn
       {
         id: "n1",
         key: "code",
-        input: { source: "return { total: input.count * 2 };", input: { count: "{{ trigger.count }}" } },
+        input: { source: "return { total: input.count * 2 };", input: { count: "{{ trigger.input.count }}" } },
       },
     ]);
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });

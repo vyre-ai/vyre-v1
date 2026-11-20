@@ -1,4 +1,4 @@
-// Every trigger that points at a record hands the Run that record (r40 audit, gap 1): {{trigger.record.x}} works for a form, a button, a stage move and a record change, and a sealed value is never in it.
+// A record change carries the record, minus sealed values, as it fires. A form, a button and a stage move name the record; the Run reads it as its own principal when a step asks (modules/steps-core/tests/trigger-record.test.ts).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
@@ -30,7 +30,7 @@ const payloadOf = async (h: Harness, ev: LoggedEvent): Promise<Record<string, an
   return r?.runId ? (findRunLink(h.db as never, r.runId)?.payload as Record<string, any>) : undefined;
 };
 
-test("a form submit hands the Run the record, without its sealed values, and its filter reads `type`", async () => {
+test("a form submit fires with the record named, and its filter reads `type`; the service that noticed the event reads no record", async () => {
   const h = harness();
   withRecords(h);
   await live(h, [{ key: "form_submit", filter: { type: "contact" } }]);
@@ -41,41 +41,13 @@ test("a form submit hands the Run the record, without its sealed values, and its
   };
   const p = await payloadOf(h, ev);
   assert.ok(p, "the filter on type did not match");
-  assert.deepEqual(p.record, { name: "Ada", email: "ada@example.com", stage: "new" });
   assert.equal(p.recordId, "rec_9");
+  assert.equal("record" in p, false);
+  assert.equal(h.calls.filter((c) => c.cap === "records.get" || c.cap === "journeys.get").length, 0);
   const none = await h.consumer(engine, (ctx) =>
     consumeEvent(ctx, { ...ev, id: "evt_f2", payload: { ...ev.payload, type: "matter" } }),
   );
   assert.deepEqual(none, []);
-});
-
-test("a stage move hands the Run the record of the Journey, read by the Journey's record type", async () => {
-  const h = harness();
-  withRecords(h);
-  await live(h, [{ key: "journey_stage_entered", filter: { stage: "review" } }]);
-  const p = await payloadOf(h, {
-    id: "evt_s1",
-    type: "journey.stage_entered",
-    payload: { journeyId: "jrn_1", recordId: "rec_7", stage: "review", manual: false },
-  });
-  assert.equal(p?.record?.name, "Ada");
-  assert.equal(p?.stage, "review");
-  assert.deepEqual(
-    h.calls.filter((c) => c.cap === "records.get").map((c) => c.input),
-    [{ type: "matter", recordId: "rec_7" }],
-  );
-});
-
-test("a stage left carries the record too", async () => {
-  const h = harness();
-  withRecords(h);
-  await live(h, [{ key: "journey_stage_left" }]);
-  const p = await payloadOf(h, {
-    id: "evt_s2",
-    type: "journey.stage_exited",
-    payload: { journeyId: "jrn_1", recordId: "rec_7", stage: "review", toStage: "done" },
-  });
-  assert.equal(p?.record?.email, "ada@example.com");
 });
 
 test("a record change never carries a sealed value", async () => {
@@ -96,20 +68,7 @@ test("a record change never carries a sealed value", async () => {
   assert.deepEqual(p?.changed, { name: "A" });
 });
 
-test("a record that cannot be read does not stop the Run from starting; the Run has no record", async () => {
-  const h = harness();
-  withRecords(h, true);
-  await live(h, [{ key: "form_submit" }]);
-  const p = await payloadOf(h, {
-    id: "evt_f3",
-    type: "form.submitted",
-    payload: { formId: "frm_1", recordId: "rec_9", type: "contact", matched: true },
-  });
-  assert.ok(p);
-  assert.equal("record" in p, false);
-});
-
-test("a button pressed on a record hands the Run that record", async () => {
+test("a button pressed on a record names it in the Run, which reads it as itself", async () => {
   const h = harness();
   withRecords(h);
   const id = await live(h, [{ key: "button" }]);
@@ -119,7 +78,7 @@ test("a button pressed on a record hands the Run that record", async () => {
     alice,
   );
   const p = findRunLink(h.db as never, out.runId)?.payload as Record<string, any>;
-  assert.equal(p.record.name, "Ada");
   assert.equal(p.recordId, "rec_3");
-  assert.equal("ssn" in p.record, false);
+  assert.equal(p.type, "contact");
+  assert.equal("record" in p, false);
 });

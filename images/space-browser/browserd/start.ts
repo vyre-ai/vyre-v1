@@ -7,6 +7,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { Server } from "node:http";
 import { join } from "node:path";
+import { requestTargetOk, safeUrl } from "../../agent-computer/agentd/safe-url.ts";
 
 export interface Recent {
   host: string;
@@ -174,7 +175,11 @@ export async function startStartServer(d: StartDeps): Promise<StartServer> {
   const byToken = new Map<string, string>();
   const byProfile = new Map<string, string>();
   const server: Server = createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://start");
+    if (!requestTargetOk(req.url)) {
+      res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("Bad request.\n");
+      return;
+    }
+    const url = safeUrl(req.url, "http://start");
     const cookie = /(?:^|;\s*)vyre_start=([a-f0-9]{48})/.exec(String(req.headers["cookie"] ?? ""))?.[1];
     const profile = cookie ? byToken.get(cookie) : undefined;
     if (url.pathname !== "/start" && url.pathname !== "/start/") {

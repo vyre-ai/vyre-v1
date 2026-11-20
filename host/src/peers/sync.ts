@@ -15,6 +15,7 @@ import { LEASE_ID, LEASE_MS, RENEW_MS, decide } from "./runner.ts";
 import { serveGit, syncTrees } from "./trees.ts";
 import type { Lease } from "./runner.ts";
 import type { PeerChannel, PeerTarget } from "./link.ts";
+import { safeUrl } from "../safe-url.ts";
 
 /** The part of sync/src/peers/cells.ts the host uses (a structural copy: host may not import sync). */
 export interface CellsLike {
@@ -663,7 +664,7 @@ export function createPeerSync(d: PeerSyncDeps): PeerSync {
     isRunner,
     lease,
     handle(req, res, peerOf) {
-      const url = new URL(req.url ?? "/", "http://vyred");
+      const url = safeUrl(req.url, "http://vyred");
       if (req.method === "POST" && url.pathname === "/v1/peers/changes") {
         void changes(req, res, peerOf).catch(() => {
           try {

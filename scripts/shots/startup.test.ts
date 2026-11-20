@@ -104,11 +104,21 @@ test("the signed-in shell is not parsed before the session gate finds a stored s
   const gate = fs.readFileSync(path.join(root, "apps/app/src/shell/session/SessionGate.tsx"), "utf8");
   for (const eager of ["../spaces/Shell.tsx", "../cmdk/CmdK.tsx", "./PlaceHost.tsx"])
     assert.doesNotMatch(gate, new RegExp(`from ["']${eager.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}["']`));
+  // the one boundary: the gate draws the shell through a lazyPart. Its loader is either the dynamic import itself or startup/shell-load.ts (loadShellHost), which then holds the one dynamic import of the shell.
   assert.match(
     gate,
-    /lazy\(\(\) => import\("\.\/ShellHost\.tsx"\)/,
-    "the authenticated shell has one explicit lazy boundary",
+    /lazyPart\(\s*\(\) => (loadShellHost\(\)|import\("\.\/ShellHost\.tsx"\))/,
+    "the authenticated shell has one explicit lazy boundary (a lazyPart)",
   );
+  assert.doesNotMatch(
+    gate,
+    /import \{[^}]*\bShellHost\b[^}]*\} from ["']\.\/ShellHost\.tsx["']/,
+    "the gate imports the shell as a type at most",
+  );
+  if (/loadShellHost\(\)/.test(gate)) {
+    const load = fs.readFileSync(path.join(root, "apps/app/src/startup/shell-load.ts"), "utf8");
+    assert.match(load, /import\("\.\.\/shell\/session\/ShellHost\.tsx"\)/, "the shell's one dynamic import");
+  }
 });
 
 test("the web virtual-list boundary excludes the native FlashList runtime", () => {
@@ -186,7 +196,11 @@ test("optional Plan views share one on-demand renderer instead of the startup co
     assert.match(src, /Plan\/DeferredPlan\.tsx/, `${file} uses the shared deferred Plan boundary`);
   }
   const deferred = fs.readFileSync(path.join(root, "ui/src/Plan/DeferredPlan.tsx"), "utf8");
-  assert.match(deferred, /lazy\(\(\) => import\(["']\.\/index\.tsx["']\)/, "the full Plan remains available on demand");
+  assert.match(
+    deferred,
+    /lazyPart\(\(\) => import\(["']\.\/index\.tsx["']\)/,
+    "the full Plan remains available on demand (a lazyPart)",
+  );
 });
 
 test("the optional phone dock reuses the lazy Inbox place chunk", () => {

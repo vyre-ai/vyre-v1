@@ -95,7 +95,7 @@ const BY_STEP: Readonly<Record<string, Missing>> = {
   "parallel.branches": { do: "add at least two lanes", chip: "Needs lanes" },
   "start_journey.subjectRecordId": { do: "choose the record to start the Journey for", chip: "Needs a record" },
   "journeys.move_stage.toStage": { do: "choose the stage to move to", chip: "Needs a stage" },
-  "journeys.values.set.key": { do: "name the value to keep", chip: "Needs a name" },
+  "google.calendar.get_event.eventId": { do: "choose the event", chip: "Needs an event" },
   "wait_stage.recordId": { do: "choose the record to wait for", chip: "Needs a record" },
   "wait_stage.stage": { do: "choose the stage to wait for", chip: "Needs a stage" },
   "send_email.to": { do: "add who to send it to", chip: "Needs a recipient" },

@@ -10,6 +10,7 @@ import type { Server } from "node:http";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
 import { sleep } from "../../agent-computer/agentd/errors.ts";
 import { acceptWebSocket } from "../../agent-computer/agentd/ws.ts";
+import { requestTargetOk, safeUrl } from "../../agent-computer/agentd/safe-url.ts";
 
 const TOKEN_TTL_MS = 5 * 60_000;
 const BOUNDARY = "vyreframe";
@@ -301,7 +302,11 @@ export function startViewServer(d: ViewDeps): ViewServer {
   };
 
   const server: Server = createServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://browserd");
+    if (!requestTargetOk(req.url)) {
+      res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("Bad request.\n");
+      return;
+    }
+    const url = safeUrl(req.url, "http://browserd");
     if (url.pathname === "/stream") {
       const got = open(url.searchParams.get("t"));
       if (!got) {
@@ -338,7 +343,11 @@ export function startViewServer(d: ViewDeps): ViewServer {
   });
 
   server.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", "http://browserd");
+    if (!requestTargetOk(req.url)) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+      return;
+    }
+    const url = safeUrl(req.url, "http://browserd");
     const got = url.pathname === "/ws" ? open(url.searchParams.get("t")) : null;
     if (!got) {
       socket.end("HTTP/1.1 401 Unauthorized\r\nconnection: close\r\n\r\n");

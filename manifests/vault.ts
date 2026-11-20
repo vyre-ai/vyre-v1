@@ -488,6 +488,20 @@ export default defineManifest({
       offline: "online",
       errors: ["validation.precondition_failed"],
     }),
+    write(
+      "vault.item.rotate_field",
+      "A connection's own housekeeping: put the new value an app handed back (a rotated refresh token) into one existing secret field of an item the connection holds. Needs use, not edit",
+      {
+        in: { itemId: id.vaultItem, key: fieldKey, value: t.str({ minLength: 1 }) },
+        out: { item: itemMeta },
+        on: ["vault_item", "/itemId"],
+        level: "use",
+        emits: ["vault.item_updated"],
+        audit: "sensitive",
+        offline: "online",
+        agent: false,
+      },
+    ),
     write("vault.item.mark_rotated", "Record that the secret was rotated and restart its reminder", {
       in: { itemId: id.vaultItem },
       out: { item: itemMeta },

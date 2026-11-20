@@ -10,12 +10,11 @@
 // A relative milestone that is already past succeeds with missed output so later outward steps can be skipped. An anchor id is re-read from the calendar when the wait resumes.
 import { registry } from "../../../generated/registry.ts";
 import { missingInput } from "../../../lib/words/step-missing.ts";
-import { asksFirst } from "../../../lib/ask-first.ts";
 import { collectItems, groupItems, transformValue } from "./data-steps.ts";
 import { nextOpen } from "./hours.ts";
 import type { OpenHours } from "./hours.ts";
 import { SHEET_STEPS } from "./sheets.ts";
-import { shapeOf, textsIn, unresolvedLine } from "../../../lib/flow-reads.ts";
+import { readsOf, textsIn, triggerShapeOf, unresolvedLine, withoutSealed } from "../../../lib/flow-reads.ts";
 import { clean, durationMs, evalExpr, momentMs, raise, render, stepError, truthy } from "../projections.ts";
 import type { Scope, StepsCtx } from "../projections.ts";
 
@@ -74,6 +73,8 @@ export interface StepResult {
   next?: string | null;
   wait?: WaitSpec;
   prepare?: { iterations: LoopIteration[] };
+  /** plain lines for the Run log: what this step did that its person should know (an Automation saved before the variable check read a name that is not there as empty) */
+  notes?: string[];
 }
 export interface StepCall {
   attempt: number;
@@ -105,6 +106,8 @@ export interface StepEnv {
     automation?: string;
     /** what kind of trigger started the Run (webhook, email_received, form_submit, schedule...) */ trigger?: string;
     defHash?: string;
+    /** false: an Automation saved before the variable check; an unknown name stays empty. Absent or true: it fails the step. */
+    strict?: boolean;
     depth?: number;
     /** The automation's own AI account: the key and backup an AI step uses when it chooses none. */ ai?: {
       keyId?: string;
@@ -120,20 +123,29 @@ export interface StepEnv {
 const STEPS = new Map(registry.steps.map((s) => [s.key, s] as const));
 const DEFS = ((registry as unknown as { $defs?: Record<string, unknown> }).$defs ?? {}) as Record<string, unknown>;
 const TRIGGER_PAYLOADS = new Map(registry.triggers.map((t) => [t.key, t.payload] as const));
+const EVENT_PAYLOADS = new Map<string, unknown>(registry.events.map((e) => [e.name, e.payload] as const));
+/** What a Run's `trigger` can hold for a kind of trigger: its payload plus every key the events that start it carry. */
+const declaredFor = (kind: string | undefined) =>
+  triggerShapeOf(
+    TRIGGER_PAYLOADS.get(kind ?? ""),
+    (TRIGGER_EVENTS.get(kind ?? "") ?? []).map((n) => EVENT_PAYLOADS.get(n)),
+    DEFS,
+  );
+const TRIGGER_EVENTS = new Map(
+  registry.triggers.map((t) => {
+    const src = t.source as { event?: string; events?: string[] };
+    return [t.key, src.events ?? (src.event ? [src.event] : [])] as const;
+  }),
+);
 const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
 const DAY30 = "30d";
 
-export function scopeOf(
-  env: StepEnv,
-  call: Pick<StepCall, "trigger" | "outputs" | "vars" | "item" | "index">,
-  journey?: Record<string, unknown>,
-): Scope {
+export function scopeOf(env: StepEnv, call: Pick<StepCall, "trigger" | "outputs" | "vars" | "item" | "index">): Scope {
   const steps = Object.fromEntries(Object.entries(call.outputs).map(([k, v]) => [k, { out: v }]));
   return clean({
     trigger: call.trigger,
     steps,
     vars: call.vars ?? {},
-    ...(journey ? { journey } : {}),
     item: call.item,
     index: call.index,
     run: { id: env.run.id },
@@ -810,10 +822,6 @@ const ADAPTERS: Record<string, Adapter> = {
       reason: typeof i.reason === "string" && i.reason.trim() !== "" ? i.reason : "Moved by an automation",
     }),
   },
-  "journeys.values.set": {
-    cap: "journeys.values.set",
-    input: (i) => ({ recordId: i.recordId, key: i.key, value: i.value ?? null }),
-  },
   start_journey: { cap: "journeys.start", output: (o, i) => ({ recordId: o?.recordId ?? i.subjectRecordId }) },
   sign: {
     cap: "esign.send",
@@ -845,49 +853,9 @@ const stepRef = (env: StepEnv, node: StepNode) =>
         automationId: env.run.automation,
         nodeId: node.id,
         defHash: env.run.defHash,
-        ...(asks(node) ? { ask: true } : {}),
+        ...(node.askBeforeSending === true ? { ask: true } : {}),
       }
     : undefined;
-
-/** Does this step wait for a yes before it goes out? What the step says, else the rule for its act: a signature request asks unless its author turned asking off (lib/ask-first.ts). */
-const asks = (node: StepNode): boolean =>
-  asksFirst(node.askBeforeSending, (STEPS.get(node.key) as { gateAct?: string } | undefined)?.gateAct);
-
-/**
- * A step set to ask whose own capability declares no Gate (a chat post) would go out without anyone being asked: the switch said On and nothing waited. It asks here first, through a capability that
- * does nothing but pass the Gate, the way a code step that names hosts does. Null means go on.
- */
-async function askFirst(
-  env: StepEnv,
-  node: StepNode,
-  cap: string,
-  input: In,
-  call: StepCall,
-): Promise<StepResult | null> {
-  const def = STEPS.get(node.key) as { effects?: string; gateAct?: string } | undefined;
-  const own = (CAPS.get(cap) as { gate?: { act?: string } } | undefined)?.gate?.act;
-  if (!env.ctx.call || def?.effects !== "outward" || def.gateAct !== "post" || !asks(node) || (own && own !== "none"))
-    return null;
-  const step = stepRef(env, node);
-  try {
-    await env.ctx.call(
-      "automations.step_ask",
-      {
-        act: "post",
-        // what the post will be, as the capability gets it: the thread (a channel is posted to through its main thread) and the words
-        ...(typeof input["threadId"] === "string" ? { threadId: input["threadId"] } : {}),
-        ...(typeof input["body"] === "string" ? { text: input["body"] } : {}),
-        idempotencyKey: `${call.key}:ask`,
-      },
-      step ? { step } : undefined,
-    );
-    return null;
-  } catch (e) {
-    const held = gateHold(e);
-    if (held) return held;
-    throw e;
-  }
-}
 
 /** A code step that names hosts reaches the network from a definition: it is an outward step like any other and passes the Gate before the sandbox opens. Null means go on. */
 async function codeReach(env: StepEnv, node: StepNode, input: In, call: StepCall): Promise<StepResult | null> {
@@ -930,14 +898,11 @@ async function capabilityStep(env: StepEnv, node: StepNode, i: In, call: StepCal
     "idempotencyKey" in ((CAPS.get(cap)?.input as { properties?: object } | undefined)?.properties ?? {})
   )
     input = { ...input, idempotencyKey: call.key };
-  const asked = await askFirst(env, node, cap, input, call);
-  if (asked) return asked;
   try {
-    // A step that does not ask goes out on its author's standing yes: the Gate then holds only when a Space admin rule requires approval for this act. A step that asks (it says On, or it is a
-    // signature request nobody turned asking off for) is held every time.
+    // Ask before sending is Off unless the step says On: the Gate then holds only when a Space admin rule requires approval for this act
     const step = stepRef(env, node);
     const opts = {
-      ...(def.effects === "outward" && !asks(node) ? { gate: "admin_only" as const } : {}),
+      ...(def.effects === "outward" && node.askBeforeSending !== true ? { gate: "admin_only" as const } : {}),
       ...(step ? { step } : {}),
     };
     const out = await env.ctx.call(cap, input, Object.keys(opts).length > 0 ? opts : undefined);
@@ -971,58 +936,83 @@ function accountRefusal(e: unknown, title: string, input: Record<string, unknown
 
 // ---- the runner ----
 
-/** The record a Run is about: what a record trigger carries as `record`, or a plain `recordId`. */
-function runRecordId(trigger: unknown): string | undefined {
-  const t = trigger as { record?: { id?: unknown }; recordId?: unknown } | null | undefined;
-  const id = t?.record?.id ?? t?.recordId;
-  return typeof id === "string" && id ? id : undefined;
-}
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** Does any text of this step read `trigger.record`? */
+const readsRecord = (node: StepNode): boolean =>
+  textsIn(node.input).some((t) =>
+    readsOf(t).some((r) => (r.root === "trigger" || r.root === "input") && r.segs[0] === "record"),
+  );
+
 /**
- * The values a Journey carries for the record this Run is about, when the step reads {{journey.x}}. Nothing is asked when no part of the step names the Journey, so a Flow without one pays nothing.
- * A Run about no record, or a read that fails, says nothing about the names: the step then fails with the line "has no value yet" only when the values were really read.
+ * The trigger payload with `record` filled in for the triggers that point at a record without carrying it. Read only when a text of this step reads it, through the Run's own ctx. A Journey's record is of the
+ * Journey's own type. Anything that cannot be read leaves the payload as it was, and the step then fails in words (it has nothing to read).
  */
-async function journeyValues(
-  env: StepEnv,
-  node: StepNode,
-  call: StepCall,
-): Promise<{ values: Record<string, unknown>; keys: string[] } | undefined> {
-  if (!env.ctx.call || !textsIn(node.input).some((t) => /\bjourney\s*[.[]/.test(t))) return undefined;
-  const recordId = runRecordId(call.trigger);
-  if (!recordId) return undefined;
+async function withRecord(env: StepEnv, node: StepNode, trigger: unknown): Promise<unknown> {
+  const kind = env.run.trigger;
+  if (!isObj(trigger) || isObj(trigger["record"]) || !env.ctx.call || !readsRecord(node)) return trigger;
+  const recordId = trigger["recordId"];
+  let type: unknown = trigger["type"];
   try {
-    const got = (await env.ctx.call("journeys.values.get", { recordId })) as {
-      values?: Record<string, unknown>;
-    } | null;
-    if (!got || typeof got.values !== "object" || got.values === null) return undefined;
-    const keys = Object.keys(got.values);
-    // a key the Journey declares but nobody has kept yet is told apart from a name that is not a value at all by the declared list
-    const declared = (await env.ctx.call("journeys.list", {}).catch(() => null)) as {
-      journeys?: { variables?: { key: string }[] }[];
-    } | null;
-    const all = new Set<string>(keys);
-    for (const j of declared?.journeys ?? []) for (const v of j.variables ?? []) all.add(v.key);
-    return { values: got.values, keys: [...all].sort() };
+    if (kind === "journey_stage_entered" || kind === "journey_stage_left") {
+      const j = (await env.ctx.call("journeys.get", { journeyId: trigger["journeyId"] })) as {
+        journey?: { recordType?: string };
+      } | null;
+      type = j?.journey?.recordType;
+    } else if (kind !== "form_submit" && kind !== "button") return trigger;
+    if (typeof type !== "string" || typeof recordId !== "string") return trigger;
+    const got = (await env.ctx.call("records.get", { type, recordId })) as { record?: { fields?: unknown } } | null;
+    return isObj(got?.record?.fields) ? { ...trigger, record: withoutSealed(got.record.fields) } : trigger;
   } catch {
-    return undefined;
+    return trigger;
   }
 }
 
 /** Run one step. Sandboxes (test mode, replay) answer every step that writes or sends with its sample and run only what reads. */
 export async function runStep(env: StepEnv, node: StepNode, call: StepCall): Promise<StepResult> {
+  const notes: string[] = [];
+  const r = await runStepCore(env, node, call, notes);
+  return notes.length > 0 ? { ...r, notes } : r;
+}
+
+/** The line for a name a manual trigger does not carry: `{{trigger.email}}` is set when a form or a message starts it; run by hand, what a person types is under `input`. */
+function manualLine(reads: ReturnType<typeof readsOf>, declared: ReturnType<typeof triggerShapeOf>): string[] {
+  const out: string[] = [];
+  for (const r of reads) {
+    const key = r.segs[0];
+    if ((r.root !== "trigger" && r.root !== "input") || key === undefined || declared.props?.[key]) continue;
+    out.push(`{{trigger.${key}}} isn't set when this runs by hand. Use {{trigger.input.${key}}}.`);
+  }
+  return [...new Set(out)];
+}
+
+async function runStepCore(env: StepEnv, node: StepNode, call: StepCall, notes: string[]): Promise<StepResult> {
   const def = STEPS.get(node.key);
   if (!def) throw stepError("validation.bad_input", `There is no step called ${node.key}.`, false);
-  // the values a Journey carries for the record this Run is about, read only when the step names one ({{journey.plan}})
-  const carried = await journeyValues(env, node, call);
-  const scope = scopeOf(env, call, carried?.values);
+  // the record a form, a button or a stage move points at is read here, as the principal the Run acts as (the Flow's owner, or its own service), never by the service that noticed the event:
+  // a record that principal may not read does not reach the template (the line below says so), and a field it may not see is not in it
+  const trigger = await withRecord(env, node, call.trigger);
+  const scope = scopeOf(env, { ...call, trigger });
   // a name the Run cannot have fails the step in words, instead of the step sending an empty value (r40 audit, gap 4)
   const unresolved = unresolvedLine(textsIn(node.input), {
-    trigger: call.trigger,
+    trigger,
     steps: scope.steps,
-    ...(carried ? { journey: carried.values, journeyKeys: carried.keys } : {}),
-    declared: shapeOf(TRIGGER_PAYLOADS.get(env.run.trigger ?? ""), DEFS),
+    declared: declaredFor(env.run.trigger),
     checkSteps: !(call.sandbox && Object.keys(call.outputs).length === 0),
   });
-  if (unresolved) throw stepError("validation.bad_input", `${def.title}: ${unresolved}`, false);
+  if (unresolved && env.run.strict !== false)
+    throw stepError("validation.bad_input", `${def.title}: ${unresolved}`, false);
+  // saved before the check: it runs as it always did (the name reads empty) and the Run log says so once, in plain words
+  if (unresolved) {
+    const declared = declaredFor(env.run.trigger);
+    const lines =
+      env.run.trigger === "manual"
+        ? manualLine(
+            textsIn(node.input).flatMap((t) => readsOf(t)),
+            declared,
+          )
+        : [];
+    notes.push(...(lines.length > 0 ? lines : [unresolved]));
+  }
   const input = render(node.input, scope) as In;
   if (call.sandbox && sandboxStubs(def, input)) {
     // a test or replay answers with the sample, but a step whose required input is empty would have been refused for real: it stops here the same way (a stopped test is not a success)

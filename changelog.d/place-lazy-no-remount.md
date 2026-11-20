@@ -1,0 +1,1 @@
+- A place no longer remounts when its code arrives, and a place or Chats part whose code fails to load is not remembered as failed: it shows Try again or a small Retry, and a page's own crash still goes to the place's boundary.

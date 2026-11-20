@@ -1,0 +1,1 @@
+- Sign Out revokes the sign-in even when the shell is drawn before the session has opened (it used to skip the call and leave the token alive), and a problem report queued before the session opened is sent when it opens.

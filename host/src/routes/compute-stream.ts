@@ -38,6 +38,7 @@ import { acceptPeer as accept } from "../ws.ts";
 import type { Peer } from "../ws.ts";
 import { sourceOf } from "../daemon/preauth.ts";
 import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
+import { safeUrl } from "../safe-url.ts";
 
 const TRACE = "0".repeat(32);
 const NODE_PATH = "/compute/stream";
@@ -588,7 +589,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       res.setHeader("retry-after", "60");
       return plain(res, 429, "rate_limit.exceeded", "Too many requests from this address.");
     }
-    const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
+    const ticket = safeUrl(req.url, "http://x").searchParams.get("ticket") ?? "";
     let started = false;
     let settle: (v: { status: number; message: string } | null) => void = () => undefined;
     const answered = new Promise<{ status: number; message: string } | null>((r) => {
@@ -655,7 +656,7 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
         refuseUpgrade(socket, "429 Too Many Requests");
         return;
       }
-      const ticket = new URL(req.url ?? "/", "http://x").searchParams.get("ticket") ?? "";
+      const ticket = safeUrl(req.url, "http://x").searchParams.get("ticket") ?? "";
       let peer: Peer | null = null;
       let gotOpened: () => void = () => undefined;
       let gotFailed: (reason: string) => void = () => undefined;
@@ -957,20 +958,20 @@ export function createComputeStream(deps: ComputeStreamDeps): ComputeStream {
       });
     },
     claims(req) {
-      const path = new URL(req.url ?? "/", "http://x").pathname;
+      const path = safeUrl(req.url, "http://x").pathname;
       if (path === NODE_PATH) return true;
       const m = VIEW_PATH.exec(path);
       return !!m && m[2] === "ws";
     },
     upgrade(req, socket, head) {
-      const path = new URL(req.url ?? "/", "http://x").pathname;
+      const path = safeUrl(req.url, "http://x").pathname;
       if (path === NODE_PATH) return onNode(req, socket, head);
       const m = VIEW_PATH.exec(path);
       if (m && m[2] === "ws") return onViewer(req, socket, head, m[1]!);
       refuseUpgrade(socket, "404 Not Found");
     },
     handle(req, res) {
-      const url = new URL(req.url ?? "/", "http://x");
+      const url = safeUrl(req.url, "http://x");
       const m = VIEW_PATH.exec(url.pathname);
       if (!m || m[2] !== "stream") return false;
       if (req.method !== "GET") {

@@ -113,7 +113,6 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "calendar.list_events": ["from:From", "to:To", "query:Search", "~calendarIds:Calendars"],
   start_journey: ["journeyId:Journey", "subjectRecordId:Record", "startStage:First stage"],
   "journeys.move_stage": ["journeyId:Journey", "recordId:Record", "toStage:Stage", "~reason:Why it moves"],
-  "journeys.values.set": ["recordId:Record", "key:Name", "value:Value"],
   "forms.link_create": [
     "formId:Form",
     "recordId:Record",
@@ -138,6 +137,19 @@ const T: Readonly<Record<string, readonly string[]>> = {
     "~html:Formatted message",
     "~threadId:In the thread",
   ],
+  "google.gmail.create_draft": [
+    "to:To",
+    "subject:Subject",
+    "+text:Message",
+    "~cc:Cc",
+    "~bcc:Bcc",
+    "~html:Formatted message",
+    "~threadId:In the thread",
+    "~as:From",
+  ],
+  "google.gmail.get_message": [],
+  "google.calendar.get_event": ["calendarId:Calendar", "eventId:Event"],
+  "google.drive.get_file": [],
   "google.gmail.list_messages": [],
   "google.calendar.create_event": [
     "summary:Title",
@@ -156,7 +168,9 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "google.drive.list_files": ["q:Search", "parentId:Inside", "~pageSize:How many"],
   "google.sheets.append_values": ["spreadsheetId:Spreadsheet", "range:Where", "values:Rows"],
   "google.sheets.get_values": [],
-  "ms.mail.send_message": ["to:To", "subject:Subject", "+text:Message", "~html:Formatted message"],
+  "ms.mail.send_message": [],
+  "ms.mail.create_draft": [],
+  "ms.mail.get_message": [],
   "ms.mail.list_messages": ["search:Search", "folderId:Folder", "~top:How many"],
   "ms.calendar.create_event": [
     "subject:Title",

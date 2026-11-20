@@ -277,6 +277,12 @@ function makeBrowser(app: FakeApp, tab: { id: number; url: string; title?: strin
         func: (...a: any[]) => any;
         args: any[];
       }) {
+        // the frame answers with the origin of the address the tab is on
+        try {
+          (globalThis as any).location = new URL(String((tab as any).url));
+        } catch {
+          (globalThis as any).location = undefined;
+        }
         const result = o.func(...o.args);
         return [{ frameId: o.target.frameIds ? o.target.frameIds[0] : 0, result }];
       },
@@ -469,7 +475,9 @@ test("a ref that expired before the filler answered is dropped", async () => {
           {
             frameId: 0,
             result:
-              o.func.name === "prepareInPage" ? { fields: [{ ref: "p1", role: "password" }], signup: false } : true,
+              o.func.name === "prepareInPage"
+                ? { fields: [{ ref: "p1", role: "password" }], signup: false, origin: "https://acme.test" }
+                : true,
           },
         ];
       },
@@ -1132,4 +1140,160 @@ test("the secret check fires: a short code as its own value, as a whole token in
     [],
     "a random id that merely contains the digits is not a leak",
   );
+});
+
+// ---------- error-proofing: the Space goes away, the page changes, hostile frames ----------
+
+/** A worker's fill with a scripted bridge and page; `frames` are what each frame answers when asked for its fields. */
+async function scriptedFill(o: {
+  frames: { frameId: number; origin: string; fields: { ref: string; role: string }[] }[];
+  fillCall?: (c: string, i: Msg, push: (v: string) => void) => Promise<unknown>;
+  apply?: (frameId: number) => unknown;
+}) {
+  const { createFill } = await import("../src/worker/fill.js");
+  const pushes: ((m: Msg) => void)[] = [];
+  const applied: { frameId: number; value: string }[] = [];
+  const scripts: string[] = [];
+  const f = createFill({
+    bridge: {
+      onPush: (h: (m: Msg) => void) => {
+        pushes.push(h);
+        return () => {};
+      },
+      invoke: async (c: string, i: Msg) => {
+        if (c === "vault.use") return { handle: "#X", fields: ["username", "password"] };
+        if (c === "vault.fill") {
+          const push = (value: string) =>
+            void Promise.resolve().then(() => pushes.forEach((p) => p({ type: "fill", ref: i["target"].ref, value })));
+          return o.fillCall ? o.fillCall(c, i, push) : (push("sentinel-value"), { filled: true });
+        }
+        return {};
+      },
+    },
+    scripting: {
+      executeScript: async (e: any) => {
+        scripts.push(e.func.name);
+        if (e.func.name === "prepareInPage")
+          return o.frames.map((fr) => ({
+            frameId: fr.frameId,
+            result: { fields: fr.fields, signup: false, origin: fr.origin },
+          }));
+        if (e.func.name === "applyInPage") {
+          const frameId = e.target.frameIds[0];
+          if (o.apply) {
+            const r = o.apply(frameId);
+            if (r === "throw") throw new Error("No frame with id " + frameId);
+          }
+          applied.push({ frameId, value: e.args[1] });
+          return [{ frameId, result: true }];
+        }
+        return [{ frameId: 0, result: true }];
+      },
+    },
+    rules: { forHost: async () => null },
+    now: () => 1000,
+    waitMs: 30,
+  });
+  return { f, applied, scripts };
+}
+
+const JOB = { tabId: 1, url: "https://acme.test/login", itemId: "vit_x", kind: "login" as const };
+const FIELDS = [
+  { ref: "u1", role: "username" },
+  { ref: "p1", role: "password" },
+];
+
+test("a login form inside an embedded page of another site is never filled, even when it is the only one", async () => {
+  const hostile = await scriptedFill({
+    frames: [
+      { frameId: 0, origin: "https://acme.test", fields: [] },
+      { frameId: 5, origin: "https://evil.example", fields: FIELDS },
+    ],
+  });
+  await assert.rejects(hostile.f.fill(JOB), (e: any) => e.code === "no_field");
+  assert.deepEqual(hostile.applied, [], "nothing went into the other site's frame");
+  // with both, the page's own frame wins, and a look-alike origin is not the page
+  const both = await scriptedFill({
+    frames: [
+      { frameId: 7, origin: "https://acme.test.evil.example", fields: FIELDS },
+      { frameId: 5, origin: "https://evil.example", fields: FIELDS },
+      { frameId: 0, origin: "https://acme.test", fields: FIELDS },
+    ],
+  });
+  const done = await both.f.fill(JOB);
+  assert.deepEqual(done.filled.sort(), ["password", "username"]);
+  assert.deepEqual([...new Set(both.applied.map((a) => a.frameId))], [0], "only the page's own frame took a value");
+  assert.equal(both.f.pendingRefs, 0);
+});
+
+test("the Space goes away in the middle of a fill: nothing is put in the page, every ref is spent, the error is the bridge's", async () => {
+  const gone = await scriptedFill({
+    frames: [{ frameId: 0, origin: "https://acme.test", fields: FIELDS }],
+    fillCall: async () => {
+      throw Object.assign(new Error("the Vyre app closed the connection"), { code: "offline" });
+    },
+  });
+  await assert.rejects(gone.f.fill(JOB), (e: any) => e.code === "offline");
+  assert.deepEqual(gone.applied, []);
+  assert.equal(gone.f.pendingRefs, 0, "no ref outlives the fill");
+  assert.ok(gone.scripts.includes("forgetInPage"), "the page forgets its handles");
+  // the session was signed out: the Vault answers it did not fill
+  const out = await scriptedFill({
+    frames: [{ frameId: 0, origin: "https://acme.test", fields: FIELDS }],
+    fillCall: async () => ({ filled: false }),
+  });
+  assert.deepEqual((await out.f.fill(JOB)).filled, []);
+  assert.deepEqual(out.applied, []);
+  assert.equal(out.f.pendingRefs, 0);
+});
+
+test("the page changes under a fill: the frame is gone when the value arrives, so the value lands nowhere and the fill says it filled nothing", async () => {
+  const w = await scriptedFill({
+    frames: [{ frameId: 0, origin: "https://acme.test", fields: FIELDS }],
+    apply: () => "throw",
+  });
+  const done = await w.f.fill(JOB);
+  assert.deepEqual(done.filled, []);
+  assert.deepEqual(w.applied, []);
+  assert.equal(w.f.pendingRefs, 0);
+});
+
+test("a frame of another site inside the page is offered no accounts and no cards, and its fill request is refused", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const frame = {
+    id: "ext_vyre",
+    tab: { id: 7, url: "https://login.acme.test/signin" },
+    origin: "https://evil.example",
+    url: "https://evil.example/ad",
+  };
+  for (const kind of ["login", "card"]) {
+    const list = await b.w.onMessage({ type: "vyre.accounts", kind }, frame);
+    assert.deepEqual(list.data, { blocked: "frame", rows: [] });
+  }
+  const r = await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, frame);
+  assert.equal(r.error?.code, "not_allowed");
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0, "no value was asked for");
+  // the page's own frame is served as before
+  const own = { ...frame, origin: "https://login.acme.test", url: "https://login.acme.test/signin" };
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, own)).data.rows.length, 1);
+});
+
+test("a message that says nothing about which site it comes from is treated as a foreign frame, and the badge says why in one line", async () => {
+  const app = new FakeApp();
+  loginPage(doc);
+  const b = await worker(app);
+  const silent = { id: "ext_vyre", tab: { id: 7, url: "https://login.acme.test/signin" } };
+  assert.deepEqual((await b.w.onMessage({ type: "vyre.accounts", kind: "login" }, silent)).data, {
+    blocked: "frame",
+    rows: [],
+  });
+  assert.equal(
+    (await b.w.onMessage({ type: "vyre.fill", itemId: "vit_acme", kind: "login" }, silent)).error?.code,
+    "not_allowed",
+  );
+  assert.equal(app.received.filter((m) => m["capability"] === "vault.fill").length, 0);
+  const src = (await import("node:fs")).readFileSync(new URL("../src/content/badge.js", import.meta.url), "utf8");
+  assert.match(src, /Vyre does not fill inside another site's frame\./);
 });

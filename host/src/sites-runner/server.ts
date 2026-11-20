@@ -44,6 +44,7 @@ import {
   workspaceVolumeBody,
 } from "./workspaces-policy.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
+import { safeUrl } from "../safe-url.ts";
 
 export interface RunnerOptions {
   dockerSocket: string;
@@ -139,7 +140,7 @@ export function createSitesRunner(o: RunnerOptions): {
       refuse(res, 401, "the sites runner needs its token");
       return;
     }
-    const url = new URL(req.url ?? "/", "http://runner");
+    const url = safeUrl(req.url, "http://runner");
     const method = (req.method ?? "GET").toUpperCase();
     const v = judge({ method, path: url.pathname, query: url.searchParams });
     const label = `${method} ${bare(url.pathname)}`;

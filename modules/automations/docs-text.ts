@@ -1,6 +1,8 @@
 // What an agent reads from an API docs page: plain text, the links on the same host, and for an OpenAPI document one line per operation. The page is data, not a prompt: nothing in it is run,
 // and the text is cut. A search word returns only the passages around it, so a long reference does not fill the turn.
 
+import { capText, cutBlocks, replaceAnchors, stripTags } from "../../lib/html-text.ts";
+
 export interface DocsView {
   kind: "openapi" | "html" | "text";
   text: string;
@@ -24,25 +26,39 @@ function decode(s: string): string {
 
 function htmlText(html: string): string {
   return decode(
-    html
-      .replace(/<(script|style|noscript|svg|nav|footer|header)[\s\S]*?<\/\1>/gi, " ")
-      .replace(/<!--[\s\S]*?-->/g, " ")
-      .replace(/<\/(p|div|li|h[1-6]|tr|pre|section|article)>/gi, "\n")
-      .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<[^>]+>/g, " "),
+    stripTags(
+      cutBlocks(capText(html, 2_000_000), ["script", "style", "noscript", "svg", "nav", "footer", "header"], {
+        comments: true,
+        repl: " ",
+      })
+        .replace(/<\/(p|div|li|h[1-6]|tr|pre|section|article)>/gi, "\n")
+        .replace(/<br\s{0,16}\/?>/gi, "\n"),
+      " ",
+    ),
   )
     .replace(/[ \t]+/g, " ")
     .replace(/\n\s*\n+/g, "\n")
     .trim();
 }
 
+const HREF = /href=["']([^"'#]+)/i;
+
 function linksOf(html: string, base: URL): { text: string; url: string }[] {
   const out: { text: string; url: string }[] = [];
   const seen = new Set<string>();
-  for (const m of html.matchAll(/<a\s[^>]*href=["']([^"'#]+)[^>]*>([\s\S]*?)<\/a>/gi)) {
+  const found: { href: string; label: string }[] = [];
+  replaceAnchors(
+    capText(html, 2_000_000),
+    (tag) => /^<a\s/i.test(tag) && HREF.test(tag),
+    (tag, label) => {
+      if (found.length < MAX_LINKS * 8) found.push({ href: HREF.exec(tag)![1]!, label });
+      return "";
+    },
+  );
+  for (const m of found) {
     let u: URL;
     try {
-      u = new URL(decode(m[1]!), base);
+      u = new URL(decode(m.href), base);
     } catch {
       continue;
     }
@@ -51,7 +67,7 @@ function linksOf(html: string, base: URL): { text: string; url: string }[] {
     const key = u.href;
     if (seen.has(key)) continue;
     seen.add(key);
-    const text = htmlText(m[2]!).slice(0, 80);
+    const text = htmlText(m.label).slice(0, 80);
     if (text === "") continue;
     out.push({ text, url: key });
     if (out.length >= MAX_LINKS) break;

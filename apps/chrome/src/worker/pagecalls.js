@@ -5,7 +5,12 @@
 /** @param {{ roles: string[] }} want */
 export function prepareInPage(want) {
   const x = /** @type {any} */ (globalThis).__vyreExt;
-  return x && x.autofill ? x.autofill.prepare(want) : { fields: [], signup: false };
+  const r = x && x.autofill ? x.autofill.prepare(want) : { fields: [], signup: false };
+  // which origin this frame is, so the worker never fills a frame that is not the page the person is on (an embedded page from another site)
+  return {
+    ...r,
+    origin: /** @type {any} */ (globalThis).location ? /** @type {any} */ (globalThis).location.origin : "",
+  };
 }
 
 /** @param {string} ref @param {string} value */

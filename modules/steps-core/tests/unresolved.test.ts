@@ -67,3 +67,35 @@ test("a step with no result fails; one that ran is read; a single step tried alo
   assert.equal((h.only("records.update")[0]!.input as { patch: { note: unknown } }).patch.note, 2);
   await runStep(h.env, post("{{steps.find.out.count}}"), callOf({ trigger: {}, sandbox: true, outputs: {} }));
 });
+
+test("a text of nothing but braces renders in linear time, and ordinary templates still render", async () => {
+  const { renderText } = await import("../projections.ts");
+  const t0 = Date.now();
+  renderText("{{".repeat(50_000), {});
+  renderText("{{ 1 }} }} ".repeat(8_000), {});
+  assert.ok(Date.now() - t0 < 100, `took ${Date.now() - t0} ms`);
+  assert.equal(renderText("a {{ 1 + 1 }} b {{ 'c' }} {{ open", {}), "a 2 b c {{ open");
+  assert.equal(renderText("  {{ 2 * 3 }} ", {}), 6);
+});
+
+test("an Automation saved before the variable check reads an unknown name as empty, as it always did, and says so in the Run log; a saved one or a test is held to it", async () => {
+  const old = withTrigger("manual");
+  old.env.run.strict = false;
+  const r = await runStep(old.env, post("[{{trigger.email}}]"), callOf({ trigger: { startedBy: "usr_a" } }));
+  assert.equal((old.only("records.update")[0]!.input as { patch: { note: unknown } }).patch.note, "[]");
+  assert.deepEqual(r.notes, ["{{trigger.email}} isn't set when this runs by hand. Use {{trigger.input.email}}."]);
+  const fresh = withTrigger("manual");
+  fresh.env.run.strict = true;
+  assert.match(
+    await failure(runStep(fresh.env, post("[{{trigger.email}}]"), callOf({ trigger: { startedBy: "usr_a" } }))),
+    /is not a variable/,
+  );
+  assert.equal(fresh.only("records.update").length, 0);
+  // a step with nothing wrong says nothing
+  const clean = withTrigger("manual");
+  clean.env.run.strict = false;
+  assert.equal(
+    (await runStep(clean.env, post("{{trigger.input.email}}"), callOf({ trigger: { input: { email: "a@x" } } }))).notes,
+    undefined,
+  );
+});

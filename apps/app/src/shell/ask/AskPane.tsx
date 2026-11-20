@@ -2,7 +2,8 @@
 // Assistant first), New and Open in Chats; under it the chip of the thing, with an x that makes it about the place again. The composer is the Chats composer, so the model picker and the
 // focus skill come with it, and every message carries the pane's screen context (the thing as the open object, the place's focus skill, what the door added). Escape closes it. The width is
 // remembered per place by the shared SidePane. Nothing here navigates except Open in Chats, which is the person asking for the full chat.
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { SidePane } from "../../../../../ui/src/SidePane/index.tsx";
@@ -33,7 +34,7 @@ import { openAskInChats, resolveAskThread } from "./thread.ts";
 
 // the conversation alone, not the whole Chats place (providers/chats.tsx pulls in ChatsMounted: the sidebar, the agent pane, the computer popup): the pane's lazy chunk stays small, so
 // the first Ask loads in a fraction of the time (askpane tests sat at the 30 s watchdog on a loaded CI shard compiling the whole place)
-const ChatsConversation = lazy(() =>
+const ChatsConversation = lazyPart(() =>
   import("../../places/chats/conversation/Conversation.tsx").then((m) => ({ default: m.Conversation })),
 );
 

@@ -855,10 +855,10 @@ function resolveRefs(
   for (const [k, v] of Object.entries(input))
     out[k] =
       typeof v === "string"
-        ? v.replace(
-            /\{\{\s*([^{}]*?)\s*\}\}/g,
-            (_m, ref: string) => given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf),
-          )
+        ? v.replace(/\{\{([^{}]{0,200})\}\}/g, (_m, raw: string) => {
+            const ref = raw.trim();
+            return given.find((g) => g.ref === ref)?.sample || chipLabel(ref, titleOf);
+          })
         : v;
   return out;
 }

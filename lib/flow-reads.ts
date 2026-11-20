@@ -9,6 +9,8 @@ export interface Read {
   root: string;
   /** the plain parts after the root, in order */
   segs: string[];
+  /** the expression says what to use when the name has nothing (`a ?? "none"`, `a || "none"`, `exists(a)`): a missing name is then no mistake */
+  fallback: boolean;
 }
 
 /** What a place in the scope holds: named parts, or anything (a record, a body, a list of rows). */
@@ -18,21 +20,32 @@ export interface Shape {
   required?: string[];
 }
 
-const BODY = /\{\{([\s\S]*?)\}\}/g;
+const MAX_TEXT = 1_000_000;
 const WORDS = new Set(["true", "false", "null", "in", "contains"]);
 /** The roots a `{{ }}` can start with (the same list the expression language reads). */
-export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "journey", "item", "index", "run"];
+export const ROOTS: readonly string[] = ["trigger", "input", "steps", "vars", "item", "index", "run"];
 
-/** The texts between `{{` and `}}`. */
-export function bodiesOf(s: string): string[] {
+/** The texts between `{{` and `}}`. One pass over the text, so a text of nothing but `{{` costs no more than its length. */
+export function bodiesOf(text: string): string[] {
+  // a node's text is never this long in earnest: what is past the cap is not read
+  const s = text.length > MAX_TEXT ? text.slice(0, MAX_TEXT) : text;
   const out: string[] = [];
-  for (const m of s.matchAll(BODY)) out.push(m[1] ?? "");
+  let at = 0;
+  for (;;) {
+    const open = s.indexOf("{{", at);
+    if (open < 0) break;
+    const close = s.indexOf("}}", open + 2);
+    if (close < 0) break; // no `}}` anywhere after this: nothing later can close either
+    out.push(s.slice(open + 2, close));
+    at = close + 2;
+  }
   return out;
 }
 
 /** Every name one expression reads. */
 export function readsOfExpr(src: string): Read[] {
   const out: Read[] = [];
+  const fallback = /\|\||\?\?|\b(?:exists|isEmpty)\s*\(/.test(src);
   let i = 0;
   const n = src.length;
   let prev = "";
@@ -72,7 +85,7 @@ export function readsOfExpr(src: string): Read[] {
         break;
       }
       const call = segs.length === 0 && /^\s*\(/.test(src.slice(j));
-      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs });
+      if (!call && !WORDS.has(root)) out.push({ text: src.slice(i, end), root, segs, fallback });
       i = end;
       prev = "a";
       continue;
@@ -173,20 +186,31 @@ export function shapeOf(schema: unknown, defs: Record<string, unknown> = {}, dep
   return { props, ...(required.length ? { required } : {}) };
 }
 
+/**
+ * What a Run's `trigger` can hold for one kind of trigger: the trigger's own payload, plus every key the events that start it carry (a real event brings keys the trigger's summary does not list, such as a form's `booking`
+ * or a record change's `prev`; the Insert data menu shows them from a real event, so the check must know them). Only the trigger's own payload says what is always there (`required`).
+ */
+export function triggerShapeOf(
+  payload: unknown,
+  events: readonly unknown[],
+  defs: Record<string, unknown> = {},
+): Shape {
+  const own = shapeOf(payload, defs);
+  const props: Record<string, Shape> = { ...(own.props ?? {}) };
+  for (const e of events) for (const [k, v] of Object.entries(shapeOf(e, defs).props ?? {})) props[k] = props[k] ?? v;
+  return { props, ...(own.required ? { required: own.required } : {}) };
+}
+
 // ---- at run time ----
 
 /** What a Run holds while one step renders its text. */
 export interface Held {
   trigger?: unknown;
-  steps?: Record<string, unknown>;
+  steps?: Record<string, unknown> | undefined;
   /** the shape of what this kind of trigger carries; absent when the kind is not known */
   declared?: Shape;
   /** false for a single step tried by itself, which has no earlier steps to read */
   checkSteps: boolean;
-  /** The values the Journey carries for the record this Run is about; undefined when the Run is not about a record on a Journey (then nothing is said about {{journey.x}}). */
-  journey?: Record<string, unknown>;
-  /** The keys the Journey carries, said in the line when one is missing. */
-  journeyKeys?: readonly string[];
 }
 
 /**
@@ -197,17 +221,12 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
   for (const text of texts)
     for (const r of readsOf(text)) {
       if (!ROOTS.includes(r.root)) return unknownLine(r, 0, ROOTS);
+      // a name with a fallback written beside it renders the fallback when it has nothing, as it always did
+      if (r.fallback) continue;
       if (r.root === "steps" && held.checkSteps && r.segs[0] !== undefined) {
         const have = held.steps ?? {};
         if (!Object.hasOwn(have, r.segs[0]))
           return `{{${r.text}}} reads the step "${r.segs[0]}", which has no result in this run: it did not run, or there is no step with that id.`;
-      }
-      if (r.root === "journey" && r.segs[0] !== undefined && held.journey !== undefined) {
-        const key = r.segs[0];
-        if (!Object.hasOwn(held.journey, key))
-          return held.journeyKeys?.includes(key)
-            ? `{{${r.text}}} has no value yet: nothing has kept "${key}" for this record. A step before this one has to remember it.`
-            : `{{${r.text}}} is not a value this Journey carries.${held.journeyKeys && held.journeyKeys.length ? ` It carries ${held.journeyKeys.join(", ")}.` : ""}`;
       }
       if ((r.root === "trigger" || r.root === "input") && r.segs[0] !== undefined) {
         const payload = held.trigger;
@@ -221,4 +240,11 @@ export function unresolvedLine(texts: readonly string[], held: Held): string | u
       }
     }
   return undefined;
+}
+
+const isRec = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+/** A sealed field is held as a reference, never as its value. A Run's `trigger.record` leaves those fields out entirely: a Flow cannot template a secret into an email. */
+export function withoutSealed(fields: unknown): Record<string, unknown> {
+  if (!isRec(fields)) return {};
+  return Object.fromEntries(Object.entries(fields).filter(([, v]) => !(isRec(v) && typeof v["sealed"] === "string")));
 }
