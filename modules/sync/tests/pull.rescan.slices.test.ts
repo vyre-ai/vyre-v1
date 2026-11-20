@@ -290,3 +290,57 @@ test("a pull of 2,000 and of 5,000 wide rows is cut by CPU time, never held past
     assert.ok(slowest <= 200, `a page of limit ${limit} was ${Math.round(slowest)} ms of CPU (the bound is 120 ms plus the row it was on)`);
   }
 });
+
+test("a share given while the scan of the not-held rows is half done: the rows it opens, before and after the place the scan had reached, all reach the device", async () => {
+  const access = buildAccess();
+  const s = openSync({ access: () => access, clock: () => NOW });
+  await s.store.define({ add_types: [CONTACT_TYPE] });
+  const N = 3000;
+  const all = new Set<string>();
+  for (let i = 0; i < N; i++) {
+    const id = mintRecordId();
+    all.add(id);
+    await s.store.create("contact", id, { name: `Other ${i}`, email: "o@example.com", phone: "+1", region: "us", stage: "lead", owner: ADA });
+  }
+  const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
+  const got = new Set<string>();
+  let cur = 0;
+  const pull = async (): Promise<PullRes> => {
+    const r: PullRes = await s.handlers["sync.pull"](ctx, { cursor: cur, epoch: 0 });
+    for (const c of r.changes) got.add(c.id);
+    for (const h of r.hide) got.delete(h.id);
+    cur = r.next;
+    return r;
+  };
+  const first = await pull();
+  assert.equal(first.changes.length, 0, "the device may see none of the 'us' rows");
+  // another change of access: the scan that follows is cut half way through the rows the device does not hold
+  access.putGrant({
+    id: "gr_cy_other",
+    subject_kind: "actor",
+    subject_id: CY,
+    resource_type: "record",
+    resource_id: null,
+    level: "view",
+    conditions: { rowFilter: { op: "eq", field: "region", value: "eu" } },
+  });
+  const half = await pull();
+  assert.equal(half.more, true);
+  const open = s.deps.db.get<{ ent: string; rid: string }>("SELECT ent, rid FROM sync_scope_scan");
+  assert.ok(open?.ent.startsWith("m:") && open.rid !== "", `the scan stands part way through the other rows (${open?.ent} ${open?.rid})`);
+  // a share opens all of them while it stands there
+  access.putGrant({
+    id: "gr_bo_us",
+    subject_kind: "actor",
+    subject_id: BO,
+    resource_type: "record",
+    resource_id: null,
+    level: "view",
+    conditions: { rowFilter: { op: "eq", field: "region", value: "us" } },
+  });
+  for (let i = 0; i < 400; i++) {
+    const r = await pull();
+    if (!r.more) break;
+  }
+  assert.equal(got.size, N, `every row the share opens reaches the device (${got.size} of ${N})`);
+});
