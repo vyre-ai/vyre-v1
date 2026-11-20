@@ -95,7 +95,7 @@ export const ACTIONS: Readonly<Record<string, Action>> = {
   },
   budget: {
     // through the pipeline, not the handler: the call is then held and approved exactly as runs.budget.set is (act spend_raise, the same approver and card), whichever door an agent used
-    h: (ctx, input) => {
+    h: async (ctx, input) => {
       // no way to ask runs.budget.set means no gate on a raise: that is a fault of the server, never a quiet bypass
       if (!ctx.call) return raise(ctx, "internal.unexpected", "The limit could not be asked for.");
       return ctx.call("runs.budget.set", input);
