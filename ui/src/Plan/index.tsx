@@ -261,6 +261,10 @@ export function Plan(props: PlanProps): ReactElement {
   };
   // a phone has no double click and no modifier keys: one tap on a task opens it (a row of the list, the board's card or a name beside the timeline used to only select it)
   const phone = isPhoneWidth(useWindowDimensions().width);
+  // a touch screen: a phone width, or a coarse pointer (a tablet): the avatar on a bar or a calendar chip is only a picture there
+  const coarse =
+    phone ||
+    (typeof globalThis.matchMedia === "function" && globalThis.matchMedia("(pointer: coarse)").matches === true);
   const select = (id: string, mod: boolean, shift: boolean): void => {
     const r = clickSelect(order, sel, anchor, id, mod, shift);
     setSel(r.sel);
@@ -613,6 +617,7 @@ export function Plan(props: PlanProps): ReactElement {
   if (!web) return <NativeList items={items} />;
 
   const ctx: PlanCtx = {
+    coarse,
     today,
     width,
     filter,
