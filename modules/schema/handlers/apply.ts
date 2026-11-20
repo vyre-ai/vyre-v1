@@ -38,6 +38,7 @@ export type OpName =
   | "type.drop"
   | "field.add"
   | "field.update"
+  | "field.mergeable"
   | "field.retype"
   | "field.rename"
   | "field.drop"
@@ -586,8 +587,19 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
       ? no("name the field")
       : (t.fields.find((f) => f.key === key) ?? no(`${t.key} has no field ${key}`));
 
-  for (const op of ops) {
+  for (const asked of ops) {
+    let op = asked;
     try {
+      // "Can go in emails" for one field: def {mergeable: true|false}. It is a field.update of the field's options, so every rule of one (system fields, the never-private check) applies as is.
+      if (asked.op === "field.mergeable") {
+        const on = (asked.def ?? {})["mergeable"];
+        if (typeof on !== "boolean") no("field.mergeable takes def {mergeable: true or false}");
+        const f0 = needField(needType(asked.type), asked.field);
+        const options: Record<string, unknown> = { ...(f0.options ?? {}) };
+        if (on) options["mergeable"] = true;
+        else delete options["mergeable"];
+        op = { ...asked, op: "field.update", def: { options } };
+      }
       switch (op.op) {
         case "type.create": {
           const d = op.def ?? {};

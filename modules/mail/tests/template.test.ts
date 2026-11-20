@@ -390,78 +390,35 @@ test("document wording needs edit on the file and comms.templates; reading needs
   assert.equal((await forDocumentGet(h.ctx, { documentId: DOC, key: "signature.reminder" })).override, true);
 });
 
-import { delivery, templates } from "../handlers/extra/tools.ts";
-test("mail.templates and mail.delivery_state: the two tools route to the same behaviour, and changing a template asks for the right to", async () => {
+import { delivery } from "../handlers/extra/tools.ts";
+import { setupTool } from "../handlers/setup.ts";
+test("the template actions of mail.configure route to the template capabilities with exactly what was asked, and mail.delivery_state gives a trail", async () => {
   const h = setup();
-  const list = (await templates(h.ctx, { action: "list" })).result as { templates: { key: string }[] };
-  assert.equal(list.templates.length, 4);
-  assert.deepEqual(contractErrors("mail.templates", "out", await templates(h.ctx, { action: "list" })), []);
-  const set = (
-    await templates(h.ctx, {
-      action: "set",
-      key: "signature.reminder",
-      subject: "S {{document_title}}",
-      text: "T {{sign_link}}",
-    })
-  ).result as { template: { source: string } };
-  assert.equal(set.template.source, "space");
-  assert.equal(
-    ((await templates(h.ctx, { action: "get", key: "signature.reminder" })).result as { template: { subject: string } })
-      .template.subject,
-    "S {{document_title}}",
-  );
-  const view = (
-    await templates(h.ctx, {
-      action: "preview",
-      key: "signature.reminder",
-      vars: { document_title: "Plan", sign_link: "https://sign.vyre.test/p" },
-    })
-  ).result as { subject: string };
-  assert.equal(view.subject, "S Plan");
-  // a document's own wording through the same door
-  await templates(h.ctx, {
-    action: "set",
-    key: "signature.reminder",
-    documentId: DOC,
-    subject: "Doc",
-    text: "Doc text",
-  });
-  assert.equal(
-    (
-      (await templates(h.ctx, { action: "get", key: "signature.reminder", documentId: DOC })).result as {
-        override: boolean;
-      }
-    ).override,
-    true,
-  );
-  assert.equal(
-    (
-      (await templates(h.ctx, { action: "reset", key: "signature.reminder", documentId: DOC })).result as {
-        cleared: boolean;
-      }
-    ).cleared,
-    true,
-  );
-  assert.equal(
-    ((await templates(h.ctx, { action: "reset", key: "signature.reminder" })).result as { reset: boolean }).reset,
-    true,
-  );
-  // refusals: no key, no words, an unknown action, and no right to change
-  await assert.rejects(templates(h.ctx, { action: "get" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(templates(h.ctx, { action: "set", key: "a.b" }), (e) => codeOf(e) === "validation.bad_input");
-  await assert.rejects(templates(h.ctx, { action: "nope" as never }), (e) => codeOf(e) === "validation.bad_input");
-  h.denied.add("spc_mailtest");
-  await assert.rejects(
-    templates(h.ctx, { action: "set", key: "a.b", subject: "s", text: "t" }),
-    (e) => codeOf(e) === "permission.no_grant",
-  );
-  await assert.rejects(
-    templates(h.ctx, { action: "reset", key: "signature.reminder" }),
-    (e) => codeOf(e) === "permission.no_grant",
-  );
-  assert.equal(((await templates(h.ctx, { action: "list" })).result as { templates: unknown[] }).templates.length, 4); // reading stays open
-  // delivery: a message id gives its trail, none gives inbox health
-  assert.deepEqual(contractErrors("mail.delivery_state", "out", await delivery(h.ctx, {})), []);
-  assert.ok(Array.isArray(((await delivery(h.ctx, {})).result as { inboxes: unknown[] }).inboxes));
+  const seen: { cap: string; input: Record<string, unknown> }[] = [];
+  const routed = (cap: string) => (i: Record<string, unknown>) => (seen.push({ cap, input: i }), { ok: cap });
+  script(h, Object.fromEntries(["mail.template.list", "mail.template.get", "mail.template.preview", "mail.template.save", "mail.template.reset", "mail.template.for_document.get", "mail.template.for_document.set", "mail.template.for_document.clear", "mail.inbox.monitor"].map((c) => [c, routed(c)])));
+  const first = async (input: Record<string, unknown>) => (await setupTool(h.ctx, input as never)).result;
+  await first({ action: "template_list" });
+  await first({ action: "template_get", key: "signature.request" });
+  await first({ action: "template_get", key: "signature.request", documentId: DOC });
+  await first({ action: "template_preview", key: "signature.request", vars: { document_title: "Plan" } });
+  await first({ action: "template_save", key: "signature.reminder", subject: "S", text: "T" });
+  await first({ action: "template_reset", key: "signature.reminder" });
+  await first({ action: "doc_template_get", documentId: DOC, key: "signature.reminder" });
+  await first({ action: "doc_template_set", documentId: DOC, key: "signature.reminder", subject: "S", text: "T" });
+  await first({ action: "doc_template_clear", documentId: DOC, key: "signature.reminder" });
+  await first({ action: "monitor" });
+  await first({ action: "monitor", mailboxId: "mbx_maya" });
+  assert.deepEqual(seen.map((s) => s.cap), ["mail.template.list", "mail.template.get", "mail.template.get", "mail.template.preview", "mail.template.save", "mail.template.reset", "mail.template.for_document.get", "mail.template.for_document.set", "mail.template.for_document.clear", "mail.inbox.monitor", "mail.inbox.monitor"]);
+  assert.deepEqual(seen[2]!.input, { key: "signature.request", documentId: DOC });
+  assert.deepEqual(seen[10]!.input, { mailboxId: "mbx_maya" });
+  // a wrong first call is answered with the shape, in one line, and reaches nothing
+  const said = (input: Record<string, unknown>) => setupTool(h.ctx, input as never).then(() => "", (e: unknown) => (e as { error: { message: string } }).error.message);
+  assert.equal(await said({ action: "template_save", key: "a.b" }), "mail.configure template_save takes {key, subject, text, recordType?}; missing subject, text.");
+  assert.equal(await said({ action: "template_get" }), "mail.configure template_get takes {key, documentId?}; missing key.");
+  assert.equal(await said({ action: "monitor", box: "x" }), "mail.configure monitor takes {mailboxId?}; not used: box.");
+  assert.equal(seen.length, 11);
+  // delivery: a message id gives its trail; none is asked for
+  await assert.rejects(delivery(h.ctx, {}), (e) => codeOf(e) === "validation.bad_input");
   await assert.rejects(delivery(h.ctx, { messageId: "eml_none" }), (e) => codeOf(e) === "validation.not_found");
 });

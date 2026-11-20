@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { AccessSnapshot, authorize } from "../../../kernel/src/authorize/index.ts";
 import { registry } from "../../../generated/registry.ts";
-import { CONFIGURE_ROUTE } from "../handlers/setup.ts";
+import { CONFIGURE_ROUTE, OWN_PERMISSION_ROUTES } from "../handlers/setup.ts";
 import fs from "node:fs";
 import { held } from "../fixtures/hold-rules.ts";
 
@@ -19,7 +19,9 @@ type Def = {
 const all = registry.capabilities as unknown as Def[];
 const def = (name: string): Def => all.find((c) => c.name === name) as Def;
 // the callees come from mail.configure's own routing table, so a new action is checked the day it is added
-const CALLEES = Object.values(CONFIGURE_ROUTE);
+const CALLEES = Object.entries(CONFIGURE_ROUTE)
+  .filter(([action]) => !(OWN_PERMISSION_ROUTES as readonly string[]).includes(action))
+  .map(([, cap]) => cap);
 
 test("every capability mail.configure routes to demands comms.domains, and a member without it is refused by the kernel", () => {
   const s = new AccessSnapshot();
@@ -113,7 +115,6 @@ test("every mail capability that writes is held at the Gate for an agent, or is 
     "mail.template.reset",
     "mail.template.for_document.set",
     "mail.template.for_document.clear",
-    "mail.templates",
   ])
     assert.ok(held(def(name).gate), `${name} is held for an agent`);
 });
@@ -123,4 +124,20 @@ test("the host live test names exactly the capabilities mail.configure routes to
   const block = /const CALLEES = \[([^\]]*)\]/.exec(text)?.[1] ?? "";
   const named = [...block.matchAll(/"([a-z_.]+)"/g)].map((m) => m[1]).sort();
   assert.deepEqual(named, CALLEES.filter((n) => n !== "mail.setup.test_send").sort());
+});
+
+test("the template and inbox-health actions of mail.configure keep the permission of the capability behind them: reads are open to members, changing wording asks for comms.templates and is held for an agent", () => {
+  const routes = Object.fromEntries(Object.entries(CONFIGURE_ROUTE).filter(([a]) => (OWN_PERMISSION_ROUTES as readonly string[]).includes(a)));
+  for (const [action, cap] of Object.entries(routes)) {
+    const c = def(cap);
+    assert.ok(c, `${action} routes to ${cap}, which is in the registry`);
+    const writes = ["template_save", "template_reset", "doc_template_set", "doc_template_clear"].includes(action);
+    if (writes) {
+      assert.equal(c.permission, "comms.templates", `${cap} asks for comms.templates`);
+      assert.ok(held(c.gate), `${cap} is held for an agent`);
+    } else {
+      assert.notEqual(c.permission, "comms.domains", `${cap} is not an admin-only door: a member reads it`);
+      assert.equal(c.effects, "read", `${cap} only reads`);
+    }
+  }
 });

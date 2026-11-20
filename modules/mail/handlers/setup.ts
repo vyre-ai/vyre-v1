@@ -146,7 +146,24 @@ export async function testSend(ctx: MailCtx, input: TestSendIn): Promise<TestSen
 // ---- mail.setup: the one tool a model is shown for email setup
 
 interface SetupToolIn {
-  action: "status" | "test" | "smtp_get" | "smtp_set" | "smtp_verify" | "address_list" | "address_add" | "address_move";
+  action:
+    | "status"
+    | "test"
+    | "smtp_get"
+    | "smtp_set"
+    | "smtp_verify"
+    | "address_list"
+    | "address_add"
+    | "address_move"
+    | "monitor"
+    | "template_list"
+    | "template_get"
+    | "template_preview"
+    | "template_save"
+    | "template_reset"
+    | "doc_template_get"
+    | "doc_template_set"
+    | "doc_template_clear";
   [k: string]: unknown;
 }
 /** The capability each mail.configure action routes to. Tests build their lists of callees from this, so a new action cannot skip the permission and Gate checks. */
@@ -159,7 +176,29 @@ export const CONFIGURE_ROUTE: Record<SetupToolIn["action"], string> = {
   address_list: "mail.address.list",
   address_add: "mail.address.add",
   address_move: "mail.address.move",
+  monitor: "mail.inbox.monitor",
+  template_list: "mail.template.list",
+  template_get: "mail.template.get",
+  template_preview: "mail.template.preview",
+  template_save: "mail.template.save",
+  template_reset: "mail.template.reset",
+  doc_template_get: "mail.template.for_document.get",
+  doc_template_set: "mail.template.for_document.set",
+  doc_template_clear: "mail.template.for_document.clear",
 };
+
+/** The actions that are not the Space's email setup: each routes to a capability with its own permission (reads are open to members; changing a template asks for comms.templates). */
+export const OWN_PERMISSION_ROUTES: readonly SetupToolIn["action"][] = [
+  "monitor",
+  "template_list",
+  "template_get",
+  "template_preview",
+  "template_save",
+  "template_reset",
+  "doc_template_get",
+  "doc_template_set",
+  "doc_template_clear",
+];
 
 /** What each action takes: required fields, then optional ones (a trailing ?). A call that is wrong or short is answered with this, for that action, in one line. */
 const SHAPE: Record<SetupToolIn["action"], string> = {
@@ -171,6 +210,15 @@ const SHAPE: Record<SetupToolIn["action"], string> = {
   address_list: "domainId?",
   address_add: "domainId, localPart, mailboxId?, title?",
   address_move: "domainId, localPart, fromMailboxId, mailboxId",
+  monitor: "mailboxId?",
+  template_list: "",
+  template_get: "key, documentId?",
+  template_preview: "key?, documentId?, subject?, text?, recordId?, vars?",
+  template_save: "key, subject, text, recordType?",
+  template_reset: "key",
+  doc_template_get: "documentId, key",
+  doc_template_set: "documentId, key, subject, text",
+  doc_template_clear: "documentId, key",
 };
 const fieldsOf = (shape: string): { name: string; required: boolean }[] =>
   shape

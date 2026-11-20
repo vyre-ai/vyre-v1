@@ -990,26 +990,9 @@ const manifest = defineManifest({
       label: "check",
       errors: ["validation.bad_input", "validation.not_found"],
     }),
-    // the one tool for templates and the one for delivery: models are shown these two, not eleven (the capabilities above stay for screens and the API)
-    write("mail.templates", "Email templates: list|get|set|preview|reset; documentId = one document's", {
-      in: {
-        action: t.enm("list", "get", "set", "preview", "reset"),
-        key: t.opt(tplKey),
-        documentId: t.opt(id.file),
-        subject: t.opt(t.str()),
-        text: t.opt(t.str()),
-        recordType: t.opt(id.recordType),
-        recordId: t.opt(id.record),
-        vars: t.opt(t.rec()),
-      },
-      out: { result: t.json() },
-      gate: { act: "send", when: "actor.kind != 'person' and (input.action == 'set' or input.action == 'reset')" },
-      tool: "inbox",
-      idem: "natural",
-      errors: ["validation.bad_input", "validation.not_found", "permission.no_grant"],
-    }),
-    read("mail.delivery_state", "A message's delivery trail (messageId), else inbox health", {
-      in: { messageId: t.opt(emlId), mailboxId: t.opt(id.mailbox) },
+    // the tool for a sent message's delivery: its trail (mail.delivery.trail). The retry behind it is the host's own follow-up and is not reachable by a person or an agent
+    read("mail.delivery_state", "A sent message's delivery trail: events, retries, blocked addresses", {
+      in: { messageId: emlId },
       out: { result: t.json() },
       tool: "inbox",
       errors: ["validation.bad_input", "validation.not_found"],
@@ -1135,7 +1118,7 @@ const manifest = defineManifest({
     ),
     outward(
       "mail.configure",
-      "Email setup: status|test|smtp_get|smtp_set|smtp_verify|address_list|address_add|address_move",
+      "Email setup, templates and inbox health: action status|test|smtp_*|address_*|monitor|template_*|doc_template_*",
       {
         in: {
           action: t.enm(
@@ -1147,7 +1130,23 @@ const manifest = defineManifest({
             "address_list",
             "address_add",
             "address_move",
+            "monitor",
+            "template_list",
+            "template_get",
+            "template_preview",
+            "template_save",
+            "template_reset",
+            "doc_template_get",
+            "doc_template_set",
+            "doc_template_clear",
           ),
+          key: t.opt(tplKey),
+          documentId: t.opt(id.file),
+          subject: t.opt(t.str()),
+          text: t.opt(t.str()),
+          recordType: t.opt(id.recordType),
+          recordId: t.opt(id.record),
+          vars: t.opt(t.rec()),
           to: t.opt(email),
           host: t.opt(t.str()),
           port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
@@ -1323,10 +1322,10 @@ const manifest = defineManifest({
       needs: ["connectors.manage"],
     }),
     screen("mail.templates", "console", "ui:EmailTemplates", {
-      q: { templates: ["mail.templates", { action: "list" }, true] },
+      q: { templates: ["mail.configure", { action: "template_list" }, true] },
       a: {
-        save: ["mail.templates", { action: "set", key: "/state/key", subject: "/state/subject", text: "/state/text" }],
-        reset: ["mail.templates", { action: "reset", key: "/state/key" }, "Use the template that ships with Vyre?"],
+        save: ["mail.configure", { action: "template_save", key: "/state/key", subject: "/state/subject", text: "/state/text" }],
+        reset: ["mail.configure", { action: "template_reset", key: "/state/key" }, "Use the template that ships with Vyre?"],
       },
       empty: "No templates yet",
       needs: ["comms.templates"],

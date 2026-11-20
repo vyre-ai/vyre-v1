@@ -1023,3 +1023,18 @@ test("a system field's options accept the Can go in emails switch and nothing el
   );
   assert.equal(onlyMergeableDiffers({ choices: [1, 2] }, { choices: [2, 1] }), false, "list order does");
 });
+
+test("schema.apply takes a field.mergeable op: the same switch, through the one schema tool, with every rule of a field update", async () => {
+  const k = kit();
+  await base(k);
+  const mergeable = async (field: string) => (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.["mergeable"];
+  const op = (field: string, on: unknown) => ({ ops: [{ op: "field.mergeable" as const, type: "acme_person", field, def: { mergeable: on } }] });
+  await k.h["schema.apply"](k.ctx, op("name", true));
+  assert.equal(await mergeable("name"), true);
+  await k.h["schema.apply"](k.ctx, op("name", false));
+  assert.equal(await mergeable("name"), undefined);
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("name", "yes")), code("validation.precondition_failed"));
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("nope", true)), code("validation.precondition_failed"));
+  await k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "email", label: "restricted" });
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("email", true)), code("validation.precondition_failed"));
+});
