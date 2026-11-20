@@ -13,6 +13,16 @@ export const SHARE_GROUPS: readonly (readonly string[])[] = [
 
 type Obj = Record<string, unknown>;
 
+/** The full shape of each property a tool shows only as a pointer, kept by tool name: a first call to such a tool that is refused says the whole shape (an agent's first call to any tool must work). */
+const POINTED = new Map<string, Map<string, unknown>>();
+
+/** What a refusal of a pointed tool adds to its sentence: the full shape of the property it was pointed away from. Empty for a tool that shows its own shapes. */
+export function shapeNote(toolName: string): string {
+  const m = POINTED.get(toolName);
+  if (!m || m.size === 0) return "";
+  return [...m.entries()].map(([k, shape]) => ` The full ${k} shape: ${JSON.stringify(shape)}`).join("");
+}
+
 /** The tools, with each large repeated top-level property of a group shown in full once and pointed at after. */
 export function shareRepeats(
   defs: readonly ToolDef[],
@@ -38,6 +48,9 @@ export function shareRepeats(
         continue;
       }
       const o = p as Obj;
+      const kept = POINTED.get(d.name) ?? new Map<string, unknown>();
+      kept.set(key, p);
+      POINTED.set(d.name, kept);
       next = next ?? { ...props };
       next[key] = {
         type: o["type"] ?? "object",
