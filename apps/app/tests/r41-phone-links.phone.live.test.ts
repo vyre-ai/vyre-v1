@@ -78,6 +78,19 @@ test("phone: #screen=inbox.unmatched opens the Unmatched list, and one tap on a 
     const before = (await page.evaluate(SCREENS)) as string;
     await row.click();
     await page.waitForFunction(`(${SCREENS}) !== ${JSON.stringify(before)}`, null, { timeout: 10_000 });
+
+    // and a tap of the person's own replaces the link: Back to the list of inboxes, a row, and that row's list shows, not the Unmatched list the address still names
+    await page.goto(`${new URL(page.url()).origin}/inbox#screen=inbox.unmatched`, { waitUntil: "load" });
+    await page.reload({ waitUntil: "load" });
+    await page.getByTestId("inbox-unmatched").waitFor({ timeout: 30_000 });
+    await page.getByTestId("phone-back-to-inboxes").click();
+    await page.getByTestId("row-nav:view:contact").first().click();
+    await page.waitForFunction(
+      `[...document.querySelectorAll('[role="heading"]')].some((e) => e.innerText.trim() === "By contact")`,
+      null,
+      { timeout: 10_000 },
+    );
+    assert.equal(await page.getByTestId("inbox-unmatched").count(), 0, "the Unmatched list is gone");
   } finally {
     await k.close();
   }

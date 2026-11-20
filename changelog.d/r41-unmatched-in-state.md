@@ -1,0 +1,1 @@
+The Inbox's Unmatched list is now a view of the Inbox's own state, as Replies is: a link (a conversation's Match button) moves to it once, and a row tapped afterwards leaves it. On a phone, going Back to the list of inboxes and tapping a row used to show the Unmatched list again, because the address still named it. A phone walk covers it.

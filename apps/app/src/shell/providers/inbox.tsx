@@ -143,7 +143,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
     }
     close();
     if (
-      target.screen === "inbox.unmatched" ||
+      (target.screen === "inbox.unmatched" && state.main !== "unmatched") ||
       (state.main !== "meetings" && meetingHash !== null) ||
       (state.main !== "calendar" && eventHash !== null)
     )
@@ -243,7 +243,7 @@ function Main({ rt, openId, close }: { rt: ShellRuntime; openId: string | null; 
     );
   }
   // Match to a record (the list's menu and its row) opens the Unmatched screen: every sender or caller with no record, and the Match menu on each
-  if (target.screen === "inbox.unmatched" && !openId) {
+  if (state.main === "unmatched" && !openId) {
     return (
       <InboxUnmatched
         onShowAll={() => {
@@ -315,6 +315,11 @@ function useInboxLinks(): void {
   useEffect(() => {
     if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
   }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  // the Unmatched list (a conversation's Match button opens it): the link moves the view once; a row tapped afterwards leaves it, and the address's old words do not bring it back
+  const unmatchedLink = target.screen === "inbox.unmatched" ? `${target.args["conversationId"] ?? ""}` : null;
+  useEffect(() => {
+    if (unmatchedLink !== null && state.main !== "unmatched") dispatch({ type: "unmatched" });
+  }, [unmatchedLink]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
   useEffect(() => {
     if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
@@ -379,9 +384,7 @@ function InboxFrame({
       </View>
     );
   }
-  // the Unmatched list is a link (a conversation's Match button opens it): a phone draws it at once, not the list of inboxes with the link waiting under the first tap
-  const inMain =
-    entered || (openId !== null && openId !== "") || !!target.args["contactId"] || target.screen === "inbox.unmatched";
+  const inMain = entered || (openId !== null && openId !== "") || !!target.args["contactId"];
   return (
     <View testID="inbox-place" style={st.row}>
       {inMain ? (
