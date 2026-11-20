@@ -125,6 +125,8 @@ const SNAPSHOT =
   "The engine takes the file snapshot a run uses; a member who can see the agent can also call it. Changes to the files apply between runs, so there is nothing for an agent to call.";
 const SIGN_INS =
   "A person's own list of the sites their browser profile on this agent is signed in to (site and date, never a value). It is the person's view; agents use the browser through the chrome tools, not this list.";
+const VIA_RUNS_OPS =
+  "An agent reaches it through the runs_ops tool (actions tree, tree_find, node, node_find, compare, events, messages, activity, board, message_send, board_put, board_answer, control, rerun, budget, save_as_agent); each calls the capability behind it, so its permission and Gate apply, and an agent's save_as_agent is held (runs.ops_gate).";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -593,6 +595,10 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^computers\.browser\.my_sign_ins$/, SIGN_INS],
   [/^automations\.fire$/, FIRE],
   [/^agents\.snapshot\.take$/, SNAPSHOT],
+  [
+    /^runs\.(tree\.(get|find)|node\.(get|find|compare|control|rerun|save_as_agent)|events\.list|message\.(list|send)|activity\.list|board\.(list|put|answer)|budget\.set)$/,
+    VIA_RUNS_OPS,
+  ],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],
