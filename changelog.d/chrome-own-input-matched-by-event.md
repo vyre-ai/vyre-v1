@@ -1,0 +1,1 @@
+Internal: the extension tells the agent's own clicks and keys from the person's by what it sent (kind, place or key, matched once, one second), not by a clock, so a click elsewhere or a key the agent did not send during typing pauses it. A person's key that matches a key the agent just sent is not told apart from it.

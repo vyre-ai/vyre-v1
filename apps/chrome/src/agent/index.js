@@ -231,11 +231,11 @@ export function createAgentControl(ext, o = {}) {
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
-      else if (m.type === "touch") void sessions.touched(tabId);
+      else if (m.type === "touch") void sessions.touched(tabId, m);
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.
-  cdp.onInput((tabId) => sessions.ownInput(tabId));
+  cdp.onInput((tabId, method, params) => sessions.ownInput(tabId, method, params));
   cdp.onDetach((tabId, reason) => {
     const agent = sessions.driverOf(tabId);
     if (!agent) return;

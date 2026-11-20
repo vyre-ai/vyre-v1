@@ -160,10 +160,22 @@ export function overlayShow(o) {
       if (!e.isTrusted || !port || s.paused) return;
       const path = typeof e.composedPath === "function" ? e.composedPath() : [];
       if (path.includes(host)) return;
+      // only what the worker needs to tell the person's hand from the agent's own input: the kind of event, for a pointer where, for a key its physical key name (never the character)
+      const kind = e.type === "keydown" ? "key" : e.type === "wheel" ? "wheel" : "pointer";
+      const at = e.touches && e.touches[0] ? e.touches[0] : e;
       const t = Date.now();
-      if (t - lastTouch < 500) return;
-      lastTouch = t;
-      port.postMessage({ type: "touch" });
+      // a scroll comes in a flood, so it is one touch; every click and every key counts, and the worker matches each against what the agent sent
+      if (kind === "wheel") {
+        if (t - lastTouch < 500) return;
+        lastTouch = t;
+      }
+      port.postMessage({
+        type: "touch",
+        kind,
+        x: Math.round(Number(at.clientX) || 0),
+        y: Math.round(Number(at.clientY) || 0),
+        ...(kind === "key" ? { code: String(e.code || "").slice(0, 20) } : {}),
+      });
     };
     for (const type of ["pointerdown", "wheel", "touchstart"]) g.addEventListener(type, onTouch, true);
     const onKey = (/** @type {any} */ e) => {

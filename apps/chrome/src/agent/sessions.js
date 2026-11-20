@@ -8,8 +8,8 @@ import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
 /** After the last act of an agent in a tab, a real event is still its own for this long (events arrive a little after the command). */
 const TOUCH_GRACE_MS = 600;
-/** A real event the page reports within this long of the agent's own input is the agent's, not the person's. */
-const OWN_INPUT_MS = 400;
+/** A real event the page reports is the agent's own only if it matches input the agent sent in the last second (same kind, same place or key), and each sent input is matched once. */
+const OWN_INPUT_MS = 1000;
 
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
@@ -91,7 +91,7 @@ export function createSessions({
   const acts = new Map();
   /** Agents whose tab the person touched while a call was running: they pause before their next step. @type {Set<string>} */
   const pausing = new Set();
-  /** When the agent last sent input to each tab. @type {Map<number, number>} */
+  /** What the agent sent to each tab in the last moments: its kind (pointer, wheel, key) and, for a pointer, where. @type {Map<number, Array<{ at: number, kind: string, x: number, y: number, code: string }>>} */
   const ownAt = new Map();
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
@@ -275,9 +275,25 @@ export function createSessions({
     },
     /** @param {number} tabId */
     touch: arm,
-    /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId */
-    ownInput(tabId) {
-      ownAt.set(tabId, now());
+    /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId @param {string} method @param {any} params */
+    ownInput(tabId, method, params) {
+      if (method !== "Input.dispatchMouseEvent" && method !== "Input.dispatchKeyEvent") return;
+      let kind = "";
+      // only what the page reports as a real event: a press (not a move or a release), a wheel, a key going down; Input.insertText reports no key at all
+      if (method === "Input.dispatchMouseEvent")
+        kind = params?.type === "mousePressed" ? "pointer" : params?.type === "mouseWheel" ? "wheel" : "";
+      else kind = params?.type === "keyDown" || params?.type === "rawKeyDown" ? "key" : "";
+      if (!kind) return;
+      const t = now();
+      const list = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
+      list.push({
+        at: t,
+        kind,
+        x: Number(params?.x ?? 0),
+        y: Number(params?.y ?? 0),
+        code: String(params?.code ?? ""),
+      });
+      ownAt.set(tabId, list.slice(-40));
     },
     /** The page loaded again (a navigation, a reload): the frame went with the old document, so draw it again. @param {number} tabId */
     async redraw(tabId) {
@@ -305,11 +321,26 @@ export function createSessions({
       a.n = Math.max(0, a.n - 1);
       a.last = now();
     },
-    /** The page said the person touched it. Hands the tab to the person (the agent pauses and the bar says it is theirs) unless the agent is acting there. @param {number} tabId */
-    async touched(tabId) {
+    /** The page said the person touched it. Hands the tab to the person (the agent pauses and the bar says it is theirs) unless the agent is acting there. @param {number} tabId @param {{ kind?: string, x?: number, y?: number, code?: string }} [info] */
+    async touched(tabId, info) {
       const d = drivers.get(tabId);
       if (!d) return false;
-      if (now() - (ownAt.get(tabId) ?? -Infinity) < OWN_INPUT_MS) return false;
+      // what the agent sent a moment ago and the page now reports, of the same kind and place or key, is the agent's own event, used up by the match; anything else
+      // (a click elsewhere in the middle of typing, a key the agent did not send) is the person's
+      const t = now();
+      const kind = info?.kind === "key" || info?.kind === "wheel" ? info.kind : "pointer";
+      const sent = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
+      const at = sent.findIndex(
+        (o) =>
+          o.kind === kind &&
+          (kind === "wheel" ||
+            (kind === "key"
+              ? o.code === String(info?.code ?? "")
+              : Math.abs(o.x - Number(info?.x)) <= 3 && Math.abs(o.y - Number(info?.y)) <= 3)),
+      );
+      if (at >= 0) sent.splice(at, 1);
+      ownAt.set(tabId, sent);
+      if (at >= 0) return false;
       const a = acts.get(tabId);
       if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
         // not lost: the agent finishes the step it is on, then stops, and the bar says so

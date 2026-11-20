@@ -24,7 +24,7 @@ export function createCdp(dbg) {
   const listeners = new Set();
   /** @type {Set<DetachHandler>} */
   const detachHandlers = new Set();
-  /** @type {Set<(tabId: number) => void>} */
+  /** @type {Set<(tabId: number, method: string, params: any) => void>} */
   const inputHandlers = new Set();
   /** @type {Map<number, Promise<void>>} */
   const attaching = new Map();
@@ -110,9 +110,9 @@ export function createCdp(dbg) {
      */
     async send(tabId, method, params = {}) {
       await attach(tabId);
-      // the page sees what the agent types and clicks as real events: say so before and after, so the page's report of one is not taken for a person's hand
+      // the page sees what the agent types and clicks as real events: say what is about to be sent, so the page's report of exactly that is not taken for a person's hand
       const input = method.startsWith("Input.");
-      if (input) for (const h of inputHandlers) h(tabId);
+      if (input) for (const h of inputHandlers) h(tabId, method, params);
       try {
         return await dbg.sendCommand({ tabId }, method, params);
       } catch (e) {
@@ -123,11 +123,9 @@ export function createCdp(dbg) {
           throw new AgentFailure("no_tab", "The tab went away.");
         }
         throw new AgentFailure("error", message.slice(0, 200));
-      } finally {
-        if (input) for (const h of inputHandlers) h(tabId);
       }
     },
-    /** The agent is sending input to a tab (called just before and just after each such command). @param {(tabId: number) => void} h @returns {() => void} */
+    /** The agent is sending input to a tab (called just before each such command). @param {(tabId: number, method: string, params: any) => void} h @returns {() => void} */
     onInput(h) {
       inputHandlers.add(h);
       return () => inputHandlers.delete(h);
