@@ -50,3 +50,17 @@ test("every outward step can be held: its capability declares a Gate, or it is a
   }
   assert.equal(CAPS.get("automations.step_ask")?.gate?.act, "post");
 });
+
+test("a draft step is the only outward step with a Gate of none, and it says why; every send, post or sign step holds", () => {
+  const none: string[] = [];
+  for (const s of STEPS) {
+    if (s.effects !== "outward" || !s.cap) continue;
+    const gate = CAPS.get(s.cap)?.gate;
+    if (gate?.act === "none") {
+      none.push(s.key);
+      assert.ok(gate.reason, `${s.key} has a Gate of none with no reason`);
+    }
+    if (/send|sign|post|create_event|comment/.test(s.key)) assert.notEqual(gate?.act, "none", `${s.key} must hold`);
+  }
+  assert.deepEqual(none.sort(), ["google.gmail.create_draft", "ms.mail.create_draft"]);
+});
