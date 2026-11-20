@@ -13,6 +13,13 @@ import {
 } from "../packages/contracts/src/index.ts";
 import { id, pageIn, pageOut } from "./_common.ts";
 
+// a site's id is shown by its example alone: the pattern repeats it on every tool that takes a site and the model is shown them all (the handlers look the site up and refuse an id that is not one)
+const siteId = t.str({ examples: ["sit_a1b2c3"] });
+// the same for a Vault handle, a folder and a file: the example shows the form, and the handlers (cleanSource, env_set) check it and refuse another
+const handleIn = t.str({ examples: ["#Dana_Lawmatics"] });
+const folderIn = t.str({ examples: ["fld_a1b2c3"] });
+const fileIn = t.str({ examples: ["fil_a1b2c3"] });
+
 const state = t.enm("queued", "building", "ready", "failed", "stopped");
 const fix = t.enm(
   "set_env",
@@ -36,7 +43,7 @@ const step = t.obj({
 });
 const dep = t.obj({
   deploymentId: t.id("dpl"),
-  siteId: id.site,
+  siteId,
   env: t.enm("staging", "preview", "production"),
   state,
   url: t.opt(t.str()),
@@ -67,18 +74,18 @@ const hookOut = {
 const envScope = t.enm("all", "production", "previews");
 const envEntry = t.obj({
   name: t.str(),
-  vaultHandle: t.opt(id.handle),
+  vaultHandle: t.opt(handleIn),
   value: t.opt(t.str()),
   scope: t.opt(envScope),
   confirmPlain: t.opt(t.bool()),
 });
-const shipEnv = t.obj({ name: t.str(), vaultHandle: t.opt(id.handle), value: t.opt(t.str()) });
+const shipEnv = t.obj({ name: t.str(), vaultHandle: t.opt(handleIn), value: t.opt(t.str()) });
 const source = t.obj({
   repo: t.opt(t.str()),
   branch: t.opt(t.str()),
-  tokenHandle: t.opt(id.handle),
-  folderId: t.opt(id.folder),
-  fileId: t.opt(id.file),
+  tokenHandle: t.opt(handleIn),
+  folderId: t.opt(folderIn),
+  fileId: t.opt(fileIn),
   path: t.opt(t.str()),
   root: t.opt(t.str()),
 });
@@ -94,11 +101,11 @@ const addon = t.obj({
   detail: t.opt(t.str()),
 });
 const siteRow = t.obj({
-  siteId: id.site,
+  siteId,
   name: t.str(),
   kind: t.enm("site", "app", "api", "worker", "artifact"),
   owner: t.str(),
-  repoFolderId: t.opt(id.folder),
+  repoFolderId: t.opt(folderIn),
   stagingUrl: t.opt(t.str()),
   productionUrl: t.opt(t.str()),
   state,
@@ -106,7 +113,7 @@ const siteRow = t.obj({
   url: t.opt(t.str({ description: "Where it is served, once live" })),
   computerId: t.opt(id.computer),
   port: t.opt(t.int()),
-  folderId: t.opt(id.folder),
+  folderId: t.opt(folderIn),
   access: t.opt(access),
   live: t.opt(t.bool()),
   blocked: t.opt(t.bool()),
@@ -127,10 +134,10 @@ const siteRow = t.obj({
 const target = {
   computerId: t.opt(id.computer),
   port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
-  folderId: t.opt(id.folder),
+  folderId: t.opt(folderIn),
 };
 const dnsRecord = t.obj({ type: t.enm("CNAME", "A"), name: t.str(), value: t.str() });
-const deployTarget = { siteId: id.site };
+const deployTarget = { siteId };
 
 export default defineManifest({
   id: "sites",
@@ -138,48 +145,48 @@ export default defineManifest({
   owner: "L8",
   events: [
     ev("site.created", "A site was created", {
-      p: { siteId: id.site, name: t.str(), private: t.opt(t.bool()) },
+      p: { siteId, name: t.str(), private: t.opt(t.bool()) },
       subject: ["site", "/siteId"],
     }),
     ev("site.access_changed", "Who may reach a site was changed (public, password, the Space, or private)", {
-      p: { siteId: id.site, access },
+      p: { siteId, access },
       subject: ["site", "/siteId"],
     }),
     ev("site.published", "A site or artifact went live at its address", {
-      p: { siteId: id.site, url: t.opt(t.str()), access },
+      p: { siteId, url: t.opt(t.str()), access },
       subject: ["site", "/siteId"],
     }),
     ev("site.stopped", "A site or artifact stopped being served", {
-      p: { siteId: id.site },
+      p: { siteId },
       subject: ["site", "/siteId"],
     }),
     ev("site.build_failed", "A build failed", {
-      p: { siteId: id.site, deploymentId: t.id("dpl"), reason: t.str() },
+      p: { siteId, deploymentId: t.id("dpl"), reason: t.str() },
       subject: ["site", "/siteId"],
       notify: "run.failed",
     }),
     ev("site.deployed", "A deployment reached staging or a preview", {
-      p: { siteId: id.site, deploymentId: t.id("dpl"), env: t.enm("staging", "preview") },
+      p: { siteId, deploymentId: t.id("dpl"), env: t.enm("staging", "preview") },
       subject: ["site", "/siteId"],
       replay: "stub",
       trigger: { title: "A site is deployed", fields: ["/env"] },
     }),
     ev("site.promoted", "A build was promoted to production through the Gate", {
-      p: { siteId: id.site, deploymentId: t.id("dpl") },
+      p: { siteId, deploymentId: t.id("dpl") },
       subject: ["site", "/siteId"],
       replay: "stub",
     }),
     ev("site.rolled_back", "Production was rolled back to an earlier build", {
-      p: { siteId: id.site, toDeploymentId: t.id("dpl") },
+      p: { siteId, toDeploymentId: t.id("dpl") },
       subject: ["site", "/siteId"],
       replay: "stub",
     }),
     ev("site.preview_created", "A preview was built for a branch or pull request", {
-      p: { siteId: id.site, branch: t.str(), url: t.str() },
+      p: { siteId, branch: t.str(), url: t.str() },
       subject: ["site", "/siteId"],
     }),
     ev("site.preview_removed", "A preview was removed after the branch merged", {
-      p: { siteId: id.site, branch: t.str() },
+      p: { siteId, branch: t.str() },
       subject: ["site", "/siteId"],
     }),
     ev(
@@ -187,7 +194,7 @@ export default defineManifest({
       "A site table (site-scoped record type) was created; fields carries its columns so the record type can be made from the event alone",
       {
         p: {
-          siteId: id.site,
+          siteId,
           type: t.str(),
           fields: t.opt(t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() }))),
         },
@@ -195,11 +202,11 @@ export default defineManifest({
       },
     ),
     ev("site.table_promoted", "A site table became a Space record type", {
-      p: { siteId: id.site, type: t.str() },
+      p: { siteId, type: t.str() },
       subject: ["site", "/siteId"],
     }),
     ev("site.domain_changed", "A site domain was set or removed", {
-      p: { siteId: id.site, domain: t.str() },
+      p: { siteId, domain: t.str() },
       subject: ["site", "/siteId"],
     }),
   ],
@@ -207,7 +214,7 @@ export default defineManifest({
     block(
       "deploy",
       {
-        siteId: id.site,
+        siteId,
         deploymentId: t.id("dpl"),
         env: t.enm("staging", "preview", "production"),
         state,
@@ -268,7 +275,7 @@ export default defineManifest({
     read("sites.list", "List the sites and artifacts you can see, by section, kind, folder", {
       in: {
         section: t.opt(t.enm("personal", "shared", "space")),
-        folderId: t.opt(id.folder),
+        folderId: t.opt(folderIn),
         kind: t.opt(t.enm("site", "artifact")),
         ...pageIn,
       },
@@ -281,7 +288,7 @@ export default defineManifest({
       "Change a site: name, source, CPU and memory, deploy on push, where it runs, who may reach it",
       {
         in: {
-          siteId: id.site,
+          siteId,
           name: t.opt(t.str()),
           settings: t.opt(t.rec()),
           access: t.opt(access),
@@ -356,7 +363,7 @@ export default defineManifest({
       tool: "sites",
     }),
     write("sites.build", "Build the site from its repo (the site agent runs in the repo); test and verify", {
-      in: { siteId: id.site, branch: t.opt(t.str()) },
+      in: { siteId, branch: t.opt(t.str()) },
       out: { runId: id.run, deploymentId: t.id("dpl") },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -370,7 +377,7 @@ export default defineManifest({
       "Build the site from its source and run it here (Dockerfile, Node, Vite, Python, static). The last good build serves until the new one answers",
       {
         in: {
-          siteId: id.site,
+          siteId,
           source: t.opt(source),
           wait: t.opt(t.bool()),
           onlyIfChanged: t.opt(t.bool()),
@@ -392,7 +399,7 @@ export default defineManifest({
       "Put an app online in one call: create the site (or use siteId), set env, add databases, deploy, wait. Returns the address, or the failed step with its fix",
       {
         in: {
-          siteId: t.opt(id.site),
+          siteId: t.opt(siteId),
           name: t.opt(t.str()),
           source: t.opt(source),
           env: t.opt(t.arr(shipEnv)),
@@ -401,7 +408,7 @@ export default defineManifest({
         },
         out: {
           ok: t.bool(),
-          siteId: id.site,
+          siteId,
           address: t.opt(t.str()),
           say: t.str({ description: "What to tell the person" }),
           failedStep: t.opt(t.enm("setup", "deploy", "fetch", "build", "start", "check")),
@@ -431,7 +438,7 @@ export default defineManifest({
       "Turn the GitHub webhook on or off, rotate its secret (shown once), or set preview branches",
       {
         in: {
-          siteId: id.site,
+          siteId,
           enabled: t.opt(t.bool()),
           rotate: t.opt(t.bool()),
           follow: t.opt(t.arr(t.str())),
@@ -446,7 +453,7 @@ export default defineManifest({
       },
     ),
     write("sites.deploy_cancel", "Cancel the running deploy. The last good build keeps serving", {
-      in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")) },
+      in: { siteId, deploymentId: t.opt(t.id("dpl")) },
       out: { deployment: dep },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -455,7 +462,7 @@ export default defineManifest({
       errors: ["validation.precondition_failed"],
     }),
     read("sites.deployments", "List deployments with state and URL", {
-      in: { siteId: id.site, ...pageIn },
+      in: { siteId, ...pageIn },
       out: { deployments: t.arr(dep), ...pageOut },
       on: ["site", "/siteId"],
       tool: "sites",
@@ -470,7 +477,7 @@ export default defineManifest({
       "sites.preview_rebuild",
       "Build a branch of the repo as a preview at its own address behind sign-in. A new build replaces the last",
       {
-        in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
+        in: { siteId, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -483,7 +490,7 @@ export default defineManifest({
       "sites.preview_promote",
       "Serve a preview's build as production without a rebuild, with the production variables",
       {
-        in: { siteId: id.site, branch: t.str(), wait: t.opt(t.bool()) },
+        in: { siteId, branch: t.str(), wait: t.opt(t.bool()) },
         out: { deployment: dep },
         on: ["site", "/siteId"],
         gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
@@ -494,7 +501,7 @@ export default defineManifest({
       },
     ),
     write("sites.preview_remove", "Remove a preview", {
-      in: { siteId: id.site, branch: t.str() },
+      in: { siteId, branch: t.str() },
       out: { removed: t.bool() },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -502,7 +509,7 @@ export default defineManifest({
       tool: "sites",
     }),
     outward("sites.promote", "Put a site on the public internet. Held for approval unless the person asked this turn", {
-      in: { siteId: id.site },
+      in: { siteId },
       out: { site: siteRow },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -513,7 +520,7 @@ export default defineManifest({
       errors: ["validation.precondition_failed"],
     }),
     outward("sites.rollback", "Serve an earlier build again (the previous, or the one named). Nothing is built", {
-      in: { siteId: id.site, toDeploymentId: t.opt(t.id("dpl")) },
+      in: { siteId, toDeploymentId: t.opt(t.id("dpl")) },
       out: { deployment: dep },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -524,7 +531,7 @@ export default defineManifest({
       errors: ["validation.precondition_failed"],
     }),
     create("sites.table_create", "Create a site table (a site-scoped record type)", {
-      in: { siteId: id.site, key: t.str(), fields: t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() })) },
+      in: { siteId, key: t.str(), fields: t.arr(t.obj({ key: t.str(), type: t.str(), title: t.str() })) },
       out: { type: t.str() },
       on: ["site", "/siteId"],
       emits: ["site.table_created"],
@@ -538,7 +545,7 @@ export default defineManifest({
       tool: "sites",
     }),
     write("sites.table_promote", "Promote a site table to a Space record type", {
-      in: { siteId: id.site, type: t.str() },
+      in: { siteId, type: t.str() },
       out: { type: t.str() },
       on: ["site", "/siteId"],
       perm: "schema.manage",
@@ -551,7 +558,7 @@ export default defineManifest({
       "sites.env_set",
       "Set a site's env vars (replaces the list): a Vault key, or a plain value (not a secret). scope: production (default), previews or all",
       {
-        in: { siteId: id.site, entries: t.arr(envEntry) },
+        in: { siteId, entries: t.arr(envEntry) },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
         gate: { act: "deploy", when: "vault.key_host_unapproved(input)" },
@@ -592,7 +599,7 @@ export default defineManifest({
       tool: "sites",
     }),
     write("sites.domain_set", "Add or remove a site domain", {
-      in: { siteId: id.site, domain: t.str(), remove: t.opt(t.bool()) },
+      in: { siteId, domain: t.str(), remove: t.opt(t.bool()) },
       out: { dnsOk: t.bool() },
       on: ["site", "/siteId"],
       perm: "sites.domains",
@@ -601,7 +608,7 @@ export default defineManifest({
       team: true,
     }),
     create("sites.domain_add", "Add a custom domain: returns the DNS records to set; TLS is automatic", {
-      in: { siteId: id.site, domain: t.str() },
+      in: { siteId, domain: t.str() },
       out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
       on: ["site", "/siteId"],
       perm: "sites.domains",
@@ -610,7 +617,7 @@ export default defineManifest({
       level: "edit",
     }),
     read("sites.domain_check", "The state of a custom domain: waiting for DNS, issuing the certificate, or live", {
-      in: { siteId: id.site, domain: t.str() },
+      in: { siteId, domain: t.str() },
       out: { domain: t.str(), records: t.arr(dnsRecord), state: t.enm("waiting_dns", "issuing", "live") },
       on: ["site", "/siteId"],
       tool: "sites",
@@ -622,8 +629,8 @@ export default defineManifest({
         in: {
           title: t.str(),
           html: t.opt(t.str()),
-          fileId: t.opt(id.file),
-          folderId: t.opt(id.folder),
+          fileId: t.opt(fileIn),
+          folderId: t.opt(folderIn),
           path: t.opt(t.str()),
           port: t.opt(t.int({ minimum: 1, maximum: 65535 })),
           computerId: t.opt(id.computer),
@@ -704,7 +711,7 @@ export default defineManifest({
       "sites.staging_password_set",
       "Choose the sealed Vault key that protects staging (shared across a site previews)",
       {
-        in: { siteId: id.site, vaultHandle: id.handle },
+        in: { siteId, vaultHandle: handleIn },
         out: { ok: t.bool() },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -718,7 +725,7 @@ export default defineManifest({
       tool: "sites",
     }),
     read("sites.logs", "A site's log: its app, or with build a deploy's build log. Text from the site", {
-      in: { siteId: id.site, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
+      in: { siteId, deploymentId: t.opt(t.id("dpl")), tail: t.opt(t.int()), build: t.opt(t.bool()) },
       out: {
         lines: t.arr(t.str()),
         state: t.opt(state),
@@ -743,7 +750,7 @@ export default defineManifest({
       "sites.plan",
       "What a deploy would do with this source: how it builds and starts, the port, and the databases and env names it looks for",
       {
-        in: { siteId: t.opt(id.site), source: t.opt(source) },
+        in: { siteId: t.opt(siteId), source: t.opt(source) },
         out: {
           kind: t.str(),
           note: t.str(),
@@ -764,7 +771,7 @@ export default defineManifest({
       "sites.addon_add",
       "Give a site its own Postgres or Redis (DATABASE_URL or REDIS_URL). Its data survives redeploys",
       {
-        in: { siteId: id.site, kind: t.enm("postgres", "redis") },
+        in: { siteId, kind: t.enm("postgres", "redis") },
         out: { addon },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -774,7 +781,7 @@ export default defineManifest({
       },
     ),
     write("sites.addon_remove", "Remove a site's Postgres or Redis and its data", {
-      in: { siteId: id.site, kind: t.enm("postgres", "redis") },
+      in: { siteId, kind: t.enm("postgres", "redis") },
       out: { removed: t.bool() },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -788,7 +795,7 @@ export default defineManifest({
       "sites.db_import",
       "Copy a Postgres into the site's own: a pg_dump file in Files, or a Vault key with the old connection string",
       {
-        in: { siteId: id.site, fileId: t.opt(id.file), fromHandle: t.opt(id.handle) },
+        in: { siteId, fileId: t.opt(fileIn), fromHandle: t.opt(handleIn) },
         out: { ok: t.bool(), detail: t.str() },
         on: ["site", "/siteId"],
         perm: "sites.deploy",
@@ -799,7 +806,7 @@ export default defineManifest({
       },
     ),
     write("sites.password_set", "Set the password for a site whose access is password (kept as a hash)", {
-      in: { siteId: id.site, password: t.str({ minLength: 8, maxLength: 200 }) },
+      in: { siteId, password: t.str({ minLength: 8, maxLength: 200 }) },
       out: { ok: t.bool() },
       on: ["site", "/siteId"],
       perm: "sites.deploy",
@@ -809,7 +816,7 @@ export default defineManifest({
       "sites.signin_link",
       "A short-lived link that signs the person asking in to a Space-only site at its own address",
       {
-        in: { siteId: id.site, next: t.opt(t.str()) },
+        in: { siteId, next: t.opt(t.str()) },
         out: { url: t.str(), expiresAt: t.ts() },
         on: ["site", "/siteId"],
       },

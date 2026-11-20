@@ -769,3 +769,9 @@ New gate act `deploy` (`manifests/gate.ts`, `modules/gate/projections.ts`; title
 The gates of `sites.deploy` (`sites.deploy_gate(input)`), `sites.ship`, `sites.env_set` and `sites.preview_promote` (`vault.key_host_unapproved(input)`) move from act `send` to act `deploy`: they run code with the site's production keys, or put a key in front of code. `sites.create`, `sites.update`, `sites.plan` and `sites.webhook_set` keep `send` (they send a key to a host a caller names, or change what builds). The act count of `gate.acts.list` is 19.
 
 Signed: lead, 2026-11-20
+
+## 20 Nov 2026: the sites tools show an id by its example alone (lane r42-sites)
+
+Changed contracts, in `manifests/sites.ts`; no capability was added or removed and no version moved. In the sites capabilities' inputs, a site id, a Vault handle, a folder id and a file id are plain strings with an example (`sit_a1b2c3`, `#Dana_Lawmatics`, `fld_a1b2c3`, `fil_a1b2c3`) and no `pattern`, so every tool the model is shown stops repeating it: the tool text shrinks by about 1,860 characters. The form is still checked: a site id by the lookup of the site (an id that is not one is refused as not found), a Vault handle by the handlers' own check (`cleanSource`, `sites.env_set`, `sites.db_import`), a folder or file id by the Files lookup. A looser input contract only: every call that was accepted still is.
+
+Signed: pending, lead

@@ -4449,14 +4449,12 @@
             "examples": [
               "fil_a1b2c3"
             ],
-            "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
           "folderId": {
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "html": {
@@ -57047,7 +57045,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57082,7 +57079,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57168,7 +57164,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57236,7 +57231,6 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "idempotencyKey": {
@@ -57297,14 +57291,12 @@
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
@@ -57320,7 +57312,6 @@
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -57357,21 +57348,18 @@
             "examples": [
               "fil_a1b2c3"
             ],
-            "pattern": "^fil_[a-z0-9]+$",
             "type": "string"
           },
           "fromHandle": {
             "examples": [
               "#Dana_Lawmatics"
             ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
             "type": "string"
           },
           "siteId": {
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57397,7 +57385,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57432,7 +57419,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
@@ -57444,14 +57430,12 @@
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
@@ -57467,7 +57451,6 @@
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -57506,7 +57489,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57540,7 +57522,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57576,7 +57557,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57607,7 +57587,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57640,7 +57619,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57667,7 +57645,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57693,7 +57670,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57739,7 +57715,6 @@
                   "examples": [
                     "#Dana_Lawmatics"
                   ],
-                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                   "type": "string"
                 }
               },
@@ -57754,7 +57729,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57781,7 +57755,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -57825,7 +57798,6 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "kind": {
@@ -57878,7 +57850,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "tail": {
@@ -57907,7 +57878,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
@@ -57919,14 +57889,12 @@
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
@@ -57942,7 +57910,6 @@
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -57971,7 +57938,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "wait": {
@@ -58004,7 +57970,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "wait": {
@@ -58037,7 +58002,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58064,7 +58028,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58097,7 +58060,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58124,7 +58086,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58157,7 +58118,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "toDeploymentId": {
@@ -58191,7 +58151,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58236,7 +58195,6 @@
                   "examples": [
                     "#Dana_Lawmatics"
                   ],
-                  "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                   "type": "string"
                 }
               },
@@ -58254,7 +58212,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
@@ -58266,14 +58223,12 @@
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
@@ -58289,7 +58244,6 @@
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -58318,14 +58272,12 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "vaultHandle": {
             "examples": [
               "#Dana_Lawmatics"
             ],
-            "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
             "type": "string"
           }
         },
@@ -58352,7 +58304,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58378,7 +58329,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58436,7 +58386,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58465,7 +58414,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "type": {
@@ -58495,7 +58443,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58548,7 +58495,6 @@
             "examples": [
               "fld_a1b2c3"
             ],
-            "pattern": "^fld_[a-z0-9]+$",
             "type": "string"
           },
           "limits": {
@@ -58585,7 +58531,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           },
           "source": {
@@ -58597,14 +58542,12 @@
                 "examples": [
                   "fil_a1b2c3"
                 ],
-                "pattern": "^fil_[a-z0-9]+$",
                 "type": "string"
               },
               "folderId": {
                 "examples": [
                   "fld_a1b2c3"
                 ],
-                "pattern": "^fld_[a-z0-9]+$",
                 "type": "string"
               },
               "path": {
@@ -58620,7 +58563,6 @@
                 "examples": [
                   "#Dana_Lawmatics"
                 ],
-                "pattern": "^#[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)?$",
                 "type": "string"
               }
             },
@@ -58649,7 +58591,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
@@ -58687,7 +58628,6 @@
             "examples": [
               "sit_a1b2c3"
             ],
-            "pattern": "^sit_[a-z0-9]+$",
             "type": "string"
           }
         },
