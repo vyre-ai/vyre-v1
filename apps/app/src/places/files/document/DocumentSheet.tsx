@@ -337,6 +337,7 @@ function FillPage({
 function PageText({ lines }: { lines: readonly ExcerptLine[] }): ReactElement {
   return (
     <View style={st.page} testID="doc-page">
+      {/* ui-rows-lint: not a list (the lines of a page as it reads: running text, not rows) */}
       {lines.slice(0, 40).map((l, i) => {
         const parts: ReactElement[] = [];
         let at = 0;

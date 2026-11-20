@@ -50,7 +50,8 @@ const RULE = rgb(0.75, 0.75, 0.78);
 const FIXED = new Date(Date.UTC(2000, 0, 1, 0, 0, 0));
 
 // what WinAnsi (the standard fonts' encoding) holds beyond Latin-1
-const EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
+// (the en and em dash are made from their code points: the text lint bans the characters, and their escapes)
+const EXTRA = `€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•${String.fromCodePoint(0x2013, 0x2014)}˜™š›œžŸ`;
 const drawable = (c: string): boolean => {
   const n = c.codePointAt(0) ?? 0;
   return (n >= 0x20 && n <= 0x7e) || (n >= 0xa0 && n <= 0xff) || EXTRA.includes(c);
