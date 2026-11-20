@@ -1,0 +1,1 @@
+On the Still need these card, the quote behind a looks-done row is shown only to someone who can read that chat; everyone else sees that it looks done and where to look. The reason for a task the daily look asked about is always the same plain sentence.

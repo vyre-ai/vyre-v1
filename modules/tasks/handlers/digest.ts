@@ -1,6 +1,6 @@
 // tasks.digest: what an agent keeps in mind about its work, every turn, for almost nothing. The task bound to this thread, its parent and siblings in a line each, then the agent's own open tasks: the top five and a
 // count. A hard cap of about 300 tokens; the hash lets the engine send it only when it changed. Detail stays one tasks_get away. The asker's reach limits it: a task the asker cannot see is not named.
-import { allTasks, actionableSlot, findTask, isOpen, raise, visibleTo } from "../projections.ts";
+import { NOT_ARCHIVED, allTasks, actionableSlot, findTask, isOpen, raise, visibleTo } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -95,7 +95,7 @@ export async function digest(ctx: TasksCtx, input: In): Promise<unknown> {
       errors: ["/agentId: required unless an agent asks"],
     });
   const thread = typeof input.threadId === "string" ? input.threadId : undefined;
-  const open = "c.state NOT IN ('done', 'canceled')";
+  const open = `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED}`;
   const can = (t: Task | undefined): t is Task => t !== undefined && visibleTo(ctx, t);
   // the task of this thread: its own thread, or the crew job or helper thread doing it. A chat can hold several parents; the newest open one is the one in hand.
   const bound = thread

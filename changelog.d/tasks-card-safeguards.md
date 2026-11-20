@@ -1,0 +1,1 @@
+The card Still need these? never puts a task away that nobody saw, and never owed work (a due date that passed); a task that you move or put back is not put away again; a done-when proof can only name what you may read and never closes a held act or an Approve task.

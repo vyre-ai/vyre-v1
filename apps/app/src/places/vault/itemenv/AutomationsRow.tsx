@@ -21,6 +21,7 @@ import {
 import type { AiAccount, BuilderStatus, UsedBy } from "./automations.ts";
 import { PendingSecrets, pendingSlots } from "./PendingSecrets.tsx";
 import type { PendingSlot } from "./PendingSecrets.tsx";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 export interface AutomationsRowProps {
   item: { id: string; name: string; handle: string; kind: ItemKind; yourLevel: string; folderId: string };
@@ -342,13 +343,15 @@ export function AutomationsRow({ item }: AutomationsRowProps): ReactElement | nu
             // the removal's confirm, under the list: it names who sends the key to that host
             const h = sentTo.find((x) => x.host === confirming);
             return h ? (
-              <View style={s.notice} accessibilityRole="alert" testID="item-sent-to-confirm">
-                <Text
-                  style={s.noticeText}
-                >{`${named(h)} ${h.usedBy.length + h.hidden === 1 ? "sends" : "send"} this key there. Their next Run stops until you allow it again.`}</Text>
-                <Btn label="Remove" onPress={() => forget(h.host)} testID="item-sent-to-confirm-yes" />
-                <Btn label="Cancel" onPress={() => setConfirming(null)} testID="item-sent-to-confirm-no" />
-              </View>
+              <InlineConfirm
+                testID="item-sent-to-confirm"
+                question={`${named(h)} ${h.usedBy.length + h.hidden === 1 ? "sends" : "send"} this key there. Their next Run stops until you allow it again.`}
+                confirmLabel="Remove"
+                confirmTestID="item-sent-to-confirm-yes"
+                cancelTestID="item-sent-to-confirm-no"
+                onConfirm={() => forget(h.host)}
+                onCancel={() => setConfirming(null)}
+              />
             ) : null;
           })()}
           {adding ? (

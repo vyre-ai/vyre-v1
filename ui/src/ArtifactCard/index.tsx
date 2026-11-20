@@ -11,6 +11,7 @@ import type { MenuEntry } from "../Menu/index.tsx";
 import { standIn, subline } from "./model.ts";
 import type { ArtifactInfo } from "./model.ts";
 import { TimePop } from "../Time/index.tsx";
+import { InlineConfirm } from "../InlineConfirm/index.tsx";
 
 export * from "./model.ts";
 
@@ -160,14 +161,18 @@ export function ArtifactCard(p: ArtifactCardProps): ReactElement {
           <Text style={st.title} numberOfLines={1}>{`Delete “${info.name}”?`}</Text>
           <Text style={st.line}>The link stops working for everyone it was shared with.</Text>
           <View style={st.acts}>
-            <Quiet label="Keep it" testID={`${id}-keep`} onPress={() => setSure(false)} />
-            <Quiet
-              label="Delete"
-              testID={`${id}-delete`}
-              onPress={() => {
+            <InlineConfirm
+              compact
+              question="Delete it?"
+              cancelLabel="Keep it"
+              confirmLabel="Delete"
+              confirmTestID={`${id}-delete`}
+              cancelTestID={`${id}-keep`}
+              onConfirm={() => {
                 setSure(false);
                 p.onDelete?.();
               }}
+              onCancel={() => setSure(false)}
             />
           </View>
         </View>

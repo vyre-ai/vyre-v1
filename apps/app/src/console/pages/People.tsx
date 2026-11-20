@@ -30,6 +30,7 @@ import {
 } from "./shared.tsx";
 import { PersonExceptions, WhatTheyCanDo, useExceptions } from "./exceptions.tsx";
 import type { PersonLite } from "./permissions-model.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Roles = CapMap["access.roles.list"]["out"];
 type Groups = CapMap["access.groups.list"]["out"];
@@ -281,22 +282,21 @@ export function People({
                 testID="people-bulk-reason"
               />
             ) : null}
-            <Note>
-              {bulk.kind === "suspend"
-                ? "Suspending ends their sessions at once. You and the Space owner are skipped."
-                : "People who already have this are skipped."}{" "}
-              Each person is changed on its own; a refusal for one does not stop the rest.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setBulk(null)} />
-              <Button
-                label={`Confirm: ${bulkLabel}`}
-                testID="people-bulk-confirm"
-                danger={bulk.kind === "suspend"}
-                disabled={action.busy || (!bulk.value && bulk.kind !== "suspend")}
-                onPress={() => void applyBulk()}
-              />
-            </Actions>
+            <InlineConfirm
+              question={
+                <>
+                  {bulk.kind === "suspend"
+                    ? "Suspending ends their sessions at once. You and the Space owner are skipped."
+                    : "People who already have this are skipped."}{" "}
+                  Each person is changed on its own; a refusal for one does not stop the rest.
+                </>
+              }
+              confirmLabel={`Confirm: ${bulkLabel}`}
+              disabled={action.busy || (!bulk.value && bulk.kind !== "suspend")}
+              confirmTestID="people-bulk-confirm"
+              onConfirm={() => applyBulk()}
+              onCancel={() => setBulk(null)}
+            />
           </Group>
         </Section>
       ) : null}
@@ -358,26 +358,25 @@ function PersonRoles({ personId }: { personId: string }): ReactElement {
       {rows}
       {pending ? (
         <>
-          <Note>{pending.held ? "Remove" : "Assign"} this role for the selected person?</Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setPending(null)} />
-            <Button
-              label="Confirm role change"
-              testID="console-person-role-confirm"
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run(
-                    pending.held ? "access.roles.unassign" : "access.roles.assign",
-                    { subject: { kind: "person", id: personId }, roleId: pending.roleId },
-                    pending.held ? "Role removed" : "Role assigned",
-                  )
-                  .then((out) => {
-                    if (out) setPending(null);
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={<>{pending.held ? "Remove" : "Assign"} this role for the selected person?</>}
+            confirmLabel="Confirm role change"
+            danger={false}
+            disabled={action.busy}
+            confirmTestID="console-person-role-confirm"
+            onConfirm={() =>
+              action
+                .run(
+                  pending.held ? "access.roles.unassign" : "access.roles.assign",
+                  { subject: { kind: "person", id: personId }, roleId: pending.roleId },
+                  pending.held ? "Role removed" : "Role assigned",
+                )
+                .then((out) => {
+                  if (out) setPending(null);
+                })
+            }
+            onCancel={() => setPending(null)}
+          />
         </>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

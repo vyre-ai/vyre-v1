@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 import { ObjectPage, ObjectSection, withBaseTabs } from "../../../../../ui/src/ObjectPage/index.tsx";
 import { Dialog } from "../../../../../ui/src/Dialog/index.tsx";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
@@ -173,6 +174,11 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
     for (const agentId of picked) {
       const out = await action.run("agents.delete", { agentId }, "Agent moved to Trash");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(agentId);
+        return next;
+      }); // a retry after a failure starts from what is left
       setTrashed((current) => [
         ...current,
         { agentId, name: list.data!.agents.find((a) => a.agentId === agentId)?.name ?? "Agent" },
@@ -210,22 +216,18 @@ export function AgentsRegister({ initialAgentId = null }: { initialAgentId?: str
         />
       </Section>
       {bulkConfirm ? (
-        <Section title="Delete selected agents?">
-          <Group>
-            <Note>
+        <InlineConfirm
+          question={"Delete selected agents?"}
+          note={
+            <>
               {picked.size} agent{picked.size === 1 ? "" : "s"} will move to Trash and stop working.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setBulkConfirm(false)} />
-              <Button
-                label="Confirm deletion"
-                danger
-                disabled={action.busy || picked.size === 0}
-                onPress={() => void deletePicked()}
-              />
-            </Actions>
-          </Group>
-        </Section>
+            </>
+          }
+          confirmLabel="Confirm deletion"
+          disabled={action.busy || picked.size === 0}
+          onConfirm={() => deletePicked()}
+          onCancel={() => setBulkConfirm(false)}
+        />
       ) : null}
       {creating ? (
         <FormSheet
@@ -405,25 +407,23 @@ export function PeoplesAgents(): ReactElement | null {
               ) : null}
               {confirm === p.personId ? (
                 <>
-                  <Note>{PAUSE_NOTE(name)}</Note>
-                  <Actions>
-                    <Button label="Cancel" testID="person-pause-cancel" onPress={() => setConfirm(null)} />
-                    <Button
-                      label="Pause all"
-                      danger
-                      testID="person-pause-yes"
-                      disabled={action.busy}
-                      onPress={() =>
-                        void action
-                          .run(
-                            "agents.pause_person",
-                            { personId: p.personId, paused: true },
-                            `${name} was told. Their agents are paused`,
-                          )
-                          .then(() => setConfirm(null))
-                      }
-                    />
-                  </Actions>
+                  <InlineConfirm
+                    question={<>{PAUSE_NOTE(name)}</>}
+                    confirmLabel="Pause all"
+                    disabled={action.busy}
+                    confirmTestID="person-pause-yes"
+                    cancelTestID="person-pause-cancel"
+                    onConfirm={() =>
+                      action
+                        .run(
+                          "agents.pause_person",
+                          { personId: p.personId, paused: true },
+                          `${name} was told. Their agents are paused`,
+                        )
+                        .then(() => setConfirm(null))
+                    }
+                    onCancel={() => setConfirm(null)}
+                  />
                 </>
               ) : null}
             </View>
@@ -883,6 +883,11 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
     for (const actorId of picked) {
       const out = await action.run("access.actors.revoke", { actorId }, "Outside agent revoked");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(actorId);
+        return next;
+      }); // a retry after a failure starts from what is left
     }
     setPicked(new Set());
     setBulkConfirm(false);
@@ -915,23 +920,19 @@ export function OutsideActors({ initialActorId = null }: { initialActorId?: stri
         />
       </Section>
       {bulkConfirm ? (
-        <Section title="Revoke selected outside agents?">
-          <Group>
-            <Note>
+        <InlineConfirm
+          question={"Revoke selected outside agents?"}
+          note={
+            <>
               {picked.size} outside {picked.size === 1 ? "agent" : "agents"} will lose access immediately. Open sessions
               and credentials stop working.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setBulkConfirm(false)} />
-              <Button
-                label="Confirm revoke"
-                danger
-                disabled={action.busy || picked.size === 0}
-                onPress={() => void revokePicked()}
-              />
-            </Actions>
-          </Group>
-        </Section>
+            </>
+          }
+          confirmLabel="Confirm revoke"
+          disabled={action.busy || picked.size === 0}
+          onConfirm={() => revokePicked()}
+          onCancel={() => setBulkConfirm(false)}
+        />
       ) : null}
       {connecting ? (
         <FormSheet
@@ -1280,6 +1281,11 @@ export function AgentComputers({ initialComputerId = null }: { initialComputerId
     for (const computerId of picked) {
       const out = await action.run("computers.remove", { computerId }, "Computer removed");
       if (out === undefined) return;
+      setPicked((current) => {
+        const next = new Set(current);
+        next.delete(computerId);
+        return next;
+      }); // a retry after a failure starts from what is left
     }
     setPicked(new Set());
     setBulkConfirm(false);
@@ -1330,22 +1336,18 @@ export function AgentComputers({ initialComputerId = null }: { initialComputerId
         />
       </Section>
       {bulkConfirm ? (
-        <Section title="Remove selected computers?">
-          <Group>
-            <Note>
+        <InlineConfirm
+          question={"Remove selected computers?"}
+          note={
+            <>
               {picked.size} browser profile{picked.size === 1 ? "" : "s"} and local computer state will be removed.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setBulkConfirm(false)} />
-              <Button
-                label="Confirm removal"
-                danger
-                disabled={action.busy || picked.size === 0}
-                onPress={() => void removePicked()}
-              />
-            </Actions>
-          </Group>
-        </Section>
+            </>
+          }
+          confirmLabel="Confirm removal"
+          disabled={action.busy || picked.size === 0}
+          onConfirm={() => removePicked()}
+          onCancel={() => setBulkConfirm(false)}
+        />
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
     </View>

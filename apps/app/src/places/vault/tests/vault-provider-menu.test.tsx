@@ -13,6 +13,10 @@ import { withProviders } from "../providers/sample.ts";
 import type { Provider } from "../layout/model.ts";
 import { fireUp } from "../../chats/sidebar/chats-open.support.tsx";
 import type { Node } from "../../../onboarding/test-dom.ts";
+import { setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 Dimensions.set({
   window: { width: 1280, height: 800, scale: 1, fontScale: 1 },

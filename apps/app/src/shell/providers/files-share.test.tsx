@@ -8,6 +8,10 @@ import { FolderShareSheet, shareLevelOf } from "./files-share.tsx";
 import type { ShellRuntime } from "./runtime.tsx";
 import { notices } from "../noticeslot/model.ts";
 import fs from "node:fs";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const names: Record<string, string> = { usr_ada: "Ada", usr_bea: "Bea", usr_cal: "Cal" };
 const grant = (subject: string, level: string, resource = "fld_clients") => ({

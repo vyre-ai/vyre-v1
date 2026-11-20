@@ -1,0 +1,1 @@
+Tasks has two calm lines at the top: Since Tuesday: 3 put away, 2 new for you (press it to see each reason and Put back), and the card Still need these? with Keep or Archive per row or for all. It replaces the old "not moved in weeks" fold.

@@ -66139,6 +66139,36 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.archive",
+      "deferred": false,
+      "description": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "maxLength": 300,
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_archive",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.assign",
       "deferred": false,
       "description": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
@@ -66250,7 +66280,7 @@
       "blocks": [],
       "cap": "tasks.create",
       "deferred": false,
-      "description": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "description": "Create a task (Work by default)",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -66483,6 +66513,14 @@
               "every"
             ],
             "type": "object"
+          },
+          "relevantUntil": {
+            "description": "When it stops mattering",
+            "examples": [
+              1760000000000
+            ],
+            "minimum": 0,
+            "type": "integer"
           },
           "reviewer": {
             "properties": {
@@ -66718,6 +66756,45 @@
     },
     {
       "blocks": [],
+      "cap": "tasks.done_when",
+      "deferred": false,
+      "description": "What proves a task done; it closes itself. No kind clears",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "vault_item",
+              "message_sent",
+              "meeting_ended",
+              "connection_on"
+            ],
+            "type": "string"
+          },
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_done_when",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "tasks.followers.add",
       "deferred": false,
       "description": "Add a follower; plain @mentions become followers, never tasks",
@@ -66850,6 +66927,9 @@
       "effects": "read",
       "inputSchema": {
         "properties": {
+          "archived": {
+            "type": "boolean"
+          },
           "done": {
             "type": "boolean"
           },
@@ -67329,6 +67409,32 @@
         "type": "object"
       },
       "name": "tasks_transition",
+      "planMode": "blocked",
+      "toolset": "tasks",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "tasks.unarchive",
+      "deferred": false,
+      "description": "Put an archived task back",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "taskId": {
+            "examples": [
+              "tsk_a1b2c3"
+            ],
+            "pattern": "^tsk_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId"
+        ],
+        "type": "object"
+      },
+      "name": "tasks_unarchive",
       "planMode": "blocked",
       "toolset": "tasks",
       "v": 1

@@ -4,6 +4,10 @@ import assert from "node:assert/strict";
 import { AppsPage, appNote, githubRow, otherSignIns, whatItDoes } from "../pages/AppsList.tsx";
 import { createRoot } from "test-renderer";
 import { mountPage } from "./page-kit.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const connector = (key: string, title: string, connections: number, over: Record<string, unknown> = {}) => ({
   key,

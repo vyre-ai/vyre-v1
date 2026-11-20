@@ -2953,10 +2953,12 @@ export function createClient(transport: Transport) {
     tasks: {
       act: call("tasks.act", 1),
       agent_on_it: call("tasks.agent_on_it", 1),
+      archive: call("tasks.archive", 1),
       ask: call("tasks.ask", 1),
       assign: call("tasks.assign", 1),
       block: call("tasks.block", 1),
       by_key: call("tasks.by_key", 1),
+      changes: call("tasks.changes", 1),
       clock: call("tasks.clock", 1),
       count_needs_you: call("tasks.count_needs_you", 1),
       create: call("tasks.create", 1),
@@ -2968,6 +2970,7 @@ export function createClient(transport: Transport) {
         remove: call("tasks.dependencies.remove", 1),
       },
       digest: call("tasks.digest", 1),
+      done_when: call("tasks.done_when", 1),
       escalate: call("tasks.escalate", 1),
       followers: {
         add: call("tasks.followers.add", 1),
@@ -2990,9 +2993,12 @@ export function createClient(transport: Transport) {
       rev: call("tasks.rev", 1),
       review: call("tasks.review", 1),
       snooze: call("tasks.snooze", 1),
+      still_answer: call("tasks.still_answer", 1),
+      still_needed: call("tasks.still_needed", 1),
       submit: call("tasks.submit", 1),
       take: call("tasks.take", 1),
       transition: call("tasks.transition", 1),
+      unarchive: call("tasks.unarchive", 1),
       update: call("tasks.update", 1),
       withdraw: call("tasks.withdraw", 1),
       working_notes: {

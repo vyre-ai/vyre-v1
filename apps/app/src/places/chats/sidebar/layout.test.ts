@@ -279,19 +279,45 @@ test("Goals has a head and rows one line tall, two only where a goal has words u
   );
 });
 
-test("a lived-in Space with no goals shows the Goals head and one quiet line with New goal; an empty Space shows no heading", () => {
+test("a lived-in Space with no goals shows the Goals head alone, bare, and no sentence under it; an empty Space shows no heading", () => {
   const l = buildLayout(input([mk("chat")]));
-  const h = entry(l.entries, "hint", "goals")!;
-  assert.equal(h.text, "No goals yet");
-  assert.equal(h.action, "New goal");
-  assert.ok(types(l.entries).includes("head:goals"));
+  const h = entry(l.entries, "head", "goals")!;
+  assert.equal(h.bare, true, "nothing in it: the header alone");
+  assert.equal(h.count, 0);
+  assert.equal(h.folded, false);
+  const at = l.entries.indexOf(h);
+  assert.equal(
+    l.entries[at + 1]!.key,
+    "h:chats",
+    "nothing is drawn under a bare head: the next entry is the next section",
+  );
+  assert.ok(!l.entries.some((e) => (e.type as string) === "hint"), "no 'No goals yet' line");
   assert.equal(buildLayout(input([])).entries.length, 0);
   const folded = buildLayout(input([mk("chat")], { folded: new Set<SectionId>(["goals"]) }));
-  assert.equal(entry(folded.entries, "hint"), undefined, "folded hides the line");
+  assert.equal(entry(folded.entries, "head", "goals")!.folded, false, "a bare head has nothing to fold");
+  assert.equal(entry(folded.entries, "head", "goals")!.bare, true);
   assert.equal(
-    entry(buildLayout(input([mk("chat")], { filter: "unread" })).entries, "hint"),
+    entry(buildLayout(input([mk("chat")], { filter: "unread" })).entries, "head", "goals"),
     undefined,
-    "no line under a filter",
+    "no bare head under a filter",
+  );
+  assert.equal(entry(buildLayout(input([mk("chat"), mk("goal")])).entries, "head", "goals")!.bare, undefined);
+});
+
+test("the one empty rule: a section the person can add to stays as its bare header; one they cannot add to is not drawn", () => {
+  const adds = new Set<SectionId>(["goals", "chats", "channels", "team"]);
+  const l = buildLayout(input([mk("goal")], { adds }));
+  assert.deepEqual(types(l.entries), ["tasks", "head:goals", "row", "head:chats", "head:channels", "head:team"]);
+  for (const s of ["chats", "channels", "team"] as const) assert.equal(entry(l.entries, "head", s)!.bare, true, s);
+  assert.equal(entry(l.entries, "head", "pinned"), undefined, "Pinned has no +: empty, it is not drawn");
+  const none = buildLayout(input([mk("goal")], { adds: new Set<SectionId>() }));
+  assert.deepEqual(types(none.entries), ["tasks", "head:goals", "row"], "nothing to add to: no bare heads");
+  const personal = buildLayout(input([mk("goal")], { adds, personal: true }));
+  assert.ok(!types(personal.entries).includes("head:channels"), "a Personal Space still has no Channels");
+  const guest = buildLayout(input([mk("chat")], { adds, guest: true }));
+  assert.ok(
+    !types(guest.entries).some((t) => t === "head:goals" || t === "head:team"),
+    "a guest has no Goals and no Team, bare or not",
   );
 });
 
@@ -428,7 +454,7 @@ test("a Personal Space has no Channels and calls Team Agents", () => {
 
 test("a Space with chats shows Tasks, then Chats; Pinned and Channels show only when they have something", () => {
   const l = buildLayout(input([mk("chat")]));
-  assert.deepEqual(types(l.entries), ["tasks", "head:goals", "hint", "head:chats", "row"]);
+  assert.deepEqual(types(l.entries), ["tasks", "head:goals", "head:chats", "row"]);
   assert.equal(l.foot.notes?.new, 0);
 });
 

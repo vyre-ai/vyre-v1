@@ -5,7 +5,7 @@
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
 import { createContext, createElement, memo, useContext, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
 import { injectCss } from "../theme/css.ts";
@@ -33,7 +33,7 @@ function ensureRowCss(): void {
   injectCss(
     d,
     "vyre-ui-row",
-    ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}",
+    ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}.vyre-row .vyre-hover-act{opacity:0}.vyre-row:hover .vyre-hover-act,.vyre-row:focus-within .vyre-hover-act{opacity:1}@media (hover:none){.vyre-row .vyre-hover-act{opacity:1}}",
   );
   cssDone = true;
 }
@@ -455,3 +455,14 @@ const styles = StyleSheet.create({
   marks: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });
+
+/** The quick actions of a row, drawn only while the pointer is over the row or focus is inside it (always on a touch screen): the row at rest shows its mark, not a row of buttons. Put it in `trailing`.
+ *  Off the web there is no hover, so the children draw as they are. */
+export function RowActions({ children }: { children: ReactNode }): ReactElement {
+  if (Platform.OS !== "web") return <>{children}</>;
+  return createElement(
+    "span",
+    { className: "vyre-hover-act", style: { display: "inline-flex", alignItems: "center" } },
+    children,
+  );
+}

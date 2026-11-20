@@ -2953,10 +2953,12 @@ export function stubs(ctx: CallCtx) {
     tasks: {
       act: call("tasks.act"),
       agent_on_it: call("tasks.agent_on_it"),
+      archive: call("tasks.archive"),
       ask: call("tasks.ask"),
       assign: call("tasks.assign"),
       block: call("tasks.block"),
       by_key: call("tasks.by_key"),
+      changes: call("tasks.changes"),
       clock: call("tasks.clock"),
       count_needs_you: call("tasks.count_needs_you"),
       create: call("tasks.create"),
@@ -2968,6 +2970,7 @@ export function stubs(ctx: CallCtx) {
         remove: call("tasks.dependencies.remove"),
       },
       digest: call("tasks.digest"),
+      done_when: call("tasks.done_when"),
       escalate: call("tasks.escalate"),
       followers: {
         add: call("tasks.followers.add"),
@@ -2990,9 +2993,12 @@ export function stubs(ctx: CallCtx) {
       rev: call("tasks.rev"),
       review: call("tasks.review"),
       snooze: call("tasks.snooze"),
+      still_answer: call("tasks.still_answer"),
+      still_needed: call("tasks.still_needed"),
       submit: call("tasks.submit"),
       take: call("tasks.take"),
       transition: call("tasks.transition"),
+      unarchive: call("tasks.unarchive"),
       update: call("tasks.update"),
       withdraw: call("tasks.withdraw"),
       working_notes: {

@@ -15,6 +15,7 @@ import { ago } from "../shell/format.ts";
 import { Group, Lead, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, FormSheet, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 export type CiSettings = CapMap["ci.settings.get"]["out"];
 export type CiCost = CapMap["ci.cost.month"]["out"];
@@ -759,21 +760,17 @@ export function CiRunnersPage(): ReactElement {
       </Section>
       {confirmOff ? (
         <Group>
-          <View testID="ci-off-confirm" style={{ padding: 12, gap: 10 }}>
-            <Text style={{ fontSize: 13, color: "var(--ink)" as string }}>
-              Turn off CI runners? Jobs already running finish first. New jobs go back to GitHub's own runners.
-            </Text>
-            <Actions>
-              <Button
-                danger
-                label="Turn off"
-                testID="ci-off-yes"
-                disabled={action.busy}
-                onPress={() => void set({ enabled: false }, "CI runners are off").then(() => setConfirmOff(false))}
-              />
-              <Button label="Cancel" testID="ci-off-cancel" onPress={() => setConfirmOff(false)} />
-            </Actions>
-          </View>
+          <InlineConfirm
+            testID="ci-off-confirm"
+            question="Turn off CI runners?"
+            note="Jobs already running finish first. New jobs go back to GitHub's own runners."
+            confirmLabel="Turn off"
+            confirmTestID="ci-off-yes"
+            cancelTestID="ci-off-cancel"
+            disabled={action.busy}
+            onConfirm={() => set({ enabled: false }, "CI runners are off").then(() => setConfirmOff(false))}
+            onCancel={() => setConfirmOff(false)}
+          />
         </Group>
       ) : (
         <Actions>

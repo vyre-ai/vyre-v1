@@ -12,6 +12,10 @@ import { fileURLToPath } from "node:url";
 import { bootFreshSpace, claimOnEdge, edge, dismissOnboarding } from "./real-app-harness.test.ts";
 import { guardCrashes } from "./crash-guard.ts";
 import { vendor } from "../../../fixtures/model-vendor.ts";
+import { setArmDelay } from "../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const PRELOAD = fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url));
 const KEY = "sk-test-fixture-0123456789abcdef"; // secret-scan: fake
@@ -292,6 +296,24 @@ export async function agentDeleteWalk(
             await page.waitForTimeout(250);
           }
           await actText("Move to Trash\u2026");
+          // a press while the ask is still wary (just opened) deletes nothing: the strip is still there afterwards
+          const early = await page.evaluate(() => {
+            const b = document.querySelector('[data-testid="trash-yes"]') as HTMLElement | null;
+            if (!b || b.getAttribute("aria-disabled") !== "true") return "armed";
+            b.click();
+            return "clicked";
+          });
+          if (early === "clicked")
+            assert.equal(await page.getByTestId("trash-confirm").count(), 1, "a press while the ask is wary deleted");
+          // the ask opens focused on Cancel and Delete is armed a moment later (ui/InlineConfirm): wait for it, then one Tab from Cancel reaches it
+          await page.waitForFunction(
+            () => {
+              const b = document.querySelector('[data-testid="trash-yes"]');
+              return b !== null && b.getAttribute("aria-disabled") !== "true";
+            },
+            null,
+            { timeout: 15_000 },
+          );
           await act("trash-yes");
           await page.waitForFunction(() => !document.querySelector('[data-testid="trash-confirm"]'), null, {
             timeout: 15_000,

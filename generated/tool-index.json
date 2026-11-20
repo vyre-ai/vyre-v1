@@ -9398,6 +9398,12 @@
     },
     {
       "deferred": false,
+      "name": "tasks_archive",
+      "summary": "Put away an open task that no longer matters, with why in a sentence. Not deleted: tasks.unarchive puts it back",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
       "name": "tasks_assign",
       "summary": "Set or clear a slot: Assigned, Reviewer or Approver (person, agent, group, role or automation)",
       "toolset": "tasks"
@@ -9417,7 +9423,7 @@
     {
       "deferred": false,
       "name": "tasks_create",
-      "summary": "Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys",
+      "summary": "Create a task (Work by default)",
       "toolset": "tasks"
     },
     {
@@ -9442,6 +9448,12 @@
       "deferred": false,
       "name": "tasks_dependencies_remove",
       "summary": "Remove a dependency",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_done_when",
+      "summary": "What proves a task done; it closes itself. No kind clears",
       "toolset": "tasks"
     },
     {
@@ -9538,6 +9550,12 @@
       "deferred": false,
       "name": "tasks_transition",
       "summary": "Move a task to a new status (the only writer of status); checks the 4.7 state table and the reviewer/approver rules",
+      "toolset": "tasks"
+    },
+    {
+      "deferred": false,
+      "name": "tasks_unarchive",
+      "summary": "Put an archived task back",
       "toolset": "tasks"
     },
     {

@@ -5,6 +5,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Row } from "../../../../../ui/src/Row/index.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 const stateName = (state: string): string => state[0]!.toUpperCase() + state.slice(1);
 type Review =
   | { kind: "domain"; domain: string }
@@ -147,16 +148,15 @@ export function Network(): ReactElement {
                       ? `Request certificate renewal for ${review.host}?`
                       : `Remove ${review.name}? Its workloads may stop. The Space server cannot be removed.`}
               </Note>
-              <Actions>
-                <Button label="Cancel" disabled={action.busy} onPress={() => setReview(null)} />
-                <Button
-                  label="Confirm change"
-                  testID="infra-network-confirm"
-                  disabled={action.busy}
-                  danger={review.kind === "remove"}
-                  onPress={() => void confirm()}
-                />
-              </Actions>
+              <InlineConfirm
+                question="Confirm this change?"
+                confirmLabel="Confirm change"
+                confirmTestID="infra-network-confirm"
+                disabled={action.busy}
+                danger={review.kind === "remove"}
+                onConfirm={() => confirm()}
+                onCancel={() => setReview(null)}
+              />
             </>
           ) : null}
           {action.note ? <Note>{action.note}</Note> : null}
