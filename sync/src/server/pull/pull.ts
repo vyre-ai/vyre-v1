@@ -58,14 +58,36 @@ const STAMP_DDL =
 const stampReady = new WeakSet<object>();
 /** Where an access rescan of one device stands: the stamp it is for and the last row (entity, id) it has looked at. A rescan of a big Space is done in slices across pulls. */
 const SCAN_DDL =
-  "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, PRIMARY KEY (person, device)) WITHOUT ROWID";
-/** One slice of a rescan holds the event loop at most this long (ms). */
+  "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, back_ent TEXT, back_rid TEXT, began TEXT, PRIMARY KEY (person, device)) WITHOUT ROWID";
+// What a pull may spend is counted in the CPU time of the thread that runs it, not in wall time: a loaded machine (a busy CI runner, another process) then gives the same answer as an idle one, so a
+// small Space is always answered whole and a big one is cut at the same place every time. Where the runtime has no per-thread clock, wall time stands in.
+const threadCpu = (process as unknown as { threadCpuUsage?: () => { user: number; system: number } }).threadCpuUsage?.bind(process);
+const cpuMs = (): number => {
+  if (!threadCpu) return performance.now();
+  const u = threadCpu();
+  return (u.user + u.system) / 1000;
+};
+/**
+ * One slice of an access rescan: at most this much CPU (the rows' own work) and at most SCAN_ASK_MAX rows asked for. A slice of 25 ms and 175 asks, and the pull that follows it (which folds those
+ * 175 hides or sends into its answer), is about 80 ms of CPU in all on the machine measured (Meier-shaped rows of 40 fields), inside the 100 ms a pull is held to; 175 is also what 12,000 revoked
+ * rows need to be all hidden in 81 pulls (about 2.3 s), the bound the revoke test holds it to.
+ */
 const SCAN_SLICE_MS = 25;
 const SCAN_ASK_MAX = 175;
+/** The feed read of one pull stops after this much CPU and says there is more: a pull of the largest page (5,000 rows) otherwise holds the loop for as long as its rows take. A pull of a few hundred rows (golden's, a small Space) is under it, so it is whole. */
+const PULL_CPU_MS = 120;
 function ensureStamp(db: Tx): void {
   if (stampReady.has(db)) return;
   db.exec(STAMP_DDL);
   db.exec(SCAN_DDL);
+  // a table made by an earlier build of this change has no place to come back to: add it
+  for (const c of ["back_ent", "back_rid", "began"]) {
+    try {
+      db.exec(`ALTER TABLE sync_scope_scan ADD COLUMN ${c} TEXT`);
+    } catch {
+      /* there already */
+    }
+  }
   stampReady.add(db);
 }
 
@@ -207,8 +229,15 @@ function rescanChanged(
     who.person,
     who.device,
   )?.stamp;
-  let scan = db.get<{ stamp: string; ent: string; rid: string }>(
-    "SELECT stamp, ent, rid FROM sync_scope_scan WHERE person = ? AND device = ?",
+  let scan = db.get<{
+    stamp: string;
+    ent: string;
+    rid: string;
+    back_ent: string | null;
+    back_rid: string | null;
+    began: string | null;
+  }>(
+    "SELECT stamp, ent, rid, back_ent, back_rid, began FROM sync_scope_scan WHERE person = ? AND device = ?",
     who.person,
     who.device,
   );
@@ -225,7 +254,7 @@ function rescanChanged(
       );
       return false;
     }
-    scan = { stamp, ent: "h:", rid: "" };
+    scan = { stamp, ent: "h:", rid: "", back_ent: null, back_rid: null, began: stamp };
   }
   const sees = (row: RowRec): boolean => {
     const cfg = d.catalog.get(row.entity);
@@ -262,11 +291,27 @@ function rescanChanged(
   // A change of the access state while a scan runs is looked at by the next scan, started when this one ends.
   // Two passes, in this order: first the rows the device holds (a revoke must hide them at once, and a person who holds a few rows sees it in the first pull), then the rows it does not hold (a share
   // given sends them; a slow arrival there costs a wait, not a leak). The place is kept as the pass and the last (entity, id) it looked at.
-  const t0 = performance.now();
+  const t0 = cpuMs();
   let phase: "h" | "m" = scan.ent.startsWith("m:") ? "m" : "h",
     ent = scan.ent.slice(2),
     rid = scan.rid,
+    backEnt = scan.back_ent,
+    backRid = scan.back_rid,
     done = false;
+  // The access state moved while a scan of the not-held rows was under way: what a person may no longer see is among the rows the device HOLDS, which that scan has finished with. Go back to them
+  // first, under the new state, and come back to the place left in the other rows afterwards. (A scan still in the held pass is not restarted: it checks every held row against the access of the moment
+  // it reaches it, and the scan the end of it asks for covers the rows it had passed. Restarting it at every change would never end on a device that holds a great many rows while access keeps moving.)
+  // `began` is the access state the scan was started under, and it is the one stored when the scan ends: the rows the other pass judged before the change (a share given since may have opened some
+  // of them, and the feed says nothing of that) are looked at by one more scan, which the stored stamp now differing from the current one starts.
+  const began = scan.began ?? scan.stamp;
+  if (scan.stamp !== stamp && phase === "m") {
+    backEnt ??= ent;
+    backRid ??= rid;
+    phase = "h";
+    ent = "";
+    rid = "";
+    scan.stamp = stamp;
+  }
   const COLS = "r.entity, r.id, r.owner_id, r.label, r.deleted, r.enc, r.vis, r.seq, r.updated_at, r.fields";
   const EVIS = "(CASE WHEN s.at_seq > ? THEN s.prev_vis ELSE s.vis END)";
   for (;;) {
@@ -300,7 +345,7 @@ function rescanChanged(
       ent = row.entity;
       rid = row.id;
       // each row asked for is an event the log writes and the feed folds: a slice asks for at most this many; the clock is read per row, so a large row cannot carry a slice past its time
-      if (queued.length >= SCAN_ASK_MAX || performance.now() - t0 >= SCAN_SLICE_MS) {
+      if (queued.length >= SCAN_ASK_MAX || cpuMs() - t0 >= SCAN_SLICE_MS) {
         full = true;
         break;
       }
@@ -312,22 +357,27 @@ function rescanChanged(
         break;
       }
       phase = "m";
-      ent = "";
-      rid = "";
+      ent = backEnt ?? "";
+      rid = backRid ?? "";
+      backEnt = null;
+      backRid = null;
     }
-    if (performance.now() - t0 >= SCAN_SLICE_MS) break;
+    if (cpuMs() - t0 >= SCAN_SLICE_MS) break;
   }
   flush();
   // the caller announces the range change (sync.scope_changed, on the request's own trace, private): ids and counts only
   for (const [entity, rows] of [...asked].sort(([x], [y]) => (x < y ? -1 : 1))) onScope?.(entity, rows);
   if (!done) {
     db.run(
-      "INSERT INTO sync_scope_scan (person, device, stamp, ent, rid) VALUES (?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp, ent = excluded.ent, rid = excluded.rid",
+      "INSERT INTO sync_scope_scan (person, device, stamp, ent, rid, back_ent, back_rid, began) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp, ent = excluded.ent, rid = excluded.rid, back_ent = excluded.back_ent, back_rid = excluded.back_rid, began = excluded.began",
       who.person,
       who.device,
       scan.stamp,
       `${phase}:${ent}`,
       rid,
+      backEnt,
+      backRid,
+      began,
     );
     return true;
   }
@@ -335,10 +385,10 @@ function rescanChanged(
     "INSERT INTO sync_scope_stamp (person, device, stamp) VALUES (?, ?, ?) ON CONFLICT(person, device) DO UPDATE SET stamp = excluded.stamp",
     who.person,
     who.device,
-    scan.stamp,
+    began,
   );
   db.run("DELETE FROM sync_scope_scan WHERE person = ? AND device = ?", who.person, who.device);
-  return scan.stamp !== stamp;
+  return began !== stamp;
 }
 
 export function pullChanges(
@@ -385,6 +435,7 @@ export function pullChanges(
       reset: "purge",
     };
   const scanning = rescanChanged(d, who, viewer, window, cursor, trace, onScope);
+  const cpu0 = cpuMs();
   const scanLimit = limit * 4;
   const scan = db.all<ChangeRec>(
     `SELECT seq, entity, id, op, fields FROM sync_changes WHERE ${where.join(" AND ")} ORDER BY seq LIMIT ${scanLimit}`,
@@ -480,7 +531,11 @@ export function pullChanges(
         }
       }
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
-      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes)) {
+      if (
+        used >= limit ||
+        (maxBytes !== undefined && weight >= maxBytes) ||
+        cpuMs() - cpu0 >= PULL_CPU_MS
+      ) {
         stopped = true;
         break;
       }
