@@ -37,7 +37,7 @@ function readRaw(path: URL): RawRegistry {
   return raw;
 }
 export function loadRegistry(
-  path: URL = new URL("../../generated/registry.json", import.meta.url),
+  path: URL = new URL("../../generated/schema-seed.json", import.meta.url),
   o: { withKitTypes?: boolean } = {},
 ): Registry {
   const raw = readRaw(path);
