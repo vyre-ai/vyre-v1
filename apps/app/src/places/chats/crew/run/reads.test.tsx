@@ -354,6 +354,11 @@ test("the runtime's new row fields: step {icon,text}, need, whoName, stuck and d
 test("only a server that says it has no such read is absent: a thread or run that is not found is one failed request", () => {
   assert.equal(isAbsent(new Error("unknown capability runs.activity.list")), true);
   assert.equal(isAbsent(new Error("thread not found")), false);
+  assert.equal(
+    isAbsent(Object.assign(new Error("This server cannot do that yet."), { code: "unsupported_capability" })),
+    true,
+    "the stand-in for a server without the reads says so by code, in plain words",
+  );
   assert.equal(isAbsent(new Error("not_found")), false);
   assert.equal(isAbsent(new Error("network down")), false);
 });

@@ -68,7 +68,9 @@ export function activityRowsOf(out: unknown): ActivityRow[] {
 }
 
 /** A server that does not have a read answers with an error that says so; any other error is a request that failed this once. */
+export const ABSENT_CODE = "unsupported_capability";
 export const isAbsent = (e: unknown): boolean =>
+  (e as { code?: unknown } | null)?.code === ABSENT_CODE ||
   /unknown (capability|cap)|no such (capability|cap)|unsupported capability|not implemented/i.test(
     String((e as { message?: unknown } | null)?.message ?? e),
   );
