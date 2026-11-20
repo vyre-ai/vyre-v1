@@ -24,7 +24,8 @@ export function appWhen(a: Connected, c: Clock): string {
   return agoLabel(a.lastSeenAt ?? a.connectedAt, c);
 }
 
-export const activeNow = (a: Connected, now: number): boolean => a.lastSeenAt !== undefined && now - a.lastSeenAt < ACTIVE_MS && now >= a.lastSeenAt;
+export const activeNow = (a: Connected, now: number): boolean =>
+  a.lastSeenAt !== undefined && now - a.lastSeenAt < ACTIVE_MS && now >= a.lastSeenAt;
 
 /** The mark for an app, by the name it gave itself: one of the glyphs Settings has. */
 export function appGlyph(name: string): string {

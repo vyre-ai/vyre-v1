@@ -6,7 +6,10 @@ import { createRoot } from "test-renderer";
 import { installDom, find, flush, press } from "../../../ui/src/testing/dom.ts";
 import { ConnectOutsideAgent } from "../src/places/chats/mounts/ConnectOutsideAgent.tsx";
 
-const LINK = { url: "https://northwind.vyre.run/mcp", claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp" };
+const LINK = {
+  url: "https://northwind.vyre.run/mcp",
+  claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp",
+};
 type R = ReturnType<typeof createRoot>;
 const root = (r: R) => r.container as unknown as Parameters<typeof find>[0];
 const text = (n: unknown): string => JSON.stringify(n);
@@ -33,7 +36,7 @@ test("the sheet opens on the apps, each app shows its own steps and copy lines, 
       ["other", "connect-link"],
     ] as const) {
       assert.ok(find(root(r), "connect-pick"), `the apps are shown before ${id}`);
-      await press(find(root(r), `connect-app-${id}`));
+      await press(find(root(r), `row-connect-app-${id}`));
       await flush();
       assert.ok(find(root(r), testID), `${id} shows ${testID}`);
       assert.ok(find(root(r), "connect-step-1"), `${id} says what to do first`);

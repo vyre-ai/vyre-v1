@@ -924,6 +924,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
+      gate: { act: "delete", when: "actor.kind != 'person'" },
     }),
     write("sites.job_run", "Run a scheduled job now (refused while one of its runs goes)", {
       in: { siteId: id.site, jobId: t.id("job") },
@@ -998,6 +999,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
+      gate: { act: "delete", when: "actor.kind != 'person'" },
     }),
     read("sites.backups_list", "The site's database backups and the database size", {
       in: { siteId: id.site },
@@ -1044,6 +1046,7 @@ export default defineManifest({
       on: ["site", "/siteId"],
       perm: "sites.deploy",
       level: "edit",
+      gate: { act: "delete", when: "actor.kind != 'person'" },
       errors: ["validation.precondition_failed"],
     }),
     write("sites.backup_pin", "Keep a backup for good (the clean-up never deletes a pinned one), or let it go again", {

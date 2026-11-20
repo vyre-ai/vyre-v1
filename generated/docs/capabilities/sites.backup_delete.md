@@ -11,7 +11,7 @@ Delete a backup and its file
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

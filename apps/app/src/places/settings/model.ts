@@ -148,6 +148,7 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   memory: [],
   notes: [{ title: "From chats", keys: ["notes.offers"] }],
   skills: [],
+  github: [],
   connected: [],
   mail: [],
   signin: [],
@@ -759,7 +760,13 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
     sub: "Touch ID and security keys",
     words: "second factor biometric",
   },
-  { key: "outside.apps", page: "outside", title: "Connected apps", sub: "Claude, ChatGPT, Cursor and other apps that work as you", words: "mcp claude chatgpt cursor connect app agent" },
+  {
+    key: "outside.apps",
+    page: "outside",
+    title: "Connected apps",
+    sub: "Claude, ChatGPT, Cursor and other apps that work as you",
+    words: "mcp claude chatgpt cursor connect app agent",
+  },
   { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },
   {

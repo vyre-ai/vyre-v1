@@ -9,13 +9,13 @@ import {
   isOpen,
   outFor,
   openIndex,
+  raise,
   readPolicy,
   tzOf,
   visibleTo,
   whoIs,
 } from "../projections.ts";
 import type { Task, TasksCtx } from "../projections.ts";
-import { isTrustedService } from "../../../lib/trust.ts";
 import { cannotArchive, putAway } from "./archive.ts";
 import { mayLetGo } from "./state.ts";
 
@@ -163,8 +163,17 @@ async function canRead(ctx: TasksCtx, threadId: string): Promise<boolean> {
   }
 }
 
+/** The card is a person's own: an agent or a service may not read it or answer it for them. */
+function personOnly(ctx: TasksCtx): void {
+  if (ctx.principal.kind !== "person")
+    raise(ctx, "validation.precondition_failed", "The card is answered by the person it is for.", {
+      reason: "wrong_actor",
+    });
+}
+
 /** The card: what is asked of the reader, oldest ask first, at most seven. */
 export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
+  personOnly(ctx);
   const idx = openIndex(ctx.db);
   const rows = ctx.db.all(
     "SELECT task_id, at, why, look, quote, quote_by, quote_at FROM tasks_ask WHERE kept_until IS NULL ORDER BY at, task_id",
@@ -209,13 +218,13 @@ export async function stillNeeded(ctx: TasksCtx, _input: In): Promise<unknown> {
  * answer for is skipped the same way as one that does not exist, so a list with one such id answers the rest and tells nothing about it.
  */
 export async function stillAnswer(ctx: TasksCtx, input: In): Promise<unknown> {
-  const server = isTrustedService(whoIs(ctx));
+  personOnly(ctx);
   let kept = 0,
     archived = 0,
     done = 0;
   for (const id of [...new Set<string>(input.taskIds ?? [])].slice(0, 50)) {
     const t = findTask(ctx.db, id);
-    if (!t || (!server && (!visibleTo(ctx, t) || !mayLetGo(ctx, t)))) continue;
+    if (!t || !visibleTo(ctx, t) || !mayLetGo(ctx, t)) continue;
     if (!isOpen(t.state) || t.archived !== undefined) continue;
     if (input.answer === "seen") {
       ctx.db.run("UPDATE tasks_ask SET seen_at = ? WHERE task_id = ? AND seen_at IS NULL", ctx.now(), t.id);

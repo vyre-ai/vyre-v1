@@ -32,6 +32,9 @@ test("a held restore through sites.ops reads as the restore, a held job as a com
     /start a worker that runs with the site's keys/,
   );
   assert.match(holdTitle("sites.ops", { action: "backup_restore" }), /put back a site's database/i);
+  assert.match(holdShort("sites.ops", { siteId: "sit_a", action: "backup_delete", id: "b" }), /no longer be put back/);
+  assert.match(holdShort("sites.ops", { siteId: "sit_a", action: "job_delete", id: "j" }), /run history/);
+  assert.match(holdShort("sites.ops", { siteId: "sit_a", action: "worker_remove", id: "s" }), /remove a worker/);
   assert.equal(
     holdShort("sites.ops", { siteId: "sit_a", action: "backup_download", id: "bkp_a" }),
     "download a copy of the site's whole database",
@@ -46,6 +49,9 @@ test("every held site-operation call has words in the table", () => {
     "sites.service_add",
     "sites.backup_restore",
     "sites.backup_download",
+    "sites.backup_delete",
+    "sites.job_delete",
+    "sites.service_remove",
   ])
     assert.ok(HOLD_PHRASES[n], n);
 });
@@ -56,12 +62,13 @@ test("sites.ops, and the plain calls behind its held actions, name the key-class
   assert.deepEqual(gate("sites.service_add"), { act: "deploy", when: "sites.run_gate(input)" });
   assert.deepEqual(gate("sites.job_update"), { act: "deploy", when: "sites.run_update_gate(input)" });
   assert.equal(gate("sites.backup_restore")?.when, "actor.kind != 'person'");
+  for (const n of ["sites.backup_delete", "sites.job_delete", "sites.service_remove"])
+    assert.deepEqual(gate(n), { act: "delete", when: "actor.kind != 'person'" }, n);
   assert.deepEqual(gate("sites.backup_download"), { act: "secret_export", when: "actor.kind != 'person'" });
   // the calls that change no command are not held
   for (const n of [
     "sites.job_run",
     "sites.job_cancel",
-    "sites.job_delete",
     "sites.service_restart",
     "sites.service_stop",
     "sites.backup_create",
@@ -77,6 +84,9 @@ test("none of the site-operation holds is under an outward act, so a person's tu
     "sites.service_add",
     "sites.backup_restore",
     "sites.backup_download",
+    "sites.backup_delete",
+    "sites.job_delete",
+    "sites.service_remove",
   ]) {
     const act = gate(n)?.act;
     assert.ok(act !== undefined && act !== "none", `${n} has a hold`);

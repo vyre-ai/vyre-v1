@@ -11,7 +11,7 @@ Delete a scheduled job and its history; a run that is going is stopped
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | delete when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

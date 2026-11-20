@@ -97,14 +97,11 @@ test("sites.ops: job_create, worker_add and a job_update that changes the comman
     "job_run",
     "job_cancel",
     "job_runs",
-    "job_delete",
     "worker_restart",
     "worker_stop",
-    "worker_remove",
     "backups",
     "backup_create",
     "backup_pin",
-    "backup_delete",
   ])
     assert.equal(await g(OPS("sit_keys", a), w.agent), false, `${a} is not held`);
   assert.equal(
@@ -120,6 +117,16 @@ test("sites.ops backup_restore replaces the live database: held for any agent, w
   for (const id of ["sit_keys", "sit_none", "sit_plain"])
     assert.equal(await g(OPS(id, "backup_restore"), w.agent), true, id);
   assert.equal(await g(OPS("sit_keys", "backup_restore"), w.person), false);
+});
+
+test("sites.ops backup_delete, job_delete and worker_remove lose something for good: held for any agent whether or not the site stores keys, a person goes through", async () => {
+  const w = world();
+  const g = w.when["sites.ops_gate"]!;
+  for (const a of ["backup_delete", "job_delete", "worker_remove"])
+    for (const id of ["sit_keys", "sit_none", "sit_plain"]) {
+      assert.equal(await g(OPS(id, a), w.agent), true, `${a} ${id} agent`);
+      assert.equal(await g(OPS(id, a), w.person), false, `${a} ${id} person`);
+    }
 });
 
 test("sites.ops backup_download hands out the whole database dump: held for any agent whether or not the site stores keys, a person goes through, and a log read is not held", async () => {
