@@ -400,7 +400,7 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
 /**
  * The boot sweep (and the slow repeat): every project record with no project behind it is adopted as a real project (a channel, roles, and a folder when it has none). Returns how many folders it made.
  */
-export async function backfill(ctx: ProjectsCtx, o: { failed?: { n: number } } = {}): Promise<number> {
+export async function backfill(ctx: ProjectsCtx): Promise<number> {
   await followRecords(ctx);
   let since = performance.now();
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
@@ -431,7 +431,6 @@ export async function backfill(ctx: ProjectsCtx, o: { failed?: { n: number } } =
           if ((await adoptRecord(ctx, type, row.id)) && !had) made++;
         } catch (e) {
           // the record could not become a project (a person on it is gone, say): it still gets its folder, and the next sweep tries again
-          if (o.failed) o.failed.n++;
           ctx.log.warn("projects: a project record was not adopted", { recordId: row.id, error: codeOf(e) });
           try {
             if (await ensureFolder(ctx, type, row.id)) made++;
