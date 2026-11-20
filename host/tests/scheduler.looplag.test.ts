@@ -19,7 +19,7 @@ test("the loop-lag guard warns a block over 200 ms with the jobs in flight, and 
   assert.ok(got.maxMs >= WARN_MS, `max ${got.maxMs}`);
   assert.equal(warned.length >= 1, true);
   assert.equal(warned[0]!.msg, "scheduler.loop_blocked");
-  assert.deepEqual(warned[0]!.attrs.jobs, ["calendar.pull_provider"]);
+  assert.deepEqual(warned[0]!.attrs.runningWhenNoticed, ["calendar.pull_provider"]);
   assert.equal(lag.take().maxMs < WARN_MS, true, "the reading resets");
   lag.stop();
 });

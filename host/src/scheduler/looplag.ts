@@ -9,7 +9,7 @@ export interface LoopLag {
   stop(): void;
 }
 
-/** Start sampling. `running` names the jobs in flight when a block is seen; `warn` gets one line per block over WARN_MS. */
+/** Start sampling. `running` names the jobs in flight when the block is NOTICED (the timer runs late, after the block has ended: they are the jobs that were running then, not necessarily the ones that held the loop: read the CPU profile for that); `warn` gets one line per block over WARN_MS. */
 export function startLoopLag(
   o: {
     running?: () => string[];
@@ -25,7 +25,7 @@ export function startLoopLag(
       lag = Math.max(0, at - last - SAMPLE_MS);
     last = at;
     if (samples.length < 4096) samples.push(lag);
-    if (lag > WARN_MS) o.warn?.("scheduler.loop_blocked", { lagMs: Math.round(lag), jobs: o.running?.() ?? [] });
+    if (lag > WARN_MS) o.warn?.("scheduler.loop_blocked", { lagMs: Math.round(lag), runningWhenNoticed: o.running?.() ?? [] });
   }, SAMPLE_MS);
   t.unref();
   return {
