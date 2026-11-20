@@ -247,7 +247,13 @@ export default defineManifest({
       vis: "participants",
     }),
     ev("vault.item_updated", "Fields or settings of an item changed (field keys only)", {
-      p: { itemId: id.vaultItem, fieldsChanged: t.arr(fieldKey), settingsChanged: t.arr(t.str()) },
+      p: {
+        itemId: id.vaultItem,
+        fieldsChanged: t.arr(fieldKey),
+        settingsChanged: t.arr(t.str()),
+        kind: t.opt(itemKind),
+        refreshed: t.opt(t.bool()),
+      },
       subject: ["vault_item", "/itemId"],
       vis: "participants",
     }),

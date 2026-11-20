@@ -32,6 +32,7 @@ import { afterResume, reconcileWakes } from "./routine-wake.ts";
 import { noteRun, resumeSelfPaused } from "./routine-guard.ts";
 import { tellPaused, withdrawTold } from "./routine-told.ts";
 import type { AgentsCtx } from "./projections.ts";
+import { accountMayHaveArrived, kindReader } from "../../lib/account-arrival.ts";
 import { setPluginsHost } from "./handlers/plugins.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
@@ -166,7 +167,10 @@ export const consumers = {
   /** The cause may be gone: a sign-in or key was saved again. Routines that paused themselves start again (a routine that fails again pauses again after three runs). */
   "agents.routine_resume": {
     on: ["vault.item_updated", "vault.item_created", "provider.added", "engine.subscription_share_changed"],
-    run: async (ctx: AgentsCtx): Promise<string[]> => resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun)),
+    run: async (ctx: AgentsCtx, event?: { name: string; payload?: Record<string, unknown> }): Promise<string[]> =>
+      event?.name !== undefined && !(await accountMayHaveArrived(event, kindReader(ctx.call)))
+        ? []
+        : resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun)),
   },
   /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */
   "agents.routine_resume_on_turn": {

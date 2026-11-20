@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /** file (repo relative) -> why it may keep the pattern. */
 export const KEPT: Record<string, string> = {
-  "apps/app/tests/real-app-harness.test.ts":
+  "apps/app/tests/support/fresh-space.ts":
     "bootFreshSpace(publishLocal): the daemon binds the port itself and must be told its own address before it starts; the boot is tried again on another port when the bind fails (and the failed try's daemon is killed)",
   "host/tests/compute.stream.live.test.ts":
     "the port goes straight into startStreamServer in the next statement (product code that binds a given port and builds its own address from it); the gap is one tick",
