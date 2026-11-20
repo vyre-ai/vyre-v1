@@ -19,7 +19,9 @@ class FakeSocket {
   sent: any[] = [];
   closed = false;
   handlers: Record<string, ((e: any) => void)[]> = {};
-  constructor(public url: string) {
+  url: string;
+  constructor(url: string) {
+    this.url = url;
     FakeSocket.all.push(this);
   }
   addEventListener(t: string, f: (e: any) => void) {

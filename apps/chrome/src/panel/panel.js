@@ -1022,7 +1022,8 @@ async function linkGo() {
     S.connect = {
       ...S.connect,
       busy: false,
-      error: /** @type {any} */ (e).code === "bad_input" ? "That is not a Space address." : "Could not start. Try again.",
+      error:
+        /** @type {any} */ (e).code === "bad_input" ? "That is not a Space address." : "Could not start. Try again.",
     };
     render();
   }

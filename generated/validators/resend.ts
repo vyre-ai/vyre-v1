@@ -21,24 +21,24 @@ if ("idempotencyKey" in o73) lf(o73["idempotencyKey"], p + "/idempotencyKey", e,
 
 function d_s_35e1355f03(v: unknown, p: string, e: string[]): void {
 {
-const x290 = v;
-const g290 = typeOf(x290);
-const b290: string[] = []; lf(x290, p, b290, L0); if (b290.length) e.push(...b290);
-if (g290 === "object") {
-if (g290 === 'object') { const o290 = x290 as Record<string, unknown>;
-if (!("providerDomainId" in o290)) e.push(p + "/providerDomainId" + ': required');
-if (!("name" in o290)) e.push(p + "/name" + ': required');
-if (!("status" in o290)) e.push(p + "/status" + ': required');
-if (!("spf" in o290)) e.push(p + "/spf" + ': required');
-if (!("dkim" in o290)) e.push(p + "/dkim" + ': required');
-if (!("dmarc" in o290)) e.push(p + "/dmarc" + ': required');
-if ("providerDomainId" in o290) lf(o290["providerDomainId"], p + "/providerDomainId", e, L1);
-if ("name" in o290) lf(o290["name"], p + "/name", e, L1);
-if ("status" in o290) lf(o290["status"], p + "/status", e, L160);
-if ("spf" in o290) lf(o290["spf"], p + "/spf", e, L16);
-if ("dkim" in o290) lf(o290["dkim"], p + "/dkim", e, L16);
-if ("dmarc" in o290) lf(o290["dmarc"], p + "/dmarc", e, L16);
-if ("region" in o290) lf(o290["region"], p + "/region", e, L1);
+const x289 = v;
+const g289 = typeOf(x289);
+const b289: string[] = []; lf(x289, p, b289, L0); if (b289.length) e.push(...b289);
+if (g289 === "object") {
+if (g289 === 'object') { const o289 = x289 as Record<string, unknown>;
+if (!("providerDomainId" in o289)) e.push(p + "/providerDomainId" + ': required');
+if (!("name" in o289)) e.push(p + "/name" + ': required');
+if (!("status" in o289)) e.push(p + "/status" + ': required');
+if (!("spf" in o289)) e.push(p + "/spf" + ': required');
+if (!("dkim" in o289)) e.push(p + "/dkim" + ': required');
+if (!("dmarc" in o289)) e.push(p + "/dmarc" + ': required');
+if ("providerDomainId" in o289) lf(o289["providerDomainId"], p + "/providerDomainId", e, L1);
+if ("name" in o289) lf(o289["name"], p + "/name", e, L1);
+if ("status" in o289) lf(o289["status"], p + "/status", e, L160);
+if ("spf" in o289) lf(o289["spf"], p + "/spf", e, L16);
+if ("dkim" in o289) lf(o289["dkim"], p + "/dkim", e, L16);
+if ("dmarc" in o289) lf(o289["dmarc"], p + "/dmarc", e, L16);
+if ("region" in o289) lf(o289["region"], p + "/region", e, L1);
 }
 }
 }

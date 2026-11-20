@@ -5,18 +5,18 @@ import type { Check } from './core.ts';
 
 function d_s_48ce858bab(v: unknown, p: string, e: string[]): void {
 {
-const x391 = v;
-const g391 = typeOf(x391);
-const b391: string[] = []; lf(x391, p, b391, L0); if (b391.length) e.push(...b391);
-if (g391 === "object") {
-if (g391 === 'object') { const o391 = x391 as Record<string, unknown>;
-if (!("automationId" in o391)) e.push(p + "/automationId" + ': required');
-if (!("nodeId" in o391)) e.push(p + "/nodeId" + ': required');
-if (!("defHash" in o391)) e.push(p + "/defHash" + ': required');
-if ("automationId" in o391) lf(o391["automationId"], p + "/automationId", e, L138);
-if ("nodeId" in o391) lf(o391["nodeId"], p + "/nodeId", e, L1);
-if ("defHash" in o391) lf(o391["defHash"], p + "/defHash", e, L1);
-if ("ask" in o391) lf(o391["ask"], p + "/ask", e, L3);
+const x390 = v;
+const g390 = typeOf(x390);
+const b390: string[] = []; lf(x390, p, b390, L0); if (b390.length) e.push(...b390);
+if (g390 === "object") {
+if (g390 === 'object') { const o390 = x390 as Record<string, unknown>;
+if (!("automationId" in o390)) e.push(p + "/automationId" + ': required');
+if (!("nodeId" in o390)) e.push(p + "/nodeId" + ': required');
+if (!("defHash" in o390)) e.push(p + "/defHash" + ': required');
+if ("automationId" in o390) lf(o390["automationId"], p + "/automationId", e, L138);
+if ("nodeId" in o390) lf(o390["nodeId"], p + "/nodeId", e, L1);
+if ("defHash" in o390) lf(o390["defHash"], p + "/defHash", e, L1);
+if ("ask" in o390) lf(o390["ask"], p + "/ask", e, L3);
 }
 }
 }
@@ -24,32 +24,32 @@ if ("ask" in o391) lf(o391["ask"], p + "/ask", e, L3);
 
 function d_s_532ef8a1b8(v: unknown, p: string, e: string[]): void {
 {
-const x436 = v;
-const g436 = typeOf(x436);
-const b436: string[] = []; lf(x436, p, b436, L0); if (b436.length) e.push(...b436);
-if (g436 === "object") {
-if (g436 === 'object') { const o436 = x436 as Record<string, unknown>;
-if (!("id" in o436)) e.push(p + "/id" + ': required');
-if (!("act" in o436)) e.push(p + "/act" + ': required');
-if (!("capName" in o436)) e.push(p + "/capName" + ': required');
-if (!("taskId" in o436)) e.push(p + "/taskId" + ': required');
-if (!("principal" in o436)) e.push(p + "/principal" + ': required');
-if (!("state" in o436)) e.push(p + "/state" + ': required');
-if (!("payloadHash" in o436)) e.push(p + "/payloadHash" + ': required');
-if (!("createdAt" in o436)) e.push(p + "/createdAt" + ': required');
-if (!("expiresAt" in o436)) e.push(p + "/expiresAt" + ': required');
-if ("id" in o436) lf(o436["id"], p + "/id", e, L219);
-if ("act" in o436) d_s_8c124eb7d0(o436["act"], p + "/act", e);
-if ("capName" in o436) lf(o436["capName"], p + "/capName", e, L1);
-if ("taskId" in o436) lf(o436["taskId"], p + "/taskId", e, L65);
-if ("runId" in o436) lf(o436["runId"], p + "/runId", e, L39);
-if ("principal" in o436) d_s_6c1eb10d98(o436["principal"], p + "/principal", e);
-if ("actingFor" in o436) lf(o436["actingFor"], p + "/actingFor", e, L1);
-if ("state" in o436) lf(o436["state"], p + "/state", e, L220);
-if ("payloadHash" in o436) lf(o436["payloadHash"], p + "/payloadHash", e, L1);
-if ("createdAt" in o436) lf(o436["createdAt"], p + "/createdAt", e, L11);
-if ("expiresAt" in o436) lf(o436["expiresAt"], p + "/expiresAt", e, L11);
-if ("askedBy" in o436) d_s_6c1eb10d98(o436["askedBy"], p + "/askedBy", e);
+const x434 = v;
+const g434 = typeOf(x434);
+const b434: string[] = []; lf(x434, p, b434, L0); if (b434.length) e.push(...b434);
+if (g434 === "object") {
+if (g434 === 'object') { const o434 = x434 as Record<string, unknown>;
+if (!("id" in o434)) e.push(p + "/id" + ': required');
+if (!("act" in o434)) e.push(p + "/act" + ': required');
+if (!("capName" in o434)) e.push(p + "/capName" + ': required');
+if (!("taskId" in o434)) e.push(p + "/taskId" + ': required');
+if (!("principal" in o434)) e.push(p + "/principal" + ': required');
+if (!("state" in o434)) e.push(p + "/state" + ': required');
+if (!("payloadHash" in o434)) e.push(p + "/payloadHash" + ': required');
+if (!("createdAt" in o434)) e.push(p + "/createdAt" + ': required');
+if (!("expiresAt" in o434)) e.push(p + "/expiresAt" + ': required');
+if ("id" in o434) lf(o434["id"], p + "/id", e, L219);
+if ("act" in o434) d_s_8c124eb7d0(o434["act"], p + "/act", e);
+if ("capName" in o434) lf(o434["capName"], p + "/capName", e, L1);
+if ("taskId" in o434) lf(o434["taskId"], p + "/taskId", e, L65);
+if ("runId" in o434) lf(o434["runId"], p + "/runId", e, L39);
+if ("principal" in o434) d_s_6c1eb10d98(o434["principal"], p + "/principal", e);
+if ("actingFor" in o434) lf(o434["actingFor"], p + "/actingFor", e, L1);
+if ("state" in o434) lf(o434["state"], p + "/state", e, L220);
+if ("payloadHash" in o434) lf(o434["payloadHash"], p + "/payloadHash", e, L1);
+if ("createdAt" in o434) lf(o434["createdAt"], p + "/createdAt", e, L11);
+if ("expiresAt" in o434) lf(o434["expiresAt"], p + "/expiresAt", e, L11);
+if ("askedBy" in o434) d_s_6c1eb10d98(o434["askedBy"], p + "/askedBy", e);
 }
 }
 }
@@ -57,31 +57,31 @@ if ("askedBy" in o436) d_s_6c1eb10d98(o436["askedBy"], p + "/askedBy", e);
 
 function d_s_6149aebeb1(v: unknown, p: string, e: string[]): void {
 {
-const x516 = v;
-const g516 = typeOf(x516);
-const b516: string[] = []; lf(x516, p, b516, L0); if (b516.length) e.push(...b516);
-if (g516 === "object") {
-if (g516 === 'object') { const o516 = x516 as Record<string, unknown>;
-if (!("act" in o516)) e.push(p + "/act" + ': required');
-if (!("mode" in o516)) e.push(p + "/mode" + ': required');
-if (!("approvers" in o516)) e.push(p + "/approvers" + ': required');
-if (!("peopleOnly" in o516)) e.push(p + "/peopleOnly" + ': required');
-if (!("afterHours" in o516)) e.push(p + "/afterHours" + ': required');
-if (!("onTimeout" in o516)) e.push(p + "/onTimeout" + ': required');
-if (!("escalateTo" in o516)) e.push(p + "/escalateTo" + ': required');
-if (!("emailBackstopHours" in o516)) e.push(p + "/emailBackstopHours" + ': required');
-if (!("scope" in o516)) e.push(p + "/scope" + ': required');
-if ("act" in o516) d_s_8c124eb7d0(o516["act"], p + "/act", e);
-if ("mode" in o516) lf(o516["mode"], p + "/mode", e, L261);
-if ("approvers" in o516) lf(o516["approvers"], p + "/approvers", e, L1);
-if ("peopleOnly" in o516) lf(o516["peopleOnly"], p + "/peopleOnly", e, L3);
-if ("agentOkFor" in o516) lf(o516["agentOkFor"], p + "/agentOkFor", e, L262);
-if ("afterHours" in o516) lf(o516["afterHours"], p + "/afterHours", e, L10);
-if ("onTimeout" in o516) lf(o516["onTimeout"], p + "/onTimeout", e, L263);
-if ("escalateTo" in o516) lf(o516["escalateTo"], p + "/escalateTo", e, L264);
-if ("emailBackstopHours" in o516) lf(o516["emailBackstopHours"], p + "/emailBackstopHours", e, L10);
-if ("scope" in o516) lf(o516["scope"], p + "/scope", e, L265);
-if ("agentId" in o516) lf(o516["agentId"], p + "/agentId", e, L17);
+const x514 = v;
+const g514 = typeOf(x514);
+const b514: string[] = []; lf(x514, p, b514, L0); if (b514.length) e.push(...b514);
+if (g514 === "object") {
+if (g514 === 'object') { const o514 = x514 as Record<string, unknown>;
+if (!("act" in o514)) e.push(p + "/act" + ': required');
+if (!("mode" in o514)) e.push(p + "/mode" + ': required');
+if (!("approvers" in o514)) e.push(p + "/approvers" + ': required');
+if (!("peopleOnly" in o514)) e.push(p + "/peopleOnly" + ': required');
+if (!("afterHours" in o514)) e.push(p + "/afterHours" + ': required');
+if (!("onTimeout" in o514)) e.push(p + "/onTimeout" + ': required');
+if (!("escalateTo" in o514)) e.push(p + "/escalateTo" + ': required');
+if (!("emailBackstopHours" in o514)) e.push(p + "/emailBackstopHours" + ': required');
+if (!("scope" in o514)) e.push(p + "/scope" + ': required');
+if ("act" in o514) d_s_8c124eb7d0(o514["act"], p + "/act", e);
+if ("mode" in o514) lf(o514["mode"], p + "/mode", e, L261);
+if ("approvers" in o514) lf(o514["approvers"], p + "/approvers", e, L1);
+if ("peopleOnly" in o514) lf(o514["peopleOnly"], p + "/peopleOnly", e, L3);
+if ("agentOkFor" in o514) lf(o514["agentOkFor"], p + "/agentOkFor", e, L262);
+if ("afterHours" in o514) lf(o514["afterHours"], p + "/afterHours", e, L10);
+if ("onTimeout" in o514) lf(o514["onTimeout"], p + "/onTimeout", e, L263);
+if ("escalateTo" in o514) lf(o514["escalateTo"], p + "/escalateTo", e, L264);
+if ("emailBackstopHours" in o514) lf(o514["emailBackstopHours"], p + "/emailBackstopHours", e, L10);
+if ("scope" in o514) lf(o514["scope"], p + "/scope", e, L265);
+if ("agentId" in o514) lf(o514["agentId"], p + "/agentId", e, L17);
 }
 }
 }

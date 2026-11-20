@@ -5,7 +5,7 @@
 // DECISION: an export is sealed by the filler when the link is made; the database keeps only the hash of the pull token. exportPull is what the pull route calls; the route itself belongs to the gateway.
 import { isCompanyKey } from "../../../lib/company-keys.ts";
 import { isSystemCall } from "../../../lib/trust.ts";
-import { codeToType, isSeedField } from "../../../lib/totp.ts";
+import { codeToType, isSeedField } from "../totp.ts";
 import crypto from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";

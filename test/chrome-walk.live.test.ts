@@ -8,23 +8,23 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bootCore } from "../../fixtures/seed/core/index.ts";
-import { fakePlatform } from "../src/platform/index.ts";
-import type { FetchFn } from "../src/platform/probes.ts";
-import { loadConfig } from "../src/daemon/config.ts";
-import { startDaemon } from "../src/daemon/daemon.ts";
-import type { Daemon } from "../src/daemon/daemon.ts";
-import { issueSessionToken } from "../src/daemon/session.ts";
-import { provisionAccount } from "../../modules/identity/projections.ts";
-import type { IdentityCtx } from "../../modules/identity/projections.ts";
-import { findChromium, launch, site } from "../../apps/chrome/tests/e2e/rig.ts";
-import { boxOf, press } from "../../apps/chrome/tests/e2e/pierce.ts";
+import { bootCore } from "../fixtures/seed/core/index.ts";
+import { fakePlatform } from "../host/src/platform/index.ts";
+import type { FetchFn } from "../host/src/platform/probes.ts";
+import { loadConfig } from "../host/src/daemon/config.ts";
+import { startDaemon } from "../host/src/daemon/daemon.ts";
+import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { issueSessionToken } from "../host/src/daemon/session.ts";
+import { provisionAccount } from "../modules/identity/projections.ts";
+import type { IdentityCtx } from "../modules/identity/projections.ts";
+import { findChromium, launch, site } from "../apps/chrome/tests/e2e/rig.ts";
+import { boxOf, press } from "../apps/chrome/tests/e2e/pierce.ts";
 
 const found = await findChromium();
 /** The Space is the same release as the extension, as a person's own would be. */
 const EXT_VERSION = (
   JSON.parse(
-    fs.readFileSync(path.join(fileURLToPath(new URL("../../apps/chrome", import.meta.url)), "manifest.json"), "utf8"),
+    fs.readFileSync(path.join(fileURLToPath(new URL("../apps/chrome", import.meta.url)), "manifest.json"), "utf8"),
   ) as { version_name: string }
 ).version_name;
 
@@ -38,7 +38,7 @@ const caddyFetch: FetchFn = () =>
 
 /** This repo with the devices module live (device sessions are its rows), as chrome-bridge.person.live.test.ts builds it. */
 function codeRootWithDevicesLive(): string {
-  const repo = fileURLToPath(new URL("../..", import.meta.url));
+  const repo = fileURLToPath(new URL("..", import.meta.url));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-chrome-walk-"));
   for (const name of fs.readdirSync(repo))
     if (name !== ".git" && name !== "host") fs.symlinkSync(path.join(repo, name), path.join(root, name));
@@ -326,7 +326,7 @@ test(
   "a one-time code: the Vault computes the current RFC 6238 code and only the six digits reach the page; the seed is in no tool answer, storage, page or log",
   { skip: !found && "no Chromium on this machine", timeout: 120_000 },
   async () => {
-    const { codeAt, parseSeed } = await import("../../lib/totp.ts");
+    const { codeAt, parseSeed } = await import("../modules/vault/totp.ts");
     const d = await boot();
     const srv = await site({ "/otp": OTP_PAGE });
     try {

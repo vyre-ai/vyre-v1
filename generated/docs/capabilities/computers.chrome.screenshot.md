@@ -1,6 +1,6 @@
 # computers.chrome.screenshot
 
-Screenshot of the tab or one element, stored in the agent folder and rendered as a screenshot block
+Screenshot of the tab or an element, saved in the agent folder
 
 | | |
 |---|---|
@@ -68,7 +68,7 @@ type Out = {
     "computerId": "cmt_a1b2c3",
     "fullPage": true,
     "inMyChrome": true,
-    "ref": "e12",
+    "ref": "example",
     "tabId": "example"
   },
   "output": {
