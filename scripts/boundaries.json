@@ -415,6 +415,13 @@
     },
     {
       "rule": "B1",
+      "file": "modules/gate/tests/sites-ops-holds.test.ts",
+      "spec": "../../sites/impl.ts",
+      "reason": "test-only: the hold tests for sites.ops and the backup restore read a stored site through the real siteFacts the Gate reads, so a Vault row the real read misses cannot pass unseen",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "B1",
       "file": "modules/gate/tests/holds.real-rule.test.ts",
       "spec": "../../sites/impl.ts",
       "reason": "test-only: the key-and-source Gate tests read a stored site through the real siteFacts the Gate reads, not facts written by hand, so a field the real read drops cannot pass unseen",
