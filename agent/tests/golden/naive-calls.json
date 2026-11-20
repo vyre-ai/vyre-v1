@@ -1494,6 +1494,10 @@
   "documents_fill": {
     "templateFileId": "fil_a1b2c3"
   },
+  "documents_make": {
+    "template": "Service agreement",
+    "recordId": "rec_a1b2c3"
+  },
   "documents_mark_template": {
     "fileId": "fil_a1b2c3",
     "isTemplate": false

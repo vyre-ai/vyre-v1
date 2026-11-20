@@ -8,7 +8,7 @@ Requires: files.
 
 - [documents.fields](../capabilities/documents.fields.md): List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions
 - [documents.fill](../capabilities/documents.fill.md): Fill a template into a new file in a folder; missing required fields stop the fill and are listed
-- [documents.make](../capabilities/documents.make.md): Make a document for a record from a template by name: it lands in the record's files and the answer is the file and what was missing, never the text
+- [documents.make](../capabilities/documents.make.md): Make a document for a record from a template; answers the file and what is missing
 - [documents.make_pdf](../capabilities/documents.make_pdf.md): Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named
 - [documents.mark_template](../capabilities/documents.mark_template.md): Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it
 - [documents.preview_fill](../capabilities/documents.preview_fill.md): Show the filled document as an excerpt with every filled value marked, and what is missing or unused

@@ -21,7 +21,7 @@ A template is a page with named blanks, called fields: `{client.name}`, `{matter
 - Save it in Files, then `documents_mark_template` with `recordType` when it is for one kind of record. Run `documents_fields` and read it back to the person before you rely on it.
 
 ## Send for signature
-- Only a PDF is signed. A Vyre document's PDF already knows where each role signs. Call `esign_send` with the file and one signer for each role, in the order `documents_signing` names them. Give a signer an email, or a link comes back to hand over.
+- Only a PDF is signed. A Vyre document's PDF already knows where each role signs. Call `esign_send` with the file and one signer for each role, in the order the make answer's `signers` names them. Give a signer an email, or a link comes back to hand over.
 - `esign_send` waits for the person's yes. Say who it goes to and what it is before you call it. Never send a document the person has not seen.
 - `esign_status` says where it stands. A person reminds a signer from the request's page, which gives a new link and stops the old one. `esign_cancel` stops every link. A request that runs out can be sent again.
 - When everyone has signed, the signed PDF is saved beside the original, and `esign_fetch_signed` hands back its file. Never copy it elsewhere by hand.

@@ -211,10 +211,15 @@ test("send: the bytes the check read are the bytes that go: others in place when
   assert.equal(e.error.code, "validation.version_conflict");
   assert.equal(h.provider.created.length, 0, "the provider was never called");
   assert.equal(h.rows("esign_envelope").length, 0);
-  h.callee("documents.signing", () => ({ signers: [], places: [] }));
-  const e2 = await send(h, { idempotencyKey: "k2" }).catch((x) => x);
+  // a check that ran and named nothing pins nothing: refused
+  h.callee("documents.signing", () => ({ unchecked: true, signers: [], places: [] }));
+  const e2 = await send(h, { idempotencyKey: "k2", plainOk: true }).catch((x) => x);
   assert.equal(e2.error.code, "validation.precondition_failed");
   assert.equal(h.provider.created.length, 0, "nothing was pinned, so the provider was never called");
+  // an exact answer that names nothing means no check had anything to compare: the send goes out
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  await send(h, { idempotencyKey: "k3" });
+  assert.equal(h.provider.created.length, 1);
 });
 
 test("send: an agent sends for the person it works for; a service sender gets no task; the record id is optional", async () => {

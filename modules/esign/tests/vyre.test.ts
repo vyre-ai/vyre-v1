@@ -736,13 +736,20 @@ test("the pin is the hash of the bytes the check read: with a file store that na
   const before = reads();
   assert.match((await send(h, [ANDREA])).envelopeId, /^env_/);
   assert.equal(reads() - before, 1, "the send read the file once");
-  // an answer that names neither a version nor the bytes: nothing can be pinned, so nothing is sent
+  // a check that ran and named neither a version nor the bytes (here: it could not look, and the sender chose to send anyway): nothing can be pinned, so nothing is sent
   const h2 = await setup();
-  h2.callee("documents.signing", () => ({ signers: [], places: [] }));
-  const e2 = await send(h2, [ANDREA]).catch((x) => x);
+  h2.callee("documents.signing", () => ({ unchecked: true, signers: [], places: [] }));
+  const e2 = await send(h2, [ANDREA], { plainOk: true }).catch((x) => x);
   assert.equal(e2.error.code, "validation.precondition_failed");
   assert.match(e2.error.message, /could not be pinned/);
   assert.equal(h2.rows("esign_envelope").length, 0);
+  // an exact answer that names nothing means no check had anything to compare (no plain copies in the Space, a drive whose files carry no version): that send goes out
+  const h3 = await setup();
+  h3.callee("files.get", (i: { fileId: string }) => ({
+    file: { fileId: i.fileId, folderId: FOLDER, name: "Retainer.pdf", kind: "pdf", mime: "application/pdf", size: 1000 },
+  }));
+  h3.callee("documents.signing", () => ({ signers: [], places: [] }));
+  assert.match((await send(h3, [ANDREA])).envelopeId, /^env_/);
 });
 
 test("the plain-copy check fails closed: a failure of documents.signing holds the send with a plain sentence, only a missing documents module counts as not plain", async () => {

@@ -67,7 +67,7 @@ type Out = {
     "folder": "fld_a1b2c3",
     "limit": 1,
     "name": "example",
-    "recordType": "customer"
+    "recordType": "example"
   },
   "output": {
     "next": "example",

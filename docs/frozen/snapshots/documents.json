@@ -2,13 +2,13 @@
   "module": "documents",
   "capabilities": {
     "documents.fields@1": "5d85a2eee249d0f9b3a0b8dce51109115393c3c851f9c3d7ba4edca1bd6f1bae",
-    "documents.fill@1": "2e5dcf237a5d0e8ce42a63cbabef6b73a66048a18edfbd68d0e9e100e93a9599",
-    "documents.make@1": "ce4b98b65fa0abb70f624fa53ad471accb7bbb1a5bec65dc1ac81c3215f2fa06",
-    "documents.make_pdf@1": "5da6e8e7edfc857de3d9494b61e36bb9dc48007c96ebeba8a1f72a13b5b96b73",
-    "documents.mark_template@1": "58f541e80dce2cfbffb987337c127d5e55577278b07d87c754786fa2a41c8efc",
-    "documents.preview_fill@1": "04c9ebceda2a46c73ef7ca53f96346e9b4006c527bebea5e123714415724bbc2",
-    "documents.signing@1": "35a22cae40dff6696767cb81194e5d61f11b92a514e8de66c8ded032645268b9",
-    "documents.templates.list@1": "2c7097963a74fafc1be5f7c1f8637b1062ba6277fcb28a3618fa6e7b71c276a5"
+    "documents.fill@1": "ea833cc8962be0848c649b98a7a075769574d678da54a867f17be7f6bc7b3cfa",
+    "documents.make@1": "e02b369e9ab69c080b1fffd03df2db4d83c2bec56eaf39dfd7db825098e24602",
+    "documents.make_pdf@1": "3f687860654d13af1a9e91e99af7e27d867674726b1fd54238c7d2efbd8ee6b1",
+    "documents.mark_template@1": "0f1cb4b9c21d5031214454df5483c254ccb5c8fe43cac91553b50159e38878e2",
+    "documents.preview_fill@1": "db692692ca79f0a95a92dd7311d7a944b22baa9310aae5086001ac43690a3c35",
+    "documents.signing@1": "b90c59e31a4145c6f139826fd8e0559e1d4a401e718c11daabab000acc570b8d",
+    "documents.templates.list@1": "6f67d3d984b2ed79f470a9adf31ed8c9a1cdb13359f002240c3306ab0fa1c6ce"
   },
   "events": {
     "document.filled": "e61945f4acf1690b0f5ebfb8b433478d2ca70568a48e57c5688d73078d5e008a",

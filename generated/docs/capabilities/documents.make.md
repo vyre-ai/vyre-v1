@@ -1,6 +1,6 @@
 # documents.make
 
-Make a document for a record from a template by name: it lands in the record's files and the answer is the file and what was missing, never the text
+Make a document for a record from a template; answers the file and what is missing
 
 | | |
 |---|---|
