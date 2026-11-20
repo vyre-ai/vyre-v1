@@ -11,6 +11,7 @@ import {
   splitResult,
   teammateBody,
 } from "../../../lib/helper-result.ts";
+import { assertWithinCpu } from "../../../testkit/src/cpu-time.ts";
 
 const para = (n: number, tag: string): string => `${tag} ${"word ".repeat(n)}`.trim();
 const ref = { threadId: "thr_h1", messageId: "msg_9" };
@@ -89,15 +90,10 @@ test("nothing the helper reported is lost, for any shape of answer", () => {
 
 test("many unclosed json result openers are scanned in linear time", () => {
   const hostile = "```json result\n".repeat(120_000);
-  const t0 = Date.now();
-  const s = splitResult(hostile);
-  const ms = Date.now() - t0;
-  assert.ok(ms < 500, `${ms} ms for ${hostile.length} characters`);
+  const s = assertWithinCpu(`${hostile.length} characters`, 500, () => splitResult(hostile));
   assert.equal(s.summary.length + s.detail.length > 0, true);
   const alternating = "```json other\n".repeat(120_000) + "```json result\n{}\n```";
-  const t1 = Date.now();
-  assert.equal(splitResult(alternating).fields, "{}");
-  assert.ok(Date.now() - t1 < 500);
+  assert.equal(assertWithinCpu("alternating openers", 500, () => splitResult(alternating)).fields, "{}");
 });
 
 test("a helper that writes a fake end marker, a fake Vyre line and a guessed code is still read as helper text", () => {

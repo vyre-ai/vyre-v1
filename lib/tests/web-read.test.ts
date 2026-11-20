@@ -170,6 +170,7 @@ test("each agent gets a few reads a minute, counted separately, and a new minute
 // ---- search services
 
 import { NOT_ANSWERING } from "../web-read.ts";
+import { assertWithinCpu } from "../../testkit/src/cpu-time.ts";
 
 test("Brave Search: the key goes in its header to the service's host only, the results are parsed as plain text, and the key is in no answer", async () => {
   const seen: { url: string; headers: Record<string, string> }[] = [];
@@ -268,11 +269,10 @@ test("a page built to stall a pattern costs time in proportion to its length: a 
     ["result links", '<a class="result__a" '.repeat(MB / 22)],
   ];
   for (const [name, body] of cases) {
-    const t0 = performance.now();
-    pageText(body);
-    parseResults(body);
-    const ms = performance.now() - t0;
-    assert.ok(ms < 1500, `${name}: ${Math.round(ms)} ms`);
+    assertWithinCpu(name, 1500, () => {
+      pageText(body);
+      parseResults(body);
+    });
   }
 });
 
@@ -296,10 +296,7 @@ test("a megabyte of hidden tags with different names, of nested hidden divs, and
     ["nested hidden", nested],
     ["length-changing", odd],
   ] as const) {
-    const t0 = performance.now();
-    pageText(body);
-    const ms = performance.now() - t0;
-    assert.ok(ms < 1500, `${name}: ${Math.round(ms)} ms`);
+    assertWithinCpu(name, 1500, () => pageText(body));
   }
 });
 
