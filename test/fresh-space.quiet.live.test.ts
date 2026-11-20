@@ -67,8 +67,13 @@ for (const kind of ["personal", "team"] as const) {
       // most 120 (the log itself never stops: the daemon's own timers write to it), so a slow consumer cannot hide
       const marks = async (): Promise<number> =>
         (
-          (await post(owner, "/v1/events/since", { after: 0, types: ["task.created", "project.folder_unfollowed"], limit: 1000 })).body
-            .data?.events as unknown[] | undefined
+          (
+            await post(owner, "/v1/events/since", {
+              after: 0,
+              types: ["task.created", "project.folder_unfollowed"],
+              limit: 1000,
+            })
+          ).body.data?.events as unknown[] | undefined
         )?.length ?? -1;
       let seen = -2,
         still = 0,
