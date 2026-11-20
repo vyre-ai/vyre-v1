@@ -1891,7 +1891,8 @@ export const bridgeConsumers = {
     }),
   },
   "engine.signin_resume": {
-    on: ["vault.item_updated", "vault.item_created"],
+    // a sign-in saved in the Vault, or an AI account connected (provider.added: a pasted key, a subscription sign-in, a Space key) or shared with the Space: a turn waiting for a sign-in goes on
+    on: ["vault.item_updated", "vault.item_created", "provider.added", "engine.subscription_share_changed"],
     run: async (): Promise<{ skipped?: string; resumed?: number }> => {
       const e = engineIfBound();
       return e ? { resumed: e.resumeLocked(undefined, "engine.signin_missing") } : { skipped: "engine_not_running" };

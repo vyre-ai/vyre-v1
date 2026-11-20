@@ -158,7 +158,7 @@ export const consumers = {
   },
   /** The cause may be gone: a sign-in or key was saved again. Routines that paused themselves start again (a routine that fails again pauses again after three runs). */
   "agents.routine_resume": {
-    on: ["vault.item_updated", "vault.item_created"],
+    on: ["vault.item_updated", "vault.item_created", "provider.added", "engine.subscription_share_changed"],
     run: async (ctx: AgentsCtx): Promise<string[]> => resumed(ctx, resumeSelfPaused(ctx.db, ctx.now(), nextRun)),
   },
   /** The Vault opened on this computer and the turn it kept waiting ran: the agent works again, so its routines that paused themselves start again (a sign-in saved later does the same through the consumer above). */

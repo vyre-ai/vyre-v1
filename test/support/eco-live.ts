@@ -98,40 +98,54 @@ export async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: 
   }
 }
 
-/** The milliseconds the daemon itself reported its event loop blocked (the sum of every scheduler.loop_blocked line in its log). */
-export function loopLagMs(d: Daemon): number {
+/** Every scheduler.loop_blocked lagMs the daemon logged, oldest first. */
+export function loopLags(d: Daemon): number[] {
   d.sink.flush();
   const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
-    .prepare("SELECT attrs FROM logs WHERE msg = 'scheduler.loop_blocked'")
+    .prepare("SELECT attrs FROM logs WHERE msg = 'scheduler.loop_blocked' ORDER BY id")
     .all() as Array<{ attrs: string | null }>;
-  let sum = 0;
+  const out: number[] = [];
   for (const r of rows) {
     try {
       const lag = Number((JSON.parse(String(r.attrs ?? "{}")) as { lagMs?: unknown }).lagMs);
-      if (Number.isFinite(lag) && lag > 0) sum += lag;
+      if (Number.isFinite(lag) && lag > 0) out.push(lag);
     } catch {
       /* a line without attributes counts for nothing */
     }
   }
-  return sum;
+  return out;
 }
+
+/** The milliseconds the daemon itself reported its event loop blocked (the sum of every scheduler.loop_blocked line in its log). */
+export function loopLagMs(d: Daemon): number {
+  return loopLags(d).reduce((a, b) => a + b, 0);
+}
+
+/** A single reported block longer than this is never credited: it fails the wait, naming the stall. */
+export const MAX_REPORTED_BLOCK_MS = 5_000;
 
 /**
  * waitFor for a thing the daemon's own scheduler does by itself (a retry, a pull), on a runner that may be loaded. A loaded runner slips the scheduler's
  * ticks by seconds, and the daemon says so in its log (scheduler.loop_blocked); the lag it reports DURING this wait (not before it) is added to the
- * deadline, at most half of `ms`, so a wait gets at most 1.5 times its base. If the daemon reports more than `ms` of blocked loop during the wait, it
- * fails at once: a stall that large is the fault, not the runner.
+ * deadline, at most half of `ms`, so a wait gets at most 1.5 times its base. If the daemon reports more than `ms` of blocked loop during the wait, or
+ * any single block longer than MAX_REPORTED_BLOCK_MS, it fails at once and names the stall: a stall that large is the fault, not the runner.
  *
  * Never use this where a stall is the thing under test (a walk about the event loop, boot hooks or loop blocking): the credit would forgive the very
  * thing it is meant to catch. Use waitFor there, with its fixed bound.
  */
 export async function waitForScheduled<T>(d: Daemon, f: () => Promise<T | null>, ms = 40_000): Promise<T> {
   const start = Date.now();
-  const lag0 = loopLagMs(d); // what the daemon reported before this wait (boot, earlier steps) is not credited
+  const seen = loopLags(d).length; // what the daemon reported before this wait (boot, earlier steps) is not credited
   for (;;) {
     const v = await f();
     if (v !== null) return v;
-    const lag = loopLagMs(d) - lag0;
+    const blocks = loopLags(d).slice(seen);
+    const worst = Math.max(0, ...blocks);
+    if (worst > MAX_REPORTED_BLOCK_MS)
+      throw new Error(
+        `waitFor: the daemon reported its loop blocked for ${worst} ms in one block (the ceiling is ${MAX_REPORTED_BLOCK_MS} ms); host log ${hostLog(d)}`,
+      );
+    const lag = blocks.reduce((a, b) => a + b, 0);
     if (lag > ms)
       throw new Error(
         `waitFor: the daemon reported its loop blocked for ${lag} ms during a ${ms} ms wait; host log ${hostLog(d)}`,
