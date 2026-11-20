@@ -248,9 +248,17 @@ test("a deploy hold (running code with a site's production keys) is not an outwa
   const before = takes().length;
   assert.deepEqual(await h.applies(deploy, { siteId: "sit_1" }, agent), { act: "deploy" });
   assert.deepEqual(await h.applies(ship, { name: "App" }, agent), { act: "deploy" });
+  assert.equal(takes().length, before, "no turn grant was even looked for");
+});
+
+test("a deploy hold always stops: with an agent that acts for a person, a standing Always allow and a turn grant both granted, the Gate's rule (adminRule) is never read for a grant and the deploy holds", async () => {
+  const deploy = { name: "sites.deploy", v: 1, gate: { act: "deploy" } } as unknown as CapabilityDef;
+  // the real rule answers a deploy with adminRule true (it always stops); a grant of either kind is on offer
+  const { h, asked } = hook({ granted: true, always: true, rule: { hold: true, adminRule: true } });
+  assert.deepEqual(await h.applies(deploy, { siteId: "sit_1" }, agent), { act: "deploy" });
   assert.equal(
-    takes().length,
-    before,
-    "no turn grant was even looked for",
+    asked.filter((a) => a.cap === "gate.grants.take").length,
+    0,
+    "neither a turn grant nor an Always allow row was even looked up",
   );
 });

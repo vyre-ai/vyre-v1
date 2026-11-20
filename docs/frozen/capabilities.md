@@ -764,7 +764,7 @@ Signed: lead, 20 Nov 2026
 
 ## 20 Nov 2026: a gate act, deploy: running code with a site's production keys (lane r42-sites)
 
-New gate act `deploy` (`manifests/gate.ts`, `modules/gate/projections.ts`; title "Run code with a site's production keys", risk high, preview kind `deploy`, approver the asker, people only). It is not an outward act (`lib/grants.ts` OUTWARD_ACTS does not name it), so a turn's grant for an outward act (an email, a post), which lifts a default hold in an Auto chat, can never lift it; only a person's own written Always allow can.
+New gate act `deploy` (`manifests/gate.ts`, `modules/gate/projections.ts`; title "Run code with a site's production keys", risk high, preview kind `deploy`, approver the asker, people only). It is not an outward act (`lib/grants.ts` OUTWARD_ACTS does not name it), so a turn's grant for an outward act (an email, a post), which lifts a default hold in an Auto chat, can never lift it, and it always stops, like `access` and `connection_change`: no Always allow row (`gate.allow.set` refuses it), no Space rule and no goal lifts it. The evaluator decides when a deploy is held at all, so a (key, source) pair a person approved once never asks again.
 
 The gates of `sites.deploy` (`sites.deploy_gate(input)`), `sites.ship`, `sites.env_set` and `sites.preview_promote` (`vault.key_host_unapproved(input)`) move from act `send` to act `deploy`: they run code with the site's production keys, or put a key in front of code. `sites.create`, `sites.update`, `sites.plan` and `sites.webhook_set` keep `send` (they send a key to a host a caller names, or change what builds). The act count of `gate.acts.list` is 19.
 
