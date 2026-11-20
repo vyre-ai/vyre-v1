@@ -7,7 +7,8 @@ import type { World } from "../fixtures/world.ts";
 
 const claim = (w: World, e: { payload: Record<string, any> }) =>
   w.call("goals.wake_claim", { goalId: e.payload.goalId, wakeId: e.payload.wakeId, attempt: e.payload.attempt }, host); // eslint-disable-line @typescript-eslint/no-explicit-any
-const saved = (w: World) => onCleared(w.ctx(host), { name: "vault.item_created", payload: { itemId: "vit_1" } });
+const saved = (w: World) =>
+  onCleared(w.ctx(host), { name: "vault.item_created", payload: { itemId: "vit_1", kind: "api_key" } });
 
 test("restart with no account: the check-in failed with host_lost, then an account is saved and the check-in goes out at once, once", async () => {
   const w = world({ count: 10 });
@@ -61,7 +62,12 @@ test("every way an AI account can arrive asks the waiting check-in again: a past
     await claim(w, w.woken()[0]!);
     await w.turn("turn.failed", { turnId: "trn_a", threadId: goal.threadId, agentId: LEAD, code: "host_lost" });
     const before = w.woken().length;
-    assert.deepEqual(await onCleared(w.ctx(host), { name, payload: {} }), [goal.id], name);
+    w.state.itemKinds["vit_1"] = "api_key";
+    assert.deepEqual(
+      await onCleared(w.ctx(host), { name, payload: { itemId: "vit_1", kind: "api_key", enabled: true } }),
+      [goal.id],
+      name,
+    );
     assert.equal(w.woken().length, before + 1, name);
   }
   const impl = (await import("../impl.ts")) as { consumers: Record<string, { on: string[] }> };
@@ -112,22 +118,27 @@ const failedGoal = async () => {
 };
 
 test("the activity line says only what is true for the event: an AI account was connected, or a key was saved; an item that is not an account pulls nothing forward", async () => {
-  const cases: [string, Record<string, unknown>, RegExp | null][] = [
-    ["provider.added", { providerId: "prv_1", connection: "subscription" }, /an AI account was connected/],
-    ["engine.subscription_share_changed", {}, /an AI account was connected/],
-    ["vault.item_created", { itemId: "v", kind: "ai_subscription" }, /an AI account was connected/],
-    ["vault.item_created", { itemId: "v", kind: "api_key" }, /a key was saved, so it tried again/],
-    [
-      "vault.item_updated",
-      { itemId: "v", fieldsChanged: ["token"], settingsChanged: [] },
-      /a key was saved, so it tried again/,
-    ],
-    ["vault.item_created", { itemId: "v", kind: "login" }, null],
-    ["vault.item_created", { itemId: "v", kind: "card" }, null],
-    ["vault.item_created", { itemId: "v", kind: "note" }, null],
+  const connected = /an AI account was connected/;
+  const saved = /an AI sign-in or key was saved, so it tried again/;
+  // [event, payload, the kind the Vault says the item has (for an update), the line it must write or null for nothing]
+  const cases: [string, Record<string, unknown>, string | undefined, RegExp | null][] = [
+    ["provider.added", { providerId: "prv_1", connection: "subscription" }, undefined, connected],
+    ["engine.subscription_share_changed", { enabled: true }, undefined, connected],
+    ["engine.subscription_share_changed", { enabled: false }, undefined, null],
+    ["vault.item_created", { itemId: "v", kind: "ai_subscription" }, undefined, connected],
+    ["vault.item_created", { itemId: "v", kind: "api_key" }, undefined, saved],
+    ["vault.item_created", { itemId: "v", kind: "login" }, undefined, null],
+    ["vault.item_created", { itemId: "v", kind: "card" }, undefined, null],
+    ["vault.item_created", { itemId: "v", kind: "note" }, undefined, null],
+    ["vault.item_updated", { itemId: "v", fieldsChanged: ["token"] }, "api_key", saved],
+    ["vault.item_updated", { itemId: "v", fieldsChanged: ["token"] }, "ai_subscription", saved],
+    ["vault.item_updated", { itemId: "v", fieldsChanged: ["password"] }, "login", null],
+    ["vault.item_updated", { itemId: "v", fieldsChanged: ["accessToken"] }, "other", null],
+    ["vault.item_updated", { itemId: "v_unreadable", fieldsChanged: ["x"] }, undefined, null],
   ];
-  for (const [name, payload, words] of cases) {
+  for (const [name, payload, kind, words] of cases) {
     const { w, goal } = await failedGoal();
+    if (kind) w.state.itemKinds["v"] = kind;
     const before = w.woken().length;
     const out = await onCleared(w.ctx(host), { name, payload });
     if (words === null) {

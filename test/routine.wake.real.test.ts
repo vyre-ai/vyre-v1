@@ -177,7 +177,18 @@ for (const second of [0, 10, 20, 30, 40, 50, 59]) {
     await w.reconcile(); // the wake is paused with the row
     w.advance(5 * MINUTE + (second - (new Date(w.hn.clock.t).getUTCSeconds() % 60)) * 1000);
     assert.equal(Math.floor(w.hn.clock.t / 1000) % 60, second);
-    await agentConsumers["agents.routine_resume"]!.run(w.hn.as(svc), { name: "vault.item_updated", payload: {} });
+    // a sign-in was saved again: the Vault says the changed item is an AI key
+    const base = w.hn.as(svc);
+    await agentConsumers["agents.routine_resume"]!.run(
+      {
+        ...base,
+        call: async (cap: string, input: unknown) =>
+          cap === "vault.item.get"
+            ? { item: { kind: "api_key" } }
+            : (base as { call: (c: string, i: unknown) => Promise<unknown> }).call(cap, input),
+      },
+      { name: "vault.item_updated", payload: { itemId: "vit_key" } },
+    );
     const before = w.runCount();
     const out = await twentyMinutes(w, second);
     assert.deepEqual([out.runs - before, out.skipped], [20, 0]);

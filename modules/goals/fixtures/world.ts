@@ -62,6 +62,8 @@ export function world(
     now: T0,
     /** things that belong to someone else: the caller may not use them (an id here is a private record, project or agent of another person) */
     theirs: new Set<string>(),
+    /** the kind of a Vault item by id, as vault.item.get answers it; an id not here cannot be read */
+    itemKinds: {} as Record<string, string>,
     count: o.count ?? 0,
     watch: { value: "Registrations: 212", changes: 3 } as { value?: string; changes: number; error?: string },
     failRead: o.failRead as string | undefined,
@@ -84,6 +86,11 @@ export function world(
   const fake: Record<string, (i: Obj, who: Caller) => unknown> = {
     // the server answers for the calling agent's running turn; a test sets state.turn to the turn it wants (the engine's own tests prove the answer)
     "engine.turn.asked_by": () => state.turn,
+    "vault.item.get": (i) => {
+      const kind = state.itemKinds[String(i.itemId)];
+      if (!kind) throw new Error("not found");
+      return { item: { id: i.itemId, kind } };
+    },
     "agents.get": (i) => ({ agent: { agentId: i.agentId, runtime: "inside" } }),
     "settings.get": () => ({ row: { value: "Asia/Karachi" } }),
     "chat.start": (i) => ({ thread: { threadId: `thr_${String(i.scopeId ?? next("x")).replace(/^gol_/, "g")}` } }),
