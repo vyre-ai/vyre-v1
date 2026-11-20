@@ -200,7 +200,10 @@ test("a project chat: the footer names the project's folder, and its records onl
   );
 });
 
-const recordFooter = async (resolve: () => unknown): Promise<{ line: string; sheet: string }> => {
+const recordFooter = async (
+  resolve: () => unknown,
+  withoutRecord = false,
+): Promise<{ line: string; sheet: string }> => {
   let out = { line: "", sheet: "" };
   await withDom(async () => {
     const s = createSample("idle");
@@ -208,7 +211,14 @@ const recordFooter = async (resolve: () => unknown): Promise<{ line: string; she
       ...s.data,
       async call(cap: string, input: unknown) {
         if (cap === "search.resolve") return resolve();
-        return s.data.call(cap, input);
+        const out = await s.data.call(cap, input);
+        // a chat that links no record at all: the thread and its channel carry no recordId
+        if (withoutRecord && (cap === "threads.get" || cap === "channels.get")) {
+          const o = out as { thread?: Record<string, unknown>; channel?: Record<string, unknown> };
+          if (o.thread) delete o.thread["recordId"];
+          if (o.channel) delete o.channel["recordId"];
+        }
+        return out;
       },
     };
     const root = await mount(createRoot, <Conversation data={data} />);
@@ -227,7 +237,10 @@ const recordFooter = async (resolve: () => unknown): Promise<{ line: string; she
 
 test("a chat whose record's name cannot be read still says records are shared, in general words, with no error text", async () => {
   // the lookup answers with nothing (not found), or fails outright (a refused or dropped read): either way the newcomer is told they get the linked records
-  for (const resolve of [() => ({}), () => Promise.reject(new Error("provider.unavailable"))]) {
+  // a record that may be gone or may only be hidden from the person adding looks the same from here (not found is how a hidden one answers), so it is never taken to be gone
+  const notFound = () =>
+    Promise.reject(Object.assign(new Error("validation.not_found"), { error: { code: "validation.not_found" } }));
+  for (const resolve of [() => ({}), () => Promise.reject(new Error("provider.unavailable")), notFound]) {
     const { line, sheet } = await recordFooter(resolve);
     assert.equal(
       line,
@@ -235,4 +248,9 @@ test("a chat whose record's name cannot be read still says records are shared, i
     );
     assert.ok(!/error|could not|not found|undefined|null|unavailable/i.test(sheet), "no error text");
   }
+});
+
+test("a chat with no linked record says nothing about records", async () => {
+  const { line } = await recordFooter(() => ({}), true);
+  assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
 });
