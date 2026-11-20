@@ -1,6 +1,6 @@
 # engine.crew.status
 
-Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated
+Everything that works for a chat, in one read: each helper and teammate with its state, current step, model, account, branch, files changed, tokens and cost, and the crew totals. Only what is known
 
 | | |
 |---|---|

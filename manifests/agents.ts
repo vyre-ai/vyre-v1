@@ -376,9 +376,7 @@ export default defineManifest({
           computer: t.opt(t.bool()),
           templateKey: t.opt(t.str()),
           tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })),
-          instructions: t.opt(
-            t.str({ maxLength: 20000, description: "What the agent is told to do, added to its AGENT.md" }),
-          ),
+          instructions: t.opt(t.str({ maxLength: 20000 })),
           limits: t.opt(limits),
           projectId: t.opt(
             t.str({
