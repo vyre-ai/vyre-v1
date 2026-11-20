@@ -552,11 +552,11 @@ test("pressing a done step shows the screen kept after it, over the live page, w
     await press(find(root, "step-ring-button"));
     await flush();
     assert.equal(find(root, "scrubbed"), null, "live until a step is pressed");
-    await press(find(root, "step-1")).catch(() => undefined);
+    await press(find(root, "row-step-1")).catch(() => undefined);
     await flush();
     assert.equal(find(root, "scrubbed"), null, "a step with no picture kept does nothing when pressed");
     assert.deepEqual(asked, [], "and asks for no picture");
-    await press(find(root, "step-0"));
+    await press(find(root, "row-step-0"));
     await flush();
     assert.ok(find(root, "scrubbed"), "the kept screen is up");
     assert.deepEqual(asked, ["fil_a"]);
@@ -565,12 +565,12 @@ test("pressing a done step shows the screen kept after it, over the live page, w
     await flush();
     assert.equal(find(root, "scrubbed"), null);
     // pressing the same step twice goes back too, and taking over ends the look back
-    await press(find(root, "step-0"));
+    await press(find(root, "row-step-0"));
     await flush();
-    await press(find(root, "step-0"));
+    await press(find(root, "row-step-0"));
     await flush();
     assert.equal(find(root, "scrubbed"), null);
-    await press(find(root, "step-0"));
+    await press(find(root, "row-step-0"));
     await flush();
     r.push(hold(true));
     await flush();
@@ -707,7 +707,7 @@ test("the agent's browser dies while you watch: the bar says it stopped and offe
     const root = await mount(cr, <DeskHost />);
     await flush();
     await press(find(root, "step-ring-button"));
-    await press(find(root, "step-0"));
+    await press(find(root, "row-step-0"));
     await flush();
     assert.ok(find(root, "scrubbed"));
     r.push({ state: "error", line: "The browser stopped.", canTakeOver: true, sites: [] });

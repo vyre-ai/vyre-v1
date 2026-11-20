@@ -1,0 +1,1 @@
+- The desk's list of steps is built from the app's own list rows, in the skin's colours (it was a dark panel with white text on every skin), so it reads the same as other lists and follows light and dark.
