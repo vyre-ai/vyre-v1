@@ -8,7 +8,7 @@
     "sites.artifact_thumb_set@1": "744c6cd89efe5381d3db7ea0c776232f9417e1544a9c18aaa1b9f0ecd69f3e5f",
     "sites.backup_create@1": "397648bffda00626c38ed8878dd3f8eef8c256ea901f2c084a46254cfc18b87c",
     "sites.backup_delete@1": "fb6d2d2f6b465822a0ca8205a73361beb4c58a87eca0771c054efd5d1a5eeed2",
-    "sites.backup_download@1": "65269871d76aef591c0ead58cabd45aeb714d3b85d0dea8c33254a101c80116f",
+    "sites.backup_download@1": "e52df07b13716e16b65b40bff6ec0ffd06806afd8a151e29ef196d403b139bc1",
     "sites.backup_pin@1": "e43c51f673e0377f8e03bc6a0bbb9265e2f02b9375000db495a03c4735e41dd3",
     "sites.backup_restore@1": "c0aeaafff5a1abba89605bee9a2aa0ed6494e4647c2607de2e8213aade9a45f8",
     "sites.backups_list@1": "324dd518d05e877eafc1dbf2d27c30e1790003431073585433773d6d03321067",

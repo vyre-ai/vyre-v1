@@ -34295,7 +34295,7 @@ const routes6: Route[] = [
     "risk": "low",
     "offline": null,
     "teamOnly": false,
-    "gate": "secret_export"
+    "gate": "deploy"
   },
   {
     "method": "POST",
