@@ -768,4 +768,4 @@ New gate act `deploy` (`manifests/gate.ts`, `modules/gate/projections.ts`; title
 
 The gates of `sites.deploy` (`sites.deploy_gate(input)`), `sites.ship`, `sites.env_set` and `sites.preview_promote` (`vault.key_host_unapproved(input)`) move from act `send` to act `deploy`: they run code with the site's production keys, or put a key in front of code. `sites.create`, `sites.update`, `sites.plan` and `sites.webhook_set` keep `send` (they send a key to a host a caller names, or change what builds). The act count of `gate.acts.list` is 19.
 
-Signed: pending, lead
+Signed: lead, 2026-11-20
