@@ -64,7 +64,8 @@ test("sites.ops, and the plain calls behind its held actions, name the key-class
   assert.equal(gate("sites.backup_restore")?.when, "actor.kind != 'person'");
   for (const n of ["sites.backup_delete", "sites.job_delete", "sites.service_remove"])
     assert.deepEqual(gate(n), { act: "delete", when: "actor.kind != 'person'" }, n);
-  assert.deepEqual(gate("sites.backup_download"), { act: "secret_export", when: "actor.kind != 'person'" });
+  // the whole database dump goes out under an act that always stops: no Always allow row, Space rule or turn grant lifts it (modules/gate/tests/always-stops.test.ts runs that for deploy)
+  assert.deepEqual(gate("sites.backup_download"), { act: "deploy", when: "actor.kind != 'person'" });
   // the calls that change no command are not held
   for (const n of [
     "sites.job_run",

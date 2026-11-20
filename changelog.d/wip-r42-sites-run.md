@@ -3,3 +3,4 @@ A site can have scheduled jobs and workers: a command in its own image runs on a
 Putting a backup back never loses data: the live database is backed up first and kept seven days, the dump loads into a new database, and it is swapped in only when that worked.
 An agent that asks for a site's backup download waits for a person's yes: the download is the whole database.
 An agent that deletes a site's backup, scheduled command or worker waits for a person's yes.
+A site's backup download for an agent is held under the deploy act, which no Always allow row lifts.
