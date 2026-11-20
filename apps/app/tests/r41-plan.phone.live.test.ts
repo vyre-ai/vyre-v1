@@ -55,6 +55,23 @@ test("phone project Plan: one tap on a task opens it", async (t) => {
     await page.locator('[data-testid^="plan-row-"]').first().click();
     await opened(before);
 
+    // a tap on a task's bar (scrolled clear of the names down the left), with a finger (a real touch): a quick press and release with no drag opens it.
+    // Not in the middle: a short bar's middle is the avatar of who it is assigned to, and that opens the assign menu (its own pointer-down stops the press).
+    before = await openPlan();
+    const bar = page.locator('[data-testid^="plan-bar-"]').first();
+    await bar.waitFor({ state: "attached", timeout: 20_000 });
+    await bar.evaluate((el) => {
+      const sc = el.closest('[data-testid="plan-scroll"]') as HTMLElement;
+      sc.scrollLeft += el.getBoundingClientRect().x - 260;
+    });
+    const cdp = await page.context().newCDPSession(page);
+    const bb = (await bar.boundingBox())!;
+    const at = { x: Math.round(bb.x + bb.width - 4), y: Math.round(bb.y + bb.height / 2) };
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [at] });
+    await page.waitForTimeout(60);
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await opened(before);
+
     // the List view: a tap on a row of the list
     before = await openPlan();
     await page.getByTestId("plan-view").click();
