@@ -79,6 +79,8 @@ export function queryString(input: unknown): string {
 
 /** The code of the error for an answer that was not a Space's (a 2xx that is not JSON). The app treats it as no answer at all. */
 export const BAD_ANSWER = "gateway.bad_answer";
+/** The statuses that carry no body by definition (the relay bridge reads them the same way): an answer of one of these says nothing and is not a bad answer. */
+const BODYLESS: ReadonlySet<number> = new Set([204, 205, 304]);
 
 function errorOf(status: number, body: unknown, trace: string | null): CapError {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
@@ -215,7 +217,7 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     }
     // A success that is not JSON is not a Space's answer: a proxy, a captive portal or a relay page answered in its place. Said as an error, never returned as an empty success (every capability
     // answers with a JSON envelope; only a 204 says nothing). Errors keep going the way they did: the status decides.
-    if (!parsed && res.status < 400 && res.status !== 204)
+    if (!parsed && res.status < 400 && !BODYLESS.has(res.status))
       throw new CapError({
         code: BAD_ANSWER,
         message: "This address did not answer as a Space.",

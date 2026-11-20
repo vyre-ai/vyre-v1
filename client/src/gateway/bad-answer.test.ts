@@ -44,6 +44,8 @@ test("a JSON answer still resolves, a 204 still says nothing, and an error statu
   );
   assert.deepEqual(ok, { name: "Northwind" });
   assert.equal(await call(() => new Response(null, { status: 204 })), undefined);
+  assert.equal(await call(() => new Response(null, { status: 205 })), undefined, "205 says nothing too");
+  assert.equal(await call(() => new Response(null, { status: 304 })), undefined, "304 says nothing too");
   await assert.rejects(
     call(() => new Response("<html>bad gateway</html>", { status: 502, headers: { "content-type": "text/html" } })),
     (e: unknown) => e instanceof CapError && e.status === 502 && e.code !== BAD_ANSWER,
