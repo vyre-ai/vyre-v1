@@ -2,6 +2,7 @@
 // shape the reviewer found (they took 2.6 to 16 s before) and must finish well inside 100 ms; the first lines of each group keep the
 // ordinary outputs the code gave before.
 import test from "node:test";
+import { timeCpu, wallCeiling } from "./support/cpu-time.ts";
 import assert from "node:assert/strict";
 import {
   lc,
@@ -92,17 +93,17 @@ const SAMPLES: string[][] = [
 const N = 100_000;
 const BUDGET_MS = 100;
 function fast<T>(label: string, fn: () => T): T {
-  // The best of three runs: a busy runner can stall one run for longer than the bound, while code that is quadratic on this input is slow in
-  // all three (the old code took seconds). The bound itself is not raised.
-  let best = Infinity;
-  let out!: T;
-  for (let k = 0; k < 3; k += 1) {
-    const t0 = performance.now();
-    out = fn();
-    best = Math.min(best, performance.now() - t0);
-    if (best < BUDGET_MS) break;
-  }
-  assert.ok(best < BUDGET_MS, `${label} took ${Math.round(best)} ms on hostile input (budget ${BUDGET_MS} ms)`);
+  // One run, measured in CPU time (test/support/cpu-time.ts): a busy runner can stretch the wall clock of a 30 ms case to 400 ms, but it cannot
+  // make linear code use more CPU, and quadratic code on this input uses seconds of it. The bound stays 100 ms; the wall ceiling is a hang guard.
+  const { out, cpuMs, wallMs } = timeCpu(fn);
+  assert.ok(
+    cpuMs < BUDGET_MS,
+    `${label} used ${Math.round(cpuMs)} ms of CPU on hostile input (budget ${BUDGET_MS} ms)`,
+  );
+  assert.ok(
+    wallMs < wallCeiling(BUDGET_MS),
+    `${label} took ${Math.round(wallMs)} ms of wall time (hang guard ${wallCeiling(BUDGET_MS)} ms)`,
+  );
   return out;
 }
 
