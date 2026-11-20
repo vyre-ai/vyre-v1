@@ -1,11 +1,11 @@
 // The retained output of a terminal command (lane r42-computer, the lead's rules of 19 Nov). What a command printed, already scrubbed by the Vault's scrubber, is kept per command so that a person or the agent
 // can read a part of it later (the last lines, the lines that match a word, a range) and never the whole by default. Its rules:
 //   scrubbed before it is stored: the text kept is the text the run answered, after every Vault value of the scope was taken out, and then through the transcript's secret shapes (keys, tokens, bearer headers,
-//   passwords in URLs and flags, private keys: agent/src/transcript/sanitize.ts), so what a command printed that the Vault never knew is not kept either; it is scrubbed again on every read, so a value learned later is out too;
+//   passwords in URLs and flags, private keys: lib/secret-scrub.ts), so what a command printed that the Vault never knew is not kept either; it is scrubbed again on every read, so a value learned later is out too;
 //   capped: CMD_CAP_BYTES per command (the oldest output is dropped and the cut is marked in the text and in `cutBytes`), AGENT_CAP_BYTES per agent (the oldest commands' logs go first);
 //   kept for KEEP_MS after the command ended, then deleted; erased with the agent; it lives in the Space's data (the terminal module's tables), never in a cache;
 //   read only by whoever may read that terminal, through terminal.log.list and terminal.log.read (the handlers check access); an answer is never the whole log: at most MAX_LINES lines and MAX_ANSWER_CHARS characters.
-import { redact } from "../../agent/src/transcript/sanitize.ts";
+import { redact } from "../../lib/secret-scrub.ts";
 import type { Db } from "./projections.ts";
 
 export let CMD_CAP_BYTES = 5 * 1024 * 1024;
