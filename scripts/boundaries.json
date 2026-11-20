@@ -178,7 +178,8 @@
         "apps"
       ],
       "allowFetchIn": [
-        "apps/app/public/"
+        "apps/app/public/",
+        "apps/chrome/src/worker/link.js"
       ]
     },
     "B5": {
