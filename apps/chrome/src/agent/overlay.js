@@ -160,7 +160,7 @@ export function overlayShow(o) {
       if (!e.isTrusted || !port || s.paused) return;
       const path = typeof e.composedPath === "function" ? e.composedPath() : [];
       if (path.includes(host)) return;
-      // only what the worker needs to tell the person's hand from the agent's own input: the kind of event, for a pointer where, for a key its physical key name (never the character)
+      // only what the worker needs to tell the person's hand from the agent's own input: the kind of event, for a pointer where, for a key its physical key code (on a normal layout that names the character). It goes to the extension's own worker only, which matches it and keeps nothing; none of it is stored or leaves the extension
       const kind = e.type === "keydown" ? "key" : e.type === "wheel" ? "wheel" : "pointer";
       const at = e.touches && e.touches[0] ? e.touches[0] : e;
       const t = Date.now();
