@@ -11,7 +11,7 @@ Approve and commit a changeset: 3-way merge on the recorded base, conflicts go t
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | push_protected when input.push == true |
+| Gate | push_protected when changesets.agent_or_push(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

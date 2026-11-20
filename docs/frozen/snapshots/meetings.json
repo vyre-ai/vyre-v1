@@ -3,7 +3,7 @@
   "capabilities": {
     "meetings.attach_recording@1": "a754048112c13f826e29489f4f32bdfb86cc0413ba392f4d6f2befe16d09abcd",
     "meetings.cancel@1": "d3779391be4af69f56ee694bead11f26c218163fd143b029284cb90ffc94e9f4",
-    "meetings.closeout.approve@1": "b1d0474b64d6948bcbcfc89d4f815977ae8085cf644757ab47995c540f4d819d",
+    "meetings.closeout.approve@1": "b4bd0e30f37e1081d577dac9949cd456ab9f0935ae1a9f0fd28fe43c72637759",
     "meetings.closeout.edit@1": "769b4085041f8a01e6dbadcdcb25366fd6740e7a65feef90de766d0e70cc9c5a",
     "meetings.closeout.get@1": "66710d0dae5518b04d3974f66ec29655dd86a92325d2cdd37d22950518c0735b",
     "meetings.closeout.list@1": "bbf3a2e94b39c3a9fa0e515e5838b6fc719539494b29558a9f8645cc600fd747",

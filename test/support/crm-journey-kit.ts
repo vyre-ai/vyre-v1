@@ -411,6 +411,8 @@ export async function bringInByChat(
   tap?: (threadId: string) => Promise<void>,
 ): Promise<string> {
   s.model.know = know;
+  // the person has said yes to the app's host for this key (the card an agent's first use of a key on a new host asks for), so the assistant's reads of the app go through
+  await ok(s, "automations.key_hosts.allow", { vaultItemId: item.handle, host: know.domain });
   // a person in a chat with the assistant, set to Auto (new chats ask before a change; this one is about what the assistant does)
   const threadId = (await ok(s, "chat.start", { kind: "chat", agentIds: [agentId] })).thread.threadId as string;
   await ok(s, "threads.set_mode", { threadId, mode: "auto" });

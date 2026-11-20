@@ -11,7 +11,7 @@ Put a Space-wide setting back to its shipped default
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when mail.is_provider_setting(input.key) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

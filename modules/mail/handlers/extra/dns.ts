@@ -125,6 +125,11 @@ export async function checkRecord(domain: string, rec: PublishedRecord, dns: Dns
   return settle(found, (vs) => vs.some((v) => squash(v) === squash(rec.value)), rec.state);
 }
 
+/** An SMTP domain: which servers may send is the mail host's own instruction, so any published SPF record counts. */
+export async function checkSpfPublished(domain: string, dns: DnsLookup, previous: DnsState): Promise<DnsState> {
+  return settle(await look(() => dns.txt(domain)), (vs) => vs.some((v) => /^\s*"?v=spf1\b/i.test(v)), previous);
+}
+
 const dmarcPublished = (values: string[]): boolean =>
   values.some((v) => /^\s*v=DMARC1\s*;/i.test(v) && /;\s*p=(none|quarantine|reject)\b/i.test(v));
 

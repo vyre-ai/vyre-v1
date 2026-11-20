@@ -1,6 +1,6 @@
 # mail.send
 
-Send an email through the single send API: suppression, consent, trace id header, agent footer line, an unsubscribe link when asked
+Send an email (suppression, limits and the Gate apply)
 
 | | |
 |---|---|
@@ -43,13 +43,17 @@ type In = {
       name?: string;
       contactId?: string;
     }>;
-  subject: string;
+  subject?: string;
   text?: string;
   html?: string;
   attachments?: Array<string>;
   replyToMessageId?: string;
   contactId?: string;
   draftId?: string;
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   sendAt?: number;
   unsubscribe?: boolean;
   idempotencyKey: string;

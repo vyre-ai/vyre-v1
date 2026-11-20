@@ -1,0 +1,1 @@
+- Email templates have names and keep what they say: the signature request, reminder, signed-copy and expired emails ship ready, a Space can rewrite any of them, and a document can keep its own version. The preview fills a template from a real record and names any field that would go out blank.

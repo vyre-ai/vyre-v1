@@ -1489,7 +1489,7 @@ export default defineManifest({
         out: { approved: t.bool(), versionIds: t.arr(id.version), commit: t.opt(t.str()), conflicts: t.arr(t.str()) },
         idem: "key",
         audit: "always",
-        gate: { act: "push_protected", when: "input.push == true" },
+        gate: { act: "push_protected", when: "changesets.agent_or_push(input)" },
         emits: ["changeset.approved", "file.version_added"],
         tool: "files",
         errors: ["validation.precondition_failed", "permission.needs_approval"],

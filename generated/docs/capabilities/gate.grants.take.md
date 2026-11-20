@@ -25,7 +25,7 @@ System: does a grant cover this call? Asked by the Gate hook at act time, it spe
 
 ```ts
 type In = {
-  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+  act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
   targets: Array<string>;
   step?: {
     automationId: string;

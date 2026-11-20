@@ -119,7 +119,7 @@ test("archiving never strands a waiter: a held act, a task a Run waits on and a 
   const held = await mk(
     h,
     { kind: "approve", source: { kind: "gate", id: "dec_1" } },
-    { id: "svc_system", kind: "service" },
+    { id: "svc_host", kind: "service" },
   );
   await refused(h.call("tasks.archive", { taskId: held }, me), "held_act");
   const run = await mk(h, { source: { kind: "run", id: "run_1" } });

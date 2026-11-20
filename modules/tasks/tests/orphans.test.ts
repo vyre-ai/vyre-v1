@@ -63,7 +63,7 @@ test("a held act is never put away by its chat closing: the Gate decides that", 
   const held = await mk(
     h,
     { kind: "approve", title: "Send the email", source: { kind: "gate", id: "act_1" }, assigned: owner },
-    { id: "svc_system", kind: "service" },
+    { id: "svc_host", kind: "service" },
   );
   const asked = await mk(h, { kind: "approve", title: "A plan", source: { kind: "chat", id: "thr_9" } });
   assert.deepEqual(await chat(h, "thread.closed", "thr_9"), [asked]);

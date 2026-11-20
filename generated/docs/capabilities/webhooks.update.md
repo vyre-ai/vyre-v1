@@ -11,7 +11,7 @@ Change the name, URL, event types, filter or active state of a webhook
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

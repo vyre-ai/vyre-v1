@@ -11,7 +11,7 @@ Create a site: a name, and where it runs (a port on a computer, or a folder in F
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (create under /folderId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

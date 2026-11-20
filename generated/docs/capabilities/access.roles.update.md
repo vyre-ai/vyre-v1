@@ -11,7 +11,7 @@ Rename a custom role or change its clearance; built-in roles are locked
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | access when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

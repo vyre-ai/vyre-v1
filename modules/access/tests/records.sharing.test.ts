@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import { putPrincipal } from "../handlers/roles.ts";
-import { audienceSet, recordMarks, share, sharesOf, unshare } from "../handlers/share.ts";
+import { audienceSet, folderNarrow, recordMarks, share, sharesOf, unshare } from "../handlers/share.ts";
 import type { ShareCtx } from "../handlers/share.ts";
 import { MemoryDb } from "../fixtures/db.ts";
 import { EVERYONE, storeOf } from "../projections.ts";
@@ -377,6 +377,70 @@ test("a record's Files folder follows its record: who cannot see the record cann
   assert.equal(await code(audienceSet(r.ctx, { resource: one, follows: "rec_two" })), "validation.bad_input");
 });
 
+test("hanging a folder under a record needs Manage on the folder from any caller but the host's own services: a form, a site or an Automation's service is refused", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const asService = (id: string): ShareCtx => ({ ...r.ctx, principal: { kind: "service", id } });
+  for (const id of ["svc_form_x", "svc_site_x", `svc_${"a1".repeat(16)}`, "svc_unknown"])
+    assert.equal(
+      await code(audienceSet(asService(id), { resource: folder, follows: "rec_one" })),
+      "permission.no_grant",
+      `${id} is refused`,
+    );
+  await audienceSet(asService("svc_host"), { resource: folder, follows: "rec_one" });
+});
+
+test("a folder that could not follow its record: the refused caller cannot narrow it either, the host's own service can, and then it is no wider than the people added", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: folder, follows: "rec_one" })), "permission.no_grant");
+  assert.equal(
+    await code(audienceSet(tenant, { resource: folder, audience: "added" })),
+    "permission.no_grant",
+    "the refused caller has no Manage to narrow with",
+  );
+  assert.ok(r.can("usr_dee", folder), "so it stays open to the Space until the host steps in");
+  assert.equal(
+    await code(folderNarrow(tenant, { folderId: "fld_deal" })),
+    "permission.no_grant",
+    "only the host's own service has the safety step",
+  );
+  await folderNarrow({ ...r.ctx, principal: { kind: "service", id: "svc_host" } }, { folderId: "fld_deal" });
+  assert.ok(!r.can("usr_dee", folder), "the host's narrowing closes it to a member who was not added");
+  assert.ok(r.can("usr_ada", folder), "the owner still opens it");
+  assert.equal(
+    await code(
+      audienceSet(
+        { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } },
+        { resource: folder, audience: "space" },
+      ),
+    ),
+    "validation.not_found",
+    "and a tenant's service cannot widen it again: it cannot even see it now",
+  );
+});
+
 test("an agent changes who a type is open to on behalf of an admin, and is refused on behalf of a member without manage; with no one behind it it is refused", async () => {
   const r = rig();
   putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });
@@ -416,4 +480,169 @@ test("an agent changes who a type is open to on behalf of an admin, and is refus
   r.store.grants.delete("gnt_agent_manage");
   r.store.bump();
   assert.ok(!r.can("agt_helper", deal, "manage"), "the agent holds no manage of its own now");
+});
+
+test("a caller with little right that triggers the refusal does not close the folder: the host attaches it to its record itself and it then follows the record", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: folder, follows: "rec_one" })), "permission.no_grant");
+  await audienceSet(
+    { ...r.ctx, principal: { kind: "service", id: "svc_host" } },
+    { resource: folder, follows: "rec_one" },
+  );
+  assert.ok(r.can("usr_dee", folder), "it follows rec_one, which follows the Space: nobody is shut out");
+  assert.equal(r.store.resources.get("fld_deal")!.parentId, "rec_one");
+});
+
+const folderRig = (names: string[]) => {
+  const r = rig();
+  for (const id of names)
+    r.store.resources.set(id, {
+      id,
+      type: "folder",
+      parentId: "spc_test",
+      label: "public",
+      ownerId: "usr_ada",
+      holds: 0,
+      row: { name: id, itemType: "file", scope: "space" },
+    });
+  r.store.bump();
+  const press: ShareCtx = { ...r.ctx, origin: "user", depth: 0 }; // Ada pressing it herself in the app
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  const chosen = (id: string): boolean => r.store.resources.get(id)!.row?.["audienceChosen"] === true;
+  return { r, press, host, chosen, f: (id: string) => ({ type: "folder", id }) };
+};
+
+test("a folder whose audience a person chose is not re-attached by the host: a manager's narrowing is never undone; a folder nobody chose still follows", async () => {
+  const { r, press, host, chosen, f } = folderRig(["fld_chosen", "fld_plain"]);
+  await audienceSet(press, { resource: f("fld_chosen"), audience: "added" });
+  assert.ok(chosen("fld_chosen"));
+  assert.ok(!r.can("usr_dee", f("fld_chosen")), "closed by the manager's choice");
+  await audienceSet(host, { resource: f("fld_chosen"), follows: "rec_one" });
+  assert.ok(!r.can("usr_dee", f("fld_chosen")), "the host's re-attach left it closed");
+  assert.equal(r.store.resources.get("fld_chosen")!.parentId, "spc_test", "and did not move it");
+  await audienceSet(host, { resource: f("fld_plain"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_plain")!.parentId, "rec_one", "a folder nobody chose follows its record");
+  await folderNarrow(host, { folderId: "fld_plain" });
+  assert.ok(!chosen("fld_plain"), "the host's own narrowing is not a person's choice");
+});
+
+test("only a person's own press is a choice: an agent working under a person's Manage, a call another capability makes for them and a tenant service do not switch off the host's self-heal", async () => {
+  const { r, host, chosen, f } = folderRig(["fld_a", "fld_b", "fld_c"]);
+  putPrincipal(r.store, { id: "agt_helper", kind: "agent", name: "Helper", owner: "usr_ada" });
+  r.store.setRoles("agt_helper", ["rol_member"]);
+  r.store.grants.set("gnt_agent_folder", {
+    id: "gnt_agent_folder",
+    subject: { kind: "agent", id: "agt_helper" },
+    resource: { type: "folder", id: "fld_a" },
+    level: "manage",
+    conditions: {},
+    by: "usr_ada",
+    createdAt: 1,
+  });
+  r.store.bump();
+  // an agent acting for Ada opens the folder to the Space and narrows it again: neither is a choice
+  const agent: ShareCtx = {
+    ...r.ctx,
+    principal: { kind: "agent", id: "agt_helper" },
+    actingFor: "usr_ada",
+    origin: "user",
+  };
+  await audienceSet(agent, { resource: f("fld_a"), audience: "added" });
+  assert.ok(!chosen("fld_a"), "an agent's change records no choice");
+  // Ada's person principal, but through another capability (chat's own home folder code) or an MCP door: not her press
+  for (const origin of ["engine", "mcp", "hook"])
+    await audienceSet({ ...r.ctx, origin }, { resource: f("fld_b"), audience: "added" });
+  await audienceSet({ ...r.ctx, origin: "user", depth: 1 }, { resource: f("fld_b"), audience: "added" });
+  // a context that does not say its depth is not taken for a press either (fails closed)
+  await audienceSet({ ...r.ctx, origin: "user" }, { resource: f("fld_b"), audience: "added" });
+  assert.ok(
+    !chosen("fld_b"),
+    "a call made on her behalf, or by another capability (chat's own folder code), is not her press",
+  );
+  // so the host still re-attaches a folder an agent opened
+  await audienceSet(host, { resource: f("fld_a"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_a")!.parentId, "rec_one");
+  // a tenant service has no Manage at all, so it cannot even try
+  const tenant: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_form_x" } };
+  assert.equal(await code(audienceSet(tenant, { resource: f("fld_c"), audience: "space" })), "permission.no_grant");
+  assert.ok(!chosen("fld_c"));
+});
+
+test("a person's no-op re-ask and an explicit \"space\" both count as a choice; a manager's follow clears it", async () => {
+  const { r, press, host, chosen, f } = folderRig(["fld_x", "fld_y"]);
+  // asking for what it already is (open to the Space) still records the choice
+  const out = await audienceSet(press, { resource: f("fld_x"), audience: "space" });
+  assert.equal(out.audience, "space");
+  assert.ok(chosen("fld_x"), "a no-op re-ask is a choice");
+  await audienceSet(host, { resource: f("fld_x"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_x")!.parentId, "spc_test", "an explicit space is kept by design");
+  // a manager who makes it follow has chosen to follow: the flag goes, and the host may re-attach it again
+  await audienceSet(press, { resource: f("fld_x"), follows: "rec_one" });
+  assert.equal(r.store.resources.get("fld_x")!.parentId, "rec_one");
+  assert.ok(!chosen("fld_x"), "following clears the choice");
+});
+
+test("what a folder follows is read from access.shares_of (inherits), not from the Files tree: empty before the follow, the record after it, and gone again when the folder is moved", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  assert.equal((await sharesOf(r.ctx, { resource: folder })).inherits, undefined, "it follows nothing yet");
+  await audienceSet(host, { resource: folder, follows: "rec_one" });
+  assert.equal(
+    (await sharesOf(r.ctx, { resource: folder })).inherits,
+    "rec_one",
+    "after the real follow it says which record",
+  );
+});
+
+test("inherits on a folder shows the record only to a caller who may view that record: a viewer of the folder alone gets it omitted", async () => {
+  const r = rig();
+  r.store.resources.set("fld_deal", {
+    id: "fld_deal",
+    type: "folder",
+    parentId: "spc_test",
+    label: "public",
+    ownerId: "usr_ada",
+    holds: 0,
+    row: { name: "Acme files", itemType: "file", scope: "space" },
+  });
+  r.store.bump();
+  const folder = { type: "folder", id: "fld_deal" };
+  const host: ShareCtx = { ...r.ctx, principal: { kind: "service", id: "svc_host" } };
+  await audienceSet(host, { resource: folder, follows: "rec_one" });
+  // while the record is open to the Space, anyone who may see the folder is told which record it follows
+  assert.equal((await sharesOf(r.as("usr_dee"), { resource: folder })).inherits, "rec_one");
+  // the record is made private to its people: Dee is given the folder by name and may view it, but not the record
+  await audienceSet(r.ctx, { resource: one, audience: "added" });
+  await share(r.ctx, { resource: folder, subject: person("usr_dee"), level: "view" });
+  assert.ok(r.can("usr_dee", folder), "Dee may view the folder");
+  assert.ok(!r.can("usr_dee", one), "but not the record");
+  assert.equal(
+    (await sharesOf(r.as("usr_dee"), { resource: folder })).inherits,
+    undefined,
+    "so the record is not named to her",
+  );
+  assert.equal((await sharesOf(r.ctx, { resource: folder })).inherits, "rec_one", "Ada sees it");
 });

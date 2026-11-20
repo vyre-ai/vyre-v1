@@ -40,7 +40,7 @@ type Out = {
       domainId: string;
       localPart: string;
       mailboxId: string;
-      provider: "resend" | "mailgun";
+      provider: "resend" | "mailgun" | "smtp";
     }>;
   next?: string;
   total?: number;

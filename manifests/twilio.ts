@@ -74,7 +74,7 @@ const capabilities = [
     },
     out: { number: ownedNumber },
     perm: "comms.numbers",
-    gate: quiet("Changes webhook addresses on a number the Space owns; nothing is sent to anyone"),
+    gate: { act: "send", when: "actor.kind != 'person'" },
   }),
   outward("twilio.twiml_app.ensure", "Find or create the TwiML app of this Space for the Voice JS SDK", {
     in: { voiceUrl: t.str() },
@@ -174,7 +174,7 @@ const capabilities = [
     in: { messagingServiceSid: t.str(), numberSid: t.str() },
     out: { attached: t.bool() },
     perm: "comms.numbers",
-    gate: quiet("Links a Space number to its own messaging service; nothing is sent to anyone"),
+    gate: { act: "send", when: "actor.kind != 'person'" },
   }),
   read("twilio.health", "Health probe: GET /Accounts/{sid}", { in: {}, out: healthOut }),
   write(

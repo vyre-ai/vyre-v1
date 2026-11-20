@@ -22,6 +22,7 @@ Area: records. Risk: high. Applies to: record_type.
 - schema.restore_field
 - schema.sensitivity.scan
 - schema.set_label
+- schema.set_mergeable
 - schema.trash.list
 - sites.table_promote
 - views.publish

@@ -11,7 +11,7 @@ Build the site from its source (GitHub repo, folder or zip in Files, or a folder
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |

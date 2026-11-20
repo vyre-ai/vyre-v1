@@ -24,6 +24,8 @@ export interface RowProps {
   titleMarks?: ReactNode;
   /** Two-line variant, 62 px: the title line and a note of up to two lines (Inbox rows). Default is the 28 or 44 px row. */
   tall?: boolean;
+  /** The title in the monospace face: an address or a domain name, where every character matters. */
+  mono?: boolean;
   /** Semibold title (unread chats and channels). */
   emphasis?: boolean;
   /** The title in the second ink: a row that is read and not selected (the Chats sidebar). Off by default: every other row keeps the full ink. */

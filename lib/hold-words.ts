@@ -3,7 +3,7 @@
 import { HOLD_PHRASES } from "./hold-phrases.ts";
 import { validZone, zoneName } from "./zones.ts";
 import { outwardOf } from "./outward.ts";
-import { keyReadHost } from "./key-target.ts";
+import { KEY_HOST_CAPS, keyReadHost, keySendOf } from "./key-target.ts";
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj => (v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Obj) : {});
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -160,6 +160,14 @@ export function wantsFromInput(cap: string, input: Obj | undefined): string | nu
     const host = keyReadHost(input);
     return host ? `send a key to ${host}` : "send a key to an app";
   }
+  // a call that sends a Vault key to a place it names: the card says which key goes to which host (the key's name, never its value)
+  if (KEY_HOST_CAPS.has(cap)) {
+    const use = keySendOf(input);
+    const name = use ? use.handle.replace(/^#/, "").replace(/\..*$/, "") : "";
+    return use && name
+      ? `send the key ${name} to ${use.host ?? "an address it could not read"}`
+      : "send a key to an app";
+  }
   if (cap === "automations.read_link") {
     const url = str(obj(input)["url"]);
     return url ? `open ${hostOfLink(url)}` : "open a link";
@@ -194,6 +202,9 @@ export function holdTitle(cap: string, input: unknown, actTitle?: string): strin
 export interface HoldNames {
   people?: Record<string, string>;
   file?: string;
+  /** The Vault key a share hands over, by its name (never a value), and who gets it. */
+  key?: string;
+  recipient?: string;
 }
 
 const listNames = (xs: string[]): string =>
@@ -221,6 +232,16 @@ export function holdShort(cap: string, input: unknown, n: HoldNames = {}): strin
     if (o.channel === "post")
       return who[0] === "this chat" || who.length === 0 ? "post in this chat" : `post in ${who[0]}`;
     return "add a calendar event";
+  }
+  if (cap === "vault.share" || cap === "access.share") {
+    const sub = obj(obj(input)["subject"]);
+    const kind = str(sub["kind"]);
+    const who =
+      n.recipient ??
+      (kind === "agent" ? "an agent" : kind === "group" ? "a group" : kind === "person" ? "a teammate" : "someone");
+    const res = str(obj(obj(input)["resource"])["type"]);
+    if (res === "vault_item" || res === "vault_folder")
+      return `share ${res === "vault_folder" ? "a Vault folder" : n.key ? `the key ${n.key}` : "a Vault key"} with ${who}`;
   }
   if (cap === "files.share_external") return `share ${n.file ?? "a file"} with a link for someone outside the Space`;
   const w =

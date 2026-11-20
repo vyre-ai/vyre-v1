@@ -10,9 +10,10 @@ import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
+import { isHostOwnService } from "../../../lib/trust.ts";
+import { KEY_HOST_CAPS, carriesHandle, hostOfUrl, keyReadHost, keySendOf } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
-import { fail } from "../routes/errors.ts";
+import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
@@ -31,7 +32,12 @@ export interface GateHookDeps {
     string,
     (
       input: unknown,
-      seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+      seed: Pick<CtxSeed, "principal" | "thread"> & {
+        actingFor?: string | undefined;
+        setupGrant?: boolean | undefined;
+        trace?: CtxSeed["trace"];
+        approvedBy?: string | undefined;
+      },
     ) => boolean | Promise<boolean>
   >;
   /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
@@ -96,21 +102,40 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
+/** The refusals an evaluator chose to make, by identity: nothing a caller sends, and no error an inner call builds from caller input (which could carry any field), can be on this list. */
+const REFUSALS = new WeakSet<object>();
+export function markRefusal<T extends object>(e: T): T {
+  REFUSALS.add(e);
+  return e;
+}
+/** A refusal the key rule chose to make: the very error it marked, whatever class it is. */
+export function isMarkedRefusal(e: unknown): boolean {
+  return typeof e === "object" && e !== null && REFUSALS.has(e);
+}
+
 async function appliesWhen(
   d: Pick<GateHookDeps, "evaluators">,
   when: string | undefined,
   input: unknown,
-  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+  seed: Pick<CtxSeed, "principal" | "thread"> & {
+    actingFor?: string | undefined;
+    setupGrant?: boolean | undefined;
+    trace?: CtxSeed["trace"];
+  },
 ): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
   if (!evaluate) return whenHolds(when, input, seed);
   try {
     return await evaluate(input, seed);
-  } catch {
+  } catch (e) {
+    // a refusal the condition itself marked (details.refusal: an agent that may not use the key at all) is the answer; every other failure, a HostError from an inner call included, holds
+    if (isMarkedRefusal(e)) throw e;
     return true;
   }
 }
+
+export { KEY_HOST_CAPS, carriesHandle, keySendOf };
 
 interface Claims {
   v?: unknown;
@@ -148,6 +173,17 @@ function threadsIn(output: unknown): string[] {
   look(output, 0);
   return [...out];
 }
+
+/** An agent, an outside actor, or any service that is not one the host itself runs (an allow-list: a tenant's, a legacy or an unknown service id is held; svc_host, svc_engine, svc_sync are not). */
+export function actorLike(p: { kind: string; id: string }): boolean {
+  return (
+    p.kind === "agent" ||
+    p.kind === "actor" ||
+    (p.kind === "service" && !isHostOwnService({ kind: "service", id: p.id }))
+  );
+}
+
+const PERSONAL_SPACE = Symbol("personal space");
 
 export function createGateHook(d: GateHookDeps): GateHook {
   const threads = (id: string): string[] => d.threads?.(id) ?? [id];
@@ -220,6 +256,9 @@ export function createGateHook(d: GateHookDeps): GateHook {
         typeof done === "string"
       )
         await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
+      // an agent's call that waited for a person and ran on their yes: the host it sent the key to is approved for that item from now on, by that person, so the next call flows
+      if (KEY_HOST_CAPS.has(cap.name) && seed.approval !== undefined && seed.principal.kind !== "person")
+        await d.evaluators?.["vault.after_approved_key_use"]?.(input, seed);
       if (!seed.thread || seed.principal.kind !== "agent") return;
       // the mark follows the work: a task, a helper, a crew job or a chat the agent starts from a thread an Automation's outside-started Run marked carries the same mark, so the work it
       // does there is held as the Run's own is (lead 12 Nov)
@@ -247,7 +286,11 @@ export function createGateHook(d: GateHookDeps): GateHook {
       // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
       // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
       const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
-      const held = await appliesWhen(conditions, cap.gate?.when, input, { ...asked, thread: seed.thread });
+      const held = await appliesWhen(conditions, cap.gate?.when, input, {
+        ...asked,
+        thread: seed.thread,
+        setupGrant: seed.setupGrant,
+      });
       // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
       const said = held ? null : (d.outward?.(cap.name, input) ?? null);
       if (!held && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
@@ -425,6 +468,30 @@ export function moduleWhens(
   handlesOf?: (connectionId: string) => { connector: string; handles: string[] } | null,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
+  // How the Space sends email is set by one setting (mail.provider). An agent changing it, or putting it back to its default, waits for a person; every other setting, and a person's own change, goes straight through.
+  // Testing the Space's own mail server with nothing typed is open to everyone. Typing a host, port, username, security or password handle sends a sign-in to a place the person names: for an agent that waits for a person.
+  out["mail.smtp_override"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    ["host", "port", "security", "username", "passwordHandle"].some(
+      (k) => (input as Record<string, unknown> | null)?.[k] !== undefined,
+    );
+  // Pausing, resuming or marking a mailbox's sync stops incoming mail: held for an agent, an Automation (its step runs as a service named for the automation) and any other actor, and let through for the syncs' own
+  // service principals. A list, not "service": the sync's id is not an automation's.
+  out["mail.non_sync_actor"] = (_input, seed) => actorLike(seed.principal);
+  // an invitation, a role, a grant or another way in made by an agent, an outside actor, an Automation step or a service a tenant can make (svc_form_*, svc_site_*, svc_<32 hex>) is held; the host's own
+  // services (svc_host, svc_engine, svc_sync: the seed and the join flow among them) are not. The setup grant ("Act for me, including setup", owner ruling 3 Nov) names these, so an outside agent under it is not held.
+  out["gate.by_actor"] = (_input, seed) => actorLike(seed.principal) && seed.setupGrant !== true;
+  // a Vault key handed to someone is a way in to whatever it opens: held for an agent, outside actor, Automation step or tenant service, on vault.share and on access.share of a Vault item or folder (a share of anything
+  // else inside the Space stays under the caller's own access); the card names the key and who gets it (lib/hold-words.ts)
+  out["gate.vault_share_by_actor"] = (input, seed) => {
+    const t = (input as { resource?: { type?: unknown } } | null)?.resource?.type;
+    return actorLike(seed.principal) && seed.setupGrant !== true && (t === "vault_item" || t === "vault_folder");
+  };
+  // a changeset's approval is a reviewer's: any agent is held, push or not; a person's own approval is held only for a push to a protected branch
+  out["changesets.agent_or_push"] = (input, seed) =>
+    actorLike(seed.principal) || (input as { push?: unknown } | null)?.push === true;
+  out["mail.is_provider_setting"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
   out["computers.deletes_outside_work"] = (input, seed) =>
     seed.principal.kind !== "person" &&
@@ -467,6 +534,54 @@ export function moduleWhens(
   // for a person who may use the item, and so does anything this cannot name: a host it cannot read or an item it cannot resolve holds, it never lets the read through. The host and the item are read
   // with the same functions the card's lookup and the sender use (lib/key-target.ts, seams/key-ref.ts). A person's own read is theirs: the Vault releases the key only if they may use it.
   const approved = exports.get("automations")?.["keyHostApproved"];
+  // A Vault key sent to a place the call names (a sync spec's app, a sample read, a site's git repo) goes, without a person, only to a host approved for that item, by the same rule and store as a test read.
+  // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own. Anything this cannot read holds.
+  out["vault.key_host_unapproved"] = async (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const use = keySendOf(input);
+    // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
+    if (use === undefined) return carriesHandle(input);
+    const h = db();
+    if (use.host === null || !h || typeof approved !== "function") return true;
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    const ref = resolveKeyRef(h, use.handle, asker);
+    if (ref === null) return true;
+    if (seed.principal.kind === "agent") {
+      const r = (await call("access.check", {
+        principal: { kind: "agent", id: seed.principal.id },
+        ...(asker ? { actingFor: { kind: "person", id: asker } } : {}),
+        action: { level: "use" },
+        resource: { type: "vault_item", id: ref.id },
+      }).catch((e: unknown) => {
+        // the checker is a Team capability: a Personal Space answers permission.needs_team, and there the person's own agents use their own items (nothing is shared), so there is nothing to refuse on
+        if (e instanceof HostError && e.error.code === "permission.needs_team") return PERSONAL_SPACE;
+        return null;
+      })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
+      // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
+      if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
+        throw markRefusal(
+          fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
+            message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
+          }),
+        );
+    }
+    if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, use.host)) return false;
+    return !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, use.host));
+  };
+  out["vault.after_approved_key_use"] = async (input, seed) => {
+    const use = keySendOf(input);
+    const h = db();
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    if (use === undefined || use.host === null || !h || !asker || !callAs) return false;
+    const ref = resolveKeyRef(h, use.handle, asker);
+    if (ref === null) return false;
+    // through the capability the key's own page uses: it checks that the approving person may use the item. The host is recorded as approved by the person who pressed yes, not the one the agent works for
+    const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
+    await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: use.host }, approver).catch(
+      () => undefined,
+    );
+    return true;
+  };
   out["automations.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
     const host = keyReadHost(input);

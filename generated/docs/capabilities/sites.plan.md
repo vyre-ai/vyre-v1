@@ -11,7 +11,7 @@ What a deploy would do with this source, before running it: how it is built and 
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

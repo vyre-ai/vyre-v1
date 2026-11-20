@@ -117,6 +117,7 @@ test("seams.generic: the built-in registry covers the connector and mail-driver 
     "setGithubHost",
     "setGoogleHost",
     "setImapSecretResolver",
+    "setMailFileBytes",
     "setMailgunHost",
     "setMsHost",
     "setPluginsHost",

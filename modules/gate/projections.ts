@@ -23,6 +23,8 @@ export type ActKey =
   | "signature_send"
   | "spend_raise"
   | "signin_change"
+  | "admit"
+  | "access"
   | "github_approval"
   | "agent_erase"
   | "approve";
@@ -96,6 +98,8 @@ export const ACTS: readonly ActDef[] = [
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", {
     alwaysStops: true,
   }),
+  act("admit", "Let someone in or change who can reach what", "medium", "record_card", "asker"),
+  act("access", "Change the rules of access", "high", "record_card", "asker", { alwaysStops: true }),
   act("agent_erase", "Delete an agent for good", "high", "record_card", "asker", {
     alwaysStops: true,
     personOnly: true,

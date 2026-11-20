@@ -3,7 +3,7 @@
 // One door for every outgoing email. Automations, agents and people all arrive here, and every send is checked the same way:
 //   suppression list, consent flags, then the provider. Regular email (a welcome, a nurture step, an appointment confirmation, a newsletter) is an Automation, so it must leave when
 //   the flow says, inside the Space's own sending limits (Console > Messaging > Rules: send.cap, send.window, send.throttle; lib/send-limits.ts). There are no per-mailbox caps. A provider that pushes back answers provider.rate_limited, and the step retries.
-// Space sending goes out through the Space's Resend or Mailgun domain; a member's reply goes out through the member's own Gmail or
+// Space sending goes out through the Space's own domain at Resend, at Mailgun or over SMTP on any mail server (handlers/smtp.ts); a member's reply goes out through the member's own Gmail or
 // Graph mailbox. The "Drafted by an agent" line is added to every message an agent sent or drafted. Every send carries the trace id
 // in an X-Vyre-Trace header and on the message row.
 //
@@ -52,7 +52,12 @@ import {
   readParties,
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
+import { dkimOf } from "./extra/domains.ts";
+import { smtpDeliver } from "./smtp.ts";
 import { footerHtml, footerText, hasPublicAddress, unsubscribeLink } from "./unsubscribe.ts";
+import { MAX_HELD, autoReplyGuard, noteAutoSend, openHeld, recordHeld } from "./extra/inbound.ts";
+import { adoptChild, ownRetry, providerKeyOf, recordSentBy, recordTrail } from "./extra/delivery.ts";
+import { fillSend } from "./extra/template.ts";
 
 // ---- shapes
 
@@ -83,6 +88,11 @@ export interface SendIn {
   sendAt?: number;
   /** Carry an unsubscribe link and the List-Unsubscribe headers. */
   unsubscribe?: boolean;
+  /** A named template (mail.template.*) in place of subject and text, filled from the record and vars; the document's own version wins when documentId names one. */
+  templateKey?: string;
+  documentId?: string;
+  recordId?: string;
+  vars?: Record<string, unknown>;
   idempotencyKey: string;
 }
 
@@ -176,6 +186,11 @@ const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 const text = (v: unknown): string | undefined => (typeof v === "string" && v.length > 0 ? v : undefined);
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
+/** Every address a send names, whatever shape the input has (a bad one is refused later, with its own words). */
+const addressesOf = (input: { to?: unknown; cc?: unknown; bcc?: unknown }): string[] =>
+  [input.to, input.cc, input.bcc]
+    .flatMap((l) => (Array.isArray(l) ? l : []))
+    .flatMap((p) => (typeof (p as Party)?.address === "string" ? [(p as Party).address] : []));
 const refuse = (ctx: SendCtx, message: string): never => {
   throw fail("validation.precondition_failed", ctx.trace.traceId, { message });
 };
@@ -222,6 +237,7 @@ async function reserveSlot(
   wanted: number,
   id: string,
   mayHold = true,
+  ownRetry = false,
 ): Promise<{ at: number; note: string | null }> {
   const zone = await setting<string>(ctx, "profile.timezone", "UTC", zoneOk);
   const ticks: number[] = [];
@@ -235,7 +251,7 @@ async function reserveSlot(
     zone,
     limits: await limitsOf(ctx),
     ticks,
-    bulk: mayHold && p.actor !== "person",
+    bulk: mayHold && !ownRetry && p.actor !== "person", // our own retry of a message that already passed the window is not made to wait again
   });
   if (!plan.ok) {
     throw fail("validation.precondition_failed", ctx.trace.traceId, {
@@ -247,7 +263,9 @@ async function reserveSlot(
   return { at: plan.at, note: plan.held ? heldText(plan.held, plan.at, zone) : null };
 }
 
-const providerOk = (v: unknown): v is "resend" | "mailgun" => v === "resend" || v === "mailgun";
+type SpaceProvider = "resend" | "mailgun" | "smtp";
+const providerOk = (v: unknown): v is SpaceProvider => v === "resend" || v === "mailgun" || v === "smtp";
+const PROVIDER_NAME: Readonly<Record<SpaceProvider, string>> = { resend: "Resend", mailgun: "Mailgun", smtp: "SMTP" };
 const boolOk = (v: unknown): v is boolean => typeof v === "boolean";
 // ---- recipients
 
@@ -369,7 +387,12 @@ function authorizeSender(ctx: SendCtx, box: Row): void {
   const resource = { type: "mailbox", id: str(box, "id") };
   if (!perm) return allow(ctx, "use", resource);
   const decision = ctx.authorize({ perm, level: "use" }, resource);
-  if (decision.effect !== "allow") throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm } });
+  if (decision.effect === "allow") return;
+  // Per-address control (owner, 19 Nov 2026): a share of this one inbox at use level (access.share) is enough to send as it. comms.shared_send stays the blanket for people who run every shared inbox.
+  // `direct` counts only a grant on this inbox itself (or owning it): the Space role a Member holds reaches every inbox under the Space, and type-wide grants reach all of them, so without it
+  // every Member could send as every shared inbox. A share to one address therefore never lets anyone send as another.
+  if (ctx.authorize({ perm: null, level: "use", direct: true }, resource).effect === "allow") return;
+  throw fail("permission.no_grant", ctx.trace.traceId, { details: { perm } });
 }
 
 const memberProvider = (box: Row): boolean => ["google", "microsoft"].includes(str(box, "provider"));
@@ -442,7 +465,7 @@ interface Plan {
   suppressed: { address: string; reason: string }[];
   /** the Space sending domain row and provider, when the route is space_domain */
   domain: Row | null;
-  provider: "resend" | "mailgun";
+  provider: SpaceProvider;
   now: number;
 }
 
@@ -480,7 +503,8 @@ async function makePlan(
     !(await setting(ctx, "comms.agents_may_send", true, (v): v is boolean => typeof v === "boolean"))
   )
     refuse(ctx, "Agent sending is off in this Space. An admin can turn it on in Console.");
-  authorizeSender(ctx, box);
+  // our own retry, run by the host: the send was authorized when the person or Automation made it; the host service holds no grant on any mailbox
+  if (!ownRetry(ctx, (input as { idempotencyKey?: string }).idempotencyKey)) authorizeSender(ctx, box);
   if (input.senderId !== undefined && enforce) checkChosenSender(ctx, box);
   const actor = actorOf(ctx.principal.kind, ctx.origin);
   const route = resolveRoute(ctx, box, actor, requested);
@@ -489,7 +513,7 @@ async function makePlan(
       refuse(ctx, "This mailbox is not connected. Resume or reconnect it first.");
     if (!strOrNull(box, "connectionId")) refuse(ctx, "This mailbox has no connection to send through.");
   }
-  const provider = await setting<"resend" | "mailgun">(ctx, "mail.provider", "resend", providerOk);
+  const provider = await setting<SpaceProvider>(ctx, "mail.provider", "resend", providerOk);
   const domain = route === "space_domain" ? pickDomain(ctx, provider, str(box, "address")) : null;
   const suppressed = await screen(ctx, flat(composed));
   const refusedSet = new Set(suppressed.map((s) => s.address));
@@ -539,15 +563,49 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     "refId",
   );
   if (prior) return JSON.parse(prior) as SendOut;
+  // a template becomes a subject and a body here, once, so a message held for later carries its words and does not fill again
+  if (input.templateKey !== undefined) input = await fillSend(ctx, input);
+  else if (typeof input.subject !== "string") bad(ctx, "Subject is required.");
 
   const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
   // An agent's draft goes out as it is stored: its own words, recipients, Cc and subject, whatever a composer or a card holds at the moment of Send (the person edits it with mail.draft first). Never a preview.
   if (pending && strOrNull(pending, "draftedByAgent") && str(pending, "status") === "draft")
     input = asStored(ctx, input, pending);
   const parent = input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
+  // an Automation or an agent never answers machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender) by itself: that is how a loop starts
+  // Exempt: our own retry in flight (a resend of what a person or Automation already sent), and a held message coming back at its time (the guard ran, with the real actor, when it was composed).
+  const actor = actorOf(ctx.principal.kind, ctx.origin);
+  const comingBack = pending !== null && str(pending, "status") === "queued";
+  let stop: string | null = null;
+  if (!comingBack && !ownRetry(ctx, input.idempotencyKey)) {
+    stop = autoReplyGuard(ctx, input.replyToMessageId, actor, addressesOf(input));
+  }
   const composed = compose(ctx, input, pending);
   const p = await makePlan(ctx, input, composed, input.route, true);
   const now = p.now;
+  if (stop) {
+    // at most MAX_HELD open held drafts per sender and mailbox: past it the reply is refused, naming the oldest, and nothing is dropped silently
+    const mine = openHeld(ctx, str(p.box, "id"), ctx.principal.id);
+    if (mine.length >= MAX_HELD)
+      refuse(
+        ctx,
+        `Not sent. ${mine.length} automatic replies from this sender are already held in this mailbox. Send or delete them first. The oldest: ${mine
+          .slice(0, 3)
+          .map((h) => `${h.subject || "(no subject)"} (${h.id})`)
+          .join(", ")}.`,
+      );
+    // never silent: the message is kept as a draft marked held, with the reason on its trail and in the answer (the Automation's run shows it); a person who may use the mailbox sends it with one press
+    const held = pending ? str(pending, "id") : newId("eml", now);
+    writeRow(ctx, p, composed, parent, pending, held, "draft", now, null);
+    recordTrail(ctx, held, { kind: "held", at: now, detail: stop }, `held|${held}|${input.idempotencyKey}`);
+    recordHeld(ctx, held, str(p.box, "id"), ctx.principal.id, stop);
+    return remember(ctx, input.idempotencyKey, {
+      messageId: held,
+      status: "held",
+      suppressed: [],
+      note: `Held, not sent. ${stop} Open the draft and send it if it is right.`,
+    });
+  }
 
   // everyone suppressed: nothing is sent, nothing is stored; the refusal is an event per address
   for (const s of p.suppressed) {
@@ -569,7 +627,7 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
 
   const sendable: Composed = narrow(composed, p.allowed);
   if (p.route === "space_domain" && !p.domain)
-    refuse(ctx, `No verified ${p.provider} sending domain. Add and verify one in Console, Comms.`);
+    refuse(ctx, `No verified ${PROVIDER_NAME[p.provider]} sending domain. Add and verify one in Console, Comms.`);
 
   // a link is one person's, so a message that carries links goes out once per recipient
   if (input.unsubscribe === true && p.allowed.length > 1 && !pending) {
@@ -587,12 +645,19 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
+  if (!comingBack && !ownRetry(ctx, input.idempotencyKey))
+    noteAutoSend(
+      ctx,
+      actor,
+      input.replyToMessageId,
+      p.allowed.map((a) => a.address),
+    );
   let when = Math.max(now, input.sendAt ?? now);
   const row = pending ? str(pending, "id") : newId("eml", now);
   // the Space's sending limits; a queued message coming back at its time already holds its slot
   let note: string | null = null;
   if (!(pending && str(pending, "status") === "queued")) {
-    const slot = await reserveSlot(ctx, p, when, row);
+    const slot = await reserveSlot(ctx, p, when, row, true, ownRetry(ctx, input.idempotencyKey));
     when = slot.at;
     note = slot.note;
   }
@@ -620,7 +685,16 @@ export async function send(ctx: SendCtx, input: SendIn): Promise<SendOut> {
     });
   }
 
-  const sent = await deliver(ctx, p, sendable, parent, pending, row, input.unsubscribe === true);
+  const sent = await deliver(
+    ctx,
+    p,
+    sendable,
+    parent,
+    pending,
+    row,
+    input.unsubscribe === true,
+    ownRetry(ctx, input.idempotencyKey) ? input.idempotencyKey : undefined,
+  );
   return remember(ctx, input.idempotencyKey, { messageId: sent.messageId, status: "sent", suppressed: refused });
 }
 
@@ -681,6 +755,7 @@ async function deliver(
   pending: Row | null,
   id: string,
   unsubscribe = false,
+  retryKey?: string,
 ): Promise<Delivered> {
   const agentLine = (await agentLabelOn(ctx)) && (p.actor === "agent" || strOrNull(pending, "draftedByAgent") !== null);
   const signed: Composed = agentLine
@@ -707,11 +782,14 @@ async function deliver(
   const rfcId = p.route === "space_domain" ? `<${id}@${domain}>` : null;
   const now = ctx.now();
   writeRow(ctx, p, final, parent, pending, id, "queued", now, rfcId);
+  recordSentBy(ctx, id); // who asked, kept as data: the first record stands
+  // our own retry: tied to what it retries and credited to the original sender before the provider is called, so a failure after the provider accepts it can be told from one before
+  if (retryKey) adoptChild(ctx, id, retryKey);
   let providerId: string | null;
   try {
     providerId =
       p.route === "space_domain"
-        ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId)
+        ? await viaSpaceDomain(ctx, p, final, parent, id, rfcId, retryKey ? providerKeyOf(retryKey) : undefined)
         : await viaMailbox(ctx, p.box, final, id, parent);
   } catch (e) {
     ctx.db.run(
@@ -884,6 +962,7 @@ async function viaSpaceDomain(
   parent: Row | null,
   id: string,
   rfcId: string | null,
+  providerKey?: string,
 ): Promise<string> {
   const domain = p.domain ? str(p.domain, "name") : "";
   const own = str(p.box, "address");
@@ -900,7 +979,8 @@ async function viaSpaceDomain(
         ? { "List-Unsubscribe": `<${c.listUnsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" }
         : {}),
     },
-    idempotencyKey: id, // the provider capabilities need a key; the message id is stable across the one delivery of this message
+    // the provider capabilities need a key. A retry uses one key for every attempt (the message it retries and the address), so a provider that dedupes on it never sends twice; any other send uses its message id
+    idempotencyKey: providerKey ?? id,
   };
   if (title && title !== own) body.fromName = title;
   if (c.cc.length) body.cc = c.cc.map((x) => x.address);
@@ -909,6 +989,17 @@ async function viaSpaceDomain(
   if (c.text !== undefined) body.text = c.text;
   if (c.html !== undefined) body.html = c.html;
   if (c.files.length) body.attachments = await attachmentsOf(ctx, c.files);
+  if (p.provider === "smtp") {
+    const { mailboxId: _box, idempotencyKey: _key, ...mail } = body;
+    const dkim = p.domain ? dkimOf(p.domain) : null;
+    return smtpDeliver(ctx, {
+      ...(mail as Omit<Parameters<typeof smtpDeliver>[1], "messageId" | "dkim">),
+      messageId: rfcId ?? `<${id}@${domain}>`,
+      rowId: id,
+      ...(p.domain ? { domainId: str(p.domain, "id") } : {}),
+      ...(dkim ? { dkim: { domain, ...dkim } } : {}),
+    });
+  }
   const tags = [{ name: "message_id", value: id }];
   if (p.provider === "resend") {
     body.tags = tags;
@@ -1053,6 +1144,9 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
     const pending = input.draftId === undefined ? null : loadPending(ctx, input.draftId, input.mailboxId);
     const parent =
       input.replyToMessageId === undefined ? null : loadParent(ctx, input.replyToMessageId, input.mailboxId);
+    const asActor = actorOf(ctx.principal.kind, ctx.origin);
+    const asStop = autoReplyGuard(ctx, input.replyToMessageId, asActor, addressesOf(input));
+    if (asStop) refuse(ctx, `Not sent. ${asStop}`);
     const composed = compose(ctx, input, pending);
     const p = await makePlan(ctx, input, composed, "mailbox", true);
     if (p.suppressed.length > 0) {
@@ -1063,6 +1157,7 @@ export async function sendAs(ctx: SendCtx, input: SendAsIn): Promise<{ messageId
     // a reply from a member's own mailbox is never held (it has nowhere to wait), but it counts toward the Space's daily limit and is refused over it
     if (!(pending && str(pending, "status") === "queued")) await reserveSlot(ctx, p, p.now, id, false);
     const sent = await deliver(ctx, p, composed, parent, pending, id);
+    noteAutoSend(ctx, asActor, input.replyToMessageId, addressesOf(input)); // counted once it has gone, not when it was merely asked for
     const out = sent.providerId
       ? { messageId: sent.messageId, providerId: sent.providerId }
       : { messageId: sent.messageId };

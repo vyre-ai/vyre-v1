@@ -206,6 +206,12 @@ export async function createTestSpace(o: TestSpaceOptions = {}): Promise<TestSpa
         published.push(...evs);
       },
       idem: log.idempotency(),
+      // this Space has no approvals: a capability that declares a Gate is called as the person pressing it, so no Gate ever holds (invoke refuses a declared Gate it cannot ask)
+      gate: {
+        applies: () => null,
+        park: () => Promise.reject(new Error("the test Space never parks a call")),
+        verify: () => false,
+      },
       now: clock.now,
     });
     return invoke;

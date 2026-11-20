@@ -19,6 +19,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "schema.restore_field": async (ctx) => { throw new VyreErr(notImplemented("schema.restore_field", ctx.trace)); },
   "schema.sensitivity.scan": async (ctx) => { throw new VyreErr(notImplemented("schema.sensitivity.scan", ctx.trace)); },
   "schema.set_label": async (ctx) => { throw new VyreErr(notImplemented("schema.set_label", ctx.trace)); },
+  "schema.set_mergeable": async (ctx) => { throw new VyreErr(notImplemented("schema.set_mergeable", ctx.trace)); },
   "schema.trash.list": async (ctx) => { throw new VyreErr(notImplemented("schema.trash.list", ctx.trace)); },
   "schema.types.get": async (ctx) => { throw new VyreErr(notImplemented("schema.types.get", ctx.trace)); },
   "schema.types.list": async (ctx) => { throw new VyreErr(notImplemented("schema.types.list", ctx.trace)); },

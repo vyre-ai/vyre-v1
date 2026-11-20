@@ -11,7 +11,7 @@ Start the owner full export as a zip (never secret values, never other people pr
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

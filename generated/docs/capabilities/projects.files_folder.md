@@ -19,7 +19,7 @@ The folder that holds a record's files: a project's own, else Files > Projects >
 | HTTP | POST /v1/projects/files_folder |
 | MCP tool | projects_files_folder (records) |
 | CLI | none |
-| Emits | none |
+| Emits | project.folder_unfollowed |
 
 ## Input
 
