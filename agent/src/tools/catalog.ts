@@ -72,15 +72,18 @@ export function oneLine(cap: string, text: string): string {
 }
 
 /**
- * The tools added for the full set (MCP_TOOLS) show a model the names, types, enums and examples of their inputs, not the id patterns a validator uses (an example is what lets a first call be shaped): the server still checks every call
+ * The tools added for the full set (MCP_TOOLS) show a model the names, types, enums and examples of their inputs, not the id patterns a validator uses (an example is what lets a first call be shaped; a format pattern stays, as the words of a refusal come from it): the server still checks every call
  * against the full schema, and a model that writes a wrong id is told so in words. A property that is itself called "pattern" lives under "properties" and stays.
  */
+/** The pattern of an id (^agt_[a-z0-9]+$): the examples already show its shape. A format pattern (an address, a date, a host) stays, because the words of a refusal are made from it (agent/src/tools/reject.ts). */
+const ID_PATTERN = /^\^[a-z]+_\[a-z0-9\]\+\$$/;
+
 function leanSchema(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(leanSchema);
   if (v === null || typeof v !== "object") return v;
   const out: Record<string, unknown> = {};
   for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
-    if (k === "pattern" && typeof x === "string") continue;
+    if (k === "pattern" && typeof x === "string" && ID_PATTERN.test(x)) continue;
     out[k] =
       k === "properties" && typeof x === "object" && x !== null
         ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, sch]) => [n, leanSchema(sch)]))

@@ -15,6 +15,11 @@
       "dev": false
     },
     {
+      "name": "tldts-core",
+      "reason": "the part of tldts that does the matching (a dependency of tldts, used only through it by modules/mcp/client-doc.ts); MIT, no dependencies",
+      "dev": false
+    },
+    {
       "name": "@sinclair/typebox",
       "reason": "schemas",
       "dev": false
