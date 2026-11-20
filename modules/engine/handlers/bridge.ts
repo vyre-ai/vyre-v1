@@ -1196,7 +1196,14 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   /** Threads whose last open failed because the thread could not be read (not because it has no agents): the skip says so, so a log never calls an unreadable chat an empty one. */
   const unreadable = new Set<string>();
-  async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
+  async function open(
+    ctx: EngineCtx,
+    threadId: string,
+    skipId: string,
+    authorId: string,
+    /** the reader is not the one who wrote (an agent speaking for a person): that person not seeing the chat is no fault, so it is not warned about */
+    forAnother = false,
+  ): Promise<boolean> {
     unreadable.delete(threadId);
     const read = reader(ctx, authorId, threadId);
     if (!engine) return false;
@@ -1207,6 +1214,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     } catch (e) {
       // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
       unreadable.add(threadId);
+      if (forAnother) return false;
       ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", {
         traceId: ctx.trace.traceId,
         threadId,
@@ -1337,8 +1345,17 @@ export function createBridge(o: BridgeOptions): Bridge {
         /* not readable: route it as any message */
       }
     }
-    if (!(await open(ctx, threadId, messageId, readAs)))
-      return { skipped: unreadable.delete(threadId) ? "thread_unreadable" : "no_agents" };
+    // an agent that speaks for a person writes in chats that person may not be in (an agent's message to someone else, sent for its person): reading as that person is refused there, and that is not a fault. Nothing routes it,
+    // as before, and it is not logged as a problem.
+    const forAnother = a.kind === "agent" && readAs !== str(a.id);
+    if (!(await open(ctx, threadId, messageId, readAs, forAnother)))
+      return {
+        skipped: unreadable.delete(threadId)
+          ? forAnother
+            ? "speaker_not_in_thread"
+            : "thread_unreadable"
+          : "no_agents",
+      };
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId: home, messageId })) as {
       message: Row;
@@ -1879,7 +1896,12 @@ export const bridgeConsumers = {
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
       const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
       // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
-      if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {
+      if (
+        res.skipped &&
+        res.skipped !== "known" &&
+        res.skipped !== "own_post" &&
+        res.skipped !== "speaker_not_in_thread"
+      ) {
         ctx.log.warn("the engine bridge did not run a turn for a message", {
           traceId: ctx.trace.traceId,
           reason: res.skipped,
