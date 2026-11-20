@@ -937,7 +937,8 @@ export class AccessStore {
     };
     const write = (): void => {
       const rows: unknown[][] = [];
-      for (const id of ids) {
+      for (const id of new Set(ids)) {
+        // an id named twice is written once
         const r = this.resources.get(id);
         if (r) rows.push([r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
       }

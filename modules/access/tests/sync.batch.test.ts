@@ -3,6 +3,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NOW, SPACE, ctxOf, fresh, sync } from "../fixtures/incremental.ts";
+import { loadStore } from "../projections.ts";
+import type { Db } from "../projections.ts";
 
 test("a batch of two thousand new objects is written in one stretch of under 100 ms, and every object is in the tables", () => {
   const { db: raw } = fresh("batch1000");
@@ -39,4 +41,26 @@ test("a batch of two thousand new objects is written in one stretch of under 100
   assert.equal(n, 2000);
   assert.ok(took <= 100, `${Math.round(took)} ms in one stretch (budget 100 ms)`);
   void NOW;
+});
+
+test("an object named twice in one batch is written once", () => {
+  const { db: raw } = fresh("batchdup");
+  const store = loadStore(raw);
+  store.resources.set("rec_dup", { id: "rec_dup", type: "record", parentId: null, label: 1, ownerId: "usr_owner", holds: 0, row: null } as never);
+  const writes: string[] = [];
+  const spy: Db = {
+    all: (sql, ...a) => raw.all(sql, ...a),
+    run: (sql, ...a) => {
+      writes.push(sql);
+      return raw.run(sql, ...a);
+    },
+  };
+  store.persistResources(spy, ["rec_dup", "rec_dup", "rec_dup"], false);
+  assert.equal(writes.filter((w) => /^INSERT INTO access_resources/.test(w)).length, 1, "one insert statement");
+  const n = (raw.all("SELECT count(*) AS n FROM access_resources WHERE id = 'rec_dup'")[0] as { n: number }).n;
+  assert.equal(n, 1);
+  const params: unknown[][] = [];
+  const spy2: Db = { all: spy.all, run: (sql, ...a) => (params.push(a), raw.run(sql, ...a)) };
+  store.persistResources(spy2, ["rec_dup", "rec_dup"], false);
+  assert.equal(params.find((p) => p.length === 7)?.length, 7, "one row of seven values, not two");
 });
