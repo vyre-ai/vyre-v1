@@ -59,8 +59,9 @@ export const PAGES: readonly PageDef[] = [
   p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   // the setting engine.egress, saved with settings.set_space (policy.manage), so the page shows to whoever may set Space policy, like the Space defaults below
   p("internet", "Internet access", "AI", "internet", "policy.manage", "access.policies"),
-  p("email", "Email setup", "Comms", "mail", "comms.domains", "mail.domains"),
+  // two pages draw the sending-domains screen: a link to the screen alone ("mail.domains", an app's Add sending domain, a deep link to one domain) opens the first, so Sending domains stays first; the Email page is reached by its own name (the sidebar passes it)
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
+  p("email", "Email setup", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
   p("templates", "Email templates", "Comms", "mail", "comms.templates", "mail.templates"),
