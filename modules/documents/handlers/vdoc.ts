@@ -396,7 +396,17 @@ export function inline(src: string): Run[] {
       i = !i;
     } else if (c === "`") {
       continue;
-    } else buf += c;
+    } else {
+      // a run of ordinary letters goes in as one slice: the characters that mean something here are \ * _ and the backtick
+      let e = k + 1;
+      while (e < s.length) {
+        const code = s.charCodeAt(e);
+        if (code === 92 || code === 42 || code === 95 || code === 96) break;
+        e++;
+      }
+      buf += s.slice(k, e);
+      k = e - 1;
+    }
   }
   flush();
   return out;
