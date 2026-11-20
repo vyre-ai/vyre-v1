@@ -751,4 +751,4 @@ Signed: lead, 17 Nov 2026
 - Not a contract change, the rule the tests pin: a version the server saves is marked as checked (`automations_checked`, migration `0017_checked.sql`) and a step of an unmarked version does not fail on such a name; a version made from a marked one (a restore, a copy, a promote, a schedule-limit change) stays marked.
 - Snapshots: docs/frozen/snapshots/runs.json.
 
-Signed: pending, lead
+Signed: lead, 2026-11-20
