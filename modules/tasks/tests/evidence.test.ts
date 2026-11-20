@@ -89,8 +89,13 @@ test("evidence never settles a held act or an Approve task, and done_when on one
       return true;
     });
   });
-  const held = (await h.call("tasks.create", newTask({ title: "Held", source: { kind: "gate", id: "act_1" } }), me))
-    .task.id as string;
+  // a held act is made the way the Gate makes it: by the server
+  const held = (
+    await h.call("tasks.create", newTask({ title: "Held", source: { kind: "gate", id: "act_1" } }), {
+      id: "svc_system",
+      kind: "service",
+    })
+  ).task.id as string;
   await assert.rejects(h.call("tasks.done_when", { taskId: held, kind: "vault_item", key: "k" }, me));
   // even a proof that was somehow stored does not close it
   h.db.run("INSERT INTO tasks_proof (task_id, kind, key) VALUES (?, 'vault_item', 'k')", held);
@@ -144,7 +149,7 @@ test("an agent states what proves a task done when it creates it, in one call; a
     h.call(
       "tasks.create",
       newTask({ title: "Held", source: { kind: "gate", id: "act_9" }, doneWhen: "vault_item:k" }),
-      me,
+      { id: "svc_system", kind: "service" },
     ),
   );
 });
