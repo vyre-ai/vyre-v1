@@ -27,6 +27,7 @@ import {
   submitMount,
   togglePerson,
   unmountWords,
+  walkAllowed,
   walkInto,
   walkTo,
   whoLabel,
@@ -562,4 +563,11 @@ test("OneDrive opens its one drive at once, and the crumbs do not say OneDrive t
   const docs = await browse(s.data.call, d, s.data.accounts);
   const inDocs = walkInto(d, docs.items[0] as BrowseItem);
   assert.deepEqual(crumbs(inDocs), ["OneDrive", "Documents"]);
+});
+
+test("the folder-walk guard is on time alone: a second press within 300 ms is dropped whatever row it lands on, a later one is allowed", () => {
+  assert.equal(walkAllowed(1000, 1100), false, "the second click of a double click");
+  assert.equal(walkAllowed(1000, 1299), false);
+  assert.equal(walkAllowed(1000, 1300), true, "a person retargeting after the list changed");
+  assert.equal(walkAllowed(0, Date.now()), true, "the first walk, nothing before it");
 });

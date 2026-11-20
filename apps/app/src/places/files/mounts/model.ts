@@ -292,3 +292,7 @@ export function unmountWords(row: Pick<MountRow, "name" | "kind" | "provider">):
     row.kind === "local" ? "their folder on your computer" : row.kind === "github" ? "GitHub" : row.provider;
   return { title: "Unmount " + `“${row.name}”` + "?", body: `The files stay in ${where}.` };
 }
+
+/** A double click is two presses; the second lands on a row of the folder the first just entered. A walk is allowed at most once in this long, whatever row is pressed. */
+export const WALK_GUARD_MS = 300;
+export const walkAllowed = (lastAt: number, now: number): boolean => now - lastAt >= WALK_GUARD_MS;
