@@ -2,7 +2,7 @@
 // Put back after a moment passed is not undone a minute later; the clock says it once.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { harness } from "../fixtures/db.ts";
+import { harness, reasonOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { DAY, alice, bot, newTask } from "../fixtures/seed.ts";
 
@@ -248,4 +248,27 @@ test("a task that someone kept keeps its 90 days when it is moved", async () => 
   await h.call("tasks.transition", { taskId: id, to: "doing" }, me);
   const kept = h.db.all("SELECT kept_until FROM tasks_ask WHERE task_id = ?", id) as { kept_until: number | null }[];
   assert.equal(kept.length, 1, "the keep mark is still there");
+});
+
+test("the card is a person's own: an agent or a service can neither read it nor answer for a person, a person can", async () => {
+  const h = harness();
+  const id = await mk(h, { title: "Check the report" });
+  h.advance(15 * DAY);
+  await tick(h);
+  for (const who of [agent, svc]) {
+    await assert.rejects(h.call("tasks.still_needed", {}, who), (e) => {
+      assert.equal(reasonOf(e), "wrong_actor");
+      return true;
+    });
+    await assert.rejects(h.call("tasks.still_answer", { taskIds: [id], answer: "keep" }, who), (e) => {
+      assert.equal(reasonOf(e), "wrong_actor");
+      return true;
+    });
+  }
+  assert.equal((await get(h, id)).archived, undefined, "nothing was answered for the person");
+  assert.equal((await card(h)).total, 1, "the person still sees it");
+  assert.equal(
+    ((await h.call("tasks.still_answer", { taskIds: [id], answer: "keep" }, me)) as { kept: number }).kept,
+    1,
+  );
 });
