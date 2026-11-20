@@ -186,6 +186,23 @@ export async function onTurn(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   return [g.id];
 }
 
+/**
+ * What an event says about an AI account, in words that are true for it, or null when it is not about one. provider.added (a pasted key, a subscription sign-in, a Space key) and a shared subscription mean an
+ * account was connected. A new Vault item of kind ai_subscription is the same; one of kind api_key is a key that may or may not be an AI account; a changed item says nothing about its kind; every other kind of
+ * item (a login, a card, a note, an OAuth token refresh) is not an account and pulls nothing forward.
+ */
+export function accountArrival(ev: Ev): string | null {
+  if (ev.name === "provider.added" || ev.name === "engine.subscription_share_changed")
+    return "an AI account was connected";
+  if (ev.name === "vault.item_created") {
+    const kind = str(ev.payload["kind"]);
+    if (kind === "ai_subscription") return "an AI account was connected";
+    return kind === "api_key" || kind === "" ? "a key was saved, so it tried again" : null;
+  }
+  if (ev.name === "vault.item_updated") return "a key was saved, so it tried again";
+  return null;
+}
+
 /** Something that may have cleared what holds a goal's check-ins back (a turn of its lead ended well, a sign-in was saved): the held wake-up is asked again, once. */
 export async function onCleared(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   ensure(ctx.db);
@@ -206,7 +223,8 @@ export async function onCleared(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
   }
   // an AI account was saved while a check-in waited out its backoff after a passing trouble (the server stopped, no account yet): ask now, once. The wake keeps its attempt count, so a check-in that fails
   // again goes back to the longer wait and is never asked in a tight loop; only another saved account pulls it forward again.
-  if (ev.name !== "turn.completed") {
+  const arrived = accountArrival(ev);
+  if (arrived) {
     const now = ctx.now();
     for (const r of ctx.db.all(
       "SELECT goal_id FROM goals_wake WHERE state = 'pending' AND due_at > ? AND attempt < ? AND (',' || reason || ',') LIKE '%,retry,%'",
@@ -220,7 +238,7 @@ export async function onCleared(ctx: GoalsCtx, ev: Ev): Promise<string[]> {
         now,
         g.id,
       );
-      note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} is asked to check in again: an AI account was saved.`);
+      note(ctx, g.id, "wake", `${whoToken(g.leadAgentId)} is asked to check in again: ${arrived}.`);
       dispatch(ctx, g);
       woken.push(g.id);
     }
