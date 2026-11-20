@@ -14,6 +14,7 @@ const ROWS = 12_000;
 const BUDGET_MS = 100; // CPU time of one pull (the unsliced scan took 1,414 ms)
 /** A revoke must reach the device fast: 12,000 rows all revoked are hidden within this many pulls and this much wall time. */
 const MAX_PULLS = 100;
+const WALL_PULL_MS = 500;
 const MAX_WALL_MS = 10_000;
 
 const cpuMs = (u: NodeJS.CpuUsage): number => (u.user + u.system) / 1000;
@@ -44,12 +45,15 @@ test("a rescan over a big Space is done in slices: every pull is at most 100 ms 
   const began = performance.now();
   const hidden = new Set<string>();
   let slowest = 0,
+    slowestWall = 0,
     calls = 0;
   for (;;) {
+    const w0 = performance.now();
     // The work of one pull is its CPU time (user plus system): that is what holds the event loop, and a pause of the machine (another process, a disk wait) is not counted against it.
     const before = process.cpuUsage();
     const r = await pull(cur);
     slowest = Math.max(slowest, cpuMs(process.cpuUsage(before)));
+    slowestWall = Math.max(slowestWall, performance.now() - w0);
     calls++;
     for (const h of r.hide) hidden.add(h.id);
     cur = r.next;
@@ -62,6 +66,8 @@ test("a rescan over a big Space is done in slices: every pull is at most 100 ms 
   assert.ok(calls > 2, "the work was split over several pulls");
   assert.ok(calls <= MAX_PULLS, `${calls} pulls to hide ${ROWS} rows (at most ${MAX_PULLS})`);
   assert.ok(wall <= MAX_WALL_MS, `the revoke took ${Math.round(wall)} ms (at most ${MAX_WALL_MS})`);
+  // a wait that is not CPU (a lock, a disk) still holds the loop: a generous wall-clock bound on every pull beside the CPU bound
+  assert.ok(slowestWall <= WALL_PULL_MS, `one pull took ${Math.round(slowestWall)} ms of wall time (at most ${WALL_PULL_MS} ms)`);
   assert.ok(slowest <= BUDGET_MS, `one pull was ${Math.round(slowest)} ms of work (budget ${BUDGET_MS} ms)`);
 });
 
