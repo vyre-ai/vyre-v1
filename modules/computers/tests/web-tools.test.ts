@@ -262,6 +262,7 @@ test("a search or an address that looks like a secret is refused with what it lo
   const w = await world();
   const asked = net({});
   const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_shapes" } };
+  // secret-scan: fake
   for (const query of ["why does sk-live-abcdef0123456789abcd fail", "ghp_abcdefghijklmnopqrstuvwxyz0123456789 clone"])
     await assert.rejects(
       tool["computers.chrome.search"]!(ctx, { query }),
@@ -271,6 +272,7 @@ test("a search or an address that looks like a secret is refused with what it lo
     );
   await assert.rejects(
     tool["computers.chrome.read"]!(ctx, {
+      // secret-scan: fake
       url: "https://docs.example.com/a?token=ghp_abcdefghijklmnopqrstuvwxyz0123456789",
     }),
     (e: any) => codeOf(e) === "validation.bad_input" && /looks like it carries a secret/.test(e?.error?.message ?? ""),
