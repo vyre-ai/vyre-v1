@@ -18280,7 +18280,7 @@
       "blocks": [],
       "cap": "documents.fields",
       "deferred": false,
-      "description": "List the tags a template needs: text, date, money, list, conditions and loops",
+      "description": "List the fields a template needs (the {blanks} in it): text, date, money, lists and conditions",
       "effects": "read",
       "inputSchema": {
         "properties": {
@@ -18306,14 +18306,15 @@
       "blocks": [],
       "cap": "documents.fill",
       "deferred": false,
-      "description": "Fill a template into a new file in a folder; missing required tags stop the fill and are listed",
+      "description": "Fill a template into a new file in a folder; missing required fields stop the fill and are listed",
       "effects": "write",
       "inputSchema": {
         "properties": {
           "format": {
             "enum": [
               "docx",
-              "pdf"
+              "pdf",
+              "md"
             ],
             "type": "string"
           },
@@ -18333,7 +18334,7 @@
           },
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
+              "description": "Record field key that feeds the template field",
               "type": "string"
             },
             "type": "object"
@@ -18382,9 +18383,111 @@
     },
     {
       "blocks": [],
+      "cap": "documents.make",
+      "deferred": false,
+      "description": "Make a document for a record from a template by name: it lands in the record's files and the answer is the file and what was missing, never the text",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "format": {
+            "enum": [
+              "docx",
+              "pdf",
+              "md"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "signingDate": {
+            "description": "ISO date",
+            "examples": [
+              "2026-10-24"
+            ],
+            "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+            "type": "string"
+          },
+          "template": {
+            "description": "The template's name, or its file id",
+            "examples": [
+              "Service agreement"
+            ],
+            "type": "string"
+          },
+          "values": {
+            "additionalProperties": true,
+            "type": "object"
+          }
+        },
+        "required": [
+          "template",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "documents_make",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "documents.make_pdf",
+      "deferred": false,
+      "description": "Make a PDF of a Vyre document (.md) in a folder; a blank still in its text stops it and is named",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "intoFolderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId",
+          "intoFolderId",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "documents_make_pdf",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "documents.mark_template",
       "deferred": false,
-      "description": "Mark a docx file as a template, or unmark it",
+      "description": "Mark a Word file (.docx) or a Vyre document (.md) as a template, optionally for one record type, or unmark it",
       "effects": "write",
       "inputSchema": {
         "properties": {
@@ -18397,6 +18500,13 @@
           },
           "isTemplate": {
             "type": "boolean"
+          },
+          "recordType": {
+            "description": "Key of the record type this template is for",
+            "examples": [
+              "customer"
+            ],
+            "type": "string"
           }
         },
         "required": [
@@ -18420,7 +18530,7 @@
         "properties": {
           "mapping": {
             "additionalProperties": {
-              "description": "Record field key that feeds the template tag",
+              "description": "Record field key that feeds the template field",
               "type": "string"
             },
             "type": "object"
@@ -18464,6 +18574,32 @@
     },
     {
       "blocks": [],
+      "cap": "documents.signing",
+      "deferred": false,
+      "description": "Where the signers of a PDF made from a Vyre document sign, and what it was filled from",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "fileId": {
+            "examples": [
+              "fil_a1b2c3"
+            ],
+            "pattern": "^fil_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fileId"
+        ],
+        "type": "object"
+      },
+      "name": "documents_signing",
+      "planMode": "allowed",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "documents.templates.list",
       "deferred": false,
       "description": "List files marked as templates the caller can open",
@@ -18484,6 +18620,17 @@
             "maximum": 500,
             "minimum": 1,
             "type": "integer"
+          },
+          "name": {
+            "description": "Only the template with this name, any case, with or without .docx",
+            "type": "string"
+          },
+          "recordType": {
+            "description": "Only templates for this record type",
+            "examples": [
+              "customer"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -21447,6 +21594,10 @@
               "description": "Any JSON value"
             },
             "type": "array"
+          },
+          "plainOk": {
+            "description": "Send a PDF set in the plain page look (no letterhead or pictures) anyway",
+            "type": "boolean"
           },
           "provider": {
             "enum": [

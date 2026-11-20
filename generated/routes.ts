@@ -10353,6 +10353,45 @@ const routes1: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/documents/make",
+    "cap": "documents.make",
+    "v": 1,
+    "module": "documents",
+    "effects": "write",
+    "permission": null,
+    "level": "use",
+    "resource": {
+      "type": "record",
+      "id": "/recordId"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/documents/make_pdf",
+    "cap": "documents.make_pdf",
+    "v": 1,
+    "module": "documents",
+    "effects": "write",
+    "permission": "files.write",
+    "level": "edit",
+    "resource": {
+      "type": "file",
+      "create": true,
+      "parent": "/intoFolderId"
+    },
+    "idempotency": "key",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/documents/mark_template",
     "cap": "documents.mark_template",
     "v": 1,
@@ -10382,6 +10421,25 @@ const routes1: Route[] = [
     "resource": {
       "type": "file",
       "id": "/templateFileId"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/documents/signing",
+    "cap": "documents.signing",
+    "v": 1,
+    "module": "documents",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "file",
+      "id": "/fileId"
     },
     "idempotency": "natural",
     "risk": "low",
@@ -11056,7 +11114,10 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes2: Route[] = [
   {
     "method": "POST",
     "path": "/v1/email_builder/restore_version",
@@ -11110,10 +11171,7 @@ const routes1: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes2: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/email_builder/saved_blocks/save",
@@ -16600,7 +16658,10 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes3: Route[] = [
   {
     "method": "POST",
     "path": "/v1/goals/extend",
@@ -16654,10 +16715,7 @@ const routes2: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes3: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/goals/get",
@@ -22097,7 +22155,10 @@ const routes3: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes4: Route[] = [
   {
     "method": "POST",
     "path": "/v1/mail/health",
@@ -22151,10 +22212,7 @@ const routes3: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes4: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/mail/mailbox/create",
@@ -27599,7 +27657,10 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes5: Route[] = [
   {
     "method": "POST",
     "path": "/v1/ms/workbook/update_range",
@@ -27654,10 +27715,7 @@ const routes4: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes5: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/network/endpoints",
@@ -33116,7 +33174,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/schema/layout/get",
@@ -33172,10 +33233,7 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/schema/restore_field",
@@ -38627,7 +38685,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/telephony/decline",
@@ -38682,10 +38743,7 @@ const routes6: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/telephony/hold",

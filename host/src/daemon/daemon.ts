@@ -311,7 +311,7 @@ import { createGitProxy } from "../seams/git-proxy.ts";
 import type { GitProxyPort } from "../seams/git-proxy.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
-import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
+import { createDocumentsHost, createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -5051,6 +5051,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
       });
       const hostDrivers: Record<string, SeamDriver> = {
+        // Word to PDF: LibreOffice where this machine has it, else the converter image through the machine's Docker engine, or on a Team server through the sites runner (which alone holds the socket and lets
+        // only the converter image run); nothing where neither answers, and the module then sets the words in its plain look
+        configureDocuments: () =>
+          createDocumentsHost(
+            cfg.spaceKind !== "personal" && computersRunnerSocket()
+              ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } }
+              : {},
+          ),
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
         setRecordsVault: () => sealedVault(),

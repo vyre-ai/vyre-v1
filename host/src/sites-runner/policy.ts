@@ -15,6 +15,7 @@ import {
   isComputerImage,
   isSbrowserImage,
 } from "./computers-policy.ts";
+import { CONV_NAME, isConverterImage } from "./converter-policy.ts";
 import {
   WS_INIT_NAME,
   WS_NAME,
@@ -301,10 +302,11 @@ export function judge(
     return Object.values(ADDON_IMAGES).includes(ref) ||
       isComputerImage(ref) ||
       isWorkspaceImage(ref) ||
-      isSbrowserImage(ref)
+      isSbrowserImage(ref) ||
+      isConverterImage(ref)
       ? { ok: true, kind: "plain" }
       : no(
-          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer and workspace images may be fetched`,
+          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer, workspace, Space browser and Word converter images may be fetched`,
         );
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);
@@ -318,7 +320,8 @@ export function judge(
         Object.values(ADDON_IMAGES).includes(name) ||
         isComputerImage(name) ||
         isWorkspaceImage(name) ||
-        isSbrowserImage(name))
+        isSbrowserImage(name) ||
+        isConverterImage(name))
     )
       return { ok: true, kind: "plain" };
     if (m === "DELETE" && !img[2] && site) return { ok: true, kind: "plain" };
@@ -332,9 +335,12 @@ export function judge(
       HELPER_NAME_RE.test(name) ||
       WS_NAME.test(name) ||
       WS_INIT_NAME.test(name) ||
+      CONV_NAME.test(name) ||
       name === SBROWSER_NAME
       ? { ok: true, kind: "body", path: name }
-      : no("a site container is named vyre-site-..., a computer's vyre-comp-... and a workspace's vyre-ws-...");
+      : no(
+          "a site container is named vyre-site-..., a computer's vyre-comp-..., a workspace's vyre-ws-... and a converter's vyre-conv-<16 hex>",
+        );
   }
   if (m === "GET" && p === "/containers/json")
     return workspaceListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces may be read");

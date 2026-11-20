@@ -1,0 +1,1 @@
+A signature request that runs out is now ended and told once even when nobody opens it again: the sender's task closes, they are told, and a Flow can start from "A document is not signed in time". Flows can also start when a signer opens a document or a request is cancelled, and the events carry the record.

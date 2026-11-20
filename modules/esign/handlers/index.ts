@@ -8,6 +8,7 @@ import {
   cancelVyre,
   fetchVyre,
   isBuiltIn,
+  copyState,
   listAll,
   providersVyre,
   remind,
@@ -29,9 +30,33 @@ export const handlers = {
   ...sendHandlers,
   ...hookHandlers,
   "esign.send": async (ctx: Ctx, input: unknown) => {
-    if (isBuiltIn(ctx, rec(ctx, input).provider)) return sendVyre(ctx, input);
-    await prime();
-    return sendHandlers["esign.send"](ctx, input);
+    const o = rec(ctx, input);
+    // a copy set in the plain page look has no letterhead or pictures: it goes out only when the sender says so, and that choice is kept. A copy that could not be checked is held the same way.
+    const state = typeof o.fileId === "string" ? await copyState(ctx, o.fileId) : "exact";
+    if (state !== "exact" && o.plainOk !== true)
+      fail(
+        ctx,
+        state === "plain" ? "validation.precondition_failed" : "provider.unavailable",
+        state === "plain"
+          ? "Letterhead and pictures are missing in this copy. Wait for the exact copy, or send this one anyway."
+          : "Could not tell whether this copy is the exact one (the check did not finish, or the file is too big to check). Make the PDF again, try again in a minute, or send this one anyway.",
+        { plain: state === "plain", checked: false, field: "plainOk" },
+      );
+    const out = isBuiltIn(ctx, o.provider)
+      ? await sendVyre(ctx, input)
+      : (await prime(), await sendHandlers["esign.send"](ctx, input));
+    const id = (out as { envelopeId?: unknown }).envelopeId;
+    if (state !== "exact" && typeof id === "string")
+      ctx.db.run(
+        "INSERT INTO esign_event (envelope_id, signer_idx, at, kind, ip, ua, detail) VALUES (?, NULL, ?, ?, NULL, NULL, ?)",
+        id,
+        ctx.now(),
+        "plain_copy_sent",
+        state === "plain"
+          ? "sent as the plain copy by the sender's choice"
+          : `sent without the exact-copy check (${state}) by the sender's choice`,
+      );
+    return out;
   },
   "esign.status": (ctx: Ctx, input: unknown) =>
     builtInEnvelope(ctx, input)

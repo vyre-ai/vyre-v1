@@ -12,8 +12,13 @@ import { PaneEmpty } from "./Empty.tsx";
 import { useMaybeSignData } from "../../files/sign/data.tsx";
 import { canSignFile, statusLine } from "../../files/sign/model.ts";
 import { SignSheet } from "../../files/sign/SignSheet.tsx";
+import { DocumentSheet } from "../../files/document/DocumentSheet.tsx";
 import { useRequests } from "../../files/sign/useRequests.ts";
 import { Status } from "../../../../../../ui/src/Status/index.tsx";
+
+/** Today as 2026-11-19 in the day the Space keeps. */
+const dayOf = (c: { now: number; offsetMin?: number }): string =>
+  new Date(c.now + (c.offsetMin ?? 0) * 60_000).toISOString().slice(0, 10);
 
 const size = (n: number): string =>
   n >= 1_048_576 ? `${(n / 1_048_576).toFixed(1)} MB` : n >= 1024 ? `${Math.round(n / 1024)} KB` : `${n} B`;
@@ -68,8 +73,17 @@ export function FilesTab({
       () => setState("failed"),
     );
   };
+  /** A document made from here may have made the record's folder: look for it again. */
+  const reloadFiles = (): void => {
+    if (!data.files || fieldFolder?.startsWith("fld_")) return;
+    void data.files.folderOf(target).then(
+      (f) => setFound(f),
+      () => undefined,
+    );
+  };
   const sign = useMaybeSignData();
   const [signing, setSigning] = useState<{ id: string; name: string } | null>(null);
+  const [making, setMaking] = useState(false);
   const reqs = useRequests(sign, { recordId });
   const rows: ReactElement[] = [];
   // the signature requests made from this record: each is a related item with its state; pressing it opens the signed copy (or the file that was sent)
@@ -162,6 +176,19 @@ export function FilesTab({
           </Tooltip>
         ) : null}
         <View style={{ flex: 1 }} />
+        {sign && sign.canSend !== false ? (
+          <Tooltip text="Make a document from a template">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="New document"
+              testID="new-document"
+              onPress={() => setMaking(true)}
+              style={({ hovered }: { hovered?: boolean }) => [s.attach, hovered === true && s.attachOver]}
+            >
+              <Text style={s.attachText}>New document</Text>
+            </Pressable>
+          </Tooltip>
+        ) : null}
         {data.files ? (
           <Tooltip text="Attach files, or drop them here">
             <Pressable
@@ -182,6 +209,25 @@ export function FilesTab({
         ) : null}
       </View>
       {body}
+      {making && sign ? (
+        <DocumentSheet
+          call={sign.call}
+          recordId={recordId}
+          recordType={type}
+          folderId={folderId}
+          today={dayOf(sign.clock())}
+          onClose={() => {
+            setMaking(false);
+            reloadFiles();
+          }}
+          {...(sign.openFile ? { onOpen: (id: string) => sign.openFile?.(id) } : {})}
+          onSign={(f) => {
+            setMaking(false);
+            reloadFiles();
+            setSigning({ id: f.fileId, name: f.name });
+          }}
+        />
+      ) : null}
       {signing && sign ? (
         <SignSheet
           fileId={signing.id}

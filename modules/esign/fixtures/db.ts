@@ -24,7 +24,7 @@ import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql"].map((f) =>
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql", "0004_esign_expired.sql"].map((f) =>
   readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
 );
 
@@ -183,6 +183,11 @@ export function harness(o: HarnessOptions = {}) {
       async call(c, input) {
         calls.push({ cap: c, input: input as CallLog["input"] });
         const f = callees[c];
+        // a module that is not in this Space answers as the host does: not implemented, in the error's own shape
+        if (!f && c.startsWith("documents."))
+          throw Object.assign(new Error("not implemented"), {
+            error: { code: "internal.not_implemented", message: "not implemented" },
+          });
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input);
       },

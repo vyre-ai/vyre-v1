@@ -1,0 +1,8 @@
+{
+  "targets": [
+    { "id": "DOCEDIT_01-template", "route": "/m/DOCEDIT_01?part=template", "proto": "files,{skin},at:docs", "waitFor": "[data-testid='field-chip']", "note": "A template: its blanks are chips, Field in the strip lists the fields of the record type." },
+    { "id": "DOCEDIT_01-fill", "route": "/m/DOCEDIT_01?part=fill", "proto": "files,{skin},at:docs", "waitFor": "[data-testid='field-chip']", "note": "Read against a record: values in the chips, amber for the fields the record has none for." },
+    { "id": "DOCEDIT_01-suggest", "route": "/m/DOCEDIT_01?part=suggest", "proto": "files,{skin},at:docs", "waitFor": "[data-testid='doc-suggestion']", "steps": [["click", "ins.vyre-sg-add"]], "note": "An agent's and a person's suggestions: the pane beside the page, Accept all, the card on the one the caret is in." },
+    { "id": "DOCEDIT_01-agent", "route": "/m/DOCEDIT_01?part=agent", "proto": "files,{skin},at:docs", "waitFor": "[data-testid='markdown-editor-page']", "note": "A draft arriving into the open page: the new sections appear below, the person's place stays." }
+  ]
+}
