@@ -33,25 +33,29 @@ export const stopper =
     });
 
 /** Starts the daemon as a person does and reads the address it prints (and, on a fresh install, the claim link it prints right after). */
+/** What a walk's daemon is given besides the owner token: a stand-in model vendor (an address, a preload, a way to close it). The helper imports no fixture, so a test file hands it in. */
+export interface VendorStandIn {
+  env: NodeJS.ProcessEnv;
+  close(): void;
+}
+export type MakeStandIn = () => Promise<VendorStandIn | null>;
+
 export async function startDaemon(
   dir: string,
   extra: string[],
   port = 0,
+  makeStandIn?: MakeStandIn,
 ): Promise<{ child: ChildProcess; url: string; claim: string | null }> {
-  // A key is checked with its provider before it is saved, so a walk that adds a fixture key needs a provider that answers: unless the walk brought its own stand-in (VYRE_TEST_VENDOR) or opted out
-  // (VYRE_TEST_NO_VENDOR=1, for a walk that wants the real provider's answer), the daemon gets the shared stand-in, which accepts keys and refuses one with "invalid" in it.
+  // A key is checked with its provider before it is saved, so a walk that adds a fixture key needs a provider that answers: the test file that starts the daemon hands in the shared stand-in (accepts keys,
+  // refuses one with "invalid" in it) unless it brought its own (VYRE_TEST_VENDOR) or opted out (VYRE_TEST_NO_VENDOR=1, for a walk that wants the real provider's answer).
   let env: NodeJS.ProcessEnv = { ...process.env, VYRE_ADMIN_TOKEN: ADMIN_TOKEN };
   let standIn: { close(): void } | null = null;
-  if (!process.env["VYRE_TEST_VENDOR"] && process.env["VYRE_TEST_NO_VENDOR"] !== "1") {
-    const { vendor } = await import("../../../../fixtures/model-vendor.ts");
-    const v = await vendor();
-    standIn = v;
-    env = {
-      ...env,
-      VYRE_TEST_VENDOR: v.base,
-      NODE_OPTIONS:
-        `${process.env["NODE_OPTIONS"] ?? ""} --import ${fileURLToPath(new URL("../../../../fixtures/model-vendor-preload.mjs", import.meta.url))}`.trim(),
-    };
+  if (makeStandIn && !process.env["VYRE_TEST_VENDOR"] && process.env["VYRE_TEST_NO_VENDOR"] !== "1") {
+    const v = await makeStandIn();
+    if (v) {
+      standIn = v;
+      env = { ...env, ...v.env };
+    }
   }
   const child: ChildProcess = spawn(
     process.execPath,
@@ -96,7 +100,12 @@ export async function startDaemon(
 }
 
 /** A fresh install (ruling 71): an empty data directory. The host makes the Space and prints a one-time claim link; the owner becomes the owner by claiming it, as a person does. */
-export async function bootFreshSpace(kind?: "personal", publishLocal = false, unnamed = false): Promise<Space> {
+export async function bootFreshSpace(
+  kind?: "personal",
+  publishLocal = false,
+  unnamed = false,
+  makeStandIn?: MakeStandIn,
+): Promise<Space> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-real-app-fresh-"));
   // A walk that publishes the daemon's own address needs the port before the daemon starts, and the daemon binds it itself, so a port picked and given back can be taken in between. When that happens the daemon exits
   // (or never starts) and the boot is tried again on another port; whatever a failed try started is stopped first.
@@ -123,6 +132,7 @@ export async function bootFreshSpace(kind?: "personal", publishLocal = false, un
           ...(address ? ["--address", address] : []),
         ],
         port,
+        makeStandIn,
       );
       if (address && d.url !== address) {
         d.child.kill("SIGKILL");

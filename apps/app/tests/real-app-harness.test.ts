@@ -6,11 +6,36 @@ import https from "node:https";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { CORE_SPACE, bootCore } from "../../../fixtures/seed/core/index.ts";
-import { ADMIN_TOKEN, REPO, bootFreshSpace, startDaemon, stopper } from "./support/fresh-space.ts";
-import type { Space } from "./support/fresh-space.ts";
-export { ADMIN_TOKEN, REPO, bootFreshSpace, startDaemon, stopper };
+import {
+  ADMIN_TOKEN,
+  REPO,
+  bootFreshSpace as bootFresh,
+  startDaemon as startWith,
+  stopper,
+} from "./support/fresh-space.ts";
+import type { MakeStandIn, Space } from "./support/fresh-space.ts";
+export { ADMIN_TOKEN, REPO, stopper };
 export type { Space };
+
+/** The shared stand-in model vendor (fixtures/model-vendor.ts) a walk's daemon is given: the support module imports no fixture, so this test file hands it in. */
+const vendorStandIn: MakeStandIn = async () => {
+  const { vendor } = await import("../../../fixtures/model-vendor.ts");
+  const v = await vendor();
+  return {
+    close: () => v.close(),
+    env: {
+      VYRE_TEST_VENDOR: v.base,
+      NODE_OPTIONS:
+        `${process.env["NODE_OPTIONS"] ?? ""} --import ${fileURLToPath(new URL("../../../fixtures/model-vendor-preload.mjs", import.meta.url))}`.trim(),
+    },
+  };
+};
+export const startDaemon = (dir: string, extra: string[], port = 0): ReturnType<typeof startWith> =>
+  startWith(dir, extra, port, vendorStandIn);
+export const bootFreshSpace = (kind?: "personal", publishLocal = false, unnamed = false): Promise<Space> =>
+  bootFresh(kind, publishLocal, unnamed, vendorStandIn);
 
 /** Which module each step needs, and the packet that flips it (docs/lanes: L7 identity/spaces, L2 chat, L3 records, L4 files). */
 export const STEP_NEEDS: Record<string, { modules: string[]; packet: string }> = {
