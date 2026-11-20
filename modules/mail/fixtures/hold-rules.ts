@@ -9,6 +9,7 @@ export const HOLD_WHENS: ReadonlySet<string> = new Set([
   "actor.kind != 'person'",
   "actor.kind == 'agent'",
   "actor.kind != 'person' and (input.action == 'set' or input.action == 'reset')",
+  "actor.kind != 'person' and (input.action == 'backup_restore' or input.action == 'job_create' or input.action == 'job_update' or input.action == 'worker_add')",
   "mail.smtp_override(input)",
   "mail.is_provider_setting(input.key)",
   "mail.non_sync_actor(input)",

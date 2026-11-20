@@ -11,7 +11,7 @@ Add a scheduled job to a deployed site: a command run on a cron schedule in the 
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | sensitive |

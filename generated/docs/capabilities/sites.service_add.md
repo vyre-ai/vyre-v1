@@ -11,7 +11,7 @@ Add a worker to a deployed site: a command that stays up in the site's image, re
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | sensitive |

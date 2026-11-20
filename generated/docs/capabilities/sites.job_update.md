@@ -11,7 +11,7 @@ Change a scheduled job: its name, schedule, command, time zone, time limit, or p
 | Grant level | edit |
 | Risk | medium |
 | Resource | site (/siteId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | sensitive |
