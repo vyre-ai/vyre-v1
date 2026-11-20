@@ -848,3 +848,4 @@ Added after the sixth look (lane r42-alive, 19 Nov 2026): `tasks.still_needed` i
 - Snapshots: docs/frozen/snapshots/documents.json, docs/frozen/snapshots/esign.json.
 
 Signed: lead, 19 Nov 2026
+
