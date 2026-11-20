@@ -6,7 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { loopLagMs, waitForScheduled } from "./eco-live.ts";
+import { loopLagMs, MAX_REPORTED_BLOCK_MS, waitForScheduled } from "./eco-live.ts";
 
 function fakeDaemon(lags: number[]): { d: never; add: (lag: number) => void; done: () => void } {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "wait-"));
@@ -98,6 +98,21 @@ test("a stall larger than the whole base is the fault, not the runner: the wait 
       /reported its loop blocked for 900 ms during a 300 ms wait/,
     );
     assert.ok(Date.now() - t0 < 1000);
+  } finally {
+    w.done();
+  }
+});
+
+test("a single reported block over the ceiling fails the wait and names the stall, even when the base is long", async () => {
+  const w = fakeDaemon([]);
+  setTimeout(() => w.add(MAX_REPORTED_BLOCK_MS + 500), 50);
+  const t0 = Date.now();
+  try {
+    await assert.rejects(
+      waitForScheduled(w.d, () => Promise.resolve(null), 600_000),
+      /blocked for 5500 ms in one block \(the ceiling is 5000 ms\)/,
+    );
+    assert.ok(Date.now() - t0 < 2000);
   } finally {
     w.done();
   }

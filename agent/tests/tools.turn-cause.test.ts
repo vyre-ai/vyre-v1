@@ -133,3 +133,32 @@ test("a call after the turn ended has no cause; a held call resumed carries the 
     "the wake of a call whose wait was not recorded is not a wake (no capability guards it)",
   );
 });
+
+test("a wake that answers a held call and is dropped before it runs leaves no pending cause; one that runs leaves none either", async () => {
+  const { createTurnEngine, scriptedProvider } = await import("../src/turn-engine/index.ts");
+  const { until, gate } = await import("../src/turn-engine/harness.ts");
+  const stuck = gate();
+  const p = scriptedProvider({
+    script: [{ type: "text", text: "ok" }, { type: "done" }],
+    beforeEvent: async () => {
+      await stuck.wait;
+    },
+  });
+  const e = createTurnEngine({ holder: "host:a", openSession: p.openSession, toolSafety: () => "read" });
+  e.openThread({ id: "TD", kind: "chat", starter: "dana", agents: [{ id: "intake", mode: "lead" }] });
+  e.wake("TD", "intake");
+  await until(() => e.turns("TD").length === 1);
+  // the agent is busy: this wake waits in the queue, with its cause
+  e.wake("TD", "intake", { answers: "tsk_gone" });
+  assert.equal(e.pendingWakeCauses(), 1);
+  await e.stop("TD", { clearQueue: true });
+  stuck.open();
+  await e.idle("TD");
+  // the next wake on the chat sweeps the entry of the dropped one
+  e.wake("TD", "intake");
+  await e.idle("TD");
+  assert.equal(e.pendingWakeCauses(), 0, "the dropped wake left its entry");
+  e.wake("TD", "intake", { answers: "tsk_ran" });
+  await e.idle("TD");
+  assert.equal(e.pendingWakeCauses(), 0, "a wake that ran leaves none");
+});

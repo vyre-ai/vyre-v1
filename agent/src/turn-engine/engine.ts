@@ -392,6 +392,8 @@ export interface TurnEngine {
   /** A question the turn parked on was answered or withdrawn: the wait is over. The answer itself wakes the agent as a message (chat tellAgent), so nothing is queued here. False when no turn waits on it. */
   release(blockId: string): boolean;
   /** Turns parked on a held tool call in this thread. */
+  /** How many wake causes wait for their turn to start (a test hook: a dropped wake leaves none). */
+  pendingWakeCauses(): number;
   waiting(threadId: string): Array<{ turnId: string; agentId: string; taskId: string }>;
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
   /** An agent joined a thread that is already open here (a task's reviewer, an agent added to a chat): it can be woken and mentioned from now on. Nothing changes when it is in already. */
@@ -599,6 +601,16 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   /** What a held message needs to be routed later (who it replies to, whose job it is, who pays). */
   /** The cause of a wake that continues a held call whose wait was not recorded, by `${threadId}|${qseq}`; read once when the turn starts. */
   const pendingCause = new Map<string, string>();
+  /** An entry lives only while its queue row can still start: a wake that was dropped (Stop, a closed thread, a lost lease) or already ran leaves none after the next sweep. */
+  const sweepPendingCause = (threadId: string): void => {
+    const live = new Set(
+      queue
+        .list(threadId)
+        .filter((r) => r.state === "queued" || r.state === "paused" || r.state === "running")
+        .map((r) => `${threadId}|${r.qseq}`),
+    );
+    for (const k of pendingCause.keys()) if (k.startsWith(`${threadId}|`) && !live.has(k)) pendingCause.delete(k);
+  };
   const heldArgs = new Map<
     string,
     {
@@ -1218,6 +1230,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     const pendingKey = `${st.thread.id}|${item.qseq}`;
     const parkedCause = pendingCause.get(pendingKey);
     pendingCause.delete(pendingKey);
+    sweepPendingCause(st.thread.id);
     const cause = wait ? (wait.cause ?? "resume") : (parkedCause ?? item.kind);
     noteTurnStart(st.thread.id, item.agentId, turn.startedAt, cause);
     const info = turn.info!;
@@ -2093,8 +2106,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         priority: 0,
         routine: o?.routine === true,
       });
+      sweepPendingCause(threadId);
       if (o?.answers) pendingCause.set(`${threadId}|${item.qseq}`, waits.get(o.answers)?.cause ?? "resume");
-      if (pendingCause.size > 2000) pendingCause.delete(pendingCause.keys().next().value as string); // a wake dropped before it ran leaves its entry: bounded like the turn starts
       kick(st);
       return item.qseq;
     },
@@ -2240,6 +2253,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!w || w.resolution) return false;
       return waits.resolve(blockId, { approved: true, result: { ok: true, content: { answered: true } } }, -1);
     },
+    pendingWakeCauses: () => pendingCause.size,
     waiting: (threadId) =>
       waits
         .open(threadId)

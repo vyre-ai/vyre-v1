@@ -106,6 +106,8 @@ export interface AddTarget {
   filesFolder?: string | undefined;
   /** The name of the records scope they get (a project's records). Left out when there is none: the sentence then says nothing about records. */
   recordsFolder?: string | undefined;
+  /** The target has records the newcomer will see, but their name could not be read (a read that failed or is still pending): the sentence says so in general words, never leaves them out. Ignored when recordsFolder is given. */
+  recordsUnnamed?: boolean | undefined;
   /** A project's chat: the project's name, whose files they get, and how many records are linked to it. Replaces the folder and records names above: a project reads "Rivera's files, and its 3 linked records". */
   project?: { name: string; hasFiles: boolean; linkedRecords: number } | undefined;
 }
