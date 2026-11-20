@@ -262,7 +262,10 @@ test("a search or an address that looks like a secret is refused with what it lo
   const w = await world();
   const asked = net({});
   const ctx = { ...w.agent().ctx, principal: { kind: "agent" as const, id: "agt_shapes" } };
-  for (const query of ["why does sk-live-abcdef0123456789abcd fail", "gh" + "p_abcdefghijklmnopqrstuvwxyz0123456789 clone"])
+  for (const query of [
+    "why does sk-live-abcdef0123456789abcd fail",
+    "gh" + "p_abcdefghijklmnopqrstuvwxyz0123456789 clone",
+  ])
     await assert.rejects(
       tool["computers.chrome.search"]!(ctx, { query }),
       (e: any) =>
