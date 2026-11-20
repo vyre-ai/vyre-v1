@@ -220,7 +220,6 @@ test("an AI step names its skills: the save refuses one the Space does not have 
   );
 });
 
-
 test("a text of nothing but `{{` is read in linear time (no backtracking on hostile input)", () => {
   const hostile = "{{".repeat(50_000);
   const t0 = Date.now();
