@@ -14,7 +14,7 @@ import {
   rowsOf,
   str,
   vectorsOf,
-  writeVector,
+  writeVectors,
   sourceFor,
 } from "../projections.ts";
 import type { IndexDoc, Resolved, SearchCtx, Source } from "../projections.ts";
@@ -441,11 +441,11 @@ export async function embedRun(
     for (let from = 0; from < batch.length; from += EMBED_SLICE) {
       const part = batch.slice(from, from + EMBED_SLICE);
       const vecs = await embed(part.map((r) => `${str(r["title"])}\n${str(r["body"]).slice(0, EMBED_CHARS)}`));
-      for (let i = 0; i < part.length; i++) {
-        const n = num(part[i]!["n"]);
-        writeVector(ctx.db, ctx.space, n, vecs[i]!);
-        ctx.db.run("UPDATE search_docs SET embedded = 1 WHERE n = ?", n);
-      }
+      writeVectors(
+        ctx.db,
+        ctx.space,
+        part.map((r, i) => ({ n: num(r["n"]), v: vecs[i]! })),
+      );
       await turn();
     }
   }
