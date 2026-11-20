@@ -48,25 +48,14 @@ const DOC = (): Buffer =>
     { "word/numbering.xml": numbering },
   );
 
-/** The CPU time (user plus system, ms) and wall time of `fn`. The timing rules below hold the CPU time to their limits, so a busy machine does not fail them; a generous wall ceiling still catches work that waits. */
+/** The CPU time of the calling thread (user plus system, ms: no helper threads of the collector) and the wall time of `fn`. The timing rules below hold the CPU time to their limits, so a busy machine does not fail them; a generous wall ceiling still catches work that waits. */
 function work(fn: () => void): { cpu: number; wall: number } {
-  const c0 = process.cpuUsage();
+  const c0 = process.threadCpuUsage();
   const t = performance.now();
   fn();
   const wall = performance.now() - t;
-  const c = process.cpuUsage(c0);
+  const c = process.threadCpuUsage(c0);
   return { cpu: (c.user + c.system) / 1000, wall };
-}
-/** The best of `n` runs, for CPU and for the clock. */
-function bestOf(n: number, fn: () => void): { cpu: number; wall: number } {
-  let cpu = Infinity;
-  let wall = Infinity;
-  for (let i = 0; i < n; i++) {
-    const w = work(fn);
-    cpu = Math.min(cpu, w.cpu);
-    wall = Math.min(wall, w.wall);
-  }
-  return { cpu, wall };
 }
 
 test("a Word file reads as blocks: heading, bold run, bullets, a table with its header row, a page break", () => {
@@ -335,9 +324,9 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
       }).cpu,
       20,
     );
-  // the absolute rule as well: each hostile case under 100 ms, the best of five runs, at 25,000 repeats
+  // the absolute rule as well: each hostile case under 100 ms of CPU in one run, at 25,000 repeats
   for (const md of inputs(25_000)) {
-    const b = bestOf(5, () => {
+    const b = work(() => {
       parse(md);
       inline(md);
     });
@@ -348,7 +337,7 @@ test("hostile input cannot make the readers slow: a tag opened a hundred thousan
     assert.ok(b.wall < 1000, `a hostile Markdown case took ${b.wall.toFixed(0)} ms on the clock: ${md.slice(0, 12)}`);
   }
   const bestWord = (f: Uint8Array): number => {
-    const b = bestOf(5, () => {
+    const b = work(() => {
       try {
         docxBlocks(f);
       } catch {
@@ -433,7 +422,7 @@ test("hard breaks and table rules read as before the linear versions", async () 
   assert.equal(kinds("| a |\n|  |\n| 1 |"), "p");
 });
 
-test("a template of one line of spaces at the 1 MB limit is read in under 100 ms (best of three) and in linear time, for every shape the line readers look at", async () => {
+test("a template of one line of spaces at the 1 MB limit is read in under 100 ms (one run) and in linear time, for every shape the line readers look at", async () => {
   const { parse } = await import("../handlers/vdoc.ts");
   const shapes: Array<[string, (n: number) => string]> = [
     ["spaces then a letter", (n) => `a${" ".repeat(n)}x`],
@@ -447,8 +436,9 @@ test("a template of one line of spaces at the 1 MB limit is read in under 100 ms
     ["a quote then spaces", (n) => `> ${" ".repeat(n)}x`],
     ["a fence then spaces", (n) => `\`\`\`${" ".repeat(n)}x`],
   ];
-  const best = (md: string): { cpu: number; wall: number } => bestOf(5, () => void parse(md));
+  const best = (md: string): { cpu: number; wall: number } => work(() => void parse(md)); // one run
   for (const [label, make] of shapes) {
+    parse(make(250_000)); // warm up this shape once, untimed; each measured case below is a single run
     const big = best(make(1_000_000));
     assert.ok(big.cpu < 100, `${label}: 1 MB took ${big.cpu.toFixed(0)} ms of CPU`);
     assert.ok(big.wall < 1000, `${label}: 1 MB took ${big.wall.toFixed(0)} ms on the clock`);
