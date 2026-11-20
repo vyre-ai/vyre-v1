@@ -647,7 +647,7 @@ export function StepRing({
               title={x.caption || x.tool}
               selected={picked === x.idx || (picked === undefined && i === shown.length - 1)}
               inert={!x.frameFileId || !onPick}
-              hint="See the screen after this step"
+              {...(x.frameFileId && onPick ? { hint: "See the screen after this step" } : {})}
               leading={<View style={[st.stepDot, i === shown.length - 1 && st.stepDotNow]} />}
               onPress={() => onPick?.(x)}
             />
