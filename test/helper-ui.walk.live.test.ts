@@ -149,6 +149,27 @@ test("a queued helper reads as 'Starts when Alpha is done' from the real nodes, 
     };
     assert.equal(crew.members.find((m) => m.title === pair)?.state, "failed", "the strip's own member says failed too");
 
+    // Retry the one that failed: what failed because of it goes back to waiting, on the new attempt (the runtime re-arms it); the retry carries retryOf, as the Retry button sends it
+    const frontMember = crew.members.find((m) => m.title === front) as unknown as { id: string };
+    const k = ["Epsilon", "Zeta", "Theta"].indexOf(front);
+    failGo[k] = new Promise<void>((r) => (failNow[k] = r));
+    await ok(d, "chat.helper.start", {
+      threadId: chat,
+      title: front,
+      instruction: `${front.toUpperCase()}: this one will fail`,
+      agentId: agent,
+      retryOf: frontMember.id,
+      idempotencyKey: `hu-retry-${front}`,
+    });
+    const again = await waitFor(async () => {
+      const s2 = await seen(pair);
+      return s2.node?.status === "queued" ? s2 : null;
+    }, 20_000);
+    assert.equal(again.line, `Starts when ${front} is done`, "waiting again, on the new attempt");
+    assert.equal(again.view?.blocked, undefined, "no longer blocked: it can start");
+    await grab("rearmed");
+    failNow[k]!();
+
     // save the finished Alpha as an agent with the instructions edited
     const alpha = (await seen("Alpha")).node!;
     const EDITED = "Add the figures and name the largest line first. EDITED-TEXT-42";

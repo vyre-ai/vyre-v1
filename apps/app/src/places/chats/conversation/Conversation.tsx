@@ -1097,7 +1097,11 @@ function ConversationView(): ReactElement {
         () => {
           steerBusy.current = false;
           // the box is emptied only once the helper has taken it, and only if it still holds what was sent: words typed since stay
-          if (typedRef.current.trim() === "" || typedRef.current === toHelper.body || typedRef.current === payload.text) {
+          if (
+            typedRef.current.trim() === "" ||
+            typedRef.current === toHelper.body ||
+            typedRef.current === payload.text
+          ) {
             unsay();
             setTyped("");
             typedRef.current = "";
@@ -1874,6 +1878,7 @@ function ConversationView(): ReactElement {
             openPane: () => crew.show(null),
             refresh: () => crew.refresh(),
             nodes: crew.nodes,
+            ...(crew.mayRetry !== undefined ? { mayRetry: crew.mayRetry } : {}),
             stopAll: () => void act.stopHelpers(data).then(() => crew.refresh(), fail("Could not stop the helpers.")),
             retry: (id: string) =>
               void act

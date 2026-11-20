@@ -148,7 +148,7 @@ test("a finished helper can be saved as an agent: a name to confirm, one runs.no
   assert.match(textOf(find(root, "crew-agent-made")), /Bid reader\s+is now an agent/);
   assert.match(
     textOf(find(root, "crew-agent-made")),
-    /keeps what this helper was not allowed/,
+    /Some tools were removed/,
     "the tools line is the server's toolsCarried",
   );
   assert.ok(find(root, "crew-save-agent") === null, "once made, the button is gone");

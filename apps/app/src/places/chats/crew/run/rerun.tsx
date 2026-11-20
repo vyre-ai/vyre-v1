@@ -20,7 +20,7 @@ export function toolsWords(carried: string | undefined): string {
   return carried === "kept"
     ? "It keeps the tools this helper had."
     : carried === "narrowed"
-      ? "It keeps what this helper was not allowed; its other tools are the defaults."
+      ? "Some tools were removed."
       : carried === "default"
         ? "It starts with the default tools."
         : "";

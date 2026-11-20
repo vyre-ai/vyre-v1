@@ -67,7 +67,13 @@ export function HelperTile({
       : [r.tokens > 0 ? `${tokens(r.tokens)} tokens` : "", r.costMicros > 0 ? money(r.costMicros) : ""]
           .filter((x) => x !== "")
           .join(" · ");
-  const lines = r.lines.length > 0 ? r.lines : r.dependsLine !== undefined ? [] : [live ? "Starting" : ""];
+  // a failed or stopped tile never shows an empty line (a view that was cut down has no reason to give)
+  const lines =
+    r.lines.length > 0
+      ? r.lines
+      : r.dependsLine !== undefined
+        ? []
+        : [live ? "Starting" : r.state === "failed" ? "Could not finish" : r.state === "stopped" ? "Stopped" : ""];
   return (
     <Pressable
       accessibilityRole="button"

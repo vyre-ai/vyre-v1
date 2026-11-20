@@ -54,7 +54,7 @@ for (const t of targets)
         out,
         `${t.id.replace(/^(TILES_01|PEEKTABS_01|RUNVIEWS_01|PEEKRESULT_01|RUNSECTION_01|RERUN_01|DEPS_01)-/, "")}-${skin}-${size}.png`,
       );
-      await page.screenshot({ path: file });
+      await page.screenshot({ path: file, fullPage: t.id.startsWith("DEPS_01") });
       report.push({
         file: path.basename(file),
         found,

@@ -173,7 +173,7 @@ function HelperRow({
             ) : (
               <Text testID={`${id}-time`} style={st.time}>
                 {r.state === "working" && !waiting && r.blocked !== true
-                  ? durationWords(Math.max(m.elapsedMs, now - m.startedAt))
+                  ? durationWords(Math.max(r.elapsedMs, now - r.startedAt))
                   : ""}
               </Text>
             )}

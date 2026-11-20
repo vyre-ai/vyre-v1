@@ -232,6 +232,8 @@ export interface MessageActions {
     refresh(): void;
     /** The runtime's nodes of this chat: the step, stuck and what each waits for, per helper. */
     nodes?: readonly RunNode[];
+    /** False when the server said this person may not start failed helpers again: no Retry is drawn. */
+    mayRetry?: boolean;
   };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
@@ -1646,7 +1648,11 @@ function Theirs({
                 {...(c ? { onAnswered: c.refresh } : {})}
                 {...(c?.nodes ? { nodes: c.nodes } : {})}
                 {...(c
-                  ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) }
+                  ? {
+                      onStopAll: c.stopAll,
+                      onOpenPane: c.openPane,
+                      ...(c.mayRetry === false ? {} : { onRetry: (x: { id: string }) => c.retry(x.id) }),
+                    }
                   : {})}
               />
               {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (

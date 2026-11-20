@@ -59,6 +59,11 @@ export function toRunView(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   return v;
 }
 
+/** A reason shown on a tile is cut at a sane length. */
+export const REASON_MAX = 140;
+export const capWords = (s: string | undefined): string | undefined =>
+  s === undefined ? undefined : s.length > REASON_MAX ? `${s.slice(0, REASON_MAX - 1).trimEnd()}…` : s;
+
 function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   // the node behind the member (the runtime's runId on a crew member), when it is known
   const node = m.runId !== undefined ? nodes?.find((n) => n.id === m.runId) : undefined;
@@ -67,15 +72,9 @@ function toRunViewRaw(m: CrewMember, nodes?: readonly RunNode[]): RunView {
   const ended = node !== undefined && (node.status === "failed" || node.status === "stopped") && m.state === "working";
   const state: MemberState = ended ? (node.status === "failed" ? "failed" : "stopped") : m.state;
   const live = state === "working";
-  const said = m.found ?? (state === "failed" || ended ? node?.reason : undefined);
+  const said = m.found ?? (state === "failed" || ended ? capWords(node?.reason) : undefined);
   // it ended because work it was to start after did not finish: it never ran, so no clock, and trying it alone only fails again (the way back is the one that failed)
-  const blocked =
-    node !== undefined &&
-    (node.status === "failed" || node.status === "stopped") &&
-    (node.dependsOn ?? []).some((id) => {
-      const d = nodes?.find((x) => x.id === id);
-      return d !== undefined && (d.status === "failed" || d.status === "stopped");
-    });
+  const blocked = node !== undefined && node.status === "failed" && node.errorCode === "dependency_failed";
   // the clock is the node's own: from when it began to when it ended, or to now while it runs (never mixed with the member's start); only a real timestamp is trusted
   const own = node !== undefined && node.status !== "queued" && node.startedAt > 1_000_000_000_000;
   const lines: string[] = live
@@ -138,6 +137,8 @@ export interface NodeLike {
   summary?: string;
   /** Why it ended, in words a person reads (the runtime's `reason`). */
   reason?: string;
+  /** What kind of failure: "dependency_failed" when the work it was to start after did not finish. */
+  errorCode?: string;
   /** Other work it was to start after (node ids). */
   dependsOn?: readonly string[];
   stopReason?: string;
@@ -168,7 +169,7 @@ export function toRunViewFromNode(n: NodeLike, step?: string, now: number = Date
         ? [n.summary]
         : []
       : state === "failed"
-        ? [n.reason ?? "Could not finish"]
+        ? [capWords(n.reason) ?? "Could not finish"]
         : state === "stopped"
           ? n.stopReason !== undefined
             ? [n.stopReason]

@@ -214,6 +214,7 @@ export function nodesOf(out: unknown): RunNode[] {
         ...(str(n["summary"]) !== undefined ? { summary: str(n["summary"])! } : {}),
         // the words a person reads for why it ended (the runtime's `reason`); the raw error is never served, never shown
         ...(str(n["reason"]) !== undefined ? { reason: str(n["reason"])! } : {}),
+        ...(str(n["errorCode"]) !== undefined ? { errorCode: str(n["errorCode"])! } : {}),
         ...(str(n["whoName"]) !== undefined ? { whoName: str(n["whoName"])! } : {}),
         ...(Array.isArray(n["dependsOn"])
           ? { dependsOn: (n["dependsOn"] as unknown[]).filter((x): x is string => typeof x === "string") }
@@ -321,5 +322,16 @@ export async function readMayAct(call: Call, runId: string): Promise<boolean> {
     return out?.node?.can?.manage === true;
   } catch {
     return false;
+  }
+}
+
+/** Whether this person manages the run (may start its failed work again): true or false as the server says; nothing when it did not say or the read failed, so a server without the field decides for itself when the press arrives. */
+export async function readCanManage(call: Call, runId: string): Promise<boolean | undefined> {
+  try {
+    const out = (await call("runs.node.get", { runId })) as { node?: { can?: { manage?: unknown } } } | null;
+    const m = out?.node?.can?.manage;
+    return typeof m === "boolean" ? m : undefined;
+  } catch {
+    return undefined;
   }
 }

@@ -2,7 +2,7 @@
 // keys. A row opens that helper's peek: its brief, what it is on, its answer, the notes between it and the agent that started it, cost and time, Ask it something, Open chat and Stop. All of it from engine.crew.status
 // and the helper's own chat; nothing is estimated.
 import { doneWords, stepWords } from "../../../../../../lib/plain-words.ts";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
@@ -525,6 +525,9 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
   const finished = member.state === "done" && member.runId !== undefined;
   // someone who only watches the chat is not offered these (the server would refuse them), and reads no compare
   const mayAct = useMayAct(call, member.runId, finished && meId !== undefined);
+  // Retry is for someone who manages the run; read for a helper that ended without a result too. No run behind it (an older server): the press is the server's to answer.
+  const endedBad = member.state === "failed" || member.state === "stopped";
+  const mayRetry = useMayAct(call, member.runId, endedBad);
   const compare = useCompare(call, member.runId, finished && mayAct && member.kind !== "subagent");
   const reruns = Math.max(0, compare.sides.length - 1);
   // what a helper returned, in full; nothing to turn into a task, a file or a note when it returned nothing
@@ -588,6 +591,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
         threadId: member.parentThreadId,
         title: member.title,
         instruction,
+        retryOf: member.id,
         idempotencyKey: `retry-${member.id}-${Date.now()}`,
       }),
     ).then(onRefresh, () => setErr("It could not start again."));
@@ -683,18 +687,26 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
           ),
       );
   };
+  // one message at a time: a second press while the first is on its way sends nothing (each press has its own key, so the server could not tell)
+  const steering = useRef(false);
   const send = (): void => {
     const body = text.trim();
-    if (body === "") return;
+    if (body === "" || steering.current) return;
+    steering.current = true;
     setErr(null);
     void Promise.resolve(
       call("chat.helper.steer", { threadId: member.id, body, idempotencyKey: `steer-${member.id}-${Date.now()}` }),
     ).then(
       () => {
-        setText("");
+        steering.current = false;
+        // the box is emptied only if it still holds what was sent: words typed since stay
+        setText((now) => (now === text ? "" : now));
         onRefresh();
       },
-      () => setErr("It could not take that. Ask in its chat."),
+      () => {
+        steering.current = false;
+        setErr("It could not take that. Ask in its chat.");
+      },
     );
   };
   return (
@@ -1055,7 +1067,7 @@ function CrewPeekFor({ member, call, nameOfId, onBack, onOpenChat, onRefresh, me
             <Text style={st.pillText}>Open chat</Text>
           </Pressable>
         )}
-        {!own && (member.state === "failed" || member.state === "stopped") ? (
+        {!own && endedBad && (member.runId === undefined || mayRetry) ? (
           <Pressable accessibilityRole="button" testID="crew-peek-retry" onPress={retry} style={st.pill}>
             <Text style={st.pillText}>Retry</Text>
           </Pressable>

@@ -1,7 +1,7 @@
 // The two reads the Crew pane's tabs share (lane r42-subagents): what this chat's helpers know together (the newest tree of work in the thread: board, messages, nodes) and what the Space has running or asleep. Each is one request
 // at a time, again every few seconds while the pane is there, keeps what it showed when a refresh fails, and goes quiet for good only when the server says it has no such read. Nothing here draws.
 import { useEffect, useRef, useState } from "react";
-import { findRoot, readActivity, readBoard, readMessages, readTree } from "./reads.ts";
+import { findRoot, readActivity, readBoard, readCanManage, readMessages, readTree } from "./reads.ts";
 import type { ActivityRow, BoardEntry, NodeMessage, RunNode } from "./model.ts";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
@@ -14,6 +14,8 @@ export interface RunData {
   nodes: readonly RunNode[];
   /** The last refresh failed; what is shown is from before. */
   stale: boolean;
+  /** Whether this person manages the run, so may start its failed work again: as the server said; nothing when it did not say. */
+  mayManage?: boolean;
 }
 
 export function useRunData(call: Call, threadId: string, opts: { enabled?: boolean } = {}): RunData {
@@ -28,6 +30,8 @@ export function useRunData(call: Call, threadId: string, opts: { enabled?: boole
     if (!enabled) return undefined;
     let dead = false;
     let busy = false;
+    // who may manage a run does not change while it is read: asked once per root
+    let may: { root: string; value: boolean | undefined } | null = null;
     const read = async (): Promise<void> => {
       if (busy) return;
       busy = true;
@@ -52,7 +56,19 @@ export function useRunData(call: Call, threadId: string, opts: { enabled?: boole
           setD((x) => ({ ...x, stale: true }));
           return;
         }
-        setD({ status: "ready", board: board ?? [], messages: messages ?? [], nodes: nodes ?? [], stale: false });
+        if (may === null || may.root !== root.runId) {
+          const value = await readCanManage(call, root.runId);
+          if (dead) return;
+          may = { root: root.runId, value };
+        }
+        setD({
+          status: "ready",
+          board: board ?? [],
+          messages: messages ?? [],
+          nodes: nodes ?? [],
+          stale: false,
+          ...(may.value !== undefined ? { mayManage: may.value } : {}),
+        });
       } finally {
         busy = false;
       }

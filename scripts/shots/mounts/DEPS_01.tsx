@@ -17,6 +17,7 @@ const STATES: Array<[string, string]> = [
   ["waiting", "Waiting for another helper"],
   ["cant-start", "Behind one that failed"],
   ["failed", "Failed with it"],
+  ["rearmed", "Retried: it waits again"],
 ];
 
 /** The capture was taken some time ago: move every timestamp in it so the moment it was taken reads as a few seconds ago, as it did live (the clocks count from the node's own start). */

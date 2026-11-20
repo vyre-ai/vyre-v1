@@ -33,6 +33,8 @@ export interface CrewCtx {
   nodes: readonly RunNode[];
   /** The runtime's reads for this chat (board, messages, nodes): one reader shared by the strips and the pane. */
   run: RunData;
+  /** The server said this person may not start this chat's failed helpers again; nothing when it did not say (then the press is the server's to answer). */
+  mayRetry?: boolean;
 }
 
 const Ctx = createContext<CrewCtx | null>(null);
@@ -99,6 +101,7 @@ export function CrewProvider({
       threadId,
       nodes,
       run: runNamed,
+      ...(runNamed.status === "ready" && runNamed.mayManage !== undefined ? { mayRetry: runNamed.mayManage } : {}),
       open,
       close: () => {
         setOpen(false);
