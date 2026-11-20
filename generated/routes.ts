@@ -32390,7 +32390,7 @@ const routes5: Route[] = [
     "risk": "medium",
     "offline": "online",
     "teamOnly": false,
-    "gate": null
+    "gate": "spend_raise"
   },
   {
     "method": "POST",

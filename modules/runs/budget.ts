@@ -168,3 +168,38 @@ export function isRaise(prev: Budget, next: Budget | null): boolean {
   const more = (a: number | undefined, b: number | undefined): boolean => a !== undefined && (b === undefined || b > a);
   return more(prev.usdMicros, next.usdMicros) || more(prev.tokens, next.tokens);
 }
+
+/**
+ * What the Gate needs of a limit call: does it raise the limit of the work it names (a bigger one, or the limit taken away)? Reads the node as it stands now. Takes both shapes of the call: runs.budget.set
+ * ({ runId, usdMicros, tokens, clear }) and runs.ops ({ action: "budget", id, args }). A call that names no work that exists, or is anything else, is not a raise (the handler refuses it itself).
+ */
+export function budgetRaise(ctx: { db: RunsCtx["db"] }, input: unknown): boolean {
+  const i = (input !== null && typeof input === "object" ? input : {}) as Record<string, unknown>;
+  const via = i["action"] !== undefined;
+  if (via && i["action"] !== "budget") return false;
+  const a = (via ? (i["args"] !== null && typeof i["args"] === "object" ? i["args"] : {}) : i) as Record<
+    string,
+    unknown
+  >;
+  const runId = via ? i["id"] : i["runId"];
+  if (typeof runId !== "string") return false;
+  const row = ctx.db.all("SELECT budget_json FROM runs_node WHERE run_id = ?", runId)[0] as
+    | { budget_json?: unknown }
+    | undefined;
+  if (!row) return false;
+  let prev: Budget = {};
+  try {
+    prev = typeof row.budget_json === "string" ? (JSON.parse(row.budget_json) as Budget) : {};
+  } catch {
+    /* an unreadable limit counts as none */
+  }
+  const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+  const next: Budget | null =
+    a["clear"] === true || (num(a["usdMicros"]) === undefined && num(a["tokens"]) === undefined)
+      ? null
+      : {
+          ...(num(a["usdMicros"]) === undefined ? {} : { usdMicros: num(a["usdMicros"])! }),
+          ...(num(a["tokens"]) === undefined ? {} : { tokens: num(a["tokens"])! }),
+        };
+  return isRaise(prev, next);
+}
