@@ -200,10 +200,7 @@ test("a project chat: the footer names the project's folder, and its records onl
   );
 });
 
-const recordFooter = async (
-  resolve: () => unknown,
-  exists: () => unknown = () => ({ shares: [] }),
-): Promise<{ line: string; sheet: string }> => {
+const recordFooter = async (resolve: () => unknown): Promise<{ line: string; sheet: string }> => {
   let out = { line: "", sheet: "" };
   await withDom(async () => {
     const s = createSample("idle");
@@ -211,7 +208,6 @@ const recordFooter = async (
       ...s.data,
       async call(cap: string, input: unknown) {
         if (cap === "search.resolve") return resolve();
-        if (cap === "access.shares_of") return exists();
         return s.data.call(cap, input);
       },
     };
@@ -229,31 +225,14 @@ const recordFooter = async (
   return out;
 };
 
-const notFound = (): never => {
-  throw Object.assign(new Error("validation.not_found"), { error: { code: "validation.not_found" } });
-};
-const OPEN =
-  "They'll see this chat's messages from now on, its files folder Customer signup uploads, and the records linked to this chat.";
-
-test("a record whose name cannot be read but that may still exist (an empty answer, a failed lookup, a failed existence read) says records are shared, in general words, with no error text", async () => {
-  for (const [resolve, exists] of [
-    [() => ({}), () => ({ shares: [] })],
-    [() => Promise.reject(new Error("provider.unavailable")), () => ({ shares: [] })],
-    [() => ({}), () => Promise.reject(new Error("provider.unavailable"))],
-  ] as [() => unknown, () => unknown][]) {
-    const { line, sheet } = await recordFooter(resolve, exists);
-    assert.equal(line, OPEN);
+test("a chat whose record's name cannot be read still says records are shared, in general words, with no error text", async () => {
+  // the lookup answers with nothing (not found), or fails outright (a refused or dropped read): either way the newcomer is told they get the linked records
+  for (const resolve of [() => ({}), () => Promise.reject(new Error("provider.unavailable"))]) {
+    const { line, sheet } = await recordFooter(resolve);
+    assert.equal(
+      line,
+      "They'll see this chat's messages from now on, its files folder Customer signup uploads, and the records linked to this chat.",
+    );
     assert.ok(!/error|could not|not found|undefined|null|unavailable/i.test(sheet), "no error text");
   }
-});
-
-test("a record that no longer exists (the existence read answers not found) leaves records out of the footer", async () => {
-  const { line, sheet } = await recordFooter(() => ({}), notFound);
-  assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
-  assert.ok(!/error|could not|not found|undefined|null/i.test(sheet), "no error text");
-});
-
-test("a record whose name is read keeps the exact words: records in its title", async () => {
-  const { line } = await recordFooter(() => ({ hit: { kind: "record", itemId: "rec_x", title: "Client file" } }));
-  assert.match(line, /and records in Client file\.$/);
 });

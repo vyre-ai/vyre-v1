@@ -202,23 +202,10 @@ export async function loadAdd(
       ? undefined
       : (await tryCall<Out<"files.folder.get">>(deps, "files.folder.get", { folderId }))?.folder.name;
   let recordsName: string | undefined;
-  let recordsGone = false;
   if (recordsOf !== undefined) {
     const hit = (await tryCall<Out<"search.resolve">>(deps, "search.resolve", { kind: "record", itemId: recordsOf }))
       ?.hit;
     recordsName = hit?.title && hit.title.trim() !== "" ? hit.title.trim() : undefined;
-    // no name: the record is gone, or it is only unreadable right now (a failed or empty lookup cannot say which). Only an answer that says it does not exist leaves the clause out; anything else says
-    // in general words that records are shared, the safe direction for a line about what a newcomer will see
-    if (recordsName === undefined) {
-      try {
-        await deps.call("access.shares_of", { resource: { type: "record", id: recordsOf } });
-      } catch (e) {
-        const code =
-          (e as { error?: { code?: string }; code?: string } | null)?.error?.code ??
-          (e as { code?: string } | null)?.code;
-        if (code === "validation.not_found") recordsGone = true;
-      }
-    }
   }
   const target: AddTarget =
     kind === "project"
@@ -228,11 +215,7 @@ export async function loadAdd(
           name,
           ...(filesName ? { filesFolder: filesName } : {}),
           // records are shared with the newcomer whether or not their name could be read: an unread name says so in general words and never leaves them out
-          ...(recordsName
-            ? { recordsFolder: recordsName }
-            : recordsOf !== undefined && !recordsGone
-              ? { recordsUnnamed: true }
-              : {}),
+          ...(recordsName ? { recordsFolder: recordsName } : recordsOf !== undefined ? { recordsUnnamed: true } : {}),
         };
   const info: LinkInfo | undefined = link
     ? {
