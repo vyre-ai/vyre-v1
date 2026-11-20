@@ -2288,7 +2288,6 @@ test("a touch during a call is not lost: the bar says Pausing after this step, t
   };
   const step = w.call("chrome_click", { x: 5, y: 5 });
   await w.advance(0);
-  await w.advance(500); // the step is slow: a touch this long after the agent sent its input is the person's, not the agent's own event
   port.send({ type: "touch" });
   await w.advance(0);
   assert.match(w.overlay.get(7).goal, /Pausing after this step/);
@@ -2300,6 +2299,89 @@ test("a touch during a call is not lost: the bar says Pausing after this step, t
   assert.equal(w.eventsOf("takeover").length, 1, "stopped before the next step");
   assert.equal(w.overlay.get(7).state, "takeover");
   assert.equal(w.attached.size, 0);
+});
+
+test("the page's report of the agent's own click, at the place it clicked, is not a touch and is matched once; the same report again is a person's", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = framePort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchMouseEvent" && p.type === "mouseReleased") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_click", { x: 5, y: 5 });
+  await w.advance(0);
+  port.send({ type: "touch", kind: "pointer", x: 5, y: 6 });
+  await w.advance(0);
+  assert.doesNotMatch(
+    w.overlay.get(7).goal ?? "",
+    /Pausing after this step/,
+    "the agent's own click at its own place is not a touch",
+  );
+  port.send({ type: "touch", kind: "pointer", x: 5, y: 6 });
+  await w.advance(0);
+  assert.match(
+    w.overlay.get(7).goal,
+    /Pausing after this step/,
+    "the click was already matched once: a second one there is the person's",
+  );
+  release();
+  await step;
+  w.ext.debugger.sendCommand = orig;
+  await w.fails("chrome_snapshot", {}, "paused");
+});
+
+test("while the agent types, a click in another field is the person's touch and pauses it; a key the agent did not send is too", async () => {
+  for (const touch of [
+    { type: "touch", kind: "pointer", x: 400, y: 220 },
+    { type: "touch", kind: "key", code: "KeyZ" },
+  ]) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const port = framePort(w);
+    let release;
+    const hold = new Promise((r) => (release = r));
+    const orig = w.ext.debugger.sendCommand;
+    w.ext.debugger.sendCommand = async (t, m, p) => {
+      if (m === "Input.insertText") await hold;
+      return orig(t, m, p);
+    };
+    const step = w.call("chrome_type", { ref: "e1", text: "dana@acme.test" });
+    await w.advance(0);
+    port.send(touch);
+    await w.advance(0);
+    assert.match(w.overlay.get(7).goal, /Pausing after this step/, JSON.stringify(touch));
+    release();
+    await step;
+    w.ext.debugger.sendCommand = orig;
+  }
+});
+
+test("a key the agent sent, reported by the page under the same physical key, is its own and matched once", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = framePort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchKeyEvent" && p.type === "keyUp") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_act", { action: "press", value: "Enter" });
+  await w.advance(0);
+  port.send({ type: "touch", kind: "key", code: "Enter" });
+  await w.advance(0);
+  assert.doesNotMatch(w.overlay.get(7).goal ?? "", /Pausing after this step/, "the agent's own Enter is not a touch");
+  port.send({ type: "touch", kind: "key", code: "Enter" });
+  await w.advance(0);
+  assert.match(w.overlay.get(7).goal, /Pausing after this step/, "a second Enter was not sent by the agent");
+  release();
+  await step;
+  w.ext.debugger.sendCommand = orig;
 });
 
 test("a queued pause belongs to its task: when the agent lets go of the tab, the next task is not paused by it", async () => {
@@ -2315,7 +2397,6 @@ test("a queued pause belongs to its task: when the agent lets go of the tab, the
   };
   const step = w.call("chrome_click", { x: 5, y: 5 });
   await w.advance(0);
-  await w.advance(500); // the step is slow: a touch this long after the agent sent its input is the person's, not the agent's own event
   port.send({ type: "touch" });
   await w.advance(0);
   release();
