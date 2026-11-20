@@ -1537,6 +1537,8 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
       ...(mine ? { mine } : {}),
       ...(agentsCanCall === undefined ? {} : { agentsCanCall }),
       ...(follows ? { inherits: follows } : {}),
+      // who a Files folder is open to (the record or the Space follows by default; "added" once it is closed to the people added)
+      ...(res.type === "folder" ? { audience: audienceOf(res) } : {}),
     };
   }
   const audience = audienceOf(res);

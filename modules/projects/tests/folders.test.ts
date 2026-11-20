@@ -595,6 +595,7 @@ test("a later, separate failure for the same folder raises its own task", async 
   h.world.refuse.follows = true;
   const id = mkRecord(h, { title: "Twice" });
   await onFolderUnfollowed(h.ctx, { folderId: "fld_t", recordId: id, by: "svc_form_x", why: "x" }, "evt_a");
+  h.world.closed.delete("fld_t"); // reopened by a person since
   await onFolderUnfollowed(h.ctx, { folderId: "fld_t", recordId: id, by: "svc_form_x", why: "x" }, "evt_b");
   const keys = h.only("tasks.create").map((c) => (c.input as { idempotencyKey: string }).idempotencyKey);
   assert.equal(new Set(keys).size, 2);
@@ -617,4 +618,44 @@ test("a Personal Space has no sharing: access answers needs_team, which is not a
   );
   assert.equal(h.only("access.folder_narrow").length, 0);
   assert.equal(h.only("tasks.create").length, 0);
+});
+
+test("narrowing a folder that is already closed to the people added changes nobody's access: no narrowing call, no task", async () => {
+  const h = harness();
+  h.world.refuse.follows = true;
+  const id = mkRecord(h, { title: "Closed already" });
+  await created(h, id);
+  const ev = h.emitted.find((e) => e.name === "project.folder_unfollowed")!;
+  const folder = String(ev.payload["folderId"]);
+  h.world.closed.add(folder);
+  await onFolderUnfollowed(h.ctx, ev.payload, "evt_c");
+  assert.equal(h.only("access.folder_narrow").length, 0);
+  assert.equal(h.only("tasks.create").length, 0);
+});
+
+test("class guard: a Space's first run files no Needs-you task whatever the follow answers that is not a real refusal of rights", async () => {
+  // a fresh Space (Personal or team): the folders follow, or cannot because there is no sharing, or a neighbour is slow to wake, or the record is gone; none of that is a task for a person
+  for (const code of [
+    "permission.needs_team",
+    "internal.unavailable",
+    "validation.not_found",
+    "provider.unavailable",
+  ]) {
+    for (const times of [undefined, 1]) {
+      const h = harness();
+      h.world.refuse.follows = true;
+      h.world.refuse.code = code;
+      if (times !== undefined) h.world.refuse.times = times;
+      for (const n of [1, 2, 3]) await created(h, mkRecord(h, { title: `First run ${code} ${n} ${times}` }));
+      await backfill(h.ctx);
+      for (const e of h.emitted.filter((x) => x.name === "project.folder_unfollowed"))
+        await onFolderUnfollowed(h.ctx, e.payload, "evt_g");
+      assert.equal(h.only("tasks.create").length, 0, `${code} (${times ?? "always"}): no task`);
+      assert.equal(h.only("access.folder_narrow").length, 0, `${code} (${times ?? "always"}): nothing narrowed`);
+    }
+  }
+  const fresh = harness();
+  for (const n of [1, 2]) await created(fresh, mkRecord(fresh, { title: `Plain ${n}` }));
+  await backfill(fresh.ctx);
+  assert.equal(fresh.only("tasks.create").length, 0, "a Space where everything follows files nothing");
 });
