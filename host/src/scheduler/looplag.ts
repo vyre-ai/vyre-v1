@@ -25,7 +25,8 @@ export function startLoopLag(
       lag = Math.max(0, at - last - SAMPLE_MS);
     last = at;
     if (samples.length < 4096) samples.push(lag);
-    if (lag > WARN_MS) o.warn?.("scheduler.loop_blocked", { lagMs: Math.round(lag), runningWhenNoticed: o.running?.() ?? [] });
+    if (lag > WARN_MS)
+      o.warn?.("scheduler.loop_blocked", { lagMs: Math.round(lag), runningWhenNoticed: o.running?.() ?? [] });
   }, SAMPLE_MS);
   t.unref();
   return {

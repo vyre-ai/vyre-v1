@@ -2786,6 +2786,7 @@ lf(a7789[i7789], p + "/settingsChanged" + '/' + i7789, e, L1);
 }
 }
 if ("kind" in o7787) lf(o7787["kind"], p + "/kind", e, L391);
+if ("refreshed" in o7787) lf(o7787["refreshed"], p + "/refreshed", e, L3);
 }
 }
 }

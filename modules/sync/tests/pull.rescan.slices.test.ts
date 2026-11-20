@@ -256,15 +256,32 @@ test("an access change while a scan of the not-held rows is under way: the next 
   const s = openSync({ access: () => access, clock: () => NOW });
   await s.store.define({ add_types: [CONTACT_TYPE] });
   const mine = mintRecordId();
-  await s.store.create("contact", mine, { name: "Mine", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  await s.store.create("contact", mine, {
+    name: "Mine",
+    email: "n@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   for (let i = 0; i < 3000; i++)
-    await s.store.create("contact", mintRecordId(), { name: `Other ${i}`, email: "o@example.com", phone: "+1", region: "us", stage: "lead", owner: ADA });
+    await s.store.create("contact", mintRecordId(), {
+      name: `Other ${i}`,
+      email: "o@example.com",
+      phone: "+1",
+      region: "us",
+      stage: "lead",
+      owner: ADA,
+    });
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
   const events: string[] = [];
   const pull = (cursor: number): Promise<PullRes> => s.handlers["sync.pull"](ctx, { cursor, epoch: 0 });
   void events;
   const first = await pull(0);
-  assert.deepEqual(first.changes.map((c) => c.id), [mine]);
+  assert.deepEqual(
+    first.changes.map((c) => c.id),
+    [mine],
+  );
   // some other change of access: the scan that follows is cut in the rows the device does not hold
   access.putGrant({
     id: "gr_cy_other",
@@ -283,7 +300,11 @@ test("an access change while a scan of the not-held rows is under way: the next 
   // the revoke lands in the middle of it: ONE pull, the way a caller that does not loop reads it
   access.revokeGrant("gr_bo_record");
   const one = await pull(half.next);
-  assert.deepEqual(one.hide.map((h) => h.id), [mine], "the revoked row is hidden in the next pull, not after the scan is over");
+  assert.deepEqual(
+    one.hide.map((h) => h.id),
+    [mine],
+    "the revoked row is hidden in the next pull, not after the scan is over",
+  );
 });
 
 test("a pull of 2,000 and of 5,000 wide rows is cut by CPU time, never held past the bound, and the pages add up to every row once", async () => {
@@ -314,9 +335,14 @@ test("a pull of 2,000 and of 5,000 wide rows is cut by CPU time, never held past
       if (!r.more) break;
       assert.ok(pages < 200, "the pages end");
     }
-    process.stderr.write(`[feed] limit ${limit}: ${pages} pages, ${seen.size} rows, slowest page ${Math.round(slowest)} ms of CPU\n`);
+    process.stderr.write(
+      `[feed] limit ${limit}: ${pages} pages, ${seen.size} rows, slowest page ${Math.round(slowest)} ms of CPU\n`,
+    );
     assert.equal(seen.size, N, "every row arrives");
-    assert.ok(slowest <= 200, `a page of limit ${limit} was ${Math.round(slowest)} ms of CPU (the bound is 120 ms plus the row it was on)`);
+    assert.ok(
+      slowest <= 200,
+      `a page of limit ${limit} was ${Math.round(slowest)} ms of CPU (the bound is 120 ms plus the row it was on)`,
+    );
   }
 });
 
@@ -329,7 +355,14 @@ test("a share given while the scan of the not-held rows is half done: the rows i
   for (let i = 0; i < N; i++) {
     const id = mintRecordId();
     all.add(id);
-    await s.store.create("contact", id, { name: `Other ${i}`, email: "o@example.com", phone: "+1", region: "us", stage: "lead", owner: ADA });
+    await s.store.create("contact", id, {
+      name: `Other ${i}`,
+      email: "o@example.com",
+      phone: "+1",
+      region: "us",
+      stage: "lead",
+      owner: ADA,
+    });
   }
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
   const got = new Set<string>();
@@ -356,7 +389,10 @@ test("a share given while the scan of the not-held rows is half done: the rows i
   const half = await pull();
   assert.equal(half.more, true);
   const open = s.deps.db.get<{ ent: string; rid: string }>("SELECT ent, rid FROM sync_scope_scan");
-  assert.ok(open?.ent.startsWith("m:") && open.rid !== "", `the scan stands part way through the other rows (${open?.ent} ${open?.rid})`);
+  assert.ok(
+    open?.ent.startsWith("m:") && open.rid !== "",
+    `the scan stands part way through the other rows (${open?.ent} ${open?.rid})`,
+  );
   // a share opens all of them while it stands there
   access.putGrant({
     id: "gr_bo_us",

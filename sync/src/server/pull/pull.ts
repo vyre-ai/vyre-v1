@@ -61,7 +61,9 @@ const SCAN_DDL =
   "CREATE TABLE IF NOT EXISTS sync_scope_scan (person TEXT NOT NULL, device TEXT NOT NULL, stamp TEXT NOT NULL, ent TEXT NOT NULL, rid TEXT NOT NULL, back_ent TEXT, back_rid TEXT, began TEXT, PRIMARY KEY (person, device)) WITHOUT ROWID";
 // What a pull may spend is counted in the CPU time of the thread that runs it, not in wall time: a loaded machine (a busy CI runner, another process) then gives the same answer as an idle one, so a
 // small Space is always answered whole and a big one is cut at the same place every time. Where the runtime has no per-thread clock, wall time stands in.
-const threadCpu = (process as unknown as { threadCpuUsage?: () => { user: number; system: number } }).threadCpuUsage?.bind(process);
+const threadCpu = (
+  process as unknown as { threadCpuUsage?: () => { user: number; system: number } }
+).threadCpuUsage?.bind(process);
 const cpuMs = (): number => {
   if (!threadCpu) return performance.now();
   const u = threadCpu();
@@ -531,11 +533,7 @@ export function pullChanges(
         }
       }
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
-      if (
-        used >= limit ||
-        (maxBytes !== undefined && weight >= maxBytes) ||
-        cpuMs() - cpu0 >= PULL_CPU_MS
-      ) {
+      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes) || cpuMs() - cpu0 >= PULL_CPU_MS) {
         stopped = true;
         break;
       }
