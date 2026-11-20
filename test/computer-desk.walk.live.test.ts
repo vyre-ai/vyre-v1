@@ -216,3 +216,77 @@ test(
     }
   },
 );
+
+test(
+  "the send gate while a person holds the keyboard: the agent's send waits for the person and shows Allow on the desk, the person's own send goes straight through",
+  { timeout: 300_000 },
+  async (t) => {
+    const k = await world(t, { model: true });
+    if (!k) return;
+    try {
+      const page = k.me.page;
+      const held = async (): Promise<Array<{ id: string; capName: string }>> =>
+        (
+          (
+            (await k.w.owner.ok("gate.holds.list", { states: ["held"] })) as {
+              holds?: Array<{ id: string; capName: string }>;
+            }
+          ).holds ?? []
+        ).filter((h) => h.capName === "computers.chrome.send");
+      await k.w.owner.ok("threads.set_mode", { threadId: k.threadId, mode: "auto" });
+      await k.computerTab();
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("desk-live").waitFor({ timeout: 15_000 });
+      // the person takes the keyboard
+      await page.getByTestId("browser-take").click();
+      await page.getByTestId("browser-give").waitFor({ timeout: 15_000 });
+      // the agent tries to send: it waits, it does not go through
+      await k.w.owner.ok("chat.post", {
+        threadId: k.threadId,
+        body: `TOOL chrome_send ${JSON.stringify({ heldId: "h-agent-1" })}`,
+        mentions: [{ kind: "agent", id: k.agentId }],
+      });
+      const start = Date.now();
+      while ((await held()).length === 0) {
+        if (Date.now() - start > 40_000) {
+          const msgs = JSON.stringify(
+            await k.w.owner.ok("chat.messages.list", { threadId: k.threadId }).catch((e: unknown) => String(e)),
+          ).slice(-1500);
+          throw new Error(`the agent's send never reached the Gate: ${msgs}`);
+        }
+        await page.waitForTimeout(500);
+      }
+      assert.equal((await held()).length, 1, "one send waits");
+      // the desk offers the person Allow, and the person still holds the keyboard
+      await page.getByTestId("browser-allow").waitFor({ timeout: 30_000 });
+      await shoot(page, DIR, "send-waits");
+      // the person's own send is not held: it goes to the handler at once (which answers for a held item that does not exist), and no second hold appears
+      const own = await k.w.owner.call("computers.chrome.send", { agentId: k.agentId, heldId: "h-own-1" });
+      assert.notEqual(own.status, 202, `the person's own send is not held: ${JSON.stringify(own.data).slice(0, 200)}`);
+      assert.equal((await held()).length, 1, "the person's send made no hold");
+      // Allow while the person still holds the keyboard: the send cannot run under their hands, so it keeps waiting and the desk says so in plain words
+      await page.getByTestId("browser-allow").click();
+      await page
+        .getByText(/controls/i)
+        .first()
+        .waitFor({ timeout: 15_000 });
+      assert.equal((await held()).length, 1, "the send still waits while the person holds the keyboard");
+      await shoot(page, DIR, "send-waits-for-you");
+      // the person gives the keyboard back: now Allow sends it and the hold is decided
+      await page.getByTestId("browser-give").click();
+      await page.getByTestId("browser-take").waitFor({ timeout: 15_000 });
+      await page.getByTestId("browser-allow").click();
+      const t0 = Date.now();
+      while ((await held()).length > 0) {
+        if (Date.now() - t0 > 30_000) {
+          await shoot(page, DIR, "send-after-allow");
+          throw new Error("the hold was not decided after Allow with the keyboard given back");
+        }
+        await page.waitForTimeout(500);
+      }
+      // no crash guard here: the model stand-in answers with its own prompt, which names the agent by id (not the product)
+    } finally {
+      await k.close();
+    }
+  },
+);

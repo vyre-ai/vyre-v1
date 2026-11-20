@@ -812,12 +812,12 @@ test("a send waiting for approval: the bar says so with what it is, offers Allow
     await press(find(root, "browser-allow"));
     await flush();
     assert.deepEqual(
-      r.asked.filter((a) => a.startsWith("tasks.decide")),
-      ['tasks.decide {"taskId":"tsk_1","verdict":"approve"}'],
+      r.asked.filter((a) => a.startsWith("tasks.act")),
+      ['tasks.act {"taskId":"tsk_1","action":"approve"}'],
     );
     await press(find(root, "browser-deny"));
     await flush();
-    assert.ok(r.asked.includes('tasks.decide {"taskId":"tsk_1","verdict":"reject"}'));
+    assert.ok(r.asked.includes('tasks.act {"taskId":"tsk_1","action":"reject","note":"Not now"}'));
     // someone who may not answer sees what waits and is offered nothing
     r.push({ state: "open", canTakeOver: true, sites: [], held: { count: 2, what: "", taskId: "", mayAnswer: false } });
     await flush();

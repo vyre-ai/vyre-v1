@@ -1,0 +1,1 @@
+- Allow and Not now on a send the agent is waiting to make now work from the desk: they answered the approval with the wrong call, so nothing happened. While you hold the keyboard the send keeps waiting and says so; once you give it back, Allow sends it.

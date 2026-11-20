@@ -234,13 +234,18 @@ export function Desk({
     },
     [data, agentId, run],
   );
-  // a send, post or payment of the agent waits for approval: Allow or Not now is the Approve task's own decision (tasks.decide); whoever may not answer it is offered nothing and the server would refuse
+  // a send, post or payment of the agent waits for approval: Allow or Not now is the Approve task's own answer (tasks.act); whoever may not answer it is offered nothing and the server would refuse
   const answer = useCallback(
     (verdict: "approve" | "reject"): void => {
       const h = view.held;
       if (!h || !h.taskId) return;
       run(async () => {
-        await session.call("tasks.decide", { taskId: h.taskId, verdict });
+        // the Approve task is answered at its source (tasks.act); tasks.decide is for work tasks and refuses it. A refusal needs its reason: "Not now".
+        await session.call("tasks.act", {
+          taskId: h.taskId,
+          action: verdict,
+          ...(verdict === "reject" ? { note: "Not now" } : {}),
+        });
       });
     },
     [view.held, session, run],
