@@ -430,7 +430,9 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
       try {
         flush(true);
       } catch (err) {
-        d.warn("the consumers' cursors could not be stored while idle", { error: err instanceof Error ? err.message : String(err) });
+        d.warn("the consumers' cursors could not be stored while idle", {
+          error: err instanceof Error ? err.message : String(err),
+        });
       }
     }, FLUSH_EVERY_MS);
     idleTimer.unref?.();
@@ -586,7 +588,9 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         try {
           flush();
         } catch (err) {
-          d.warn("the consumers' cursors could not be stored at the stop", { error: err instanceof Error ? err.message : String(err) });
+          d.warn("the consumers' cursors could not be stored at the stop", {
+            error: err instanceof Error ? err.message : String(err),
+          });
         }
       }
       if (!pass || abandoned) return Promise.resolve();
