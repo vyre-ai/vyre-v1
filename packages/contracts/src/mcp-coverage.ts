@@ -101,6 +101,8 @@ const VIA_SITES_OPS =
   "An agent reaches it through the sites_ops tool (actions logs, metrics, jobs, job_*, worker_*, backups, backup_*); the site's lock, ownership checks and the Gate apply as for a person.";
 const DOC_SIGNING =
   "System call: esign.send asks it for a PDF's signing places and exact-copy state; agents get the roles from documents_make (signers) and esign_send.";
+const SERVICES_LIST =
+  "Its answer is part of the sites_ops jobs action: the workers come back beside the jobs, so an agent reads them there.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -138,10 +140,11 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
     SYSTEM,
   ],
   [/^documents\.signing$/, DOC_SIGNING],
+  [/^sites\.services_list$/, SERVICES_LIST],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^mail\.(setup\.(status|test_send)|smtp\.(get|set|verify)|address\.(list|add|move))$/, VIA_MAIL_CONFIGURE],
-  [/^sites\.(logs_read|metrics|jobs?_[a-z]+|services?_[a-z]+|backups?_[a-z]+)$/, VIA_SITES_OPS],
+  [/^sites\.(logs_read|metrics|jobs?_[a-z]+|service_(add|restart|stop|remove)|backups?_[a-z]+)$/, VIA_SITES_OPS],
 ];
 
 /** Why a capability has no tool, or null when it is a tool or has none and no reason (a gap the parity test fails on). */
