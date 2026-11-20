@@ -17,6 +17,7 @@ import {
   readCmdLog,
   setCmdLogCaps,
 } from "../cmdlog.ts";
+import { assertWithinCpu, assertWithinCpuAsync } from "../../../testkit/src/cpu-time.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any> | any>;
 const call = async (hn: Harness, cap: string, input: unknown, ctx: Harness["ctx"] = hn.ctx): Promise<any> => {
@@ -424,10 +425,10 @@ test("a huge range or needle costs little: a range over a log of a million short
   hn.db.run(
     "INSERT INTO terminal_commands (seq, terminal_id, command, exit_code, started_at, duration_ms, by_principal) VALUES (1, 'trm_a', 'x', 0, 1, 1, 'usr_a')",
   );
-  const t0 = Date.now();
-  const a = readCmdLog(hn.db, "trm_a", 1, { from: 1, to: 1_000_000 }, (t) => t, 5);
+  const a = assertWithinCpu("a read of a huge log", 2000, () =>
+    readCmdLog(hn.db, "trm_a", 1, { from: 1, to: 1_000_000 }, (t) => t, 5),
+  );
   assert.ok(a && a.lines.length <= MAX_LINES && a.more);
-  assert.ok(Date.now() - t0 < 2000);
   const long = readCmdLog(hn.db, "trm_a", 1, { match: ["q".repeat(100_000)] }, (t) => t, 5);
   assert.equal(long?.lines.length, 0);
   // a single huge line with multi-byte characters is cut at a character boundary
@@ -466,22 +467,23 @@ test("hostile output at the 5 MB cap is kept in under a second a shape, the loop
     ensure(hn.db);
     let ticks = 0;
     const timer = setInterval(() => (ticks += 1), 1);
-    const t0 = Date.now();
-    await keepCmdLog(hn.db, {
-      seq: 1,
-      terminalId: "trm_a",
-      agentId: "agt_a",
-      personId: "usr_a",
-      endedAt: 1,
-      output: text,
-    });
-    const ms = Date.now() - t0;
+    const w0 = performance.now();
+    await assertWithinCpuAsync(name, 1500, () =>
+      keepCmdLog(hn.db, {
+        seq: 1,
+        terminalId: "trm_a",
+        agentId: "agt_a",
+        personId: "usr_a",
+        endedAt: 1,
+        output: text,
+      }),
+    );
+    const wall = performance.now() - w0;
     clearInterval(timer);
-    assert.ok(ms < 1500, `${name}: ${ms} ms`);
     const body = String(hn.rows("SELECT body FROM terminal_cmd_log WHERE seq = 1")[0]?.["body"]);
     assert.ok(Buffer.byteLength(body) <= 5 * 1024 * 1024 + 100, `${name}: the cap holds`);
     if (name === "lines") assert.ok(!body.includes("hunter2hunter2"), "the password in a flag went");
-    assert.ok(ticks > 0 || ms < 50, `${name}: the loop was given back`);
+    assert.ok(ticks > 0 || wall < 50, `${name}: the loop was given back`);
   }
 });
 

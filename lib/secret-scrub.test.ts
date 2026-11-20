@@ -3,6 +3,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { redact, scrubLog } from "./secret-scrub.ts";
+import { assertWithinCpu } from "../testkit/src/cpu-time.ts";
 
 const gone = (text: string, ...secrets: string[]): void => {
   const out = scrubLog(text);
@@ -90,7 +91,7 @@ test("the cut never splits a key: a secret across the 4000th character is gone, 
   assert.ok(!scrubLog(token).includes("A1b2C3d4E5f6G7h8I9j0"), "a token that starts before the cut is removed whole");
 });
 
-test("hostile shapes take linear time: 200 KB of word boundaries, separators, quotes, headers and unfinished quotes, best of 3 under 150 ms", () => {
+test("hostile shapes take linear time: 200 KB of word boundaries, separators, quotes, headers and unfinished quotes, one run under 150 ms of CPU", () => {
   const shapes = [
     "a.".repeat(100_000),
     "a-".repeat(100_000),
@@ -110,13 +111,7 @@ test("hostile shapes take linear time: 200 KB of word boundaries, separators, qu
     ("x ".repeat(2000) + "password=").repeat(500),
   ];
   for (const text of shapes) {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const t = performance.now();
-      scrubLog(text);
-      best = Math.min(best, performance.now() - t);
-    }
-    assert.ok(best < 150, `${best.toFixed(0)} ms for ${JSON.stringify(text.slice(0, 14))}`);
+    assertWithinCpu(JSON.stringify(text.slice(0, 14)), 150, () => scrubLog(text));
   }
 });
 
@@ -222,12 +217,6 @@ test("nested pairs stay linear: a 2000-character word of pairs and many such wor
     '{"x":{"y":{"z":'.repeat(150),
   ];
   for (const t of shapes) {
-    let best = Infinity;
-    for (let i = 0; i < 3; i++) {
-      const start = performance.now();
-      scrubLog((t + " ").repeat(Math.ceil(16_000 / (t.length + 1))));
-      best = Math.min(best, performance.now() - start);
-    }
-    assert.ok(best < 100, `${best.toFixed(0)} ms for ${t.slice(0, 12)}`);
+    assertWithinCpu(t.slice(0, 12), 100, () => scrubLog((t + " ").repeat(Math.ceil(16_000 / (t.length + 1)))));
   }
 });
