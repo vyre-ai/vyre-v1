@@ -2094,6 +2094,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         routine: o?.routine === true,
       });
       if (o?.answers) pendingCause.set(`${threadId}|${item.qseq}`, waits.get(o.answers)?.cause ?? "resume");
+      if (pendingCause.size > 2000) pendingCause.delete(pendingCause.keys().next().value as string); // a wake dropped before it ran leaves its entry: bounded like the turn starts
       kick(st);
       return item.qseq;
     },

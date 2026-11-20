@@ -98,6 +98,53 @@ export async function waitFor<T>(f: () => Promise<T | null>, ms = 40_000, why?: 
   }
 }
 
+/** The milliseconds the daemon itself reported its event loop blocked (the sum of every scheduler.loop_blocked line in its log). */
+export function loopLagMs(d: Daemon): number {
+  d.sink.flush();
+  const rows = new DatabaseSync(d.paths.logs, { readOnly: true })
+    .prepare("SELECT attrs FROM logs WHERE msg = 'scheduler.loop_blocked'")
+    .all() as Array<{ attrs: string | null }>;
+  let sum = 0;
+  for (const r of rows) {
+    try {
+      const lag = Number((JSON.parse(String(r.attrs ?? "{}")) as { lagMs?: unknown }).lagMs);
+      if (Number.isFinite(lag) && lag > 0) sum += lag;
+    } catch {
+      /* a line without attributes counts for nothing */
+    }
+  }
+  return sum;
+}
+
+/**
+ * waitFor for a thing the daemon's own scheduler does by itself (a retry, a pull), on a runner that may be loaded. A loaded runner slips the scheduler's
+ * ticks by seconds, and the daemon says so in its log (scheduler.loop_blocked); the lag it reports DURING this wait (not before it) is added to the
+ * deadline, at most half of `ms`, so a wait gets at most 1.5 times its base. If the daemon reports more than `ms` of blocked loop during the wait, it
+ * fails at once: a stall that large is the fault, not the runner.
+ *
+ * Never use this where a stall is the thing under test (a walk about the event loop, boot hooks or loop blocking): the credit would forgive the very
+ * thing it is meant to catch. Use waitFor there, with its fixed bound.
+ */
+export async function waitForScheduled<T>(d: Daemon, f: () => Promise<T | null>, ms = 40_000): Promise<T> {
+  const start = Date.now();
+  const lag0 = loopLagMs(d); // what the daemon reported before this wait (boot, earlier steps) is not credited
+  for (;;) {
+    const v = await f();
+    if (v !== null) return v;
+    const lag = loopLagMs(d) - lag0;
+    if (lag > ms)
+      throw new Error(
+        `waitFor: the daemon reported its loop blocked for ${lag} ms during a ${ms} ms wait; host log ${hostLog(d)}`,
+      );
+    const credit = Math.min(lag, ms / 2);
+    if (Date.now() - start > ms + credit)
+      throw new Error(
+        `waitFor: it never happened within ${ms} ms plus ${credit} ms the daemon reported its loop blocked; host log ${hostLog(d)}`,
+      );
+    await new Promise<void>((r) => setTimeout(r, 200));
+  }
+}
+
 /** The owner's Claude account, the way a person connects it. */
 export async function connect(d: Daemon): Promise<string> {
   const unlock = await fetch(`${d.url}/local/vault/key/unlock`, {
