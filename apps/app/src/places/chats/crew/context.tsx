@@ -70,7 +70,7 @@ export function CrewProvider({
   const [open, setOpen] = useState(false);
   // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
   // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
-  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("unknown capability")), []);
+  const absent = useMemo<Call>(() => async () => Promise.reject(new Error("not implemented")), []);
   const run = useRunData(call ?? absent, threadId, {
     enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open),
   });
