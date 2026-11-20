@@ -24,6 +24,11 @@ jobs:
         run: |
           node scripts/ci-select.ts "" --matrix --perf-only > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" perf jobs");const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
+      - name: The speed files that drive Chromium on the production export are in that set
+        run: |
+          for f in test/instant.perf.test.ts test/first-load.perf.test.ts apps/app/tests/chat.newchat-open.perf.test.ts; do
+            grep -q "$f" select.json || { echo "::error::$f is not selected by the perf job"; exit 1; }
+          done
   shards:
     name: ${{ matrix.name }}
     needs: select
