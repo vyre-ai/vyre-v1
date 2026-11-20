@@ -12,6 +12,9 @@ import type { LogReader } from "./consumers.ts";
 
 export const MAX_PROJECTION_TRIES = 5;
 const PAGE = 200;
+/** After this many ms of synchronous work a pass lets the event loop run: a page of 200 heavy events held the loop for seconds on a large Space (Meier, Nov 2026). */
+const YIELD_EVERY_MS = 20;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isAsync = (p: unknown): p is AsyncConsumer =>
@@ -119,6 +122,7 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
     if (!c) return; // start() has not run for it yet
     let at = c.seq;
     const size = p.batch ?? PAGE;
+    let since = performance.now();
     for (;;) {
       const page = await d.log.read({ after: at, limit: size });
       if (!page.length) return;
@@ -129,8 +133,13 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
         } // this event is tried again on the next pass, before any later one
         at = e.seq;
         setCursor(p, at);
+        if (performance.now() - since >= YIELD_EVERY_MS) {
+          await yieldLoop();
+          since = performance.now();
+        }
       }
       if (page.length < size) return;
+      await yieldLoop();
     }
   }
 

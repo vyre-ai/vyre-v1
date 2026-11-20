@@ -39,13 +39,20 @@ export const consumers = {
   },
 };
 
-/** At boot, and again every ten minutes: project records with an empty folder field get one, and the folders' access is brought back in line with their records. */
+/**
+ * At boot: project records with an empty folder field get one, and the folders' access is brought back in line with their records. After a sweep that had no failure the job is done for this
+ * run of the server (a new project record gets its folder from projects.record_folder as it is made), so the ten-minute repeat costs nothing; a sweep that failed on a record is tried again.
+ */
+const SWEPT = new WeakSet<object>();
 export const periodic = {
   "projects.folder_backfill": {
     everyMs: 10 * 60_000,
     immediate: true,
     async run(ctx: Ctx): Promise<void> {
-      await backfill(ctx as never);
+      if (SWEPT.has(ctx.db as object)) return;
+      const failed = { n: 0 };
+      await backfill(ctx as never, { failed });
+      if (failed.n === 0) SWEPT.add(ctx.db as object);
     },
   },
 };

@@ -69,6 +69,9 @@ export function parseWhen(at: number | string, now: number, traceId: string = NO
 }
 
 const DEFAULT_DEADLINE_MS = 300_000;
+/** A tick lets the event loop run after this many ms of its own work, so fifty due jobs never hold it together. */
+const YIELD_EVERY_MS = 20;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 /** A job that waits, and why: `running` (claimed, not yet settled), `retrying` (failed, waiting for its backoff) or `due` (its time has come and it has not started: behind another job). */
 export interface WaitingJob {
@@ -261,7 +264,12 @@ export class ScheduleQueue {
       this.o.batch ?? 50,
     ) as Row[];
     let ran = 0;
+    let since = performance.now();
     for (const r of due) {
+      if (performance.now() - since >= YIELD_EVERY_MS) {
+        await yieldLoop();
+        since = performance.now();
+      }
       // claim: only one ticker wins a row even if two hosts share the file
       const claimed = this.db.run(
         "UPDATE host_schedule SET state = 'running', claimed_at = ? WHERE id = ? AND (state = 'pending' OR (state = 'running' AND claimed_at <= ?))",

@@ -1,0 +1,1 @@
+- A large Space (hundreds of thousands of records) no longer freezes the server for seconds: the projection pass, the schedule tick and the project-folder sweep work in slices of 20 ms and let the loop run between them, and the folder sweep runs once per start instead of every ten minutes.
