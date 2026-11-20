@@ -194,16 +194,38 @@ test("a revoke reaches a device that holds a few rows in its first pull, however
   const s = openSync({ access: () => access, clock: () => NOW });
   await s.store.define({ add_types: [CONTACT_TYPE] });
   const mine = mintRecordId();
-  await s.store.create("contact", mine, { name: "Mine", email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+  await s.store.create("contact", mine, {
+    name: "Mine",
+    email: "n@example.com",
+    phone: "+1",
+    region: "eu",
+    stage: "lead",
+    owner: ADA,
+  });
   for (let i = 0; i < 1500; i++)
-    await s.store.create("contact", mintRecordId(), { name: `Other ${i}`, email: "o@example.com", phone: "+1", region: "us", stage: "lead", owner: ADA });
+    await s.store.create("contact", mintRecordId(), {
+      name: `Other ${i}`,
+      email: "o@example.com",
+      phone: "+1",
+      region: "us",
+      stage: "lead",
+      owner: ADA,
+    });
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: BO, deviceId: "dev1", deviceClass: "desktop" };
   const pull = (cursor: number): Promise<PullRes> => s.handlers["sync.pull"](ctx, { cursor, epoch: 0 });
   const first = await pull(0);
-  assert.deepEqual(first.changes.map((c) => c.id), [mine], "the device holds the one row it may see");
+  assert.deepEqual(
+    first.changes.map((c) => c.id),
+    [mine],
+    "the device holds the one row it may see",
+  );
   access.revokeGrant("gr_bo_record");
   const next = await pull(first.next);
-  assert.deepEqual(next.hide.map((h) => h.id), [mine], "the revoked row is hidden in the very next pull");
+  assert.deepEqual(
+    next.hide.map((h) => h.id),
+    [mine],
+    "the revoked row is hidden in the very next pull",
+  );
 });
 
 test("a pull of a few hundred rows is whole in one answer, however slow the machine is that moment", async () => {
@@ -214,7 +236,14 @@ test("a pull of a few hundred rows is whole in one answer, however slow the mach
   for (let i = 0; i < 600; i++) {
     const id = mintRecordId();
     ids.push(id);
-    await s.store.create("contact", id, { name: `N${i}`, email: "n@example.com", phone: "+1", region: "eu", stage: "lead", owner: ADA });
+    await s.store.create("contact", id, {
+      name: `N${i}`,
+      email: "n@example.com",
+      phone: "+1",
+      region: "eu",
+      stage: "lead",
+      owner: ADA,
+    });
   }
   const ctx: PullCtx = { trace: { traceId: TRACE }, principal: ADA, deviceId: "dev1", deviceClass: "desktop" };
   const r = await s.handlers["sync.pull"](ctx, { cursor: 0, epoch: 0 });

@@ -480,10 +480,7 @@ export function pullChanges(
         }
       }
       if (maxBytes !== undefined) for (; weighed < out.length; weighed++) heavy(out[weighed]!);
-      if (
-        used >= limit ||
-        (maxBytes !== undefined && weight >= maxBytes)
-      ) {
+      if (used >= limit || (maxBytes !== undefined && weight >= maxBytes)) {
         stopped = true;
         break;
       }
