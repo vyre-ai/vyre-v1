@@ -356,6 +356,8 @@ test("a person watches a crew build in the real app: the Crew tab, one result ca
       assert.match(await page.getByTestId(`crew-chip-${coderId}-steps`).innerText(), /1 passing, 1 failing/);
       if (mode === "light") {
         await page.getByTestId(`crew-chip-${coderId}-open`).click({ timeout: 15_000 });
+        // the code facts sit under the pane's Files tab
+        await page.getByTestId("crew-peek-tab-files").click({ timeout: 10_000 });
         await page.getByTestId("crew-peek-failing").waitFor({ timeout: 20_000 });
         assert.match(await page.getByTestId("crew-peek-failing").innerText(), /toggle survives a reload/);
         // a finished helper says what it did, in the short plain labels that were kept: the file's name and the test counts

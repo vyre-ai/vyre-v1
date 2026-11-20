@@ -1,0 +1,1 @@
+- Helpers that work at the same time now show side by side as tiles in the chat, each with what it is doing right now, its tokens, its cost and its clock; one switch turns them into rows, and a narrow column always shows rows.

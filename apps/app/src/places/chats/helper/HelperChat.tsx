@@ -1,7 +1,7 @@
 // Helper chat (spec 3.2 Helper chats): a helper's chat opens in the same pane with an address bar at the top ("Research > Firms 1-3"; each part links back). It is read-only:
 // no composer, because helpers take no messages; a note says so, and "Reply in ..." goes to the parent thread, where steering happens. While the helper runs there is Stop. The
 // brief, the steps and the result are the messages, drawn from the kept copy as they arrive.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View, useWindowDimensions } from "react-native";
 import { States } from "../../../../../../ui/src/States/index.tsx";
@@ -352,7 +352,7 @@ function HelperView(): ReactElement {
 }
 
 /** Ask the helper something while it works: it goes to the helper as the person's own words (chat.helper.steer). */
-function AskBox({
+export function AskBox({
   threadId,
   name,
   call,
@@ -364,17 +364,24 @@ function AskBox({
   say: (t: string) => void;
 }): ReactElement {
   const [text, setText] = useState("");
+  const steering = useRef(false);
   const send = (): void => {
     const body = text.trim();
-    if (body === "") return;
+    if (body === "" || steering.current) return;
+    steering.current = true;
     void Promise.resolve(
       call("chat.helper.steer", { threadId, body, idempotencyKey: `steer-${threadId}-${Date.now()}` }),
     ).then(
       () => {
-        setText("");
+        steering.current = false;
+        // emptied only if it still holds what was sent: words typed since stay
+        setText((now) => (now === text ? "" : now));
         say("Sent. It reads this on its next step.");
       },
-      () => say("It could not take that. Ask in the chat that started it."),
+      () => {
+        steering.current = false;
+        say("It could not take that. Ask in the chat that started it.");
+      },
     );
   };
   return (

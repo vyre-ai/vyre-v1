@@ -1,0 +1,1 @@
+- Save as an agent now shows the words the new agent will be told, editable before you save and starts on "Only me". Save, Run again and Compare are not shown to someone who only watches the chat, "Another model" lists only models the Space's helper rule allows, and a refused save or re-run says why.

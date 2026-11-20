@@ -1,0 +1,1 @@
+- A chat that never had a helper no longer asks the runtime anything; the Crew pane shares the chat's read instead of making its own; a tile whose helper sleeps says what it waits on.

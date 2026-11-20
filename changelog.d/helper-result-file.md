@@ -1,0 +1,1 @@
+- A finished helper's result can be saved to Files from its pane: you pick the folder with the same picker Files uses for moving, and it is saved once as a markdown file.

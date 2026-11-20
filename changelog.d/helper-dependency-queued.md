@@ -1,0 +1,1 @@
+- A helper's tile says what it starts after only while it has not started, and says it cannot start when what it waits for failed or stopped.

@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "PEEKRESULT_01-result",
+      "route": "/m/PEEKRESULT_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='peekresult-mount']",
+      "note": "A finished helper's result with Make a task, Save to Files and Add to a record, and the sheet each one opens (title to confirm, folder picker, record picker)."
+    }
+  ]
+}

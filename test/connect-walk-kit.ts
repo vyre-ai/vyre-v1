@@ -521,7 +521,7 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
       await op.screenshot({ path: `${shotAs("olivia")}inbox-${tag}.png` });
       const wrong = await olivia("vault.connect_card.submit", {
         revision: (
-          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+          (await olivia("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } }
         ).card.service.revision,
         hosts: ["api.crmapp.example"],
         requestId,
@@ -539,7 +539,7 @@ export async function teamWalk(t: { skip(m: string): void }, SKINS: Skins, label
       );
       const right = await olivia("vault.connect_card.submit", {
         revision: (
-          (await olivia("vault.connect_card.get", { requestId })).data as { card: { service: { revision: string } } }
+          (await olivia("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } }
         ).card.service.revision,
         hosts: ["api.crmapp.example"],
         requestId,
