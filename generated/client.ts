@@ -2506,6 +2506,7 @@ export function createClient(transport: Transport) {
         save_as_agent: call("runs.node.save_as_agent", 1),
         start: call("runs.node.start", 1),
       },
+      ops: call("runs.ops", 1),
       people_counts: call("runs.people_counts", 1),
       pin_version: call("runs.pin_version", 1),
       preview_undo: call("runs.preview_undo", 1),

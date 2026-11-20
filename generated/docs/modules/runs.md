@@ -4,7 +4,7 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (48)
+## Capabilities (49)
 
 - [runs.activity.list](../capabilities/runs.activity.list.md): Everything of the agent work tree that is running, asleep or paused for the person (or for everyone, for someone who manages runs), newest first
 - [runs.board.answer](../capabilities/runs.board.answer.md): The parent, the owner or a manager answers a question on the board
@@ -35,13 +35,14 @@ Requires: nothing.
 - [runs.node.rerun](../capabilities/runs.node.rerun.md): Start a finished helper again beside the first, with an edited brief or another model; both are kept and read side by side with runs.node.compare
 - [runs.node.save_as_agent](../capabilities/runs.node.save_as_agent.md): Make a finished piece of work into an agent: its brief becomes the instructions, with the same model and the tool limits it began with (the allowed list only for someone who manages its agent). Made as the person who asks; an agent asking needs the person's ok
 - [runs.node.start](../capabilities/runs.node.start.md): Make a node in the agent work tree: a turn, helper, subagent, handoff, ask, watcher, terminal command or job (the engine, chat and terminal call this)
+- [runs.ops](../capabilities/runs.ops.md): Agent work: look, tell, steer; read the runs skill
 - [runs.people_counts](../capabilities/runs.people_counts.md): How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work
 - [runs.pin_version](../capabilities/runs.pin_version.md): Move an active Run onto a definition version without replaying its steps
 - [runs.preview_undo](../capabilities/runs.preview_undo.md): Show what Undo this run would reverse and what it cannot (sent messages and deployments)
 - [runs.purge](../capabilities/runs.purge.md): Remove Runs and step logs older than a time, a batch at a time (retention)
 - [runs.record_key](../capabilities/runs.record_key.md): Record the key and model a step used, or a fallback to the backup key
 - [runs.record_step](../capabilities/runs.record_step.md): Write one row of the durable step log (state, input and output refs, error, trace span)
-- [runs.replay](../capabilities/runs.replay.md): Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance
+- [runs.replay](../capabilities/runs.replay.md): Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer is cleared
 - [runs.resume](../capabilities/runs.resume.md): Continue a waiting Run
 - [runs.retry](../capabilities/runs.retry.md): Retry a failed or stopped Run from the start or from a step
 - [runs.start](../capabilities/runs.start.md): Create a Run record (engine, Gate and other modules call this for any long-lived work)

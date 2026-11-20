@@ -2506,6 +2506,7 @@ export function stubs(ctx: CallCtx) {
         save_as_agent: call("runs.node.save_as_agent"),
         start: call("runs.node.start"),
       },
+      ops: call("runs.ops"),
       people_counts: call("runs.people_counts"),
       pin_version: call("runs.pin_version"),
       preview_undo: call("runs.preview_undo"),

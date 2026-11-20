@@ -10,6 +10,7 @@ export const HOLD_WHENS: ReadonlySet<string> = new Set([
   "actor.kind == 'agent'",
   "actor.kind != 'person' and (input.action == 'set' or input.action == 'reset')",
   "sites.ops_gate(input)",
+  "runs.ops_gate(input)",
   "sites.run_gate(input)",
   "sites.run_update_gate(input)",
   "mail.smtp_override(input)",

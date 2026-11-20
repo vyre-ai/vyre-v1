@@ -34,6 +34,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "runs.node.rerun": async (ctx) => { throw new VyreErr(notImplemented("runs.node.rerun", ctx.trace)); },
   "runs.node.save_as_agent": async (ctx) => { throw new VyreErr(notImplemented("runs.node.save_as_agent", ctx.trace)); },
   "runs.node.start": async (ctx) => { throw new VyreErr(notImplemented("runs.node.start", ctx.trace)); },
+  "runs.ops": async (ctx) => { throw new VyreErr(notImplemented("runs.ops", ctx.trace)); },
   "runs.people_counts": async (ctx) => { throw new VyreErr(notImplemented("runs.people_counts", ctx.trace)); },
   "runs.pin_version": async (ctx) => { throw new VyreErr(notImplemented("runs.pin_version", ctx.trace)); },
   "runs.preview_undo": async (ctx) => { throw new VyreErr(notImplemented("runs.preview_undo", ctx.trace)); },

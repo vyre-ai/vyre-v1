@@ -2571,7 +2571,7 @@
     {
       "deferred": false,
       "name": "crew_merge",
-      "summary": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed",
+      "summary": "Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local until pushed",
       "toolset": "chats"
     },
     {
@@ -2583,13 +2583,13 @@
     {
       "deferred": false,
       "name": "crew_push",
-      "summary": "Push the project repository's base branch, with a teammate's merged work, to its remote. An outward act: a person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
+      "summary": "Push the project repository's base branch, with a teammate's merged work, to its remote. A person's press is their own; an agent goes only when the person's message this turn asked for it, else it holds at the Gate",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "crew_start",
-      "summary": "Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first",
+      "summary": "Start a teammate on a brief in any chat. It works on its own branch of its own copy of the repository: the chat's project's, else the chat's work folder on this computer. Nothing to set up first",
       "toolset": "chats"
     },
     {
@@ -2601,7 +2601,7 @@
     {
       "deferred": false,
       "name": "crew_wait",
-      "summary": "Wake me when the checks of a pull request end: the host looks at them, not the model, shows the progress in the Crew tab, and posts one message here that wakes the lead when they finish",
+      "summary": "Wake me when the checks of a pull request end: the host watches them, not the model, shows the progress in the Crew tab, and posts one message that wakes the lead",
       "toolset": "chats"
     },
     {
@@ -2859,7 +2859,7 @@
     {
       "deferred": false,
       "name": "engine_accounts_list",
-      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not",
+      "summary": "Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says if it can run there and why not",
       "toolset": "meta"
     },
     {
@@ -2901,7 +2901,7 @@
     {
       "deferred": false,
       "name": "engine_drop_queued",
-      "summary": "Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
+      "summary": "Take a message waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it",
       "toolset": "chats"
     },
     {
@@ -2973,7 +2973,7 @@
     {
       "deferred": false,
       "name": "engine_live_turns",
-      "summary": "The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream",
+      "summary": "The turns being written in a thread now, with the text so far: what a chat opened mid-turn shows before it follows the live stream",
       "toolset": "chats"
     },
     {
@@ -2985,13 +2985,13 @@
     {
       "deferred": false,
       "name": "engine_now",
-      "summary": "Which agents are working right now: the agent, the person it works for, where it runs (the Space, their computer, their server) and since when; the chat is named only to someone who may read it",
+      "summary": "Which agents are working now: the agent, the person it works for, where it runs and since when; the chat is named only to someone who may read it",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_placement_options",
-      "summary": "What the runs-on chip of a chat offers: this computer, the Space in a Team Space and each of your servers, with whether each is on and why not; where the chat runs now and whether it is pinned (else Automatic)",
+      "summary": "What the runs-on chip of a chat offers: this computer, the Space (Team Space) and each of your servers, whether each is on and why not; where the chat runs now and whether it is pinned",
       "toolset": "chats"
     },
     {
@@ -3057,13 +3057,13 @@
     {
       "deferred": false,
       "name": "engine_reviewer_set",
-      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn, a person gets a Review task",
+      "summary": "Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent is asked in the chat after each lead turn, a person gets a Review task",
       "toolset": "chats"
     },
     {
       "deferred": false,
       "name": "engine_rewind_points",
-      "summary": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first), and the rewinds in force: which messages are folded, who went back, the point that undoes it",
+      "summary": "The points a person can go back to in a chat with an agent (one per turn that worked in a folder for them, newest first) and the rewinds in force: messages folded, who went back, the point that undoes it",
       "toolset": "chats"
     },
     {
@@ -3075,7 +3075,7 @@
     {
       "deferred": false,
       "name": "engine_round_get",
-      "summary": "Who is on each message right now, for the row under a message that asked more than one agent: per message, each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the engine's queue",
+      "summary": "Who is on each message now, for the row under a message that asked several agents: each agent asked with its state (working, waiting behind its own earlier turn, replied, stopped). Read from the queue",
       "toolset": "chats"
     },
     {
@@ -3159,7 +3159,7 @@
     {
       "deferred": false,
       "name": "engine_thread_states",
-      "summary": "The latest turn of each of up to 200 chats in one call: running, waiting, failed or done, and for a failed one the words why; a chat the asker may not open is left out",
+      "summary": "The latest turn of up to 200 chats in one call: running, waiting, failed or done, with the words why for a failed one; chats the asker may not open are left out",
       "toolset": "chats"
     },
     {
@@ -4665,7 +4665,7 @@
     {
       "deferred": true,
       "name": "helper_note",
-      "summary": "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "summary": "Note between a helper and the agent that started it: a follow-up down, or progress, a result or a question up. Set needsPerson only when no one but the person can answer",
       "toolset": "chats"
     },
     {
@@ -8054,6 +8054,12 @@
     },
     {
       "deferred": false,
+      "name": "runs_ops",
+      "summary": "Agent work: look, tell, steer; read the runs skill",
+      "toolset": "agents"
+    },
+    {
+      "deferred": false,
       "name": "runs_people_counts",
       "summary": "How many Runs each person's own agents have, counted and never listed: an admin sees the number, not the work",
       "toolset": "automations"
@@ -8067,7 +8073,7 @@
     {
       "deferred": false,
       "name": "runs_replay",
-      "summary": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance",
+      "summary": "Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer is cleared",
       "toolset": "automations"
     },
     {

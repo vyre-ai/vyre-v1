@@ -1,6 +1,6 @@
 # engine.crew.merge
 
-Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local: it leaves this computer only when pushed
+Land a teammate's branch in the project repository: merged into the base branch when the repository is on it and clean, else it waits as crew/<branch>. Local until pushed
 
 | | |
 |---|---|

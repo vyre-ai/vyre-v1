@@ -369,56 +369,6 @@ if ("notify" in o3263) lf(o3263["notify"], p + "/types" + '/' + i3262 + "/notify
 }
 }
 
-function c2333_in(v: unknown, p: string, e: string[]): void {
-{
-const x7286 = v;
-const g7286 = typeOf(x7286);
-const b7286: string[] = []; lf(x7286, p, b7286, L0); if (b7286.length) e.push(...b7286);
-if (g7286 === "object") {
-if (g7286 === 'object') { const o7286 = x7286 as Record<string, unknown>;
-if (!("name" in o7286)) e.push(p + "/name" + ': required');
-if (!("url" in o7286)) e.push(p + "/url" + ': required');
-if (!("eventTypes" in o7286)) e.push(p + "/eventTypes" + ': required');
-if (!("idempotencyKey" in o7286)) e.push(p + "/idempotencyKey" + ': required');
-if ("name" in o7286) lf(o7286["name"], p + "/name", e, L57);
-if ("url" in o7286) lf(o7286["url"], p + "/url", e, L196);
-if ("eventTypes" in o7286) {
-{
-const x7287 = o7286["eventTypes"];
-const g7287 = typeOf(x7287);
-const b7287: string[] = []; lf(x7287, p + "/eventTypes", b7287, L4); if (b7287.length) e.push(...b7287);
-if (g7287 === "array") {
-if (g7287 === 'array') { const a7287 = x7287 as unknown[];
-if (a7287.length < 1) e.push(p + "/eventTypes" + ': too few items');
-for (let i7287 = 0; i7287 < a7287.length; i7287++) {
-lf(a7287[i7287], p + "/eventTypes" + '/' + i7287, e, L1);
-}
-}
-}
-}
-}
-if ("idempotencyKey" in o7286) lf(o7286["idempotencyKey"], p + "/idempotencyKey", e, L57);
-}
-}
-}
-}
-
-function c2333_out(v: unknown, p: string, e: string[]): void {
-{
-const x7288 = v;
-const g7288 = typeOf(x7288);
-const b7288: string[] = []; lf(x7288, p, b7288, L0); if (b7288.length) e.push(...b7288);
-if (g7288 === "object") {
-if (g7288 === 'object') { const o7288 = x7288 as Record<string, unknown>;
-if (!("webhook" in o7288)) e.push(p + "/webhook" + ': required');
-if (!("secret" in o7288)) e.push(p + "/secret" + ': required');
-if ("webhook" in o7288) d_s_85f04c7d4f(o7288["webhook"], p + "/webhook", e);
-if ("secret" in o7288) lf(o7288["secret"], p + "/secret", e, L1);
-}
-}
-}
-}
-
 function c2334_in(v: unknown, p: string, e: string[]): void {
 {
 const x7289 = v;
@@ -426,8 +376,28 @@ const g7289 = typeOf(x7289);
 const b7289: string[] = []; lf(x7289, p, b7289, L0); if (b7289.length) e.push(...b7289);
 if (g7289 === "object") {
 if (g7289 === 'object') { const o7289 = x7289 as Record<string, unknown>;
-if (!("webhookId" in o7289)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o7289) lf(o7289["webhookId"], p + "/webhookId", e, L115);
+if (!("name" in o7289)) e.push(p + "/name" + ': required');
+if (!("url" in o7289)) e.push(p + "/url" + ': required');
+if (!("eventTypes" in o7289)) e.push(p + "/eventTypes" + ': required');
+if (!("idempotencyKey" in o7289)) e.push(p + "/idempotencyKey" + ': required');
+if ("name" in o7289) lf(o7289["name"], p + "/name", e, L57);
+if ("url" in o7289) lf(o7289["url"], p + "/url", e, L196);
+if ("eventTypes" in o7289) {
+{
+const x7290 = o7289["eventTypes"];
+const g7290 = typeOf(x7290);
+const b7290: string[] = []; lf(x7290, p + "/eventTypes", b7290, L4); if (b7290.length) e.push(...b7290);
+if (g7290 === "array") {
+if (g7290 === 'array') { const a7290 = x7290 as unknown[];
+if (a7290.length < 1) e.push(p + "/eventTypes" + ': too few items');
+for (let i7290 = 0; i7290 < a7290.length; i7290++) {
+lf(a7290[i7290], p + "/eventTypes" + '/' + i7290, e, L1);
+}
+}
+}
+}
+}
+if ("idempotencyKey" in o7289) lf(o7289["idempotencyKey"], p + "/idempotencyKey", e, L57);
 }
 }
 }
@@ -435,13 +405,15 @@ if ("webhookId" in o7289) lf(o7289["webhookId"], p + "/webhookId", e, L115);
 
 function c2334_out(v: unknown, p: string, e: string[]): void {
 {
-const x7290 = v;
-const g7290 = typeOf(x7290);
-const b7290: string[] = []; lf(x7290, p, b7290, L0); if (b7290.length) e.push(...b7290);
-if (g7290 === "object") {
-if (g7290 === 'object') { const o7290 = x7290 as Record<string, unknown>;
-if (!("deleted" in o7290)) e.push(p + "/deleted" + ': required');
-if ("deleted" in o7290) lf(o7290["deleted"], p + "/deleted", e, L3);
+const x7291 = v;
+const g7291 = typeOf(x7291);
+const b7291: string[] = []; lf(x7291, p, b7291, L0); if (b7291.length) e.push(...b7291);
+if (g7291 === "object") {
+if (g7291 === 'object') { const o7291 = x7291 as Record<string, unknown>;
+if (!("webhook" in o7291)) e.push(p + "/webhook" + ': required');
+if (!("secret" in o7291)) e.push(p + "/secret" + ': required');
+if ("webhook" in o7291) d_s_85f04c7d4f(o7291["webhook"], p + "/webhook", e);
+if ("secret" in o7291) lf(o7291["secret"], p + "/secret", e, L1);
 }
 }
 }
@@ -449,29 +421,13 @@ if ("deleted" in o7290) lf(o7290["deleted"], p + "/deleted", e, L3);
 
 function c2335_in(v: unknown, p: string, e: string[]): void {
 {
-const x7291 = v;
-const g7291 = typeOf(x7291);
-const b7291: string[] = []; lf(x7291, p, b7291, L0); if (b7291.length) e.push(...b7291);
-if (g7291 === "object") {
-if (g7291 === 'object') { const o7291 = x7291 as Record<string, unknown>;
-if (!("webhookId" in o7291)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o7291) lf(o7291["webhookId"], p + "/webhookId", e, L115);
-if ("states" in o7291) {
-{
-const x7292 = o7291["states"];
+const x7292 = v;
 const g7292 = typeOf(x7292);
-const b7292: string[] = []; lf(x7292, p + "/states", b7292, L4); if (b7292.length) e.push(...b7292);
-if (g7292 === "array") {
-if (g7292 === 'array') { const a7292 = x7292 as unknown[];
-for (let i7292 = 0; i7292 < a7292.length; i7292++) {
-lf(a7292[i7292], p + "/states" + '/' + i7292, e, L117);
-}
-}
-}
-}
-}
-if ("cursor" in o7291) lf(o7291["cursor"], p + "/cursor", e, L1);
-if ("limit" in o7291) lf(o7291["limit"], p + "/limit", e, L136);
+const b7292: string[] = []; lf(x7292, p, b7292, L0); if (b7292.length) e.push(...b7292);
+if (g7292 === "object") {
+if (g7292 === 'object') { const o7292 = x7292 as Record<string, unknown>;
+if (!("webhookId" in o7292)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o7292) lf(o7292["webhookId"], p + "/webhookId", e, L115);
 }
 }
 }
@@ -484,23 +440,8 @@ const g7293 = typeOf(x7293);
 const b7293: string[] = []; lf(x7293, p, b7293, L0); if (b7293.length) e.push(...b7293);
 if (g7293 === "object") {
 if (g7293 === 'object') { const o7293 = x7293 as Record<string, unknown>;
-if (!("deliveries" in o7293)) e.push(p + "/deliveries" + ': required');
-if ("deliveries" in o7293) {
-{
-const x7294 = o7293["deliveries"];
-const g7294 = typeOf(x7294);
-const b7294: string[] = []; lf(x7294, p + "/deliveries", b7294, L4); if (b7294.length) e.push(...b7294);
-if (g7294 === "array") {
-if (g7294 === 'array') { const a7294 = x7294 as unknown[];
-for (let i7294 = 0; i7294 < a7294.length; i7294++) {
-d_s_20def9ae8f(a7294[i7294], p + "/deliveries" + '/' + i7294, e);
-}
-}
-}
-}
-}
-if ("next" in o7293) lf(o7293["next"], p + "/next", e, L1);
-if ("total" in o7293) lf(o7293["total"], p + "/total", e, L2);
+if (!("deleted" in o7293)) e.push(p + "/deleted" + ': required');
+if ("deleted" in o7293) lf(o7293["deleted"], p + "/deleted", e, L3);
 }
 }
 }
@@ -508,13 +449,58 @@ if ("total" in o7293) lf(o7293["total"], p + "/total", e, L2);
 
 function c2336_in(v: unknown, p: string, e: string[]): void {
 {
-const x7295 = v;
+const x7294 = v;
+const g7294 = typeOf(x7294);
+const b7294: string[] = []; lf(x7294, p, b7294, L0); if (b7294.length) e.push(...b7294);
+if (g7294 === "object") {
+if (g7294 === 'object') { const o7294 = x7294 as Record<string, unknown>;
+if (!("webhookId" in o7294)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o7294) lf(o7294["webhookId"], p + "/webhookId", e, L115);
+if ("states" in o7294) {
+{
+const x7295 = o7294["states"];
 const g7295 = typeOf(x7295);
-const b7295: string[] = []; lf(x7295, p, b7295, L0); if (b7295.length) e.push(...b7295);
-if (g7295 === "object") {
-if (g7295 === 'object') { const o7295 = x7295 as Record<string, unknown>;
-if (!("webhookId" in o7295)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o7295) lf(o7295["webhookId"], p + "/webhookId", e, L115);
+const b7295: string[] = []; lf(x7295, p + "/states", b7295, L4); if (b7295.length) e.push(...b7295);
+if (g7295 === "array") {
+if (g7295 === 'array') { const a7295 = x7295 as unknown[];
+for (let i7295 = 0; i7295 < a7295.length; i7295++) {
+lf(a7295[i7295], p + "/states" + '/' + i7295, e, L117);
+}
+}
+}
+}
+}
+if ("cursor" in o7294) lf(o7294["cursor"], p + "/cursor", e, L1);
+if ("limit" in o7294) lf(o7294["limit"], p + "/limit", e, L136);
+}
+}
+}
+}
+
+function c2336_out(v: unknown, p: string, e: string[]): void {
+{
+const x7296 = v;
+const g7296 = typeOf(x7296);
+const b7296: string[] = []; lf(x7296, p, b7296, L0); if (b7296.length) e.push(...b7296);
+if (g7296 === "object") {
+if (g7296 === 'object') { const o7296 = x7296 as Record<string, unknown>;
+if (!("deliveries" in o7296)) e.push(p + "/deliveries" + ': required');
+if ("deliveries" in o7296) {
+{
+const x7297 = o7296["deliveries"];
+const g7297 = typeOf(x7297);
+const b7297: string[] = []; lf(x7297, p + "/deliveries", b7297, L4); if (b7297.length) e.push(...b7297);
+if (g7297 === "array") {
+if (g7297 === 'array') { const a7297 = x7297 as unknown[];
+for (let i7297 = 0; i7297 < a7297.length; i7297++) {
+d_s_20def9ae8f(a7297[i7297], p + "/deliveries" + '/' + i7297, e);
+}
+}
+}
+}
+}
+if ("next" in o7296) lf(o7296["next"], p + "/next", e, L1);
+if ("total" in o7296) lf(o7296["total"], p + "/total", e, L2);
 }
 }
 }
@@ -522,29 +508,13 @@ if ("webhookId" in o7295) lf(o7295["webhookId"], p + "/webhookId", e, L115);
 
 function c2337_in(v: unknown, p: string, e: string[]): void {
 {
-const x7296 = v;
-const g7296 = typeOf(x7296);
-const b7296: string[] = []; lf(x7296, p, b7296, L0); if (b7296.length) e.push(...b7296);
-if (g7296 === "object") {
-}
-}
-}
-
-function c2337_out(v: unknown, p: string, e: string[]): void {
-{
-const x7297 = v;
-const g7297 = typeOf(x7297);
-const b7297: string[] = []; lf(x7297, p, b7297, L0); if (b7297.length) e.push(...b7297);
-if (g7297 === "object") {
-if (g7297 === 'object') { const o7297 = x7297 as Record<string, unknown>;
-if (!("state" in o7297)) e.push(p + "/state" + ': required');
-if (!("lagEvents" in o7297)) e.push(p + "/lagEvents" + ': required');
-if (!("failing" in o7297)) e.push(p + "/failing" + ': required');
-if ("state" in o7297) lf(o7297["state"], p + "/state", e, L49);
-if ("detail" in o7297) lf(o7297["detail"], p + "/detail", e, L1);
-if ("latencyMs" in o7297) lf(o7297["latencyMs"], p + "/latencyMs", e, L2);
-if ("lagEvents" in o7297) lf(o7297["lagEvents"], p + "/lagEvents", e, L2);
-if ("failing" in o7297) lf(o7297["failing"], p + "/failing", e, L2);
+const x7298 = v;
+const g7298 = typeOf(x7298);
+const b7298: string[] = []; lf(x7298, p, b7298, L0); if (b7298.length) e.push(...b7298);
+if (g7298 === "object") {
+if (g7298 === 'object') { const o7298 = x7298 as Record<string, unknown>;
+if (!("webhookId" in o7298)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o7298) lf(o7298["webhookId"], p + "/webhookId", e, L115);
 }
 }
 }
@@ -552,72 +522,72 @@ if ("failing" in o7297) lf(o7297["failing"], p + "/failing", e, L2);
 
 function c2338_in(v: unknown, p: string, e: string[]): void {
 {
-const x7298 = v;
-const g7298 = typeOf(x7298);
-const b7298: string[] = []; lf(x7298, p, b7298, L0); if (b7298.length) e.push(...b7298);
-if (g7298 === "object") {
-if (g7298 === 'object') { const o7298 = x7298 as Record<string, unknown>;
-if ("cursor" in o7298) lf(o7298["cursor"], p + "/cursor", e, L1);
-if ("limit" in o7298) lf(o7298["limit"], p + "/limit", e, L136);
-}
+const x7299 = v;
+const g7299 = typeOf(x7299);
+const b7299: string[] = []; lf(x7299, p, b7299, L0); if (b7299.length) e.push(...b7299);
+if (g7299 === "object") {
 }
 }
 }
 
 function c2338_out(v: unknown, p: string, e: string[]): void {
 {
-const x7299 = v;
-const g7299 = typeOf(x7299);
-const b7299: string[] = []; lf(x7299, p, b7299, L0); if (b7299.length) e.push(...b7299);
-if (g7299 === "object") {
-if (g7299 === 'object') { const o7299 = x7299 as Record<string, unknown>;
-if (!("webhooks" in o7299)) e.push(p + "/webhooks" + ': required');
-if ("webhooks" in o7299) {
-{
-const x7300 = o7299["webhooks"];
+const x7300 = v;
 const g7300 = typeOf(x7300);
-const b7300: string[] = []; lf(x7300, p + "/webhooks", b7300, L4); if (b7300.length) e.push(...b7300);
-if (g7300 === "array") {
-if (g7300 === 'array') { const a7300 = x7300 as unknown[];
-for (let i7300 = 0; i7300 < a7300.length; i7300++) {
-d_s_85f04c7d4f(a7300[i7300], p + "/webhooks" + '/' + i7300, e);
-}
-}
-}
-}
-}
-if ("next" in o7299) lf(o7299["next"], p + "/next", e, L1);
-if ("total" in o7299) lf(o7299["total"], p + "/total", e, L2);
+const b7300: string[] = []; lf(x7300, p, b7300, L0); if (b7300.length) e.push(...b7300);
+if (g7300 === "object") {
+if (g7300 === 'object') { const o7300 = x7300 as Record<string, unknown>;
+if (!("state" in o7300)) e.push(p + "/state" + ': required');
+if (!("lagEvents" in o7300)) e.push(p + "/lagEvents" + ': required');
+if (!("failing" in o7300)) e.push(p + "/failing" + ': required');
+if ("state" in o7300) lf(o7300["state"], p + "/state", e, L49);
+if ("detail" in o7300) lf(o7300["detail"], p + "/detail", e, L1);
+if ("latencyMs" in o7300) lf(o7300["latencyMs"], p + "/latencyMs", e, L2);
+if ("lagEvents" in o7300) lf(o7300["lagEvents"], p + "/lagEvents", e, L2);
+if ("failing" in o7300) lf(o7300["failing"], p + "/failing", e, L2);
 }
 }
 }
 }
 
-function c2340_in(v: unknown, p: string, e: string[]): void {
+function c2339_in(v: unknown, p: string, e: string[]): void {
 {
 const x7301 = v;
 const g7301 = typeOf(x7301);
 const b7301: string[] = []; lf(x7301, p, b7301, L0); if (b7301.length) e.push(...b7301);
 if (g7301 === "object") {
 if (g7301 === 'object') { const o7301 = x7301 as Record<string, unknown>;
-if (!("webhookId" in o7301)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o7301) lf(o7301["webhookId"], p + "/webhookId", e, L115);
+if ("cursor" in o7301) lf(o7301["cursor"], p + "/cursor", e, L1);
+if ("limit" in o7301) lf(o7301["limit"], p + "/limit", e, L136);
 }
 }
 }
 }
 
-function c2340_out(v: unknown, p: string, e: string[]): void {
+function c2339_out(v: unknown, p: string, e: string[]): void {
 {
 const x7302 = v;
 const g7302 = typeOf(x7302);
 const b7302: string[] = []; lf(x7302, p, b7302, L0); if (b7302.length) e.push(...b7302);
 if (g7302 === "object") {
 if (g7302 === 'object') { const o7302 = x7302 as Record<string, unknown>;
-if (!("secret" in o7302)) e.push(p + "/secret" + ': required');
-if (!("webhook" in o7302)) e.push(p + "/webhook" + ': required');
-if ("secret" in o7302) lf(o7302["secret"], p + "/secret", e, L1);
-if ("webhook" in o7302) d_s_85f04c7d4f(o7302["webhook"], p + "/webhook", e);
+if (!("webhooks" in o7302)) e.push(p + "/webhooks" + ': required');
+if ("webhooks" in o7302) {
+{
+const x7303 = o7302["webhooks"];
+const g7303 = typeOf(x7303);
+const b7303: string[] = []; lf(x7303, p + "/webhooks", b7303, L4); if (b7303.length) e.push(...b7303);
+if (g7303 === "array") {
+if (g7303 === 'array') { const a7303 = x7303 as unknown[];
+for (let i7303 = 0; i7303 < a7303.length; i7303++) {
+d_s_85f04c7d4f(a7303[i7303], p + "/webhooks" + '/' + i7303, e);
+}
+}
+}
+}
+}
+if ("next" in o7302) lf(o7302["next"], p + "/next", e, L1);
+if ("total" in o7302) lf(o7302["total"], p + "/total", e, L2);
 }
 }
 }
@@ -625,19 +595,29 @@ if ("webhook" in o7302) d_s_85f04c7d4f(o7302["webhook"], p + "/webhook", e);
 
 function c2341_in(v: unknown, p: string, e: string[]): void {
 {
-const x7303 = v;
-const g7303 = typeOf(x7303);
-const b7303: string[] = []; lf(x7303, p, b7303, L0); if (b7303.length) e.push(...b7303);
-if (g7303 === "object") {
-if (g7303 === 'object') { const o7303 = x7303 as Record<string, unknown>;
-if (!("webhookId" in o7303)) e.push(p + "/webhookId" + ': required');
-if (!("eventId" in o7303)) e.push(p + "/eventId" + ': required');
-if (!("attempt" in o7303)) e.push(p + "/attempt" + ': required');
-if (!("idempotencyKey" in o7303)) e.push(p + "/idempotencyKey" + ': required');
-if ("webhookId" in o7303) lf(o7303["webhookId"], p + "/webhookId", e, L115);
-if ("eventId" in o7303) lf(o7303["eventId"], p + "/eventId", e, L116);
-if ("attempt" in o7303) lf(o7303["attempt"], p + "/attempt", e, L10);
-if ("idempotencyKey" in o7303) lf(o7303["idempotencyKey"], p + "/idempotencyKey", e, L57);
+const x7304 = v;
+const g7304 = typeOf(x7304);
+const b7304: string[] = []; lf(x7304, p, b7304, L0); if (b7304.length) e.push(...b7304);
+if (g7304 === "object") {
+if (g7304 === 'object') { const o7304 = x7304 as Record<string, unknown>;
+if (!("webhookId" in o7304)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o7304) lf(o7304["webhookId"], p + "/webhookId", e, L115);
+}
+}
+}
+}
+
+function c2341_out(v: unknown, p: string, e: string[]): void {
+{
+const x7305 = v;
+const g7305 = typeOf(x7305);
+const b7305: string[] = []; lf(x7305, p, b7305, L0); if (b7305.length) e.push(...b7305);
+if (g7305 === "object") {
+if (g7305 === 'object') { const o7305 = x7305 as Record<string, unknown>;
+if (!("secret" in o7305)) e.push(p + "/secret" + ': required');
+if (!("webhook" in o7305)) e.push(p + "/webhook" + ': required');
+if ("secret" in o7305) lf(o7305["secret"], p + "/secret", e, L1);
+if ("webhook" in o7305) d_s_85f04c7d4f(o7305["webhook"], p + "/webhook", e);
 }
 }
 }
@@ -645,15 +625,19 @@ if ("idempotencyKey" in o7303) lf(o7303["idempotencyKey"], p + "/idempotencyKey"
 
 function c2342_in(v: unknown, p: string, e: string[]): void {
 {
-const x7304 = v;
-const g7304 = typeOf(x7304);
-const b7304: string[] = []; lf(x7304, p, b7304, L0); if (b7304.length) e.push(...b7304);
-if (g7304 === "object") {
-if (g7304 === 'object') { const o7304 = x7304 as Record<string, unknown>;
-if (!("webhookId" in o7304)) e.push(p + "/webhookId" + ': required');
-if (!("idempotencyKey" in o7304)) e.push(p + "/idempotencyKey" + ': required');
-if ("webhookId" in o7304) lf(o7304["webhookId"], p + "/webhookId", e, L115);
-if ("idempotencyKey" in o7304) lf(o7304["idempotencyKey"], p + "/idempotencyKey", e, L57);
+const x7306 = v;
+const g7306 = typeOf(x7306);
+const b7306: string[] = []; lf(x7306, p, b7306, L0); if (b7306.length) e.push(...b7306);
+if (g7306 === "object") {
+if (g7306 === 'object') { const o7306 = x7306 as Record<string, unknown>;
+if (!("webhookId" in o7306)) e.push(p + "/webhookId" + ': required');
+if (!("eventId" in o7306)) e.push(p + "/eventId" + ': required');
+if (!("attempt" in o7306)) e.push(p + "/attempt" + ': required');
+if (!("idempotencyKey" in o7306)) e.push(p + "/idempotencyKey" + ': required');
+if ("webhookId" in o7306) lf(o7306["webhookId"], p + "/webhookId", e, L115);
+if ("eventId" in o7306) lf(o7306["eventId"], p + "/eventId", e, L116);
+if ("attempt" in o7306) lf(o7306["attempt"], p + "/attempt", e, L10);
+if ("idempotencyKey" in o7306) lf(o7306["idempotencyKey"], p + "/idempotencyKey", e, L57);
 }
 }
 }
@@ -661,40 +645,56 @@ if ("idempotencyKey" in o7304) lf(o7304["idempotencyKey"], p + "/idempotencyKey"
 
 function c2343_in(v: unknown, p: string, e: string[]): void {
 {
-const x7305 = v;
-const g7305 = typeOf(x7305);
-const b7305: string[] = []; lf(x7305, p, b7305, L0); if (b7305.length) e.push(...b7305);
-if (g7305 === "object") {
-if (g7305 === 'object') { const o7305 = x7305 as Record<string, unknown>;
-if (!("webhookId" in o7305)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o7305) lf(o7305["webhookId"], p + "/webhookId", e, L115);
-if ("name" in o7305) lf(o7305["name"], p + "/name", e, L1);
-if ("url" in o7305) lf(o7305["url"], p + "/url", e, L196);
-if ("eventTypes" in o7305) {
+const x7307 = v;
+const g7307 = typeOf(x7307);
+const b7307: string[] = []; lf(x7307, p, b7307, L0); if (b7307.length) e.push(...b7307);
+if (g7307 === "object") {
+if (g7307 === 'object') { const o7307 = x7307 as Record<string, unknown>;
+if (!("webhookId" in o7307)) e.push(p + "/webhookId" + ': required');
+if (!("idempotencyKey" in o7307)) e.push(p + "/idempotencyKey" + ': required');
+if ("webhookId" in o7307) lf(o7307["webhookId"], p + "/webhookId", e, L115);
+if ("idempotencyKey" in o7307) lf(o7307["idempotencyKey"], p + "/idempotencyKey", e, L57);
+}
+}
+}
+}
+
+function c2344_in(v: unknown, p: string, e: string[]): void {
 {
-const x7306 = o7305["eventTypes"];
-const g7306 = typeOf(x7306);
-const b7306: string[] = []; lf(x7306, p + "/eventTypes", b7306, L4); if (b7306.length) e.push(...b7306);
-if (g7306 === "array") {
-if (g7306 === 'array') { const a7306 = x7306 as unknown[];
-if (a7306.length < 1) e.push(p + "/eventTypes" + ': too few items');
-for (let i7306 = 0; i7306 < a7306.length; i7306++) {
-lf(a7306[i7306], p + "/eventTypes" + '/' + i7306, e, L1);
-}
-}
-}
-}
-}
-if ("filter" in o7305) {
+const x7308 = v;
+const g7308 = typeOf(x7308);
+const b7308: string[] = []; lf(x7308, p, b7308, L0); if (b7308.length) e.push(...b7308);
+if (g7308 === "object") {
+if (g7308 === 'object') { const o7308 = x7308 as Record<string, unknown>;
+if (!("webhookId" in o7308)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o7308) lf(o7308["webhookId"], p + "/webhookId", e, L115);
+if ("name" in o7308) lf(o7308["name"], p + "/name", e, L1);
+if ("url" in o7308) lf(o7308["url"], p + "/url", e, L196);
+if ("eventTypes" in o7308) {
 {
-const x7307 = o7305["filter"];
-const t7307_0: string[] = [];
-const t7307_1: string[] = [];
-lf(x7307, p + "/filter", t7307_1, L90);
-if (![t7307_0, t7307_1].some((x) => x.length === 0)) e.push(p + "/filter" + ': matches none of anyOf');
+const x7309 = o7308["eventTypes"];
+const g7309 = typeOf(x7309);
+const b7309: string[] = []; lf(x7309, p + "/eventTypes", b7309, L4); if (b7309.length) e.push(...b7309);
+if (g7309 === "array") {
+if (g7309 === 'array') { const a7309 = x7309 as unknown[];
+if (a7309.length < 1) e.push(p + "/eventTypes" + ': too few items');
+for (let i7309 = 0; i7309 < a7309.length; i7309++) {
+lf(a7309[i7309], p + "/eventTypes" + '/' + i7309, e, L1);
 }
 }
-if ("active" in o7305) lf(o7305["active"], p + "/active", e, L3);
+}
+}
+}
+if ("filter" in o7308) {
+{
+const x7310 = o7308["filter"];
+const t7310_0: string[] = [];
+const t7310_1: string[] = [];
+lf(x7310, p + "/filter", t7310_1, L90);
+if (![t7310_0, t7310_1].some((x) => x.length === 0)) e.push(p + "/filter" + ': matches none of anyOf');
+}
+}
+if ("active" in o7308) lf(o7308["active"], p + "/active", e, L3);
 }
 }
 }
@@ -702,25 +702,25 @@ if ("active" in o7305) lf(o7305["active"], p + "/active", e, L3);
 
 function e770_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8037 = v;
-const g8037 = typeOf(x8037);
-const b8037: string[] = []; lf(x8037, p, b8037, L0); if (b8037.length) e.push(...b8037);
-if (g8037 === "object") {
-if (g8037 === 'object') { const o8037 = x8037 as Record<string, unknown>;
-if (!("webhookId" in o8037)) e.push(p + "/webhookId" + ': required');
-if (!("name" in o8037)) e.push(p + "/name" + ': required');
-if (!("eventTypes" in o8037)) e.push(p + "/eventTypes" + ': required');
-if ("webhookId" in o8037) lf(o8037["webhookId"], p + "/webhookId", e, L115);
-if ("name" in o8037) lf(o8037["name"], p + "/name", e, L1);
-if ("eventTypes" in o8037) {
+const x8040 = v;
+const g8040 = typeOf(x8040);
+const b8040: string[] = []; lf(x8040, p, b8040, L0); if (b8040.length) e.push(...b8040);
+if (g8040 === "object") {
+if (g8040 === 'object') { const o8040 = x8040 as Record<string, unknown>;
+if (!("webhookId" in o8040)) e.push(p + "/webhookId" + ': required');
+if (!("name" in o8040)) e.push(p + "/name" + ': required');
+if (!("eventTypes" in o8040)) e.push(p + "/eventTypes" + ': required');
+if ("webhookId" in o8040) lf(o8040["webhookId"], p + "/webhookId", e, L115);
+if ("name" in o8040) lf(o8040["name"], p + "/name", e, L1);
+if ("eventTypes" in o8040) {
 {
-const x8038 = o8037["eventTypes"];
-const g8038 = typeOf(x8038);
-const b8038: string[] = []; lf(x8038, p + "/eventTypes", b8038, L4); if (b8038.length) e.push(...b8038);
-if (g8038 === "array") {
-if (g8038 === 'array') { const a8038 = x8038 as unknown[];
-for (let i8038 = 0; i8038 < a8038.length; i8038++) {
-lf(a8038[i8038], p + "/eventTypes" + '/' + i8038, e, L1);
+const x8041 = o8040["eventTypes"];
+const g8041 = typeOf(x8041);
+const b8041: string[] = []; lf(x8041, p + "/eventTypes", b8041, L4); if (b8041.length) e.push(...b8041);
+if (g8041 === "array") {
+if (g8041 === 'array') { const a8041 = x8041 as unknown[];
+for (let i8041 = 0; i8041 < a8041.length; i8041++) {
+lf(a8041[i8041], p + "/eventTypes" + '/' + i8041, e, L1);
 }
 }
 }
@@ -733,13 +733,13 @@ lf(a8038[i8038], p + "/eventTypes" + '/' + i8038, e, L1);
 
 function e771_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8039 = v;
-const g8039 = typeOf(x8039);
-const b8039: string[] = []; lf(x8039, p, b8039, L0); if (b8039.length) e.push(...b8039);
-if (g8039 === "object") {
-if (g8039 === 'object') { const o8039 = x8039 as Record<string, unknown>;
-if (!("webhookId" in o8039)) e.push(p + "/webhookId" + ': required');
-if ("webhookId" in o8039) lf(o8039["webhookId"], p + "/webhookId", e, L115);
+const x8042 = v;
+const g8042 = typeOf(x8042);
+const b8042: string[] = []; lf(x8042, p, b8042, L0); if (b8042.length) e.push(...b8042);
+if (g8042 === "object") {
+if (g8042 === 'object') { const o8042 = x8042 as Record<string, unknown>;
+if (!("webhookId" in o8042)) e.push(p + "/webhookId" + ': required');
+if ("webhookId" in o8042) lf(o8042["webhookId"], p + "/webhookId", e, L115);
 }
 }
 }
@@ -747,21 +747,21 @@ if ("webhookId" in o8039) lf(o8039["webhookId"], p + "/webhookId", e, L115);
 
 function e772_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8040 = v;
-const g8040 = typeOf(x8040);
-const b8040: string[] = []; lf(x8040, p, b8040, L0); if (b8040.length) e.push(...b8040);
-if (g8040 === "object") {
-if (g8040 === 'object') { const o8040 = x8040 as Record<string, unknown>;
-if (!("deliveryId" in o8040)) e.push(p + "/deliveryId" + ': required');
-if (!("webhookId" in o8040)) e.push(p + "/webhookId" + ': required');
-if (!("eventId" in o8040)) e.push(p + "/eventId" + ': required');
-if (!("httpStatus" in o8040)) e.push(p + "/httpStatus" + ': required');
-if (!("attempts" in o8040)) e.push(p + "/attempts" + ': required');
-if ("deliveryId" in o8040) lf(o8040["deliveryId"], p + "/deliveryId", e, L114);
-if ("webhookId" in o8040) lf(o8040["webhookId"], p + "/webhookId", e, L115);
-if ("eventId" in o8040) lf(o8040["eventId"], p + "/eventId", e, L116);
-if ("httpStatus" in o8040) lf(o8040["httpStatus"], p + "/httpStatus", e, L2);
-if ("attempts" in o8040) lf(o8040["attempts"], p + "/attempts", e, L2);
+const x8043 = v;
+const g8043 = typeOf(x8043);
+const b8043: string[] = []; lf(x8043, p, b8043, L0); if (b8043.length) e.push(...b8043);
+if (g8043 === "object") {
+if (g8043 === 'object') { const o8043 = x8043 as Record<string, unknown>;
+if (!("deliveryId" in o8043)) e.push(p + "/deliveryId" + ': required');
+if (!("webhookId" in o8043)) e.push(p + "/webhookId" + ': required');
+if (!("eventId" in o8043)) e.push(p + "/eventId" + ': required');
+if (!("httpStatus" in o8043)) e.push(p + "/httpStatus" + ': required');
+if (!("attempts" in o8043)) e.push(p + "/attempts" + ': required');
+if ("deliveryId" in o8043) lf(o8043["deliveryId"], p + "/deliveryId", e, L114);
+if ("webhookId" in o8043) lf(o8043["webhookId"], p + "/webhookId", e, L115);
+if ("eventId" in o8043) lf(o8043["eventId"], p + "/eventId", e, L116);
+if ("httpStatus" in o8043) lf(o8043["httpStatus"], p + "/httpStatus", e, L2);
+if ("attempts" in o8043) lf(o8043["attempts"], p + "/attempts", e, L2);
 }
 }
 }
@@ -769,24 +769,24 @@ if ("attempts" in o8040) lf(o8040["attempts"], p + "/attempts", e, L2);
 
 function e773_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8041 = v;
-const g8041 = typeOf(x8041);
-const b8041: string[] = []; lf(x8041, p, b8041, L0); if (b8041.length) e.push(...b8041);
-if (g8041 === "object") {
-if (g8041 === 'object') { const o8041 = x8041 as Record<string, unknown>;
-if (!("deliveryId" in o8041)) e.push(p + "/deliveryId" + ': required');
-if (!("webhookId" in o8041)) e.push(p + "/webhookId" + ': required');
-if (!("eventId" in o8041)) e.push(p + "/eventId" + ': required');
-if (!("error" in o8041)) e.push(p + "/error" + ': required');
-if (!("attempts" in o8041)) e.push(p + "/attempts" + ': required');
-if (!("willRetry" in o8041)) e.push(p + "/willRetry" + ': required');
-if ("deliveryId" in o8041) lf(o8041["deliveryId"], p + "/deliveryId", e, L114);
-if ("webhookId" in o8041) lf(o8041["webhookId"], p + "/webhookId", e, L115);
-if ("eventId" in o8041) lf(o8041["eventId"], p + "/eventId", e, L116);
-if ("httpStatus" in o8041) lf(o8041["httpStatus"], p + "/httpStatus", e, L2);
-if ("error" in o8041) lf(o8041["error"], p + "/error", e, L1);
-if ("attempts" in o8041) lf(o8041["attempts"], p + "/attempts", e, L2);
-if ("willRetry" in o8041) lf(o8041["willRetry"], p + "/willRetry", e, L3);
+const x8044 = v;
+const g8044 = typeOf(x8044);
+const b8044: string[] = []; lf(x8044, p, b8044, L0); if (b8044.length) e.push(...b8044);
+if (g8044 === "object") {
+if (g8044 === 'object') { const o8044 = x8044 as Record<string, unknown>;
+if (!("deliveryId" in o8044)) e.push(p + "/deliveryId" + ': required');
+if (!("webhookId" in o8044)) e.push(p + "/webhookId" + ': required');
+if (!("eventId" in o8044)) e.push(p + "/eventId" + ': required');
+if (!("error" in o8044)) e.push(p + "/error" + ': required');
+if (!("attempts" in o8044)) e.push(p + "/attempts" + ': required');
+if (!("willRetry" in o8044)) e.push(p + "/willRetry" + ': required');
+if ("deliveryId" in o8044) lf(o8044["deliveryId"], p + "/deliveryId", e, L114);
+if ("webhookId" in o8044) lf(o8044["webhookId"], p + "/webhookId", e, L115);
+if ("eventId" in o8044) lf(o8044["eventId"], p + "/eventId", e, L116);
+if ("httpStatus" in o8044) lf(o8044["httpStatus"], p + "/httpStatus", e, L2);
+if ("error" in o8044) lf(o8044["error"], p + "/error", e, L1);
+if ("attempts" in o8044) lf(o8044["attempts"], p + "/attempts", e, L2);
+if ("willRetry" in o8044) lf(o8044["willRetry"], p + "/willRetry", e, L3);
 }
 }
 }
@@ -794,15 +794,15 @@ if ("willRetry" in o8041) lf(o8041["willRetry"], p + "/willRetry", e, L3);
 
 function e774_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8042 = v;
-const g8042 = typeOf(x8042);
-const b8042: string[] = []; lf(x8042, p, b8042, L0); if (b8042.length) e.push(...b8042);
-if (g8042 === "object") {
-if (g8042 === 'object') { const o8042 = x8042 as Record<string, unknown>;
-if (!("webhookId" in o8042)) e.push(p + "/webhookId" + ': required');
-if (!("reason" in o8042)) e.push(p + "/reason" + ': required');
-if ("webhookId" in o8042) lf(o8042["webhookId"], p + "/webhookId", e, L115);
-if ("reason" in o8042) lf(o8042["reason"], p + "/reason", e, L1);
+const x8045 = v;
+const g8045 = typeOf(x8045);
+const b8045: string[] = []; lf(x8045, p, b8045, L0); if (b8045.length) e.push(...b8045);
+if (g8045 === "object") {
+if (g8045 === 'object') { const o8045 = x8045 as Record<string, unknown>;
+if (!("webhookId" in o8045)) e.push(p + "/webhookId" + ': required');
+if (!("reason" in o8045)) e.push(p + "/reason" + ': required');
+if ("webhookId" in o8045) lf(o8045["webhookId"], p + "/webhookId", e, L115);
+if ("reason" in o8045) lf(o8045["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -810,15 +810,15 @@ if ("reason" in o8042) lf(o8042["reason"], p + "/reason", e, L1);
 
 function e775_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8043 = v;
-const g8043 = typeOf(x8043);
-const b8043: string[] = []; lf(x8043, p, b8043, L0); if (b8043.length) e.push(...b8043);
-if (g8043 === "object") {
-if (g8043 === 'object') { const o8043 = x8043 as Record<string, unknown>;
-if (!("webhookId" in o8043)) e.push(p + "/webhookId" + ': required');
-if (!("by" in o8043)) e.push(p + "/by" + ': required');
-if ("webhookId" in o8043) lf(o8043["webhookId"], p + "/webhookId", e, L115);
-if ("by" in o8043) lf(o8043["by"], p + "/by", e, L1);
+const x8046 = v;
+const g8046 = typeOf(x8046);
+const b8046: string[] = []; lf(x8046, p, b8046, L0); if (b8046.length) e.push(...b8046);
+if (g8046 === "object") {
+if (g8046 === 'object') { const o8046 = x8046 as Record<string, unknown>;
+if (!("webhookId" in o8046)) e.push(p + "/webhookId" + ': required');
+if (!("by" in o8046)) e.push(p + "/by" + ': required');
+if ("webhookId" in o8046) lf(o8046["webhookId"], p + "/webhookId", e, L115);
+if ("by" in o8046) lf(o8046["by"], p + "/by", e, L1);
 }
 }
 }
@@ -826,23 +826,23 @@ if ("by" in o8043) lf(o8043["by"], p + "/by", e, L1);
 
 function e776_payload(v: unknown, p: string, e: string[]): void {
 {
-const x8044 = v;
-const g8044 = typeOf(x8044);
-const b8044: string[] = []; lf(x8044, p, b8044, L0); if (b8044.length) e.push(...b8044);
-if (g8044 === "object") {
-if (g8044 === 'object') { const o8044 = x8044 as Record<string, unknown>;
-if (!("webhookId" in o8044)) e.push(p + "/webhookId" + ': required');
-if (!("fields" in o8044)) e.push(p + "/fields" + ': required');
-if ("webhookId" in o8044) lf(o8044["webhookId"], p + "/webhookId", e, L115);
-if ("fields" in o8044) {
+const x8047 = v;
+const g8047 = typeOf(x8047);
+const b8047: string[] = []; lf(x8047, p, b8047, L0); if (b8047.length) e.push(...b8047);
+if (g8047 === "object") {
+if (g8047 === 'object') { const o8047 = x8047 as Record<string, unknown>;
+if (!("webhookId" in o8047)) e.push(p + "/webhookId" + ': required');
+if (!("fields" in o8047)) e.push(p + "/fields" + ': required');
+if ("webhookId" in o8047) lf(o8047["webhookId"], p + "/webhookId", e, L115);
+if ("fields" in o8047) {
 {
-const x8045 = o8044["fields"];
-const g8045 = typeOf(x8045);
-const b8045: string[] = []; lf(x8045, p + "/fields", b8045, L4); if (b8045.length) e.push(...b8045);
-if (g8045 === "array") {
-if (g8045 === 'array') { const a8045 = x8045 as unknown[];
-for (let i8045 = 0; i8045 < a8045.length; i8045++) {
-lf(a8045[i8045], p + "/fields" + '/' + i8045, e, L1);
+const x8048 = o8047["fields"];
+const g8048 = typeOf(x8048);
+const b8048: string[] = []; lf(x8048, p + "/fields", b8048, L4); if (b8048.length) e.push(...b8048);
+if (g8048 === "array") {
+if (g8048 === 'array') { const a8048 = x8048 as unknown[];
+for (let i8048 = 0; i8048 < a8048.length; i8048++) {
+lf(a8048[i8048], p + "/fields" + '/' + i8048, e, L1);
 }
 }
 }
@@ -859,17 +859,17 @@ export const validators: Record<string, { in: Check; out: Check }> = {
   "events.replay@1": { in: c717_in, out: c717_out },
   "events.since@1": { in: c718_in, out: c718_out },
   "events.types@1": { in: c719_in, out: c719_out },
-  "webhooks.create@1": { in: c2333_in, out: c2333_out },
-  "webhooks.delete@1": { in: c2334_in, out: c2334_out },
-  "webhooks.deliveries@1": { in: c2335_in, out: c2335_out },
-  "webhooks.get@1": { in: c2336_in, out: d_s_6b21f82790 },
-  "webhooks.health@1": { in: c2337_in, out: c2337_out },
-  "webhooks.list@1": { in: c2338_in, out: c2338_out },
+  "webhooks.create@1": { in: c2334_in, out: c2334_out },
+  "webhooks.delete@1": { in: c2335_in, out: c2335_out },
+  "webhooks.deliveries@1": { in: c2336_in, out: c2336_out },
+  "webhooks.get@1": { in: c2337_in, out: d_s_6b21f82790 },
+  "webhooks.health@1": { in: c2338_in, out: c2338_out },
+  "webhooks.list@1": { in: c2339_in, out: c2339_out },
   "webhooks.replay_delivery@1": { in: d_s_49566494eb, out: d_s_d2fbc5babb },
-  "webhooks.rotate_secret@1": { in: c2340_in, out: c2340_out },
-  "webhooks.send_delivery@1": { in: c2341_in, out: d_s_d2fbc5babb },
-  "webhooks.test@1": { in: c2342_in, out: d_s_d2fbc5babb },
-  "webhooks.update@1": { in: c2343_in, out: d_s_6b21f82790 },
+  "webhooks.rotate_secret@1": { in: c2341_in, out: c2341_out },
+  "webhooks.send_delivery@1": { in: c2342_in, out: d_s_d2fbc5babb },
+  "webhooks.test@1": { in: c2343_in, out: d_s_d2fbc5babb },
+  "webhooks.update@1": { in: c2344_in, out: d_s_6b21f82790 },
 };
 
 export const eventValidators: Record<string, Check> = {

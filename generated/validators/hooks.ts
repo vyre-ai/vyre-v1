@@ -597,21 +597,21 @@ if ("paused" in o4079) lf(o4079["paused"], p + "/paused", e, L3);
 
 function e292_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7597 = v;
-const g7597 = typeOf(x7597);
-const b7597: string[] = []; lf(x7597, p, b7597, L0); if (b7597.length) e.push(...b7597);
-if (g7597 === "object") {
-if (g7597 === 'object') { const o7597 = x7597 as Record<string, unknown>;
-if (!("hookId" in o7597)) e.push(p + "/hookId" + ': required');
-if (!("threadId" in o7597)) e.push(p + "/threadId" + ': required');
-if (!("line" in o7597)) e.push(p + "/line" + ': required');
-if (!("by" in o7597)) e.push(p + "/by" + ': required');
-if ("hookId" in o7597) lf(o7597["hookId"], p + "/hookId", e, L1);
-if ("threadId" in o7597) lf(o7597["threadId"], p + "/threadId", e, L1);
-if ("line" in o7597) lf(o7597["line"], p + "/line", e, L1);
-if ("reason" in o7597) lf(o7597["reason"], p + "/reason", e, L1);
-if ("by" in o7597) lf(o7597["by"], p + "/by", e, L1);
-if ("note" in o7597) lf(o7597["note"], p + "/note", e, L1);
+const x7600 = v;
+const g7600 = typeOf(x7600);
+const b7600: string[] = []; lf(x7600, p, b7600, L0); if (b7600.length) e.push(...b7600);
+if (g7600 === "object") {
+if (g7600 === 'object') { const o7600 = x7600 as Record<string, unknown>;
+if (!("hookId" in o7600)) e.push(p + "/hookId" + ': required');
+if (!("threadId" in o7600)) e.push(p + "/threadId" + ': required');
+if (!("line" in o7600)) e.push(p + "/line" + ': required');
+if (!("by" in o7600)) e.push(p + "/by" + ': required');
+if ("hookId" in o7600) lf(o7600["hookId"], p + "/hookId", e, L1);
+if ("threadId" in o7600) lf(o7600["threadId"], p + "/threadId", e, L1);
+if ("line" in o7600) lf(o7600["line"], p + "/line", e, L1);
+if ("reason" in o7600) lf(o7600["reason"], p + "/reason", e, L1);
+if ("by" in o7600) lf(o7600["by"], p + "/by", e, L1);
+if ("note" in o7600) lf(o7600["note"], p + "/note", e, L1);
 }
 }
 }
@@ -619,25 +619,25 @@ if ("note" in o7597) lf(o7597["note"], p + "/note", e, L1);
 
 function e293_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7598 = v;
-const g7598 = typeOf(x7598);
-const b7598: string[] = []; lf(x7598, p, b7598, L0); if (b7598.length) e.push(...b7598);
-if (g7598 === "object") {
-if (g7598 === 'object') { const o7598 = x7598 as Record<string, unknown>;
-if (!("hookId" in o7598)) e.push(p + "/hookId" + ': required');
-if (!("event" in o7598)) e.push(p + "/event" + ': required');
-if (!("threadId" in o7598)) e.push(p + "/threadId" + ': required');
-if (!("agentId" in o7598)) e.push(p + "/agentId" + ': required');
-if (!("reason" in o7598)) e.push(p + "/reason" + ': required');
-if (!("scope" in o7598)) e.push(p + "/scope" + ': required');
-if (!("by" in o7598)) e.push(p + "/by" + ': required');
-if ("hookId" in o7598) lf(o7598["hookId"], p + "/hookId", e, L1);
-if ("event" in o7598) lf(o7598["event"], p + "/event", e, L1);
-if ("threadId" in o7598) lf(o7598["threadId"], p + "/threadId", e, L1);
-if ("agentId" in o7598) lf(o7598["agentId"], p + "/agentId", e, L1);
-if ("reason" in o7598) lf(o7598["reason"], p + "/reason", e, L1);
-if ("scope" in o7598) lf(o7598["scope"], p + "/scope", e, L1);
-if ("by" in o7598) lf(o7598["by"], p + "/by", e, L1);
+const x7601 = v;
+const g7601 = typeOf(x7601);
+const b7601: string[] = []; lf(x7601, p, b7601, L0); if (b7601.length) e.push(...b7601);
+if (g7601 === "object") {
+if (g7601 === 'object') { const o7601 = x7601 as Record<string, unknown>;
+if (!("hookId" in o7601)) e.push(p + "/hookId" + ': required');
+if (!("event" in o7601)) e.push(p + "/event" + ': required');
+if (!("threadId" in o7601)) e.push(p + "/threadId" + ': required');
+if (!("agentId" in o7601)) e.push(p + "/agentId" + ': required');
+if (!("reason" in o7601)) e.push(p + "/reason" + ': required');
+if (!("scope" in o7601)) e.push(p + "/scope" + ': required');
+if (!("by" in o7601)) e.push(p + "/by" + ': required');
+if ("hookId" in o7601) lf(o7601["hookId"], p + "/hookId", e, L1);
+if ("event" in o7601) lf(o7601["event"], p + "/event", e, L1);
+if ("threadId" in o7601) lf(o7601["threadId"], p + "/threadId", e, L1);
+if ("agentId" in o7601) lf(o7601["agentId"], p + "/agentId", e, L1);
+if ("reason" in o7601) lf(o7601["reason"], p + "/reason", e, L1);
+if ("scope" in o7601) lf(o7601["scope"], p + "/scope", e, L1);
+if ("by" in o7601) lf(o7601["by"], p + "/by", e, L1);
 }
 }
 }
@@ -645,23 +645,23 @@ if ("by" in o7598) lf(o7598["by"], p + "/by", e, L1);
 
 function e294_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7599 = v;
-const g7599 = typeOf(x7599);
-const b7599: string[] = []; lf(x7599, p, b7599, L0); if (b7599.length) e.push(...b7599);
-if (g7599 === "object") {
-if (g7599 === 'object') { const o7599 = x7599 as Record<string, unknown>;
-if (!("hookId" in o7599)) e.push(p + "/hookId" + ': required');
-if (!("scope" in o7599)) e.push(p + "/scope" + ': required');
-if (!("change" in o7599)) e.push(p + "/change" + ': required');
-if (!("by" in o7599)) e.push(p + "/by" + ': required');
-if (!("line" in o7599)) e.push(p + "/line" + ': required');
-if ("hookId" in o7599) lf(o7599["hookId"], p + "/hookId", e, L1);
-if ("scope" in o7599) lf(o7599["scope"], p + "/scope", e, L1);
-if ("change" in o7599) lf(o7599["change"], p + "/change", e, L1116);
-if ("by" in o7599) lf(o7599["by"], p + "/by", e, L1);
-if ("line" in o7599) lf(o7599["line"], p + "/line", e, L1);
-if ("threadId" in o7599) lf(o7599["threadId"], p + "/threadId", e, L1);
-if ("agentId" in o7599) lf(o7599["agentId"], p + "/agentId", e, L1);
+const x7602 = v;
+const g7602 = typeOf(x7602);
+const b7602: string[] = []; lf(x7602, p, b7602, L0); if (b7602.length) e.push(...b7602);
+if (g7602 === "object") {
+if (g7602 === 'object') { const o7602 = x7602 as Record<string, unknown>;
+if (!("hookId" in o7602)) e.push(p + "/hookId" + ': required');
+if (!("scope" in o7602)) e.push(p + "/scope" + ': required');
+if (!("change" in o7602)) e.push(p + "/change" + ': required');
+if (!("by" in o7602)) e.push(p + "/by" + ': required');
+if (!("line" in o7602)) e.push(p + "/line" + ': required');
+if ("hookId" in o7602) lf(o7602["hookId"], p + "/hookId", e, L1);
+if ("scope" in o7602) lf(o7602["scope"], p + "/scope", e, L1);
+if ("change" in o7602) lf(o7602["change"], p + "/change", e, L1116);
+if ("by" in o7602) lf(o7602["by"], p + "/by", e, L1);
+if ("line" in o7602) lf(o7602["line"], p + "/line", e, L1);
+if ("threadId" in o7602) lf(o7602["threadId"], p + "/threadId", e, L1);
+if ("agentId" in o7602) lf(o7602["agentId"], p + "/agentId", e, L1);
 }
 }
 }
