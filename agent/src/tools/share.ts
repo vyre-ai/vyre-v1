@@ -6,9 +6,9 @@ import type { ToolDef } from "./types.ts";
 /** A property under this size is said again where it is used: a pointer would not be shorter than the thing. */
 export const SHARE_MIN_CHARS = 1200;
 
-/** Tools that take one large object between them, the one a model meets first listed first (check, then preview, then apply). */
+/** Tools that take one large object between them, the one a model meets first listed first (preview first: it is the one an agent drives when it brings a system in, and a pointer to a tool it has not loaded left the CRM walks sampling forever). */
 export const SHARE_GROUPS: readonly (readonly string[])[] = [
-  ["sync_specs_validate", "sync_specs_preview", "sync_specs_apply"],
+  ["sync_specs_preview", "sync_specs_validate", "sync_specs_apply"],
 ];
 
 type Obj = Record<string, unknown>;
