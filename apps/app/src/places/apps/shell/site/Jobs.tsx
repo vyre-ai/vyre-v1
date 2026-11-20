@@ -21,9 +21,18 @@ import {
   serviceNote,
   took,
 } from "./ops-model.ts";
-import type { JobOut, JobRun, ServiceOut } from "./ops-model.ts";
+import type { JobOut, JobRun, Mark, ServiceOut } from "./ops-model.ts";
 
 const REFRESH_MS = 5000;
+
+/** The round mark before a row, with room between it and the words. */
+function Lead({ state }: { state: Mark }): ReactElement {
+  return (
+    <View style={{ marginRight: 10 }}>
+      <StepMark state={state} />
+    </View>
+  );
+}
 
 function useCalls(siteId: string): {
   error: string | null;
@@ -75,40 +84,43 @@ export function JobsAndWorkers({ siteId }: { siteId: string }): ReactElement {
   };
   return (
     <View style={s.block} testID="site-jobs">
+      {/* ui-rows-lint: not a list (each worker is a ui/Row with its sentence under it) */}
       {(services.data?.services ?? []).map((v) => (
-        <Row
-          key={v.serviceId}
-          id={v.serviceId}
-          title={v.name}
-          note={serviceNote(v)}
-          leading={<StepMark state={serviceMark(v.state)} />}
-          trailing={
-            <MenuButton
-              title="Actions"
-              testID={`site-worker-${v.serviceId}`}
-              entries={[
-                {
-                  label: "Restart",
-                  onSelect: () => void calls.act("sites.service_restart", { serviceId: v.serviceId }).then(done),
-                },
-                ...(v.state === "stopped" || v.state === "failed"
-                  ? []
-                  : [
-                      {
-                        label: "Stop",
-                        onSelect: () => void calls.act("sites.service_stop", { serviceId: v.serviceId }).then(done),
-                      },
-                    ]),
-                { separator: true as const },
-                {
-                  label: "Remove",
-                  danger: true,
-                  onSelect: () => void calls.act("sites.service_remove", { serviceId: v.serviceId }).then(done),
-                },
-              ]}
-            />
-          }
-        />
+        <View key={v.serviceId}>
+          <Row
+            id={v.serviceId}
+            title={v.name}
+            note={serviceNote(v, now)}
+            leading={<Lead state={serviceMark(v.state)} />}
+            trailing={
+              <MenuButton
+                title="Actions"
+                testID={`site-worker-${v.serviceId}`}
+                entries={[
+                  {
+                    label: "Restart",
+                    onSelect: () => void calls.act("sites.service_restart", { serviceId: v.serviceId }).then(done),
+                  },
+                  ...(v.state === "stopped" || v.state === "failed"
+                    ? []
+                    : [
+                        {
+                          label: "Stop",
+                          onSelect: () => void calls.act("sites.service_stop", { serviceId: v.serviceId }).then(done),
+                        },
+                      ]),
+                  { separator: true as const },
+                  {
+                    label: "Remove",
+                    danger: true,
+                    onSelect: () => void calls.act("sites.service_remove", { serviceId: v.serviceId }).then(done),
+                  },
+                ]}
+              />
+            }
+          />
+          {v.note ? <Text style={s.noteUnder}>{v.note}</Text> : null}
+        </View>
       ))}
       {/* ui-rows-lint: not a list (each item is a ui/Row with its detail opened under it) */}
       {(jobs.data?.jobs ?? []).map((j) => (
@@ -118,7 +130,7 @@ export function JobsAndWorkers({ siteId }: { siteId: string }): ReactElement {
             title={j.name}
             note={`${j.when}${j.enabled ? "" : " · Paused"}`}
             selected={open === j.jobId}
-            leading={<StepMark state={j.last ? runMark(j.last.state) : "waiting"} />}
+            leading={<Lead state={j.last ? runMark(j.last.state) : "waiting"} />}
             onPress={() => setOpen(open === j.jobId ? null : j.jobId)}
             trailing={
               <Text style={s.word} testID={`site-job-${j.jobId}`}>
@@ -241,7 +253,7 @@ function JobDetail({
             title={r.note ?? RUN_WORD[r.state]}
             note={took(r)}
             selected={shown === r.runId}
-            leading={<StepMark state={runMark(r.state)} />}
+            leading={<Lead state={runMark(r.state)} />}
             onPress={() => setShown(shown === r.runId ? null : r.runId)}
             trailing={
               <Text style={s.runMeta} testID={`site-run-${r.runId}`}>
@@ -380,6 +392,7 @@ const s = StyleSheet.create({
     marginVertical: 6,
   },
   code: { fontFamily: "var(--mono)" as string, fontSize: 12, color: "var(--ink-2)" as string },
+  noteUnder: { fontSize: 12, color: "var(--ink-3)" as string, paddingLeft: 34, paddingBottom: 6 },
   hint: { fontSize: 12, color: "var(--ink-3)" as string },
   actions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: 8 },
   title: { fontSize: 13, fontWeight: "600", color: "var(--ink)" as string, marginTop: 4 },

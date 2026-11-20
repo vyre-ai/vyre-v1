@@ -81,7 +81,11 @@ export function Backups({ siteId, siteName }: { siteId: string; siteName: string
                 ? `${b.bytes !== undefined ? sizeText(b.bytes) : ""}${b.pinned ? " · Kept" : ""}${b.keepUntil ? " · Made before a restore" : ""}`
                 : "Backing up…"
           }
-          leading={<StepMark state={b.state === "ready" ? "ok" : b.state === "failed" ? "failed" : "running"} />}
+          leading={
+            <View style={{ marginRight: 10 }}>
+              <StepMark state={b.state === "ready" ? "ok" : b.state === "failed" ? "failed" : "running"} />
+            </View>
+          }
           trailing={
             b.state === "queued" || b.state === "running" ? null : (
               <MenuButton

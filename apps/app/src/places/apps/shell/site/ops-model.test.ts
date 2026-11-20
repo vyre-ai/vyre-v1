@@ -255,18 +255,23 @@ test("schedule presets: a preset is found by its schedule, anything else is Cust
   assert.equal(presetOf("custom"), "custom");
 });
 
-test("a worker row says its note, or its state", () => {
+test("a worker row says its state in a few words; the long sentence goes under it", () => {
   const v = { serviceId: "w", siteId: "s", name: "q", kind: "worker", command: "x", state: "running" as const };
-  assert.equal(serviceNote(v), "Running");
+  assert.equal(serviceNote(v, 0), "Running");
   assert.equal(
-    serviceNote({
-      ...v,
-      state: "backoff",
-      note: "It stopped with an error (exit code 1). Starting again in 4 seconds.",
-    }),
-    "It stopped with an error (exit code 1). Starting again in 4 seconds.",
+    serviceNote(
+      {
+        ...v,
+        state: "backoff",
+        restartAt: 16_000,
+        note: "It stopped with an error (exit code 1). Starting again in 16 seconds.",
+      },
+      0,
+    ),
+    "Restarting in 16 s",
   );
-  assert.equal(serviceNote({ ...v, state: "failed" }), "Stopped after crashing");
+  assert.equal(serviceNote({ ...v, state: "backoff", restartAt: 100 }, 0), "Restarting in 1 s");
+  assert.equal(serviceNote({ ...v, state: "failed" }, 0), "Stopped after crashing");
 });
 
 test("sizes", () => {

@@ -404,8 +404,10 @@ export const presetOf = (schedule: string): string =>
   SCHEDULE_PRESETS.some((p) => p.key === schedule && p.key !== "custom") ? schedule : "custom";
 
 /** What a worker row says under its name. */
-export function serviceNote(v: ServiceOut): string {
-  return v.note ? v.note : SERVICE_WORD[v.state];
+export function serviceNote(v: ServiceOut, now: number): string {
+  if (v.state === "backoff" && v.restartAt !== undefined)
+    return `Restarting in ${Math.max(1, Math.round((v.restartAt - now) / 1000))} s`;
+  return SERVICE_WORD[v.state];
 }
 
 /** The size of a dump or a database: 48 MB, 1.2 GB. */
