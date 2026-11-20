@@ -206,6 +206,7 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         blockedAt = 0;
       }
       let stalled = false;
+      const began = performance.now();
       for (;;) {
         if (inflight.length >= window) {
           stalled = true;
@@ -230,6 +231,11 @@ export function createLiveHub(d: LiveDeps): LiveHub {
         }
         sent = Math.max(sent, res.next);
         if (!res.more) break;
+        // a long answer is given in slices: the event loop runs between them (a rescan of access over a big Space is one)
+        if (performance.now() - began >= 20) {
+          setImmediate(flush);
+          return;
+        }
       }
       if (stalled && !hinted) {
         hinted = true;
