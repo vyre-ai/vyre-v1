@@ -280,7 +280,7 @@ function subOf(row: TaskRow, env: RowEnv, waits: readonly string[], project: str
   // an agent that was asked to do a person's own task: "Assistant is on it for you", whether or not it is writing right now
   const onIt =
     row.assigned.kind === "person" && row.state === "doing"
-      ? (row.workingNotes as Record<string, string> | undefined)?.["baton.on_it"]
+      ? (row as unknown as { workingNotes?: Record<string, string> }).workingNotes?.["baton.on_it"]
       : undefined;
   if (onIt)
     return `${env.nameOf(onIt)} is on it for ${row.assigned.id === env.me ? "you" : env.nameOf(row.assigned.id)}`;

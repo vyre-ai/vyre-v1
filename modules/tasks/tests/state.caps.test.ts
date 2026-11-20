@@ -6,7 +6,7 @@ import type { Harness } from "../fixtures/db.ts";
 import { alice, bob, bot, cara, finance, owner, newTask, NOW, DAY } from "../fixtures/seed.ts";
 
 const HOUR = 3_600_000;
-const svc = { id: "svc_system", kind: "service" as const };
+const svc = { id: "svc_host", kind: "service" as const };
 const me = { id: owner.id };
 
 async function mk(
