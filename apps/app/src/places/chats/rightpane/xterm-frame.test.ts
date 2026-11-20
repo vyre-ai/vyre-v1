@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { boxTakesWheel, frameOf, rowsThatFit, rowsToDraw, sgrOnly } from "./xterm-frame.ts";
+import {
+  BASIC_LIGHT,
+  BRIGHT_LIGHT,
+  boxTakesWheel,
+  contrast,
+  frameOf,
+  rowsThatFit,
+  rowsToDraw,
+  sgrOnly,
+} from "./xterm-frame.ts";
 
 test("sgrOnly keeps colours and drops every other escape and control character", () => {
   assert.equal(sgrOnly("\x1b[31mred\x1b[0m"), "\x1b[31mred\x1b[0m");
@@ -53,4 +62,10 @@ test("the screen's box takes the wheel only with no mouse mode and the normal bu
   assert.equal(boxTakesWheel(v("vt200", "normal")), false, "mouse tracking on");
   assert.equal(boxTakesWheel(v("drag", "normal")), false);
   assert.equal(boxTakesWheel(v("none", "alternate")), false, "vim, less, htop");
+});
+
+test("every colour of the light palette keeps 4.5 to 1 against the light skin's surface (and a little darker than the sampled one), the black and white ends included", () => {
+  for (const surface of ["#ecebf2", "#e4e3ec", "#ffffff"])
+    for (const c of [...BASIC_LIGHT, ...BRIGHT_LIGHT])
+      assert.ok(contrast(c, surface) >= 4.5, `${c} on ${surface}: ${contrast(c, surface).toFixed(2)}`);
 });

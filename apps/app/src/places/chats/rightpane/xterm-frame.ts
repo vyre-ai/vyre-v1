@@ -50,3 +50,21 @@ export interface WheelView {
 export function boxTakesWheel(t: WheelView): boolean {
   return t.modes.mouseTrackingMode === "none" && t.buffer.active.type === "normal";
 }
+
+// The eight colours and their bright forms, for a dark surface and for a light one (darker, so each keeps a 4.5 to 1 contrast on the light skin's surface).
+export const BASIC = ["#1f2430", "#e06c75", "#7fbf7a", "#d9b45a", "#6a9fe8", "#c07fe0", "#5fbfc0", "#c9cdd6"];
+export const BRIGHT = ["#5c6370", "#ff8b94", "#9be39a", "#f2d27a", "#8cb8ff", "#dca0f5", "#82dcdc", "#ffffff"];
+export const BASIC_LIGHT = ["#1f2430", "#b63628", "#28702c", "#835700", "#1f5fbf", "#8e44ad", "#006c5f", "#4a4f5a"];
+export const BRIGHT_LIGHT = ["#5c6370", "#ac3630", "#2c7230", "#865c00", "#265ebc", "#8d46a7", "#006e62", "#1f2430"];
+
+/** WCAG contrast ratio of two #rrggbb colours. */
+export function contrast(a: string, b: string): number {
+  const lum = (h: string): number => {
+    const c = [1, 3, 5]
+      .map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+      .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!;
+  };
+  const [x, y] = [lum(a), lum(b)];
+  return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
+}

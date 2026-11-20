@@ -5,7 +5,16 @@ import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
 import { Terminal } from "@xterm/xterm";
 
-import { boxTakesWheel, frameOf, rowsThatFit, rowsToDraw } from "./xterm-frame.ts";
+import {
+  BASIC,
+  BASIC_LIGHT,
+  BRIGHT,
+  BRIGHT_LIGHT,
+  boxTakesWheel,
+  frameOf,
+  rowsThatFit,
+  rowsToDraw,
+} from "./xterm-frame.ts";
 import type { XShot } from "./xterm-frame.ts";
 
 /** The rules xterm.js needs to lay out (from @xterm/xterm/css/xterm.css, MIT, the ones the DOM renderer uses). Put in the page when the first terminal opens, so the page's own stylesheet never carries them. */
@@ -22,7 +31,6 @@ function ensureStyle(): void {
   }
 }
 
-const BASIC = ["#1f2430", "#e06c75", "#7fbf7a", "#d9b45a", "#6a9fe8", "#c07fe0", "#5fbfc0", "#c9cdd6"];
 const BRIGHT = ["#5c6370", "#ff8b94", "#9be39a", "#f2d27a", "#8cb8ff", "#dca0f5", "#82dcdc", "#ffffff"];
 
 /** A colour the page's own tokens give at `from`, as the browser resolves it (rgb): a token can be a chain of other tokens, which xterm cannot read. */
@@ -60,9 +68,14 @@ function themeNow(from?: Element | null): Record<string, string> {
     selectionBackground: "rgba(106,159,232,0.35)",
   };
   const names = ["black", "red", "green", "yellow", "blue", "magenta", "cyan", "white"];
+  // the palette follows the surface: light colours on a dark one, darker ones on a light one
+  const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)/.exec(t["background"] ?? "");
+  const light = m !== null && (0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3])) / 255 > 0.55;
+  const basic = light ? BASIC_LIGHT : BASIC;
+  const bright = light ? BRIGHT_LIGHT : BRIGHT;
   names.forEach((n, i) => {
-    t[n] = BASIC[i]!;
-    t[`bright${n[0]!.toUpperCase()}${n.slice(1)}`] = BRIGHT[i]!;
+    t[n] = basic[i]!;
+    t[`bright${n[0]!.toUpperCase()}${n.slice(1)}`] = bright[i]!;
   });
   return t;
 }
