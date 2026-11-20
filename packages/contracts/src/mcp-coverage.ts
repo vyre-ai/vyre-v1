@@ -77,38 +77,63 @@ export const MCP_HELD: Readonly<Record<string, string>> = {
   "records.purge": "delete",
   "records.purge_trashed": "delete",
   "runs.erase": "delete",
-  "backup.export_start": "approve",
   "sites.password_set": "signin_change",
 };
 
-const SYSTEM = "System step: the host, the scheduler, the engine or a provider's webhook calls it; a member never does.";
-const CREDENTIAL = "Sign-in and credentials: a person's own password, sign-in, device trust, recovery or key. It never runs for them.";
-const GATE = "The Gate's own answer or bookkeeping: an agent never answers, releases or loosens the hold on its own act.";
+const SYSTEM =
+  "System step: the host, the scheduler, the engine or a provider's webhook calls it; a member never does.";
+const CREDENTIAL =
+  "Sign-in and credentials: a person's own password, sign-in, device trust, recovery or key. It never runs for them.";
+const GATE =
+  "The Gate's own answer or bookkeeping: an agent never answers, releases or loosens the hold on its own act.";
 const PROVIDER =
   "A provider's own primitive (its API account, webhook or raw send); agents use the Space's own tools (mail, chat, esign, files) that sit above it, with the Gate.";
 const PUBLIC = "Public page for a visitor, no sign-in: the visitor's own act.";
 const SEALED = "A sealed value is revealed to a person, one at a time; it never reaches an agent.";
 const PRESS = "Answering a held card, or a card's own button, is the person's press.";
 const NOTES = "A note's labels are the person's own filing; an agent edits the note (notes_update).";
-const LOW = "A reading no agent needs to write a call (a quota number, a teammate's profile line, a policy it cannot act on): the person sees it in Settings or the Console.";
-const COMPUTER = "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
+const LOW =
+  "A reading no agent needs to write a call (a quota number, a teammate's profile line, a policy it cannot act on): the person sees it in Settings or the Console.";
+const BUDGET =
+  "Reachable through the capability API and the CLI today; its agent tool waits for the next release, because the tool list is at its size limit (scripts/tool-tokens-baseline.json) and a tool must come in with a cut of the same size.";
+const COMPUTER =
+  "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
 /** First match wins; a rule names why a capability has no MCP tool. A capability in MCP_TOOLS has none. */
 export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/\.(health|health_check)$|^health\.|\.jobs_health$|^reports(-client)?\./, SYSTEM],
   [/\.receive_(webhook|push|inbound|notification)$|\.hook$/, SYSTEM],
-  [/^(access\.(exceptions\.lapse|projection_health|join_share)|members\.invites\.guest$|hooks\.fire|scheduler|steps|webhooks|audit|engine|scheduler-api|sync|governance|state|steps-core|search|previews|logs|sources|mounts|events|updates|network|git|home|notifications|telephony\.ingest_|calendar\.|meetings|contacts\.|inbox\.link_message|mail\.(auto_connect|ingest|member_pause|status_update|unsubscribe)|runs\.(finish|mark_waiting|pin_version|record_|start|states|status)|tasks\.(clock|escalate|held_revise|withdraw)|journeys\.|goals\.(go|wake_claim)|automations\.(fire|code_reach)|chat\.(chapters_write|hook_|title_make|transcript\.(append|summar))|memory\.(archive_sweep|capture|index_graph|key\.resolve|maintain|pointer|recall\.|find_by_subject|profile\.context)|agents\.(assistant_of|config\.|memory_key|outside\.|routine|share_class|snapshot)|connections\.mark_working|connectors\.(push|read|sync_poll|sync_run|complete_auth)|channels\.home_join|console\.assistant_context_set|notifications\.|projects\.shared_view|threads\.open_state|spaces\.image|plugins\.files|esign\.(health|hook)|files\.health|computers\.health|vault\.(report_scrub_miss|service_health|text_check|mark_signin_needed))/, SYSTEM],
-  [/^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set|connected\.remove)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./, CREDENTIAL],
+  [
+    /^(access\.(exceptions\.lapse|projection_health|join_share)|members\.invites\.guest$|hooks\.fire|scheduler|steps|webhooks|audit|engine|scheduler-api|sync|governance|state|steps-core|search|previews|logs|sources|mounts|events|updates|network|git|home|notifications|telephony\.ingest_|calendar\.|meetings|contacts\.|inbox\.link_message|mail\.(auto_connect|ingest|member_pause|status_update|unsubscribe)|runs\.(finish|mark_waiting|pin_version|record_|start|states|status)|tasks\.(clock|escalate|held_revise|withdraw)|journeys\.|goals\.(go|wake_claim)|automations\.(fire|code_reach)|chat\.(chapters_write|hook_|title_make|transcript\.(append|summar))|memory\.(archive_sweep|capture|index_graph|key\.resolve|maintain|pointer|recall\.|find_by_subject|profile\.context)|agents\.(assistant_of|config\.|memory_key|outside\.|routine|share_class|snapshot)|connections\.mark_working|connectors\.(push|read|sync_poll|sync_run|complete_auth)|channels\.home_join|console\.assistant_context_set|notifications\.|projects\.shared_view|threads\.open_state|spaces\.image|plugins\.files|esign\.(health|hook)|files\.health|computers\.health|vault\.(report_scrub_miss|service_health|text_check|mark_signin_needed))/,
+    SYSTEM,
+  ],
+  [
+    /^(identity|devices)\.|^connections\.complete_auth$|^mcp\.(oauth\.|session\.mint|setup\.set|connected\.remove)|^portal\.|^sites\.signin_link$|^access\.actors\.redeem$|^members\.|^vault\./,
+    CREDENTIAL,
+  ],
   [/^gate\.links\.known$/, SYSTEM],
   [/^gate\.|^hooks\.(allow_|deny|ask_admin)/, GATE],
   [/^automations\.key_hosts\.pending|^access\.automation_senders$/, PRESS],
   [/^notes\.(label|image)$/, NOTES],
-  [/^(chat\.agent_dm\.mute|memory\.chat_learning\.get|connectors\.check_key|plugins\.connections\.policy_set|backup\.restore|runs\.purge|goals\.number\.set|browser\.cards\.post|chat\.round\.discuss|chat\.question\.withdraw|memory\.learning\.today|settings\.public_of|conflicts\.assist|plugins\.hooks\.list|plugins\.connections\.policy)$/, LOW],
-  [/^(twilio|mailgun|resend|google|microsoft|ms|dropbox|dropbox-sign|dropbox_sign|providers|documenso|docusign|github|stripe|zoom|hubspot)\./, PROVIDER],
+  [
+    /^(chat\.agent_dm\.mute|memory\.chat_learning\.get|connectors\.check_key|plugins\.connections\.policy_set|backup\.restore|runs\.purge|goals\.number\.set|browser\.cards\.post|chat\.round\.discuss|chat\.question\.withdraw|memory\.learning\.today|settings\.public_of|conflicts\.assist|plugins\.hooks\.list|plugins\.connections\.policy)$/,
+    LOW,
+  ],
+  [
+    /^(twilio|mailgun|resend|google|microsoft|ms|dropbox|dropbox-sign|dropbox_sign|providers|documenso|docusign|github|stripe|zoom|hubspot)\./,
+    PROVIDER,
+  ],
   [/^(forms|bookings|esign\.signer_)/, PUBLIC],
   [/^records\.reveal$/, SEALED],
   [/^browser\.chrome\.act$|^conflicts\.(log_binary|propose)$/, PRESS],
   [/^computers\.|^terminal\./, COMPUTER],
+  // classified 20 Nov 2026 (rc.43 integration): calls the server and the host's workers make, a person's own card, and the rest, whose tools wait for the token budget
+  [/^access\.folder_narrow$|^runs\.node\.(beat|claim|reclaim|event|label|move)$|^runs\.message\.(seen|take)$/, SYSTEM],
+  [/^tasks\.(still_answer|still_needed)$/, PRESS],
+  [
+    /^(mail\.(address|delivery|inbox|setup|smtp|template)\.|documents\.signing$|runs\.(activity|board|budget|events|message|node|tree)\.|schema\.set_mergeable$|sites\.(backups?_|head_check$|jobs?_|logs_read$|metrics$|services?_)|tasks\.changes$)/,
+    BUDGET,
+  ],
 ];
 
 /** Why a capability has no tool, or null when it is a tool or has none and no reason (a gap the parity test fails on). */
