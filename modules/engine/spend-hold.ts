@@ -5,11 +5,19 @@ const k = (threadId: string, agentId: string): string => `${threadId}:${agentId}
 export const HOLD_WORDS = "Spending limit reached; waiting for a person.";
 export const holdOn = (threadId: string, agentId: string, reason: string = HOLD_WORDS): void =>
   void held.set(k(threadId, agentId), reason);
+/** How many calls of a held turn were refused, by chat and agent: a model that goes on asking spends a step each time. */
+const refused = new Map<string, number>();
+/** After this many refused calls the turn ends as a pause (the engine's own doing), keeping its place. */
+export const REFUSALS_BEFORE_END = 2;
+/** The plain reason the turn is ended with. */
+export const END_WORDS = "This reached its spending limit.";
 export const holdOff = (threadId: string, agentId?: string): number => {
   let n = 0;
   for (const key of [...held.keys()])
     if (agentId === undefined ? key.startsWith(`${threadId}:`) : key === k(threadId, agentId))
       n += held.delete(key) ? 1 : 0;
+  for (const key of [...refused.keys()])
+    if (agentId === undefined ? key.startsWith(`${threadId}:`) : key === k(threadId, agentId)) refused.delete(key);
   return n;
 };
 export const holdOf = (threadId: string, agentId: string): string | undefined => held.get(k(threadId, agentId));
@@ -25,9 +33,25 @@ type Gate = (c: {
  * else what the subagent's own gate says (a stop asked of it, a note told it).
  */
 export const createSpendGate =
-  (sub: () => { gate: (c: { threadId: string; subagent?: string }) => ReturnType<Gate> } | null): Gate =>
+  (
+    sub: () => { gate: (c: { threadId: string; subagent?: string }) => ReturnType<Gate> } | null,
+    /** ends the held turn as a pause once the model has been refused enough times (REFUSALS_BEFORE_END) */
+    end?: (threadId: string, agentId: string, reason: string) => void,
+  ): Gate =>
   (c) => {
     const hold = holdOf(c.threadId, c.agentId);
-    if (hold !== undefined) return Promise.resolve({ block: hold, notes: [] });
+    if (hold !== undefined) {
+      const key = k(c.threadId, c.agentId);
+      const n = (refused.get(key) ?? 0) + 1;
+      refused.set(key, n);
+      // refused again and again: each is a model step that spends, so the turn ends here (once), the hold stays until the limit is raised
+      if (n === REFUSALS_BEFORE_END)
+        try {
+          end?.(c.threadId, c.agentId, END_WORDS);
+        } catch {
+          /* the turn is ending or gone: the refusal still stands */
+        }
+      return Promise.resolve({ block: hold, notes: [] });
+    }
     return sub()?.gate(c) ?? Promise.resolve({ block: null, notes: [] });
   };

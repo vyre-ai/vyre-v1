@@ -202,3 +202,50 @@ test("a turn on an engine that runs its own tools is not paused here and is not 
     );
   }
 });
+
+test("a turn on an engine that runs its own tools can be ended as a pause by name: it stops where it is, its row waits as paused, and going on starts it again; an API turn is not touched by it", async () => {
+  const acct = (driver: string) => ({
+    ref: "#A",
+    driver,
+    provider: driver,
+    kind: "api_key" as const,
+    payer: "dana",
+    reason: "starter" as const,
+  });
+  for (const [driver, cli] of [
+    ["claude_code", true],
+    ["anthropic", false],
+  ] as const) {
+    const hold = gate();
+    const p = scriptedProvider({
+      script: [
+        { type: "tool_call", id: "c1", name: "read_prices", input: {} },
+        { type: "tool_call", id: "c2", name: "read_policy", input: {} },
+        { type: "done" },
+      ],
+    });
+    const ran: string[] = [];
+    const e = createTurnEngine({
+      holder: "host:a",
+      openSession: p.openSession,
+      toolSafety: SAFETY,
+      resolveAccount: async () => acct(driver),
+      callTool: async (c) => {
+        ran.push(c.id);
+        if (c.id === "c1") await hold.wait;
+        return { ok: true, content: {} };
+      },
+    });
+    e.openThread(thread("T"));
+    e.receive({ threadId: "T", author: person("dana"), body: "Go" });
+    await until(() => ran.includes("c1"));
+    assert.equal(e.pauseCli("T", { agentId: "intake", reason: "its limit" }), cli ? 1 : 0, driver);
+    hold.open();
+    await e.idle("T");
+    if (cli) {
+      assert.equal(ran.includes("c2"), false, "it stopped where it was");
+      assert.equal(e.paused("T").length, 1, "and its row waits as paused");
+      assert.equal(e.resumePaused("T", { agentId: "intake" }).resumed >= 0, true);
+    } else assert.equal(ran.includes("c2"), true, "an API turn is not ended by it");
+  }
+});

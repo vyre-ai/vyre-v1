@@ -37,6 +37,7 @@ type In = {
   dependsOn?: Array<string>;
   dependsOnThreads?: Array<string>;
   adoptKey?: string;
+  retriesThread?: string;
   engine?: string;
   model?: string;
   brief?: unknown;
@@ -152,6 +153,7 @@ type Out = {
     "parentRun": "run_a1b2c3",
     "parentThread": "thr_a1b2c3",
     "policy": {},
+    "retriesThread": "thr_a1b2c3",
     "running": true,
     "threadId": "thr_a1b2c3",
     "whoId": "example",

@@ -250,11 +250,21 @@ test("save as agent: a second press is the same save (the work's own key), what 
     { runId: n.id, name: "Pricer", instructions: "Use the 2026 sheet.", sharing: "everyone" },
     owner,
   );
+  await h.call(
+    "runs.node.save_as_agent",
+    { runId: n.id, name: "Pricer", instructions: "Use the 2026 sheet.", sharing: "everyone" },
+    owner,
+  );
   await h.call("runs.node.save_as_agent", { runId: n.id, name: "Pricer", sharing: "everyone" }, owner);
-  assert.equal(seen.created[0]!["idempotencyKey"], `save:${n.id}`);
-  assert.equal(seen.created[1]!["idempotencyKey"], `save:${n.id}`, "so the agents module answers with the one it made");
+  assert.match(String(seen.created[0]!["idempotencyKey"]), new RegExp(`^save:${n.id}:\\d+$`));
+  assert.equal(
+    seen.created[1]!["idempotencyKey"],
+    seen.created[0]!["idempotencyKey"],
+    "the same press again: the agents module answers with the one it made",
+  );
+  assert.notEqual(seen.created[2]!["idempotencyKey"], seen.created[0]!["idempotencyKey"], "other words, another agent");
   assert.equal(seen.created[0]!["instructions"], "Use the 2026 sheet.", "the edit, not the brief");
-  assert.match(String(seen.created[1]!["instructions"]), /2025 sheet/, "the brief when nothing was edited");
+  assert.match(String(seen.created[2]!["instructions"]), /2025 sheet/, "the brief when nothing was edited");
   assert.equal(seen.created[0]!["sharing"], "everyone");
   assert.ok(!("ownerId" in seen.created[0]!), "owned by whoever asks: it never has more than they do");
 
@@ -321,4 +331,94 @@ test("two briefs that differ by one character start two re-runs; the same brief 
     owner,
   );
   assert.equal(seen.started.length, 3, "the same words on another model are another re-run");
+});
+
+test("a re-run of a failed helper brings back the helpers that failed only because of it", async () => {
+  const { h } = rig();
+  h.advance(1);
+  const root = (
+    await h.call("runs.node.start", { kind: "turn", owner: alice.id, threadId: PARENT, running: true }, engine)
+  ).node as { id: string };
+  const first = (
+    await h.call(
+      "runs.node.start",
+      {
+        kind: "helper",
+        owner: alice.id,
+        parentRun: root.id,
+        threadId: HELPER,
+        running: true,
+        name: "Gamma",
+        brief: { goal: "g", instructions: "one" },
+      },
+      engine,
+    )
+  ).node as { id: string };
+  await h.call(
+    "runs.node.move",
+    { ...hold(h, first.id), runId: first.id, to: "failed", why: "failed", error: { code: "x", message: "no" } },
+    engine,
+  );
+  const later = (
+    await h.call(
+      "runs.node.start",
+      {
+        kind: "helper",
+        owner: alice.id,
+        parentThread: PARENT,
+        threadId: `thr_${"e".repeat(32)}`,
+        name: "Delta",
+        dependsOnThreads: [HELPER],
+      },
+      engine,
+    )
+  ).node as { id: string };
+  assert.equal((await h.call("runs.node.get", { runId: later.id }, owner)).node.status, "failed");
+  await h.call("runs.node.rerun", { runId: first.id, instructions: "two" }, owner);
+  const d = (await h.call("runs.node.get", { runId: later.id }, owner)).node;
+  assert.equal(d.status, "queued", "Delta waits again, on the re-run");
+  const again = (await h.call("runs.node.compare", { runId: first.id }, owner)).sides[1];
+  assert.deepEqual(d.dependsOn, [again.runId]);
+});
+
+test("two re-runs at once both stay recorded, and two of the same brief are one; numbers in the keys are never used twice, even after the list is cut", async () => {
+  const { h, seen } = rig();
+  let n = 0;
+  const threads = new Map<string, string>();
+  h.callee("chat.helper.start", (i: Record<string, unknown>) => {
+    seen.started.push(i);
+    const key = String(i["idempotencyKey"]);
+    if (!threads.has(key)) threads.set(key, `thr_${String(++n).padStart(32, "0")}`);
+    return { helper: { threadId: threads.get(key) }, blockId: "blk_1" };
+  });
+  const { n: first } = await helper(h, { brief: { goal: "g", instructions: "base" } });
+  await Promise.all([
+    h.call("runs.node.rerun", { runId: first.id, instructions: "alpha" }, owner),
+    h.call("runs.node.rerun", { runId: first.id, instructions: "beta" }, owner),
+    h.call("runs.node.rerun", { runId: first.id, instructions: "beta" }, owner),
+  ]);
+  const sides = (await h.call("runs.node.compare", { runId: first.id }, owner)).sides;
+  assert.equal(sides.length, 3, "the original and two different re-runs: none was lost");
+  assert.equal(new Set(seen.started.map((s) => s["idempotencyKey"])).size, 2, "the same brief twice is one key");
+  for (let k = 0; k < 24; k++) await h.call("runs.node.rerun", { runId: first.id, instructions: `more ${k}` }, owner);
+  const keys = seen.started.map((s) => String(s["idempotencyKey"]));
+  assert.equal(
+    new Set(keys).size,
+    26,
+    "26 different briefs, 26 keys: none was made twice, none reused for another brief",
+  );
+});
+
+test("saving as an agent: the same words twice is one save, other words are another, at once or not; the key never repeats", async () => {
+  const { h, seen } = rig();
+  const { n } = await helper(h, { brief: { goal: "g", instructions: "base" } });
+  await Promise.all([
+    h.call("runs.node.save_as_agent", { runId: n.id, name: "A", instructions: "one" }, owner),
+    h.call("runs.node.save_as_agent", { runId: n.id, name: "A", instructions: "one" }, owner),
+    h.call("runs.node.save_as_agent", { runId: n.id, name: "A", instructions: "two" }, owner),
+  ]);
+  const keys = seen.created.map((c) => String(c["idempotencyKey"]));
+  assert.equal(keys.length, 3);
+  assert.equal(keys[0], keys[1], "the same words: the same key, so one agent");
+  assert.notEqual(keys[0], keys[2], "other words: another agent");
 });

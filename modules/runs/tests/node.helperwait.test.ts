@@ -244,3 +244,87 @@ test("several failed dependencies are named together in one short sentence", asy
   const got = (await h.call("runs.node.get", { runId: docs.id }, owner)).node;
   assert.match(got.reason, /^Didn't start because (Alpha and Gamma|Gamma and Alpha) failed\.$/);
 });
+
+const mkHelper = async (
+  h: Awaited<ReturnType<typeof rig>>["h"],
+  thread: string,
+  name: string,
+  extra: Record<string, unknown> = {},
+) =>
+  (
+    await h.call(
+      "runs.node.start",
+      { kind: "helper", owner: alice.id, threadId: thread, parentThread: MAIN, name, ...extra },
+      engine,
+    )
+  ).node as { id: string; status: string; dependsOn?: string[] };
+const failIt = (h: Awaited<ReturnType<typeof rig>>["h"], id: string) =>
+  h.call(
+    "runs.node.move",
+    { ...hold(h, id), runId: id, to: "failed", why: "failed", error: { code: "x", message: "no" } },
+    engine,
+  );
+
+test("a retry of a failed helper brings back the helpers that failed only because of it, and theirs after them: one Retry repairs the chain; if the retry fails too they fail again with the same words", async () => {
+  const { h } = await rig();
+  h.advance(1);
+  const gamma = await mkHelper(h, NUMBERS, "Gamma", { running: true });
+  await failIt(h, gamma.id);
+  const delta = await mkHelper(h, DOCS, "Delta", { dependsOnThreads: [NUMBERS], idemKey: `helper:${DOCS}` });
+  const zeta = await mkHelper(h, T("z"), "Zeta", { dependsOnThreads: [DOCS], idemKey: `helper:${T("z")}` });
+  const other = await mkHelper(h, T("o"), "Other", { running: true });
+  await failIt(h, other.id);
+  assert.deepEqual([statusOf(h, delta.id), statusOf(h, zeta.id)], ["failed", "failed"]);
+
+  // Gamma is tried again: a new helper, told it retries the one that failed
+  h.advance(1);
+  const again = await mkHelper(h, T("r"), "Gamma", { retriesThread: NUMBERS, idemKey: `helper:${T("r")}` });
+  assert.equal(statusOf(h, delta.id), "queued", "Delta waits again");
+  assert.equal(statusOf(h, zeta.id), "queued", "and Zeta, which failed because of Delta");
+  assert.equal(statusOf(h, other.id), "failed", "one that did not wait for it is left alone");
+  const d = (await h.call("runs.node.get", { runId: delta.id }, owner)).node;
+  assert.deepEqual(d.dependsOn, [again.id], "now on the new attempt");
+  assert.equal(d.reason, undefined, "its old failure is gone");
+
+  // the new Gamma succeeds: Delta can start; its work runs, then Zeta can
+  await h.call("runs.node.claim", { runId: again.id, holder: "host:a" }, engine);
+  await h.call("runs.node.move", { ...hold(h, again.id), runId: again.id, to: "succeeded", why: "done" }, engine);
+  const start = (thread: string, key: string) =>
+    h.call(
+      "runs.node.start",
+      {
+        kind: "helper",
+        owner: alice.id,
+        threadId: thread,
+        parentThread: MAIN,
+        running: true,
+        adoptKey: `helper:${thread}`,
+        idemKey: key,
+      },
+      engine,
+    );
+  assert.equal((await start(DOCS, "turn:d1")).node.id, delta.id, "Delta's turn takes its node over");
+  await h.call("runs.node.move", { ...hold(h, delta.id), runId: delta.id, to: "succeeded", why: "done" }, engine);
+  assert.equal((await start(T("z"), "turn:z1")).node.id, zeta.id);
+  assert.equal(statusOf(h, zeta.id), "running");
+});
+
+test("if the retry fails too, the helpers that waited for it fail again with the same reason", async () => {
+  const { h } = await rig();
+  h.advance(1);
+  const gamma = await mkHelper(h, NUMBERS, "Gamma", { running: true });
+  await failIt(h, gamma.id);
+  const delta = await mkHelper(h, DOCS, "Delta", { dependsOnThreads: [NUMBERS], idemKey: `helper:${DOCS}` });
+  h.advance(1);
+  const again = await mkHelper(h, T("r"), "Gamma", {
+    retriesThread: NUMBERS,
+    idemKey: `helper:${T("r")}`,
+    running: true,
+  });
+  assert.equal(statusOf(h, delta.id), "queued");
+  await failIt(h, again.id);
+  await h.engineRun({ id: "svc_host", kind: "service" as const }, async (ctx) => settleDeps(ctx));
+  const d = (await h.call("runs.node.get", { runId: delta.id }, owner)).node;
+  assert.equal(d.status, "failed");
+  assert.equal(d.reason, "Didn't start because Gamma failed.");
+});

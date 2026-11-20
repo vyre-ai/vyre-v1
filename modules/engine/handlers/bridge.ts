@@ -1536,7 +1536,6 @@ export function createBridge(o: BridgeOptions): Bridge {
     // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
     // a helper told to wait for others (chat.helper.start dependsOn) is not woken until each of them is done: its brief is kept, its node stands queued meanwhile
     const waitState = await helperWaiting(ctx, threadId, readAs);
-    const waiting = waitState === "waiting";
     // one whose dependency did not finish is kept too, and never woken
     const hold =
       waitState !== "free" ||
@@ -1565,9 +1564,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       }),
     );
     // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
-    if (waiting) scheduleWaitRelease(ctx, threadId, readAs, res.messageId);
-    else if (waitState === "dead")
-      heldNow.delete(threadId); // it waited for work that did not finish: kept in the chat, never woken
+    // kept in the chat; one that waited for work that did not finish is looked at slowly (a Retry of that work puts it back to waiting, and it then starts when that is done)
+    if (waitState !== "free") scheduleWaitRelease(ctx, threadId, readAs, res.messageId, 0, waitState === "dead");
     else if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
     else if (res.responders.length > 0) heldNow.delete(threadId); // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
@@ -1663,7 +1661,8 @@ export function createBridge(o: BridgeOptions): Bridge {
     const block = line.message?.blocks?.find((b) => b.type === "helper" && b.data?.["helperThreadId"] === threadId);
     const deps = Array.isArray(block?.data?.["dependsOn"]) ? (block!.data!["dependsOn"] as unknown[]).map(String) : [];
     helperChecked.add(threadId);
-    if (deps.length === 0 || !t.starter) return;
+    const retryOf = typeof block?.data?.["retryOf"] === "string" ? (block.data["retryOf"] as string) : undefined;
+    if ((deps.length === 0 && retryOf === undefined) || !t.starter) return;
     await ctx.call("runs.node.start", {
       kind: "helper",
       owner: t.starter,
@@ -1672,7 +1671,8 @@ export function createBridge(o: BridgeOptions): Bridge {
       ...(t.title ? { name: t.title } : {}),
       whoKind: "agent",
       whoId: str(block?.data?.["agentId"]),
-      dependsOnThreads: deps,
+      ...(deps.length > 0 ? { dependsOnThreads: deps } : {}),
+      ...(retryOf !== undefined ? { retriesThread: retryOf } : {}),
       idemKey: `helper:${threadId}`,
     });
   }
@@ -1700,24 +1700,33 @@ export function createBridge(o: BridgeOptions): Bridge {
     }
   }
 
-  /** Look again until what it waits for is done, then wake it once. If one of them did not finish, it is not woken. */
-  function scheduleWaitRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
-    const t = setTimeout(() => {
-      void (async () => {
-        if (closed) return;
-        const st = await helperWaiting(ctx, threadId, readAs);
-        if (st === "waiting") {
-          if (tries < 2000) scheduleWaitRelease(ctx, threadId, readAs, messageId, tries + 1);
-          return;
-        }
-        if (st === "dead") return;
-        try {
-          if (engine) engine.wakeHeld(threadId, messageId);
-        } catch {
-          /* the thread is closed: nothing to wake */
-        }
-      })();
-    }, 1500);
+  /** Look again until what it waits for is done, then wake it once. While one of them has not finished well it is not woken, and is looked at every 10 seconds (up to eight hours) in case a Retry brings it back to waiting. */
+  function scheduleWaitRelease(
+    ctx: EngineCtx,
+    threadId: string,
+    readAs: string,
+    messageId: string,
+    tries = 0,
+    slow = false,
+  ): void {
+    const t = setTimeout(
+      () => {
+        void (async () => {
+          if (closed) return;
+          const st = await helperWaiting(ctx, threadId, readAs);
+          if (st === "waiting" || st === "dead") {
+            if (tries < 3000) scheduleWaitRelease(ctx, threadId, readAs, messageId, tries + 1, st === "dead");
+            return;
+          }
+          try {
+            if (engine) engine.wakeHeld(threadId, messageId);
+          } catch {
+            /* the thread is closed: nothing to wake */
+          }
+        })();
+      },
+      slow ? 10_000 : 1500,
+    );
     (t as { unref?: () => void }).unref?.();
   }
 

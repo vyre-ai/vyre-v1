@@ -8733,6 +8733,7 @@ export type ChatHelperStartIn = {
   why?: string;
   crew?: boolean;
   taskId?: string;
+  retryOf?: string;
   dependsOn?: Array<string>;
 };
 export type ChatHelperStartOut = {
@@ -36225,6 +36226,7 @@ export type RunsNodeStartIn = {
   dependsOn?: Array<string>;
   dependsOnThreads?: Array<string>;
   adoptKey?: string;
+  retriesThread?: string;
   engine?: string;
   model?: string;
   brief?: unknown;

@@ -444,6 +444,31 @@ test("a helper cannot wait for one of earlier work: refused at the start, so the
   );
 });
 
+test("a retry names the helper of this chat it starts again; another thread is refused; the block carries it", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const base = { threadId, agentId: DRAFTER, model: "claude-haiku-4-5", provider: "anthropic", effort: "low" as const };
+  const a = await g["chat.helper.start"](hn.agent(), { ...base, title: "Numbers", instruction: "Add the figures." });
+  const retry = await g["chat.helper.start"](hn.agent(), {
+    ...base,
+    title: "Numbers",
+    instruction: "Add the figures.",
+    retryOf: a.helper["threadId"] as string,
+  });
+  const line = hn.raw.all(
+    "SELECT blocks FROM chat_message WHERE thread = ? AND body LIKE 'Started a helper: Numbers%' ORDER BY rowid DESC",
+    threadId,
+  ) as Array<{ blocks: string }>;
+  const block = (JSON.parse(line[0]!.blocks) as Array<{ type: string; data: { retryOf?: string } }>).find(
+    (x) => x.type === "helper",
+  );
+  assert.equal(block?.data.retryOf, a.helper["threadId"]);
+  assert.ok(retry.helper["threadId"]);
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), { ...base, title: "x", instruction: "y", retryOf: threadId }),
+  );
+});
+
 test("helpers: start, list, refusals", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);

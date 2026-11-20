@@ -61461,6 +61461,13 @@
           "provider": {
             "type": "string"
           },
+          "retryOf": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
           "taskId": {
             "examples": [
               "tsk_a1b2c3"

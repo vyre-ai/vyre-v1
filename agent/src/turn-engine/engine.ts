@@ -429,6 +429,11 @@ export interface TurnEngine {
   resumePaused(threadId: string, o?: { agentId?: string }): { resumed: number; lost: number };
   /** The turns waiting paused in a thread. */
   paused(threadId: string): QueueItem[];
+  /**
+   * End the turn of an agent on an engine that runs its own tools, as a pause: the session is cancelled and the queue row waits as paused, so raising the limit (resumePaused) starts it again as a turn of its own.
+   * Used when a limit has held its calls and the model goes on asking: each refused call is a model step that spends. Returns the turns ended.
+   */
+  pauseCli(threadId: string, o: { agentId: string; reason: string }): number;
   /** The agents whose turn runs now on an engine that runs its own tools: such a turn cannot be paused between calls, so a limit holds its next call at the hook (modules/engine/spend-hold.ts). */
   cliRunning(threadId: string, o?: { agentId?: string }): string[];
   /** Run what is queued in a thread that is open here (a retry queued by a capability). */
@@ -2387,6 +2392,17 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       return { resumed, lost };
     },
     paused: (threadId) => queue.list(threadId).filter((r) => r.state === "paused"),
+    pauseCli(threadId, o) {
+      const st = need(threadId);
+      let n = 0;
+      for (const run of st.running.values()) {
+        if (run.cli !== true || run.cancelled || run.agentId !== o.agentId) continue;
+        run.pausing = o.reason;
+        void cancelRunning(st, run, "paused");
+        n += 1;
+      }
+      return n;
+    },
     cliRunning: (threadId, o) =>
       [...need(threadId).running.values()]
         .filter((r) => r.cli === true && !r.cancelled && (o?.agentId === undefined || r.agentId === o.agentId))

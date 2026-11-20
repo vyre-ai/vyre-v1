@@ -19,7 +19,7 @@ Start a finished helper again beside the first, with an edited brief or another 
 | HTTP | POST /v1/runs/node/rerun |
 | MCP tool | none |
 | CLI | none |
-| Emits | none |
+| Emits | run.node_state, run.node_ended |
 
 ## Input
 

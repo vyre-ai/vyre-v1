@@ -18,6 +18,7 @@ import type { RunsCtx } from "../projections.ts";
 import {
   addDeps,
   beatNode,
+  rearmDependents,
   claimNode,
   eventsSince,
   findNode,
@@ -39,6 +40,7 @@ import {
   treeNodes,
   writeEvent,
 } from "../node.ts";
+import { readableReason } from "../node.ts";
 import type { Node, NodeStatus, StartInput, Why } from "../node.ts";
 
 type In = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -106,6 +108,13 @@ export async function nodeStart(ctx: RunsCtx, input: In): Promise<unknown> {
   });
   // a node that was made earlier so others could wait for it: now it waits for what it starts after
   if (!created && deps.length > 0 && node.status === "queued") addDeps(ctx, node.id, deps);
+  // it is a retry of a helper that failed: the helpers that failed only because of that one go back to waiting, on this one
+  if (input.retriesThread && created) {
+    const old = nodesOfThread(ctx.db, input.retriesThread as string, false, 5).find(
+      (x) => x.id !== node.id && x.status === "failed",
+    );
+    if (old) rearmDependents(ctx, old.id, node.id);
+  }
   // what it starts after has already failed or been stopped: it fails now, not when a sweep comes by, so it is never left queued for ever
   if (deps.length > 0 && node.status === "queued") settleDeps(ctx);
   return { node: out(ctx, getNode(ctx, node.id)), created };
@@ -364,7 +373,17 @@ export async function eventsList(ctx: RunsCtx, input: In): Promise<unknown> {
   const { node: n, full } = look(ctx, input.runId);
   const raw = eventsSince(ctx.db, n.rootRun, input.since ?? 0, input.limit ?? 200, input.only);
   const cursor = raw.length > 0 ? raw[raw.length - 1]!.seq : (input.since ?? 0);
-  if (full) return { events: raw, lastSeq: cursor };
+  // the raw error text (paths, hosts) is kept for the logs: a state event that ended in failure says its code and the reason in words
+  const readable = raw.map((e) => {
+    const p = e.payload as { error?: { code?: string; message?: string } } | null | undefined;
+    if (!p || typeof p !== "object" || !p.error) return e;
+    const { error, ...rest } = p;
+    return {
+      ...e,
+      payload: { ...rest, error: { code: error.code, reason: readableReason(error.code, error.message) } },
+    };
+  });
+  if (full) return { events: readable, lastSeq: cursor };
   // a person who may only see that work goes on gets the state changes and when, nothing a node said, used or found
   const events = raw
     .filter((e) => e.type === "state")
