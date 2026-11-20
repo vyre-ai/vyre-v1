@@ -138,7 +138,7 @@ const TRIGGER_EVENTS = new Map(
     return [t.key, src.events ?? (src.event ? [src.event] : [])] as const;
   }),
 );
-const CAPS = new Map(registry.capabilities.map((c) => [c.name, c] as const));
+const CAPS = new Map<string, (typeof registry.capabilities)[number]>(registry.capabilities.map((c) => [c.name, c]));
 const DAY30 = "30d";
 
 export function scopeOf(
@@ -152,8 +152,8 @@ export function scopeOf(
     steps,
     vars: call.vars ?? {},
     ...(journey ? { journey } : {}),
-    item: call.item,
-    index: call.index,
+    ...(call.item !== undefined ? { item: call.item } : {}),
+    ...(call.index !== undefined ? { index: call.index } : {}),
     run: { id: env.run.id },
     now: env.ctx.now(),
   });
