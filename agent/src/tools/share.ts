@@ -23,6 +23,14 @@ export function shapeNote(toolName: string): string {
   return [...m.entries()].map(([k, shape]) => ` The full ${k} shape: ${JSON.stringify(shape)}`).join("");
 }
 
+/** The input schema as the server holds it: a pointed property gets its full shape back, so a check that reads the schema (the placeholder guard's choice lists) sees what it would on the tool that shows it in full. */
+export function fullSchema(toolName: string, schema: unknown): unknown {
+  const m = POINTED.get(toolName);
+  const sc = schema as { properties?: Record<string, unknown> } | null;
+  if (!m || m.size === 0 || !sc?.properties) return schema;
+  return { ...sc, properties: { ...sc.properties, ...Object.fromEntries(m) } };
+}
+
 /** The tools, with each large repeated top-level property of a group shown in full once and pointed at after. */
 export function shareRepeats(
   defs: readonly ToolDef[],
