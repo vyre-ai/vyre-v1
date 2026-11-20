@@ -54,7 +54,7 @@ export interface Journey {
   version: number;
   stages: Stage[];
   startRule?: StartRule;
-  startAutomationId?: string;
+  startAutomationId?: string | undefined;
   /** subject: a Journey record per subject (before rc.41). migrating: journeys.to_pipeline is moving them. pipeline: the records of recordType move through stageField themselves. */
   mode?: JourneyMode;
   /** The field of recordType whose options are the stages (pipeline and migrating). */
@@ -521,7 +521,7 @@ export interface MigrationRow {
   legacyRecordId: string;
   subjectRecordId: string;
   state: MigrationState;
-  error?: string;
+  error?: string | undefined;
   at: number;
 }
 export function saveMigration(db: Db, m: MigrationRow): void {

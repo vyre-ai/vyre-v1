@@ -222,3 +222,17 @@ test("a tool that takes a chat as a filter is never narrowed to this chat: only 
   assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
   assert.equal("threadId" in (sent.at(-1)?.input as object), false, "a search over every chat stays over every chat");
 });
+
+test("each sync_specs tool: a first call with a spec that does not parse is refused with the full SyncSpec shape, whichever tool shows it only as a pointer", async () => {
+  // sync_specs_preview shows the shape in its own schema; the other two show a pointer, so their refusals carry it
+  for (const name of ["sync_specs_validate", "sync_specs_apply"]) {
+    const { s } = session();
+    s.preload("thr_1", [name]);
+    const out = await s.call(c(), name, { spec: { app: 1 } });
+    assert.equal(out.kind, "error", name);
+    const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+    // the shape, not only the complaint: the property names a correct spec carries
+    assert.match(words, /\\"properties\\"/, `${name} says the shape`);
+    assert.ok(words.length > 1500, `${name} carries the whole spec shape`);
+  }
+});

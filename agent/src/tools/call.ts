@@ -21,6 +21,7 @@ import {
 import { canonical, fillInput, shortHash } from "./fill.ts";
 import { findsByPath, placeField, placeInput } from "./place.ts";
 import { parseProblem, rejectWords, unknownInputs } from "./reject.ts";
+import { shapeNote } from "./share.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -492,7 +493,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
             if (!(r in (body as object)) && !owned.includes(r)) extra.push(`/${r}: required`);
         if (extra.length > 0)
           return fail("validation.bad_input", traceId, {
-            message: rejectWords(t, extra, EXAMPLES[t.cap]),
+            message: rejectWords(t, extra, EXAMPLES[t.cap]) + shapeNote(t.name),
             details: { tool: t.name, errors: extra, reason: "unknown_input" },
           });
       }
@@ -579,12 +580,13 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (list.length > 0) {
           const error = {
             ...e.error,
-            message: rejectWords(
-              t,
-              list,
-              EXAMPLES[t.cap],
-              input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
-            ),
+            message:
+              rejectWords(
+                t,
+                list,
+                EXAMPLES[t.cap],
+                input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
+              ) + shapeNote(t.name),
           };
           return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
         }

@@ -7,7 +7,7 @@ import { ASK_FIRST_ACTS, asksFirst } from "../lib/ask-first.ts";
 import { OUTWARD_ACTS } from "../lib/grants.ts";
 
 type Step = { key: string; effects?: string; cap?: string; gateAct?: string };
-type Cap = { name: string; gate?: { act?: string } };
+type Cap = { name: string; gate?: { act?: string; reason?: string } };
 const STEPS = registry.steps as unknown as Step[];
 const CAPS = new Map((registry.capabilities as unknown as Cap[]).map((c) => [c.name, c] as const));
 
@@ -42,10 +42,25 @@ test("every outward step can be held: its capability declares a Gate, or it is a
   const selfAsked = new Set(["post_message"]);
   for (const s of STEPS) {
     if (s.effects !== "outward") continue;
-    const act = s.cap ? CAPS.get(s.cap)?.gate?.act : undefined;
-    const gated = act !== undefined && act !== "none";
+    const gate = s.cap ? CAPS.get(s.cap)?.gate : undefined;
+    // a Gate of "none" counts only when it says why (a draft stays in the mailbox and nothing is sent)
+    const gated = gate?.act !== undefined && (gate.act !== "none" || Boolean(gate.reason));
     assert.ok(gated || selfAsked.has(s.key), `${s.key} is outward but ${s.cap} declares no Gate: nothing can hold it`);
     if (selfAsked.has(s.key)) assert.equal(s.gateAct, "post", `${s.key} is asked about as a post`);
   }
   assert.equal(CAPS.get("automations.step_ask")?.gate?.act, "post");
+});
+
+test("a draft step is the only outward step with a Gate of none, and it says why; every send, post or sign step holds", () => {
+  const none: string[] = [];
+  for (const s of STEPS) {
+    if (s.effects !== "outward" || !s.cap) continue;
+    const gate = CAPS.get(s.cap)?.gate;
+    if (gate?.act === "none") {
+      none.push(s.key);
+      assert.ok(gate.reason, `${s.key} has a Gate of none with no reason`);
+    }
+    if (/send|sign|post|create_event|comment/.test(s.key)) assert.notEqual(gate?.act, "none", `${s.key} must hold`);
+  }
+  assert.deepEqual(none.sort(), ["google.gmail.create_draft", "ms.mail.create_draft"]);
 });

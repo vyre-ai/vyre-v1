@@ -17,10 +17,10 @@ test("the SyncSpec is shown in full by one tool and pointed at by the other two"
   const full = ["sync_specs_validate", "sync_specs_preview", "sync_specs_apply"].filter(
     (n) => specOf(n).properties !== undefined,
   );
-  assert.deepEqual(full, ["sync_specs_validate"], "the one a model meets first carries the shape");
-  for (const n of ["sync_specs_preview", "sync_specs_apply"])
-    assert.match(specOf(n).description ?? "", /The same spec as sync_specs_validate: read its shape there\./);
-  assert.ok(JSON.stringify(specOf("sync_specs_validate")).length >= SHARE_MIN_CHARS);
+  assert.deepEqual(full, ["sync_specs_preview"], "the one a model meets first carries the shape");
+  for (const n of ["sync_specs_validate", "sync_specs_apply"])
+    assert.match(specOf(n).description ?? "", /The same spec as sync_specs_preview: read its shape there\./);
+  assert.ok(JSON.stringify(specOf("sync_specs_preview")).length >= SHARE_MIN_CHARS);
 });
 
 test("no other tool is shared: the Automation definition and the goal finish keep their own copies", () => {
