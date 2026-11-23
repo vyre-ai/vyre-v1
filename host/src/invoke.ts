@@ -83,7 +83,9 @@ export interface CtxSeed {
   run?: string | undefined;
   thread?: string | undefined;
   /** why the engine started the turn this call is made in (message, wake, resume, interrupt, handoff); set only by the tool layer, from the engine's own record */
-  turn?: { kind: string; messageId?: string | undefined; authorKind?: string | undefined; authorId?: string | undefined } | undefined;
+  turn?:
+    | { kind: string; messageId?: string | undefined; authorKind?: string | undefined; authorId?: string | undefined }
+    | undefined;
   origin?: string | undefined;
   depth?: number | undefined;
   /** the capability whose handler made this nested call (set only by ctx.call, never by a caller): a host call one module's path alone may make checks it (consumers.ts MODULE_PATH_CALL) */

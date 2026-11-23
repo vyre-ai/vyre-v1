@@ -280,46 +280,129 @@ test("chrome_resume tells the extension how long ago the message that started th
     const now = probe.ctx.now();
     const old: any[] = [];
     const lines: any[] = [
-      { messageId: "msg_a", threadSeq: 1, author: { kind: "person", id: DANA }, kind: "text", createdAt: now - 5_000, body: "go on" },
-      { messageId: "msg_b", threadSeq: 2, author: { kind: "agent", id: "agt_scout" }, kind: "agent", createdAt: now - 1_000, body: "ok" },
-      { messageId: "msg_c", threadSeq: 3, author: { kind: "person", id: DANA }, kind: "text", via: { routineOwner: DANA }, createdAt: now - 500, body: "routine" },
-      { messageId: "msg_d", threadSeq: 4, author: { kind: "person", id: "usr_other" }, kind: "text", createdAt: now - 200, body: "someone else" },
-      { messageId: "msg_e", threadSeq: 5, author: { kind: "person", id: DANA }, kind: "text", createdAt: now - 100, body: "wait, don't" },
+      {
+        messageId: "msg_a",
+        threadSeq: 1,
+        author: { kind: "person", id: DANA },
+        kind: "text",
+        createdAt: now - 5_000,
+        body: "go on",
+      },
+      {
+        messageId: "msg_b",
+        threadSeq: 2,
+        author: { kind: "agent", id: "agt_scout" },
+        kind: "agent",
+        createdAt: now - 1_000,
+        body: "ok",
+      },
+      {
+        messageId: "msg_c",
+        threadSeq: 3,
+        author: { kind: "person", id: DANA },
+        kind: "text",
+        via: { routineOwner: DANA },
+        createdAt: now - 500,
+        body: "routine",
+      },
+      {
+        messageId: "msg_d",
+        threadSeq: 4,
+        author: { kind: "person", id: "usr_other" },
+        kind: "text",
+        createdAt: now - 200,
+        body: "someone else",
+      },
+      {
+        messageId: "msg_e",
+        threadSeq: 5,
+        author: { kind: "person", id: DANA },
+        kind: "text",
+        createdAt: now - 100,
+        body: "wait, don't",
+      },
     ];
     const sentFor = async (turn: Record<string, unknown> | undefined) => {
       const g = harness({
         principal: { kind: "agent", id: "agt_scout" },
         actingFor: DANA,
-        respond: { "chat.message.get": (i: any) => ({ message: [...lines, ...old].find((l) => l.messageId === i.messageId) }) },
+        respond: {
+          "chat.message.get": (i: any) => ({ message: [...lines, ...old].find((l) => l.messageId === i.messageId) }),
+        },
       });
       g.ctx.thread = "thr_1";
       if (turn) g.ctx.turn = turn as never;
       await tool["computers.chrome.resume"]!(g.ctx, { ...MINE });
       return calls.at(-1)!.args["turnMessageAgeMs"] as number | undefined;
     };
-    const person = (messageId: string, authorId = DANA) => ({ kind: "message", messageId, authorKind: "person", authorId });
+    const person = (messageId: string, authorId = DANA) => ({
+      kind: "message",
+      messageId,
+      authorKind: "person",
+      authorId,
+    });
     const sent = await sentFor(person("msg_a"));
-    assert.ok(sent !== undefined && sent >= 4_900 && sent <= 6_000, `the message that started the turn, five seconds ago (${sent})`);
-    assert.equal(await sentFor({ kind: "wake" }), undefined, "a routine or wake turn after the person's later message: nothing claimed");
-    assert.equal(await sentFor({ kind: "wake", messageId: "msg_e", authorKind: "person", authorId: DANA }), undefined, "only a message turn counts");
+    assert.ok(
+      sent !== undefined && sent >= 4_900 && sent <= 6_000,
+      `the message that started the turn, five seconds ago (${sent})`,
+    );
+    assert.equal(
+      await sentFor({ kind: "wake" }),
+      undefined,
+      "a routine or wake turn after the person's later message: nothing claimed",
+    );
+    assert.equal(
+      await sentFor({ kind: "wake", messageId: "msg_e", authorKind: "person", authorId: DANA }),
+      undefined,
+      "only a message turn counts",
+    );
     const viaInterrupt = await sentFor({ kind: "interrupt", messageId: "msg_a", authorKind: "person", authorId: DANA });
-    assert.ok(viaInterrupt !== undefined && viaInterrupt >= 4_900, "an interrupt the person started with their own words counts like a message");
-    old.push({ messageId: "msg_far", threadSeq: 1, author: { kind: "person", id: DANA }, kind: "text", createdAt: now - 3_600_000, body: "long ago" });
-    for (let i = 0; i < 100; i++) old.push({ messageId: `msg_f${i}`, threadSeq: 10 + i, author: { kind: "agent", id: "agt_scout" }, kind: "agent", createdAt: now - 3_000_000 + i, body: "busy" });
+    assert.ok(
+      viaInterrupt !== undefined && viaInterrupt >= 4_900,
+      "an interrupt the person started with their own words counts like a message",
+    );
+    old.push({
+      messageId: "msg_far",
+      threadSeq: 1,
+      author: { kind: "person", id: DANA },
+      kind: "text",
+      createdAt: now - 3_600_000,
+      body: "long ago",
+    });
+    for (let i = 0; i < 100; i++)
+      old.push({
+        messageId: `msg_f${i}`,
+        threadSeq: 10 + i,
+        author: { kind: "agent", id: "agt_scout" },
+        kind: "agent",
+        createdAt: now - 3_000_000 + i,
+        body: "busy",
+      });
     const far = await sentFor(person("msg_far"));
     assert.ok(far !== undefined && far >= 3_599_000, "found by id in a chat of 100 later lines");
     assert.equal(await sentFor({ kind: "resume" }), undefined, "a resumed turn: nothing claimed");
     assert.equal(await sentFor(undefined), undefined, "no cause known: nothing claimed");
     assert.equal(await sentFor(person("msg_b")), undefined, "an agent's line is not the person's");
-    assert.equal(await sentFor({ kind: "message", messageId: "msg_b", authorKind: "agent", authorId: "agt_scout" }), undefined);
+    assert.equal(
+      await sentFor({ kind: "message", messageId: "msg_b", authorKind: "agent", authorId: "agt_scout" }),
+      undefined,
+    );
     assert.equal(await sentFor(person("msg_c")), undefined, "a line a routine posted for them");
     assert.equal(await sentFor(person("msg_d", "usr_other")), undefined, "someone else's message");
     assert.equal(await sentFor(person("msg_zzz")), undefined, "a message not in the chat");
     // what the model puts in the call's own input never reaches the extension
-    const g = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: DANA, respond: { "chat.message.get": (i: any) => ({ message: [...lines, ...old].find((l) => l.messageId === i.messageId) }) } });
+    const g = harness({
+      principal: { kind: "agent", id: "agt_scout" },
+      actingFor: DANA,
+      respond: {
+        "chat.message.get": (i: any) => ({ message: [...lines, ...old].find((l) => l.messageId === i.messageId) }),
+      },
+    });
     g.ctx.thread = "thr_1";
     g.ctx.turn = { kind: "wake" };
-    await Promise.resolve(tool["computers.chrome.resume"]!(g.ctx, { ...MINE, turnMessageAgeMs: 1 } as never)).catch(() => undefined);
+    await Promise.resolve(tool["computers.chrome.resume"]!(g.ctx, { ...MINE, turnMessageAgeMs: 1 } as never)).catch(
+      () => undefined,
+    );
     assert.equal(calls.at(-1)!.args["turnMessageAgeMs"], undefined, "a claim in the input is not forwarded");
   } finally {
     bindPersonalChrome(null);

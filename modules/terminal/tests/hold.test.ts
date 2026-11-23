@@ -368,7 +368,11 @@ test("an agent, even one acting for the holder, cannot hand the keyboard back: o
     "permission.role_lacks_permission",
   );
   assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana", "still held");
-  assert.equal((await call(hn, "terminal.give_back", { terminalId: id })).terminal.heldBy, undefined, "the person hands it back");
+  assert.equal(
+    (await call(hn, "terminal.give_back", { terminalId: id })).terminal.heldBy,
+    undefined,
+    "the person hands it back",
+  );
 });
 
 test("taking from another person: someone who may enter the workspace but neither owns the terminal nor manages the agent is refused by the take rule itself", async () => {

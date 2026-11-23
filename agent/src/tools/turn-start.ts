@@ -12,7 +12,13 @@ const MAX = 2000;
 /**
  * `cause` is why the engine started the turn: "message" (a person's or an agent's words), "interrupt", "handoff", "wake" (the engine started it on its own: a baton pass, a Routine, a background wait, a departure, a goal wake). A held call that was answered and the turn that goes on carries the cause of the turn it continues. A tool call carries it to the capability (ctx.turn), so a capability can tell a turn that was given work from one a person started with their words.
  */
-export function noteTurnStart(threadId: string, agentId: string, at: number, cause?: string, trigger?: TurnTrigger): void {
+export function noteTurnStart(
+  threadId: string,
+  agentId: string,
+  at: number,
+  cause?: string,
+  trigger?: TurnTrigger,
+): void {
   const k = `${threadId}|${agentId}`;
   starts.delete(k);
   starts.set(k, { at, ...(cause ? { cause } : {}), ...(cause && trigger ? { trigger } : {}) });

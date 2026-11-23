@@ -59,11 +59,14 @@ export async function turnMessageAgeMs(
   ctx: Pick<CompCtx, "call" | "thread" | "actingFor" | "now" | "turn">,
 ): Promise<number | undefined> {
   const t = ctx.turn;
-  if (!ctx.thread || !ctx.actingFor || !t || (t.kind !== "message" && t.kind !== "interrupt") || !t.messageId) return undefined;
+  if (!ctx.thread || !ctx.actingFor || !t || (t.kind !== "message" && t.kind !== "interrupt") || !t.messageId)
+    return undefined;
   if (t.authorKind !== "person" || t.authorId !== ctx.actingFor) return undefined;
   try {
     // the starting message by its id, however far back it is in a long chat
-    const got = (await ctx.call("chat.message.get", { threadId: ctx.thread, messageId: t.messageId })) as { message?: Line };
+    const got = (await ctx.call("chat.message.get", { threadId: ctx.thread, messageId: t.messageId })) as {
+      message?: Line;
+    };
     const m = got.message;
     if (
       !m ||

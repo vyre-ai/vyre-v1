@@ -275,7 +275,8 @@ export function createAgentControl(ext, o = {}) {
     port.onMessage.addListener((/** @type {any} */ m) => {
       // Is this press the person's? Decided once, before anything acts or frees anyone (the filters use up the entry they match): a press on the bar's buttons that is the agent's own click (it clicked at the
       // bar's place), or a keyboard click that the agent's own Enter or Space made (it can Tab onto the bar), is not the person's: the bar never obeys the agent it is there to watch.
-      if (m && m.x !== undefined && BAR_BUTTONS.has(m.type) && sessions.ownPress(tabId, Number(m.x), Number(m.y))) return;
+      if (m && m.x !== undefined && BAR_BUTTONS.has(m.type) && sessions.ownPress(tabId, Number(m.x), Number(m.y)))
+        return;
       if (m && m.key === true && BAR_BUTTONS.has(m.type) && sessions.ownKeyPress(tabId)) return;
       // a release during the wait names its agent: the bar's own (from this page's overlay, never the page)
       if (!restoreOk && m && (m.type === "giveback" || m.type === "endtask")) {

@@ -169,9 +169,18 @@ test("the message that started a turn (its id and author) reaches the capability
     r.session.call(ctx({ thread: { threadId: "thr_cause", kind: "chat", planMode: false } }), "tasks_get", {
       taskId: "tsk_a1b2c3",
     });
-  noteTurnStart("thr_cause", "agt_intake", 1, "message", { messageId: "msg_1", authorKind: "person", authorId: "usr_dana" });
+  noteTurnStart("thr_cause", "agt_intake", 1, "message", {
+    messageId: "msg_1",
+    authorKind: "person",
+    authorId: "usr_dana",
+  });
   await call();
-  assert.deepEqual(r.seeds[0]!.turn, { kind: "message", messageId: "msg_1", authorKind: "person", authorId: "usr_dana" });
+  assert.deepEqual(r.seeds[0]!.turn, {
+    kind: "message",
+    messageId: "msg_1",
+    authorKind: "person",
+    authorId: "usr_dana",
+  });
   noteTurnStart("thr_cause", "agt_intake", 2, "wake");
   await call();
   assert.deepEqual(r.seeds[1]!.turn, { kind: "wake" });

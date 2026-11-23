@@ -383,7 +383,9 @@ export function createToolSession(deps: CallDeps): ToolSession {
         const kind = turnCauseOf(ctx.thread.threadId, ctx.agentId);
         if (!kind) return {};
         const t = turnTriggerOf(ctx.thread.threadId, ctx.agentId);
-        return { turn: { kind, ...(t ? { messageId: t.messageId, authorKind: t.authorKind, authorId: t.authorId } : {}) } };
+        return {
+          turn: { kind, ...(t ? { messageId: t.messageId, authorKind: t.authorKind, authorId: t.authorId } : {}) },
+        };
       })(),
       origin: "agent",
       callMeta: { tool: t.name, first: tally.first, ...(tally.afterReject ? { afterReject: true } : {}) },

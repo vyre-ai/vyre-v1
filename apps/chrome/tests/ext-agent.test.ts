@@ -507,7 +507,17 @@ function makeWorld(over = {}) {
   world.control = control_;
   // the extension's service worker stopped and started again: a fresh control over the same browser and the same per-session storage, with nothing in memory
   world.restartWorker = async (extra = {}) => {
-    const again = createAgentControl(ext, { ...extra, transport, activeSpace: async () => world.active, now, sleep, settleMs: 0, setTimer, clearTimer, idleMs: 20_000 });
+    const again = createAgentControl(ext, {
+      ...extra,
+      transport,
+      activeSpace: async () => world.active,
+      now,
+      sleep,
+      settleMs: 0,
+      setTimer,
+      clearTimer,
+      idleMs: 20_000,
+    });
     await again.onIncoming({ type: "agent.optin", spaces: ["spc_a"], mode: "computer" });
     return {
       call: (tool, input = {}, who = world.agent, space = "spc_a") => again.run({ tool, input, agent: who, space }),
@@ -2010,7 +2020,11 @@ test("after a person's Stop or Esc, chrome_resume works only when the person has
 });
 
 test("the agent's own chrome_stop never replaces a person's pause: stop then resume is refused under a person's Stop, Esc or take-over", async () => {
-  for (const [how, code] of [["stop", "person_stopped"], ["esc", "person_stopped"], ["takeover", "takeover_held"]] as const) {
+  for (const [how, code] of [
+    ["stop", "person_stopped"],
+    ["esc", "person_stopped"],
+    ["takeover", "takeover_held"],
+  ] as const) {
     const w = await ready();
     await w.call("chrome_snapshot");
     const port = overlayPort(w);
@@ -2020,7 +2034,11 @@ test("the agent's own chrome_stop never replaces a person's pause: stop then res
     await w.call("chrome_stop", { reason: "trying to get around it" });
     await w.fails("chrome_resume", {}, code);
     await w.fails("chrome_resume", { turnMessageAgeMs: 5000 }, code); // a message older than the pause still does not count
-    assert.equal((await w.call("chrome_status")).pausedBy, how === "stop" ? "person" : how, `${how}: the person's record stays`);
+    assert.equal(
+      (await w.call("chrome_status")).pausedBy,
+      how === "stop" ? "person" : how,
+      `${how}: the person's record stays`,
+    );
   }
 });
 
@@ -2059,14 +2077,21 @@ test("chrome_batch cannot carry chrome_resume or chrome_stop, and a plan runs no
 });
 
 test("a person's Stop or take-over survives the extension's worker restarting: the agent is still refused, and the bar's Give back still releases it", async () => {
-  for (const [how, code] of [["stop", "person_stopped"], ["takeover", "takeover_held"]] as const) {
+  for (const [how, code] of [
+    ["stop", "person_stopped"],
+    ["takeover", "takeover_held"],
+  ] as const) {
     const w = await ready();
     await w.call("chrome_snapshot");
     overlayPort(w).send({ type: how });
     await w.advance(0);
     await w.advance(1000);
     const r = await w.restartWorker();
-    await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused", `${how}: still paused after the restart`);
+    await assert.rejects(
+      r.call("chrome_snapshot"),
+      (e: any) => e.code === "paused",
+      `${how}: still paused after the restart`,
+    );
     await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === code);
     assert.equal((await r.call("chrome_status")).paused, true);
     // the person's bar still finds its agent: Give back (or Resume after a Stop) releases it
@@ -2102,12 +2127,17 @@ test("a restore that never finishes, or keeps failing, refuses the agent (chrome
   let broken = 1e9; // every read fails until the storage "comes back" below
   let hang = false;
   w.ext.storage.session = {
-    get: (keys: string[]) => (hang ? new Promise(() => {}) : broken-- > 0 ? Promise.reject(new Error("storage fault")) : good.get(keys)),
+    get: (keys: string[]) =>
+      hang ? new Promise(() => {}) : broken-- > 0 ? Promise.reject(new Error("storage fault")) : good.get(keys),
     set: (x: any) => good.set(x),
   };
   const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
   for (const tool of ["chrome_snapshot", "chrome_resume"])
-    await assert.rejects(r.call(tool, tool === "chrome_resume" ? { turnMessageAgeMs: 5000 } : {}), (e: any) => e.code === "paused", `${tool}: refused while the restore fails`);
+    await assert.rejects(
+      r.call(tool, tool === "chrome_resume" ? { turnMessageAgeMs: 5000 } : {}),
+      (e: any) => e.code === "paused",
+      `${tool}: refused while the restore fails`,
+    );
   const st = await r.call("chrome_status");
   assert.deepEqual([st.paused, st.pausedBy], [true, "restoring"], "the status says what the calls will say");
   broken = 0;
@@ -2121,7 +2151,11 @@ test("a restore that never finishes, or keeps failing, refuses the agent (chrome
   w2.ext.storage.session = { get: () => new Promise(() => {}), set: async () => {} };
   const r2 = await w2.restartWorker({ restoreWaitMs: 20 });
   await new Promise((res) => setTimeout(res, 60));
-  await assert.rejects(r2.call("chrome_snapshot"), (e: any) => e.code === "paused", "stuck storage: still refused after the cap");
+  await assert.rejects(
+    r2.call("chrome_snapshot"),
+    (e: any) => e.code === "paused",
+    "stuck storage: still refused after the cap",
+  );
   void hang;
 });
 
@@ -2149,7 +2183,11 @@ test("a read that fails twice and then answers with a saved Stop: refused throug
     await new Promise((res) => setTimeout(res, 120));
     assert.ok(reads >= 3, `it tried again (${reads} reads)`);
     await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
-    await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped", "the saved Stop is in force");
+    await assert.rejects(
+      r.call("chrome_resume", { turnMessageAgeMs: 5000 }),
+      (e: any) => e.code === "person_stopped",
+      "the saved Stop is in force",
+    );
   }
 });
 
@@ -2182,7 +2220,11 @@ test("storage down after a restart, two agents: a Give back on one bar frees onl
   port.send({ type: "giveback", agent: A.id });
   await w.advance(0);
   assert.match((await r.call("chrome_snapshot", {}, A)).tree, /\w/, "A is freed");
-  await assert.rejects(r.call("chrome_snapshot", {}, B), (e: any) => e.code === "paused", "B is still refused: its Stop was never read back");
+  await assert.rejects(
+    r.call("chrome_snapshot", {}, B),
+    (e: any) => e.code === "paused",
+    "B is still refused: its Stop was never read back",
+  );
   assert.equal((await r.call("chrome_status", {}, B)).paused, true);
   // a Stop pressed on A's live bar acts at once, though storage is still down
   port.send({ type: "stop", agent: A.id });
@@ -2196,8 +2238,16 @@ test("storage down after a restart, two agents: a Give back on one bar frees onl
   // storage comes back: the late restore never overwrites A's live Stop, and B's kept Stop is in force
   down = false;
   await new Promise((res) => setTimeout(res, 60));
-  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }, A), (e: any) => e.code === "person_stopped", "A's live Stop stays");
-  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }, B), (e: any) => e.code === "person_stopped", "B's kept Stop is in force");
+  await assert.rejects(
+    r.call("chrome_resume", { turnMessageAgeMs: 5000 }, A),
+    (e: any) => e.code === "person_stopped",
+    "A's live Stop stays",
+  );
+  await assert.rejects(
+    r.call("chrome_resume", { turnMessageAgeMs: 5000 }, B),
+    (e: any) => e.code === "person_stopped",
+    "B's kept Stop is in force",
+  );
 });
 
 test("a saved record is read entry by entry: one bad entry is dropped and every other agent's kept Stop stays; past 200 the newest 200 are kept", async () => {
@@ -2208,16 +2258,38 @@ test("a saved record is read entry by entry: one bad entry is dropped and every 
   const many = Array.from({ length: 250 }, (_, n) => ({ agent: `agt_filler${n}`, by: "person", at: 10 + n }));
   await good.set({
     agentPauses: {
-      pauses: [{ agent: "agt_bad", by: "nonsense", at: 1 }, null, { agent: 7 }, { agent: A.id, by: "person", at: 5000 }, ...many],
+      pauses: [
+        { agent: "agt_bad", by: "nonsense", at: 1 },
+        null,
+        { agent: 7 },
+        { agent: A.id, by: "person", at: 5000 },
+        ...many,
+      ],
       bars: [{ tab: "x" }, { tab: 7, id: A.id, name: A.name }],
     },
   });
   const r = await w.restartWorker({ restoreWaitMs: 50, restoreRetryMs: 5 });
   await new Promise((res) => setTimeout(res, 40));
-  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 100000 }, A), (e: any) => e.code === "person_stopped", "the good entry beside the bad ones is in force");
-  assert.equal((await r.call("chrome_status", {}, { id: "agt_filler249", name: "F" })).pausedBy, "person", "the newest of the 250 is kept");
-  assert.equal((await r.call("chrome_status", {}, { id: "agt_filler0", name: "F" })).paused, false, "the oldest past 200 is dropped");
-  assert.equal((await r.call("chrome_status", {}, { id: "agt_bad", name: "F" })).paused, false, "the bad entry is dropped");
+  await assert.rejects(
+    r.call("chrome_resume", { turnMessageAgeMs: 100000 }, A),
+    (e: any) => e.code === "person_stopped",
+    "the good entry beside the bad ones is in force",
+  );
+  assert.equal(
+    (await r.call("chrome_status", {}, { id: "agt_filler249", name: "F" })).pausedBy,
+    "person",
+    "the newest of the 250 is kept",
+  );
+  assert.equal(
+    (await r.call("chrome_status", {}, { id: "agt_filler0", name: "F" })).paused,
+    false,
+    "the oldest past 200 is dropped",
+  );
+  assert.equal(
+    (await r.call("chrome_status", {}, { id: "agt_bad", name: "F" })).paused,
+    false,
+    "the bad entry is dropped",
+  );
 });
 
 test("a poison record that cannot be read: calls are refused, a live Stop pressed meanwhile acts at once and writes over it, the next retry reads a good record and the Stop is in force", async () => {
@@ -2240,7 +2312,11 @@ test("a poison record that cannot be read: calls are refused, a live Stop presse
   await new Promise((res) => setTimeout(res, 60));
   assert.ok(Array.isArray(good.data.agentPauses.pauses), "the poison record was written over with a good one");
   await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
-  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped", "the Stop is in force after the retry read the good record");
+  await assert.rejects(
+    r.call("chrome_resume", { turnMessageAgeMs: 5000 }),
+    (e: any) => e.code === "person_stopped",
+    "the Stop is in force after the retry read the good record",
+  );
 });
 
 test("while storage is down, a Give back that is the agent's own click, or a keyboard click its own Enter made, frees nobody; the person's own frees only the agent named", async () => {
@@ -2259,19 +2335,35 @@ test("while storage is down, a Give back that is the agent's own click, or a key
     const hold = new Promise<void>((res) => (release = res));
     const orig = w.ext.debugger.sendCommand;
     w.ext.debugger.sendCommand = async (t: any, m: string, p: any) => {
-      if (how === "key" ? m === "Input.dispatchKeyEvent" && p.type === "keyUp" : m === "Input.dispatchMouseEvent" && p.type === "mouseReleased") await hold;
+      if (
+        how === "key"
+          ? m === "Input.dispatchKeyEvent" && p.type === "keyUp"
+          : m === "Input.dispatchMouseEvent" && p.type === "mouseReleased"
+      )
+        await hold;
       return orig(t, m, p);
     };
-    const step = how === "key" ? r.call("chrome_act", { action: "press", value: "Enter" }, A) : r.call("chrome_click", { x: 5, y: 5 }, A);
+    const step =
+      how === "key"
+        ? r.call("chrome_act", { action: "press", value: "Enter" }, A)
+        : r.call("chrome_click", { x: 5, y: 5 }, A);
     await w.advance(0);
     // the press that is A's own click or Enter, naming B: ignored, B stays refused
-    port.send(how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 5, y: 6, agent: B.id });
+    port.send(
+      how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 5, y: 6, agent: B.id },
+    );
     await w.advance(0);
     assert.equal((await r.call("chrome_status", {}, B)).paused, true, `${how}: the agent's own press freed nobody`);
     // the same press again is the person's (the entry was used up): it frees B only
-    port.send(how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 500, y: 300, agent: B.id });
+    port.send(
+      how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 500, y: 300, agent: B.id },
+    );
     await w.advance(0);
-    assert.equal((await r.call("chrome_status", {}, B)).paused, false, `${how}: a person's press frees the agent it names`);
+    assert.equal(
+      (await r.call("chrome_status", {}, B)).paused,
+      false,
+      `${how}: a person's press frees the agent it names`,
+    );
     const C = { id: "agt_other", name: "Other" };
     assert.equal((await r.call("chrome_status", {}, C)).paused, true, `${how}: an agent nobody named stays refused`);
     release();
@@ -2296,7 +2388,11 @@ test("a Give back pressed while the restore is pending is applied to the take-ov
   finish();
   await new Promise((res) => setTimeout(res, 30));
   await w.advance(50);
-  assert.equal((await r.call("chrome_status")).paused, false, "the take-over the restore found was released by the earlier press");
+  assert.equal(
+    (await r.call("chrome_status")).paused,
+    false,
+    "the take-over the restore found was released by the earlier press",
+  );
 });
 
 test("a late restore never overwrites a pause that is already live", async () => {
@@ -2314,7 +2410,10 @@ test("a late restore never overwrites a pause that is already live", async () =>
 });
 
 test("a Stop is kept when its tab closed while the worker slept (the person's message lifts it); a take-over whose tab closed is a hand-back and is dropped", async () => {
-  for (const [how, kept] of [["stop", true], ["takeover", false]] as const) {
+  for (const [how, kept] of [
+    ["stop", true],
+    ["takeover", false],
+  ] as const) {
     const w = await ready();
     await w.call("chrome_snapshot");
     overlayPort(w).send({ type: how });
@@ -2325,7 +2424,11 @@ test("a Stop is kept when its tab closed while the worker slept (the person's me
     };
     const r = await w.restartWorker();
     assert.equal((await r.call("chrome_status")).paused, kept, `${how}: kept=${kept}`);
-    if (kept) await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped");
+    if (kept)
+      await assert.rejects(
+        r.call("chrome_resume", { turnMessageAgeMs: 5000 }),
+        (e: any) => e.code === "person_stopped",
+      );
   }
 });
 
