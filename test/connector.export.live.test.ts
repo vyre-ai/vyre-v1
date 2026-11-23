@@ -2,6 +2,8 @@
 // The export writes one Files record for each action and each recorded test; on a Space of thousands of records each write used to wait behind the others and the access rebuild they start.
 // It must answer inside a bound that does not grow with the size of the Space, and must leave one whole folder (or none), never a half one.
 import test from "node:test";
+import fs from "node:fs";
+import inspector from "node:inspector";
 import assert from "node:assert/strict";
 import { call, hostLog } from "./support/eco-live.ts";
 import { spec, world } from "./support/sync-live.ts";
@@ -39,9 +41,20 @@ test("connectors.export of a 25-table connector in a big Space answers inside it
     const actions = (got.data.connector ?? got.data).actions?.length;
     process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
     const t1 = Date.now();
-    process.stderr.write(`[export] PROFILE-START\n`);
+    // EXPORT_PROFILE=<file>: a CPU profile of the export alone (the seed would drown it otherwise)
+    const session = process.env["EXPORT_PROFILE"] ? new inspector.Session() : undefined;
+    if (session) {
+      session.connect();
+      await new Promise((ok) => session.post("Profiler.enable", () => session.post("Profiler.start", ok)));
+    }
     const out = await call(w.d, "connectors.export", { key });
-    process.stderr.write(`[export] PROFILE-END\n`);
+    if (session)
+      await new Promise<void>((ok) =>
+        session.post("Profiler.stop", (_e, r) => {
+          fs.writeFileSync(process.env["EXPORT_PROFILE"]!, JSON.stringify(r.profile));
+          ok();
+        }),
+      );
     const ms = Date.now() - t1;
     process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
     assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
