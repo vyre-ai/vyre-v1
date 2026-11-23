@@ -1,6 +1,6 @@
 # files.create_many
 
-Create up to 200 files in one folder in one call: one commit and one update of who may see what, all or none. Each file takes what files.create takes; a name already taken stops the call. A folder under Review changes takes an agent's files one at a time with files.create
+Up to 200 files in one folder in one call, all or none; each as files.create takes it
 
 | | |
 |---|---|
