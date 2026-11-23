@@ -1157,6 +1157,14 @@ export async function run(ctx: BackupCtx, _input: Record<string, unknown>) {
 export async function del(ctx: BackupCtx, input: { backupId: string }) {
   const hostName = await hostNameOf(ctx, input.backupId);
   if (hostName) {
+    // the copy taken before an update or a restore is the one the server keeps as the way back: it is removed from vyre-server, which knows which one it is still guarding
+    if (/^vyre-pre-/.test(hostName))
+      return failWith(
+        ctx.trace.traceId,
+        "validation.precondition_failed",
+        `The server keeps ${hostName} as the way back from an update or a restore, so it cannot be deleted here. It goes by itself when newer ones replace it; to remove it now, delete the file from the backups folder on the server.`,
+        { backupId: input.backupId },
+      );
     const t = targetOf(ctx);
     await (await openTarget(ctx, t!.target)).del(hostName);
     return { deleted: true };

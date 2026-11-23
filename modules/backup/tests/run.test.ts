@@ -318,6 +318,9 @@ test("one folder for both sides: backup.run with no target writes into it, backu
       /vyre-server restore vyre-manual-20261119T174015Z\.tar\.gz/,
     );
     await assert.rejects(call("backup.restore_preview", w.ctx, { backupId: good.backupId }), /vyre-server restore/);
+    // the copy taken before an update is the server's way back: refused, and it stays
+    await assert.rejects(call("backup.delete", w.ctx, { backupId: cut.backupId }), /cannot be deleted here/);
+    assert.ok(readdirSync(dir).includes("vyre-pre-1.0.0-rc.39-20261118T110323Z.tar.gz"));
     // delete removes the file
     assert.deepEqual(await call("backup.delete", w.ctx, { backupId: good.backupId }), { deleted: true });
     assert.ok(!readdirSync(dir).includes("vyre-manual-20261119T174015Z.tar.gz"));

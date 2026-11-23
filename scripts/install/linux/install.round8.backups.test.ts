@@ -31,6 +31,12 @@ test("two backups in the same second get two names; a manual backup is never rem
       ["vyre-manual-20261112T004605Z-2.tar.gz", "vyre-manual-20261112T004605Z.tar.gz"],
       "the second did not replace the first",
     );
+    for (const n of names())
+      assert.equal(
+        fs.statSync(path.join(dir, "backups", n)).mode & 0o777,
+        0o600,
+        "a backup holds the Space and its keys: owner only",
+      );
     for (const n of names()) fs.rmSync(path.join(dir, "backups", n));
     // one before an update, one before a restore, then twelve manual ones
     assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-1.1.0 live`, env).status, 0);
