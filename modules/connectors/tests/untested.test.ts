@@ -78,10 +78,12 @@ test("a call the app refused does not clear it", async () => {
     secrets: { Shop_Key: "#ShopKey" },
   } as never);
   k.state.reply = () => ({ status: 500, body: {} });
-  await k.hs["connectors.run"](
-    k.ctx,
-    { key: "shop", action: "list", connectionId: conn.connection.connectionId, input: {} } as never,
-  ).catch(() => undefined);
+  await k.hs["connectors.run"](k.ctx, {
+    key: "shop",
+    action: "list",
+    connectionId: conn.connection.connectionId,
+    input: {},
+  } as never).catch(() => undefined);
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "shop" })).connector.untested, true);
 });
 
