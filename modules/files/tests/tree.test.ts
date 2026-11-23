@@ -131,7 +131,22 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     tables.set(name, kept);
     return { changes };
   };
-  return { all, run, rows: (table) => bag(table).map((row) => ({ ...row })) };
+  // a transaction, as the host's database has: a throw puts every table back as it was
+  const batch = <T>(fn: () => T): T => {
+    const saved = new Map([...tables].map(([name, rows]) => [name, rows.map((row) => ({ ...row }))]));
+    try {
+      return fn();
+    } catch (e) {
+      for (const [name, rows] of saved) {
+        const live = bag(name);
+        live.length = 0;
+        live.push(...rows);
+      }
+      for (const name of tables.keys()) if (!saved.has(name)) bag(name).length = 0;
+      throw e;
+    }
+  };
+  return { all, run, batch, rows: (table) => bag(table).map((row) => ({ ...row })) } as ReturnType<typeof memoryDb>;
 }
 
 function spaceSeal(key: Uint8Array): Ctx["seal"] {
@@ -905,4 +920,35 @@ test("files.create_many refuses a call over 25 MB in words, before any file is m
     (e: unknown) => e instanceof VyreErr && e.error.code === "validation.too_large" && /25 MB/.test(e.error.message),
   );
   assert.equal((await handlers["files.list"](ctx, { folder })).total, 0, "nothing was made");
+});
+
+test("files.create_many is all or none: a refused call leaves no file, version or stored content, and a server without a transaction refuses it in words", async () => {
+  const { ctx, db } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Whole" })).folder.folderId;
+  const count = () => [
+    db.rows("files_file").length,
+    db.rows("files_file_version").length,
+    db.rows("files_blob").length,
+  ];
+  const before = count();
+  await assert.rejects(
+    handlers["files.create_many"](ctx, {
+      folderId: folder,
+      files: [
+        { name: "one.txt", content: { text: "first" } },
+        { name: "two.txt", content: { text: "second" } },
+        { name: "one.txt", content: { text: "again" } },
+      ],
+    }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate",
+  );
+  assert.deepEqual(count(), before, "no file, no version, no blob");
+  const bare = { ...ctx, db: { all: ctx.db.all, run: ctx.db.run } } as Ctx;
+  await assert.rejects(
+    handlers["files.create_many"](bare, { folderId: folder, files: [{ name: "x.txt", content: { text: "x" } }] }),
+    (e: unknown) => e instanceof VyreErr && /one step/.test(e.error.message),
+  );
+  assert.deepEqual(count(), before, "nothing was written without a transaction");
 });

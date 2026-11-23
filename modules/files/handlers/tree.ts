@@ -2106,7 +2106,14 @@ async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileO
   const taken = new Set<string>();
   const write = (): FileOut[] => prepared.map((p) => writeFile(ctx, folder, p, taken).file);
   const batch = (ctx.db as { batch?: <T>(fn: () => T) => T }).batch;
-  const files = batch ? batch.call(ctx.db, write) : write();
+  // all or none is the contract of this call: without a transaction it would be best effort, so the call is refused rather than written piece by piece
+  if (!batch)
+    fail(
+      ctx,
+      "internal.unexpected",
+      "This server cannot add several files in one step, so nothing was added. Add them one at a time.",
+    );
+  const files = batch.call(ctx.db, write);
   return { files };
 }
 
