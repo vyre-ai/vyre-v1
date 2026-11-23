@@ -1894,6 +1894,14 @@
   "files_create": {
     "name": "Quarterly planning"
   },
+  "files_create_many": {
+    "folderId": "fld_a1b2c3",
+    "files": [
+      {
+        "name": "Quarterly planning"
+      }
+    ]
+  },
   "files_delete": {
     "fileId": "fil_a1b2c3"
   },

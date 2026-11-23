@@ -5,7 +5,7 @@ import { fail } from "../routes/errors.ts";
 export interface RawDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
-  /** Run `fn` (synchronous statements only) as one transaction: one commit for all its writes. Where the database has no transactions, `fn` simply runs. */
+  /** Run `fn` (synchronous statements only) as one transaction: one commit for all its writes. Absent where the database has no transactions: call it as `db.batch ? db.batch(fn) : fn()`. */
   batch?<T>(fn: () => T): T;
 }
 
@@ -215,11 +215,10 @@ export function scopedDb(moduleId: string, raw: RawDb, traceId: string): RawDb {
       guard(sql);
       return raw.run(sql, ...args);
     },
-    batch<T>(fn: () => T): T {
-      const tx = (raw as { tx?: <U>(f: () => U) => U }).tx;
-      return typeof tx === "function" ? tx.call(raw, fn) : fn();
-    },
   };
+  // batch exists only where the database has transactions: a caller that needs all or nothing (files.create_many) can then refuse, and one that only wants fewer commits runs `db.batch ? db.batch(fn) : fn()`
+  const tx = (raw as { tx?: <U>(f: () => U) => U }).tx;
+  if (typeof tx === "function") scoped.batch = <T>(fn: () => T): T => tx.call(raw, fn);
   rawOf.set(scoped, raw);
   return scoped;
 }
