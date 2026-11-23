@@ -162,6 +162,8 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
   };
   /** How the next run scripts misbehave (tests): "silent" typed the line and printed nothing, code 0; "killed" typed it and was killed (137); "enter" typed it and Enter failed (91); "gone" typed nothing (90). Null: as it should. */
   let fault: null | "silent" | "killed" | "enter" | "gone" = null;
+  /** How long the run script takes to notice a stop (the real one looks every 0.2 s once it has been running a while); 0 is at its next look. */
+  let cancelLagMs = 0;
   /**
    * The run script of createTmuxHost (impl.ts RUN_SCRIPT, `sh -c SCRIPT sh session line end rcOption scroll deadlineMs cancelOption`): types the line, looks at the pane until the end marker shows, the exit code is
    * stored, the cancel option is set or the deadline passes, and prints what the real script prints (a header with the lengths, the screen, the history). A command that never ends waits for the cancel option,
@@ -214,6 +216,7 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
       }
       if ((s.opts.get(cancel as string) ?? "") !== "") {
         status = "cancel";
+        if (cancelLagMs > 0) await new Promise((r) => setTimeout(r, cancelLagMs));
         break;
       }
       if (Date.now() >= until) {
@@ -377,6 +380,10 @@ export function fakeTmux(o: FakeTmuxOptions = {}) {
     sessions,
     scripts,
     buffers,
+    /** Make the run script take this long to notice a stop. */
+    setCancelLag(ms: number) {
+      cancelLagMs = ms;
+    },
     /** Make the run script misbehave from now on (see `fault`), or as it should (null). */
     setFault(f: typeof fault) {
       fault = f;
