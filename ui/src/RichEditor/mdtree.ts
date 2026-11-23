@@ -296,7 +296,7 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
   buf = "";
 }
 
-/** Do two attribute sets hold the same values? (keys with no value count as absent, as they do in JSON) */
+/** Do two attribute sets hold the same values? (keys with no value count as absent, as they do in JSON). Primitive values only (strings, booleans): an object value would compare by identity. */
 function sameAttrs(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
   if (a === b) return true;
   let n = 0;
