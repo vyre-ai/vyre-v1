@@ -76,6 +76,7 @@ type Out = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -104,6 +105,7 @@ type Out = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -118,10 +120,7 @@ type Out = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
@@ -257,10 +256,7 @@ type Out = {
               "inverseTitle": "example",
               "key": "email",
               "label": "example",
-              "onlyWhen": {
-                "equals": "example",
-                "path": "example"
-              },
+              "onlyWhen": {},
               "path": "example",
               "readOnly": true,
               "relationTo": "example",
@@ -283,6 +279,7 @@ type Out = {
               "sizeParam": "example",
               "start": 1
             },
+            "eachOf": {},
             "filter": {
               "param": "example",
               "value": "example"
@@ -297,6 +294,7 @@ type Out = {
           },
           "openUrl": "example",
           "remote": "example",
+          "rows": {},
           "update": {
             "bodyAt": "example",
             "evidence": "example",

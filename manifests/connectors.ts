@@ -52,7 +52,7 @@ const objectActions = t.obj({
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
   link: t.opt(t.json()),
-  eachOf: t.opt(t.obj({ remote: t.str() })),
+  eachOf: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({
@@ -183,7 +183,7 @@ const specField = t.obj({
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
   key: t.opt(fieldKey),
-  onlyWhen: t.opt(t.obj({ path: ptr, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
+  onlyWhen: t.opt(t.json()),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -212,7 +212,7 @@ const specObject = t.obj({
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
     checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
     sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
-    eachOf: t.opt(t.obj({ object: t.str(), param: t.str() })),
+    eachOf: t.opt(t.json()),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -221,6 +221,7 @@ const specObject = t.obj({
   id: specPointer,
   updatedAt: t.opt(ptr),
   itemsAt: specPointer,
+  rows: t.opt(t.json()),
   openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
   webhook: t.opt(

@@ -417,11 +417,24 @@ export function remoteStore(
     const real = opts.heldOf?.(passNonce, r.id);
     if (real) for (const [k, v] of Object.entries(real)) data[k] = v;
     for (const wk of whens) {
-      const c = JSON.parse(wk.slice("=when:".length)) as { p: string; w: string; e: string[] };
-      const norm = (x: unknown): string => String(x).trim().toLowerCase();
+      const c = JSON.parse(wk.slice("=when:".length)) as {
+        p: string;
+        w: string;
+        e?: string[];
+        m?: string;
+        n?: boolean;
+      };
       const have = data[c.w];
-      data[wk] =
-        have !== undefined && have !== null && c.e.some((v) => norm(v) === norm(have)) ? (data[c.p] ?? null) : null;
+      const present = have !== undefined && have !== null && have !== "[sealed]";
+      const text = present ? String(have).trim().toLowerCase() : "";
+      const hit =
+        present &&
+        (c.e !== undefined
+          ? c.e.some((v) => v.trim().toLowerCase() === text)
+          : c.m !== undefined && new RegExp(c.m, "i").test(String(have).trim()));
+      const holds = c.n === true ? !hit : hit;
+      // a masked value ("[sealed]": the pass was not given the real one) is never taken as the plain value of a field
+      data[wk] = holds && data[c.p] !== "[sealed]" ? (data[c.p] ?? null) : null;
     }
     for (const j of joins) {
       const parts: string[] = [];
@@ -434,6 +447,9 @@ export function remoteStore(
     }
     if (!fields.length) return data as RemoteRow["data"];
     const values: Record<string, string | null> = {};
+    // a sealed field that is conditional took its value from a pointer: that pointer's real value must not stay in the row (every conditional field at it has read it above)
+    for (const f of fields)
+      if (f.remote.startsWith("=when:")) delete data[(JSON.parse(f.remote.slice("=when:".length)) as { p: string }).p];
     for (const f of fields) {
       const v = data[f.remote];
       delete data[f.remote];

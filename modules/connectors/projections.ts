@@ -69,6 +69,8 @@ export interface ActionDef {
 /** A list action: where the items are, how to read each one and how to ask for the next page. A write action: nest flat values (keyed by pointer) into the body, and read the new id from the answer. */
 export interface ActionShape {
   items?: string;
+  /** One row for every inner item of each item (SpecObject.rows). */
+  rows?: { at: string; idAt: string };
   id?: string;
   updatedAt?: string;
   fields?: string[];

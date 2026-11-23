@@ -9,11 +9,13 @@ import {
   JOIN_PREFIX,
   fieldOf,
   valueOfRemote,
+  whenHolds,
   SECRET_ID,
   SSN_SHAPE,
   coerceValue,
   compileSpec,
   fieldKeys,
+  expandRows,
   firstPageRequest,
   joinTitle,
   parseSpec,
@@ -165,6 +167,8 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
   const tests: TestCase[] = [];
   for (const t of compiled.types) {
     const o = spec.objects.find((x) => x.remote === t.remote)!;
+    // a list that makes its rows from inner arrays is checked by validate against the real answer: a made-up flat item would not have the arrays
+    if (o.rows) continue;
     const m = spec.mapping.find((x) => x.remote === t.remote)!;
     const action = compiled.connector.actions.find((a) => a.name === compiled.connector.objects![t.remote]!.list)!;
     const paths = m.fields.filter((f) => f.direction !== "off").map((f) => f.path);
@@ -321,10 +325,11 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         err(`${at}.itemsAt`, `There is no list at ${o.itemsAt || "/"} in the answer.`);
         continue;
       }
+      const flat = o.rows ? expandRows(first, o.rows) : first;
       const items = (
         parentId === undefined
-          ? first
-          : first.map((it) => (it !== null && typeof it === "object" ? { ...(it as object), _parent: parentId } : it))
+          ? flat
+          : flat.map((it) => (it !== null && typeof it === "object" ? { ...(it as object), _parent: parentId } : it))
       ).slice(0, SAMPLE_ITEMS);
       if (items.length === 0)
         warn(`${at}.list`, "The sampled page is empty, so the fields could not be checked against records.");
@@ -397,6 +402,15 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           continue;
         }
         if (mf.direction === "off") continue;
+        if (f.type === "sealed" && f.onlyWhen) {
+          // the sealed field's pointer is taken out of the row once the sealed value is kept: a field at the same pointer that is not conditional would lose its value
+          const plain = m.fields.find((x) => x.path === mf.path && x.direction !== "off" && !fieldOf(o, x)?.onlyWhen);
+          if (plain)
+            err(
+              fa,
+              `${f.label} is sealed only for some records, so every other field at ${mf.path} must also say when it applies (onlyWhen), or it would lose its value.`,
+            );
+        }
         if (f.onlyWhen) {
           if (!o.fields.some((x) => x.path === f.onlyWhen!.path))
             err(
@@ -404,13 +418,13 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
               `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
             );
           {
-            const eq = (Array.isArray(f.onlyWhen.equals) ? f.onlyWhen.equals : [f.onlyWhen.equals]).map((v) =>
-              v.trim().toLowerCase(),
-            );
-            const hit = items.filter((it) => {
-              const k = pointerGet(it, f.onlyWhen!.path);
-              return k !== undefined && k !== null && eq.includes(String(k).trim().toLowerCase());
-            }).length;
+            const w = f.onlyWhen;
+            const cond = {
+              ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
+              ...(w.matches !== undefined ? { m: w.matches } : {}),
+              ...(w.not === true ? { n: true } : {}),
+            };
+            const hit = items.filter((it) => whenHolds(pointerGet(it, w.path), cond)).length;
             warn(fa, `${f.label} applies to ${hit} of ${items.length} sampled records (the others have it empty).`);
           }
           if (mf.direction !== "pull")

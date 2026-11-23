@@ -2,7 +2,7 @@
 // An item with no id is refused with the item's place in the answer, so a wrong pointer in a spec shows up as a clear failure and never as silently missing records.
 import { pointerGet } from "../projections.ts";
 import type { ActionShape } from "../projections.ts";
-import { coerceValue, readPage } from "../syncspec.ts";
+import { coerceValue, expandRows, readPage } from "../syncspec.ts";
 import type { SpecCursor, SpecFieldType } from "../syncspec.ts";
 
 export interface ShapedRow {
@@ -26,7 +26,8 @@ export function shapeList(
     after,
   );
   if (!page) throw new ShapeError(`The answer has no list at ${shape.items === "" ? "the top" : shape.items}.`);
-  const rows = page.items.map((item, i): ShapedRow => {
+  const items = shape.rows ? expandRows(page.items, shape.rows) : page.items;
+  const rows = items.map((item, i): ShapedRow => {
     const raw = pointerGet(item, shape.id ?? "");
     if (typeof raw !== "string" && typeof raw !== "number") throw new ShapeError(`Item ${i} has no id at ${shape.id}.`);
     const data: Record<string, unknown> = {};

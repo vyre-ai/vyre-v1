@@ -63,7 +63,7 @@ export interface SpecField {
   /** Names this field when several fields of one object share a path (the mapping's `field` is the same name). */
   key?: string;
   /** The field takes its value only when the other pointer of the same item has this value (compared without case or spaces); otherwise it is empty for that record. */
-  onlyWhen?: { path: string; equals: string | string[] };
+  onlyWhen?: { path: string; equals?: string | string[]; matches?: string; not?: boolean };
 }
 export interface SpecCursor {
   kind: (typeof CURSOR_KINDS)[number];
@@ -105,6 +105,8 @@ export interface SpecObject {
   id: string;
   updatedAt?: string;
   itemsAt: string;
+  /** One row for every inner item of each item: `at` is a pointer with `*` for each array to walk (/assignments/*/ contacts /*), `idAt` the item's own id. A row is the item plus `_key` (the id, then the inner places: `id/0/1`, the object's `id` must be /_key), `_at` (the value at each `*`) and `_i` (the index at each `*`), so /_at/0/position is the assignment's and /_i/1 the place inside it. An item with nothing inside makes no row. */;
+  rows?: { at: string; idAt: string };
   openUrl?: string;
   fields: SpecField[];
   webhook?: {
@@ -354,12 +356,46 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       const ow = isObj(fd) ? fd["onlyWhen"] : undefined;
       if (ow === undefined) continue;
       const eq = isObj(ow) ? ow["equals"] : undefined;
+      const mt = isObj(ow) ? ow["matches"] : undefined;
+      const eqOk =
+        eq === undefined ||
+        typeof eq === "string" ||
+        (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
+      let reOk = mt === undefined || (typeof mt === "string" && mt !== "" && mt.length <= 200);
+      if (reOk && typeof mt === "string")
+        try {
+          new RegExp(mt, "i");
+        } catch {
+          reOk = false;
+        }
       if (
         !isObj(ow) ||
         !pointerOk(ow["path"]) ||
-        !(typeof eq === "string" || (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string")))
+        !eqOk ||
+        !reOk ||
+        (eq === undefined) === (mt === undefined) ||
+        (ow["not"] !== undefined && typeof ow["not"] !== "boolean")
       )
-        bad(`${at}.fields[${fi}].onlyWhen`, "onlyWhen is { path: a pointer, equals: a value or a list of values }.");
+        bad(
+          `${at}.fields[${fi}].onlyWhen`,
+          "onlyWhen is { path: a pointer, then equals: a value or a list of values, or matches: a pattern (case does not matter), and not: true to take the field only when it does not hold }.",
+        );
+    }
+    const rw = o["rows"];
+    if (rw !== undefined) {
+      if (
+        !isObj(rw) ||
+        !pointerOk(rw["at"]) ||
+        !String(rw["at"]).split("/").includes("*") ||
+        !pointerOk(rw["idAt"]) ||
+        rw["idAt"] === ""
+      )
+        bad(
+          `${at}.rows`,
+          "rows is { at: a pointer with * for each array to walk, such as /assignments/*/contacts/*, idAt: a pointer to the item's own id }.",
+        );
+      else if (o["id"] !== "/_key")
+        bad(`${at}.id`, "An object with rows has the id /_key: the item's id and the places inside it.");
     }
     const wh = o["webhook"];
     if (wh !== undefined) {
@@ -513,6 +549,46 @@ export function coerceValue(
   }
 }
 
+/** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. */
+export function expandRows(items: unknown[], rows: { at: string; idAt: string }): unknown[] {
+  const segs = rows.at
+    .slice(1)
+    .split("/")
+    .map((k) => k.replaceAll("~1", "/").replaceAll("~0", "~"));
+  const out: unknown[] = [];
+  for (const item of items) {
+    const id = pointerGet(item, rows.idAt);
+    if ((typeof id !== "string" && typeof id !== "number") || item === null || typeof item !== "object") {
+      out.push(item);
+      continue;
+    }
+    let made = 0;
+    const walk = (cur: unknown, k: number, at: unknown[], idx: number[]): void => {
+      if (made >= 5000) return;
+      if (k === segs.length) {
+        made++;
+        out.push({ ...(item as Record<string, unknown>), _key: `${String(id)}/${idx.join("/")}`, _at: at, _i: idx });
+        return;
+      }
+      const seg = segs[k]!;
+      if (seg === "*") {
+        if (Array.isArray(cur)) for (const [i, v] of cur.entries()) walk(v, k + 1, [...at, v], [...idx, i]);
+        return;
+      }
+      const next = Array.isArray(cur)
+        ? /^\d+$/.test(seg)
+          ? cur[Number(seg)]
+          : undefined
+        : cur !== null && typeof cur === "object"
+          ? (cur as Record<string, unknown>)[seg]
+          : undefined;
+      if (next !== undefined) walk(next, k + 1, at, idx);
+    };
+    walk(item, 0, [], []);
+  }
+  return out;
+}
+
 /** Nest flat values keyed by pointer: { "/a/b": 1 } becomes { a: { b: 1 } }. */
 export function unflatten(flat: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -560,15 +636,37 @@ export function fieldOf(o: SpecObject | undefined, mf: { path: string; field?: s
 }
 export const WHEN_PREFIX = "=when:";
 /** The remote key of a conditional field: the value at `p`, only when `w` holds one of `e`. */
-export const whenRemote = (p: string, w: { path: string; equals: string | string[] }): string =>
-  `${WHEN_PREFIX}${JSON.stringify({ p, w: w.path, e: Array.isArray(w.equals) ? w.equals : [w.equals] })}`;
+export const whenRemote = (p: string, w: NonNullable<SpecField["onlyWhen"]>): string =>
+  `${WHEN_PREFIX}${JSON.stringify({
+    p,
+    w: w.path,
+    ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
+    ...(w.matches !== undefined ? { m: w.matches } : {}),
+    ...(w.not === true ? { n: true } : {}),
+  })}`;
+/** Does the value at the condition's pointer meet it? Equal to one of the values, or matching the pattern (case and surrounding spaces do not matter); `n` turns it round (a value that is not there never meets a plain condition, and always meets a turned-round one). */
+export function whenHolds(have: unknown, c: { e?: string[]; m?: string; n?: boolean }): boolean {
+  const present = have !== undefined && have !== null && have !== "[sealed]";
+  const text = present ? String(have).trim() : "";
+  const hit =
+    present &&
+    (c.e !== undefined
+      ? c.e.some((v) => v.trim().toLowerCase() === text.toLowerCase())
+      : c.m !== undefined && new RegExp(c.m, "i").test(text));
+  return c.n === true ? !hit : hit;
+}
 /** The value of a pulled row's remote key, which may be a conditional one. */
 export function valueOfRemote(data: Record<string, unknown>, remote: string): unknown {
   if (!remote.startsWith(WHEN_PREFIX)) return data[remote];
-  const c = JSON.parse(remote.slice(WHEN_PREFIX.length)) as { p: string; w: string; e: string[] };
-  const have = data[c.w];
-  const norm = (x: unknown): string => String(x).trim().toLowerCase();
-  return have !== undefined && have !== null && c.e.some((v) => norm(v) === norm(have)) ? (data[c.p] ?? null) : null;
+  const c = JSON.parse(remote.slice(WHEN_PREFIX.length)) as {
+    p: string;
+    w: string;
+    e?: string[];
+    m?: string;
+    n?: boolean;
+  };
+  const v = data[c.p];
+  return whenHolds(data[c.w], c) && v !== "[sealed]" ? (v ?? null) : null;
 }
 
 /** The record field key for each mapped path of one mapping: the explicit one, else from the label, made unique. */
@@ -770,6 +868,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
       items: o.itemsAt,
       id: o.id,
       ...(o.updatedAt ? { updatedAt: o.updatedAt } : {}),
+      ...(o.rows ? { rows: o.rows } : {}),
       fields: shapeFields,
       types: types_,
       choices,

@@ -12141,6 +12141,7 @@ export type ConnectorsGetOut = {
         delete?: string;
         since?: boolean;
         link?: unknown;
+        eachOf?: unknown;
       }>;
     sourceFolderId?: string;
   };
@@ -12194,6 +12195,7 @@ export type ConnectorsListOut = {
           delete?: string;
           since?: boolean;
           link?: unknown;
+          eachOf?: unknown;
         }>;
       sourceFolderId?: string;
     }>;
@@ -42334,6 +42336,7 @@ export type SyncSpecsApplyIn = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -42362,6 +42365,7 @@ export type SyncSpecsApplyIn = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -42376,10 +42380,7 @@ export type SyncSpecsApplyIn = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
@@ -42484,6 +42485,7 @@ export type SyncSpecsGetOut = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -42512,6 +42514,7 @@ export type SyncSpecsGetOut = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -42526,10 +42529,7 @@ export type SyncSpecsGetOut = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
@@ -42615,6 +42615,7 @@ export type SyncSpecsPreviewIn = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -42643,6 +42644,7 @@ export type SyncSpecsPreviewIn = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -42657,10 +42659,7 @@ export type SyncSpecsPreviewIn = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
@@ -42869,6 +42868,7 @@ export type SyncSpecsValidateIn = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -42897,6 +42897,7 @@ export type SyncSpecsValidateIn = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -42911,10 +42912,7 @@ export type SyncSpecsValidateIn = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
