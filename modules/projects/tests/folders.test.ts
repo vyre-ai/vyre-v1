@@ -454,3 +454,14 @@ test("the ten-minute look is two counts: it asks for the full sweep only when a 
   mkRecord(h, { title: "Bare" });
   assert.equal(await sweepNeeded(h.ctx), true, "a record that came without a folder");
 });
+
+test("a record event asks the schema for its type once, not once for the files and once for the project template", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Ada" }, "contact");
+  await onRecordEvent(h.ctx, {
+    name: "record.created",
+    payload: { recordId: id, type: "contact", fields: { name: "Ada" } },
+    actor: DANA,
+  } as never);
+  assert.equal(h.only("schema.types.get").length, 1, "one read of the type for the event");
+});
