@@ -58,10 +58,7 @@ function dockerSocket(): string | null {
   if (context !== "" && context !== "default") {
     try {
       const meta = JSON.parse(
-        fs.readFileSync(
-          path.join(dir, "contexts", "meta", sha256Hex(context), "meta.json"),
-          "utf8",
-        ),
+        fs.readFileSync(path.join(dir, "contexts", "meta", sha256Hex(context), "meta.json"), "utf8"),
       ) as { Endpoints?: { docker?: { Host?: unknown } } };
       const h = String(meta.Endpoints?.docker?.Host ?? "");
       return h.startsWith("unix://") ? h.slice("unix://".length) : null; // a context the CLI alone can resolve (ssh, tcp): the CLI answers
