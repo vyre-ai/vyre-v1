@@ -33,6 +33,7 @@ import {
   webhookRotate,
   runsAsGet,
 } from "./defs.ts";
+import { isSystemCall } from "../../../lib/trust.ts";
 import { accountPicks } from "./accounts.ts";
 import { draftConnector } from "./draft-connector.ts";
 import { acceptConnectorOffer, connectorOffers, declineConnectorOffer } from "./connector-offer.ts";
@@ -46,6 +47,7 @@ import { vaultUsage } from "./vault-usage.ts";
 import { allLevels } from "../connector-level.ts";
 import type { LevelDb } from "../connector-level.ts";
 import { propose, proposalAccept, proposalDiscard } from "./propose.ts";
+import { raise } from "../projections.ts";
 import type { AutoCtx } from "../projections.ts";
 
 /** Which connector actions were tried against the real app: the picker marks the ones that were not. */
@@ -147,7 +149,14 @@ export const handlers = {
   "automations.read_link": readDocs,
   "automations.connector_card": connectorCard,
   "automations.code_reach": () => ({ ok: true }),
-  "automations.step_ask": () => ({ ok: true }),
+  "automations.step_ask": (ctx: AutoCtx) => {
+    // the step engine's marker (steps-core control.ts): only a call another capability made, or the host itself, may use it; a member's or an agent's own call is refused
+    if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+      raise(ctx, "permission.no_grant", "That is for the server's steps, not for a person or an agent.", {
+        reason: "system_call",
+      });
+    return { ok: true };
+  },
   "automations.readiness": readiness,
   "automations.would_run": wouldRun,
   "automations.stage_offers": stageOffers,

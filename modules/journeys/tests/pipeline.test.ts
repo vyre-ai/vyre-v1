@@ -855,3 +855,33 @@ test("a record whose value is its stage already keeps its version; one that adop
     "a record left on version 1 is not overdue for a limit it was never opened under",
   );
 });
+
+test("adopted records belong to the person an agent works for, else to the Journey's owner, never to the agent", async () => {
+  const run = async (who: { id: string; kind: "agent"; actingFor?: string }) => {
+    const h = harness();
+    const j = await pipe(h);
+    h.callee("records.query", () => ({ rows: [{ id: "rec_a", fields: { stage: "lead" } }] }));
+    await h.call("journeys.adopt", { journeyId: j.id }, who as never);
+    return (h.db.all("SELECT owner_id FROM journeys_records WHERE record_id = 'rec_a'") as { owner_id: string }[])[0]!
+      .owner_id;
+  };
+  assert.equal(
+    await run({ id: "agt_scout", kind: "agent", actingFor: "usr_bob" }),
+    "usr_bob",
+    "the person the agent works for",
+  );
+  assert.equal(
+    await run({ id: "agt_scout", kind: "agent" }),
+    "usr_alice",
+    "no one named: the Journey's owner, who made its first version",
+  );
+  const h = harness();
+  const j = await pipe(h);
+  h.callee("records.query", () => ({ rows: [{ id: "rec_a", fields: { stage: "lead" } }] }));
+  await h.call("journeys.adopt", { journeyId: j.id }, alice);
+  assert.equal(
+    (h.db.all("SELECT owner_id FROM journeys_records") as { owner_id: string }[])[0]!.owner_id,
+    "usr_alice",
+    "a person owns what they adopt",
+  );
+});

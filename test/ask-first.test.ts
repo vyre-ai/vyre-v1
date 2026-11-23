@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { registry } from "../generated/registry.ts";
 import { ASK_FIRST_ACTS, asksFirst } from "../lib/ask-first.ts";
 import { OUTWARD_ACTS } from "../lib/grants.ts";
+import { whenHolds } from "../host/src/daemon/gate-hook.ts";
 
 type Step = { key: string; effects?: string; cap?: string; gateAct?: string };
 type Cap = { name: string; gate?: { act?: string; reason?: string } };
@@ -63,4 +64,20 @@ test("a draft step is the only outward step with a Gate of none, and it says why
     if (/send|sign|post|create_event|comment/.test(s.key)) assert.notEqual(gate?.act, "none", `${s.key} must hold`);
   }
   assert.deepEqual(none.sort(), ["google.gmail.create_draft", "ms.mail.create_draft"]);
+});
+
+test("step_ask holds only for a step (the Gate sees a step as a service); a call from a person or an agent is not held, so no one can raise a card of their own", () => {
+  const gate = CAPS.get("automations.step_ask")?.gate;
+  assert.equal(gate?.act, "post");
+  assert.equal(whenHolds(gate?.when, {}, { principal: { kind: "service", id: "aut_1" } }), true, "a step asks");
+  assert.equal(
+    whenHolds(gate?.when, {}, { principal: { kind: "agent", id: "agt_scout" } }),
+    false,
+    "an agent's own call is not held",
+  );
+  assert.equal(
+    whenHolds(gate?.when, {}, { principal: { kind: "person", id: "usr_mia" } }),
+    false,
+    "a person's own call is not held",
+  );
 });

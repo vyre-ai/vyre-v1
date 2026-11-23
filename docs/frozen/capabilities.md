@@ -1015,3 +1015,12 @@ Signed: lead, 2026-11-20
 - Snapshots: docs/frozen/snapshots/journeys.json.
 
 Signed: 24 Nov 2026, lead.
+
+## 24 Nov 2026: automations.step_ask is the step engine's own marker (lane r42-mcp, r-review's finding on 16b81b049), for the lead to sign
+
+- What changed in contracts: the Gate condition of `automations.step_ask` is now `actor.kind == 'service'` (the Gate sees a step of an automation as a service), where it had none, and the handler refuses a call that is not another capability's (the step engine's) with `permission.no_grant` (`details.reason: system_call`). Input, output and the act (`post`) are unchanged.
+- Why: the capability is `perm null` at level `view`, so any member or agent could call it and raise a held "post a chat message" card with text of its choosing, which approving did nothing with. Only a step asks here now; a person's or an agent's own call is refused, and it raises no card.
+- Not a contract change, the rule the tests pin: `journeys.adopt` stamps the records it enrols with the person an agent works for (`actingFor`), else the Journey's owner (who made its first version), never an agent's id.
+- Snapshots: docs/frozen/snapshots/automations.json.
+
+Signed: pending, lead
