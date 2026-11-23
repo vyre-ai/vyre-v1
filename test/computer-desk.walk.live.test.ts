@@ -1,6 +1,7 @@
 // The agent's desk walked in the real app (lane r42-computer, owner-approved 19 Nov): the Computer tab's browser picture opens the desk full, F and Esc go back to where it was opened from, it shrinks to a small
 // live picture that comes back, Pause holds the agent and Resume lets it go, Take over and Give back, and the three rooms. Pictures in dark and light under shots-evidence/computer-desk. Needs the production web export
 // (VYRE_APP_DIST) and Chromium; the Space browser is the stand-in the other Computer tab walks use (the app, the capabilities and the daemon are real).
+import fs from "node:fs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { shoot } from "./support/mail-browser.ts";
@@ -349,6 +350,55 @@ test(
         await page.waitForTimeout(500);
       }
       // no crash guard here: the model stand-in answers with its own prompt, which names the agent by id (not the product)
+    } finally {
+      await k.close();
+    }
+  },
+);
+
+test(
+  "the desk's step list: what the agent did, in the skin's own list rows, at wide and phone width",
+  { timeout: 300_000 },
+  async (t) => {
+    const k = await world(t, { model: true });
+    if (!k) return;
+    try {
+      const page = k.me.page;
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await k.w.owner.ok("threads.set_mode", { threadId: k.threadId, mode: "auto" });
+      // the agent works in its browser: three steps, each kept with a caption (and a picture)
+      // one message, three tool lines: the agent takes them in ONE turn, as a model takes several tool calls in a turn
+      await k.w.owner.ok("chat.post", {
+        threadId: k.threadId,
+        body: [
+          `TOOL chrome_open ${JSON.stringify({ url: "https://www.harborquotes.com/pricing" })}`,
+          `TOOL chrome_snapshot ${JSON.stringify({ tabId: "t1" })}`,
+          `TOOL chrome_click ${JSON.stringify({ tabId: "t1", ref: "e1" })}`,
+        ].join("\n"),
+        mentions: [{ kind: "agent", id: k.agentId }],
+      });
+      // at least two steps, no fallback: a list of one row does not show the list
+      const start = Date.now();
+      for (;;) {
+        const r = (await k.w.owner.ok("computers.browser.timeline", { agentId: k.agentId })) as { steps?: unknown[] };
+        if ((r.steps ?? []).length >= 2) break;
+        if (Date.now() - start > 90_000)
+          throw new Error(`the agent's steps never reached the timeline (${(r.steps ?? []).length})`);
+        await page.waitForTimeout(1_000);
+      }
+      await k.computerTab();
+      await page.getByTestId("browser-picture").click();
+      await page.getByTestId("desk-live").waitFor({ timeout: 15_000 });
+      await page.getByTestId("step-ring-button").click();
+      await page.locator('[data-testid^="row-step-"]').first().waitFor({ timeout: 15_000 });
+      assert.ok((await page.locator('[data-testid^="row-step-"]').count()) >= 2, "the steps are listed");
+      await shoot(page, DIR, "steps");
+      // phone width: the same list
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.waitForTimeout(500);
+      await page.locator('[data-testid^="row-step-"]').first().waitFor({ timeout: 15_000 });
+      const files = await shoot(page, DIR, "steps-phone");
+      for (const f of files) fs.renameSync(f, f.replace("-desktop.png", "-phone.png"));
     } finally {
       await k.close();
     }
