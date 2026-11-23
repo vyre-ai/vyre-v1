@@ -200,11 +200,8 @@ const theirsOf = (d: SyncDeps, f: SyncFieldMap, rec: StoredRecord): unknown => {
 const sameField = (f: SyncFieldMap, a: unknown, b: unknown): boolean =>
   f.relation ? canonical(urnsOf(a)) === canonical(urnsOf(b)) : same(a, b);
 
-/** What a pass owes the far ends of its relations: for each record at the other end, the links to add and to drop. It is written once for the pass, not once for each record pulled: a lead attorney who leads
- * thousands of matters is one record whose list would otherwise be read and written in full for every one of them. */
-type FarOwed = Map<string, { type: string; id: string; inverse: string; links: Map<string, boolean> }>;
-
-/** A two-way relation moves at both ends: when a record's link changes here, the field that links back on the other record changes with it. The change is noted here and written by `writeFar`. */
+/** A two-way relation moves at both ends: when a record's link changes here, the field that links back on the other record changes with it. The change is owed to the far record and kept in `sy_far_owed` (with the
+ * record's own links, in the same store) until `writeFar` has written it, so a process that stops in between loses nothing: the next pass writes what is owed first. */
 function relinkFar(
   d: SyncDeps,
   b: SyncBinding,
@@ -212,7 +209,6 @@ function relinkFar(
   fields: SyncFieldMap[],
   was: Record<string, unknown>,
   becomes: Record<string, unknown>,
-  owed: FarOwed,
 ): void {
   const self = `vyre://${d.space ?? "space"}/${b.type}/${localId}`;
   for (const f of fields) {
@@ -221,50 +217,87 @@ function relinkFar(
     const before = new Set(urnsOf(was[f.local])),
       after = new Set(urnsOf(becomes[f.local]));
     const note = (urn: string, add: boolean): void => {
-      const id = urn.split("/").pop() ?? "";
-      const key = `${f.relation!.type}|${id}|${inverse}`;
-      let o = owed.get(key);
-      if (!o) owed.set(key, (o = { type: f.relation!.type, id, inverse, links: new Map() }));
-      o.links.set(self, add);
+      d.tx.run(
+        "INSERT OR REPLACE INTO sy_far_owed (ftype, fid, inverse, urn, add_link, sync_type) VALUES (?, ?, ?, ?, ?, ?)",
+        f.relation!.type,
+        urn.split("/").pop() ?? "",
+        inverse,
+        self,
+        add ? 1 : 0,
+        b.syncTypeId,
+      );
     };
     for (const urn of before) if (!after.has(urn)) note(urn, false);
     for (const urn of after) if (!before.has(urn)) note(urn, true);
   }
 }
 
-/** Writes what `relinkFar` noted: one read and one write for each record at the far end, however many links it gains or loses. A record that would hold more links than a record may (MAX_LINKS) is not changed at all, and
- * is named: nothing is dropped without being said. Returns those records, with the count each would have held. */
+/** How many far records are written between two turns of the event loop, and one chunk's worth of owed rows read at a time. */
+const FAR_CHUNK = 200;
+interface OwedRow {
+  ftype: string;
+  fid: string;
+  inverse: string;
+  urn: string;
+  add_link: number;
+}
+
+/** Writes what is owed to the far ends of this binding's relations: one read and one write for each far record, however many links it gains or loses, in chunks of FAR_CHUNK records, and the owed rows of a record are
+ * removed once its write has gone through. A record that would hold more links than a record may (MAX_LINKS) is not changed, stays owed, and is named: nothing is dropped without being said. */
 async function writeFar(
   d: SyncDeps,
-  owed: FarOwed,
+  syncTypeId: string,
   skip: (what: string, e: unknown) => void,
   turn: () => Promise<void>,
 ): Promise<{ type: string; id: string; inverse: string; links: number }[]> {
   const over: { type: string; id: string; inverse: string; links: number }[] = [];
-  for (const o of owed.values()) {
-    await turn();
-    try {
-      const rec = await d.local.get(o.type, o.id);
-      if (!rec) continue;
-      const list = Array.isArray(rec.data[o.inverse]) ? (rec.data[o.inverse] as { urn?: string }[]) : [];
-      const have = new Set(urnsOf(list));
-      const next = list.filter((x) => !(x.urn !== undefined && o.links.get(x.urn) === false));
-      let changed = next.length !== list.length;
-      for (const [urn, add] of o.links)
-        if (add && !have.has(urn)) {
-          next.push({ urn });
-          changed = true;
+  const skippedKeys = new Set<string>();
+  for (;;) {
+    // the next chunk of far records that are owed something (a record seen as over, or one that failed, is left for the next pass)
+    const heads = d.tx
+      .all<{ ftype: string; fid: string; inverse: string }>(
+        "SELECT DISTINCT ftype, fid, inverse FROM sy_far_owed WHERE sync_type = ? ORDER BY ftype, fid, inverse",
+        syncTypeId,
+      )
+      .filter((h) => !skippedKeys.has(`${h.ftype}|${h.fid}|${h.inverse}`))
+      .slice(0, FAR_CHUNK);
+    if (!heads.length) break;
+    for (const h of heads) {
+      await turn();
+      const key = `${h.ftype}|${h.fid}|${h.inverse}`;
+      try {
+        const rows = d.tx.all<OwedRow>(
+          "SELECT ftype, fid, inverse, urn, add_link FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ?",
+          h.ftype,
+          h.fid,
+          h.inverse,
+        );
+        const rec = await d.local.get(h.ftype, h.fid);
+        if (rec) {
+          const list = Array.isArray(rec.data[h.inverse]) ? (rec.data[h.inverse] as { urn?: string }[]) : [];
+          const drop = new Set(rows.filter((r) => !r.add_link).map((r) => r.urn));
+          const have = new Set(urnsOf(list));
+          const next = list.filter((x) => !(x.urn !== undefined && drop.has(x.urn)));
+          let changed = next.length !== list.length;
+          for (const r of rows)
+            if (r.add_link && !have.has(r.urn)) {
+              next.push({ urn: r.urn });
+              changed = true;
+            }
+          if (next.length > MAX_LINKS) {
+            over.push({ type: h.ftype, id: h.fid, inverse: h.inverse, links: next.length });
+            skippedKeys.add(key);
+            continue;
+          }
+          if (changed) await d.local.update(h.ftype, rec.id, { [h.inverse]: next }, rec.version);
         }
-      if (next.length > MAX_LINKS) {
-        over.push({ type: o.type, id: o.id, inverse: o.inverse, links: next.length });
-        continue;
+        d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
+      } catch (e) {
+        skippedKeys.add(key);
+        skip(`the ${h.inverse} of ${h.ftype} ${h.fid}`, e);
       }
-      if (changed) await d.local.update(o.type, rec.id, { [o.inverse]: next }, rec.version);
-    } catch (e) {
-      skip(`the ${o.inverse} of ${o.type} ${o.id}`, e);
     }
   }
-  owed.clear();
   return over;
 }
 
@@ -708,14 +741,15 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     rep.skipped++;
     log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId);
   };
-  const owed: FarOwed = new Map();
+  // what an earlier pass owed to the far ends and did not write (it stopped, or a record was busy) is written first
+  await writeFar(d, b.syncTypeId, skip, turn);
   for (const c of creates) {
     await turn();
     try {
       const id = mintRecordId(now(d));
       const rec = await d.local.create(b.type, id, c.data);
       saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
-      relinkFar(d, b, id, fields, {}, c.data, owed);
+      relinkFar(d, b, id, fields, {}, c.data);
       announce("record.created", id, { fields: { ...rec.data } });
     } catch (e) {
       skip(`${label} record ${c.remote.id}`, e);
@@ -730,14 +764,14 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         const changed: Record<string, unknown> = {};
         for (const k of keys) changed[k] = Object.prototype.hasOwnProperty.call(rec.data, k) ? rec.data[k] : null;
         announce("record.updated", a.localId, { fields: changed, prev: a.prev, version: rec.version });
-        relinkFar(d, b, a.localId, fields, a.prev, a.patch, owed);
+        relinkFar(d, b, a.localId, fields, a.prev, a.patch);
       }
       saveLink(d.tx, b.syncTypeId, a.link);
     } catch (e) {
       skip(`record ${a.localId}`, e);
     }
   }
-  const over = await writeFar(d, owed, skip, turn);
+  const over = await writeFar(d, b.syncTypeId, skip, turn);
   for (const x of over) {
     rep.skipped++;
     log(d, b.syncTypeId, "error", `${x.inverse} of ${x.type} ${x.id} would hold ${x.links} links, more than the ${MAX_LINKS} a record may hold: its links were not changed`, runId, o.traceId);

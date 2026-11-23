@@ -118,3 +118,34 @@ test("a record that would pass the most links is named, not changed, and no link
   assert.equal((after.data["persons"] as unknown[]).length, MAX_LINKS, "its links are all still there: none dropped");
   void logs;
 });
+
+test("a pass that stops between a record's links and the far end's write loses nothing: the next pass writes what was owed", { timeout: 120_000 }, async () => {
+  const clock = { t: 1000 };
+  const l = openRecordStore({ path: ":memory:", space: "sp_local", clock: () => clock.t });
+  const r = openRecordStore({ path: ":memory:", space: "sp_remote", clock: () => clock.t });
+  await l.store.define({ add_types: [ORG, PERSON] });
+  await r.store.define({ add_types: [R_ORG, R_PERSON] });
+  openSources({ tx: l.host.tx, now: () => clock.t });
+  const deps = (): SyncDeps => ({ local: l.store, remote: r.store, tx: l.host.tx, space: "sp_local", now: () => clock.t, emit: () => undefined });
+  const orgId = (await r.store.create("r_org", mintRecordId(), { "/name": "Org" })).id;
+  for (let i = 0; i < 450; i++) await r.store.create("r_person", mintRecordId(), { "/name": `P ${i}`, "/org": orgId });
+  await runSync(deps(), ORG_B, {});
+  // the far end cannot be written (the process "stops" right there): every write to the org fails
+  const real = l.store.update.bind(l.store);
+  let killed = true;
+  l.store.update = (async (type: string, id: string, patch: Record<string, unknown>, version: number) => {
+    if (killed && type === "org") throw new Error("the process stopped");
+    return real(type, id, patch, version);
+  }) as typeof l.store.update;
+  await runSync(deps(), PERSON_B, {});
+  const org = (await l.store.query("org", { page: { limit: 10 } })).rows[0]!;
+  assert.equal(((org.data["persons"] as unknown[]) ?? []).length, 0, "the far end was not written");
+  const owed = l.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_far_owed")!.n;
+  assert.equal(owed, 450, "all 450 inverse links are owed, kept in the store");
+  // started again: the next pass, with nothing new to pull, writes what was owed first
+  killed = false;
+  await runSync(deps(), PERSON_B, {});
+  const after = (await l.store.get("org", org.id))!;
+  assert.equal((after.data["persons"] as unknown[]).length, 450, "every inverse link is present");
+  assert.equal(l.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_far_owed")!.n, 0, "nothing is owed any more");
+});
