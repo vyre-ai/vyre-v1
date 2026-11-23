@@ -348,3 +348,23 @@ test("instructions given at creation (a saved piece of work's brief) get their o
   assert.ok(text.indexOf("## Instructions") < text.indexOf("## Learned"), "above what it learns");
   assert.ok(!hn.world.text(mdOf(hn, plain.agentId)).includes("## Instructions"));
 });
+
+test("one agents.create with instructions makes a working agent: they are in its AGENT.md, and the Space's skills reach it with no per-agent step (meier-setup finding 5)", async () => {
+  const hn = harness();
+  await h["skills.space.install"]!(hn.ctx, {
+    text: "---\nname: house-style\ndescription: Write in the house style.\n---\n\nUse the firm's style.\n",
+    idempotencyKey: `md${++n}`,
+  });
+  const made = (
+    await h["agents.create"]!(hn.ctx, {
+      name: "Intake",
+      role: "Takes new matters.",
+      instructions: "Greet the caller by name.\nAsk for the matter type first.",
+      idempotencyKey: `md${++n}`,
+    })
+  ).agent;
+  const text = hn.world.text(mdOf(hn, made.agentId));
+  assert.equal(section(text, "Instructions"), "Greet the caller by name.\nAsk for the matter type first.");
+  const names = (await h["skills.list"]!(hn.ctx, { agentId: made.agentId })).skills.map((x: { name: string }) => x.name);
+  assert.ok(names.includes("house-style"), "the Space skill is in the new agent's list without any step for that agent");
+});

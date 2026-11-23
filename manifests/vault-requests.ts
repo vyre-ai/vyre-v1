@@ -20,7 +20,9 @@ const requestRow = t.obj({
   itemId: t.opt(id.vaultItem),
   note: t.opt(t.str()),
   service: t.opt(id.connector),
-  taskId: id.task,
+  taskId: t.opt(id.task),
+  /** true when the caller manages the folder: no one was asked, the item was made now with its fields empty (itemId) */
+  placeholder: t.opt(t.bool()),
   at: t.ts(),
   decidedAt: t.opt(t.ts()),
   /** true when the caller is the person the agent asked and may add the key into their own keys (vault.requests.get only) */
@@ -131,7 +133,7 @@ export default defineManifest({
     // handleOnly: fulfilled, the requester gets the key's name only, never Use on it. The MCP door sets it for an outside agent (docs/ask-the-person.md).
     write(
       "vault.request",
-      "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked",
       {
         ...V,
         idem: "key",

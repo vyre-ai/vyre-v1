@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
-import { Groups, groupActivityLabel, groupDeleteImpact, mergeGroupRows } from "../pages/Groups.tsx";
+import { Groups, MemberRows, groupActivityLabel, groupDeleteImpact, invitedIn, mergeGroupRows } from "../pages/Groups.tsx";
 import type { ConsoleData } from "../shell/data.tsx";
 const custom = {
   id: "grp_review",
@@ -78,4 +78,57 @@ test("destructive impact is based on the selected object; paging merges by ident
     mergeGroupRows([custom], [{ ...custom, name: "Renamed" }]).map((row) => row.name),
     ["Renamed"],
   );
+});
+
+const invite = (over: Record<string, unknown>) => ({
+  id: "inv_1",
+  role: "rol_member",
+  groups: ["grp_review"],
+  agents: [],
+  projects: [],
+  channels: [],
+  email: "ana@example.test",
+  expiresAt: Date.UTC(2026, 11, 1),
+  createdBy: "usr_olivia",
+  state: "open",
+  createdAt: 1,
+  ...over,
+});
+test("people invited into a team show in its member list as Invited, before they accept (only open invites that name the team)", () => {
+  const rows = invitedIn(
+    [
+      invite({}),
+      invite({ id: "inv_2", email: undefined }),
+      invite({ id: "inv_3", groups: ["grp_other"] }),
+      invite({ id: "inv_4", state: "accepted" }),
+      invite({ id: "inv_5", state: "revoked" }),
+    ] as never,
+    "grp_review",
+  );
+  assert.deepEqual(
+    rows.map((row) => row.id),
+    ["inv_1", "inv_2"],
+  );
+  const sample = createSampleConsole().data;
+  const html = renderToStaticMarkup(
+    <ConsoleDataProvider value={{ ...sample, name: () => "Sana" }}>
+      <MemberRows
+        members={[{ kind: "person", id: "usr_sana" }]}
+        invited={rows as never}
+        groupId="grp_review"
+        refresh={() => undefined}
+      />
+    </ConsoleDataProvider>,
+  );
+  assert.ok(html.includes("ana@example.test"), "the invited person is named by their email");
+  assert.ok(html.includes("Invited"), "marked Invited");
+  assert.ok(html.includes("Invited person"), "an invite with no email still has a row");
+  assert.ok(html.includes("Sana"), "members stay");
+  assert.doesNotMatch(html, /No members yet/);
+  const only = renderToStaticMarkup(
+    <ConsoleDataProvider value={{ ...sample, name: () => "Sana" }}>
+      <MemberRows members={[]} invited={[]} groupId="grp_review" refresh={() => undefined} />
+    </ConsoleDataProvider>,
+  );
+  assert.match(only, /No members yet/);
 });

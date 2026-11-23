@@ -39,6 +39,7 @@ export async function managersFor(
   ctx: VaultReqCtx,
   folderId: string | undefined,
   requester: string,
+  seen?: { requesterManages: boolean },
 ): Promise<string[]> {
   const ask = async (resource: { type: string; id: string }, why: string): Promise<string[]> => {
     try {
@@ -52,9 +53,14 @@ export async function managersFor(
   const out = new Set<string>(
     folderId ? await ask({ type: "vault_folder", id: folderId }, "the folder's managers") : [],
   );
+  if (seen && out.has(requester)) seen.requesterManages = true;
   out.delete(requester);
   // ruling 74: when no folder claims the key, or only the requester manages it, the Space's owners decide
-  if (out.size === 0) for (const p of await ask({ type: "space", id: ctx.space }, "the Space managers")) out.add(p);
+  if (out.size === 0 || (seen && !seen.requesterManages)) {
+    const space = await ask({ type: "space", id: ctx.space }, "the Space managers");
+    if (seen && space.includes(requester)) seen.requesterManages = true;
+    if (out.size === 0) for (const p of space) out.add(p);
+  }
   out.delete(requester);
   return [...out].sort();
 }
@@ -224,7 +230,12 @@ export async function requestCreate(
   const self = ctx.actingFor ?? requester.id;
   if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === self || input.to === requester.id))
     raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
-  const managers = input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id);
+  const seen = { requesterManages: false };
+  const managers =
+    input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id, requester.kind === "person" ? seen : undefined);
+  // someone who can manage the folder needs to ask nobody: the item is made now, with the fields empty, for them to fill in
+  if (input.to === undefined && requester.kind === "person" && seen.requesterManages && input.handleOnly !== true)
+    return placeholderFor(ctx, { requester, name, fields, input });
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
   const block = {
@@ -307,6 +318,60 @@ export async function requestCreate(
     }
   }
   return { request: requestOut(row) };
+}
+
+/** A manager's own request: no card, no task. The item is made in the folder (a company key in its Restricted folder, else their Mine) with every field empty, and the request is recorded as fulfilled so a second ask finds it. */
+async function placeholderFor(
+  ctx: VaultReqCtx,
+  a: {
+    requester: { kind: string; id: string };
+    name: string;
+    fields: string[];
+    input: { reason: string; forRun?: string; folderId?: string; idempotencyKey: string };
+  },
+) {
+  const trace = ctx.trace.traceId;
+  const id = nid("vrq");
+  const folderId =
+    a.input.folderId ??
+    (isCompanyKey(`#${a.name}`)
+      ? await companyFolder(ctx)
+      : await ownMine(ctx, { id } as RequestRow, undefined));
+  if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
+  const made = asRow(
+    await ctx.call("vault.item.put", {
+      folderId,
+      name: a.name,
+      kind: "api_key",
+      fields: a.fields.map((key) => ({ key, value: "", secret: true })),
+      idempotencyKey: `${id}:placeholder`,
+    }),
+  );
+  const itemId = strOf(asRow(made?.["item"])?.["id"]);
+  if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
+  ctx.db.run(
+    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, item_id, idem_key, managers_json, task_ids_json, at, decided_by, decided_at, handle_only, asker_id, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    a.name,
+    JSON.stringify(a.fields),
+    a.input.reason.trim(),
+    a.requester.kind,
+    a.requester.id,
+    a.input.forRun ?? null,
+    folderId,
+    "fulfilled",
+    itemId,
+    a.input.idempotencyKey,
+    "[]",
+    "[]",
+    ctx.now(),
+    a.requester.id,
+    ctx.now(),
+    0,
+    null,
+    ctx.thread ?? null,
+  );
+  return { request: { ...requestOut(requestById(ctx, id)!), placeholder: true } };
 }
 
 /** The person an agent asked for may add a key that names no folder into their own Mine (owner ruling 3 Nov). Never a company key, never an outside agent's name-only ask. */

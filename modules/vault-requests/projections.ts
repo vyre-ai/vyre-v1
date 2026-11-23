@@ -115,7 +115,7 @@ export function requestOut(r: RequestRow) {
     ...(r.item_id ? { itemId: r.item_id } : {}),
     ...(r.note ? { note: r.note } : {}),
     ...(r.service ? { service: r.service } : {}),
-    taskId: tasks[0] ?? "",
+    ...(tasks[0] ? { taskId: tasks[0] } : {}),
     at: r.at,
     ...(r.decided_at !== null ? { decidedAt: r.decided_at } : {}),
   };
