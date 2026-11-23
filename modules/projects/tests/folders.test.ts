@@ -659,14 +659,3 @@ test("class guard: a Space's first run files no Needs-you task whatever the foll
   await backfill(fresh.ctx);
   assert.equal(fresh.only("tasks.create").length, 0, "a Space where everything follows files nothing");
 });
-
-test("a record event asks the schema for its type once, not once for the files and once for the project template", async () => {
-  const h = harness();
-  const id = mkRecord(h, { title: "Ada" }, "contact");
-  await onRecordEvent(h.ctx, {
-    name: "record.created",
-    payload: { recordId: id, type: "contact", fields: { name: "Ada" } },
-    actor: DANA,
-  } as never);
-  assert.equal(h.only("schema.types.get").length, 1, "one read of the type for the event");
-});

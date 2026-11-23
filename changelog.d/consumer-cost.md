@@ -1,1 +1,1 @@
-- A record event reads its type once for the projects consumer, the search consumer asks the schema for a title field once in ten seconds, and the rows of one indexed record are one transaction: the consumers cost about 20 % less a bulk-written row.
+- The rows of one indexed document (the failure mark, the sequence, the old entry out, the new one and its text in) are one transaction: a file made by `files.create_many` is indexed in one commit, not five or six.
