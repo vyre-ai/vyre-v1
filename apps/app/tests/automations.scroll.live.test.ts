@@ -172,8 +172,32 @@ for (const look of LOOKS) {
         await shot("4-history-end");
         // a run of it is a page of forty rows
         await api("automations.set_enabled", { automationId: id, enabled: true });
-        await api("automations.run", { automationId: id, payload: {} });
+        for (let k = 0; k < 30; k++) await api("automations.run", { automationId: id, payload: {} });
+        await page.waitForTimeout(3000);
         await page.getByTestId("page-tab-runs").click();
+        await page.locator('[data-testid^="row-run-"]').first().waitFor({ timeout: 30_000 });
+        await page.waitForTimeout(1000);
+        // one scroller: no scrolling box inside another one holds the list, and a wheel at mid-page reaches the end of the list
+        assert.equal(
+          await page.evaluate(() => {
+            let el: Element | null = document.querySelector('[data-testid^="row-run-"]');
+            let n = 0;
+            while (el && el !== document.body) {
+              const o = getComputedStyle(el).overflowY;
+              if ((o === "auto" || o === "scroll") && el.scrollHeight > el.clientHeight) n++;
+              el = el.parentElement;
+            }
+            return n;
+          }),
+          1,
+          "the Runs tab has one scroller",
+        );
+        assert.ok(
+          await wheelTo(page, '[data-testid^="row-run-"]', { x: w * 0.5, y: h * 0.5 }),
+          "the wheel at mid-page reaches the last run",
+        );
+        await shot("5-runs-end");
+        await page.locator('[data-testid^="row-run-"]').first().scrollIntoViewIfNeeded();
         await page.locator('[data-testid^="row-run-"]').first().click({ timeout: 30_000 });
         await page.getByTestId("run-page").waitFor({ timeout: 20_000 });
         await page.waitForTimeout(1500);
