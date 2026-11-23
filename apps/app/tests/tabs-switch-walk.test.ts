@@ -165,7 +165,7 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
           (x) =>
             x.name.length > 0 &&
             (p.name === "chat"
-              ? /Plans|chat/i.test(x.name)
+              ? /Plans/i.test(x.name) // the chat of this walk (the landing tab "New chat" is a tab of its own: checked below)
               : p.name === "file"
                 ? /Quarterly/i.test(x.name)
                 : p.name === "record"
@@ -205,6 +205,22 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
         if (r.shown < 0 || r.shown > HOLD_CEILING_MS)
           blanks.push(`${p.name} round ${round + 1}: first line after ${r.shown} ms`);
         if (r.maxBlank > 2) blanks.push(`${p.name} round ${round + 1}: ${r.maxBlank} empty frames in a row`);
+      }
+    }
+    // The chat-landing tab, when chosen, shows its own page at once and never the previous chat's content (a tab is its own view; the earlier finder matched this tab by its name and passed only because it briefly still showed Plans).
+    if (places.some((p) => p.name === "chat")) {
+      const landing = tabs.find((x) => /^New chat/i.test(x.name));
+      const plans = tabs.find((x) => /Plans/i.test(x.name));
+      if (landing && plans) {
+        await page.locator(`[data-testid="tab-${plans.id}"], [data-testid="tab-${plans.id}-selected"]`).first().click();
+        await page.waitForTimeout(1200);
+        const seen = page.evaluate(
+          `new Promise(function (res) { var t0 = performance.now(); var bad = -1; function f() { var body = document.querySelector('[data-testid="place-body"]') || document.body; var text = [].filter.call(body.children, function (c) { return !c.hasAttribute("data-swap"); }).map(function (c) { return c.innerText || ""; }).join(" "); if (bad < 0 && /Message 12/.test(text)) bad = Math.round(performance.now() - t0); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
+        );
+        await page.locator(`[data-testid="tab-${landing.id}"], [data-testid="tab-${landing.id}-selected"]`).first().click();
+        const bad = (await seen) as number;
+        say(`the landing tab: previous chat's content seen at ${bad} ms (-1 is never)`);
+        assert.equal(bad, -1, `the chat-landing tab shows its own page, never the previous chat's content (Message 12 seen after ${bad} ms)`);
       }
     }
     for (const [k, v] of Object.entries(results)) say(`${k}: ${v.join(", ")} ms`);
