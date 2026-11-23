@@ -9,11 +9,15 @@
 // through the capability API (`connectors.run`), so the Vault, the egress list, the rate limit and the audit apply as for any other call. Remote records carry no version, so a write
 // never fails on one. A row the app marks archived reads as removed.
 import { turns } from "../../../lib/yield-loop.ts";
+
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { hasWords } from "../../../lib/words.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/store/types.ts";
+
+/** Work between two turns while sealed values are kept: short, because each value waits for the Vault (a key derivation, a write) and the stretch before the loop is already one block. */
+const SEAL_TURN_MS = 5;
 
 // ---- what the engine takes from the connectors module (structural copies; the module's own types are not importable here)
 
@@ -1253,7 +1257,10 @@ export function createSyncEngine(o: {
         };
         // The loops give the event loop a turn every 15 ms (lib/yield-loop.ts): a pass with hundreds of sealed values was one 79 ms stretch of a firm's server. `mine` can grow with the Space (every value
         // the Vault could not take yet), so the first loop is bounded by time, not by the size of a page.
-        const turn = turns();
+        // The pull and the records it made are one stretch before this (about 17 ms for 600 rows on an idle server), and the first turn came 15 ms after that: a block of 36 ms idle, 252 ms on a loaded CI
+        // runner (24 Nov). So the loop gives a turn first, and a turn every 5 ms of work: a value is a key derivation and a write, never more than a few ms.
+        await new Promise<void>((done) => setImmediate(done));
+        const turn = turns(SEAL_TURN_MS);
         // first the ones that could not be kept before (the record may be visible now, or the Vault open)
         for (const [recordId, patch] of [...mine]) {
           await turn();
