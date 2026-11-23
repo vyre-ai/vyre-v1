@@ -35,3 +35,17 @@ test("tasks.update that sets fields.project moves the link too", async () => {
   assert.equal(u.recordId, "rec_proj2");
   assert.ok(h.allEvents.some((e) => e.name === "task.updated" && JSON.stringify(e.payload).includes("recordId")));
 });
+
+test("editing another field never puts a moved or removed project link back", async () => {
+  const h = harness();
+  const t = (await h.call("tasks.create", newTask({ fields: { project: "rec_old" } }), me)).task;
+  await h.call("tasks.links.add", { taskId: t.id, recordId: "rec_new" }, me);
+  const edited = (await h.call("tasks.update", { taskId: t.id, fields: { note: "x" } }, me)).task;
+  assert.equal(edited.recordId, "rec_new", "the moved link stays moved");
+  await h.call("tasks.links.remove", { taskId: t.id, recordId: "rec_new" }, me);
+  const again = (await h.call("tasks.update", { taskId: t.id, fields: { note: "y" } }, me)).task;
+  assert.equal(again.recordId, undefined, "a removed link stays removed");
+  const cleared = (await h.call("tasks.update", { taskId: t.id, fields: { project: null } }, me)).task;
+  assert.equal(cleared.fields.project, undefined, "null clears the field");
+  assert.equal(cleared.recordId, undefined, "and leaves the link alone");
+});

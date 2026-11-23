@@ -54,7 +54,6 @@ DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
 # where backups are written: with the data (so a data folder on an encrypted volume holds its backups too); an install made before this was recorded keeps $VYRE_DIR/backups
 BACKUP_DIR=$(cat "$DIR/backup-dir" 2>/dev/null || printf '%s/backups' "$DIR")
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
-KEEP_BACKUPS=3
 KEEP_RELEASES=3
 
 say() { printf '%s\n' "$*"; }
@@ -816,16 +815,15 @@ backup_data() {
   prune_backups
 }
 
-# prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's
-# own and is never removed here; a name this script does not know is left alone too (19 Nov, a Mac mini: the CLI deleted a manual backup nobody asked it to). Pruned: the
-# newest 3 scheduled backups (vyre-scheduled-...) stay, the newest 2 taken before an update (vyre-pre-<version>-...) stay, the newest 2 taken before a restore stay (12 Nov: twelve
-# manual backups once evicted the only good copy from before a failed update). What goes is named; when manual backups pile up, the one line below says how much room they take.
+# prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's own and is
+# never removed here; a name this script does not know is left alone too (19 Nov, a Mac mini: the CLI deleted a manual backup nobody asked it to). Pruned: the newest 2 taken before an update
+# (vyre-pre-<version>-...) stay, the newest 2 taken before a restore stay (12 Nov: twelve manual backups once evicted the only good copy from before a failed update). What goes is named; when manual
+# backups pile up, the one line below says how much room they take.
 prune_backups() {
-  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" '
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk '
     { n = $0; sub(/.*\//, "", n)
       if (n ~ /^vyre-pre-restore-/) { kind = "pre-restore"; keep = 2 }
       else if (n ~ /^vyre-pre-[0-9]/) { kind = "pre-update"; keep = 2 }
-      else if (n ~ /^vyre-scheduled-/) { kind = "scheduled"; keep = k }
       else next
       if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
     [ "$old" != "$out" ] || continue

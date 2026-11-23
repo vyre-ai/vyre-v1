@@ -868,8 +868,9 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
       else next[k] = v;
     }
     set("fields", next);
-    // the same rule as on create: a project named in fields.project is the task's record link (tasks.update announces it as task.updated, which it declares)
-    const proj = next["project"];
+    // the same rule as on create, but only when this patch itself names a project: a link moved or removed since stays moved when any other field is edited. A project set to null clears the field and leaves the link as it is (take the link off with tasks.links.remove).
+    const patch = input.fields as Record<string, unknown>;
+    const proj = patch["project"];
     if (typeof proj === "string" && proj !== "" && t.recordId !== proj) {
       t.recordId = proj;
       changed.push("recordId");
