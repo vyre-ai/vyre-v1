@@ -217,10 +217,17 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
         const seen = page.evaluate(
           `new Promise(function (res) { var t0 = performance.now(); var bad = -1; function f() { var body = document.querySelector('[data-testid="place-body"]') || document.body; var text = [].filter.call(body.children, function (c) { return !c.hasAttribute("data-swap"); }).map(function (c) { return c.innerText || ""; }).join(" "); if (bad < 0 && /Message 12/.test(text)) bad = Math.round(performance.now() - t0); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
         );
-        await page.locator(`[data-testid="tab-${landing.id}"], [data-testid="tab-${landing.id}-selected"]`).first().click();
+        await page
+          .locator(`[data-testid="tab-${landing.id}"], [data-testid="tab-${landing.id}-selected"]`)
+          .first()
+          .click();
         const bad = (await seen) as number;
         say(`the landing tab: previous chat's content seen at ${bad} ms (-1 is never)`);
-        assert.equal(bad, -1, `the chat-landing tab shows its own page, never the previous chat's content (Message 12 seen after ${bad} ms)`);
+        assert.equal(
+          bad,
+          -1,
+          `the chat-landing tab shows its own page, never the previous chat's content (Message 12 seen after ${bad} ms)`,
+        );
       }
     }
     for (const [k, v] of Object.entries(results)) say(`${k}: ${v.join(", ")} ms`);
