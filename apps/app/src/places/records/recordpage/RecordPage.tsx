@@ -170,6 +170,7 @@ function RelationCards({ field, ids }: { field: FieldDef; ids: readonly string[]
   const more = ids.length - shown;
   return (
     <View style={p.cards}>
+      {/* ui-rows-lint: not a list (link cards that wrap in a flow, each opens its record; nothing to hover or select as a row) */}
       {ids.slice(0, shown).map((id) => (
         <RelationCard key={id} field={field} id={id} />
       ))}
