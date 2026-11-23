@@ -294,8 +294,20 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     ] as const) {
       await step(`Inbox: the ${tile} Connect tile opens its sheet`, async () => {
         await go("mail", "inbox-place");
+        // The page chooses which door there is: with nothing connected it IS the Connect choice (the tiles, and no + button); once something is connected the + opens the same choice. Until the
+        // mailboxes have loaded the + is drawn and then goes (nothing is decided on a guess), and the page paints in two steps, so the first frame does not say which door there is (r41
+        // candidate2: the walk took the + for a page that dropped it a moment later). Give the tiles a moment; only when they do not come, use the +.
         const tileEl = page.getByTestId(`connect-${tile}`);
-        if ((await tileEl.count()) === 0) await page.getByTestId("inbox-connect").click({ timeout: 10_000 });
+        const plus = page.getByTestId("inbox-connect");
+        await tileEl.or(plus).first().waitFor({ timeout: 20_000 });
+        const tilesCame = await tileEl
+          .first()
+          .waitFor({ timeout: 4_000 })
+          .then(
+            () => true,
+            () => false,
+          );
+        if (!tilesCame) await plus.click({ timeout: 10_000 });
         await page.getByTestId(`connect-${tile}`).first().click({ timeout: 10_000 });
         // Gmail and Outlook open the generic connect sheet or the mail connections page; Other email opens the mailbox sheet; Twilio opens the Vault's Add sheet
         const seen = page
