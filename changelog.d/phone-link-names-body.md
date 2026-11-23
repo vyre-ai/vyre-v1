@@ -1,0 +1,1 @@
+- On a phone, a link that names a page (the Notes link) opens that page from the first frame, and Back goes to the list; this is now one named rule (linkNamesBody) used for the first frame and for later links, with a walk that loads it five times at 390 and 320.
