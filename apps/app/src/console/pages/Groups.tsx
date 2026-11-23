@@ -251,7 +251,11 @@ export async function readLaterInvites(call: InviteCall, firstCursor: string): P
   const got: GroupInvite[] = [];
   let cursor: string | undefined = firstCursor;
   for (let page = 0; cursor && page < 200; page++) {
-    const out = (await call("members.invites.list", { state: "open", limit: 100, cursor })) as CapMap["members.invites.list"]["out"];
+    const out = (await call("members.invites.list", {
+      state: "open",
+      limit: 100,
+      cursor,
+    })) as CapMap["members.invites.list"]["out"];
     got.push(...out.invites);
     cursor = out.next;
   }

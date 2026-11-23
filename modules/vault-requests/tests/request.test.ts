@@ -194,7 +194,13 @@ test("ruling 74: a key no folder claims is decided by the Space owner, even when
   );
   assert.equal(out.request.folderId, undefined);
   // the owner asking for their own key has nobody else to decide: it is made for them now (meier-setup finding 1; it was refused before)
-  const own = world({ owners: [], admins: [], managers: {}, spaceOwner: "usr_olivia", folders: [{ id: "vfd_mine", name: "Mine", scope: "mine" }] });
+  const own = world({
+    owners: [],
+    admins: [],
+    managers: {},
+    spaceOwner: "usr_olivia",
+    folders: [{ id: "vfd_mine", name: "Mine", scope: "mine" }],
+  });
   const made = await handlers["vault.request"](own.as("usr_olivia"), {
     name: "Mine",
     reason: "I need it",
@@ -1174,7 +1180,12 @@ test("a Space admin who cannot put into the named folder asks its managers as be
       return base.call(cap as never, input as never);
     },
   } as typeof base;
-  const out = await handlers["vault.request"](real, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm1" } as never);
+  const out = await handlers["vault.request"](real, {
+    name: "Dana_Lawmatics",
+    reason: "Need it",
+    folderId: FOLDER,
+    idempotencyKey: "adm1",
+  } as never);
   assert.equal(out.request.placeholder, undefined);
   assert.equal(out.request.state, "waiting");
   assert.deepEqual(
@@ -1183,7 +1194,12 @@ test("a Space admin who cannot put into the named folder asks its managers as be
     "the folder's manager is asked",
   );
   assert.equal(refused.db.dump().includes('"fulfilled"'), false, "nothing was recorded as made");
-  const ok = await handlers["vault.request"](w.as("usr_admin"), { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm2" } as never);
+  const ok = await handlers["vault.request"](w.as("usr_admin"), {
+    name: "Dana_Lawmatics",
+    reason: "Need it",
+    folderId: FOLDER,
+    idempotencyKey: "adm2",
+  } as never);
   assert.equal(ok.request.placeholder, true);
   assert.equal(w.called("tasks.create").length, 0);
 });
@@ -1202,7 +1218,12 @@ test("a manager who asks for a name the folder already keeps gets that item back
       return base.call(cap as never, input as never);
     },
   } as typeof base;
-  const out = await handlers["vault.request"](dup, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup1" } as never);
+  const out = await handlers["vault.request"](dup, {
+    name: "Dana_Lawmatics",
+    reason: "Need it",
+    folderId: FOLDER,
+    idempotencyKey: "dup1",
+  } as never);
   assert.equal(out.request.state, "fulfilled");
   assert.equal(out.request.itemId, "vit_old");
   assert.equal(out.request.placeholder, undefined, "an existing item is not a new empty one");
@@ -1217,5 +1238,12 @@ test("a manager who asks for a name the folder already keeps gets that item back
       return lb.call(cap as never, input as never);
     },
   } as typeof lb;
-  await assert.rejects(handlers["vault.request"](dup2, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup2" } as never));
+  await assert.rejects(
+    handlers["vault.request"](dup2, {
+      name: "Dana_Lawmatics",
+      reason: "Need it",
+      folderId: FOLDER,
+      idempotencyKey: "dup2",
+    } as never),
+  );
 });

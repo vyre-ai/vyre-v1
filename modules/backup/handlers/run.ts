@@ -1197,7 +1197,8 @@ export async function health(ctx: BackupCtx, _input: Record<string, unknown>) {
     const firstSeen = Number(
       (
         ctx.db.all("SELECT value FROM backup_config WHERE key = ?", "health_first_seen")[0] as
-          { value?: string } | undefined
+          | { value?: string }
+          | undefined
       )?.value,
     );
     if (!Number.isFinite(firstSeen)) {

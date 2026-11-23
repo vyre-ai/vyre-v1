@@ -3,7 +3,15 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
-import { Groups, MemberRows, groupActivityLabel, groupDeleteImpact, invitedIn, mergeGroupRows, readLaterInvites } from "../pages/Groups.tsx";
+import {
+  Groups,
+  MemberRows,
+  groupActivityLabel,
+  groupDeleteImpact,
+  invitedIn,
+  mergeGroupRows,
+  readLaterInvites,
+} from "../pages/Groups.tsx";
 import type { ConsoleData } from "../shell/data.tsx";
 const custom = {
   id: "grp_review",

@@ -232,7 +232,9 @@ export async function requestCreate(
     raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
   const seen = { requesterManages: false };
   const managers =
-    input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id, requester.kind === "person" ? seen : undefined);
+    input.to !== undefined
+      ? [input.to]
+      : await managersFor(ctx, input.folderId, requester.id, requester.kind === "person" ? seen : undefined);
   // someone who can manage the folder needs to ask nobody: the item is made now, with the fields empty, for them to fill in
   if (input.to === undefined && requester.kind === "person" && seen.requesterManages && input.handleOnly !== true) {
     const made = await placeholderFor(ctx, { requester, name, fields, input });
@@ -337,9 +339,7 @@ async function placeholderFor(
   const id = nid("vrq");
   const folderId =
     a.input.folderId ??
-    (isCompanyKey(`#${a.name}`)
-      ? await companyFolder(ctx)
-      : await ownMine(ctx, { id } as RequestRow, undefined));
+    (isCompanyKey(`#${a.name}`) ? await companyFolder(ctx) : await ownMine(ctx, { id } as RequestRow, undefined));
   if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
   let made: Record<string, unknown> | null;
   let existing: string | undefined;
@@ -358,7 +358,11 @@ async function placeholderFor(
     if (code.startsWith("permission.") || code === "validation.not_found") return null;
     if (code !== "validation.duplicate") throw e;
     // the folder already keeps an item with that name: the request is fulfilled with that item, nothing is overwritten
-    const list = (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as { id?: string; name?: string }[]) ?? [];
+    const list =
+      (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as {
+        id?: string;
+        name?: string;
+      }[]) ?? [];
     const have = list.find((x) => String(x.name ?? "").toLowerCase() === a.name.toLowerCase());
     if (!have?.id) throw e;
     existing = have.id;

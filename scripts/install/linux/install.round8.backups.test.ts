@@ -177,7 +177,11 @@ test("mode and owner are set only on a backups folder the command made: a folder
     const shared = path.join(dir, "shared");
     fs.mkdirSync(shared);
     fs.chmodSync(shared, 0o775);
-    const kept = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; ensure_backups_compose; ensure_backups_compose`, env);
+    const kept = sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; ensure_backups_compose; ensure_backups_compose`,
+      env,
+    );
     assert.equal(kept.status, 0, kept.stderr);
     assert.equal(mode(shared), 0o775, "a shared folder keeps its mode");
     const bk = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; dc(){ :; }; backup_data manual live`, env);
@@ -189,7 +193,11 @@ test("mode and owner are set only on a backups folder the command made: a folder
       const ro = path.join(dir, "readonly");
       fs.mkdirSync(ro);
       fs.chmodSync(ro, 0o555);
-      const w = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${ro}'; ensure_backups_compose; ensure_backups_compose`, env);
+      const w = sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; BACKUP_DIR='${ro}'; ensure_backups_compose; ensure_backups_compose`,
+        env,
+      );
       assert.equal(w.status, 0, w.stderr);
       assert.equal(mode(ro), 0o555);
       assert.equal(w.stderr.match(/already exists and is left as it is/g)?.length, 1, "said once: " + w.stderr);
@@ -207,7 +215,10 @@ test("the backups folder is given to uid 1000 on Linux when run as root, and nev
     const run = (osName: string): string => {
       fs.rmSync(path.join(dir, "host.log"), { force: true });
       fs.rmSync(path.join(dir, "backups"), { recursive: true, force: true });
-      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; ensure_backups_compose`, { ...world(dir, SAME), VYRE_TEST_OS: osName });
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; ensure_backups_compose`, {
+        ...world(dir, SAME),
+        VYRE_TEST_OS: osName,
+      });
       assert.equal(r.status, 0, r.stderr);
       return fs.existsSync(path.join(dir, "host.log")) ? fs.readFileSync(path.join(dir, "host.log"), "utf8") : "";
     };
@@ -216,11 +227,18 @@ test("the backups folder is given to uid 1000 on Linux when run as root, and nev
     // the backup file itself follows the same rule
     const take = (osName: string): string => {
       fs.rmSync(path.join(dir, "host.log"), { force: true });
-      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, { ...world(dir, SAME), VYRE_TEST_OS: osName });
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, {
+        ...world(dir, SAME),
+        VYRE_TEST_OS: osName,
+      });
       assert.equal(r.status, 0, r.stderr + r.stdout);
       return fs.readFileSync(path.join(dir, "host.log"), "utf8");
     };
-    assert.match(take("Linux"), /^chown 1000:1000 \S+vyre-manual-\S+\.tar\.gz$/m, "Linux: the backup is the server user's to read");
+    assert.match(
+      take("Linux"),
+      /^chown 1000:1000 \S+vyre-manual-\S+\.tar\.gz$/m,
+      "Linux: the backup is the server user's to read",
+    );
     assert.doesNotMatch(take("Darwin"), /^chown/m, "a Mac: the backup file is not chowned either");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

@@ -365,6 +365,11 @@ test("one agents.create with instructions makes a working agent: they are in its
   ).agent;
   const text = hn.world.text(mdOf(hn, made.agentId));
   assert.equal(section(text, "Instructions"), "Greet the caller by name.\nAsk for the matter type first.");
-  const names = (await h["skills.list"]!(hn.ctx, { agentId: made.agentId })).skills.map((x: { name: string }) => x.name);
-  assert.ok(names.includes("house-style"), "the Space skill is in the new agent's list without any step for that agent");
+  const names = (await h["skills.list"]!(hn.ctx, { agentId: made.agentId })).skills.map(
+    (x: { name: string }) => x.name,
+  );
+  assert.ok(
+    names.includes("house-style"),
+    "the Space skill is in the new agent's list without any step for that agent",
+  );
 });

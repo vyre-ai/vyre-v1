@@ -209,7 +209,7 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       async exportEntries() {
         // records and shared chats only: events other people may read (vis space), in the clear, with no label. Private chats and personal memory are never vis space.
         const lines: string[] = [];
-        for (let after = 0; ;) {
+        for (let after = 0; ; ) {
           const page = await deps.log.read({ after, limit: 1000 });
           if (page.length === 0) break;
           for (const e of page) {

@@ -86,7 +86,14 @@ export const KIND_ACTIONS: Record<TaskKind, ActionDef[]> = {
 // ---- the 4.7 table ----
 
 export type MoveAction =
-  "start" | "submit" | "approve_review" | "send_back" | "approve" | "reject" | "cancel" | "reopen";
+  | "start"
+  | "submit"
+  | "approve_review"
+  | "send_back"
+  | "approve"
+  | "reject"
+  | "cancel"
+  | "reopen";
 type Actor = Slot | "creator" | "responsible";
 export interface Move {
   action: MoveAction;
