@@ -213,6 +213,8 @@ export function createAgentControl(ext, o = {}) {
       // a press on the bar's buttons that is the agent's own click (it clicked at the bar's place) is not the person's: the bar never obeys the agent it is there to watch
       if (m && m.x !== undefined && BAR_BUTTONS.has(m.type) && sessions.ownPress(tabId, Number(m.x), Number(m.y)))
         return;
+      // a keyboard click on a bar button that the agent's own Enter or Space made (it can Tab onto the bar) is not the person's either
+      if (m && m.key === true && BAR_BUTTONS.has(m.type) && sessions.ownKeyPress(tabId)) return;
       if (m && m.type === "openvyre") {
         const who = agent ?? shownAgent;
         const thread = who ? threads.get(who.id) : undefined;

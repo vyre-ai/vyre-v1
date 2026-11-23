@@ -1930,6 +1930,30 @@ test("the bar never obeys the agent: a press on Give back that is the agent's ow
   w.ext.debugger.sendCommand = orig;
 });
 
+test("a keyboard click on the bar that the agent's own Enter made is ignored; a person's Enter, which the agent did not send, acts", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  let release;
+  const hold = new Promise((r) => (release = r));
+  const orig = w.ext.debugger.sendCommand;
+  w.ext.debugger.sendCommand = async (t, m, p) => {
+    if (m === "Input.dispatchKeyEvent" && p.type === "keyUp") await hold;
+    return orig(t, m, p);
+  };
+  const step = w.call("chrome_act", { action: "press", value: "Enter" });
+  await w.advance(0);
+  port.send({ type: "stop", key: true });
+  await w.advance(0);
+  assert.equal((await w.call("chrome_status")).paused, false, "the agent's own Enter did not press Stop");
+  port.send({ type: "stop", key: true });
+  await w.advance(0);
+  assert.equal((await w.call("chrome_status")).paused, true, "an Enter the agent did not send is the person's");
+  release();
+  await step.catch(() => undefined);
+  w.ext.debugger.sendCommand = orig;
+});
+
 test("Stopped offers Resume, which goes on, and End task, which tells the app the task ended", async () => {
   const w = await ready();
   await w.call("chrome_snapshot");

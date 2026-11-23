@@ -297,6 +297,9 @@ export function createSessions({
     touch: arm,
     /** A press on one of the bar's buttons, at this place: was it the agent's own click (a person's hand is not)? A match uses up the agent's input. @param {number} tabId @param {number} x @param {number} y */
     ownPress: (tabId, x, y) => matchOwn(tabId, { kind: "pointer", x, y }),
+    /** A keyboard click on one of the bar's buttons: did the agent send Enter or Space a moment ago? A match uses up that key. @param {number} tabId */
+    ownKeyPress: (tabId) =>
+      matchOwn(tabId, { kind: "key", code: "Enter" }) || matchOwn(tabId, { kind: "key", code: "Space" }),
     /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId @param {string} method @param {any} params */
     ownInput(tabId, method, params) {
       if (method !== "Input.dispatchMouseEvent" && method !== "Input.dispatchKeyEvent") return;
