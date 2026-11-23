@@ -69,7 +69,12 @@ async function kit(eachOf: Record<string, unknown>) {
         };
       const i = input as { action: string; input?: { parent?: string } };
       if (i.action.startsWith("list_matters") && repeatParents.on)
-        return { output: { results: [{ id: "mA", properties: { "/sub": true, "/rev": "1" } }], next: "p" } };
+        return {
+          output: {
+            results: ["mA", "mB", "mC"].map((id) => ({ id, properties: { "/sub": true, "/rev": "1" } })),
+            next: "p",
+          },
+        };
       if (i.action === "list_matters")
         return { output: { results: [...parents].map(([id, properties]) => ({ id, properties })) } };
       const p = i.input?.parent as string;
@@ -261,12 +266,21 @@ test("an item the app's page held too many inner rows for is left out and named;
 
 test("a parent list that repeats a page leaves every child where it is: the sweep removes nothing for a parent it never saw", async () => {
   const k = await kit({});
+  k.parents.set("mD", { "/sub": true, "/rev": "1" });
+  k.children.set(
+    "mD",
+    new Map([
+      ["d1", "d1 name"],
+      ["d2", "d2 name"],
+      ["d3", "d3 name"],
+    ]),
+  );
   await k.pass();
-  assert.equal((await k.names()).length, 90);
-  // the app's parent list now answers with the same page over and over (mB and mC are never seen)
+  assert.equal((await k.names()).length, 93);
+  // the app's parent list now answers with the same first page over and over: mD is never seen
   k.repeatParents.on = true;
   k.advance(2 * DAY);
   await k.pass();
-  assert.deepEqual(k.removed(), [], "mB's and mC's children stay");
-  assert.equal((await k.names()).length, 90);
+  assert.deepEqual(k.removed(), [], "mD's children stay: the list may be cut short, it does not say mD is gone");
+  assert.equal((await k.names()).length, 93);
 });
