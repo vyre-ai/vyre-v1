@@ -308,6 +308,12 @@ test("chrome_resume tells the extension how long ago the message that started th
     assert.equal(await sentFor(person("msg_c")), undefined, "a line a routine posted for them");
     assert.equal(await sentFor(person("msg_d", "usr_other")), undefined, "someone else's message");
     assert.equal(await sentFor(person("msg_zzz")), undefined, "a message not in the chat");
+    // what the model puts in the call's own input never reaches the extension
+    const g = harness({ principal: { kind: "agent", id: "agt_scout" }, actingFor: DANA, respond: { "chat.messages.list": () => ({ messages: lines }) } });
+    g.ctx.thread = "thr_1";
+    g.ctx.turn = { kind: "wake" };
+    await Promise.resolve(tool["computers.chrome.resume"]!(g.ctx, { ...MINE, turnMessageAgeMs: 1 } as never)).catch(() => undefined);
+    assert.equal(calls.at(-1)!.args["turnMessageAgeMs"], undefined, "a claim in the input is not forwarded");
   } finally {
     bindPersonalChrome(null);
   }

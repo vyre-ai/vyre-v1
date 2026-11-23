@@ -56,6 +56,9 @@ function randomId(prefix) {
  *   grouping?: () => boolean,
  * }} deps
  */
+/** How strong a pause is: the agent's own stop gives way to a person's Stop or Esc, and those give way to a take-over, never the other way. */
+const PAUSE_RANK = Object.freeze({ tool: 1, person: 2, esc: 2, takeover: 3 });
+
 export function createSessions({
   ext,
   cdp,
@@ -465,6 +468,9 @@ export function createSessions({
      */
     async pause(agentId, by, reason) {
       pausing.delete(agentId);
+      // a pause never goes down: the agent's own stop leaves a person's Stop, Esc or take-over (and the time it was made) as it was, and a person's Stop or Esc leaves their take-over until Give back
+      const was = paused.get(agentId);
+      if (was && PAUSE_RANK[was.by] > PAUSE_RANK[by]) return;
       paused.set(agentId, { by, at: now() });
       for (const [tabId, d] of [...drivers]) {
         if (d.agent.id !== agentId) continue;

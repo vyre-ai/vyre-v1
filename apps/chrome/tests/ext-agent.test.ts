@@ -906,7 +906,9 @@ test("Stop on the frame gives the tab back, is logged under the agent, and the a
   const st = await w.call("chrome_status");
   assert.equal(st.paused, true);
   await w.call("chrome_stop", { reason: "again" });
-  const r = await w.call("chrome_resume");
+  await w.fails("chrome_resume", {}, "person_stopped"); // the agent's own stop did not make the pause its own
+  await w.advance(50);
+  const r = await w.call("chrome_resume", { turnMessageAgeMs: 10 }); // a person's message started this turn after the Stop
   assert.equal(r.resumed, true);
   assert.equal(w.eventsOf("resumed").length, 1);
   assert.match((await w.call("chrome_snapshot")).tree, /Sign in/);
@@ -1986,6 +1988,55 @@ test("after a person's Stop or Esc, chrome_resume works only when the person has
     await w.call("chrome_resume", { turnMessageAgeMs: 200 }); // a line 200 ms ago, after the stop
     assert.equal((await w.call("chrome_status")).paused, false, `${how}: the person wrote, the agent goes on`);
   }
+});
+
+test("the agent's own chrome_stop never replaces a person's pause: stop then resume is refused under a person's Stop, Esc or take-over", async () => {
+  for (const [how, code] of [["stop", "person_stopped"], ["esc", "person_stopped"], ["takeover", "takeover_held"]] as const) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const port = overlayPort(w);
+    port.send({ type: how });
+    await w.advance(0);
+    await w.advance(1000);
+    await w.call("chrome_stop", { reason: "trying to get around it" });
+    await w.fails("chrome_resume", {}, code);
+    await w.fails("chrome_resume", { turnMessageAgeMs: 5000 }, code); // a message older than the pause still does not count
+    assert.equal((await w.call("chrome_status")).pausedBy, how === "stop" ? "person" : how, `${how}: the person's record stays`);
+  }
+});
+
+test("a person's Stop or Esc during a take-over leaves the take-over: only Give back ends it", async () => {
+  for (const how of ["stop", "esc"]) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const port = overlayPort(w);
+    port.send({ type: "takeover" });
+    await w.advance(0);
+    await w.advance(100);
+    port.send({ type: how });
+    await w.advance(0);
+    await w.advance(1000);
+    await w.fails("chrome_resume", { turnMessageAgeMs: 10 }, "takeover_held");
+    port.send({ type: "giveback" });
+    await w.advance(0);
+    assert.equal((await w.call("chrome_status")).paused, false, `${how}: Give back released it`);
+  }
+});
+
+test("chrome_batch cannot carry chrome_resume or chrome_stop, and a plan runs nothing", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  for (const tool of ["chrome_resume", "chrome_stop"]) {
+    const out = await w.call("chrome_batch", { steps: [{ tool, args: { turnMessageAgeMs: 1 } }] });
+    assert.equal(out.results[0].ok, false, `${tool} is not allowed in a batch`);
+  }
+  assert.equal((await w.call("chrome_status")).paused, false, "the batch stopped nothing");
+  overlayPort(w).send({ type: "stop" });
+  await w.advance(0);
+  await w.advance(100);
+  // while a person's Stop stands, a batch is refused whole, so no step of it can resume
+  await w.fails("chrome_batch", { steps: [{ tool: "chrome_resume", args: { turnMessageAgeMs: 1 } }] }, "paused");
+  assert.equal((await w.call("chrome_status")).paused, true, "still stopped");
 });
 
 test("a pause the agent made itself with chrome_stop it may lift itself", async () => {
