@@ -589,6 +589,78 @@ test("crash: a turn that had started a tool is never replayed: it ends as lost a
   await a.idle("T");
 });
 
+test("restart inside the lease: the host's own leftover lease is no reason to leave its dead turn for 20 seconds", async () => {
+  // The same host stopped under a turn that had started a tool and starts again at once: its lease row is still live, and it names this very holder. Nobody else can be beating it, so recovery at boot
+  // takes the thread over now (the turn ends host_lost for a person to decide) instead of answering false until the lease runs out, which held every wake queued behind that turn for the same time.
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const script: DriverEvent[] = [{ type: "tool_call", id: "c1", name: "send_email", input: {} }, { type: "done" }];
+  const pa = scriptedProvider({ script });
+  const a = createTurnEngine({
+    holder: "host:s",
+    openSession: pa.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    callTool: async () => {
+      await hold.wait;
+      return { ok: true, content: {} };
+    },
+  });
+  const pb = scriptedProvider({ script: ok });
+  const b = createTurnEngine({
+    holder: "host:s",
+    openSession: pb.openSession,
+    queue,
+    leases,
+    now: clock.now,
+    lostTurn: (row) => `trn_row${row.qseq}`,
+  });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => queue.list("T")[0]?.touched === true);
+  assert.equal(b.recover("T"), true, "no wait for a lease that only this host could have been beating");
+  await b.idle("T");
+  const lost = b.events("T").find((e) => e.type === "turn.failed");
+  assert.deepEqual(lost && lost.type === "turn.failed" ? [lost.code, lost.turnId] : [], ["host_lost", "trn_row1"]);
+  assert.equal(queue.list("T")[0]?.state, "done");
+  hold.open();
+  await a.stop("T");
+  await a.idle("T");
+});
+
+test("a lease of another holder still holds recovery off, and so does a thread this engine is running", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const pa = scriptedProvider({
+    script: ok,
+    beforeEvent: async (i) => {
+      if (i === 0) await hold.wait;
+    },
+  });
+  const a = createTurnEngine({ holder: "host:s", openSession: pa.openSession, queue, leases, now: clock.now });
+  a.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => pa.sessions.length === 1);
+  assert.equal(a.recover("T"), false, "the engine that runs the turn never takes its own thread from itself");
+  const other = createTurnEngine({
+    holder: "host:other",
+    openSession: scriptedProvider({ script: ok }).openSession,
+    queue,
+    leases,
+    now: clock.now,
+  });
+  other.openThread(thread("T"));
+  assert.equal(other.recover("T"), false, "another host's live lease holds recovery off");
+  hold.open();
+  await a.idle("T");
+});
+
 test("an engine that runs its own tools crosses the same line: a tool block marks the row", async () => {
   const queue = createMemoryQueue();
   const p = scriptedProvider({

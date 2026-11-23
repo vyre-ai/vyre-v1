@@ -2320,7 +2320,12 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     recover(threadId) {
       const st = need(threadId);
-      if (leases.get(threadId, now())) return false; // someone still holds it and is beating
+      // Someone still holds it and is beating: another holder's live lease, or ours while this engine runs the thread. A live lease that names this very holder, on a thread this engine is not running, is the
+      // leftover of the host's own previous run (a restart inside the lease's 20 seconds): nobody is beating it, so the thread is taken over now. Waiting for it to run out left the dead turn in the queue, and every
+      // wake queued behind it, for that long (the goals live test, 20 Nov).
+      const held = leases.get(threadId, now());
+      if (held && !(held.holder === opts.holder && !st.active && st.inflight.size === 0 && st.running.size === 0))
+        return false;
       // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
       for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
         queue.setState(threadId, row.qseq, "cancelled");
