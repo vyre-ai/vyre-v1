@@ -850,7 +850,7 @@ backup_data() {
   rm -rf "$STAGE"; STAGE=""
   mv "$out.part" "$out" || backup_fail "the backup could not be put in place; nothing was changed."
   chmod 0600 "$out" 2>/dev/null || true
-  [ "$(id -u)" != 0 ] || chown 1000:1000 "$out" 2>/dev/null || true # the server's user reads it to list, check and delete it
+  [ "$(spacedb_os)" = Darwin ] || [ "$(id -u)" != 0 ] || chown 1000:1000 "$out" 2>/dev/null || true # (not on a Mac) the server's user reads it to list, check and delete it
   [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
   prune_backups
