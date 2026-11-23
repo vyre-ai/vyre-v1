@@ -199,6 +199,33 @@ test("mode and owner are set only on a backups folder the command made: a folder
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+test("the backups folder is given to uid 1000 on Linux when run as root, and never on a Mac, where the folder stays the person's own", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "C");
+    const asRoot = `id(){ if [ "$1" = -u ]; then echo 0; else command id "$@"; fi; }; `;
+    const run = (osName: string): string => {
+      fs.rmSync(path.join(dir, "host.log"), { force: true });
+      fs.rmSync(path.join(dir, "backups"), { recursive: true, force: true });
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; ensure_backups_compose`, { ...world(dir, SAME), VYRE_TEST_OS: osName });
+      assert.equal(r.status, 0, r.stderr);
+      return fs.existsSync(path.join(dir, "host.log")) ? fs.readFileSync(path.join(dir, "host.log"), "utf8") : "";
+    };
+    assert.match(run("Linux"), /^chown 1000:1000 \S+\/backups$/m, "Linux: the server's user owns the folder it made");
+    assert.doesNotMatch(run("Darwin"), /^chown/m, "a Mac: no chown");
+    // the backup file itself follows the same rule
+    const take = (osName: string): string => {
+      fs.rmSync(path.join(dir, "host.log"), { force: true });
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, { ...world(dir, SAME), VYRE_TEST_OS: osName });
+      assert.equal(r.status, 0, r.stderr + r.stdout);
+      return fs.readFileSync(path.join(dir, "host.log"), "utf8");
+    };
+    assert.match(take("Linux"), /^chown 1000:1000 \S+vyre-manual-\S+\.tar\.gz$/m, "Linux: the backup is the server user's to read");
+    assert.doesNotMatch(take("Darwin"), /^chown/m, "a Mac: the backup file is not chowned either");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 test("the copy-off hint on a Mac names the file and says to take it off this Mac, never root@", () => {
   const dir = tmp();
   try {
