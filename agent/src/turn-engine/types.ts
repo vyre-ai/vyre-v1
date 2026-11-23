@@ -427,6 +427,8 @@ export interface AccountQuery {
   kind?: "chat" | "wake" | "agent_work";
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
+  /** A look for another account while the first is set aside (a locked key): finding none is expected and is not said in the log. Only a turn that really has no account says so. */
+  probe?: true;
 }
 /** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
 export interface ModelQuery {

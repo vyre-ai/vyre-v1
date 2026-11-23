@@ -117,8 +117,10 @@ export interface EngineOptions {
     /** What the thread is: only a chat a person has with an agent can be gone back to, so only that takes a point. */
     threadKind: string;
   }) => Promise<void>;
-  /** 'host:<space>' or 'device:<id>'. */
+  /** 'host:<space>:<boot id>' or 'device:<id>'. A host's holder names its boot, so a lease of an earlier run of the same host is never mistaken for this run's own. */
   holder: string;
+  /** 'host:<space>': what every boot of this host has in common. A lease whose holder starts with it and is not this boot's is the leftover of an earlier run, taken over only once it has gone a full heartbeat without a renewal (recover). */
+  family?: string;
   openSession: OpenSession;
   /**
    * Which account pays for a turn (engine.account.resolve). Asked before every turn; its answer replaces the engine's own starter/steerer choice for the payer and goes into the
@@ -464,6 +466,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   let noteSeq = 0;
   const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
+  /** What recover() last saw of an earlier boot's lease on a thread: when it expires and since when it has not moved. */
+  const unmoved = new Map<string, { holder: string; expiresAt: number; since: number }>();
   const messages = opts.messages ?? createMemoryMessages();
   const waits = opts.waits ?? createMemoryWaits();
   const now = opts.now ?? Date.now;
@@ -2320,7 +2324,35 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     recover(threadId) {
       const st = need(threadId);
-      if (leases.get(threadId, now())) return false; // someone still holds it and is beating
+      // Someone still holds it and is beating: any live lease, with one exception. A lease of an EARLIER BOOT of this same host (holder = family + another boot id) is the leftover of the run that died under the
+      // turn, but a process that is slow to exit, paused, or still draining may be alive and beating it, and two processes would then answer the same message. So it is taken over only after it has gone two
+      // heartbeats with no renewal: the first look records when it expires, a later look sees it unmoved for 2 * HEARTBEAT_MS and a margin (a live holder renews every HEARTBEAT_MS, moving it; a busy one may be
+      // 3.6 s late, as the CI box was on 20 Nov, and still misses at most one beat), and the takeover is a
+      // compare-and-set, so the old holder's next renew answers false and its turn ends lease_lost instead of carrying on beside ours. Another holder's lease, and a thread this engine runs, still hold recovery off.
+      // This assumes one live process per boot id; two processes on one Space are told apart by their boot ids, never by the family.
+      const held = leases.get(threadId, now());
+      if (!held) unmoved.delete(threadId); // expired, released or never held: nothing to remember
+      if (held) {
+        const earlierBoot =
+          opts.family !== undefined &&
+          held.holder !== opts.holder &&
+          held.holder.startsWith(`${opts.family}:`) &&
+          !st.active &&
+          st.inflight.size === 0 &&
+          st.running.size === 0;
+        if (!earlierBoot) {
+          unmoved.delete(threadId);
+          return false;
+        }
+        const seen = unmoved.get(threadId);
+        if (!seen || seen.holder !== held.holder || seen.expiresAt !== held.expiresAt) {
+          unmoved.set(threadId, { holder: held.holder, expiresAt: held.expiresAt, since: now() });
+          return false;
+        }
+        if (now() - seen.since < 2 * HEARTBEAT_MS + 1_000) return false;
+        if (!leases.takeOver(threadId, opts.holder, held.holder, now())) return false;
+        unmoved.delete(threadId);
+      }
       // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
       for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
         queue.setState(threadId, row.qseq, "cancelled");

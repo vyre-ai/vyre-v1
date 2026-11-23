@@ -108,6 +108,7 @@ import {
   sqlQueue,
   sqlWaits,
   sqlJournal,
+  mintId,
 } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
@@ -346,14 +347,15 @@ export async function resolveOne(
       code: "engine.model_unavailable",
     });
   if (!res.allowed || !res.accountRef || !res.payer) {
-    h.log?.("no account can pay for this turn", {
-      threadId: q.threadId,
-      agentId: q.agentId,
-      asker: q.askerId,
-      allowed: res.allowed,
-      reason: res.reason,
-      accountRef: res.accountRef ?? null,
-    });
+    if (q.probe !== true)
+      h.log?.("no account can pay for this turn", {
+        threadId: q.threadId,
+        agentId: q.agentId,
+        asker: q.askerId,
+        allowed: res.allowed,
+        reason: res.reason,
+        accountRef: res.accountRef ?? null,
+      });
     return null;
   }
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };
@@ -1186,7 +1188,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     mirrorRef = mirror;
     const engine = createTurnEngine({
       hooks: hooksPort,
-      holder: h.holder,
+      holder: `${h.holder}:${mintId("b").slice(2)}`,
+      family: h.holder,
       // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
       ...(h.dataDir
         ? {
