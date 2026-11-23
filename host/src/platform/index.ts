@@ -2,6 +2,7 @@
 // The real implementation uses node:child_process and node:fs only. Nothing here assumes Linux or macOS beyond what a probe checks for itself.
 import { execFile } from "node:child_process";
 import fs from "node:fs";
+import http from "node:http";
 import os from "node:os";
 
 export interface RunResult {
@@ -24,7 +25,51 @@ export interface Platform {
   freeBytes(dir: string): number | null;
   /** The text of a file, or null when it cannot be read. */
   readFile(file: string): string | null;
+  /**
+   * Ask Docker's own socket for its version, without starting a process: the daemon holds gigabytes, and forking a command from it (as the probe did every minute) cost a quarter of a second of the loop on the
+   * mini. `null` when there is no socket to ask (the CLI answers then), else the version or why it did not answer.
+   */
+  dockerVersion?(timeoutMs: number): Promise<{ version: string } | { error: "down" | "timeout" } | null>;
   now(): number;
+}
+
+/** The unix socket Docker listens on for this process: DOCKER_HOST when it names one, else the default path when it exists. `null`: a TCP host, a context only the CLI resolves, or no socket. */
+function dockerSocket(): string | null {
+  const host = process.env["DOCKER_HOST"];
+  if (host) return host.startsWith("unix://") ? host.slice("unix://".length) : null;
+  const def = "/var/run/docker.sock";
+  try {
+    return fs.statSync(def).isSocket() ? def : null;
+  } catch {
+    return null;
+  }
+}
+
+export function dockerVersionOverSocket(
+  timeoutMs: number,
+): Promise<{ version: string } | { error: "down" | "timeout" } | null> {
+  const socketPath = dockerSocket();
+  if (socketPath === null) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const req = http.request({ socketPath, path: "/version", method: "GET", timeout: timeoutMs }, (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (c: Buffer) => chunks.push(c));
+      res.on("end", () => {
+        try {
+          const v = JSON.parse(Buffer.concat(chunks).toString("utf8")) as { Version?: unknown };
+          resolve(res.statusCode === 200 && typeof v.Version === "string" ? { version: v.Version } : { error: "down" });
+        } catch {
+          resolve({ error: "down" });
+        }
+      });
+    });
+    req.on("timeout", () => {
+      resolve({ error: "timeout" });
+      req.destroy();
+    });
+    req.on("error", () => resolve({ error: "down" }));
+    req.end();
+  });
 }
 
 const osName = (p: string): OsName => (p === "darwin" || p === "linux" || p === "win32" ? p : "other");
@@ -66,6 +111,7 @@ export function nodePlatform(): Platform {
         return null;
       }
     },
+    dockerVersion: dockerVersionOverSocket,
     now: () => Date.now(),
   };
 }
