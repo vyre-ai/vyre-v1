@@ -58,6 +58,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.proposal.discard": Handler<"automations.proposal.discard", X>;
   "automations.read_docs": Handler<"automations.read_docs", X>;
   "automations.read_link": Handler<"automations.read_link", X>;
+  "automations.readiness": Handler<"automations.readiness", X>;
   "automations.replay": Handler<"automations.replay", X>;
   "automations.restore_version": Handler<"automations.restore_version", X>;
   "automations.retry": Handler<"automations.retry", X>;
@@ -67,6 +68,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.senders": Handler<"automations.senders", X>;
   "automations.set_enabled": Handler<"automations.set_enabled", X>;
   "automations.set_owner": Handler<"automations.set_owner", X>;
+  "automations.stage_offers": Handler<"automations.stage_offers", X>;
+  "automations.step_ask": Handler<"automations.step_ask", X>;
   "automations.steps.list": Handler<"automations.steps.list", X>;
   "automations.stop": Handler<"automations.stop", X>;
   "automations.templates.list": Handler<"automations.templates.list", X>;
@@ -87,4 +90,6 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "automations.watches.save": Handler<"automations.watches.save", X>;
   "automations.webhook_url.get": Handler<"automations.webhook_url.get", X>;
   "automations.webhook_url.rotate": Handler<"automations.webhook_url.rotate", X>;
+  "automations.why_not": Handler<"automations.why_not", X>;
+  "automations.would_run": Handler<"automations.would_run", X>;
 }

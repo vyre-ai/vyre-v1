@@ -576,6 +576,7 @@
   "automations_read_docs": {
     "url": "https://acme.test/plan"
   },
+  "automations_readiness": {},
   "automations_replay": {
     "automationId": "aut_a1b2c3",
     "runId": "run_a1b2c3",
@@ -670,6 +671,13 @@
   "automations_webhook_url_rotate": {
     "automationId": "aut_a1b2c3",
     "confirm": true
+  },
+  "automations_why_not": {
+    "type": "contact",
+    "recordId": "rec_a1b2c3"
+  },
+  "automations_would_run": {
+    "automationId": "aut_a1b2c3"
   },
   "backup_config_get": {},
   "backup_config_set": {
@@ -2890,6 +2898,9 @@
   "install_remove": {
     "installId": "ins_a1b2c3"
   },
+  "journeys_adopt": {
+    "journeyId": "jrn_a1b2c3"
+  },
   "journeys_create": {
     "name": "Quarterly planning",
     "subjectType": "contact"
@@ -2961,8 +2972,23 @@
   "journeys_tasks": {
     "recordId": "rec_a1b2c3"
   },
+  "journeys_test_path": {
+    "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_values_get": {
+    "recordId": "rec_a1b2c3"
+  },
+  "journeys_values_set": {
+    "recordId": "rec_a1b2c3",
+    "key": "plan",
+    "value": "Premium"
+  },
   "journeys_versions": {
     "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_where": {
+    "journeyId": "jrn_a1b2c3",
+    "recordId": "rec_a1b2c3"
   },
   "kits_builder_open": {},
   "kits_choose": {

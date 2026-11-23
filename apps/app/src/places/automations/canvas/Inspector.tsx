@@ -44,6 +44,7 @@ import {
   setBranch,
   subtitleOf,
   titleOfKey,
+  stepAsks,
   updateStep,
   triggerMeta,
 } from "./model.ts";
@@ -665,7 +666,7 @@ export function Inspector({
                     node.input["method"] === "HEAD")
                 ) ? (
                   <SendApproval
-                    on={node.askBeforeSending === true}
+                    on={stepAsks(node)}
                     onSet={(next) => onChange(updateStep(def, node.id, { askBeforeSending: next }))}
                   />
                 ) : null}

@@ -1,0 +1,1 @@
+A board card has one explicit move: dragging, keys, a menu, the multi-select bar and undo all go through it, and two people moving one card, a stage that refuses after the lift, or an Automation moving the card mid-drag each have one plain answer.

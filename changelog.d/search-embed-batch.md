@@ -1,0 +1,1 @@
+- Search vectors are written a page at a time in one transaction with one generation write (they were four statements and as many commits a document).

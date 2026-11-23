@@ -122,6 +122,7 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "calendar.list_events": ["from:From", "to:To", "query:Search", "~calendarIds:Calendars"],
   start_journey: ["journeyId:Journey", "subjectRecordId:Record", "startStage:First stage"],
   "journeys.move_stage": ["journeyId:Journey", "recordId:Record", "toStage:Stage", "~reason:Why it moves"],
+  "journeys.values.set": ["recordId:Record", "key:Name", "value:Value"],
   "forms.link_create": [
     "formId:Form",
     "recordId:Record",

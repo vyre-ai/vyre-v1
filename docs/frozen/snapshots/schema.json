@@ -3,7 +3,7 @@
   "capabilities": {
     "schema.apply@1": "8ac3745f90319b367d78de78c41fd9332e7f229e26f8312f9702f7ef8aa28062",
     "schema.changes.list@1": "07a5b4bfd54341901afff8bd00856c4a52943e0cd3d1f7c9b2da4b398394492f",
-    "schema.describe@1": "1c769f3b9c6807e1f39b425f9a776786ae333d7ecf4d54a4023eac85a8256f0b",
+    "schema.describe@1": "ea78fc39ae04af747bff223f1181981ef6af6ec2cb6bab89d03f3255bcc14cb9",
     "schema.diff@1": "32f6dacfbf6c928c49126a544f8a766c3c1c473d80341f9b082223f5fd2437a3",
     "schema.field_types@1": "be8c48c859d4310a03a39080103fd7e3d87a997489e18ae90f81144a84cca304",
     "schema.gap_rules.list@1": "555c333c53bd87492a4dcf3dd64d411fd872451790b9f7b0f89a0cbbaab4299d",
@@ -17,7 +17,7 @@
     "schema.set_label@1": "4fda783c9af552e55e9684026235883dc19688a0c239df83eb80d5496ce6f856",
     "schema.set_mergeable@1": "bf7065d2a20ac4cf741c9eeec333302e3eba4e3b02235889d1c529bb4798f0a9",
     "schema.trash.list@1": "31657a99e2f8e62812976b610245df2e1fd56aef059a0439e4aac3cc4858e58f",
-    "schema.types.get@1": "3f506dddbcf654abe9d708807a67a2f94033464217cfadd5de692e6b105edd59",
+    "schema.types.get@1": "b3f027c98215e6294f4dd47502f7161ccb6e90824a1420f395172a3636282083",
     "schema.types.list@1": "401ea2d45ed576406007aba750d73ab1f642278cd29b10357650baa3e13386cb",
     "schema.view_kinds@1": "48bd08ccba2068000d6e3947e04d7373098d57d82b7e7266406fc8846ae88bd4",
     "views.delete@1": "bb2dbf7bc45ab48554a3aca7589c39ba356d7f939929db9d9302bb71fe3ecbfb",

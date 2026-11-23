@@ -213,9 +213,11 @@ function Page({
     const now = Date.now();
     const again = last.current && last.current.id === row.id && now - last.current.at < DOUBLE_MS;
     last.current = { id: row.id, at: now };
+    // on a phone the first tap on a sidebar row shows that group's list, and a tap on a row of the list opens it: there is no double tap to open with
+    const inList = !wide && showList;
     setSelected(row.id);
     setGroup(row.group);
-    if (again) d.nav.open(row.group, row.id);
+    if (again || inList) d.nav.open(row.group, row.id);
     if (!wide) setShowList(true);
   };
 

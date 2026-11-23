@@ -58,6 +58,16 @@ export interface ShellRuntime extends RuntimeBase {
   /** True when the server defers this capability (it answers "Not in this version yet"). */
   isDeferred(cap: string): boolean;
   open(target: ShellTarget): void;
+  /**
+   * The last answer this device has for a read, at once: from this session's own reads, else from what the device kept of the Space (session/kept.ts). For the first draw of something that reads
+   * with `call` and keeps the answer in its own state: start from this, and make the read as before. Undefined when there is none, and always for a read that is never kept (the Vault, keys).
+   */
+  recall?<T = unknown>(cap: string, input?: Record<string, unknown>): T | undefined;
+  /**
+   * The pointer rests on something that opens `target`, or it has the focus, or (`pressed`) it is being pressed: the code of the place it leads to and what its page reads first are started
+   * now, so they are there when the press is let go (r41). Bounded by the session (a few reads at once, nothing asked twice in a moment), and the Vault is never read ahead. Absent where there is no live Space.
+   */
+  warm?(target: ShellTarget, pressed?: boolean): void;
   /** How a link to a thing renders for this person (ui/reach): live, a peek or plain text. Absent: every link is live. */
   links?: LinkPolicy;
   openUrl(url: string): void;

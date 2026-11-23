@@ -14,6 +14,12 @@ export function recordsData(rt: ShellRuntime, screen?: string, canEditSchema = f
     call: rt.call,
     connection: rt.connection,
     nameOf: nameLookup(rt),
+    actorOf: (id) => {
+      const snap = rt.principals.getSnapshot();
+      if (snap.status !== "ready") return null;
+      const p = snap.data.find((x) => x.id === id);
+      return p ? { kind: p.kind, name: p.name } : null;
+    },
     nav: {
       openRecord: (recordId) => rt.open({ subject: { type: "record", id: recordId } }),
       openType: (type) => rt.open({ place: "records", args: { type } }),

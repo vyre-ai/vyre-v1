@@ -1,0 +1,1 @@
+- The cursors a hook consumer holds back while it moves past events it does not take are stored a second after the last pass, so an idle Space's stored cursors reach the head.

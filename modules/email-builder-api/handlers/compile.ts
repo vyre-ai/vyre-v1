@@ -11,6 +11,8 @@ import {
   cutBlocks,
   cutTags,
   replaceAnchors,
+  neutralizeCssUrls,
+  neutralizeUrlAttrs,
   replaceTokens,
   stripEventAttrs,
   stripTags,
@@ -300,11 +302,10 @@ export function cleanHtml(code: string): string {
     (name, tag) => (name === "button" ? /formaction/i.test(tag) : name === "meta" ? /http-equiv/i.test(tag) : true),
   );
   s = stripEventAttrs(s);
-  s = s.replace(
-    /\b(href|src|action|background|poster)\s*=\s*("|')\s*(?:javascript|vbscript|data\s*:\s*text\/html)[^"']*\2/gi,
-    "$1=$2#$2",
-  );
-  s = s.replace(/url\(\s*["']?\s*(?:javascript|vbscript)[^)]*\)/gi, "none");
+  s = neutralizeUrlAttrs(s);
+  // what the URL and style rewrite produced is checked again: nothing it writes may carry a handler
+  s = stripEventAttrs(s);
+  s = neutralizeCssUrls(s);
   s = s.replace(/expression\s*\(/gi, "blocked(");
   return s;
 }

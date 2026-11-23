@@ -926,6 +926,12 @@
     },
     {
       "deferred": false,
+      "name": "automations_readiness",
+      "summary": "What each Automation is missing before it can be turned on",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "automations_replay",
       "summary": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
       "toolset": "automations"
@@ -1078,6 +1084,18 @@
       "deferred": false,
       "name": "automations_webhook_url_rotate",
       "summary": "Rotate the secret in the webhook URL; the old URL stops working",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_why_not",
+      "summary": "Why Automations did not run for a record, and what stopped each",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "automations_would_run",
+      "summary": "How often it would have started last week",
       "toolset": "automations"
     },
     {
@@ -5071,6 +5089,12 @@
       "toolset": "agents"
     },
     {
+      "deferred": true,
+      "name": "journeys_adopt",
+      "summary": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
+      "toolset": "automations"
+    },
+    {
       "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
@@ -5150,8 +5174,32 @@
     },
     {
       "deferred": false,
+      "name": "journeys_test_path",
+      "summary": "Test every stage's Automations on a record; nothing is sent",
+      "toolset": "automations"
+    },
+    {
+      "deferred": true,
+      "name": "journeys_values_get",
+      "summary": "Values a Journey carries for a record",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "journeys_values_set",
+      "summary": "Keep a Journey value for a record",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
       "name": "journeys_versions",
       "summary": "List versions of a Journey definition",
+      "toolset": "automations"
+    },
+    {
+      "deferred": false,
+      "name": "journeys_where",
+      "summary": "Where a record is on its Journey",
       "toolset": "automations"
     },
     {

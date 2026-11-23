@@ -203,6 +203,11 @@ export function fakeWorld(clock: { t: number }) {
       delete f.deleted;
       return { folder: f };
     },
+    "records.counts": (i) => ({
+      count: [...records.values()].filter(
+        (r) => r.type === i.type && (!i.filter || [undefined, null, ""].includes(r.fields["folder"] as never)),
+      ).length,
+    }),
     "records.query": (i) => ({ rows: [...records.values()].filter((r) => r.type === i.type).map(recordOut) }),
     "access.shares_of": (i) =>
       i.resource.type === "folder"

@@ -360,6 +360,14 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
         JSON.stringify(secrets),
         now,
       );
+      // the person is recorded as the maker: for an agent acting on a person's behalf that is the person (the actor is who it acts for, as everywhere in Vyre); an Automation, or an agent with no
+      // person behind it, has no one to tell, and the Space's admins are told instead
+      if (/^usr_/.test(actorOf(ctx)))
+        tx.run(
+          "INSERT OR REPLACE INTO cn_connection_creators (connection_id, created_by) VALUES (?, ?)",
+          id,
+          actorOf(ctx),
+        );
       // the hosts this connection's key may go to, fixed now: what its actions call, never what the definition says later
       // (an action whose address takes its host from the caller's input has no fixed host to record: such a connection keeps the connector's declared domains as its limit, and the card never connects it)
       // always, when a key can travel: an empty list (a connector with no addresses yet) allows no host until a person approves one

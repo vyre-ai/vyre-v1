@@ -1,6 +1,6 @@
 // The mount sheet (spec 2.16 Mounts, 3.5 Files > mount a folder; screen files.mount-sheet). Three steps in one dialog:
 //   1 pick a source: Google Drive, Microsoft 365, This computer, GitHub (keys 1 to 4);
-//   2 browse the provider's tree, or search repositories, and pick one thing (a folder row opens with its chevron or a double press);
+//   2 browse the provider's tree, or search repositories: a tap on a folder goes into it and Choose this folder picks the one you are in (a repository is picked by the tap);
 //   3 options: Name, Who can see it, Copy (this computer only: Synced copy or Live only), Branch (GitHub), Into. Mount makes the folder and starts its first sync; Review changes is on for cloud folders
 //     and repositories and is changed later in the folder's sync line.
 // Reads come from mounts.browse and mounts.list; the one write is mounts.add, then access.share for the people chosen. Rows are ui/Row with leading and trailing slots (ruling 36).
@@ -33,10 +33,12 @@ import {
   next,
   pathKey as pathKeyOf,
   pick,
+  chooseHere,
   setQuery,
   sourceOf,
   togglePerson,
   walkInto,
+  walkAllowed,
   walkTo,
   whoLabel,
 } from "./model.ts";
@@ -64,8 +66,6 @@ export interface MountSheetProps {
   /** The shell's command door (pick_paths). Defaults to the desktop shell's; absent on the web and the phone, where "This computer" only says where local folders are added. */
   invoke?: Invoke | undefined;
 }
-
-const DOUBLE_MS = 450;
 
 const markKind = (k: MountKind | SourceId): MarkKind => (k === "microsoft" ? "microsoft" : (k as MarkKind));
 
@@ -97,7 +97,6 @@ export function MountSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const skipFirst = useRef(preload !== undefined);
-  const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const [attempt, setAttempt] = useState(0);
   // An account connected from inside the sheet (connect in place) is used at once, before the Space's list is read again.
   const [fresh, setFresh] = useState<Partial<Accounts>>({});
@@ -194,15 +193,15 @@ export function MountSheet({
     );
   };
 
+  // one behaviour everywhere, a phone has no double press: a tap on a folder goes into it, and "Choose this folder" picks the one you are in. A repository or anything that is not a folder is picked by the tap.
+  const walked = useRef(0);
   const press = (it: BrowseItem): void => {
-    const key = `${it.kind}:${it.ref}`;
-    const now = Date.now();
-    const twice = last.current.key === key && now - last.current.at < DOUBLE_MS;
-    last.current = { key, at: now };
-    if (twice) {
-      if (d.source === "github") setD((x) => next(pick(x, it)));
-      else if (it.isFolder) setD((x) => walkInto(x, it));
-      else setD((x) => next(pick(x, it)));
+    if (d.source !== "github" && it.isFolder) {
+      // a double click is two presses: the second would land on a row of the folder just entered (a cached list). One walk per 300 ms (the second click of a double click lands on a different row, so the guard is on time alone).
+      const now = Date.now();
+      if (!walkAllowed(walked.current, now)) return;
+      walked.current = now;
+      setD((x) => walkInto(x, it));
       return;
     }
     setD((x) => pick(x, it));
@@ -348,6 +347,9 @@ export function MountSheet({
     d.step === 2
       ? [
           { label: "Back", onPress: () => setD((x) => back(x)), testID: "mount-back" },
+          ...(d.source !== "github" && d.path.length > (d.source === "onedrive" ? 1 : 0)
+            ? [{ label: "Choose this folder", onPress: () => setD((x) => chooseHere(x)), testID: "mount-choose-here" }]
+            : []),
           {
             label: "Next",
             primary: true,

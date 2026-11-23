@@ -159,6 +159,9 @@ export const INFRA = Object.freeze(
   ]),
 );
 
+/** /__vyre/info.json holds nothing private (a name, its nickname, its route id, whether it is awake: all of it what the name's own page already gets), so any page may read it. */
+const INFO_CORS = { "access-control-allow-origin": "*" };
+
 const json = (status, body, headers = {}) =>
   new Response(JSON.stringify(body), {
     status,
@@ -772,7 +775,13 @@ export async function onHost(request, env, name, artifact = false) {
   } catch {
     return passthrough(request, env);
   }
-  if (!info.route || info.released) return passthrough(request, env);
+  if (!info.route || info.released) {
+    // "is this name a Space on the relay?" has an answer for a name nobody holds too, readable from any page: the app's address box tells a wrong name ("No Space at ...") from a Space
+    // that is not answering. It says only that the name is free here, which the names directory says to anyone already.
+    if (!artifact && url.pathname === "/__vyre/info.json" && (request.method === "GET" || request.method === "HEAD"))
+      return json(404, { name, held: false }, INFO_CORS);
+    return passthrough(request, env);
+  }
   const relayWss = String(env.RELAY_PUBLIC_URL || "wss://relay.vyre.run");
   /** @param {string} route @returns {Promise<{ online: boolean, seenAt: number | null }>} */
   const stateOf = async (route) => {
@@ -834,23 +843,33 @@ export async function onHost(request, env, name, artifact = false) {
     });
   if (url.pathname === "/__vyre/info.json") {
     const s = await all();
-    return json(200, {
-      name,
-      label: info.label || "",
-      route: info.route,
-      relay: relayWss,
-      online: await online(),
-      hooks: true,
-      ...(members.length
-        ? {
-            computers: routes.map((r, i) => ({
-              label: r.label,
-              online: Boolean(s[i]?.online),
-              seenAt: s[i]?.seenAt ?? null,
-            })),
-          }
-        : {}),
-    });
+    // readable from any page (INFO_CORS): the desktop app and a page of another Space ask it to learn that this name is a relay Space, and whether its computer is awake
+    return json(
+      200,
+      {
+        name,
+        label: info.label || "",
+        route: info.route,
+        relay: relayWss,
+        online: await online(),
+        hooks: true,
+        // when a computer of the Space was last seen, for "is asleep" said somewhere other than this name's own page
+        seenAt: s.reduce(
+          (/** @type {number | null} */ m, x) => (x.seenAt && (!m || x.seenAt > m) ? x.seenAt : m),
+          null,
+        ),
+        ...(members.length
+          ? {
+              computers: routes.map((r, i) => ({
+                label: r.label,
+                online: Boolean(s[i]?.online),
+                seenAt: s[i]?.seenAt ?? null,
+              })),
+            }
+          : {}),
+      },
+      INFO_CORS,
+    );
   }
   if (url.pathname.startsWith("/__vyre/")) {
     if (!env.ASSETS || (request.method !== "GET" && request.method !== "HEAD"))

@@ -180,6 +180,8 @@ import {
   modeOf,
   schemaFromFields,
   setDoneMeans,
+  setSkills,
+  skillsText,
   setMode,
   setNudgeMinutes,
   setTimeLimit,
@@ -313,4 +315,12 @@ test("every template the engine's tests use goes to chips and back unchanged; an
     chips.map((c) => (c.kind === "chip" ? Boolean(c.formula) : null)),
     [true, false],
   );
+});
+
+test("skills are names, one per line or comma separated; bullets, blanks and repeats are dropped; at most five; none leaves the field out", () => {
+  assert.deepEqual(setSkills({}, "- intake\n\nletters, intake\n• tone").skills, ["intake", "letters", "tone"]);
+  assert.equal(setSkills({}, "a,b,c,d,e,f,g").skills?.length, 5);
+  assert.equal(setSkills({ skills: ["a"], agentId: "x" }, "  \n").skills, undefined);
+  assert.deepEqual(setSkills({ skills: ["a"], agentId: "x" }, ""), { agentId: "x" });
+  assert.equal(skillsText({ skills: ["intake", "letters"] }), "intake\nletters");
 });

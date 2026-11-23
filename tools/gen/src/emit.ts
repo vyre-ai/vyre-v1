@@ -71,6 +71,16 @@ export function emitAll(reg: Registry): Files {
     "# generated\n\nEverything here is written by `tools/gen` from `manifests/`. Never edit by hand; run `node tools/gen/src/cli.ts` and commit the result. CI runs `--check` and fails on drift.\n",
   );
   put("registry.json", registryJson);
+  // what the schema module seeds a Space from (field types, view kinds, record types, the kits' module ids): 60 KB of the 4 MB, so the start reads and parses this and not the whole registry
+  put(
+    "schema-seed.json",
+    canonicalCompact({
+      fieldTypes: shared.fieldTypes,
+      viewKinds: shared.viewKinds,
+      recordTypes: shared.recordTypes,
+      modules: shared.modules,
+    }),
+  );
   put(
     "registry.ts",
     `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it holds no crypto import. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = JSON.parse(text) as Registry;\n`,

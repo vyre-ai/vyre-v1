@@ -2,7 +2,7 @@
 // Schema module (lane L3). The host loads these handlers once the manifest status is live (ARCH 12.4).
 // A schema handle works over a RecordStore: types live in the store (rs_types, rt_<type>), full definitions in sc_types. Standalone (tests, the loader entry below) it opens
 // its own kernel store; the host passes the Space's shared store and tx when it builds the handle.
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { Store } from "../../kernel/src/store/types.ts";
@@ -20,18 +20,30 @@ import type { FieldDefT, FieldTypeRow, Registry, SchemaCtx, SchemaDeps, SeedType
  * The registry the schema module seeds a new Space from. A new Space starts with the neutral set of record types: the types a Kit declares (matters, commissions, client plans ...) are left out and
  * arrive when that Kit is installed (the Kit's own schema.apply step creates them). The default Kit's types stay.
  */
+interface RawRegistry {
+  fieldTypes: FieldTypeRow[];
+  viewKinds: ViewKindRow[];
+  recordTypes: (SeedType & { module?: string })[];
+  modules?: { id: string; kind?: string }[];
+}
+// The file is read and parsed once per file version: the start asked for it three times (the Space's seed, and twice for the example Kit's keys), 180 ms in one stretch of a restart.
+const rawCache = new Map<string, { at: number; size: number; raw: RawRegistry }>();
+function readRaw(path: URL): RawRegistry {
+  const st = statSync(path);
+  const have = rawCache.get(path.href);
+  if (have && have.at === st.mtimeMs && have.size === st.size) return have.raw;
+  const raw = JSON.parse(readFileSync(path, "utf8")) as RawRegistry;
+  rawCache.set(path.href, { at: st.mtimeMs, size: st.size, raw });
+  return raw;
+}
 export function loadRegistry(
-  path: URL = new URL("../../generated/registry.json", import.meta.url),
+  path: URL = new URL("../../generated/schema-seed.json", import.meta.url),
   o: { withKitTypes?: boolean } = {},
 ): Registry {
-  const raw = JSON.parse(readFileSync(path, "utf8")) as {
-    fieldTypes: FieldTypeRow[];
-    viewKinds: ViewKindRow[];
-    recordTypes: (SeedType & { module?: string })[];
-    modules?: { id: string; kind?: string }[];
-  };
+  const raw = readRaw(path);
   const kits = new Set((raw.modules ?? []).filter((m) => m.kind === "kit" && m.id !== "default").map((m) => m.id));
-  return {
+  // a caller may change what it is given (it did, when every call parsed its own copy): each gets its own copy of the parts it takes
+  return structuredClone({
     fieldTypes: raw.fieldTypes,
     viewKinds: raw.viewKinds,
     recordTypes: raw.recordTypes
@@ -40,7 +52,7 @@ export function loadRegistry(
         void _m;
         return { ...t, fields: t.fields as FieldDefT[] };
       }),
-  };
+  });
 }
 
 export interface SchemaHandle {

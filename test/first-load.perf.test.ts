@@ -147,8 +147,19 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
       await cdp.send("Network.enable");
       await cdp.send("Network.emulateNetworkConditions", { offline: false, ...LINK });
       let bytes = 0;
-      cdp.on("Network.loadingFinished", (e: { encodedDataLength: number }) => {
+      // VYRE_FIRSTLOAD_FILES=1 lists what a first visit of a signed-in home downloads (largest first), to see what the first screen could do without
+      const names = new Map<string, string>();
+      const files: { url: string; bytes: number; at: number }[] = [];
+      cdp.on("Network.requestWillBeSent", (e: { requestId: string; request: { url: string } }) => {
+        names.set(e.requestId, e.request.url);
+      });
+      cdp.on("Network.loadingFinished", (e: { requestId: string; encodedDataLength: number; timestamp: number }) => {
         bytes += e.encodedDataLength;
+        files.push({
+          url: names.get(e.requestId) ?? "?",
+          bytes: e.encodedDataLength,
+          at: Math.round(e.timestamp * 1000),
+        });
       });
       const rows: { dcl: number; usable: number; bytes: number }[] = [];
       for (let v = 0; v < visits; v++) {
@@ -162,6 +173,14 @@ test("first load: the sign-in form is typable within 1 s cold and 400 ms on a se
           usable: performance.getEntriesByName("app.usable")[0]!.startTime,
         }));
         rows.push({ dcl: Math.round(m.dcl), usable: Math.round(m.usable), bytes });
+        if (process.env["VYRE_FIRSTLOAD_FILES"] === "1" && withSession && v === 0) {
+          const t0 = Math.min(...files.map((f) => f.at));
+          const list = files
+            .slice()
+            .sort((a, b) => b.bytes - a.bytes)
+            .map((f) => `${f.bytes} +${f.at - t0}ms ${f.url.replace(/^https?:\/\/[^/]+/, "").slice(0, 90)}`);
+          console.log(`FIRSTLOAD-FILES (${bytes} bytes)\n${list.join("\n")}`);
+        }
         await page.waitForTimeout(300);
       }
       await ctx.close();

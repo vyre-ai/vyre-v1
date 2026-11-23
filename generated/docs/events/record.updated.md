@@ -23,5 +23,6 @@ type Payload = {
   fields: Record<string, unknown>;
   prev: Record<string, unknown>;
   version: number;
+  quiet?: boolean;
 };
 ```

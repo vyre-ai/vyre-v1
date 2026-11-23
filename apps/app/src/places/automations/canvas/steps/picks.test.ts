@@ -83,8 +83,8 @@ test("an agent on someone's own computer is offered only in its owner's Personal
 import { THINGS, thingPicks, thingInput } from "./picks.ts";
 
 test("files, folders and connections are listed by their names; a record by its own name field", () => {
-  assert.deepEqual(thingPicks(THINGS["fil"]!, { files: [{ fileId: "fil_1", name: "Engagement letter.docx" }] }), [
-    { value: "fil_1", label: "Engagement letter.docx" },
+  assert.deepEqual(thingPicks(THINGS["fil"]!, { files: [{ fileId: "fil_1", name: "Proposal sent.docx" }] }), [
+    { value: "fil_1", label: "Proposal sent.docx" },
   ]);
   assert.deepEqual(thingPicks(THINGS["fld"]!, { files: [], folders: [{ id: "fld_1", name: "Contracts" }] }), [
     { value: "fld_1", label: "Contracts" },

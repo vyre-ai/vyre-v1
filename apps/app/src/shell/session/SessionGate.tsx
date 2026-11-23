@@ -2,19 +2,20 @@ import { activationUrl, isPackagedOrigin, storedPlace } from "./space-catalog.ts
 // The production session boundary. Signed-out and desktop-link flows stay in the startup chunk;
 // the authenticated application shell is loaded only after a stored or verified session exists.
 import { holdOpen } from "../reach/open-link.ts";
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { StyleSheet, View } from "react-native";
 import { loadCryptoKeys, loadRecoveryCrypto } from "../../../../../client/src/crypto/load.ts";
 import { forgetKey, keepKey } from "../../../../../client/src/gateway/key-keeper.ts";
 import { KeyGate } from "./KeyGate.tsx";
+import { kept } from "./kept.ts";
 import { AfterLoad } from "../../startup/after-load.tsx";
 import { loadShellHost, loadedShellHost } from "../../startup/shell-load.ts";
 import { holdKeyOnOwnNode, isLoopbackUrl } from "../../../../../client/src/gateway/local-key.ts";
 import { JoinFlow } from "../../join/JoinFlow.tsx";
 import type { JoinValues } from "../../join/JoinFlow.tsx";
-import { deviceFor, normalizeSpaceAddress } from "../../join/logic.ts";
+import { deviceFor } from "../../join/logic.ts";
 import type { JoinInvite } from "../../join/logic.ts";
 import { aiHomeOf } from "../../ai-signin/own-ai.ts";
 import { spaceLabel } from "../spaces/space-label.ts";
@@ -31,7 +32,24 @@ import {
   TextButton,
   Title,
 } from "../../join/kit.tsx";
-import { NOT_A_SPACE, OFFLINE_SPACE } from "../../join/failure.ts";
+import {
+  ASLEEP_SUB,
+  NOT_AN_INVITE,
+  RECONNECTING,
+  SPACE_TROUBLE,
+  asleep,
+  boxNotAnswering,
+  isUnreachable,
+  noSpaceAt,
+  notASpaceAt,
+  seenAgo,
+} from "../../join/failure.ts";
+import { InBrowser, NotAnswering, YourSpaces } from "../../join/GettingIn.tsx";
+import { OVERLAY_START, decideEntry, decideLanded, overlayStep, phaseStep } from "./getting-in-machine.ts";
+import type { GatePhase, Overlay } from "./getting-in-machine.ts";
+import { rememberBrowserSpace, rememberSession, siblingSessions, yourSpaces } from "./known-spaces.ts";
+import type { SpaceRow } from "./known-spaces.ts";
+import { spaceHost } from "../spaces/space-label.ts";
 import { Welcome } from "../../join/Welcome.tsx";
 import { completeReset } from "../../join/reset.ts";
 import { completeRecovery } from "../../join/recover.ts";
@@ -40,21 +58,24 @@ import { OtherComputer } from "../../join/OtherComputer.tsx";
 import { FirstLaunch } from "../../onboarding/FirstLaunch.tsx";
 import { deviceOf } from "../../onboarding/doors.ts";
 import { wantTeamNext } from "../../onboarding/doors.ts";
-import {
-  consumeBrowserInvite,
-  desktopEntryRefusal,
-  inviteAppLink,
-  VYRE_DOWNLOADS,
-  entryTarget,
-  isMacShell,
-} from "./entry.ts";
+import { browserLink, consumeBrowserInvite, inviteAppLink, VYRE_DOWNLOADS, entryTarget, isMacShell } from "./entry.ts";
 import type { EntryTarget } from "./entry.ts";
 import { useRelayAddress } from "./use-relay-address.ts";
 import { ensureMacServer, ensurePersonalSpace } from "../../../../../client/src/connection/desktop-link.ts";
 import type { Invoke } from "../../../../../client/src/connection/desktop-link.ts";
 import { mark } from "../../startup/marks.ts";
 import type { ShellHub } from "../spaces/hub.ts";
-import { createCapCaller } from "./caps.ts";
+import {
+  CapError,
+  clearOldData,
+  createCapCaller,
+  findSpaceQuietly,
+  hasOldData,
+  healStaleWorker,
+  signInOptions,
+  spaceIdAt,
+} from "./caps.ts";
+import type { Found } from "./caps.ts";
 import {
   JoinRefused,
   acceptDesktopJoin,
@@ -72,7 +93,6 @@ import type { OpenSessionOptions, RealSession } from "./session.ts";
 import {
   clearStored,
   lockName,
-  phaseForStoredAddress,
   readStored,
   readStoredPersonal,
   readStoredSessions,
@@ -116,11 +136,18 @@ export interface SessionGateProps {
   voice?: LoadVoiceDevice;
 }
 
-type Phase =
-  | { kind: "opening-personal" }
-  | { kind: "start-failed"; stored: StoredSession }
-  | { kind: "signin" }
-  | { kind: "shell"; stored: StoredSession };
+/** A way in that did not reach its Space: what was asked for, what the Space is called, and what was found at its address instead. A saved sign-in it belongs to is kept, never deleted. */
+interface Trouble {
+  target: EntryTarget;
+  name: string;
+  found: Found;
+  stored?: StoredSession;
+}
+const OFFLINE: Found = { kind: "offline" };
+
+type Phase = GatePhase<StoredSession>;
+/** A host for a button: long ones are cut for display only. */
+const shortHost = (h: string): string => (h.length > 40 ? `${h.slice(0, 39)}\u2026` : h);
 const noHub = (): void => undefined;
 const hostOf = (baseUrl: string): string => baseUrl.replace(/^https?:\/\//, "").split(":")[0] ?? baseUrl;
 
@@ -175,9 +202,16 @@ export function WithSpaceImage({ address, children }: { address: string | null; 
 }
 
 /** `github` is true only for a caller that wires the GitHub button (the sign-in screen below); a bare invite never lists a control with nothing behind it. */
-export function signInInvite(baseUrl: string, options: SignInOptions | null, github = false, sso = false): JoinInvite {
+export function signInInvite(
+  baseUrl: string,
+  options: SignInOptions | null,
+  github = false,
+  sso = false,
+  knownName?: string,
+): JoinInvite {
   return {
-    space: spaceLabel(options?.name, baseUrl),
+    // the Space's own name once its options arrive; until then the name this device already knows it by (its row, its saved sign-in), so the title does not flash a generic line first
+    space: spaceLabel(options?.name ?? knownName, baseUrl),
     host: hostOf(baseUrl),
     by: "",
     role: "",
@@ -306,12 +340,24 @@ function SignInScreen({
   onSignedIn,
   notice,
   onBack,
+  onUnreachable,
+  username,
+  unproven,
+  knownName,
 }: {
   baseUrl: string;
   open: NonNullable<SessionGateProps["open"]>;
   onSignedIn: (s: StoredSession) => void;
   notice?: boolean | string;
   onBack?: () => void;
+  /** The Space did not answer, after the quiet retries: what was found at its address instead (the gate opens a relay Space in the browser, or says what happened with the fix). */
+  onUnreachable?: (found: Found) => void;
+  /** The username this device last signed in with here (Your Spaces), so a remembered Space asks for the password alone. */
+  username?: string | undefined;
+  /** An address nothing proves is the Space this device knows (a second saved address): its sign-in shows the plain host, never a name or picture the address supplies. */
+  unproven?: boolean;
+  /** What this device already calls the Space (its row in Your Spaces, its saved sign-in): shown as the title until the Space's own options arrive. */
+  knownName?: string | undefined;
 }): ReactElement {
   useEffect(() => {
     mark("app.usable");
@@ -328,24 +374,51 @@ function SignInScreen({
   const [discovery, setDiscovery] = useState<{ address: string; options: SignInOptions } | null>(null);
   const options = discovery?.address === baseUrl ? discovery.options : null;
   const [recoveryHelp, setRecoveryHelp] = useState(false);
-  const [unreachable, setUnreachable] = useState(false);
+  const [reconnecting, setReconnecting] = useState(false);
+  const unreachable = useRef(onUnreachable);
+  unreachable.current = onUnreachable;
   useEffect(() => {
     let active = true;
-    void (anonymous("identity.sign_in_options", {}) as Promise<SignInOptions>)
-      .then((found) => {
-        if (active) {
-          setUnreachable(false);
-          setDiscovery({ address: baseUrl, options: found });
+    // an answer that is not a Space's sign-in options (an empty 200, a page of HTML in front of the address) is no answer: it takes the same way as a call that failed
+    const ask = async (): Promise<SignInOptions> => {
+      const answer = await anonymous("identity.sign_in_options", {});
+      if (!signInOptions(answer)) throw new Error("not a Space's sign-in options");
+      return answer as SignInOptions;
+    };
+    const got = (found: SignInOptions): void => {
+      if (!active) return;
+      setReconnecting(false);
+      setDiscovery({ address: baseUrl, options: found });
+    };
+    void ask()
+      .then(got)
+      .catch(async () => {
+        // no answer. First a worker left from before the Space moved (the page loads again without it); then the quiet retry; only then the screen that says what happened.
+        if (await healStaleWorker()) return;
+        if (!active) return;
+        setReconnecting(true);
+        const found = await findSpaceQuietly(baseUrl);
+        if (!active) return;
+        if (found.kind === "direct") {
+          try {
+            got(await ask());
+            return;
+          } catch {
+            /* it answered the ask and not this page: said below */
+          }
+          if (!active) return;
         }
-      })
-      .catch(() => {
-        if (active) setUnreachable(true);
+        setReconnecting(false);
+        unreachable.current?.(found.kind === "direct" ? { kind: "offline" } : found);
       });
     return () => {
       active = false;
     };
   }, [anonymous, baseUrl]);
-  const invite = useMemo(() => signInInvite(baseUrl, options, true, true), [baseUrl, options]);
+  const invite = useMemo(() => {
+    const made = signInInvite(baseUrl, options, true, true, unproven ? undefined : knownName);
+    return unproven ? { ...made, space: made.host } : made;
+  }, [baseUrl, options, unproven, knownName]);
   const [githubLine, setGithubLine] = useState<string | null>(null);
   useEffect(() => {
     const browser = globalThis as {
@@ -452,7 +525,21 @@ function SignInScreen({
   }, [baseUrl]);
   const signIn = useCallback(
     async (v: { username: string; password: string; code?: string }): Promise<"ok" | "second_factor_required"> => {
-      const result = await passwordSignIn(baseUrl, open, v, options);
+      let result: Awaited<ReturnType<typeof passwordSignIn>>;
+      try {
+        result = await passwordSignIn(baseUrl, open, v, options);
+      } catch (e) {
+        if (!isUnreachable(e)) throw e;
+        // the Space did not answer the sign-in: asked again quietly; once it answers the sign-in goes once more, and only a Space that stays silent is said to be
+        setReconnecting(true);
+        const found = await findSpaceQuietly(baseUrl);
+        setReconnecting(false);
+        if (found.kind !== "direct") {
+          unreachable.current?.(found);
+          throw e;
+        }
+        result = await passwordSignIn(baseUrl, open, v, options);
+      }
       if (currentAddress.current !== baseUrl) throw new Error("The Space address changed. Sign in again.");
       if (result.status === "second_factor_required") return result.status;
       onSignedIn(result.stored);
@@ -472,17 +559,17 @@ function SignInScreen({
     );
   return (
     <JoinFlow
-      key={`${baseUrl}|${githubLine ?? ""}|${ssoLine ?? ""}|${unreachable ? "offline" : ""}`}
+      key={`${baseUrl}|${githubLine ?? ""}|${ssoLine ?? ""}`}
       invite={invite}
+      {...(reconnecting ? { status: RECONNECTING } : {})}
       initial={{
         stage: "signin",
+        ...(username ? { siUser: username } : {}),
         ...((githubLine ?? ssoLine)
           ? { error: (githubLine ?? ssoLine) as string }
           : notice
             ? { error: typeof notice === "string" ? notice : SIGNED_OUT_LINE }
-            : unreachable
-              ? { error: OFFLINE_SPACE }
-              : {}),
+            : {}),
       }}
       onSignIn={signIn}
       onGithub={startGithub}
@@ -533,11 +620,12 @@ function DesktopSignInDoor({
 const OWN_SPACE_HERE = "This computer has its own Personal Space. Opening its sign-in.";
 
 export function ConnectSpaceWelcome({
-  onConnect,
+  onTarget,
   onGetStarted,
   onBack,
 }: {
-  onConnect: (address: string) => void;
+  /** What was typed, made out as a Space, an invite or an owner link. Rejects with the line to show under the box; `onRetry` is called as each quiet retry starts. */
+  onTarget: (target: EntryTarget, onRetry: () => void) => Promise<void>;
   onGetStarted?: () => void;
   onBack?: () => void;
 }): ReactElement {
@@ -546,6 +634,7 @@ export function ConnectSpaceWelcome({
   }, []);
   const [address, setAddress] = useState("");
   const [busy, setBusy] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [error, setError] = useState("");
   const request = useRef(0);
   useEffect(
@@ -556,23 +645,27 @@ export function ConnectSpaceWelcome({
   );
   const connect = async (): Promise<void> => {
     if (busy) return;
-    const normalized = normalizeSpaceAddress(address);
-    const endpoint = normalized ? spaceEndpoint(normalized) : null;
-    if (!endpoint) {
-      setError(NOT_A_SPACE);
+    const target = entryTarget(address);
+    if (!target) {
+      setError(NOT_AN_INVITE);
       return;
     }
     const current = ++request.current;
     setBusy(true);
+    setRetrying(false);
     setError("");
     try {
-      const anonymous = createCapCaller({ baseUrl: endpoint, token: () => null });
-      await anonymous("identity.sign_in_options", {});
-      if (request.current === current) onConnect(endpoint);
-    } catch {
-      if (request.current === current) setError(OFFLINE_SPACE);
+      await onTarget(target, () => {
+        if (request.current === current) setRetrying(true);
+      });
+    } catch (failure) {
+      if (request.current === current)
+        setError(failure instanceof Error && failure.message ? failure.message : SPACE_TROUBLE);
     } finally {
-      if (request.current === current) setBusy(false);
+      if (request.current === current) {
+        setBusy(false);
+        setRetrying(false);
+      }
     }
   };
   return (
@@ -580,10 +673,12 @@ export function ConnectSpaceWelcome({
       <Welcome
         address={address}
         busy={busy}
+        retrying={retrying}
         error={error}
         onAddressChange={(value) => {
           request.current++;
           setBusy(false);
+          setRetrying(false);
           setAddress(value);
           setError("");
         }}
@@ -601,16 +696,24 @@ async function authenticatedSpace(baseUrl: string, token: string): Promise<{ id:
   return { id: space.id, marker: space.fingerprint };
 }
 
+/** A link's first call failed: was it the link (the Space answers, so the link is spent or wrong) or the Space (it does not answer)? Asked quietly; null means the link. */
+async function whyNoAnswer(address: string): Promise<Found | null> {
+  const found = await findSpaceQuietly(address).catch((): Found => ({ kind: "offline" }));
+  return found.kind === "direct" ? null : found;
+}
+
 function DesktopPairScreen({
   route,
   open,
   onSignedIn,
   onSignIn,
+  onUnreachable,
 }: {
   route: Extract<DesktopRoute, { kind: "pair" }>;
   open: NonNullable<SessionGateProps["open"]>;
   onSignedIn: (s: StoredSession) => void;
   onSignIn: () => void;
+  onUnreachable: (found: Found) => void;
 }): ReactElement {
   const [failed, setFailed] = useState(false);
   const started = useRef(false);
@@ -627,12 +730,17 @@ function DesktopPairScreen({
       .then((stored) => {
         if (alive) onSignedIn(stored);
       })
-      .catch(() => {
-        if (alive) setFailed(true);
+      .catch(async () => {
+        // an expired link and a Space that does not answer are different things: only the first is said to be the link
+        const why = await whyNoAnswer(route.address);
+        if (!alive) return;
+        if (why) onUnreachable(why);
+        else setFailed(true);
       });
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onUnreachable is the gate's, read when the failure comes
   }, [onSignedIn, open, route]);
   if (!failed) return <Opening title="Pairing this device" testID="pair-working" />;
   return (
@@ -653,6 +761,7 @@ function DesktopJoinScreen({
   onBack,
   onSignIn,
   deviceClass,
+  onUnreachable,
 }: {
   route: Extract<DesktopRoute, { kind: "join" }>;
   open: NonNullable<SessionGateProps["open"]>;
@@ -660,6 +769,7 @@ function DesktopJoinScreen({
   onBack: () => void;
   onSignIn: () => void;
   deviceClass: "web" | "desktop";
+  onUnreachable: (found: Found) => void;
 }): ReactElement {
   const anonymous = useMemo(() => createCapCaller({ baseUrl: route.address, token: () => null }), [route.address]);
   const [join, setJoin] = useState<Awaited<ReturnType<typeof previewDesktopJoin>> | null>(null);
@@ -687,12 +797,18 @@ function DesktopJoinScreen({
       .then((found) => {
         if (alive) setJoin(found);
       })
-      .catch(() => {
-        if (alive) setFailed(true);
+      .catch(async () => {
+        // a worker left from before the Space moved first (the page loads again without it); then: is it the invite, or the Space that does not answer?
+        if (await healStaleWorker()) return;
+        const why = await whyNoAnswer(route.address);
+        if (!alive) return;
+        if (why) onUnreachable(why);
+        else setFailed(true);
       });
     return () => {
       alive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- onUnreachable is the gate's, read when the failure comes
   }, [anonymous, attempt, route]);
   const onJoin = useCallback(
     async (values: JoinValues): Promise<void> => {
@@ -1043,7 +1159,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     props.baseUrl === undefined ? spaceAddress() : props.baseUrl === null ? null : spaceEndpoint(props.baseUrl);
   const open = props.open ?? openRealSession;
   const onHub = props.onHub ?? noHub;
-  const [phase, setPhase] = useState<Phase>({ kind: "signin" });
+  const [phase, phaseDo] = useReducer(phaseStep<StoredSession>, { kind: "signin" } as Phase);
   const [ready, setReady] = useState(false);
   const [loadedAddress, setLoadedAddress] = useState<string | null | undefined>(undefined);
   const previousAddress = useRef<string | null | undefined>(undefined);
@@ -1051,7 +1167,18 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const [connectedAddress, setConnectedAddress] = useState<string | null>(null);
   const [desktopRoute, setDesktopRoute] = useState<DesktopRoute | null>(null);
   const [entry, setEntry] = useState(false);
-  const [entryStart, setEntryStart] = useState<"choice" | "join" | "team">("choice");
+  const [entryStart, setEntryStart] = useState<"choice" | "join" | "team" | "add">("choice");
+  // Getting in (rc.41): Your Spaces (home), a row being reached again quietly, a Space that did not answer (trouble), and a relay Space the app opened in the browser.
+  const [gi, giDo] = useReducer(
+    overlayStep<Trouble, { target: EntryTarget; name: string }>,
+    OVERLAY_START as Overlay<Trouble, { target: EntryTarget; name: string }>,
+  );
+  const { home, reaching, trouble, busy: troubleBusy, browser: inBrowser } = gi;
+  const [oldData, setOldData] = useState(false);
+  const [signInAs, setSignInAs] = useState<string | undefined>(undefined);
+  const [shellTry, setShellTry] = useState(0);
+  const shellRetried = useRef(new Set<string>());
+  const rowBusy = useRef(false);
   // A claim that runs in this app: the Personal Space or a Mac server (local), or a team Space's owner link pasted here or handed over from a browser (rc.14), which keeps the account this app has.
   const [personalClaim, setPersonalClaim] = useState<{
     address: string;
@@ -1083,9 +1210,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       setConnectedAddress(null);
     }
     // this computer's Personal Space starts on a new port after every update or restart: its saved session is found by kind and re-homed below (resumePersonal), never left behind
-    const stored =
-      readStored(undefined, baseUrl ?? undefined) ??
-      (baseUrl && bridge && isLoopbackUrl(baseUrl) ? readStoredPersonal() : null);
+    // with no address named, the Space used last opens; a Space that now opens in the browser (it moved to Vyre's relay) is never opened by itself at launch: Your Spaces shows instead
+    const rows = yourSpaces();
+    const first = baseUrl
+      ? readStored(undefined, baseUrl)
+      : (rows.find((r) => r.state === "in")?.session ?? (rows.length ? null : readStored()));
+    const stored = first ?? (baseUrl && bridge && isLoopbackUrl(baseUrl) ? readStoredPersonal() : null);
     const href = (globalThis as { location?: { href?: string } }).location?.href;
     const incoming = href ? entryTarget(href) : null;
     const phonePair = href && baseUrl && !stored ? pairFromUrl(href, baseUrl) : null;
@@ -1095,15 +1225,15 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       url.searchParams.delete("pair");
       globalThis.history?.replaceState(null, "", url.pathname + url.search + (loc?.hash ?? ""));
       setDesktopRoute(phonePair);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     } else if (baseUrl !== null && incoming?.kind === "join") {
       setDesktopRoute(incoming);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     } else if (stored?.def.kind === "personal" && isLoopbackUrl(stored.baseUrl) && bridge) {
       const invoke = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
       if (invoke) {
         let alive = true;
-        setPhase({ kind: "opening-personal" });
+        phaseDo({ e: "opening" });
         setLoadedAddress(baseUrl);
         setReady(true);
         void withinStart(
@@ -1116,22 +1246,22 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           .then(({ local, resumed }) => {
             if (alive) {
               setConnectedAddress(local.address);
-              setPhase({ kind: "shell", stored: resumed });
+              phaseDo({ e: "in", stored: resumed });
             }
           })
           .catch((failure: unknown) => {
             if (!alive) return;
             if (failure instanceof Error && failure.message === "Personal Space identity changed") {
-              setPhase({ kind: "signin" });
+              phaseDo({ e: "out" });
               setNotice(true);
-            } else setPhase({ kind: "start-failed", stored });
+            } else phaseDo({ e: "start-failed", stored });
           });
         return () => {
           alive = false;
         };
       }
-      setPhase(phaseForStoredAddress(stored));
-    } else setPhase(phaseForStoredAddress(stored));
+      phaseDo({ e: "in", stored });
+    } else phaseDo({ e: "in", stored });
     setLoadedAddress(baseUrl);
     setReady(true);
   }, [baseUrl, props.baseUrl, bridge, open, startTry]);
@@ -1156,7 +1286,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           setEntry(false);
           setPersonalClaim(null);
           setDesktopRoute({ kind: "signin", address: route.address });
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
         }
         return;
       }
@@ -1171,7 +1301,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       setOtherAccount(false);
       setDesktopRoute(route);
       setNotice(false);
-      setPhase({ kind: "signin" });
+      phaseDo({ e: "out" });
     })
       .then((off) => {
         if (alive) unlisten = off;
@@ -1184,6 +1314,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     };
   }, [bridge]);
 
+  const phaseNow = useRef(phase);
+  phaseNow.current = phase;
+  // a Space the person is in is remembered for Your Spaces, with the newest use first
+  useEffect(() => {
+    if (phase.kind === "shell") rememberSession(phase.stored);
+  }, [phase]);
   const activateAddress = (stored: StoredSession, restoreTabs: boolean): boolean => {
     const loc = (
       globalThis as {
@@ -1230,7 +1366,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (target.def.kind === "personal" && bridge) {
       const native = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
       if (native) {
-        setPhase({ kind: "opening-personal" });
+        phaseDo({ e: "opening" });
         try {
           const local = await ensurePersonalSpace(native);
           if (local.spaceId !== target.def.spaceId || local.claimUrl)
@@ -1239,36 +1375,40 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         } catch {
           setConnectedAddress(target.baseUrl);
           setNotice(true);
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
           return;
         }
       }
     }
     if (!activateAddress(chosen, true)) return;
     setConnectedAddress(chosen.baseUrl);
-    setPhase({ kind: "shell", stored: chosen });
+    // the same Space again (Your Spaces over its failed screen, then its row): the shell opens afresh instead of staying on the failure
+    if (phaseNow.current.kind === "shell" && phaseNow.current.stored.baseUrl === chosen.baseUrl)
+      setShellTry((n) => n + 1);
+    phaseDo({ e: "in", stored: chosen });
   };
   // One saved Space, entered as it was left: this computer's Personal Space is verified at the port it runs on now; any other opens at its own address.
   const enterSaved = async (target: StoredSession): Promise<void> => {
     let chosen = target;
     const native = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
     if (target.def.kind === "personal" && isLoopbackUrl(target.baseUrl) && bridge && native) {
-      setPhase({ kind: "opening-personal" });
+      phaseDo({ e: "opening" });
       try {
         const local = await withinStart(ensurePersonalSpace(native));
         if (local.spaceId !== target.def.spaceId || local.claimUrl) throw new Error("Personal Space identity changed");
         chosen = await resumePersonal(local, target, open);
       } catch {
         setConnectedAddress(target.baseUrl);
-        setPhase({ kind: "signin" });
+        phaseDo({ e: "out" });
         return;
       }
     }
     if (!activateAddress(chosen, true)) return;
     setEntry(false);
+    giDo({ e: "enter" });
     setDesktopRoute(null);
     setConnectedAddress(chosen.baseUrl);
-    setPhase({ kind: "shell", stored: chosen });
+    phaseDo({ e: "in", stored: chosen });
   };
   // Signing out of one Space never signs out of the others (owner, 10 Nov): that Space's sign-in shows, its key alone is forgotten, and Back opens the next saved Space as it was.
   const signedOut = (why?: "manual" | "key", selected?: string): void => {
@@ -1279,14 +1419,17 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     if (rest.length === 0) forgetKey();
     setReturnSession(rest[0] ?? null);
     setNotice(why === "key" ? KEY_READY_LINE : why !== "manual");
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   const signedIn = useCallback(
     (stored: StoredSession) => {
       activateAddress(stored, !!returnSession);
+      setUnproven(null);
       setEntry(false);
+      giDo({ e: "enter" });
+      setSignInAs(undefined);
       setReturnSession(null);
-      setPhase({ kind: "shell", stored });
+      phaseDo({ e: "in", stored: stored });
     },
     [returnSession],
   );
@@ -1294,24 +1437,55 @@ export function SessionGate(props: SessionGateProps): ReactElement {
     activateAddress(stored, true);
     consumeBrowserInvite();
     setEntry(false);
+    giDo({ e: "enter" });
     setReturnSession(null);
     setDesktopRoute((route) => consumeDesktopRoute(route));
-    setPhase({ kind: "shell", stored });
+    phaseDo({ e: "in", stored: stored });
   }, []);
 
-  const connectSpace = (address: string): void => {
-    setConnectedAddress(address);
-    setDesktopRoute(null);
-    setNotice(false);
+  const page = (): Location | undefined => (globalThis as { location?: Location }).location;
+  /** A web page (not the desktop app) on another address than this one: the browser goes there itself, and that page does the rest. */
+  const elsewhere = (address: string): boolean => {
+    const loc = page();
+    try {
+      return !!loc && !isPackagedOrigin(loc.origin) && new URL(address).origin !== loc.origin;
+    } catch {
+      return false;
+    }
   };
-  const chooseEntry = async (target: EntryTarget): Promise<void> => {
-    const page = (globalThis as { location?: Location }).location;
-    if (
-      page &&
-      !isPackagedOrigin(page.origin) &&
-      new URL(target.kind === "claim" ? target.url : target.address).origin !== page.origin
-    ) {
-      page.assign(target.kind === "claim" ? target.url : new URL("/chat", target.address).href);
+  const spaceName = (address: string): string =>
+    yourSpaces().find((r) => r.address === address)?.name ?? spaceHost(address);
+  /** A Space on Vyre's relay, from the desktop app: the app opens it in the browser for the person (entry.ts browserLink says why it cannot carry it itself) and keeps it in Your Spaces. */
+  const openInBrowser = (target: EntryTarget, name: string, remember = true): void => {
+    if (remember) rememberBrowserSpace({ address: target.address, name });
+    (globalThis as { open?: (url: string, target?: string) => unknown }).open?.(browserLink(target), "_blank");
+    setEntry(false);
+    setPersonalClaim(null);
+    setDesktopRoute(null);
+    giDo({ e: "browser", browser: { target, name } });
+  };
+  /** Where a way in goes when its address did not answer as a Space this window can use: the browser for a relay Space that is awake, else the screen that says what happened and carries the fix. */
+  const landed = (target: EntryTarget, found: Found, stored?: StoredSession): void => {
+    const name = (found.kind === "relay" && found.label) || stored?.def.name || spaceName(target.address);
+    const where = decideLanded({ found, bridge: !!bridge, away: elsewhere(target.address) });
+    if (where === "open-in-browser") {
+      openInBrowser(target, name, found.kind === "relay" && found.sure);
+      return;
+    }
+    if (where === "browser-goes") {
+      page()?.assign(browserLink(target));
+      return;
+    }
+    if (found.kind === "relay" && found.sure && bridge) rememberBrowserSpace({ address: target.address, name });
+    setEntry(false);
+    giDo({ e: "trouble", trouble: { target, name, found, ...(stored ? { stored } : {}) } });
+  };
+  /** The address answers as a Space: go in. A saved sign-in opens it; an owner link claims it; anything else is its sign-in or its invite. */
+  const enterTarget = async (target: EntryTarget, stored?: StoredSession, fresh = false): Promise<void> => {
+    setUnproven(fresh ? target.address : null);
+    const have = fresh ? null : (stored ?? (target.kind === "signin" ? readStored(undefined, target.address) : null));
+    if (have && target.kind === "signin") {
+      await enterSaved(have);
       return;
     }
     if (target.kind === "claim") {
@@ -1324,16 +1498,26 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           local: false,
         });
         setEntry(false);
+        giDo({ e: "leave-list" });
         return;
       }
-      (globalThis as { location?: { assign(url: string): void } }).location?.assign(target.url);
+      page()?.assign(target.url);
       return;
     }
-    if (bridge) {
-      const refusal = await desktopEntryRefusal(target);
-      if (refusal) throw new Error(refusal);
-    }
-    if (target.kind === "signin") {
+    setEntry(false);
+    giDo({ e: "enter" });
+    setConnectedAddress(target.address);
+    setDesktopRoute(target);
+    setNotice(false);
+    phaseDo({ e: "out" });
+  };
+  /**
+   * The one address box (and every link handed to the app): find what is at the address, quietly asking again before saying anything, then go the way that fits. It rejects with the line
+   * the box shows when the fix is the box itself (a wrong name, nothing answering); every other outcome is a screen of its own.
+   */
+  const chooseEntry = async (target: EntryTarget, onRetry?: () => void, ownSpace = false): Promise<void> => {
+    const away = elsewhere(target.kind === "claim" ? target.url : target.address);
+    if (!away && target.kind === "signin") {
       const have =
         readStored(undefined, target.address) ??
         (bridge && isLoopbackUrl(target.address) ? readStoredPersonal() : null);
@@ -1346,17 +1530,162 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         signedIn(have);
         return;
       }
-      try {
-        await createCapCaller({ baseUrl: target.address, token: () => null })("identity.sign_in_options", {});
-      } catch {
-        throw new Error(OFFLINE_SPACE);
-      }
     }
-    setEntry(false);
-    setConnectedAddress(target.address);
-    setDesktopRoute(target);
-    setNotice(false);
-    setPhase({ kind: "signin" });
+    // this computer's own Space (the app just started it: the flows that make or claim it say so) is not asked across the network first: its screen reaches it and says so if it cannot. An address a
+    // person types or pastes is asked, loopback or not: nothing says a loopback port is this computer's Space, and "not answering" belongs under the box
+    const own = ownSpace && !!bridge && isLoopbackUrl(target.address);
+    const found: Found = own
+      ? { kind: "direct" }
+      : await findSpaceQuietly(target.address, onRetry ? { onRetry } : {}).catch(() => OFFLINE);
+    const host = spaceHost(target.address);
+    const outcome = decideEntry({ found, away });
+    if (outcome.to === "box-line")
+      throw new Error(
+        outcome.why === "no-space"
+          ? noSpaceAt(host)
+          : outcome.why === "not-answering"
+            ? boxNotAnswering(host)
+            : notASpaceAt(host),
+      );
+    if (outcome.to === "browser-goes") {
+      page()?.assign(browserLink(target));
+      return;
+    }
+    if (outcome.to === "landed") {
+      landed(target, found);
+      return;
+    }
+    await enterTarget(target);
+  };
+  /** Try again on the screen for a Space that did not answer: asked again (quietly, more than once), then in, or the same screen with what is true now. */
+  const troubleNow = useRef(trouble);
+  troubleNow.current = trouble;
+  const retryTrouble = async (): Promise<void> => {
+    const t = trouble;
+    if (!t || troubleBusy) return;
+    const stillHere = (): boolean => troubleNow.current === t;
+    giDo({ e: "busy", on: true });
+    const found = await findSpaceQuietly(t.target.address).catch(() => OFFLINE);
+    // the person went Back (or on elsewhere) while the Space was being asked: the answer is for a screen that is gone, and moving on already cleared the busy mark (a probe started since owns it now)
+    if (!stillHere()) return;
+    giDo({ e: "busy", on: false });
+    if (found.kind !== "direct") {
+      landed(t.target, found, t.stored);
+      return;
+    }
+    giDo({ e: "trouble-clear" });
+    shellRetried.current.delete(t.target.address);
+    setShellTry((n) => n + 1);
+    await enterTarget(t.target, t.stored);
+  };
+  const retryTroubleNow = useRef(retryTrouble);
+  retryTroubleNow.current = retryTrouble;
+  // a relay Space that is asleep is asked again every 20 seconds by itself, so the screen opens the Space when its computer wakes
+  useEffect(() => {
+    if (!trouble || trouble.found.kind !== "relay") return undefined;
+    const timer = setInterval(() => void retryTroubleNow.current(), 20_000);
+    return () => clearInterval(timer);
+  }, [trouble]);
+  // Clear old data is offered only where there is some to clear: a browser page of this very Space that holds a worker or cached pages
+  useEffect(() => {
+    setOldData(false);
+    if (!trouble || bridge || elsewhere(trouble.target.address)) return undefined;
+    let alive = true;
+    void hasOldData().then((yes) => {
+      if (alive) setOldData(yes);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- elsewhere reads the page, which does not change under a screen
+  }, [trouble, bridge]);
+  const clearOld = async (): Promise<void> => {
+    await clearOldData();
+    page()?.reload();
+  };
+  /** One press on a row of Your Spaces. */
+  const openRow = async (row: SpaceRow): Promise<void> => {
+    if (rowBusy.current) return;
+    const target: EntryTarget = { kind: "signin", address: row.address };
+    if (row.state === "in" && row.session) {
+      shellRetried.current.delete(row.address);
+      await enterSaved(row.session);
+      return;
+    }
+    if (elsewhere(row.address)) {
+      page()?.assign(browserLink(target));
+      return;
+    }
+    if (row.state === "out") {
+      // its sign-in, with the username already there; that screen reaches the Space and says so quietly if it has to ask twice
+      setSignInAs(row.username);
+      await enterTarget(target);
+      return;
+    }
+    // a Space that opens in the browser: asked where it is now, since it may have moved to an address of its own
+    rowBusy.current = true;
+    try {
+      const found = await findSpaceQuietly(row.address, {
+        onRetry: () => giDo({ e: "reach", address: row.address }),
+      }).catch(() => OFFLINE);
+      giDo({ e: "reach", address: null });
+      if (found.kind === "direct") {
+        setSignInAs(row.username);
+        await enterTarget(target, row.session ?? undefined);
+      } else landed(target, found, row.session ?? undefined);
+    } finally {
+      rowBusy.current = false;
+    }
+  };
+  /** The shell could not open a saved Space: ask where the Space is now. It answers: open once more. It moved to the relay: the browser. Else the screen with the fix. The sign-in is kept. */
+  // Your Spaces opened from the failed screen of a Space: the address of that Space, while the list shows (cleared when it closes)
+  const [unproven, setUnproven] = useState<string | null>(null);
+  const [underShell, setUnderShell] = useState<string | null>(null);
+  useEffect(() => {
+    if (!home) setUnderShell(null);
+  }, [home]);
+  /** A Space saved at two addresses whose used-last one is not answering: the person may press the other. Its own sign-in opens (the address named on the button; no username typed for them), never the saved token, and only when that address answers as a Space naming the same id. (A Space id is public, so this guards an accident, not an attack; the person decides and sees the address.) */
+  /** The trouble screen an askNearby probe is out for: tied to the screen, so after Back a press on another address is not blocked by a probe that has not timed out yet. */
+  const nearbyFor = useRef<Trouble | null>(null);
+  const askNearby = async (from: StoredSession, other: StoredSession, on: Trouble): Promise<void> => {
+    if ((nearbyFor.current !== null && nearbyFor.current === troubleNow.current) || troubleBusy) return;
+    nearbyFor.current = on;
+    giDo({ e: "busy", on: true });
+    let found: Found;
+    let named: string | null = null;
+    try {
+      found = await findSpaceQuietly(other.baseUrl).catch(() => OFFLINE);
+      named = found.kind === "direct" ? await spaceIdAt(other.baseUrl) : null;
+    } finally {
+      if (nearbyFor.current === on) nearbyFor.current = null;
+    }
+    // the person went Back or on elsewhere while the other address was asked: the answer is for a screen that is gone (moving on already cleared the busy mark)
+    if (troubleNow.current !== on) return;
+    giDo({ e: "busy", on: false });
+    if (found.kind === "direct" && named === from.def.spaceId && named === other.def.spaceId) {
+      setSignInAs(undefined);
+      await enterTarget({ kind: "signin", address: other.baseUrl }, undefined, true);
+      return;
+    }
+    landed({ kind: "signin", address: other.baseUrl }, found.kind === "direct" ? { kind: "there" } : found, other);
+  };
+  const shellUnreachable = (stored: StoredSession): void => {
+    if (isLoopbackUrl(stored.baseUrl)) return;
+    // a worker left in this browser from before the Space moved comes first: the page loads again without it
+    void healStaleWorker()
+      .then((reloading) => (reloading ? null : findSpaceQuietly(stored.baseUrl).catch(() => OFFLINE)))
+      .then((found) => {
+        if (!found) return;
+        const now = phaseNow.current;
+        if (now.kind !== "shell" || now.stored.baseUrl !== stored.baseUrl) return;
+        if (found.kind === "direct") {
+          if (shellRetried.current.has(stored.baseUrl)) return;
+          shellRetried.current.add(stored.baseUrl);
+          setShellTry((n) => n + 1);
+          return;
+        }
+        landed({ kind: "signin", address: stored.baseUrl }, found, stored);
+      });
   };
   const invoke = (globalThis as { __TAURI__?: { core?: { invoke?: Invoke } } }).__TAURI__?.core?.invoke;
   const createPersonal = async (): Promise<void> => {
@@ -1372,7 +1701,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         const stored = await resumePersonal(local, old, open);
         setConnectedAddress(local.address);
         signedIn(stored);
-      } else await chooseEntry({ kind: "signin", address: local.address });
+      } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
     }
   };
   const createMacServer = async (): Promise<void> => {
@@ -1382,12 +1711,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       const link = new URL(local.claimUrl);
       setPersonalClaim({ address: local.address, token: link.pathname.slice("/claim/".length), fragment: link.hash });
       setEntry(false);
-    } else await chooseEntry({ kind: "signin", address: local.address });
+    } else await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
   };
   // first launch on the desktop app: three doors; elsewhere (and for a person who already has a Space) the plain connect screen
   const connectScreen = (back?: () => void): ReactElement => (
     <ConnectSpaceWelcome
-      onConnect={connectSpace}
+      onTarget={chooseEntry}
       onGetStarted={() => {
         setEntryStart("choice");
         setEntry(true);
@@ -1426,12 +1755,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         } catch {
           /* the sign-in screen says why */
         }
-        await chooseEntry({ kind: "signin", address: local.address });
+        await chooseEntry({ kind: "signin", address: local.address }, undefined, true);
         return;
       }
       await new Promise((r) => setTimeout(r, 500));
     }
-    setPhase({ kind: "signin" });
+    phaseDo({ e: "out" });
   };
   const existingScreen = invoke
     ? (back: () => void): ReactElement => (
@@ -1443,7 +1772,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           onLocal={(address) => {
             const saved = readStoredPersonal();
             if (saved) void enterSaved(saved);
-            else void chooseEntry({ kind: "signin", address });
+            else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       )
@@ -1459,7 +1788,16 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       `mailto:?subject=${encodeURIComponent("Get Vyre")}&body=${encodeURIComponent(VYRE_DOWNLOADS)}`,
     );
   };
-  const firstScreen = (
+  const rows = yourSpaces();
+  const addSpace = (): void => {
+    giDo({ e: "leave-list" });
+    setEntryStart("add");
+    setEntry(true);
+  };
+  const spacesScreen = (
+    <YourSpaces rows={rows} reconnecting={reaching} onOpen={(row) => void openRow(row)} onAdd={addSpace} />
+  );
+  const firstLaunch = (
     <FirstLaunch
       device={device}
       existing={existingScreen}
@@ -1484,6 +1822,18 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       }}
     />
   );
+  // opening Vyre with nothing open: the Spaces this device has used, one press each; the doors only for a device that has used none
+  const firstScreen = rows.length > 0 ? spacesScreen : firstLaunch;
+  /** Back from a screen about one Space: Your Spaces when there are any, else the doors. */
+  const backHome = (): void => {
+    const spaces = yourSpaces().length > 0;
+    giDo({ e: "back", spaces });
+    setSignInAs(undefined);
+    if (spaces) return;
+    setConnectedAddress(null);
+    setDesktopRoute(null);
+    phaseDo({ e: "out" });
+  };
   if (personalClaim)
     return (
       <Suspense fallback={<Opening />}>
@@ -1501,12 +1851,12 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             if (stored) {
               setConnectedAddress(address);
               signedIn(stored);
-            } else void chooseEntry({ kind: "signin", address });
+            } else void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
           onSignIn={() => {
             const address = personalClaim.address;
             setPersonalClaim(null);
-            void chooseEntry({ kind: "signin", address });
+            void chooseEntry({ kind: "signin", address }, undefined, true);
           }}
         />
       </Suspense>
@@ -1521,13 +1871,18 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         onBack={() => {
           setEntry(false);
           setDesktopRoute(null);
+          if (entryStart === "add") {
+            setReturnSession(null);
+            giDo({ e: "list" });
+            return;
+          }
           const previous = returnSession ?? readStored(undefined, baseUrl ?? undefined);
           if (previous) {
             activateAddress(previous, true);
             setConnectedAddress(previous.baseUrl);
             consumeBrowserInvite();
             setDesktopRoute(null);
-            setPhase({ kind: "shell", stored: previous });
+            phaseDo({ e: "in", stored: previous });
           }
           setReturnSession(null);
         }}
@@ -1549,6 +1904,123 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   }
   // the first frame of every path: the mark on the sheet, the same in the static page, the first client render and the moment before a stored session is read, so no screen shows for one frame and swaps
   if (loadedAddress !== baseUrl || !ready || loadedProp !== props.baseUrl) return <Opening />;
+  if (inBrowser)
+    return (
+      <SpaceImageContext.Provider value={rows.find((r) => r.address === inBrowser.target.address)?.image}>
+        <InBrowser
+          space={inBrowser.name}
+          onAgain={() => openInBrowser(inBrowser.target, inBrowser.name)}
+          onBack={backHome}
+        />
+      </SpaceImageContext.Provider>
+    );
+  if (trouble) {
+    const found = trouble.found;
+    const host = spaceHost(trouble.target.address);
+    const words =
+      found.kind === "relay"
+        ? {
+            title: asleep(trouble.name),
+            sub: [ASLEEP_SUB, seenAgo(found.seenAt)].filter(Boolean).join(". "),
+            checking: true,
+          }
+        : found.kind === "none"
+          ? { title: `No Space at ${host}`, sub: "It may have moved. Check its address" }
+          : {};
+    return (
+      <SpaceImageContext.Provider
+        value={trouble.stored?.def.image ?? rows.find((r) => r.address === trouble.target.address)?.image}
+      >
+        <NotAnswering
+          key={trouble.target.address}
+          space={trouble.name}
+          {...words}
+          reconnecting={troubleBusy}
+          onRetry={() => void retryTrouble()}
+          {...(oldData ? { onClear: () => void clearOld() } : {})}
+          {...(trouble.stored && siblingSessions(trouble.stored).length > 0
+            ? {
+                others: siblingSessions(trouble.stored).map((other) => ({
+                  key: other.baseUrl,
+                  label: `Sign in at ${shortHost(spaceHost(other.baseUrl))}`,
+                  onPress: () => void askNearby(trouble.stored!, other, trouble),
+                })),
+              }
+            : {})}
+          {...(bridge && !isLoopbackUrl(trouble.target.address)
+            ? {
+                // a relay Space lives in the browser from now on; any other is only looked at there, and stays what it was here
+                onBrowser: () =>
+                  found.kind === "relay"
+                    ? openInBrowser(trouble.target, trouble.name)
+                    : void (globalThis as { open?: (url: string, target?: string) => unknown }).open?.(
+                        browserLink(trouble.target),
+                        "_blank",
+                      ),
+              }
+            : {})}
+          onBack={backHome}
+        />
+      </SpaceImageContext.Provider>
+    );
+  }
+  const renderShell = (phase: Extract<Phase, { kind: "shell" }>): ReactElement => (
+    <KeyGate
+      baseUrl={phase.stored.baseUrl}
+      token={phase.stored.token}
+      // this device kept this session's first screen: it is drawn at once and the key is handed over behind it (session/kept.ts)
+      drawnBefore={kept().has({
+        baseUrl: phase.stored.baseUrl,
+        personId: phase.stored.personId,
+        spaceId: phase.stored.def.spaceId,
+      })}
+      name={lockName(phase.stored)}
+      onSignOut={() => signedOut("manual", phase.stored.baseUrl)}
+      onForgot={() => setForgot(true)}
+    >
+      <Suspense fallback={<View style={styles.fill} />}>
+        <AfterLoad load={loadShellHost} ready={shellReady} fallback={<View style={styles.fill} />}>
+          <SignedInShell
+            key={`${phase.stored.baseUrl}${phase.stored.personId}:${shellTry}`}
+            stored={phase.stored}
+            open={open}
+            onUnreachable={() => shellUnreachable(phase.stored)}
+            onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
+            onHub={onHub}
+            voice={props.voice}
+            onSwitchSpace={(id) => void switchSpace(id)}
+            onYourSpaces={() => {
+              setUnderShell(phase.stored.baseUrl);
+              giDo({ e: "list" });
+            }}
+            onAddSpace={() => {
+              setReturnSession(phase.stored);
+              setEntryStart("choice");
+              setEntry(true);
+            }}
+          />
+        </AfterLoad>
+      </Suspense>
+    </KeyGate>
+  );
+  // Your Spaces from the screen for a Space that would not load: the failed shell is not kept running behind the list (nothing of it can see a key typed here); Back opens that Space again, and
+  // the shell asks for its pages afresh. A Space that was open and fine is never put here.
+  if (home && rows.length > 0) {
+    if (phase.kind === "shell" && !forgot && underShell === phase.stored.baseUrl)
+      return (
+        <YourSpaces
+          rows={rows}
+          reconnecting={reaching}
+          onOpen={(row) => void openRow(row)}
+          onAdd={addSpace}
+          onBack={() => {
+            setShellTry((n) => n + 1);
+            giDo({ e: "leave-list" });
+          }}
+        />
+      );
+    return spacesScreen;
+  }
   if (phase.kind === "opening-personal") return <Opening testID="opening-personal" />;
   // Sign in from here keeps the saved session: the next launch, or Try again, still opens it (a Space that did not start is no reason to forget a sign-in)
   if (phase.kind === "start-failed")
@@ -1556,7 +2028,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
       <StartFailed
         onRetry={() => setStartTry((n) => n + 1)}
         onSignIn={() => {
-          setPhase({ kind: "signin" });
+          phaseDo({ e: "out" });
           setConnectedAddress(null);
         }}
       />
@@ -1577,35 +2049,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
         />
       </SpaceImageContext.Provider>
     );
-  if (phase.kind === "shell")
-    return (
-      <KeyGate
-        baseUrl={phase.stored.baseUrl}
-        token={phase.stored.token}
-        name={lockName(phase.stored)}
-        onSignOut={() => signedOut("manual", phase.stored.baseUrl)}
-        onForgot={() => setForgot(true)}
-      >
-        <Suspense fallback={<View style={styles.fill} />}>
-          <AfterLoad load={loadShellHost} ready={shellReady} fallback={<View style={styles.fill} />}>
-            <SignedInShell
-              key={phase.stored.baseUrl + phase.stored.personId}
-              stored={phase.stored}
-              open={open}
-              onSignedOut={(why) => signedOut(why, phase.stored.baseUrl)}
-              onHub={onHub}
-              voice={props.voice}
-              onSwitchSpace={(id) => void switchSpace(id)}
-              onAddSpace={() => {
-                setReturnSession(phase.stored);
-                setEntryStart("choice");
-                setEntry(true);
-              }}
-            />
-          </AfterLoad>
-        </Suspense>
-      </KeyGate>
-    );
+  if (phase.kind === "shell") return renderShell(phase);
   if (desktopRoute?.kind === "pair")
     return (
       <DesktopPairScreen
@@ -1617,6 +2061,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
           const address = desktopRoute.address;
           setDesktopRoute({ kind: "signin", address });
         }}
+        onUnreachable={(found) => landed({ kind: "signin", address: desktopRoute.address }, found)}
       />
     );
   if (desktopRoute?.kind === "join") {
@@ -1648,6 +2093,7 @@ export function SessionGate(props: SessionGateProps): ReactElement {
             setDesktopRoute({ kind: "signin", address });
           }}
           deviceClass={bridge ? "desktop" : "web"}
+          onUnreachable={(found) => landed(desktopRoute, found)}
         />
       </WithSpaceImage>
     );
@@ -1655,17 +2101,27 @@ export function SessionGate(props: SessionGateProps): ReactElement {
   const activeAddress = desktopRoute?.address ?? connectedAddress ?? baseUrl;
   if (!activeAddress) return firstScreen;
   return (
-    <WithSpaceImage address={activeAddress}>
+    <WithSpaceImage address={unproven === activeAddress ? null : activeAddress}>
       <SignInScreen
         baseUrl={activeAddress}
+        unproven={unproven === activeAddress}
+        knownName={rows.find((r) => r.address === activeAddress)?.name}
         open={open}
         onSignedIn={signedIn}
         notice={notice}
+        username={
+          unproven === activeAddress ? undefined : (signInAs ?? rows.find((r) => r.address === activeAddress)?.username)
+        }
+        onUnreachable={(found) => landed({ kind: "signin", address: activeAddress }, found)}
         onBack={() => {
+          setUnproven(null);
           if (returnSession) {
             const back = returnSession;
             setReturnSession(null);
             void enterSaved(back);
+          } else if (yourSpaces().length > 0) {
+            setSignInAs(undefined);
+            giDo({ e: "list" });
           } else {
             setEntryStart("choice");
             setEntry(true);

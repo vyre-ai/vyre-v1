@@ -645,6 +645,7 @@ test("list shows stage counts and records in flight", async () => {
       version: 1,
       stages: 3,
       inFlight: 2,
+      mode: "subject",
       updatedAt: undefined,
     },
   );

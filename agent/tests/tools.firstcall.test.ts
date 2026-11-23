@@ -222,3 +222,69 @@ test("a tool that takes a chat as a filter is never narrowed to this chat: only 
   assert.equal(out.kind, "result", JSON.stringify(out.kind === "error" ? out.result.content : ""));
   assert.equal("threadId" in (sent.at(-1)?.input as object), false, "a search over every chat stays over every chat");
 });
+
+test("each sync_specs tool: a first call with a spec that does not parse is refused with the full SyncSpec shape, whichever tool shows it only as a pointer", async () => {
+  // sync_specs_preview shows the shape in its own schema; the other two show a pointer, so their refusals carry it
+  for (const name of ["sync_specs_validate", "sync_specs_apply"]) {
+    const { s } = session();
+    s.preload("thr_1", [name]);
+    const out = await s.call(c(), name, { spec: { app: 1 } });
+    assert.equal(out.kind, "error", name);
+    const words = JSON.stringify(out.kind === "error" ? out.result.content : "");
+    // the shape, not only the complaint: the property names a correct spec carries
+    assert.match(words, /\\"properties\\"/, `${name} says the shape`);
+    assert.ok(words.length > 1500, `${name} carries the whole spec shape`);
+  }
+});
+
+test("the placeholder guard reads the full shape on every tool that shows only a pointer: each legal choice passes it, a real placeholder still trips it (the CRM walks)", async () => {
+  const { probeIn } = await import("../../lib/probe.ts");
+  const { fullSchema, SHARE_GROUPS } = await import("../src/tools/share.ts");
+  const { loadGenerated } = await import("../src/tools/harness.ts");
+  const { catalog } = loadGenerated();
+  type Sc = { enum?: unknown[]; properties?: Record<string, Sc>; items?: Sc };
+  // every legal string choice in a schema that the guard would take for a placeholder on its own, with the nested value that carries it
+  const choices = (sc: Sc | undefined, make: (v: unknown) => unknown, out: unknown[]): void => {
+    if (!sc) return;
+    for (const e of sc.enum ?? []) if (typeof e === "string" && probeIn(e) !== null) out.push(make(e));
+    for (const [k, sub] of Object.entries(sc.properties ?? {})) choices(sub, (v) => make({ [k]: v }), out);
+    if (sc.items) choices(sc.items, (v) => make([v]), out);
+  };
+  let seen = 0;
+  for (const name of SHARE_GROUPS.flat()) {
+    const shown = catalog.byName(name)!.inputSchema;
+    const full = fullSchema(name, shown) as { properties: Record<string, Sc> };
+    const out: unknown[] = [];
+    for (const [k, sub] of Object.entries(full.properties)) choices(sub, (v) => ({ [k]: v }), out);
+    for (const input of out) {
+      seen++;
+      assert.equal(
+        probeIn(input, "", "", full),
+        null,
+        `${name}: a legal choice ${JSON.stringify(input)} was refused as a test call`,
+      );
+    }
+    // a real placeholder still trips it, wherever it sits
+    assert.notEqual(
+      probeIn({ spec: { app: { name: "foo bar" } } }, "", "", full),
+      null,
+      `${name} still refuses a placeholder`,
+    );
+  }
+  // and through a real call: a pointed tool is not refused as a test call on a legal choice
+  for (const name of ["sync_specs_validate", "sync_specs_apply"]) {
+    const full = fullSchema(name, catalog.byName(name)!.inputSchema) as { properties: Record<string, Sc> };
+    const found: unknown[] = [];
+    for (const [k, sub] of Object.entries(full.properties)) choices(sub, (v) => ({ [k]: v }), found);
+    const { s } = session();
+    s.preload("thr_1", [name]);
+    const res = await s.call(c(), name, found[0] as never);
+    const words = JSON.stringify(res.kind === "error" ? res.result.content : "");
+    assert.ok(!/Don.t call tools to test them/.test(words), `${name} refused a legal choice as a probe`);
+    assert.match(words, /is missing/, `${name}: the call went on to the server's own check of the spec`);
+  }
+  assert.ok(
+    seen > 0,
+    "the SyncSpec has a legal choice the guard would take for a placeholder: this is the class the test holds",
+  );
+});

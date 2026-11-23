@@ -9,6 +9,8 @@ type Callee = (input: any) => unknown; // eslint-disable-line @typescript-eslint
 export interface Called {
   cap: string;
   input: any;
+  /** what went along to the Gate: `gate: "admin_only"` and the step the call is */
+  opts?: { gate?: string; step?: { automationId: string; nodeId: string; defHash: string; ask?: boolean } } | undefined;
 } // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export function harness(calls: Record<string, Callee> = {}, over: Partial<StepEnv> = {}) {
@@ -20,8 +22,8 @@ export function harness(calls: Record<string, Callee> = {}, over: Partial<StepEn
     principal: { kind: "service", id: "svc_run" },
     trace: { traceId: "0123456789abcdef0123456789abcdef" },
     now: () => clock,
-    async call(cap, input) {
-      log.push({ cap, input });
+    async call(cap, input, opts) {
+      log.push({ cap, input, ...(opts ? { opts } : {}) });
       const f = map[cap];
       if (!f) throw new Error(`unexpected call to ${cap}`);
       return f(input);
