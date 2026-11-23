@@ -168,6 +168,8 @@ const miss = (why) => ({
  *   vaultFill: (call: Call, handle: string) => Promise<string | null>,
  *   rights?: ReturnType<typeof import("./rights.js").createRights>,
  *   emit: (event: Record<string, any>) => void,
+ *   restored?: Promise<void>,
+ *   restoring?: (agentId: string) => boolean,
  *   now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number,
  * }} kit
  * @typedef {{ id?: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string }} Call
@@ -1056,11 +1058,13 @@ export function createTools(kit) {
 
     async chrome_status(call) {
       const p = sessions.pausedFor(call.agent.id);
+      // while the person's saved pauses are still being read back, the agent is told what its calls will say
+      const waiting = kit.restoring?.(call.agent.id) === true;
       return {
         connected: kit.connected(call),
-        paused: Boolean(p),
+        paused: Boolean(p) || waiting,
         held: sessions.heldIds(call.agent.id),
-        ...(p ? { pausedBy: p.by } : {}),
+        ...(p ? { pausedBy: p.by } : waiting ? { pausedBy: "restoring" } : {}),
       };
     },
 
@@ -1070,7 +1074,10 @@ export function createTools(kit) {
       return { stopped: true };
     },
 
-    async chrome_resume(call, _input, note) {
+    async chrome_resume(call, input, note) {
+      // the person's take-over is theirs to end (the bar's Give back), and their Stop only ends when they have written to the agent since
+      const refused = sessions.resumeRefusal(call.agent.id, input["turnMessageAgeMs"]);
+      if (refused) fail(refused);
       const was = await sessions.resume(call.agent.id);
       note(was ? "resumed" : "was not stopped");
       return { resumed: true };
@@ -1247,6 +1254,9 @@ export function createTools(kit) {
    * @param {Call} call @param {boolean} [nested] a step of chrome_batch: already authorized
    */
   async function run(call, nested = false) {
+    await kit.restored;
+    // the person's pauses are still being read back (the wait ran out): fail closed, nothing runs until they are known
+    if (kit.restoring?.(call.agent.id) && call.tool !== "chrome_status") fail("paused");
     const input = checkInput(call.tool, call.input);
     if (!nested && call.tool !== "chrome_status") {
       await kit.authorize(call);

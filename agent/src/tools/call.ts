@@ -8,7 +8,7 @@ import { modelError } from "./model-error.ts";
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import type { CapName, ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { limited, shapeOutput } from "./compact.ts";
-import { turnCauseOf, turnStartOf } from "./turn-start.ts";
+import { turnCauseOf, turnStartOf, turnTriggerOf } from "./turn-start.ts";
 import { RepeatReads, repeatLine } from "./repeat-read.ts";
 import {
   HIDDEN_FROM_MODEL,
@@ -379,9 +379,11 @@ export function createToolSession(deps: CallDeps): ToolSession {
       run: ctx.runId,
       thread: ctx.thread.threadId,
       // why the engine started this turn, so a capability can tell a turn that was handed work from one a person started with their words
-      ...((): { turn?: { kind: string } } => {
+      ...((): { turn?: { kind: string; messageId?: string; authorKind?: string; authorId?: string } } => {
         const kind = turnCauseOf(ctx.thread.threadId, ctx.agentId);
-        return kind ? { turn: { kind } } : {};
+        if (!kind) return {};
+        const t = turnTriggerOf(ctx.thread.threadId, ctx.agentId);
+        return { turn: { kind, ...(t ? { messageId: t.messageId, authorKind: t.authorKind, authorId: t.authorId } : {}) } };
       })(),
       origin: "agent",
       callMeta: { tool: t.name, first: tally.first, ...(tally.afterReject ? { afterReject: true } : {}) },

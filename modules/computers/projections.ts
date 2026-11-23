@@ -24,6 +24,8 @@ export interface CompCtx {
   actingFor?: string | undefined;
   run?: string | undefined;
   thread?: string | undefined;
+  /** why the engine started the turn this call is made in, and the message that started it (set only by the engine's own record) */
+  turn?: { kind: string; messageId?: string; authorKind?: string; authorId?: string } | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;

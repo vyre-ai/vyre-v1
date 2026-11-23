@@ -703,6 +703,9 @@ export async function giveBack(ctx: CompCtx, input: { computerId: string }) {
   needTeam(ctx);
   const c = needComputer(ctx, input.computerId);
   if (c.state !== "takeover") return { computer: computerOut(c) };
+  // a person has the controls and keeps them until they give them back: an agent never does it for them, not even one acting for that person
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.no_grant", "A person has the controls. Wait until they give them back.");
   const me = actorOf(ctx);
   // The person at the controls gives it back; someone who manages computers can take it back from them.
   if (

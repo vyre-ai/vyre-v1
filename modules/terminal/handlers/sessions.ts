@@ -1212,7 +1212,10 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   await needOwnPlace(ctx, x);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
-  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  // a person has the keyboard and keeps it until they hand it back: an agent never does it for them, not even one acting for the holder
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.role_lacks_permission", KEYBOARD_HELD, { reason: "keyboard_held" });
+  const me = actorOf(ctx);
   if (h !== me && !mayTakeFromOther(ctx, x))
     raise(
       ctx,

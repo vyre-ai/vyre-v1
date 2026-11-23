@@ -12,6 +12,7 @@
 // Chrome to an agent) to its permissions. Until then this file is inert: it starts only when chrome.debugger exists.
 
 import { createStore } from "../worker/store.js";
+import { createPauseKeep } from "./pausekeep.js";
 import { parseIncoming } from "../worker/protocol.js";
 import { createCdp } from "./cdp.js";
 import { createTraffic } from "./net.js";
@@ -34,7 +35,7 @@ function randomRef(n) {
 /**
  * Build the agent control around a browser API. `ext` is `chrome` (or a fake in tests).
  * @param {any} ext
- * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void }} [o]
+ * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, restoreWaitMs?: number, restoreRetryMs?: number, restore?: (s: any) => Promise<void> }} [o] restoreWaitMs and restore are for tests: how long a call waits for the saved pauses, and a restore of their own
  */
 const BAR_BUTTONS = new Set(["stop", "takeover", "giveback", "endtask", "openvyre"]);
 
@@ -84,9 +85,41 @@ export function createAgentControl(ext, o = {}) {
     emit,
     now,
     grouping: () => mode === "personal",
+    keep: createPauseKeep(ext.storage.session),
     ...(o.setTimer ? { setTimer: o.setTimer } : {}),
     ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}),
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
+  });
+
+  // The worker may have been stopped and started again since the person's Stop or take-over: their pauses are read back before any call of an agent is answered.
+  // It fails closed and per agent: until they are known, an agent's calls are refused as paused (chrome_status still answers), never allowed. The wait for the answer is capped at two seconds so nothing holds the
+  // channel open, and a restore that fails or never answers is tried again until it works, and never starts empty. The person is never locked out, and never made to wait: every press on the bar is handled at once
+  // on what is live (a Stop acts now). Their Give back or End task while the restore is pending frees that bar's agent only (named by the bar itself), and is applied again to the take-over or Stop the late
+  // restore finds for that agent. Resume on a Stop is the same press as Give back. Nothing is written to storage until the restore has read what was there.
+  let restoreOk = false;
+  /** Agents the person freed from the bar while their saved pause was unknown. @type {Set<string>} */
+  const freed = new Set();
+  /** @param {string} agentId */
+  const restoring = (agentId) => !restoreOk && !freed.has(agentId);
+  const restored = new Promise((resolve) => {
+    const t = setTimeout(resolve, o.restoreWaitMs ?? 2000);
+    const attempt = () => {
+      Promise.resolve(o.restore ? o.restore(sessions) : sessions.restore()).then(
+        (put) => {
+          restoreOk = true;
+          clearTimeout(t);
+          resolve(undefined);
+          // the person freed these while the pauses were unknown: lift what the restore found for them (only what it put back, never a Stop made since)
+          if (Array.isArray(put)) for (const id of put) if (freed.has(id)) void sessions.resume(id);
+          freed.clear();
+        },
+        () => {
+          const again = /** @type {any} */ (setTimeout(attempt, o.restoreRetryMs ?? 500));
+          again?.unref?.(); // a test process may end while storage is still broken; the browser gives no such handle
+        },
+      );
+    };
+    attempt();
   });
 
   cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
@@ -141,6 +174,8 @@ export function createAgentControl(ext, o = {}) {
     cdp,
     traffic,
     sessions,
+    restored,
+    restoring,
     authorize,
     vaultFill,
     emit,
@@ -154,6 +189,7 @@ export function createAgentControl(ext, o = {}) {
 
   /** One message from the app on the agent channel. @param {unknown} raw */
   async function onIncoming(raw) {
+    await restored;
     const fill = parseIncoming(raw);
     if (fill && "type" in fill && fill.type === "fill") {
       fills.get(fill.ref)?.(fill.value);
@@ -207,14 +243,10 @@ export function createAgentControl(ext, o = {}) {
   ext.runtime.onConnect.addListener((/** @type {any} */ port) => {
     if (port.name !== OVERLAY_PORT || !port.sender || port.sender.id !== ext.runtime.id || !port.sender.tab) return;
     const tabId = port.sender.tab.id;
-    port.onMessage.addListener((/** @type {any} */ m) => {
+    /** @param {any} m */
+    const onBar = (m) => {
       const agent = sessions.driverOf(tabId);
       const shownAgent = sessions.shownAgent(tabId);
-      // a press on the bar's buttons that is the agent's own click (it clicked at the bar's place) is not the person's: the bar never obeys the agent it is there to watch
-      if (m && m.x !== undefined && BAR_BUTTONS.has(m.type) && sessions.ownPress(tabId, Number(m.x), Number(m.y)))
-        return;
-      // a keyboard click on a bar button that the agent's own Enter or Space made (it can Tab onto the bar) is not the person's either
-      if (m && m.key === true && BAR_BUTTONS.has(m.type) && sessions.ownKeyPress(tabId)) return;
       if (m && m.type === "openvyre") {
         const who = agent ?? shownAgent;
         const thread = who ? threads.get(who.id) : undefined;
@@ -239,6 +271,18 @@ export function createAgentControl(ext, o = {}) {
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
       else if (m.type === "touch") void sessions.touched(tabId, m);
+    };
+    port.onMessage.addListener((/** @type {any} */ m) => {
+      // Is this press the person's? Decided once, before anything acts or frees anyone (the filters use up the entry they match): a press on the bar's buttons that is the agent's own click (it clicked at the
+      // bar's place), or a keyboard click that the agent's own Enter or Space made (it can Tab onto the bar), is not the person's: the bar never obeys the agent it is there to watch.
+      if (m && m.x !== undefined && BAR_BUTTONS.has(m.type) && sessions.ownPress(tabId, Number(m.x), Number(m.y))) return;
+      if (m && m.key === true && BAR_BUTTONS.has(m.type) && sessions.ownKeyPress(tabId)) return;
+      // a release during the wait names its agent: the bar's own (from this page's overlay, never the page)
+      if (!restoreOk && m && (m.type === "giveback" || m.type === "endtask")) {
+        const who = sessions.shownAgent(tabId)?.id ?? (typeof m.agent === "string" ? m.agent : undefined);
+        if (who) freed.add(who);
+      }
+      onBar(m);
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.

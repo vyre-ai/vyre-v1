@@ -287,6 +287,25 @@ test("one person at a time: another is told who has it, the same person gets a f
   assert.equal((await takeOver(acting.ctx, { computerId: other })).computer.takeoverBy, OMAR);
 });
 
+test("an agent cannot give the controls back, not even one acting for the person who took them over", async () => {
+  const h = harness();
+  const id = await made(h);
+  await takeOver(h.ctx, { computerId: id });
+  const acting = harness({
+    raw: h.raw,
+    clock: h.clock,
+    fake: h.fake,
+    principal: { kind: "agent", id: INTAKE },
+    actingFor: DANA,
+  });
+  await assert.rejects(
+    () => giveBack(acting.ctx, { computerId: id }),
+    (e) => codeOf(e) === "permission.no_grant",
+  );
+  assert.equal((await get(h.ctx, { computerId: id })).computer.state, "takeover", "still the person's");
+  assert.equal((await giveBack(h.ctx, { computerId: id })).computer.state, "working", "the person gives it back");
+});
+
 test("give back returns the controls to the agent, names the length of the step, and may be done by whoever manages computers", async () => {
   const h = harness();
   const id = await made(h);
