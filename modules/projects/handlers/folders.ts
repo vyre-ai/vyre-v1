@@ -42,15 +42,20 @@ export function folderNameOf(title: unknown): string {
 }
 const titleOf = (fields: Record<string, unknown>): string => folderNameOf(fields["title"] ?? fields["name"]);
 
+type TypeDefOf = { template?: string; fields?: Array<{ key: string; type?: string; kind?: string }> };
+/** The type a record event is about, read once for the event (it was read twice, and it is the whole type: 578 fields for a firm's matter). `undefined` when it cannot be read. */
+async function typeDefOf(ctx: ProjectsCtx, type: unknown): Promise<TypeDefOf | undefined> {
+  if (typeof type !== "string") return undefined;
+  try {
+    return (await call<{ type?: TypeDefOf }>(ctx, "schema.types.get", { type })).type;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Is this record type a project type (the Project template or one cloned from it)? */
 async function isProjectType(ctx: ProjectsCtx, type: unknown): Promise<boolean> {
-  if (typeof type !== "string") return false;
-  try {
-    const r = await call<{ type?: { template?: string } }>(ctx, "schema.types.get", { type });
-    return r.type?.template === "project";
-  } catch {
-    return false;
-  }
+  return (await typeDefOf(ctx, type))?.template === "project";
 }
 
 async function recordFields(
@@ -336,7 +341,7 @@ export function fileIdsOf(v: unknown): string[] {
  * A file that lands in a files field of a record, whichever way it got there (the record page, a form that fills the record, an intake or portal upload, an agent, the API), is filed in the record's
  * files folder, so the Files tab shows it and the field still points at the same file: it is moved, never copied. A file that cannot be moved (gone, no access) is left where it is.
  */
-export async function fileFieldUploads(ctx: ProjectsCtx, event: HookEvent): Promise<void> {
+export async function fileFieldUploads(ctx: ProjectsCtx, event: HookEvent, known?: TypeDefOf): Promise<void> {
   if (event.name !== "record.created" && event.name !== "record.updated") return;
   const p = event.payload;
   const type = p["type"],
@@ -345,11 +350,13 @@ export async function fileFieldUploads(ctx: ProjectsCtx, event: HookEvent): Prom
   const changed = obj(p["fields"]);
   const keys = Object.keys(changed);
   if (keys.length === 0) return;
-  let def: { fields?: Array<{ key: string; type?: string; kind?: string }> } | undefined;
-  try {
-    def = (await call<{ type?: typeof def }>(ctx, "schema.types.get", { type })).type;
-  } catch {
-    return;
+  let def: TypeDefOf | undefined = known;
+  if (def === undefined) {
+    try {
+      def = (await call<{ type?: TypeDefOf }>(ctx, "schema.types.get", { type })).type;
+    } catch {
+      return;
+    }
   }
   const fileKeys = new Set(
     (def?.fields ?? [])
@@ -372,8 +379,9 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
   const type = p["type"],
     recordId = p["recordId"];
   if (typeof type !== "string" || typeof recordId !== "string") return;
-  await fileFieldUploads(ctx, event);
-  if (!(await isProjectType(ctx, type))) return;
+  const def = await typeDefOf(ctx, type);
+  await fileFieldUploads(ctx, event, def);
+  if (def?.template !== "project") return;
   switch (event.name) {
     case "record.created":
       await ensureFolder(ctx, type, recordId, event.actor);
