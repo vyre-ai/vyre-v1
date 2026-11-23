@@ -12,6 +12,8 @@ import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** One transaction for the writes of `fn` (synchronous statements only), where the database has one. */
+  batch?<T>(fn: () => T): T;
 }
 
 export type Level = "view" | "use" | "edit" | "manage";
