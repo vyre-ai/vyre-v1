@@ -377,6 +377,26 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           `${at}.updatedAt`,
           `${o.updatedAt} holds no date in the sample, so newest wins falls back to when the sync saw the change.`,
         );
+      // a version that is empty on every sampled record would never move: every check would skip every parent
+      for (const dep of spec.objects) {
+        const ch = dep.list.eachOf?.changed;
+        if (!ch || items.length === 0) continue;
+        const emptyEverywhere = (ptr: string): boolean =>
+          items.every((it) => {
+            const v = pointerGet(it, ptr);
+            return v === undefined || v === null || v === "";
+          });
+        if ("path" in ch && dep.list.eachOf!.object === o.remote && emptyEverywhere(ch.path))
+          err(
+            `objects.${dep.remote}.list.eachOf.changed`,
+            `${ch.path} is empty on every sampled ${o.remote}, so no parent would ever look changed: name a field that holds a stamp or a counter.`,
+          );
+        if ("object" in ch && ch.object === o.remote && (emptyEverywhere(ch.at) || emptyEverywhere(ch.parentAt)))
+          err(
+            `objects.${dep.remote}.list.eachOf.changed`,
+            `${emptyEverywhere(ch.at) ? ch.at : ch.parentAt} is empty on every sampled ${o.remote}, so no parent would ever look changed.`,
+          );
+      }
       // pagination: the next page must be reachable and different
       const page = readPage(parsed.body, reply.link, o, cursor, undefined) ?? { items: [] as unknown[] };
       let hasNext = (page as { next?: string }).next !== undefined;

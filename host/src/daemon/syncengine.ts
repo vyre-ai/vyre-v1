@@ -383,7 +383,10 @@ export function objectNamesOf(
 }
 
 export interface ParentInfo {
+  /** The parents whose children are read (met `where`, safe ids), sorted. */
   ids: string[];
+  /** Every parent the app lists, met `where` or not: a parent that is not here any more was deleted at the app. */
+  all?: string[];
   ver: Record<string, string>;
 }
 
@@ -423,6 +426,8 @@ export function remoteStore(
   /** Versions of parents whose children were read to the end in this store's life: kept by the engine once the rows are in (for `changed`). */
   pendingVersions: Map<string, string>;
   eachOf: EachOf | undefined;
+  /** The parents of a per-parent list (read once, kept between passes). */
+  parentInfo(): Promise<ParentInfo>;
   lazy: boolean;
   held: Map<string, { at: number; values: Record<string, string | null> }>;
 } {
@@ -587,10 +592,12 @@ export function remoteStore(
     if (cached) return (parentInfo = cached);
     const each = names.eachOf!;
     const ids: string[] = [];
+    const everyone: string[] = [];
     const ver: Record<string, string> = {};
     let unsafe = 0;
     for (const r of await walkAll(parentList, parentAfter)) {
       if (r.archived) continue;
+      everyone.push(r.id);
       if (each.where && !holdsWhen(r.data[each.where.path], each.where)) continue;
       if (r.id === "" || r.id === "." || r.id === ".." || /[\\/?#]/.test(r.id)) {
         unsafe++;
@@ -611,7 +618,7 @@ export function remoteStore(
     }
     if (unsafe > 0) notes.push(`${unsafe} parent${unsafe === 1 ? "" : "s"} skipped: the id cannot go in an address.`);
     ids.sort();
-    parentInfo = { ids, ver };
+    parentInfo = { ids, all: everyone, ver };
     opts.parentCache?.set(parentInfo);
     return parentInfo;
   };
@@ -784,6 +791,7 @@ export function remoteStore(
     notes,
     pendingVersions,
     eachOf: names.eachOf,
+    parentInfo: parentsOf,
   });
 }
 
@@ -1360,8 +1368,13 @@ export function createSyncEngine(o: {
         return { rows, ...(next !== undefined ? { next } : {}), done };
       };
       /** The versions of the parents read to the end are kept once their rows are in, so a pass that failed half way reads them again. */
-      const keepVersions = (): void => {
+      const keepVersions = (skipped = 0): void => {
         if (!remote.eachOf?.changed) return;
+        // a record that did not go in (a conflict, a failure) is read again at the next check: the versions of this step's parents are not kept
+        if (skipped > 0) {
+          remote.pendingVersions.clear();
+          return;
+        }
         for (const [parent, ver] of remote.pendingVersions)
           tx.run(
             "INSERT INTO sy_parent_ver (sync_type, parent, ver) VALUES (?, ?, ?) ON CONFLICT(sync_type, parent) DO UPDATE SET ver = excluded.ver",
@@ -1382,8 +1395,11 @@ export function createSyncEngine(o: {
         for (const parent of g.done)
           tx.run("INSERT OR IGNORE INTO sy_parent_done (sync_type, parent) VALUES (?, ?)", b.syncTypeId, parent);
         // a per-parent list's checks may skip parents (`changed`), so the sweep, which reads them all, also brings in what it finds new or changed
-        if (remote.eachOf && g.rows.length > 0)
-          await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
+        if (remote.eachOf && (g.rows.length > 0 || g.done.length > 0)) {
+          const applied =
+            g.rows.length > 0 ? await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common }) : undefined;
+          keepVersions(applied?.skipped ?? 0);
+        }
         if (g.next !== undefined) {
           save({ ...p, sweep: { after: g.next } });
           return {
@@ -1402,15 +1418,18 @@ export function createSyncEngine(o: {
             .map((x) => x.remote_id),
         );
         // a record under a parent this sweep did not read to the end is vouched for as it is (a parent made after the sweep began, one that did not meet `where`, one that was skipped): nothing under it is removed
-        if (remote.eachOf)
-          for (const x of tx.all<{ remote_id: string }>(
-            "SELECT remote_id FROM sy_parent WHERE sync_type = ? AND parent NOT IN (SELECT parent FROM sy_parent_done WHERE sync_type = ?)",
+        // (a parent the app no longer lists was deleted there: its children are not vouched for and go)
+        if (remote.eachOf) {
+          const info = await remote.parentInfo();
+          const exists = info.all ? new Set(info.all) : undefined;
+          for (const x of tx.all<{ remote_id: string; parent: string }>(
+            "SELECT remote_id, parent FROM sy_parent WHERE sync_type = ? AND parent NOT IN (SELECT parent FROM sy_parent_done WHERE sync_type = ?)",
             b.syncTypeId,
             b.syncTypeId,
           ))
-            ids.add(x.remote_id);
+            if (!exists || exists.has(x.parent)) ids.add(x.remote_id);
+        }
         const r = await runSyncS(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
-        keepVersions();
         const said = await linkPass([], ids);
         tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
         tx.run("DELETE FROM sy_parent_done WHERE sync_type = ?", b.syncTypeId);
@@ -1427,7 +1446,7 @@ export function createSyncEngine(o: {
           pushLocalSince: p.lastStart ?? d.since,
           ...common,
         });
-        keepVersions();
+        keepVersions(r.skipped ?? 0);
         const said = await linkPass(g.rows);
         if (g.next !== undefined) {
           save({ ...p, done: false, delta: { ...d, after: g.next } });
@@ -1446,7 +1465,7 @@ export function createSyncEngine(o: {
           const began = progress.began ?? startedAt;
           const g = await group(progress.after);
           const r = await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
-          keepVersions();
+          keepVersions(r.skipped ?? 0);
           const said = await linkPass(g.rows);
           const total = progress.pulled + g.rows.length;
           const saved: Progress =

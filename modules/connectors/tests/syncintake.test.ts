@@ -275,3 +275,20 @@ test("validate says where and changed must name mapped fields of the parent (or 
   );
   assert.ok(said.some((m) => m.includes("/also_not_mapped must be one of")));
 });
+
+test("validate refuses a version that is empty on every sampled parent, since no parent would ever look changed", async () => {
+  const w = world();
+  const spec = JSON.parse(JSON.stringify(SPEC));
+  spec.objects[1].list.eachOf.changed = { path: "/name" };
+  spec.mapping[0].fields.push({ path: "/name", field: "name2", direction: "pull" });
+  const ok = await w.k.hs["sync_specs.validate"](w.k.ctx, { spec });
+  assert.equal(ok.ok, true, JSON.stringify(ok.problems.filter((p) => p.level === "error")));
+  spec.objects[0].fields.push({ path: "/rev", label: "Rev", type: "text" });
+  spec.mapping[0].fields.push({ path: "/rev", field: "rev", direction: "pull" });
+  spec.objects[1].list.eachOf.changed = { path: "/rev" };
+  const bad = await w.k.hs["sync_specs.validate"](w.k.ctx, { spec });
+  assert.equal(bad.ok, false);
+  assert.ok(
+    bad.problems.some((p) => p.level === "error" && p.message.includes("/rev is empty on every sampled matters")),
+  );
+});

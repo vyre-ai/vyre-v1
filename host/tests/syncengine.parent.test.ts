@@ -27,6 +27,7 @@ async function kit(eachOf: Record<string, unknown>) {
         fields: [
           { name: "name", kind: "text", label: "Name" },
           { name: "matter", kind: "text", label: "Matter" },
+          { name: "ref", kind: "link", label: "Ref", to: "child", many: true },
         ],
       },
     ],
@@ -43,6 +44,7 @@ async function kit(eachOf: Record<string, unknown>) {
     ["mB", many("b")],
     ["mC", many("c")],
   ]);
+  const bad = new Set<string>();
   const reads: string[] = [];
   let t = 1_800_000_000_000;
   const ctx: EngineCtx = {
@@ -69,7 +71,12 @@ async function kit(eachOf: Record<string, unknown>) {
       const p = i.input?.parent as string;
       reads.push(p);
       return {
-        output: { results: [...(children.get(p) ?? [])].map(([id, name]) => ({ id, properties: { "/name": name } })) },
+        output: {
+          results: [...(children.get(p) ?? [])].map(([id, name]) => ({
+            id,
+            properties: { "/name": name, ...(bad.has(id) ? { "/ref": "not a list" } : {}) },
+          })),
+        },
       };
     },
   };
@@ -82,6 +89,7 @@ async function kit(eachOf: Record<string, unknown>) {
     fields: [
       { key: "name", remote: "/name", dir: "pull" },
       { key: "matter", remote: "/_parent", dir: "pull" },
+      { key: "ref", remote: "/ref", dir: "pull" },
     ],
     match: [],
     createAtSource: false,
@@ -108,6 +116,7 @@ async function kit(eachOf: Record<string, unknown>) {
       .map((x) => x.remote_id)
       .sort();
   return {
+    bad,
     parents,
     children,
     reads,
@@ -167,4 +176,53 @@ test("changed: a check reads again only the parents whose version moved; the swe
   await k.pass();
   assert.deepEqual([...new Set(k.reads)].sort(), ["mA", "mB", "mC"]);
   assert.ok((await k.names()).includes("b1 edited"));
+});
+
+test("changed: a parent whose rows did not all go in is read again at the next check, not marked as read", async () => {
+  const k = await kit({ changed: { path: "/rev" } });
+  await k.pass();
+  // mA changes and one of its children cannot be applied (the app gives a link field a plain string)
+  k.parents.set("mA", { "/sub": true, "/rev": "2" });
+  k.bad.add("a3");
+  k.children.get("mA")!.set("a1", "a1 edited");
+  k.advance(10 * 60_000 + 1);
+  k.mark();
+  await k.pass();
+  assert.deepEqual([...new Set(k.reads)], ["mA"]);
+  // the app fixes it; its version has not moved again, yet mA is read again because the last read was not whole
+  k.bad.clear();
+  k.children.get("mA")!.set("a3", "a3 fixed");
+  k.advance(10 * 60_000 + 1);
+  k.mark();
+  await k.pass();
+  assert.deepEqual([...new Set(k.reads)], ["mA"], "read again");
+  assert.ok((await k.names()).includes("a3 fixed"));
+  // and now it is whole: the next check leaves it alone
+  k.advance(10 * 60_000 + 1);
+  k.mark();
+  await k.pass();
+  assert.deepEqual(k.reads, [], "nothing moved, nothing read");
+});
+
+test("a parent deleted at the app releases its children to the sweep; a parent that only stopped meeting where does not", async () => {
+  const k = await kit({ where: { path: "/sub", e: ["true"] } });
+  k.parents.set("mD", { "/sub": true, "/rev": "1" });
+  k.children.set(
+    "mD",
+    new Map([
+      ["d1", "d1 name"],
+      ["d2", "d2 name"],
+      ["d3", "d3 name"],
+    ]),
+  );
+  k.parents.set("mE", { "/sub": true, "/rev": "1" });
+  k.children.set("mE", new Map([["e1", "e1 name"]]));
+  await k.pass();
+  assert.equal((await k.names()).length, 94);
+  k.parents.delete("mD");
+  k.children.delete("mD");
+  k.parents.set("mE", { "/sub": false, "/rev": "1" });
+  k.advance(2 * DAY);
+  await k.pass();
+  assert.deepEqual(k.removed(), ["d1", "d2", "d3"], "mD is gone at the app; mE is only not submitted any more");
 });
