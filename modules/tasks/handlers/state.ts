@@ -86,14 +86,7 @@ export const KIND_ACTIONS: Record<TaskKind, ActionDef[]> = {
 // ---- the 4.7 table ----
 
 export type MoveAction =
-  | "start"
-  | "submit"
-  | "approve_review"
-  | "send_back"
-  | "approve"
-  | "reject"
-  | "cancel"
-  | "reopen";
+  "start" | "submit" | "approve_review" | "send_back" | "approve" | "reject" | "cancel" | "reopen";
 type Actor = Slot | "creator" | "responsible";
 export interface Move {
   action: MoveAction;
@@ -562,6 +555,20 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.start !== undefined) t.start = input.start;
   if (input.recur !== undefined) t.recur = input.recur;
   if (input.recordId !== undefined) t.recordId = input.recordId;
+  // fields.project names the project record a task belongs to: it links the task exactly as tasks.links.add does (the project's plan reads the link, never the field). Before, the value was only stored and the task sat outside the project.
+  const inProject = t.fields["project"];
+  if (typeof inProject === "string" && inProject !== "") {
+    if (t.recordId === undefined) t.recordId = inProject;
+    else if (t.recordId !== inProject)
+      raise(
+        ctx,
+        "validation.precondition_failed",
+        "A task belongs to one record: recordId and fields.project name different ones.",
+        {
+          reason: "project_conflict",
+        },
+      );
+  }
   // a task that says it is the Gate's is the Gate's: made by the Gate (a nested call from a gate capability, which the pipeline sets and a caller cannot) or by the server. Anyone else naming a gate source would
   // dress their own task in the Gate's card, so it is refused.
   if ((input.source as { kind?: string } | undefined)?.kind === "gate" && !mayMakeGateTask(ctx))
@@ -861,6 +868,12 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
       else next[k] = v;
     }
     set("fields", next);
+    // the same rule as on create: a project named in fields.project is the task's record link (tasks.update announces it as task.updated, which it declares)
+    const proj = next["project"];
+    if (typeof proj === "string" && proj !== "" && t.recordId !== proj) {
+      t.recordId = proj;
+      changed.push("recordId");
+    }
   }
   if ("parentTaskId" in input && input.parentTaskId !== undefined) {
     const to: string | null = input.parentTaskId;
