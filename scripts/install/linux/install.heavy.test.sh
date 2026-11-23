@@ -259,6 +259,22 @@ t_backups_mount() {
   docker exec "$c" ls /backups | grep -q "$(basename "$f")"
   [ "$(docker exec "$c" cat /data/mount-marker)" = marker ]
   vs doctor --quiet
+  # a folder name that is hard for YAML: compose still reads the file and the folder is mounted
+  hard="$W/My Backups, 2: #x {y} \"q\""
+  mkdir -p "$hard"; printf 'there' >"$hard/vyre-manual-hard.tar.gz"
+  keep=$(cat "$W/srv/backup-dir"); printf '%s\n' "$hard" >"$W/srv/backup-dir"
+  vs start >/dev/null
+  c=$(vyred); docker exec "$c" cat /backups/vyre-manual-hard.tar.gz | grep -q there
+  # a folder that cannot be made: no mount, a line saying why, and the server still starts
+  printf 'x' >"$W/not-a-dir"; printf '%s\n' "$W/not-a-dir/backups" >"$W/srv/backup-dir"
+  vs start >"$W/nomount.out" 2>&1
+  grep -q "starts without it mounted" "$W/nomount.out"
+  c=$(vyred); [ -n "$c" ]
+  ! docker exec "$c" test -d /backups
+  printf '%s\n' "$keep" >"$W/srv/backup-dir"
+  vs start >/dev/null
+  c=$(vyred); docker exec "$c" ls /backups | grep -q "$(basename "$f")"
+  vs doctor --quiet
 }
 t_manual_rollback() {
   vs rollback

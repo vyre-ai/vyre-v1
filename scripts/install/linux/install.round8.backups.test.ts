@@ -89,7 +89,7 @@ test("the backups folder is mounted into the server: compose.backups.yml names i
     const txt = fs.readFileSync(f, "utf8");
     assert.match(
       txt,
-      new RegExp(`device: ${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} }`),
+      new RegExp(`device: "${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"),
       "the host folder is the bind source",
     );
     assert.match(txt, /- vyre-backups:\/backups/, "mounted at /backups");
@@ -101,6 +101,53 @@ test("the backups folder is mounted into the server: compose.backups.yml names i
     // dc hands compose the file after the override
     const calls = sh(SERVER, `DATA_DIR="${dir}/data"; docker(){ printf '%s\\n' "$*"; }; dc config`, env);
     assert.match(calls.stdout, /-f \S+\/compose\.override\.yml -f \S+\/compose\.backups\.yml config/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("compose.backups.yml survives a hard folder name, and when the folder or the file cannot be made the server still starts without the mount, saying so", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "Q");
+    const env = world(dir, SAME);
+    const f = path.join(dir, "compose.backups.yml");
+    // a name with a space, comma, colon, hash, brace and both kinds of quote and a backslash: written as one quoted string
+    const hard = path.join(dir, 'My Backups, 2: #{x} "q" b\\s');
+    const r = sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; BACKUP_DIR='${hard.replace(/'/g, "'\\''")}'; ensure_backups_compose`,
+      env,
+    );
+    assert.equal(r.status, 0, r.stderr);
+    const want = hard.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    assert.ok(fs.readFileSync(f, "utf8").split("\n").includes(`      device: "${want}"`), fs.readFileSync(f, "utf8"));
+    assert.ok(fs.statSync(hard).isDirectory());
+    // the folder cannot be made (its parent is a file): no file, no -f, one line saying why, and compose is called without it (a fake docker that refuses a missing -f file)
+    fs.writeFileSync(path.join(dir, "notadir"), "x");
+    const body = `DATA_DIR="${dir}/data"; BACKUP_DIR="${dir}/notadir/backups"; docker(){ for a in "$@"; do case "$a" in */compose.backups.yml) [ -f "$a" ] || { echo "no such file: $a"; return 14; } ; echo "used $a" ;; esac; done; echo "compose ok"; }; dc config`;
+    const noDir = sh(SERVER, body, env);
+    assert.equal(noDir.status, 0, noDir.stdout + noDir.stderr);
+    assert.doesNotMatch(noDir.stdout, /used /);
+    assert.match(noDir.stdout, /compose ok/);
+    assert.match(
+      noDir.stderr,
+      /backups folder .* does not exist and could not be made, so the server starts without it mounted/,
+    );
+    assert.ok(!fs.existsSync(f), "a stale file from an earlier start is removed");
+    // the file cannot be written (a directory sits where it is first written): same, and the old file is not passed
+    fs.writeFileSync(f, "stale");
+    fs.mkdirSync(`${f}.new`);
+    const noFile = sh(
+      SERVER,
+      `DATA_DIR="${dir}/data"; BACKUP_DIR="${dir}/backups"; docker(){ for a in "$@"; do case "$a" in */compose.backups.yml) echo "used $a" ;; esac; done; echo "compose ok"; }; dc config`,
+      env,
+    );
+    assert.equal(noFile.status, 0, noFile.stdout + noFile.stderr);
+    assert.doesNotMatch(noFile.stdout, /used /);
+    assert.match(
+      noFile.stderr,
+      /could not write .*compose\.backups\.yml, so the server starts without the backups folder mounted/,
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
