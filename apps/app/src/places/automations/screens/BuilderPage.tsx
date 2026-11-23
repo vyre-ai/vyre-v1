@@ -1434,7 +1434,8 @@ const s = StyleSheet.create({
   fill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "var(--win)" as string },
   // a tab taller than the window scrolls inside its own frame (a plain View here clipped it and nothing scrolled)
   paneScroll: { flex: 1, minHeight: 0 },
-  pane: { padding: 16 },
+  // flexGrow keeps a short page filling the frame (no gap under it)
+  pane: { flexGrow: 1, padding: 16 },
   whyBtn: { alignSelf: "flex-start", marginTop: 12 },
   note: { paddingHorizontal: 16, paddingBottom: 4 },
 });
