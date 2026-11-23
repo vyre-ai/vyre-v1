@@ -1947,15 +1947,20 @@ function chosenKind(ctx: Ctx, given: string | undefined, name: string, mime: str
   return given;
 }
 
-async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; changesetId?: string }> {
-  ensureReady(ctx);
-  const o = rec(ctx, input);
-  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
+/** One file into a folder: the name checked, the content stored, the version made and the events said. The caller has read the folder. */
+async function createFileIn(
+  ctx: Ctx,
+  folder: Row,
+  o: Record<string, unknown>,
+  taken?: Set<string>,
+): Promise<{ file: FileOut }> {
   let name = cleanName(ctx, reqStr(ctx, o, "name"));
   // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
-  if (ctx.principal.kind === "agent") name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n));
-  if (nameTaken(ctx, String(folder.id), name))
+  if (ctx.principal.kind === "agent")
+    name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n) || (taken?.has(n) ?? false));
+  if (nameTaken(ctx, String(folder.id), name) || taken?.has(name))
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
+  taken?.add(name);
   const content = parseContent(ctx, o.content);
   const mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
   const kind = chosenKind(ctx, optStr(ctx, o, "kind"), name, mimeHint);
@@ -1985,6 +1990,28 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   ctx.emit("file.version_added", `file/${id}`, { fileId: id, versionId, n: 1, by: ctx.principal.id });
   ctx.log.info("files.create", { fileId: id, folderId: String(folder.id), bytes: blob.size });
   return { file: fileOutC(ctx, mustFile(ctx, id)) };
+}
+
+async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; changesetId?: string }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
+  return createFileIn(ctx, folder, o);
+}
+
+/** Many files into one folder in one call: one transaction, one commit, one update of who may see what (the access rebuild runs once, not once for each file). All or none: a name taken or a content refused stops the call and nothing is made. */
+const CREATE_MANY_MAX = 200;
+async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileOut[] }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
+  const list = o["files"];
+  if (!Array.isArray(list) || list.length === 0 || list.length > CREATE_MANY_MAX)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "files" });
+  const taken = new Set<string>();
+  const files: FileOut[] = [];
+  for (const one of list as unknown[]) files.push((await createFileIn(ctx, folder, rec(ctx, one), taken)).file);
+  return { files };
 }
 
 async function filesWrite(
@@ -2594,6 +2621,7 @@ export const treeHandlers = {
   "files.folder.settings": (ctx: Ctx, input: unknown) => folderSettings(ctx, input),
   "files.upload_url": (ctx: Ctx, input: unknown) => uploadUrl(ctx, input),
   "files.create": (ctx: Ctx, input: unknown) => filesCreate(ctx, input),
+  "files.create_many": (ctx: Ctx, input: unknown) => filesCreateMany(ctx, input),
   "files.write": (ctx: Ctx, input: unknown) => filesWrite(ctx, input),
   "files.rename": (ctx: Ctx, input: unknown) => filesRename(ctx, input),
   "files.move": (ctx: Ctx, input: unknown) => filesMove(ctx, input),
