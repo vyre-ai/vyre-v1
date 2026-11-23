@@ -8,6 +8,7 @@ import { safeContent } from "../tools/model-error.ts";
 
 import { PROBE_MESSAGE, probeIn } from "../../../lib/probe.ts";
 import { createToolSession } from "../tools/call.ts";
+import { fullSchema } from "../tools/share.ts";
 import { decideLocal, dialFor } from "../tools/local.ts";
 import { localFacts } from "../tools/local-facts.ts";
 import type { ToolSession } from "../tools/call.ts";
@@ -419,7 +420,7 @@ export function createMcpServer(deps: McpServerDeps): McpServer {
     if (!t) return { invalid: `Unknown tool: ${p.name}` };
     const traceId = s.ctx.trace?.traceId ?? hex(16);
     // no tool is called to see if it works, and none with placeholder content: refused before it reaches the chat, a hold, a task or a person's list
-    if (probeIn(args, "", "", t.inputSchema) !== null) {
+    if (probeIn(args, "", "", fullSchema(t.name, t.inputSchema)) !== null) {
       const error = makeError("validation.bad_input", traceId, {
         message: PROBE_MESSAGE,
         details: { tool: t.name, reason: "placeholder" },

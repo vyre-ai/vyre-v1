@@ -1048,3 +1048,31 @@ test("schema.apply takes a field.mergeable op: the same switch, through the one 
   await k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "email", label: "restricted" });
   await assert.rejects(k.h["schema.apply"](k.ctx, op("email", true)), code("validation.precondition_failed"));
 });
+
+test("a type has one card face, set by type.update, checked against its own fields, allowed on a system type and read back by describe", async () => {
+  const k = kit();
+  await base(k);
+  const one = async (card: unknown, type = "acme_person") =>
+    (await k.h["schema.diff"](k.ctx, { ops: [{ op: "type.update", type, def: { card } }] })).problems
+      .map((p) => p.message)
+      .join("|");
+  assert.equal(await one({ preset: "detail", fields: ["name"], mark: true }), "");
+  assert.match(await one({ preset: "fancy", fields: [] }), /simple, detail or visual/);
+  assert.match(await one({ preset: "simple", fields: ["nope"] }), /card field nope is not a field/);
+  assert.match(await one({ preset: "simple", fields: ["name", "name"] }), /names a field twice/);
+  assert.match(await one({ preset: "simple", fields: ["a", "b", "c", "d", "e", "f", "g"] }), /at most six/);
+  assert.match(await one({ preset: "simple", fields: [], mark: "yes" }), /on or off/);
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "type.update", type: "acme_person", def: { card: { preset: "visual", fields: ["name"] } } }],
+  });
+  const d = (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type as { card?: unknown };
+  assert.deepEqual(d.card, { preset: "visual", fields: ["name"] });
+  // a system type keeps its fields but may choose its card
+  assert.equal(await one({ preset: "simple", fields: [] }, "agent"), "");
+  // clearing it
+  await k.h["schema.apply"](k.ctx, { ops: [{ op: "type.update", type: "acme_person", def: { card: null } }] });
+  assert.equal(
+    ((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type as { card?: unknown }).card,
+    undefined,
+  );
+});

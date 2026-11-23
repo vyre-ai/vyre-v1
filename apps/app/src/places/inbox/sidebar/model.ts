@@ -23,7 +23,7 @@ export function scopeOfArgs(args: Readonly<Record<string, string>>): Partial<Inb
   else if (raw.startsWith("number:") && raw.length > 7) scope = { kind: "number", id: raw.slice(7) };
   return { ...(scope ? { scope } : {}), ...(view ? { view } : {}), ...(main ? { main } : {}) };
 }
-export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies";
+export type MainView = "list" | "calendar" | "connect" | "meetings" | "replies" | "unmatched";
 
 export interface InboxState {
   main: MainView;
@@ -408,6 +408,7 @@ export type Action =
   | { type: "calendar" }
   | { type: "meetings" }
   | { type: "replies" }
+  | { type: "unmatched" }
   | { type: "connect" }
   | { type: "calendarVisible"; id: string }
   | { type: "calendarOnly"; id: string; all: readonly string[] };
@@ -427,7 +428,15 @@ export function reduce(s: InboxState, a: Action): InboxState {
     case "query":
       return { ...s, query: a.query, selected: null };
     case "showAll":
-      return { ...s, channels: [], inboxes: [], needsMatch: false, query: "", selected: null };
+      return {
+        ...s,
+        ...(s.main === "unmatched" ? { main: "list" as const } : {}),
+        channels: [],
+        inboxes: [],
+        needsMatch: false,
+        query: "",
+        selected: null,
+      };
     case "select":
       return { ...s, selected: a.key };
     case "section":
@@ -438,6 +447,8 @@ export function reduce(s: InboxState, a: Action): InboxState {
       return { ...s, main: "meetings", selected: null };
     case "replies":
       return { ...s, main: "replies", selected: null };
+    case "unmatched":
+      return { ...s, main: "unmatched", selected: null };
     case "connect":
       return { ...s, main: "connect", selected: null };
     case "calendarVisible":

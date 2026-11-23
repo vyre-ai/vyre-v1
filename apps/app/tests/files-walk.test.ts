@@ -140,7 +140,8 @@ export async function walk(t: { skip(m?: string): void }, only?: readonly string
       // the shell's own Back (the title bar's arrow): a file has no second one
       assert.equal(await page.getByTestId("file-back").count(), 0, "the file has no back control of its own");
       await page.getByTestId("nav-back").click();
-      await page.getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
+      // the folder's own list (the file viewer has none): the file's name is on screen in the viewer too, so waiting for the name alone cannot tell the two pages apart; the page is made after the frame that answers the press
+      await page.getByTestId("files-list").getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
       assert.equal(
         (await page.getByTestId("files-title").innerText()).trim(),
         "Walk",
@@ -236,7 +237,8 @@ export async function walk(t: { skip(m?: string): void }, only?: readonly string
       await page.getByTestId("files-path").waitFor({ timeout: 10_000 });
       assert.match(await page.getByTestId("files-path").innerText(), /Walk/, "the path shows the folder");
       await page.getByTestId("nav-back").click();
-      await page.getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
+      // the folder's own list (the file viewer has none): the file's name is on screen in the viewer too, so waiting for the name alone cannot tell the two pages apart; the page is made after the frame that answers the press
+      await page.getByTestId("files-list").getByText("notes.md", { exact: true }).first().waitFor({ timeout: 15_000 });
       assert.equal(
         (await page.getByTestId("files-title").innerText()).trim(),
         "Walk",

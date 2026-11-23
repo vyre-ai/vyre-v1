@@ -1,0 +1,1 @@
+- The Crew pane, the agent page's Trash check and a note opened from a link never draw an empty frame while their code loads: the Crew wrapper returns what was on the right until the pane is open and has arrived, the Trash check is part of the place, and a note shows the loading mark at once.

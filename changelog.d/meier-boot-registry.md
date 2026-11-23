@@ -1,0 +1,1 @@
+- A restart of a Space no longer holds the event loop for 180 ms: the generated registry is read and parsed once, not three times at the start. A guard test boots a Space that exists, with agents, and holds its boot to 100 ms.

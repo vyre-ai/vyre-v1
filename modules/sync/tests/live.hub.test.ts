@@ -261,3 +261,46 @@ test("an acked seq moves the session's acked mark; an older ack changes nothing"
   assert.equal(s.acked(), sent);
   rig.hub.close();
 });
+
+test("a burst of a thousand commits is a few pulls for a session, not a thousand", async () => {
+  const rig = liveRig();
+  rig.row("c1");
+  const ada = raw(rig, who(ADA));
+  ada.send(hello());
+  await settle();
+  const db = rig.r.s.deps.db;
+  let pulls = 0;
+  const all = db.all.bind(db);
+  (db as { all: unknown }).all = (sql: string, ...a: unknown[]) => {
+    if (/FROM sync_changes WHERE/.test(sql)) pulls++;
+    return (all as (q: string, ...x: unknown[]) => unknown)(sql, ...a);
+  };
+  for (let i = 0; i < 1000; i++) rig.hub.commit();
+  await settle();
+  assert.ok(pulls <= 5, `${pulls} pulls for one session in one burst`);
+  rig.row("c2");
+  await settle();
+  assert.ok(ada.ofType("ev").length >= 1, "a change after the burst still reaches the device");
+});
+
+test("a flush that gives way to the loop is joined by the commits that come meanwhile: one flush in flight, every row delivered once", async () => {
+  const rig = liveRig({ batch: 2, yieldMs: 0, window: 100 });
+  for (let i = 0; i < 12; i++) rig.row(`c${i}`);
+  const ada = raw(rig, who(ADA));
+  ada.send(hello());
+  await settle();
+  const db = rig.r.s.deps.db;
+  let pulls = 0;
+  const all = db.all.bind(db);
+  (db as { all: unknown }).all = (sql: string, ...a: unknown[]) => {
+    if (/FROM sync_changes WHERE/.test(sql)) pulls++;
+    return (all as (q: string, ...x: unknown[]) => unknown)(sql, ...a);
+  };
+  for (let i = 0; i < 12; i++) rig.row(`d${i}`);
+  for (let i = 0; i < 300; i++) rig.hub.commit();
+  await settle(60);
+  const ids = ada.ofType("ev").flatMap((f) => f.items.map((x) => x.id));
+  assert.equal(new Set(ids).size, ids.length, "no row is sent twice");
+  assert.ok(ids.length >= 24, `all rows arrive (${ids.length})`);
+  assert.ok(pulls <= 20, `${pulls} pulls for 24 rows in pages of 2`);
+});

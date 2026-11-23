@@ -1,0 +1,1 @@
+A record opened from a list row now says its name in the page's first frame. It used to show the word "Record" until the record had loaded (a frame or two, longer on a slow link). The page keeps the tapped row's name, and shows nothing, not "Record", when it has none (a link). A phone walk records the title at every frame.

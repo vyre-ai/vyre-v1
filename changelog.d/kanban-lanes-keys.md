@@ -1,0 +1,1 @@
+A board can be split into swimlanes by owner or any choice field, a name typed at the foot of a column adds a card, finish lines fold into narrow strips you can open, a long column draws only what is on screen, and the keys (arrows, Alt and the arrows, Space, Enter, Z, ?) work on cards.

@@ -167,6 +167,7 @@ function RecordsBody({ rt, canEdit }: { rt: ShellRuntime; canEdit: boolean }): R
       nav: {
         ...nav,
         openAgent: (agentId: string) => openAgent(rt, agentId),
+        openAutomation: (automationId: string) => rt.open({ subject: { type: "automation", id: automationId } }),
         openRecord: (recordId: string) => {
           const open = (): void => rt.open({ subject: { type: "record", id: recordId }, args: type ? { type } : {} });
           // an Agents row opens the agent's own page; a row with no agent behind it opens the "not set up" page

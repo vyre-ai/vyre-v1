@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "journeys.adopt": Handler<"journeys.adopt", X>;
   "journeys.advance": Handler<"journeys.advance", X>;
   "journeys.check_limits": Handler<"journeys.check_limits", X>;
   "journeys.create": Handler<"journeys.create", X>;
@@ -13,12 +14,19 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "journeys.get": Handler<"journeys.get", X>;
   "journeys.list": Handler<"journeys.list", X>;
   "journeys.migrate": Handler<"journeys.migrate", X>;
+  "journeys.migration_state": Handler<"journeys.migration_state", X>;
   "journeys.move_stage": Handler<"journeys.move_stage", X>;
   "journeys.preview_migrate": Handler<"journeys.preview_migrate", X>;
   "journeys.rename": Handler<"journeys.rename", X>;
   "journeys.rules.set": Handler<"journeys.rules.set", X>;
   "journeys.stage_counts": Handler<"journeys.stage_counts", X>;
+  "journeys.stage_since": Handler<"journeys.stage_since", X>;
   "journeys.start": Handler<"journeys.start", X>;
   "journeys.tasks": Handler<"journeys.tasks", X>;
+  "journeys.test_path": Handler<"journeys.test_path", X>;
+  "journeys.to_pipeline": Handler<"journeys.to_pipeline", X>;
+  "journeys.values.get": Handler<"journeys.values.get", X>;
+  "journeys.values.set": Handler<"journeys.values.set", X>;
   "journeys.versions": Handler<"journeys.versions", X>;
+  "journeys.where": Handler<"journeys.where", X>;
 }

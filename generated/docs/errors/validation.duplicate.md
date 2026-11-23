@@ -27,7 +27,7 @@ HTTP 422. Retryable: no.
 - invites.accept_create_account
 - journeys.create
 - journeys.start
+- journeys.to_pipeline
 - mail.address.add
 - mail.address.move
 - mail.configure
-- mail.connect

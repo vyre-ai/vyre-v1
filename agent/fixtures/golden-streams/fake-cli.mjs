@@ -10,8 +10,10 @@
 //   slow [ms]       waits, then replays text (a turn that takes a while)
 //   hang            starts, says nothing more, never ends
 //   die             writes to stderr and exits 3 with no result
-//   bg <ms> <ms>... [noself]  (claude only) launches one background helper per number, each finishing that many ms later (task_started now, task_progress half way, task_notification at the end), says "I am waiting"
+//   bg <ms> <ms>... [noself] [lag <ms>] [tail <ms>]  (claude only) launches one background helper per number, each finishing that many ms later (task_started now, task_progress half way, task_notification at the end), says "I am waiting"
 //                   and ends its turn. As the real engine does, it wakes itself when a helper ends and answers (a status line, or the last word when it was the last one); `noself` leaves that out, so the host must wake it
+//                   `lag <ms>`: the engine takes that long (a model call) before it says anything in answer to a helper's end, and is busy with that turn meanwhile: a message written in the meantime is answered after it, as the
+//                   real engine does. `tail <ms>`: its words are said at once and the end of that turn comes that long after.
 //   /compact [keep] (claude only) compacts: a compact_boundary line with the tokens before and after, then an empty success result
 //   pluginenv       starts each plugin MCP server the way the real CLI would (Claude Code: its own environment plus the server's env with ${NAME} expanded; Codex: a short default environment, the
 //                   env table's plain values and the variables env_vars names) and answers with what each server printed: the environment the server process actually saw
@@ -264,6 +266,8 @@ function skillsSeen() {
 }
 
 let folding = false;
+/** What the engine does in order: each message it was given, and a reply of its own that takes a while. */
+let queue = Promise.resolve();
 async function run(prompt) {
   const words = prompt.trim().split(/\s+/);
   switch (words[0]) {
@@ -271,11 +275,19 @@ async function run(prompt) {
       replay("text");
       break;
     case "bg": {
+      // numbers after "lag" and "tail" are theirs, not helpers
+      const named = new Set(
+        ["lag", "tail"]
+          .map((n) => words.indexOf(n))
+          .filter((i) => i >= 0)
+          .map((i) => i + 1),
+      );
       const ms = words
-        .slice(1)
-        .filter((w) => /^\d+$/.test(w))
-        .map(Number);
+        .map((w, k) => (k > 0 && /^\d+$/.test(w) && !named.has(k) ? Number(w) : null))
+        .filter((n) => n !== null);
       const self = !words.includes("noself");
+      const lag = words.includes("lag") ? Number(words[words.indexOf("lag") + 1] ?? 0) : 0;
+      const tail = words.includes("tail") ? Number(words[words.indexOf("tail") + 1] ?? 0) : 0;
       const init = {
         type: "system",
         subtype: "init",
@@ -391,17 +403,24 @@ async function run(prompt) {
           if (!self) return;
           const text =
             left > 0 ? `Helper ${i + 1} is back, still waiting on ${left}.` : `All ${ms.length} helpers are back.`;
-          out(JSON.stringify(msg([{ type: "text", text }])));
-          out(
-            JSON.stringify({
-              type: "result",
-              subtype: "success",
-              is_error: false,
-              result: text,
-              session_id: session,
-              usage: { input_tokens: 1, output_tokens: 1 },
-            }),
-          );
+          const reply = async () => {
+            out(JSON.stringify(msg([{ type: "text", text }])));
+            // with a tail the reply is under way (its words are said) and ends that long after
+            if (tail > 0) await sleep(tail);
+            out(
+              JSON.stringify({
+                type: "result",
+                subtype: "success",
+                is_error: false,
+                result: text,
+                session_id: session,
+                usage: { input_tokens: 1, output_tokens: 1 },
+              }),
+            );
+          };
+          // with a lag the reply is a turn of its own that takes a while: what is written meanwhile waits behind it
+          if (lag > 0 || tail > 0) queue = queue.then(async () => (await sleep(lag), reply()));
+          else void reply();
         }, t);
       });
       break;
@@ -512,7 +531,6 @@ async function run(prompt) {
 
 if (bin === "claude") {
   // Persistent: one user message per line on stdin, answered in order.
-  let queue = Promise.resolve();
   let buf = "";
   process.stdin.setEncoding("utf8");
   process.stdin.on("data", (d) => {

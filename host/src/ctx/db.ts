@@ -5,6 +5,8 @@ import { fail } from "../routes/errors.ts";
 export interface RawDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** Run `fn` (synchronous statements only) as one transaction: one commit for all its writes. Where the database has no transactions, `fn` simply runs. */
+  batch?<T>(fn: () => T): T;
 }
 
 const KINDS = new Set(["select", "insert", "update", "delete", "with", "replace", "create", "drop", "alter"]);
@@ -212,6 +214,10 @@ export function scopedDb(moduleId: string, raw: RawDb, traceId: string): RawDb {
     run(sql, ...args) {
       guard(sql);
       return raw.run(sql, ...args);
+    },
+    batch<T>(fn: () => T): T {
+      const tx = (raw as { tx?: <U>(f: () => U) => U }).tx;
+      return typeof tx === "function" ? tx.call(raw, fn) : fn();
     },
   };
   rawOf.set(scoped, raw);

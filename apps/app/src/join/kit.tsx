@@ -247,6 +247,78 @@ export function SpaceTile({ name, image }: { name: string; image?: string | unde
   );
 }
 
+/** A Space in a list of the person's Spaces: its tile with the person's face on its corner, so each row says which Space and whose account. A Space with no saved sign-in is quiet. */
+export function SpaceFace({
+  name,
+  image,
+  person,
+  quiet,
+}: {
+  name: string;
+  image?: string | undefined;
+  person?: string | undefined;
+  quiet?: boolean;
+}): ReactElement {
+  const { p } = useJoin();
+  return (
+    <View style={{ width: 40, height: 40 }}>
+      {quiet && !image ? (
+        <View
+          testID="entry-space-tile"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: p.field,
+            ...shadow(`inset 0 0 0 1px ${p.fieldLine}`),
+          }}
+        >
+          <Text style={{ fontFamily: FONT, color: p.ink3, fontSize: 17, fontWeight: "600" }}>
+            {name.trim() === "" || name.trim() === "your Space" ? "V" : name.slice(0, 1).toUpperCase()}
+          </Text>
+        </View>
+      ) : (
+        <SpaceTile name={name} image={image} />
+      )}
+      {person && !quiet ? (
+        <View
+          accessibilityLabel={person}
+          style={{
+            position: "absolute",
+            right: -5,
+            bottom: -5,
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            overflow: "hidden",
+            ...shadow(`0 0 0 2px ${p.sheet}`),
+          }}
+        >
+          <Avatar name={person} kind="person" size={20} />
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** The fixes under a failure, side by side: each a quiet button with its icon. One alone takes the row. */
+export function Fixes({ children }: { children: ReactNode }): ReactElement | null {
+  const items = Children.toArray(children).filter(Boolean);
+  if (items.length === 0) return null;
+  return (
+    <View testID="entry-fixes" style={{ flexDirection: "row", gap: 8, marginTop: 8 }}>
+      {/* ui-rows-lint: not a list (two or three fixed actions under a failure) */}
+      {items.map((c, i) => (
+        <View key={i} style={{ flex: 1, minWidth: 0 }}>
+          {c}
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** The sheet follows its content's height, so a taller step eases open instead of jumping. Web only, and only once the browser can tell us the height. */
 function Eased({ children }: { children: ReactNode }): ReactElement {
   const outer = useRef<HTMLElement | null>(null);
@@ -601,6 +673,7 @@ export function Button({
   testID,
   quiet,
   busy,
+  icon,
 }: {
   label: string;
   onPress?: (() => void) | undefined;
@@ -609,6 +682,7 @@ export function Button({
   testID?: string;
   quiet?: boolean;
   busy?: boolean;
+  /** A small icon before the word, for the quiet fixes under a failure. */ icon?: GlyphKind;
 }): ReactElement {
   const { p } = useJoin();
   const r = useRing();
@@ -653,11 +727,13 @@ export function Button({
               <Waiting ink={quiet ? p.ink3 : p.accentInk} />
             </View>
           ) : null}
+          {icon && !busy ? <Glyph kind={icon} size={16} color={off ? p.ink4 : quiet ? p.ink3 : p.accentInk} /> : null}
           <Text
             numberOfLines={1}
             style={[
               base(p),
               { color: off && !busy ? p.ink4 : quiet ? p.ink : p.accentInk, fontSize: 15, fontWeight: "600" },
+              icon ? { fontSize: 13.5, fontWeight: "500" } : null,
             ]}
           >
             {label}
@@ -686,7 +762,11 @@ export type GlyphKind =
   | "eye"
   | "eyeOff"
   | "copy"
-  | "file";
+  | "file"
+  | "plus"
+  | "out"
+  | "globe"
+  | "redo";
 const GLYPH: Record<GlyphKind, ReactElement[]> = {
   person: [
     createElement("circle", { key: "a", cx: 12, cy: 8.5, r: 4 }),
@@ -756,6 +836,21 @@ const GLYPH: Record<GlyphKind, ReactElement[]> = {
     }),
   ],
   file: [createElement("path", { key: "a", d: "M6 3.500h8l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1v-15a1 1 0 011-1z" })],
+  plus: [createElement("path", { key: "a", d: "M12 5v14M5 12h14" })],
+  out: [
+    createElement("path", {
+      key: "a",
+      d: "M14 5h5v5M19 5l-8 8M11 6H7a2 2 0 00-2 2v9a2 2 0 002 2h9a2 2 0 002-2v-4",
+    }),
+  ],
+  globe: [
+    createElement("circle", { key: "a", cx: 12, cy: 12, r: 8.5 }),
+    createElement("path", {
+      key: "b",
+      d: "M3.500 12h17M12 3.500c2.700 2.800 2.700 14.200 0 17M12 3.500c-2.700 2.800-2.700 14.200 0 17",
+    }),
+  ],
+  redo: [createElement("path", { key: "a", d: "M5 12a7 7 0 107-7H8.500M11 2.500L8.500 5 11 7.500" })],
 };
 const NATIVE_GLYPH: Record<GlyphKind, string> = {
   person: "P",
@@ -774,6 +869,10 @@ const NATIVE_GLYPH: Record<GlyphKind, string> = {
   eyeOff: "-",
   copy: "C",
   file: "F",
+  plus: "+",
+  out: ">",
+  globe: "O",
+  redo: "R",
 };
 
 /** A line icon from the one set. */
@@ -810,6 +909,10 @@ export function Door({
   testID,
   busy,
   disabled,
+  lead,
+  status,
+  out,
+  light,
 }: {
   icon: GlyphKind;
   title: string;
@@ -819,6 +922,10 @@ export function Door({
   testID?: string;
   busy?: boolean;
   disabled?: boolean;
+  /** What stands in the icon's place: a Space's own tile (SpaceFace). */ lead?: ReactNode;
+  /** A quiet word at the row's end while something is on its way ("Reconnecting"); the row keeps its title. */ status?: string;
+  /** The row opens outside this window (the browser): the arrow takes the number's place. */ out?: boolean;
+  /** A lighter row for the way to add one more (Add a Space). */ light?: boolean;
 }): ReactElement {
   const { p } = useJoin();
   const r = useRing();
@@ -826,8 +933,8 @@ export function Door({
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={hint ? `${title}. ${hint}` : title}
-      accessibilityState={{ busy: !!busy, disabled: !!disabled }}
-      disabled={disabled || busy}
+      accessibilityState={{ busy: !!busy || !!status, disabled: !!disabled }}
+      disabled={disabled || busy || !!status}
       onPress={onPress}
       testID={testID}
       {...r.handlers}
@@ -846,28 +953,48 @@ export function Door({
     >
       {({ hovered }: { hovered?: boolean }) => (
         <>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: p.field,
-              ...shadow(`inset 0 0 0 1px ${p.fieldLine}`),
-            }}
-          >
-            <Glyph kind={icon} size={20} color={hovered ? p.accent : p.ink2} />
-          </View>
+          {lead ?? (
+            <View
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: 12,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: light ? "transparent" : p.field,
+                ...shadow(`inset 0 0 0 1px ${light ? p.line2 : p.fieldLine}`),
+              }}
+            >
+              <Glyph kind={icon} size={20} color={hovered ? p.accent : light ? p.ink3 : p.ink2} />
+            </View>
+          )}
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={[base(p), { fontSize: 15, lineHeight: 20, fontWeight: "600", letterSpacing: -0.1 }]}>
+            <Text
+              numberOfLines={1}
+              style={[
+                base(p),
+                { fontSize: 15, lineHeight: 20, fontWeight: light ? "500" : "600", letterSpacing: -0.1 },
+                light ? { color: p.ink2 } : null,
+              ]}
+            >
               {busy ? "Starting" : title}
             </Text>
-            {hint ? <Text style={[base(p), { fontSize: 12.5, lineHeight: 16, color: p.ink3 }]}>{hint}</Text> : null}
+            {hint ? (
+              <Text numberOfLines={1} style={[base(p), { fontSize: 12.5, lineHeight: 16, color: p.ink3 }]}>
+                {hint}
+              </Text>
+            ) : null}
           </View>
-          {busy ? (
+          {status ? (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Waiting size={14} />
+              <Text style={[base(p), { fontSize: 12.5, lineHeight: 16, color: p.ink3 }]}>{status}</Text>
+            </View>
+          ) : busy ? (
             <Waiting />
-          ) : n ? (
+          ) : out ? (
+            <Glyph kind="out" size={16} color={p.ink4} />
+          ) : light ? null : n ? (
             <View
               style={{
                 minWidth: 20,

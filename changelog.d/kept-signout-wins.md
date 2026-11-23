@@ -1,0 +1,1 @@
+- A kept first-screen copy being written when a person signs out never lands after it: the write checks before it lands, and the store is wiped again once writes in flight have settled.

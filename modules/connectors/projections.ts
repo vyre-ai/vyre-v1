@@ -5,7 +5,8 @@
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 // @reads /modules/connectors/migrations/0005_hosts.sql
-// @reads /modules/connectors/migrations/0006_revisions.sql
+// @reads /modules/connectors/migrations/0006_creators.sql
+// @reads /modules/connectors/migrations/0007_revisions.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -278,7 +279,8 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
-  tx.exec(readFileSync(new URL("./migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0006_creators.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0007_revisions.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 

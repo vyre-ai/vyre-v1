@@ -22,6 +22,7 @@ import {
 import { canonical, fillInput, shortHash } from "./fill.ts";
 import { findsByPath, placeField, placeInput } from "./place.ts";
 import { parseProblem, rejectWords, unknownInputs } from "./reject.ts";
+import { fullSchema, shapeNote } from "./share.ts";
 import { askLevel, refusalFor, searchTools, TASK_BATON_TOOLS, toolsFor, reachesScope } from "./access.ts";
 import type { AccessDeps } from "./access.ts";
 import type { LocalDecision } from "./local.ts";
@@ -251,7 +252,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
     if (!reachesScope(t, ctx.thread, input)) return refused("ask_scope", ctx, t, traceId);
 
     // a tool is never called to see if it works, and never with placeholder content: refused before anything runs, so no card, hold, task or message reaches the chat
-    const placeholder = probeIn(input, "", ctx.said ?? "", t.inputSchema);
+    const placeholder = probeIn(input, "", ctx.said ?? "", fullSchema(t.name, t.inputSchema));
     if (placeholder !== null)
       return fail("validation.bad_input", traceId, {
         message: PROBE_MESSAGE,
@@ -516,7 +517,7 @@ export function createToolSession(deps: CallDeps): ToolSession {
             if (!(r in (body as object)) && !owned.includes(r)) extra.push(`/${r}: required`);
         if (extra.length > 0)
           return fail("validation.bad_input", traceId, {
-            message: rejectWords(t, extra, EXAMPLES[t.cap]),
+            message: rejectWords(t, extra, EXAMPLES[t.cap]) + shapeNote(t.name),
             details: { tool: t.name, errors: extra, reason: "unknown_input" },
           });
       }
@@ -666,12 +667,13 @@ export function createToolSession(deps: CallDeps): ToolSession {
         if (list.length > 0) {
           const error = {
             ...e.error,
-            message: rejectWords(
-              t,
-              list,
-              EXAMPLES[t.cap],
-              input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
-            ),
+            message:
+              rejectWords(
+                t,
+                list,
+                EXAMPLES[t.cap],
+                input !== null && typeof input === "object" && !Array.isArray(input) ? Object.keys(input) : [],
+              ) + shapeNote(t.name),
           };
           return { kind: "error", error, result: { ok: false, content: { error: modelError(error) } } };
         }

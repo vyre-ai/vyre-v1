@@ -9,6 +9,7 @@ import { validate } from "../../../packages/contracts/src/jsonschema.ts";
 import type { JsonSchema } from "../../../packages/contracts/src/types.ts";
 import { stepError } from "../projections.ts";
 import { buildBrief, isOutside, MAX_BRIEF_INPUT } from "./brief.ts";
+import type { LoadedSkill } from "./brief.ts";
 import type { StepCall, StepEnv, StepNode, StepResult } from "./control.ts";
 
 /** A Run a stranger could start (an email, a form, a webhook): its trigger and inputs go in the brief as outside content. */
@@ -59,14 +60,48 @@ export function recordIdsIn(...sources: unknown[]): string[] {
   return [...ids];
 }
 
+/**
+ * The Space's skills the step names, read as the Automation's own person or as the step's agent (an agent's own skills win over the Space's, the same order a chat uses). A skill that is not there, is broken or is switched off
+ * stops the step with a line that names it, so "draft it with the intake skill" never runs without the intake skill. Their instructions go into the brief; the tools a skill asks for are the agent's own in a task, under the Gate.
+ */
+async function loadSkills(env: StepEnv, cfg: Rec, title: string): Promise<LoadedSkill[]> {
+  const names = [...new Set(stringsOf(cfg["skills"]) ?? [])].slice(0, 5);
+  const agentId = text(cfg["agentId"]);
+  const out: LoadedSkill[] = [];
+  for (const name of names) {
+    try {
+      const r = (await env.ctx.call!("skills.load", { name, ...(agentId ? { agentId } : {}) })) as {
+        skill?: { name?: string; description?: string; body?: string; files?: { path: string; text: string }[] };
+      };
+      const s = r?.skill;
+      if (!s || typeof s.body !== "string") throw new Error("empty");
+      out.push({
+        name: s.name ?? name,
+        ...(s.description ? { description: s.description } : {}),
+        body: s.body,
+        ...(s.files && s.files.length > 0 ? { files: s.files } : {}),
+      });
+    } catch (e) {
+      const why = (e as { error?: { message?: string } } | null)?.error?.message;
+      throw stepError(
+        "validation.not_found",
+        `${title}: the skill "${name}" is not available${why ? ` (${why.replace(/\.$/, "")})` : ""}. Choose another skill, or ask an admin to add it to the Space.`,
+        false,
+      );
+    }
+  }
+  return out;
+}
+
 /** The brief the model is asked with (handlers/brief.ts): the step's goal, what the Run holds, the inputs, the deliverable, what done means. Built by code, in a fixed order. */
-function promptOf(env: StepEnv, cfg: Rec, call: StepCall, title: string): string {
+function promptOf(env: StepEnv, cfg: Rec, call: StepCall, title: string, skills: readonly LoadedSkill[] = []): string {
   const prompt = text(cfg["prompt"]);
   if (!prompt) throw stepError("validation.bad_input", `The AI step "${title}" needs a prompt.`, false);
   try {
     return buildBrief({
       kind: "answer",
       goal: prompt,
+      skills,
       automation: env.run.automation ?? env.run.label,
       trigger: call.trigger,
       outside: outsideOf(env),
@@ -104,7 +139,7 @@ export async function aiStep(env: StepEnv, node: StepNode, input: Rec, call: Ste
   const backupKeyId = text(cfg["backupKeyId"]) ?? (fromAutomation ? text(env.run.ai?.backupKeyId) : undefined);
   const inherits = fromAutomation && (keyId !== undefined || backupKeyId !== undefined);
   const turn = (await env.ctx.call("engine.step_turn", {
-    prompt: promptOf(env, cfg, call, title),
+    prompt: promptOf(env, cfg, call, title, await loadSkills(env, cfg, title)),
     ...(text(cfg["agentId"]) ? { agentId: cfg["agentId"] } : {}),
     ...(keyId ? { keyId } : {}),
     ...(backupKeyId ? { backupKeyId } : {}),
@@ -256,11 +291,13 @@ async function taskStep(env: StepEnv, node: StepNode, cfg: Rec, call: StepCall, 
   const escalateTo = assigneeOf(cfg["escalateTo"]);
   const minutes = typeof cfg["timeoutMinutes"] === "number" ? cfg["timeoutMinutes"] : undefined;
   const names = await namesOf(env, [reviewer?.id, approver?.id]);
+  const skills = await loadSkills(env, cfg, title);
   let brief: string;
   try {
     brief = buildBrief({
       kind: "task",
       goal,
+      skills,
       automation: env.run.automation ?? env.run.label,
       trigger: call.trigger,
       outside: outsideOf(env),

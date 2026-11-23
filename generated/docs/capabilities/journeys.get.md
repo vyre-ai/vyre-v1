@@ -88,6 +88,14 @@ type Out = {
       enabled: boolean;
     };
     startAutomationId?: string;
+    mode?: "subject" | "migrating" | "pipeline";
+    stageField?: string;
+    variables?: Array<{
+        key: string;
+        title: string;
+      }>;
+    legacyType?: string;
+    migrateNote?: string;
     inFlight: number;
     createdAt: number;
     updatedAt: number;
@@ -115,8 +123,12 @@ type Out = {
       "createdAt": 1760000000000,
       "id": "jrn_a1b2c3",
       "inFlight": 1,
+      "legacyType": "contact",
+      "migrateNote": "example",
+      "mode": "subject",
       "name": "example",
       "recordType": "contact",
+      "stageField": "example",
       "stages": [
         {
           "automations": [
@@ -176,6 +188,12 @@ type Out = {
       },
       "subjectType": "contact",
       "updatedAt": 1760000000000,
+      "variables": [
+        {
+          "key": "example",
+          "title": "example"
+        }
+      ],
       "version": 1
     }
   }

@@ -363,3 +363,16 @@ test("the picker draws the month, its arrows and a button per day", () => {
       html.includes('data-testid="plan-dp-next"'),
   );
 });
+
+test("an avatar on a short bar or on a touch screen is only a picture; a wide bar on a computer keeps its assign button", async () => {
+  const { FaceButton } = await import("./parts.tsx");
+  const it = items.find((x) => x.who !== undefined) ?? items[0]!;
+  const ctx = { assign: () => undefined } as never;
+  const button = renderToStaticMarkup(<FaceButton it={it} size={16} ctx={ctx} />);
+  assert.match(button, /role="button"/);
+  assert.match(button, /data-assign=/);
+  const shown = renderToStaticMarkup(<FaceButton it={it} size={16} ctx={ctx} display />);
+  assert.doesNotMatch(shown, /role="button"/, "no button");
+  assert.doesNotMatch(shown, /data-assign=/, "nothing to assign from");
+  assert.match(shown, /pointer-events:none/, "a press goes through it to the bar");
+});
