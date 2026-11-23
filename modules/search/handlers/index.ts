@@ -404,19 +404,23 @@ export async function indexApply(
   }
   // an entity nobody here knows how to read: nothing to do, and no sequence is recorded, so a source added later can still index it
   if (r === null) return { indexed: false };
-  ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
-  setSeen(ctx, entity, id, seq);
-  if ("skip" in r) {
-    removeDoc(ctx.db, ctx.space, entity, id);
-    if (WATCH_PRIVATE.has(entity)) {
-      memo.set(key, ctx.now() + PRIVATE_FOR_MS);
-      if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+  // the writes for the row (the failure mark, the sequence, the old document out, the new one and its text in) are one transaction: they were five or six commits
+  const finish = (): { indexed: boolean } => {
+    ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
+    setSeen(ctx, entity, id, seq);
+    if ("skip" in r) {
+      removeDoc(ctx.db, ctx.space, entity, id);
+      if (WATCH_PRIVATE.has(entity)) {
+        memo.set(key, ctx.now() + PRIVATE_FOR_MS);
+        if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+      }
+      return { indexed: false };
     }
-    return { indexed: false };
-  }
-  if (r.doc.entity !== entity) r.doc.entity = entity;
-  putDoc(ctx.db, ctx.space, r.doc, ctx.now());
-  return { indexed: true };
+    if (r.doc.entity !== entity) r.doc.entity = entity;
+    putDoc(ctx.db, ctx.space, r.doc, ctx.now());
+    return { indexed: true };
+  };
+  return ctx.db.batch ? ctx.db.batch(finish) : finish();
 }
 
 // ---- search.embed.run
