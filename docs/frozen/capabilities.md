@@ -1011,7 +1011,7 @@ Signed: lead, 2026-11-20
 ## 24 Nov 2026: journeys.values.get and journeys.adopt become agent tools (lane r42-mcp, rc.43 coverage of the rc.42 capabilities), for the lead to sign
 
 - What changed in contracts, additive: `journeys.values.get` and `journeys.adopt` gain the MCP surface (deferred, toolset `automations`: tools `journeys_values_get` and `journeys_adopt`). Their inputs, outputs, permission (`journeys.manage` at level manage for adopt) and errors are unchanged. The snapshot hashes move because the surface is part of them.
-- Why: `journeys_values_set` is already a tool and nothing else reads a record's carried values back, and adopting a pipeline type's existing records into a Journey (page by page) had no caller anywhere (not the app, the server or a skill), so an agent that can set a Journey up could not finish it.
+- Why: `journeys_values_set` is already a tool and no tool and no screen reads a record's carried values back (only the server's step engine does), and adopting a pipeline type's existing records into a Journey (page by page) had no caller anywhere (not the app, the server or a skill), so an agent that can set a Journey up could not finish it.
 - Snapshots: docs/frozen/snapshots/journeys.json.
 
 Signed: 24 Nov 2026, lead.

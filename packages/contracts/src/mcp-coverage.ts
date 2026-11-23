@@ -142,6 +142,8 @@ const JOURNEY_BANNER =
   "The app's own read: the migration banner on a Journey asks where its move onto the pipeline stands.";
 const JOURNEY_BOARD =
   "The app's own read: the Records board asks when each record entered its current stage, to draw how long it has sat there.";
+const STEP_ASK =
+  "The step engine's marker: a chat post that a step is set to ask about passes the Gate here first, and the call itself does nothing.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -617,7 +619,7 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   [/^computers\.browser\.(pause|resume)$/, DESK_PRESS],
   [/^computers\.browser\.(pointer|warm)$/, DESK_DRAW],
   [/^automations\.stage_offers$/, STAGE_OFFERS_APP],
-  [/^automations\.step_ask$/, GATE],
+  [/^automations\.step_ask$/, STEP_ASK],
   [/^journeys\.to_pipeline$/, JOURNEY_UPGRADE],
   [/^journeys\.migration_state$/, JOURNEY_BANNER],
   [/^journeys\.stage_since$/, JOURNEY_BOARD],
