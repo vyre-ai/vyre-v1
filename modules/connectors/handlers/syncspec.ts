@@ -186,10 +186,11 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
     tests.push({
       name: `${t.remote}: first page`,
       action: action.name,
+      ...(o.list.eachOf ? { input: { parent: "p1" } } : {}),
       responses: [
         {
           method: "GET",
-          url: `https://${spec.app.domain}${o.list.path}`,
+          url: `https://${spec.app.domain}${o.list.eachOf ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, "p1") : o.list.path}`,
           status: 200,
           body,
           ...(link ? { link } : {}),
@@ -269,12 +270,28 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       if (!mapped.has(o.remote))
         warn(`objects.${o.remote}`, `${o.remote} is described but not mapped, so it is not brought in.`);
 
-    for (const o of spec.objects) {
+    // a per-parent list is sampled under a record of its parent object, so the parents are read first
+    const ordered = [...spec.objects].sort(
+      (x, y) => Number(x.list.eachOf !== undefined) - Number(y.list.eachOf !== undefined),
+    );
+    for (const o of ordered) {
       const m = mapped.get(o.remote);
       if (!m) continue;
       const at = `objects.${o.remote}`;
       const cursor = o.list.cursor ?? { kind: "none" as const };
-      const req = firstPageRequest(spec, o);
+      let parentId: string | undefined;
+      if (o.list.eachOf) {
+        const po = spec.objects.find((x) => x.remote === o.list.eachOf!.object);
+        const pbody = pages.get(o.list.eachOf.object)?.body;
+        const pitems = po && pbody !== undefined ? pointerGet(pbody, po.itemsAt) : undefined;
+        const pid = Array.isArray(pitems) && po ? pointerGet(pitems[0], po.id) : undefined;
+        if (typeof pid !== "string" && typeof pid !== "number") {
+          err(`${at}.list`, `${o.list.eachOf.object} gave no record to read ${o.remote} under: fix that list first.`);
+          continue;
+        }
+        parentId = String(pid);
+      }
+      const req = firstPageRequest(spec, o, parentId);
       let reply;
       try {
         reply = await probe(ctx, probeRequest(spec, urlOf(spec.app.domain, req.path, req.query)));
@@ -304,7 +321,11 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         err(`${at}.itemsAt`, `There is no list at ${o.itemsAt || "/"} in the answer.`);
         continue;
       }
-      const items = first.slice(0, SAMPLE_ITEMS);
+      const items = (
+        parentId === undefined
+          ? first
+          : first.map((it) => (it !== null && typeof it === "object" ? { ...(it as object), _parent: parentId } : it))
+      ).slice(0, SAMPLE_ITEMS);
       if (items.length === 0)
         warn(`${at}.list`, "The sampled page is empty, so the fields could not be checked against records.");
       // ids

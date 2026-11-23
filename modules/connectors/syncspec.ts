@@ -83,6 +83,8 @@ export interface SpecList {
   checkEveryMinutes?: number;
   /** How often the whole list is read to find what the app deleted, in days (1 to 30; default 1). A large table can be swept weekly. */
   sweepEveryDays?: number;
+  /** A list that sits under each record of another object (an app's /matters/{matter}/contacts): the sync reads this list once for every record of `object`, in order, with the record's id put where `{param}` stands in the path. Every item also carries the record's id at the pointer /_parent, so a field can relate the item to its parent. The parent object is listed and mapped itself and cannot be a per-parent list. Not with updatedSince: the app cannot say which parents changed. */
+  eachOf?: { object: string; param: string };
 }
 export interface SpecWrite {
   path: string;
@@ -304,6 +306,31 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       )
     )
       bad(`${at}.list.sweepEveryDays`, "sweepEveryDays is a whole number of days, from 1 to 30.");
+    if (isObj(list) && list["eachOf"] !== undefined) {
+      const e = list["eachOf"];
+      if (!isObj(e) || !str(e["object"]) || !str(e["param"]) || !/^[a-z][a-z0-9_]*$/.test(String(e["param"])))
+        bad(
+          `${at}.list.eachOf`,
+          "eachOf is { object: the object whose records each have this list, param: a lowercase name }.",
+        );
+      else {
+        if (!String(list["path"]).includes(`{${e["param"]}}`))
+          bad(`${at}.list.path`, `list.path must contain {${e["param"]}}: the parent's id goes there.`);
+        if (e["object"] === o["remote"]) bad(`${at}.list.eachOf.object`, "A list cannot be under its own object.");
+        else {
+          const parent = (objects as unknown[]).find((x) => isObj(x) && x["remote"] === e["object"]);
+          if (!isObj(parent))
+            bad(`${at}.list.eachOf.object`, `${String(e["object"])} is not one of the listed objects.`);
+          else if (isObj(parent["list"]) && parent["list"]["eachOf"] !== undefined)
+            bad(`${at}.list.eachOf.object`, "The parent is itself a per-parent list: only one level is read.");
+        }
+        if (list["updatedSince"] !== undefined)
+          bad(
+            `${at}.list.updatedSince`,
+            "A per-parent list cannot say what changed since: it is read whole at every check.",
+          );
+      }
+    }
     if (isObj(list) && isObj(list["updatedSince"])) {
       const u = list["updatedSince"];
       if (!str(u["param"]))
@@ -771,10 +798,12 @@ export function compileSpec(spec: SyncSpec): Compiled {
       delete: actionName("delete", o.remote),
     };
     const headers = { ...baseHeaders };
+    // a per-parent list: the parent's id is the call's `parent` input
+    const listPath = o.list.eachOf ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, "{input.parent}") : o.list.path;
     actions.push({
       name: names.list,
       method: "GET",
-      url: `https://${spec.app.domain}${o.list.path}`,
+      url: `https://${spec.app.domain}${listPath}`,
       headers,
       query,
       shape: listShape,
@@ -782,7 +811,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
     actions.push({
       name: names.listAfter,
       method: "GET",
-      url: `https://${spec.app.domain}${o.list.path}`,
+      url: `https://${spec.app.domain}${listPath}`,
       headers,
       query,
       shape: listShape,
@@ -799,6 +828,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
       list: names.list,
       listAfter: names.listAfter,
       ...(o.list.updatedSince ? { since: true } : {}),
+      ...(o.list.eachOf ? { eachOf: { remote: o.list.eachOf.object } } : {}),
     };
     if (o.create && (m.createAtSource ?? false)) {
       actions.push({
@@ -1030,7 +1060,11 @@ export function rateOf(spec: SyncSpec): { rps: number; burst: number } {
 }
 
 /** The request a list action makes for a sampled page, as the validator and the compiled action build it. */
-export function firstPageRequest(spec: SyncSpec, o: SpecObject): { path: string; query: Record<string, string> } {
+export function firstPageRequest(
+  spec: SyncSpec,
+  o: SpecObject,
+  parentId?: string,
+): { path: string; query: Record<string, string> } {
   const c = o.list.cursor ?? { kind: "none" as const };
   const query: Record<string, string> = {
     ...(o.list.query ?? {}),
@@ -1040,7 +1074,11 @@ export function firstPageRequest(spec: SyncSpec, o: SpecObject): { path: string;
   if (c.kind === "page" && c.param) query[c.param] = String(c.start ?? 1);
   if (c.kind === "offset" && c.param) query[c.param] = String(c.start ?? 0);
   void spec;
-  return { path: o.list.path, query };
+  const path =
+    o.list.eachOf && parentId !== undefined
+      ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, encodeURIComponent(parentId))
+      : o.list.path;
+  return { path, query };
 }
 
 /** Items and the next-page token out of one answer, by the object's own pointers. The same function the runtime uses, so validation proves what the sync will do. */

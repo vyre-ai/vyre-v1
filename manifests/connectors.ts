@@ -52,6 +52,7 @@ const objectActions = t.obj({
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
   link: t.opt(t.json()),
+  eachOf: t.opt(t.obj({ remote: t.str() })),
 });
 
 const connectorRow = t.obj({
@@ -211,6 +212,7 @@ const specObject = t.obj({
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
     checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
     sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
+    eachOf: t.opt(t.obj({ object: t.str(), param: t.str() })),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),

@@ -232,6 +232,8 @@ export interface ObjectNames {
   /** The list takes { since } and answers only what changed since. */ since?: boolean;
   /** Each row also relates two already-synced records (a many-to-many made from join rows). */
   link?: LinkDef;
+  /** The list sits under each record of this other object: it is read once per parent id, and every row carries the parent's id at /_parent. */
+  eachOf?: { remote: string };
 }
 export type ObjectMap = Record<string, ObjectNames>;
 
@@ -244,6 +246,9 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   for (const k of ["list", "listAfter", "create", "update", "delete"] as const)
     if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
   if (hit["since"] === true) out.since = true;
+  const each = hit["eachOf"];
+  if (isObj(each) && typeof each["remote"] === "string" && each["remote"] !== "")
+    out.eachOf = { remote: each["remote"] };
   const l = hit["link"];
   if (
     isObj(l) &&
@@ -351,12 +356,18 @@ export function remoteStore(
     const ms = details && typeof details["retryAfterMs"] === "number" ? details["retryAfterMs"] : undefined;
     return { ...(code !== undefined ? { code } : {}), ...(ms !== undefined ? { ms } : {}) };
   };
+  // A per-parent list (names.eachOf) reads its parent object's list too, to learn the parent ids: those are reads like the list itself.
+  const parentRemote = names.eachOf?.remote;
+  const parentNames = parentRemote !== undefined ? namesFor(objects, parentRemote) : {};
+  const parentList = parentNames.list ?? `list_${parentRemote}`;
+  const parentAfter = parentNames.listAfter ?? `list_${parentRemote}_after`;
+  const parentReads = new Set(parentRemote !== undefined ? [parentList, parentAfter] : []);
   let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
     for (let own = 0; ; own++) {
       try {
         // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
-        const reading = action === nameList || action === nameAfter;
+        const reading = action === nameList || action === nameAfter || parentReads.has(action);
         const out = (await ctx.call(reading ? "connectors.read" : "connectors.run", {
           key: b.connector,
           action,
@@ -447,6 +458,81 @@ export function remoteStore(
     updated_at: r.updatedAt,
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
   });
+  // The parent ids of a per-parent list, in a fixed order (sorted), so a place kept between passes ("this parent, from this cursor") still means the same thing when the parents have changed.
+  let parentIds: string[] | undefined;
+  const parentsOf = async (): Promise<string[]> => {
+    if (parentIds) return parentIds;
+    const ids = new Set<string>();
+    let after: string | undefined;
+    do {
+      const got = readRows(
+        await run(after === undefined ? parentList : parentAfter, after === undefined ? {} : { after }),
+      );
+      const fresh = got.rows.filter((r) => !r.archived && !ids.has(r.id));
+      for (const r of fresh) ids.add(r.id);
+      after = fresh.length === 0 ? undefined : got.next;
+    } while (after !== undefined && ids.size < 100_000);
+    parentIds = [...ids].sort();
+    return parentIds;
+  };
+  /** At most this many parents are tried for one page, so a run of parents with empty lists is not one endless call; the page then comes back empty with a place to go on from. */
+  const PARENTS_PER_PAGE = 40;
+  /** One page of the list: for a per-parent list the place kept is {"p": parent id, "c": the app's cursor inside that parent}; a page holds one parent's rows (or the next non-empty one's). */
+  const listPage = async (after?: string, since?: number): Promise<{ rows: RemoteRow[]; next?: string }> => {
+    if (parentRemote === undefined)
+      return readRows(
+        await run(after === undefined ? nameList : nameAfter, {
+          ...(after === undefined ? {} : { after }),
+          ...(since !== undefined ? { since } : {}),
+        }),
+      );
+    const parents = await parentsOf();
+    let place: { p?: string; c?: string } = {};
+    if (after !== undefined) {
+      try {
+        const j = JSON.parse(after) as unknown;
+        if (isObj(j))
+          place = {
+            ...(typeof j["p"] === "string" ? { p: j["p"] } : {}),
+            ...(typeof j["c"] === "string" ? { c: j["c"] } : {}),
+          };
+      } catch {
+        /* not a place of ours: start over */
+      }
+    }
+    let idx = 0;
+    let cursor = place.c;
+    if (place.p !== undefined) {
+      idx = parents.indexOf(place.p);
+      if (idx < 0) {
+        // the parent is gone since the place was kept: go on with the next one after it
+        idx = parents.findIndex((x) => x > place.p!);
+        cursor = undefined;
+      }
+    }
+    if (idx < 0) return { rows: [] };
+    for (let tried = 0; idx < parents.length && tried < PARENTS_PER_PAGE; tried++) {
+      const parent = parents[idx]!;
+      const got = readRows(
+        await run(cursor === undefined ? nameList : nameAfter, {
+          parent,
+          ...(cursor === undefined ? {} : { after: cursor }),
+        }),
+      );
+      const rows = got.rows.map((r) => ({ ...r, data: { ...r.data, "/_parent": parent } }));
+      const nextPlace =
+        got.next !== undefined
+          ? { p: parent, c: got.next }
+          : idx + 1 < parents.length
+            ? { p: parents[idx + 1]! }
+            : undefined;
+      if (rows.length > 0 || nextPlace === undefined || tried === PARENTS_PER_PAGE - 1)
+        return { rows, ...(nextPlace !== undefined ? { next: JSON.stringify(nextPlace) } : {}) };
+      idx = nextPlace.c === undefined ? idx + 1 : idx;
+      cursor = nextPlace.c;
+    }
+    return { rows: [] };
+  };
   // One pass reads the app's list once: a push that looks a record up uses that same listing instead of paging through the app again for every record.
   let listed: RemoteRow[] | undefined;
   async function all(): Promise<RemoteRow[]> {
@@ -455,14 +541,12 @@ export function remoteStore(
     let after: string | undefined;
     const seen = new Set<string>();
     do {
-      const page = readRows(
-        await run(after === undefined ? nameList : nameAfter, after === undefined ? {} : { after }),
-      );
-      // an app that ignores the page parameter answers the same page again: stop when a page brings nothing new
+      const page = await listPage(after);
+      // an app that ignores the page parameter answers the same page again: stop when a page brings nothing new (a per-parent list may have an empty page and more parents to go)
       const fresh = page.rows.filter((r) => !seen.has(r.id));
       for (const r of fresh) seen.add(r.id);
       out.push(...fresh);
-      after = fresh.length === 0 ? undefined : page.next;
+      after = fresh.length === 0 && (parentRemote === undefined || page.rows.length > 0) ? undefined : page.next;
     } while (after !== undefined && out.length < 100_000);
     for (const r of out) stamps.set(r.id, r.updatedAt);
     listed = out;
@@ -510,12 +594,7 @@ export function remoteStore(
   };
   // One page of the app's list, for a big app pulled a page group at a time (the whole list is never held).
   const page = async (after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
-    const got = readRows(
-      await run(after === undefined ? nameList : nameAfter, {
-        ...(after === undefined ? {} : { after }),
-        ...(since !== undefined ? { since } : {}),
-      }),
-    );
+    const got = await listPage(after, since);
     for (const r of got.rows) stamps.set(r.id, r.updatedAt);
     return {
       rows: got.rows.filter((r) => !r.archived).map((r) => toRecord(r)),
