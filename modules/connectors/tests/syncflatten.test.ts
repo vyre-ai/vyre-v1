@@ -28,6 +28,18 @@ test("expandRows makes one row for every inner item, with the places and the val
   assert.deepEqual(rows[1]!["_i"], [0, 1]);
   assert.equal(rows[2]!["_at"][0].position, 2);
   assert.equal(rows[0]!["role_description"], "Successor Trustee", "the item's own fields come along");
+  // an id that repeats (a role id is the same for each client) is made from several pointers
+  const split = expandRows(
+    [
+      { id: "r", who: "main", assignments: [1] },
+      { id: "r", who: "partner", assignments: [1] },
+    ],
+    { at: "/assignments/*", idAt: ["/id", "/who"] },
+  ) as Record<string, any>[];
+  assert.deepEqual(
+    split.map((r) => r["_key"]),
+    ["r:main/0", "r:partner/0"],
+  );
   // one wildcard, and a plain step between
   const one = expandRows([{ id: "x", box: { list: ["a", "b"] } }], { at: "/box/list/*", idAt: "/id" }) as Record<
     string,

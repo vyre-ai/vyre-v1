@@ -128,3 +128,15 @@ test("a long run of parents with nothing under them is not one endless call: a p
     ["last"],
   );
 });
+
+test("scoped: the same child id under two parents is two rows, the id carries its parent", async () => {
+  const w = world(["mA", "mB"], { mA: [["role1"]], mB: [["role1"]] });
+  const s = remoteStore(
+    w.ctx as never,
+    { connector: "crm_intake", connectionId: "con_1", remote: "contacts" },
+    { ...OBJECTS, contacts: { ...OBJECTS.contacts, eachOf: { remote: "matters", scoped: true } } },
+  );
+  const got = await drain(s);
+  assert.deepEqual(got.ids, ["mA/role1", "mB/role1"]);
+  assert.deepEqual(got.parents, ["mA", "mB"]);
+});

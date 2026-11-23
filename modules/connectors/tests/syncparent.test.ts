@@ -120,3 +120,12 @@ test("a per-parent list that is wrong is refused in plain words", () => {
   assert.ok(errs(r).some((e) => e.includes("only one level")));
   assert.deepEqual(errs(intakeRaw()), []);
 });
+
+test("scoped ids: an app whose ids repeat from one parent to the next gets the parent in front of each id", () => {
+  const raw = intakeRaw();
+  raw["objects"][1].list.eachOf.scoped = true;
+  const c = compileSpec(ok(raw));
+  assert.deepEqual(c.connector.objects!["contacts"]!.eachOf, { remote: "matters", scoped: true });
+  raw["objects"][1].list.eachOf.scoped = "yes";
+  assert.ok(errs(raw).some((e) => e.includes("eachOf is")));
+});

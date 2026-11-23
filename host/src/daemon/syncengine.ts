@@ -233,7 +233,7 @@ export interface ObjectNames {
   /** Each row also relates two already-synced records (a many-to-many made from join rows). */
   link?: LinkDef;
   /** The list sits under each record of this other object: it is read once per parent id, and every row carries the parent's id at /_parent. */
-  eachOf?: { remote: string };
+  eachOf?: { remote: string; scoped?: boolean };
 }
 export type ObjectMap = Record<string, ObjectNames>;
 
@@ -248,7 +248,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   if (hit["since"] === true) out.since = true;
   const each = hit["eachOf"];
   if (isObj(each) && typeof each["remote"] === "string" && each["remote"] !== "")
-    out.eachOf = { remote: each["remote"] };
+    out.eachOf = { remote: each["remote"], ...(each["scoped"] === true ? { scoped: true } : {}) };
   const l = hit["link"];
   if (
     isObj(l) &&
@@ -535,7 +535,12 @@ export function remoteStore(
           ...(cursor === undefined ? {} : { after: cursor }),
         }),
       );
-      const rows = got.rows.map((r) => ({ ...r, data: { ...r.data, "/_parent": parent } }));
+      // an app whose ids repeat from one parent to the next (a role id is the same on every matter) gets the parent's id in front, so one record is one row
+      const rows = got.rows.map((r) => ({
+        ...r,
+        ...(names.eachOf?.scoped ? { id: `${parent}/${r.id}` } : {}),
+        data: { ...r.data, "/_parent": parent },
+      }));
       const nextPlace =
         got.next !== undefined
           ? { p: parent, c: got.next }

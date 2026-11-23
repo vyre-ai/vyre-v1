@@ -84,7 +84,7 @@ export interface SpecList {
   /** How often the whole list is read to find what the app deleted, in days (1 to 30; default 1). A large table can be swept weekly. */
   sweepEveryDays?: number;
   /** A list that sits under each record of another object (an app's /matters/{matter}/contacts): the sync reads this list once for every record of `object`, in order, with the record's id put where `{param}` stands in the path. Every item also carries the record's id at the pointer /_parent, so a field can relate the item to its parent. The parent object is listed and mapped itself and cannot be a per-parent list. Not with updatedSince: the app cannot say which parents changed. */
-  eachOf?: { object: string; param: string };
+  eachOf?: { object: string; param: string; scoped?: boolean };
 }
 export interface SpecWrite {
   path: string;
@@ -106,7 +106,7 @@ export interface SpecObject {
   updatedAt?: string;
   itemsAt: string;
   /** One row for every inner item of each item: `at` is a pointer with `*` for each array to walk (/assignments/*/ contacts /*), `idAt` the item's own id. A row is the item plus `_key` (the id, then the inner places: `id/0/1`, the object's `id` must be /_key), `_at` (the value at each `*`) and `_i` (the index at each `*`), so /_at/0/position is the assignment's and /_i/1 the place inside it. An item with nothing inside makes no row. */;
-  rows?: { at: string; idAt: string };
+  rows?: { at: string; idAt: string | string[] };
   openUrl?: string;
   fields: SpecField[];
   webhook?: {
@@ -310,10 +310,16 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       bad(`${at}.list.sweepEveryDays`, "sweepEveryDays is a whole number of days, from 1 to 30.");
     if (isObj(list) && list["eachOf"] !== undefined) {
       const e = list["eachOf"];
-      if (!isObj(e) || !str(e["object"]) || !str(e["param"]) || !/^[a-z][a-z0-9_]*$/.test(String(e["param"])))
+      if (
+        !isObj(e) ||
+        !str(e["object"]) ||
+        !str(e["param"]) ||
+        !/^[a-z][a-z0-9_]*$/.test(String(e["param"])) ||
+        (e["scoped"] !== undefined && typeof e["scoped"] !== "boolean")
+      )
         bad(
           `${at}.list.eachOf`,
-          "eachOf is { object: the object whose records each have this list, param: a lowercase name }.",
+          "eachOf is { object: the object whose records each have this list, param: a lowercase name, scoped: true when the app's ids repeat from one parent to the next }.",
         );
       else {
         if (!String(list["path"]).includes(`{${e["param"]}}`))
@@ -387,12 +393,13 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
         !isObj(rw) ||
         !pointerOk(rw["at"]) ||
         !String(rw["at"]).split("/").includes("*") ||
-        !pointerOk(rw["idAt"]) ||
-        rw["idAt"] === ""
+        !(Array.isArray(rw["idAt"])
+          ? rw["idAt"].length > 0 && rw["idAt"].every((x) => pointerOk(x) && x !== "")
+          : pointerOk(rw["idAt"]) && rw["idAt"] !== "")
       )
         bad(
           `${at}.rows`,
-          "rows is { at: a pointer with * for each array to walk, such as /assignments/*/contacts/*, idAt: a pointer to the item's own id }.",
+          "rows is { at: a pointer with * for each array to walk, such as /assignments/*/contacts/*, idAt: a pointer to the item's own id, or a list of pointers when the id alone repeats (a role id repeats for each client) }.",
         );
       else if (o["id"] !== "/_key")
         bad(`${at}.id`, "An object with rows has the id /_key: the item's id and the places inside it.");
@@ -550,15 +557,17 @@ export function coerceValue(
 }
 
 /** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. */
-export function expandRows(items: unknown[], rows: { at: string; idAt: string }): unknown[] {
+export function expandRows(items: unknown[], rows: { at: string; idAt: string | string[] }): unknown[] {
   const segs = rows.at
     .slice(1)
     .split("/")
     .map((k) => k.replaceAll("~1", "/").replaceAll("~0", "~"));
   const out: unknown[] = [];
   for (const item of items) {
-    const id = pointerGet(item, rows.idAt);
-    if ((typeof id !== "string" && typeof id !== "number") || item === null || typeof item !== "object") {
+    const parts = (Array.isArray(rows.idAt) ? rows.idAt : [rows.idAt]).map((p) => pointerGet(item, p));
+    const [first] = parts;
+    const id = parts.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : "")).join(":");
+    if ((typeof first !== "string" && typeof first !== "number") || item === null || typeof item !== "object") {
       out.push(item);
       continue;
     }
@@ -567,7 +576,7 @@ export function expandRows(items: unknown[], rows: { at: string; idAt: string })
       if (made >= 5000) return;
       if (k === segs.length) {
         made++;
-        out.push({ ...(item as Record<string, unknown>), _key: `${String(id)}/${idx.join("/")}`, _at: at, _i: idx });
+        out.push({ ...(item as Record<string, unknown>), _key: `${id}/${idx.join("/")}`, _at: at, _i: idx });
         return;
       }
       const seg = segs[k]!;
@@ -927,7 +936,9 @@ export function compileSpec(spec: SyncSpec): Compiled {
       list: names.list,
       listAfter: names.listAfter,
       ...(o.list.updatedSince ? { since: true } : {}),
-      ...(o.list.eachOf ? { eachOf: { remote: o.list.eachOf.object } } : {}),
+      ...(o.list.eachOf
+        ? { eachOf: { remote: o.list.eachOf.object, ...(o.list.eachOf.scoped ? { scoped: true } : {}) } }
+        : {}),
     };
     if (o.create && (m.createAtSource ?? false)) {
       actions.push({
