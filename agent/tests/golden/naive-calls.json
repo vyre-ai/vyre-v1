@@ -2898,6 +2898,9 @@
   "install_remove": {
     "installId": "ins_a1b2c3"
   },
+  "journeys_adopt": {
+    "journeyId": "jrn_a1b2c3"
+  },
   "journeys_create": {
     "name": "Quarterly planning",
     "subjectType": "contact"
@@ -2971,6 +2974,9 @@
   },
   "journeys_test_path": {
     "journeyId": "jrn_a1b2c3"
+  },
+  "journeys_values_get": {
+    "recordId": "rec_a1b2c3"
   },
   "journeys_values_set": {
     "recordId": "rec_a1b2c3",

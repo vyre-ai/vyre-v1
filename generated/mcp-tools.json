@@ -35271,6 +35271,40 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.adopt",
+      "deferred": true,
+      "description": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "journeyId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_adopt",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.create",
       "deferred": false,
       "description": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
@@ -36371,6 +36405,32 @@
       },
       "name": "journeys_test_path",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.values.get",
+      "deferred": true,
+      "description": "Values a Journey carries for a record",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_values_get",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
