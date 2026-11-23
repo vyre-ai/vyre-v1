@@ -1,0 +1,55 @@
+// connectors.export on a connector of a firm's size, in a big Space (20 Nov 2026: crm_lawmatics, 25 tables, 50+ actions, timed out at 60 s on the firm's server and left the caller waiting).
+// The export writes one Files record for each action and each recorded test; on a Space of thousands of records each write used to wait behind the others and the access rebuild they start.
+// It must answer inside a bound that does not grow with the size of the Space, and must leave one whole folder (or none), never a half one.
+import test from "node:test";
+import assert from "node:assert/strict";
+import { call, hostLog } from "./support/eco-live.ts";
+import { spec, world } from "./support/sync-live.ts";
+import { seed } from "./support/bigspace-kit.ts";
+
+const TABLES = Number(process.env["EXPORT_TABLES"] ?? 25);
+const SCALE = Number(process.env["EXPORT_SCALE"] ?? 1);
+const BOUND_MS = 15_000;
+
+/** The stand-in app's matters list under many names: each one is a table of the connector, with its own list actions and its own recorded test. */
+const wide = () => {
+  const s = spec();
+  const base = s.objects.find((o) => o.remote === "matters")!;
+  const map = s.mapping.find((m) => m.remote === "matters")!;
+  s.objects = [base];
+  s.mapping = [map];
+  for (let i = 1; i < TABLES; i++) {
+    s.objects.push({ ...structuredClone(base), remote: `matters_${i}`, label: `Matter ${i}` });
+    s.mapping.push({ ...structuredClone(map), remote: `matters_${i}`, recordType: `matter_${i}` });
+  }
+  return s;
+};
+
+test("connectors.export of a 25-table connector in a big Space answers inside its bound and leaves one whole folder", { timeout: 900_000 }, async () => {
+  const w = await world(true);
+  try {
+    assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
+    const t0 = Date.now();
+    await seed(w.d, { matters: Math.round(9400 * SCALE), fields: 100, contacts: Math.round(28000 * SCALE), orgs: Math.round(1100 * SCALE) }, (m) => process.stderr.write(`[export] ${m}\n`));
+    process.stderr.write(`[export] seeded in ${Date.now() - t0} ms\n`);
+    const applied = await call(w.d, "sync_specs.apply", { spec: wide(), idempotencyKey: "export-wide" });
+    assert.equal(applied.status, 200, JSON.stringify(applied.data).slice(0, 400));
+    const key = String(applied.data.connector);
+    const got = await call(w.d, "connectors.get", { key });
+    const actions = (got.data.connector ?? got.data).actions?.length;
+    process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
+    const t1 = Date.now();
+    const out = await call(w.d, "connectors.export", { key });
+    const ms = Date.now() - t1;
+    process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
+    assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
+    assert.ok(ms < BOUND_MS, `the export took ${ms} ms (bound ${BOUND_MS})`);
+    const folderId = out.data.folderId as string;
+    const listed = await call(w.d, "files.list", { folder: folderId, limit: 500 });
+    const sub = await Promise.all(((listed.data.folders ?? []) as { folderId: string }[]).map((f) => call(w.d, "files.list", { folder: f.folderId, limit: 500 })));
+    const count = (listed.data.files ?? []).length + sub.reduce((n, r) => n + (r.data.files ?? []).length, 0);
+    assert.ok(count >= (actions ?? 0) + 2, `the folder holds ${count} files for ${actions} actions`);
+  } finally {
+    await w.close();
+  }
+});
