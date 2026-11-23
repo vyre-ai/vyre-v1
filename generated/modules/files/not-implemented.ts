@@ -26,6 +26,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "files.comments.resolve": async (ctx) => { throw new VyreErr(notImplemented("files.comments.resolve", ctx.trace)); },
   "files.copy": async (ctx) => { throw new VyreErr(notImplemented("files.copy", ctx.trace)); },
   "files.create": async (ctx) => { throw new VyreErr(notImplemented("files.create", ctx.trace)); },
+  "files.create_many": async (ctx) => { throw new VyreErr(notImplemented("files.create_many", ctx.trace)); },
   "files.delete": async (ctx) => { throw new VyreErr(notImplemented("files.delete", ctx.trace)); },
   "files.diff": async (ctx) => { throw new VyreErr(notImplemented("files.diff", ctx.trace)); },
   "files.external_links": async (ctx) => { throw new VyreErr(notImplemented("files.external_links", ctx.trace)); },

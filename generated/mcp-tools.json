@@ -22866,6 +22866,97 @@
     },
     {
       "blocks": [],
+      "cap": "files.create_many",
+      "deferred": false,
+      "description": "Create up to 200 files in one folder in one call: one commit and one update of who may see what, all or none. Each file takes what files.create takes; a name already taken stops the call. A folder under Review changes takes an agent's files one at a time with files.create",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "items": {
+              "properties": {
+                "content": {
+                  "description": "Exactly one of text, base64 (small files) or blobId (from files.upload_url)",
+                  "properties": {
+                    "base64": {
+                      "type": "string"
+                    },
+                    "blobId": {
+                      "examples": [
+                        "blb_a1b2c3"
+                      ],
+                      "pattern": "^blb_[a-z0-9]+$",
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "markdown",
+                    "document",
+                    "spreadsheet",
+                    "presentation",
+                    "pdf",
+                    "image",
+                    "video",
+                    "audio",
+                    "code",
+                    "archive",
+                    "google_native",
+                    "other"
+                  ],
+                  "type": "string"
+                },
+                "mime": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId",
+          "files",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "files_create_many",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "files.delete",
       "deferred": false,
       "description": "Move a file to Trash",

@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (79)
+## Capabilities (80)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -27,6 +27,7 @@ Requires: mounts.
 - [files.comments.resolve](../capabilities/files.comments.resolve.md): Resolve or reopen a comment
 - [files.copy](../capabilities/files.copy.md): Copy a file into a folder
 - [files.create](../capabilities/files.create.md): Create a file from text (content.text), base64 or an uploaded blob, in a folder; with no folder it goes in the person's own files. A name already taken becomes "name (2)" for an agent. A direct write holds at most 256 KB: split larger content into several files
+- [files.create_many](../capabilities/files.create_many.md): Create up to 200 files in one folder in one call: one commit and one update of who may see what, all or none. Each file takes what files.create takes; a name already taken stops the call. A folder under Review changes takes an agent's files one at a time with files.create
 - [files.delete](../capabilities/files.delete.md): Move a file to Trash
 - [files.diff](../capabilities/files.diff.md): Compare two versions of a file, or a version with the current one: unified or split hunks, word marks, paragraph diff for docx and md, image blobs for the slider
 - [files.external_links](../capabilities/files.external_links.md): List the outside links of a file
