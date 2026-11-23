@@ -134,10 +134,31 @@ export async function noteTitleChange(ctx: SearchCtx, types: readonly string[], 
   return marked;
 }
 
+/**
+ * The first start after the update that brought re-titling: documents indexed before it have no recorded title field, so a title field that changed earlier is in none of them. Every record type that has
+ * documents is queued once for the same paged re-titling (which then records the field for all); `retitled_all` says it was done.
+ */
+export function queueAllRetitles(ctx: SearchCtx): number {
+  ensure(ctx.db);
+  if (rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = 'retitled_all'").length > 0) return 0;
+  let n = 0;
+  for (const r of rowsOf(ctx.db, "SELECT DISTINCT record_type AS t FROM search_docs WHERE record_type IS NOT NULL")) {
+    ctx.db.run(
+      "INSERT OR IGNORE INTO search_meta (k, v) VALUES (?, ?)",
+      `retitle:${str(r["t"])}`,
+      JSON.stringify({ to: "", after: 0, seq: 0 }),
+    );
+    n++;
+  }
+  ctx.db.run("INSERT OR IGNORE INTO search_meta (k, v) VALUES ('retitled_all', '1')");
+  return n;
+}
+
 const RETITLE_PAGE = 100;
 /** One page of each pending re-titling: the documents of the type are read again (indexApply, as for any change) from where the last page stopped. Returns how many documents it did. */
 export async function retitleRun(ctx: SearchCtx): Promise<number> {
   ensure(ctx.db);
+  queueAllRetitles(ctx);
   let done = 0;
   for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'retitle:%'")) {
     const type = str(m["k"]).slice("retitle:".length);
@@ -159,17 +180,21 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
     for (const d of docs) {
       await turn();
       try {
-        await indexApply(ctx, { entity: str(d["entity"]), id: str(d["id"]), op: "upsert", seq: p.seq });
+        const entity = str(d["entity"]),
+          id = str(d["id"]);
+        await indexApply(ctx, { entity, id, op: "upsert", seq: seenOf(ctx, entity, id) ?? p.seq, force: true });
       } catch {
         /* the next change of the record reads it again; one record never holds the page */
       }
       done++;
     }
     if (docs.length < RETITLE_PAGE) {
+      // queued by the first start after the update, the field is not known yet: it is read now, and recorded for the type's documents
+      const to = p.to === "" ? await titleFieldOf(ctx, type) : p.to;
       ctx.db.run(
         "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
         `tf:${type}`,
-        p.to,
+        to,
       );
       ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
     } else {
@@ -450,12 +475,13 @@ export function indexDropFolder(ctx: SearchCtx, folderId: string, seq: number): 
 
 export async function indexApply(
   ctx: SearchCtx,
-  input: { entity: string; id: string; op: "upsert" | "delete"; seq: number },
+  input: { entity: string; id: string; op: "upsert" | "delete"; seq: number; force?: boolean },
 ): Promise<{ indexed: boolean }> {
   ensure(ctx.db);
   const { entity, id, op, seq } = input;
   const seen = seenOf(ctx, entity, id);
-  if (seen !== null && seq <= seen) return { indexed: false };
+  // `force` reads the row again whatever it was last indexed at (a re-titling): the caller passes the row's own sequence, so what is recorded does not move
+  if (input.force !== true && seen !== null && seq <= seen) return { indexed: false };
   if (op === "delete") {
     unreadable.get(ctx.space)?.delete(`${entity}\u0000${id}`);
     const had = removeDoc(ctx.db, ctx.space, entity, id);

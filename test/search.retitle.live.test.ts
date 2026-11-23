@@ -30,7 +30,7 @@ test("records are found by their new title after the type's title field changes,
           titleField: "name",
           fields: [
             { key: "name", type: "text", title: "Name", required: true },
-            { key: "alias", type: "text", title: "Alias" },
+            { key: "zalias", type: "text", title: "Zalias" },
           ],
         },
       },
@@ -39,7 +39,7 @@ test("records are found by their new title after the type's title field changes,
   assert.ok(made, JSON.stringify(made));
   const rec = await h.owner.call("records.create", {
     type: "retitle_item",
-    fields: { name: "Zephyrine", alias: "Quillfeather" },
+    fields: { name: "Zephyrine", zalias: "Quillfeather" },
     idempotencyKey: "rt-rec",
   });
   const id = (rec.record as { id: string }).id;
@@ -52,10 +52,10 @@ test("records are found by their new title after the type's title field changes,
     "the record is indexed under its name",
   );
   assert.equal(before1[0]!.title, "Zephyrine");
-  // the title field becomes the alias
+  // the title field becomes the zalias
   await h.owner.call("schema.apply", {
     idempotencyKey: "rt-change",
-    ops: [{ op: "type.update", type: "retitle_item", def: { titleField: "alias" } }],
+    ops: [{ op: "type.update", type: "retitle_item", def: { titleField: "zalias" } }],
   });
   await waitFor(
     async () => {
@@ -67,5 +67,63 @@ test("records are found by their new title after the type's title field changes,
     },
     40_000,
     "the record is found under its new title",
+  );
+});
+
+test("records indexed before the update, whose type's title field changed meanwhile, are titled again at the first start after it", async () => {
+  const made = await h.owner.call("schema.apply", {
+    idempotencyKey: "rt2-type",
+    ops: [
+      {
+        op: "type.create",
+        type: "retitle_old",
+        def: {
+          title: "Old",
+          plural: "Olds",
+          icon: "table",
+          titleField: "name",
+          fields: [
+            { key: "name", type: "text", title: "Name", required: true },
+            { key: "zalias", type: "text", title: "Zalias" },
+          ],
+        },
+      },
+    ],
+  });
+  assert.ok(made, JSON.stringify(made));
+  const rec = await h.owner.call("records.create", {
+    type: "retitle_old",
+    fields: { name: "Marigold", zalias: "Tessellate" },
+    idempotencyKey: "rt2-rec",
+  });
+  const id = (rec.record as { id: string }).id;
+  await waitFor(
+    async () => ((await find("Marigold")).some((x) => x.id === id && x.title === "Marigold") ? true : null),
+    20_000,
+    "the record is indexed under its name",
+  );
+  // the state before the update: no recorded title field, no marks, the one-time queue not yet run
+  h.d.db!.run("DELETE FROM search_meta WHERE k LIKE 'tf:%' OR k LIKE 'retitle:%' OR k = 'retitled_all'");
+  await h.owner.call("schema.apply", {
+    idempotencyKey: "rt2-change",
+    ops: [{ op: "type.update", type: "retitle_old", def: { titleField: "zalias" } }],
+  });
+  await h.d.hooks!.pump();
+  await waitFor(
+    async () => {
+      await h.d.hooks!.pump();
+      await h.d.hooks!.runPeriodic("search.retitle").catch(() => undefined);
+      await new Promise((r) => setTimeout(r, 2_000));
+      const hits = (await find("Tessellate")).filter((x) => x.id === id);
+      return hits.length && hits[0]!.title === "Tessellate" ? hits : null;
+    },
+    40_000,
+    "the old record is found under its new title",
+  );
+  const recorded = h.d.db!.all("SELECT v FROM search_meta WHERE k = 'tf:retitle_old'")[0] as { v?: string } | undefined;
+  assert.equal(
+    recorded?.v,
+    "zalias",
+    `the field the documents were titled by is recorded (${JSON.stringify(h.d.db!.all("SELECT k, v FROM search_meta"))})`,
   );
 });
