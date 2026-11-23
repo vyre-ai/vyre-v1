@@ -70,7 +70,7 @@ const connectorRow = t.obj({
   sources: t.arr(t.str()),
   objects: t.opt(t.rec(objectActions)),
   sourceFolderId: t.opt(id.folder),
-  untested: t.opt(t.bool({ description: "Published, but no call to the app has ever succeeded" })),
+  untested: t.opt(t.bool()),
 });
 
 const connectionRow = t.obj({

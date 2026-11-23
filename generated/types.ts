@@ -12103,6 +12103,7 @@ export type ConnectorsForServiceOut = {
     host?: string;
     hosts: Array<string>;
     checks: boolean;
+    untested?: boolean;
   };
   connection?: {
     connectionId: string;
@@ -12143,6 +12144,7 @@ export type ConnectorsGetOut = {
         link?: unknown;
       }>;
     sourceFolderId?: string;
+    untested?: boolean;
   };
 };
 export type ConnectorsHealthIn = Record<string, unknown>;
@@ -12196,6 +12198,7 @@ export type ConnectorsListOut = {
           link?: unknown;
         }>;
       sourceFolderId?: string;
+      untested?: boolean;
     }>;
   next?: string;
   total?: number;
@@ -12253,6 +12256,8 @@ export type ConnectorsPublishOut = {
         message?: string;
       }>;
   };
+  untested?: boolean;
+  message?: string;
 };
 export type ConnectorsPushIn = {
   outboxId: string;
@@ -49772,6 +49777,7 @@ export type VaultConnectCardAskAdminOut = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -49826,6 +49832,7 @@ export type VaultConnectCardDisconnectOut = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -49880,6 +49887,7 @@ export type VaultConnectCardGetOut = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -49965,6 +49973,7 @@ export type VaultConnectCardReopenOut = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -50030,6 +50039,7 @@ export type VaultConnectCardSubmitOut = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
