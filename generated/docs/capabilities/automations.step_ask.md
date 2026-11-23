@@ -11,7 +11,7 @@ System: a chat post set to ask passes the Gate here first. It does nothing itsel
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | post |
+| Gate | post when actor.kind == 'service' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

@@ -12,6 +12,7 @@ import {
   findRecord,
   getJourney,
   inFlight,
+  listVersions,
   me,
   migrationRows,
   out,
@@ -260,6 +261,24 @@ export async function migrationState(ctx: JourneysCtx, input: In): Promise<unkno
 }
 
 /**
+ * Who the adopted records belong to: the person an agent works for, else the person who runs it, else the Journey's own owner (who made its first version); never an agent's or a service's id.
+ */
+function ownerForAdopted(ctx: JourneysCtx, j: Journey): string {
+  if (ctx.actingFor) return ctx.actingFor;
+  if (ctx.principal.kind === "person") return ctx.principal.id;
+  const first = listVersions(ctx.db, j.id).at(-1)?.by;
+  if (first?.startsWith("usr_")) return first;
+  raise(
+    ctx,
+    "validation.precondition_failed",
+    `${j.name} has no person to own these records. Run it for the person they belong to.`,
+    {
+      reason: "no_owner",
+    },
+  );
+}
+
+/**
  * The records a type already had when it became a pipeline: each one whose stage field holds one of the Journey's stages takes its place in the Journey where it stands, a page at a time.
  * Nothing is run for them (no tasks, no Automations, no events): they were already there. A record that is enrolled is skipped, so a page can be run again and a stop loses nothing.
  */
@@ -276,6 +295,7 @@ export async function adopt(ctx: JourneysCtx, input: In): Promise<unknown> {
   const keys = new Map(j.stages.map((s) => [s.key, s]));
   const field = stageFieldOf(j);
   const now = ctx.now();
+  const owner = ownerForAdopted(ctx, j);
   let adopted = 0;
   let skipped = 0;
   for (const row of page.rows ?? []) {
@@ -294,7 +314,7 @@ export async function adopt(ctx: JourneysCtx, input: In): Promise<unknown> {
       startStage: stage.key,
       enteredAt: now,
       ...(stage.final ? { completedAt: now } : {}),
-      ownerId: me(ctx),
+      ownerId: owner,
       startKey: `adopt:${j.id}:${row.id}`,
       startedAt: now,
     });
