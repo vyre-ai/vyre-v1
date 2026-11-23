@@ -112,6 +112,7 @@ test(
       assert.ok(!afterwards.some((f: { name: string }) => f.name === "fresh.txt"));
       // the stored content of the refused batch went with it: no blob, no version row is left behind
       assert.equal(rows("files_blob"), blobsBefore, "a refused batch leaves no blob");
+      assert.equal(rows("files_file WHERE name = 'fresh.txt'"), 0, "a refused batch leaves no file row");
       assert.equal(rows("files_file_version"), versionsBefore, "a refused batch leaves no version");
       // a call that adds up to more than 25 MB is refused in words, before anything is written
       const big = await call(w.d, "files.create_many", {

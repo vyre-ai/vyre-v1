@@ -900,8 +900,7 @@ function blobScope(ctx: Ctx, blobId: string): string {
   return boundedScope("files.blob", ctx.space, blobId); // the Space and the blob are bound through a digest: a desktop Space id alone is 36 characters
 }
 
-async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): Promise<{ id: string; hash: string }> {
-  const hash = await sha256(plain);
+function putBlobHashed(ctx: Ctx, plain: Uint8Array, mime: string, id: string, hash: string): void {
   const sealed: Sealed = ctx.seal.seal(plain, blobScope(ctx, id));
   ctx.db.run(
     "INSERT INTO files_blob (id, hash, size, mime, key_id, nonce, bytes, scope, created_at, refs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -916,7 +915,32 @@ async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): P
     ctx.now(),
     0,
   );
+}
+
+async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): Promise<{ id: string; hash: string }> {
+  const hash = await sha256(plain);
+  putBlobHashed(ctx, plain, mime, id, hash);
   return { id, hash };
+}
+
+/** The size limits of a direct write, checked before any hashing or storing. */
+function checkPlainSize(ctx: Ctx, plain: Uint8Array): void {
+  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
+  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+}
+
+/** The blob of already hashed bytes: the one held under that hash, or a new one. Synchronous, so a batch can hold it in one transaction. */
+function blobForHashed(
+  ctx: Ctx,
+  plain: Uint8Array,
+  hash: string,
+  mime: string,
+): { id: string; hash: string; size: number } {
+  const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
+  if (existing) return { id: String(existing.id), hash, size: num(existing.size) };
+  const id = nid(ctx, "blb");
+  putBlobHashed(ctx, plain, mime, id, hash);
+  return { id, hash, size: plain.byteLength };
 }
 
 async function blobForPlain(
@@ -1963,29 +1987,57 @@ function chosenKind(ctx: Ctx, given: string | undefined, name: string, mime: str
   return given;
 }
 
-/** One file into a folder: the name checked, the content stored, the version made and the events said. The caller has read the folder. */
-async function createFileIn(
-  ctx: Ctx,
-  folder: Row,
-  o: Record<string, unknown>,
-  taken?: Set<string>,
-): Promise<{ file: FileOut }> {
-  let name = cleanName(ctx, reqStr(ctx, o, "name"));
+/** What one file needs before it is written: the content read, checked and hashed. No write happens here (it awaits), so a batch can prepare every file first and then write them all in one transaction. */
+interface PreparedFile {
+  name: string;
+  content: Content;
+  mime: string;
+  kind: string;
+  plain?: Uint8Array;
+  hash?: string;
+}
+
+async function prepareFile(ctx: Ctx, o: Record<string, unknown>): Promise<PreparedFile> {
+  const name = cleanName(ctx, reqStr(ctx, o, "name"));
+  const content = parseContent(ctx, o.content);
+  let mime = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
+  // text is text: a string written to report.pdf or data.xlsx is not a PDF or a workbook, so the name picks among the text types only and the kind comes from the content
+  const givenKind = optStr(ctx, o, "kind");
+  const textBody = content.kind === "text";
+  if (textBody && optStr(ctx, o, "mime") === undefined && !TEXTLIKE_MIME.test(mime)) mime = "text/plain";
+  let kind = chosenKind(ctx, givenKind, name, mime);
+  if (textBody && givenKind === undefined && BINARY_KINDS.has(kind) && !TEXT_EXT.has(extOf(name))) kind = "text";
+  const out: PreparedFile = { name, content, mime, kind };
+  if (content.kind !== "blob") {
+    const plain = plainOf(ctx, content) ?? new Uint8Array();
+    checkPlainSize(ctx, plain);
+    out.plain = plain;
+    out.hash = await sha256(plain);
+  }
+  return out;
+}
+
+/** One prepared file into a folder: the name taken, the content stored, the version made and the events said. Synchronous: a batch holds all its files in one transaction. */
+function writeFile(ctx: Ctx, folder: Row, p: PreparedFile, taken?: Set<string>): { file: FileOut } {
+  let name = p.name;
   // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
   if (ctx.principal.kind === "agent")
     name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n) || (taken?.has(n) ?? false));
   if (nameTaken(ctx, String(folder.id), name) || taken?.has(name))
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   taken?.add(name);
-  const content = parseContent(ctx, o.content);
-  let mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
-  // text is text: a string written to report.pdf or data.xlsx is not a PDF or a workbook, so the name picks among the text types only and the kind comes from the content
-  const givenKind = optStr(ctx, o, "kind");
-  const textBody = content.kind === "text";
-  if (textBody && optStr(ctx, o, "mime") === undefined && !TEXTLIKE_MIME.test(mimeHint)) mimeHint = "text/plain";
-  let kind = chosenKind(ctx, givenKind, name, mimeHint);
-  if (textBody && givenKind === undefined && BINARY_KINDS.has(kind) && !TEXT_EXT.has(extOf(name))) kind = "text";
-  const blob = await resolveBlob(ctx, content, mimeHint);
+  let blob: { blobId: string; size: number; mime: string };
+  if (p.plain !== undefined && p.hash !== undefined) {
+    const stored = blobForHashed(ctx, p.plain, p.hash, p.mime);
+    blob = { blobId: stored.id, size: stored.size, mime: p.mime };
+  } else {
+    const c = p.content as Extract<Content, { kind: "blob" }>;
+    const row = one(ctx, "SELECT * FROM files_blob WHERE id = ?", c.blobId);
+    if (!row) fail(ctx, "validation.not_found", "That blob is not in the store.", { blobId: c.blobId });
+    const storedMime = !isNull(row.mime) && String(row.mime).length > 0 ? String(row.mime) : p.mime;
+    blob = { blobId: String(row.id), size: num(row.size), mime: p.mime || storedMime };
+  }
+  const kind = p.kind;
   const id = nid(ctx, "fil");
   const now = ctx.now();
   ctx.db.run(
@@ -2013,6 +2065,11 @@ async function createFileIn(
   return { file: fileOutC(ctx, mustFile(ctx, id)) };
 }
 
+/** One file into a folder. The caller has read the folder. */
+async function createFileIn(ctx: Ctx, folder: Row, o: Record<string, unknown>): Promise<{ file: FileOut }> {
+  return writeFile(ctx, folder, await prepareFile(ctx, o));
+}
+
 async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; changesetId?: string }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
@@ -2030,26 +2087,25 @@ async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileO
   const list = o["files"];
   if (!Array.isArray(list) || list.length === 0 || list.length > CREATE_MANY_MAX)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "files" });
-  // the whole call is one transaction and its content is held in memory until it commits: a call that adds up to more than 25 MB is refused before anything is written
+  // Everything is read, checked and hashed first (that awaits and writes nothing); a call that adds up to more than 25 MB is refused here, before anything is written
+  const prepared: PreparedFile[] = [];
   let total = 0;
   for (const one of list as unknown[]) {
-    const c = parseContent(ctx, rec(ctx, one).content);
-    total +=
-      c.kind === "text"
-        ? new TextEncoder().encode(c.text).byteLength
-        : c.kind === "base64"
-          ? (plainOf(ctx, c)?.byteLength ?? 0)
-          : 0;
+    const p = await prepareFile(ctx, rec(ctx, one));
+    total += p.plain?.byteLength ?? 0;
+    if (total > CREATE_MANY_BYTES)
+      fail(
+        ctx,
+        "validation.too_large",
+        "The files in one call add up to more than 25 MB. Send them in smaller groups of files.",
+      );
+    prepared.push(p);
   }
-  if (total > CREATE_MANY_BYTES)
-    fail(
-      ctx,
-      "validation.too_large",
-      "The files in one call add up to more than 25 MB. Send them in smaller groups of files.",
-    );
+  // then every file is written in one transaction: a name that is taken, or any other refusal, rolls back the files, versions and stored content of the whole call
   const taken = new Set<string>();
-  const files: FileOut[] = [];
-  for (const one of list as unknown[]) files.push((await createFileIn(ctx, folder, rec(ctx, one), taken)).file);
+  const write = (): FileOut[] => prepared.map((p) => writeFile(ctx, folder, p, taken).file);
+  const batch = (ctx.db as { batch?: <T>(fn: () => T) => T }).batch;
+  const files = batch ? batch.call(ctx.db, write) : write();
   return { files };
 }
 
