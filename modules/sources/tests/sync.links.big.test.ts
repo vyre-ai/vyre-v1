@@ -22,7 +22,7 @@ const PERSON = {
   label: "Person",
   fields: [
     { name: "name", kind: "text", label: "Name" },
-    { name: "org", kind: "link", label: "Org", to: "org", many: false },
+    { name: "org", kind: "link", label: "Org", to: "org", many: true },
   ],
 };
 const R_ORG = { name: "r_org", label: "r_org", fields: [{ name: "/name", kind: "text" }] };
