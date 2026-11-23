@@ -1,0 +1,1 @@
+An Automation taller than the window now scrolls: its steps, its Runs, Settings and History tabs, a run's page and the phone Runs list each scroll inside their own frame instead of being clipped by the window.
