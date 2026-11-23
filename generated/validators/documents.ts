@@ -5,17 +5,17 @@ import type { Check } from './core.ts';
 
 function d_s_d3ee8409f2(v: unknown, p: string, e: string[]): void {
 {
-const x1070 = v;
-const g1070 = typeOf(x1070);
-const b1070: string[] = []; lf(x1070, p, b1070, L0); if (b1070.length) e.push(...b1070);
-if (g1070 === "object") {
-if (g1070 === 'object') { const o1070 = x1070 as Record<string, unknown>;
-if (!("fileId" in o1070)) e.push(p + "/fileId" + ': required');
-if (!("name" in o1070)) e.push(p + "/name" + ': required');
-if (!("versionId" in o1070)) e.push(p + "/versionId" + ': required');
-if ("fileId" in o1070) lf(o1070["fileId"], p + "/fileId", e, L40);
-if ("name" in o1070) lf(o1070["name"], p + "/name", e, L1);
-if ("versionId" in o1070) lf(o1070["versionId"], p + "/versionId", e, L165);
+const x1071 = v;
+const g1071 = typeOf(x1071);
+const b1071: string[] = []; lf(x1071, p, b1071, L0); if (b1071.length) e.push(...b1071);
+if (g1071 === "object") {
+if (g1071 === 'object') { const o1071 = x1071 as Record<string, unknown>;
+if (!("fileId" in o1071)) e.push(p + "/fileId" + ': required');
+if (!("name" in o1071)) e.push(p + "/name" + ': required');
+if (!("versionId" in o1071)) e.push(p + "/versionId" + ': required');
+if ("fileId" in o1071) lf(o1071["fileId"], p + "/fileId", e, L40);
+if ("name" in o1071) lf(o1071["name"], p + "/name", e, L1);
+if ("versionId" in o1071) lf(o1071["versionId"], p + "/versionId", e, L165);
 }
 }
 }

@@ -5,19 +5,19 @@ import type { Check } from './core.ts';
 
 function d_s_c89e548762(v: unknown, p: string, e: string[]): void {
 {
-const x1021 = v;
-const g1021 = typeOf(x1021);
-const b1021: string[] = []; lf(x1021, p, b1021, L0); if (b1021.length) e.push(...b1021);
-if (g1021 === "object") {
-if (g1021 === 'object') { const o1021 = x1021 as Record<string, unknown>;
-if (!("os" in o1021)) e.push(p + "/os" + ': required');
-if (!("arch" in o1021)) e.push(p + "/arch" + ': required');
-if (!("docker" in o1021)) e.push(p + "/docker" + ': required');
-if (!("version" in o1021)) e.push(p + "/version" + ': required');
-if ("os" in o1021) lf(o1021["os"], p + "/os", e, L1);
-if ("arch" in o1021) lf(o1021["arch"], p + "/arch", e, L1);
-if ("docker" in o1021) lf(o1021["docker"], p + "/docker", e, L3);
-if ("version" in o1021) lf(o1021["version"], p + "/version", e, L1);
+const x1022 = v;
+const g1022 = typeOf(x1022);
+const b1022: string[] = []; lf(x1022, p, b1022, L0); if (b1022.length) e.push(...b1022);
+if (g1022 === "object") {
+if (g1022 === 'object') { const o1022 = x1022 as Record<string, unknown>;
+if (!("os" in o1022)) e.push(p + "/os" + ': required');
+if (!("arch" in o1022)) e.push(p + "/arch" + ': required');
+if (!("docker" in o1022)) e.push(p + "/docker" + ': required');
+if (!("version" in o1022)) e.push(p + "/version" + ': required');
+if ("os" in o1022) lf(o1022["os"], p + "/os", e, L1);
+if ("arch" in o1022) lf(o1022["arch"], p + "/arch", e, L1);
+if ("docker" in o1022) lf(o1022["docker"], p + "/docker", e, L3);
+if ("version" in o1022) lf(o1022["version"], p + "/version", e, L1);
 }
 }
 }

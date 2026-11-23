@@ -73939,7 +73939,7 @@
       "blocks": [],
       "cap": "vault.request",
       "deferred": false,
-      "description": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "description": "Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked",
       "effects": "write",
       "inputSchema": {
         "properties": {

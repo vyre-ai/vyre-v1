@@ -50611,7 +50611,8 @@ export type VaultRequestOut = {
     itemId?: string;
     note?: string;
     service?: string;
-    taskId: string;
+    taskId?: string;
+    placeholder?: boolean;
     at: number;
     decidedAt?: number;
     askedYou?: boolean;
@@ -50656,7 +50657,8 @@ export type VaultRequestsFulfilOut = {
     itemId?: string;
     note?: string;
     service?: string;
-    taskId: string;
+    taskId?: string;
+    placeholder?: boolean;
     at: number;
     decidedAt?: number;
     askedYou?: boolean;
@@ -50681,7 +50683,8 @@ export type VaultRequestsGetOut = {
     itemId?: string;
     note?: string;
     service?: string;
-    taskId: string;
+    taskId?: string;
+    placeholder?: boolean;
     at: number;
     decidedAt?: number;
     askedYou?: boolean;
@@ -50709,7 +50712,8 @@ export type VaultRequestsListOut = {
       itemId?: string;
       note?: string;
       service?: string;
-      taskId: string;
+      taskId?: string;
+      placeholder?: boolean;
       at: number;
       decidedAt?: number;
       askedYou?: boolean;

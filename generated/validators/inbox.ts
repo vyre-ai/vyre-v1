@@ -108,18 +108,18 @@ if ("draftReady" in o900) lf(o900["draftReady"], p + "/draftReady", e, L3);
 
 function d_s_b89ff390fa(v: unknown, p: string, e: string[]): void {
 {
-const x942 = v;
-const g942 = typeOf(x942);
-const b942: string[] = []; lf(x942, p, b942, L0); if (b942.length) e.push(...b942);
-if (g942 === "object") {
-if (g942 === 'object') { const o942 = x942 as Record<string, unknown>;
-if ("mailboxId" in o942) lf(o942["mailboxId"], p + "/mailboxId", e, L30);
-if ("numberId" in o942) lf(o942["numberId"], p + "/numberId", e, L185);
-if ("channel" in o942) lf(o942["channel"], p + "/channel", e, L208);
-if ("needsMatch" in o942) lf(o942["needsMatch"], p + "/needsMatch", e, L3);
-if ("query" in o942) lf(o942["query"], p + "/query", e, L1);
-if ("cursor" in o942) lf(o942["cursor"], p + "/cursor", e, L1);
-if ("limit" in o942) lf(o942["limit"], p + "/limit", e, L139);
+const x943 = v;
+const g943 = typeOf(x943);
+const b943: string[] = []; lf(x943, p, b943, L0); if (b943.length) e.push(...b943);
+if (g943 === "object") {
+if (g943 === 'object') { const o943 = x943 as Record<string, unknown>;
+if ("mailboxId" in o943) lf(o943["mailboxId"], p + "/mailboxId", e, L30);
+if ("numberId" in o943) lf(o943["numberId"], p + "/numberId", e, L185);
+if ("channel" in o943) lf(o943["channel"], p + "/channel", e, L208);
+if ("needsMatch" in o943) lf(o943["needsMatch"], p + "/needsMatch", e, L3);
+if ("query" in o943) lf(o943["query"], p + "/query", e, L1);
+if ("cursor" in o943) lf(o943["cursor"], p + "/cursor", e, L1);
+if ("limit" in o943) lf(o943["limit"], p + "/limit", e, L139);
 }
 }
 }
@@ -127,13 +127,13 @@ if ("limit" in o942) lf(o942["limit"], p + "/limit", e, L139);
 
 function d_s_e42a181eb0(v: unknown, p: string, e: string[]): void {
 {
-const x1188 = v;
-const g1188 = typeOf(x1188);
-const b1188: string[] = []; lf(x1188, p, b1188, L0); if (b1188.length) e.push(...b1188);
-if (g1188 === "object") {
-if (g1188 === 'object') { const o1188 = x1188 as Record<string, unknown>;
-if (!("conversation" in o1188)) e.push(p + "/conversation" + ': required');
-if ("conversation" in o1188) d_s_acdf9f65cd(o1188["conversation"], p + "/conversation", e);
+const x1186 = v;
+const g1186 = typeOf(x1186);
+const b1186: string[] = []; lf(x1186, p, b1186, L0); if (b1186.length) e.push(...b1186);
+if (g1186 === "object") {
+if (g1186 === 'object') { const o1186 = x1186 as Record<string, unknown>;
+if (!("conversation" in o1186)) e.push(p + "/conversation" + ': required');
+if ("conversation" in o1186) d_s_acdf9f65cd(o1186["conversation"], p + "/conversation", e);
 }
 }
 }

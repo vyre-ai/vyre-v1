@@ -15,7 +15,7 @@ Requires: nothing.
 - [vault.connect_card.options](../capabilities/vault.connect_card.options.md): Where the key can be kept: Mine, the shared folders an agent can use, and those it cannot
 - [vault.connect_card.reopen](../capabilities/vault.connect_card.reopen.md): Open a card the person folded with Not now
 - [vault.connect_card.submit](../capabilities/vault.connect_card.submit.md): Try the key, connect the service and keep the key; nothing is kept unless the key works. The values are in this call only
-- [vault.request](../capabilities/vault.request.md): Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status
+- [vault.request](../capabilities/vault.request.md): Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked
 - [vault.requests.cancel](../capabilities/vault.requests.cancel.md): Withdraw my own key request
 - [vault.requests.decline](../capabilities/vault.requests.decline.md): Decline a key request with a note
 - [vault.requests.fulfil](../capabilities/vault.requests.fulfil.md): Supply the key: attach an existing item, or save new fields as an item in the requested folder; say who may use it through the agent that asked

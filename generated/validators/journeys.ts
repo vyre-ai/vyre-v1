@@ -202,24 +202,24 @@ d_s_2d1da53e35(a879[i879], p + '/' + i879, e);
 
 function d_s_d3f43ff5d3(v: unknown, p: string, e: string[]): void {
 {
-const x1071 = v;
-const g1071 = typeOf(x1071);
-const b1071: string[] = []; lf(x1071, p, b1071, L0); if (b1071.length) e.push(...b1071);
-if (g1071 === "object") {
-if (g1071 === 'object') { const o1071 = x1071 as Record<string, unknown>;
-if (!("hours" in o1071)) e.push(p + "/hours" + ': required');
-if ("hours" in o1071) lf(o1071["hours"], p + "/hours", e, L10);
-if ("escalateTo" in o1071) {
-{
-const x1072 = o1071["escalateTo"];
+const x1072 = v;
 const g1072 = typeOf(x1072);
-const b1072: string[] = []; lf(x1072, p + "/escalateTo", b1072, L0); if (b1072.length) e.push(...b1072);
+const b1072: string[] = []; lf(x1072, p, b1072, L0); if (b1072.length) e.push(...b1072);
 if (g1072 === "object") {
 if (g1072 === 'object') { const o1072 = x1072 as Record<string, unknown>;
-if (!("kind" in o1072)) e.push(p + "/escalateTo" + "/kind" + ': required');
-if (!("id" in o1072)) e.push(p + "/escalateTo" + "/id" + ': required');
-if ("kind" in o1072) lf(o1072["kind"], p + "/escalateTo" + "/kind", e, L443);
-if ("id" in o1072) lf(o1072["id"], p + "/escalateTo" + "/id", e, L1);
+if (!("hours" in o1072)) e.push(p + "/hours" + ': required');
+if ("hours" in o1072) lf(o1072["hours"], p + "/hours", e, L10);
+if ("escalateTo" in o1072) {
+{
+const x1073 = o1072["escalateTo"];
+const g1073 = typeOf(x1073);
+const b1073: string[] = []; lf(x1073, p + "/escalateTo", b1073, L0); if (b1073.length) e.push(...b1073);
+if (g1073 === "object") {
+if (g1073 === 'object') { const o1073 = x1073 as Record<string, unknown>;
+if (!("kind" in o1073)) e.push(p + "/escalateTo" + "/kind" + ': required');
+if (!("id" in o1073)) e.push(p + "/escalateTo" + "/id" + ': required');
+if ("kind" in o1073) lf(o1073["kind"], p + "/escalateTo" + "/kind", e, L443);
+if ("id" in o1073) lf(o1073["id"], p + "/escalateTo" + "/id", e, L1);
 }
 }
 }

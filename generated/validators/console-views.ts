@@ -35,27 +35,27 @@ if ("resource" in o407) lf(o407["resource"], p + '/' + i406 + "/resource", e, L1
 
 function d_s_d61161dbe1(v: unknown, p: string, e: string[]): void {
 {
-const x1083 = v;
-const g1083 = typeOf(x1083);
-const b1083: string[] = []; lf(x1083, p, b1083, L4); if (b1083.length) e.push(...b1083);
-if (g1083 === "array") {
-if (g1083 === 'array') { const a1083 = x1083 as unknown[];
-for (let i1083 = 0; i1083 < a1083.length; i1083++) {
-{
-const x1084 = a1083[i1083];
+const x1084 = v;
 const g1084 = typeOf(x1084);
-const b1084: string[] = []; lf(x1084, p + '/' + i1083, b1084, L0); if (b1084.length) e.push(...b1084);
-if (g1084 === "object") {
-if (g1084 === 'object') { const o1084 = x1084 as Record<string, unknown>;
-if (!("kind" in o1084)) e.push(p + '/' + i1083 + "/kind" + ': required');
-if (!("title" in o1084)) e.push(p + '/' + i1083 + "/title" + ': required');
-if (!("since" in o1084)) e.push(p + '/' + i1083 + "/since" + ': required');
-if (!("next" in o1084)) e.push(p + '/' + i1083 + "/next" + ': required');
-if ("kind" in o1084) lf(o1084["kind"], p + '/' + i1083 + "/kind", e, L454);
-if ("title" in o1084) lf(o1084["title"], p + '/' + i1083 + "/title", e, L1);
-if ("ref" in o1084) lf(o1084["ref"], p + '/' + i1083 + "/ref", e, L1);
-if ("since" in o1084) lf(o1084["since"], p + '/' + i1083 + "/since", e, L11);
-if ("next" in o1084) lf(o1084["next"], p + '/' + i1083 + "/next", e, L1);
+const b1084: string[] = []; lf(x1084, p, b1084, L4); if (b1084.length) e.push(...b1084);
+if (g1084 === "array") {
+if (g1084 === 'array') { const a1084 = x1084 as unknown[];
+for (let i1084 = 0; i1084 < a1084.length; i1084++) {
+{
+const x1085 = a1084[i1084];
+const g1085 = typeOf(x1085);
+const b1085: string[] = []; lf(x1085, p + '/' + i1084, b1085, L0); if (b1085.length) e.push(...b1085);
+if (g1085 === "object") {
+if (g1085 === 'object') { const o1085 = x1085 as Record<string, unknown>;
+if (!("kind" in o1085)) e.push(p + '/' + i1084 + "/kind" + ': required');
+if (!("title" in o1085)) e.push(p + '/' + i1084 + "/title" + ': required');
+if (!("since" in o1085)) e.push(p + '/' + i1084 + "/since" + ': required');
+if (!("next" in o1085)) e.push(p + '/' + i1084 + "/next" + ': required');
+if ("kind" in o1085) lf(o1085["kind"], p + '/' + i1084 + "/kind", e, L454);
+if ("title" in o1085) lf(o1085["title"], p + '/' + i1084 + "/title", e, L1);
+if ("ref" in o1085) lf(o1085["ref"], p + '/' + i1084 + "/ref", e, L1);
+if ("since" in o1085) lf(o1085["since"], p + '/' + i1084 + "/since", e, L11);
+if ("next" in o1085) lf(o1085["next"], p + '/' + i1084 + "/next", e, L1);
 }
 }
 }
