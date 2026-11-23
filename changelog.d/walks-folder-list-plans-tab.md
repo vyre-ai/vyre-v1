@@ -1,0 +1,1 @@
+- The shell walks wait for the folder's own list (not the file's name, which the viewer also shows) after Back, and the chat tab of the tab-switch walk is the Plans tab; the landing tab is checked to show its own page.
