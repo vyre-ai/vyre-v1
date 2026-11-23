@@ -100,19 +100,6 @@ test("define refuses a key the contract does not name instead of storing it", as
   await def({}); // the plain definition still goes in
 });
 
-test("define takes a rate limit, and refuses one that is not a positive speed with a burst", async () => {
-  const k = kit();
-  await k.hs["connectors.init"](k.ctx, { key: "shop", title: "Shop", mode: "api", source: false } as never);
-  const def = (rate: unknown) =>
-    k.hs["connectors.define"](k.ctx, { key: "shop", ...BASE, actions: ACTIONS, rate } as never);
-  await assert.rejects(def({ rps: 0, burst: 1 }), (e) => /rate/.test(msg(e)));
-  await assert.rejects(def({ rps: 2, burst: 0 }), (e) => /rate/.test(msg(e)));
-  await def({ rps: 2, burst: 4 });
-  await k.hs["connectors.publish"](k.ctx, { key: "shop" });
-  const row = (await k.hs["connectors.get"](k.ctx, { key: "shop" })).connector as unknown as { key: string };
-  assert.equal(row.key, "shop");
-});
-
 test("a dry run of a defined body shows the body that would be sent, with the secret hidden", async () => {
   const k = kit();
   k.vault["#ShopKey"] = "shop-key-value-1";

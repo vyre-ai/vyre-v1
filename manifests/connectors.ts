@@ -509,7 +509,6 @@ export default defineManifest({
           }),
           secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
           health: t.opt(t.str()),
-          rate: t.opt(t.obj({ rps: t.num({ minimum: 0.01 }), burst: t.int({ minimum: 1 }) })),
           actions: t.arr(
             t.obj({
               name: t.str(),
