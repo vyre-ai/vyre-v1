@@ -42,6 +42,10 @@ type In = {
       description: string;
     }>;
   health?: string;
+  rate?: {
+    rps: number;
+    burst: number;
+  };
   actions: Array<{
       name: string;
       method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
@@ -135,6 +139,10 @@ type Out = {
     ],
     "health": "example",
     "key": "hubspot",
+    "rate": {
+      "burst": 1,
+      "rps": 1
+    },
     "secrets": [
       {
         "description": "example",

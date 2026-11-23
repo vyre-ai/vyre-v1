@@ -10,6 +10,7 @@ import {
   keyHosts,
   recordFor,
   probeHost,
+  untestedConnector,
   probeOf,
   mintShort,
   nowOf,
@@ -151,7 +152,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
   };
   const actorOf = (ctx: ConnectorsCtx): string => ctx.actor ?? "system";
   /**
-   * The server's revision of a connector: a counter that moves on every change to its stored definition (publish, roll back, sync-spec publish, delete and make again; see migrations/0006_revisions.sql) and
+   * The server's revision of a connector: a counter that moves on every change to its stored definition (publish, roll back, sync-spec publish, delete and make again; see migrations/0007_revisions.sql) and
    * never repeats. A connector shipped with the product carries the hash of its code definition, so a fix without a version bump changes it too.
    */
   const revisionOf = (def: ConnectorDef): string => {
@@ -737,6 +738,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           hosts: keyHosts(hit),
           builtin: hit.builtin === true,
           checks: probeHost(hit) !== undefined,
+          ...(untestedConnector(tx, hit.key, hit.builtin === true, "live") ? { untested: true } : {}),
         },
         ...(best
           ? {
