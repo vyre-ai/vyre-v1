@@ -160,7 +160,6 @@ test("a Space that moves between the relay and its own address is found where it
             console.log(`getting-in: moved to its own address, sign-in ready ${Date.now() - t0} ms after the load`);
             assert.equal(await page.getByTestId("step-not-answering").count(), 0);
             assert.deepEqual(seen, [], "the person never saw a line saying the Space could not be reached");
-            const before = carried.length;
             // the stale app worker retires itself and moves the page once: let that finish before the second visit, or the reload below is cut off by it (net::ERR_ABORTED)
             await page.waitForFunction(
               async () => (await navigator.serviceWorker.getRegistrations()).length === 0,
@@ -169,6 +168,7 @@ test("a Space that moves between the relay and its own address is found where it
                 timeout: 20_000,
               },
             );
+            const before = carried.length;
             await page.reload();
             await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
             assert.equal(carried.length, before, "nothing goes through the relay's worker any more");
@@ -195,10 +195,9 @@ test("a Space that moves between the relay and its own address is found where it
         );
         mode = "relay";
         await page.reload();
-        // the relay answers the app's old worker address with one that removes itself and loads the page again; wait for that page, so it is not loaded again under the person's hands
-        await page.waitForFunction(() => !navigator.serviceWorker.controller && !!document.querySelector("#k"), null, {
-          timeout: 30_000,
-        });
+        // the relay's first-time page is what the person sees; the app's old worker may still be in charge of the page (the browser asks for its replacement on its own schedule, up to a day), and the page
+        // removes it when the Space link is used, so the walk waits for what a person waits for: the box
+        await page.locator("#k").waitFor({ timeout: 15_000 });
         assert.equal(await page.locator("#s").innerText(), "Open this Space from its link");
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.emulateMedia({ colorScheme: "dark" });
