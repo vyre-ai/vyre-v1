@@ -6,7 +6,7 @@ import { registry } from "../../../generated/registry.ts";
 import { deref } from "../../../packages/contracts/src/jsonschema.ts";
 import { indexApply } from "../handlers/index.ts";
 import { query, resolveItem } from "../handlers/query.ts";
-import { WATCHED, consumers, targetOf, targetsOf } from "../impl.ts";
+import { WATCHED, alreadyIndexed, consumers, targetOf, targetsOf } from "../impl.ts";
 import { asPerson, contractErrors, harness, notFound, seed } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
 
@@ -383,4 +383,19 @@ test("a deleted task leaves search; one restored or handed to someone is read ag
   assert.deepEqual(targetsOf({ type: "task.assigned", seq: 52, payload: { taskId: "tsk_two" } }), [
     { entity: "task", id: "tsk_two", op: "upsert", seq: 52 },
   ]);
+});
+
+test("a file's first version is read again only when the file is not in the index yet; a later version and a restore always are", () => {
+  const ev = (type: string, n: number, seq: number) => ({ type, seq, payload: { fileId: "fil_1", n } });
+  assert.deepEqual(targetsOf(ev("file.created", 1, 10)), [{ entity: "file", id: "fil_1", op: "upsert", seq: 10 }]);
+  const first = ev("file.version_added", 1, 11);
+  const [t] = targetsOf(first);
+  assert.ok(t, "version 1 is a target");
+  const ctxWith = (rows: unknown[]) => ({ db: { all: () => rows, run: () => ({ changes: 0 }) } }) as never;
+  assert.equal(alreadyIndexed(ctxWith([{ x: 1 }]), first, t), true, "indexed by the creation: not read twice");
+  assert.equal(alreadyIndexed(ctxWith([]), first, t), false, "not indexed yet: read");
+  const later = ev("file.version_added", 2, 12);
+  const [t2] = targetsOf(later);
+  assert.ok(t2);
+  assert.equal(alreadyIndexed(ctxWith([{ x: 1 }]), later, t2), false, "a later version is always read");
 });

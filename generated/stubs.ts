@@ -1067,6 +1067,7 @@ export function stubs(ctx: CallCtx) {
       },
       copy: call("files.copy"),
       create: call("files.create"),
+      create_many: call("files.create_many"),
       delete: call("files.delete"),
       diff: call("files.diff"),
       external_links: call("files.external_links"),

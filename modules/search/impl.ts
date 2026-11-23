@@ -16,7 +16,7 @@ import {
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
-import { forgetVectors, setEmbedder, setSource } from "./projections.ts";
+import { forgetVectors, rowsOf, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -141,6 +141,14 @@ export function targetsOf(e: IndexEvent): IndexTarget[] {
   return out;
 }
 
+/** A file's first version is announced right after its creation, and the creation already reads the file whole: the first version is read a second time only when the file is not in the index yet (a flow that adds its first version later is still indexed). */
+export function alreadyIndexed(ctx: SearchCtx, e: IndexEvent, t: IndexTarget): boolean {
+  if (e.type !== "file.version_added" || e.payload["n"] !== 1) return false;
+  return (
+    rowsOf(ctx.db, "SELECT 1 AS x FROM search_docs WHERE entity = ? AND id = ? LIMIT 1", t.entity, t.id).length > 0
+  );
+}
+
 /** The single row an event is about (the last of its targets): what a one-row event means. */
 export function targetOf(e: IndexEvent): IndexTarget | null {
   return targetsOf(e).at(-1) ?? null;
@@ -158,7 +166,7 @@ export const consumers = {
         if (folderId) indexDropFolder(ctx, folderId, e.seq);
         return;
       }
-      for (const t of targetsOf(e)) await indexApply(ctx, t);
+      for (const t of targetsOf(e)) if (!alreadyIndexed(ctx, e, t)) await indexApply(ctx, t);
     },
   },
   /** A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). */
@@ -178,7 +186,8 @@ export const consumers = {
   "search.vectors": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
-      if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
+      const e = indexEventOf(event);
+      if (targetsOf(e).some((t) => !alreadyIndexed(ctx, e, t))) await embedRun(ctx, { limit: 50 });
     },
   },
 };

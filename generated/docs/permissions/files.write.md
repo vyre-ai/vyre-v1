@@ -19,6 +19,7 @@ Area: files. Risk: low. Applies to: file, folder.
 - documents.mark_template
 - files.copy
 - files.create
+- files.create_many
 - files.folder.create
 - files.folder.move
 - files.folder.rename

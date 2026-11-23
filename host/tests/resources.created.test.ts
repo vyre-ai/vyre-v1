@@ -775,6 +775,20 @@ test("registrar: the made-for-me stamp is written for what an agent authored, an
     "an event the agent created",
   );
   assert.ok(stamped(run("files.create", ev("file.created", { fileId: "fil_a1" }))), "a file the agent created");
+  // many files in one call: every one of them is the agent's own, not only the first
+  const many = r.register({
+    cap: { name: "files.create_many", resource: { type: "space" } },
+    input: {},
+    space: "spc_1",
+    owner: "usr_dana",
+    principal: agent,
+    events: [ev("file.created", { fileId: "fil_b1" }), ev("file.created", { fileId: "fil_b2" })],
+  });
+  assert.equal(
+    many.filter((x) => x.made_by === "agt_helper" && x.made_for === "usr_dana").length,
+    2,
+    "both files of a batch",
+  );
   // arrived or synced: never stamped, even with an agent as the caller acting for the person
   const never: Array<[string, ReturnType<typeof ev>]> = [
     ["mail.sync_now", ev("calendar_event.created", { eventId: "cev_m1", calendarId: "cld_1" })],

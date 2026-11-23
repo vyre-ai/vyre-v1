@@ -1,0 +1,1 @@
+A task made or updated with a project in its project field is now part of that project. Before, the value was only stored: the task never showed in the project's plan or open count until it was linked by hand. It is linked the same way as pressing Link a record, and a task given two different records is refused instead of one being dropped.

@@ -1067,6 +1067,7 @@ export function createClient(transport: Transport) {
       },
       copy: call("files.copy", 1),
       create: call("files.create", 1),
+      create_many: call("files.create_many", 1),
       delete: call("files.delete", 1),
       diff: call("files.diff", 1),
       external_links: call("files.external_links", 1),
