@@ -791,20 +791,27 @@ backup_data() {
   prune_backups
 }
 
-# prune_backups: old backups go by kind, never across kinds, so many manual backups never push out the one taken before an update or a restore (12 Nov: twelve manual backups
-# evicted the only good copy from before a failed update). Kept: the newest 3 manual (and other) backups, the newest 2 taken before an update (vyre-pre-<version>-...), the newest 2
-# taken before a restore. What goes is named.
+# prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's
+# own and is never removed here; a name this script does not know is left alone too (19 Nov, a Mac mini: the CLI deleted a manual backup nobody asked it to). Pruned: the
+# newest 3 scheduled backups (vyre-scheduled-...) stay, the newest 2 taken before an update (vyre-pre-<version>-...) stay, the newest 2 taken before a restore stay (12 Nov: twelve
+# manual backups once evicted the only good copy from before a failed update). What goes is named; when manual backups pile up, the one line below says how much room they take.
 prune_backups() {
   ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" '
     { n = $0; sub(/.*\//, "", n)
       if (n ~ /^vyre-pre-restore-/) { kind = "pre-restore"; keep = 2 }
       else if (n ~ /^vyre-pre-[0-9]/) { kind = "pre-update"; keep = 2 }
-      else { kind = "other"; keep = k }
+      else if (n ~ /^vyre-scheduled-/) { kind = "scheduled"; keep = k }
+      else next
       if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
     [ "$old" != "$out" ] || continue
     [ "$old" != "$(cat "$DIR/state/keep-backup" 2>/dev/null)" ] || continue
     rm -f "$old" && say "  Removed an older backup: $(basename "$old")"
   done
+  m_n=$(ls -1 "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${m_n:-0}" -gt 3 ]; then
+    m_kb=$(du -sk "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
+    say "  Manual backups are never removed by this command: $m_n of them take $((m_kb / 1024)) MB in $BACKUP_DIR. Delete the ones you no longer need yourself."
+  fi
   return 0
 }
 

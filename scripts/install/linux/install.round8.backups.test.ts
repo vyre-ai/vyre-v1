@@ -6,7 +6,7 @@ import path from "node:path";
 import { SERVER, tmp, SAME, sh, world, MAC_ENV, mkSpace } from "./install.round8-kit.test.ts";
 import type { Out } from "./install.round8-kit.test.ts";
 
-test("two backups in the same second get two names, and many manual backups never push out the newest backups taken before an update or a restore; what goes is named", () => {
+test("two backups in the same second get two names; a manual backup is never removed; scheduled ones keep 3 and what goes is named; the newest backups taken before an update or a restore stay", () => {
   const dir = tmp();
   try {
     mkSpace(dir, "P");
@@ -38,7 +38,11 @@ test("two backups in the same second get two names, and many manual backups neve
     let last: Out = a;
     for (let i = 0; i < 12; i++) last = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env);
     const left = names();
-    assert.equal(left.filter((n) => n.startsWith("vyre-manual-")).length, 3, left.join(" "));
+    assert.equal(
+      left.filter((n) => n.startsWith("vyre-manual-")).length,
+      12,
+      "no manual backup was removed: " + left.join(" "),
+    );
     assert.equal(
       left.filter((n) => n.startsWith("vyre-pre-1.1.0-")).length,
       1,
@@ -49,7 +53,25 @@ test("two backups in the same second get two names, and many manual backups neve
       1,
       "the backup from before the restore stays",
     );
-    assert.match(last.stdout, /^  Removed an older backup: vyre-manual-\S+\.tar\.gz$/m, "what goes is named");
+    assert.doesNotMatch(
+      last.stdout,
+      /Removed an older backup: vyre-manual-/,
+      "a manual backup is never named as removed",
+    );
+    assert.match(
+      last.stdout,
+      /Manual backups are never removed by this command: 12 of them take \d+ MB/,
+      "the pile of manual backups is said, not pruned",
+    );
+    // scheduled backups keep 3, and what goes is named
+    let sched: Out = a;
+    for (let i = 0; i < 5; i++)
+      sched = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data scheduled live`, env);
+    assert.equal(names().filter((n) => n.startsWith("vyre-scheduled-")).length, 3, names().join(" "));
+    assert.match(sched.stdout, /^  Removed an older backup: vyre-scheduled-\S+\.tar\.gz$/m, "what goes is named");
+    fs.writeFileSync(path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"), "x");
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data scheduled live`, env).status, 0);
+    assert.ok(names().includes("vyre-restored-by-hand.tar.gz"), "a name the script does not know is left alone");
     // the kinds keep their own few: a third backup before an update pushes out only the oldest of that kind
     for (const v of ["1.2.0", "1.3.0"])
       assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`, env).status, 0);
