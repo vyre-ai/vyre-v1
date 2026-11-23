@@ -7,6 +7,7 @@
 // @reads /modules/connectors/migrations/0005_hosts.sql
 // @reads /modules/connectors/migrations/0006_creators.sql
 // @reads /modules/connectors/migrations/0007_revisions.sql
+// @reads /modules/connectors/migrations/0008_tested.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -281,6 +282,7 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0006_creators.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0007_revisions.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0008_tested.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
@@ -740,6 +742,15 @@ export function recordWords(entry: string): string {
   const port = m[2] && m[2] !== "443" ? ` on port ${m[2]}` : "";
   return pattern.startsWith("*.") ? `any address ending in ${pattern.slice(1)}${port}` : `${pattern}${port}`;
 }
+
+/** Has this connector never had a live answer (cn_tested holds the first, so the call log is never read)? A published connector made by hand or by an agent is checked against the app's docs only; it is "untested" until a call to the app comes back with a success. Built-ins ship tested. */
+export function untestedConnector(tx: Tx, key: string, builtin: boolean, state: string): boolean {
+  if (builtin || state !== "live") return false;
+  return tx.get<{ x: number }>("SELECT 1 AS x FROM cn_tested WHERE key = ?", key) === undefined;
+}
+
+/** What the person is told about an untested connector, on the card and after a publish. */
+export const untestedLine = "Not tried yet. The first call may need a fix.";
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
 export const originKey = (u: URL): string =>

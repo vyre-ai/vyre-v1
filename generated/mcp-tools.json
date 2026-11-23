@@ -16775,6 +16775,23 @@
             ],
             "type": "string"
           },
+          "rate": {
+            "properties": {
+              "burst": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "rps": {
+                "minimum": 0.01,
+                "type": "number"
+              }
+            },
+            "required": [
+              "rps",
+              "burst"
+            ],
+            "type": "object"
+          },
           "secrets": {
             "items": {
               "properties": {

@@ -76,6 +76,13 @@
    "proto": "chats,{skin}",
    "waitFor": "[data-testid^='connect-vrq_1']",
    "note": "connect card, offline"
+  },
+  {
+   "id": "CONNECTCARD_01-untested",
+   "route": "/m/CONNECTCARD_01?part=untested",
+   "proto": "chats,{skin}",
+   "waitFor": "[data-testid^='connect-vrq_1']",
+   "note": "connect card, untested connector"
   }
  ]
 }

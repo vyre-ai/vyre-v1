@@ -51,6 +51,7 @@ test("a Space at the rc.42 schema updates to the merge: 0007_revisions is applie
   assert.ok(first.every((r) => r.rev > 0));
   const seq = (db.prepare("SELECT n FROM cn_revision_seq WHERE id = 1").get() as { n: number }).n;
   assert.ok(seq >= Math.max(...first.map((r) => r.rev)), "the counter is past them all");
+  assert.ok(tables(db).includes("cn_tested"), "0008_tested is applied by the same update");
   // the next start (a new transaction handle) runs the same migrations again and changes nothing
   ensureTables(txOf(db));
   assert.deepEqual(revs(db), first, "the same revisions");
@@ -70,7 +71,7 @@ test("a fresh install applies every migration, creators and revisions both, and 
   const db = new DatabaseSync(":memory:");
   ensureTables(txOf(db));
   const t = tables(db);
-  for (const name of ["cn_connectors", "cn_connection_creators", "cn_revision_seq", "cn_revisions"])
+  for (const name of ["cn_connectors", "cn_connection_creators", "cn_revision_seq", "cn_revisions", "cn_tested"])
     assert.ok(t.includes(name), `${name} exists on a fresh install`);
   db.prepare(
     "INSERT INTO cn_connectors (key, title, mode, scope, builtin, version, state, def, created_at, updated_at) VALUES ('one', 'one', 'api', 'space', 0, '1.0.0', 'live', '{}', 1, 1)",

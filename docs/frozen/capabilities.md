@@ -1015,3 +1015,9 @@ Signed: lead, 2026-11-20
 - Snapshots: docs/frozen/snapshots/journeys.json.
 
 Signed: pending, lead
+
+## 24 Nov 2026: a published connector says "untested" until a call to the app has succeeded (lane meier-apps, from the Meier connectors work)
+
+One optional, additive output field `untested` (a boolean, left out when false) on `connectors.list@1`, `connectors.get@1`, `connectors.for_service@1` and on the card of the five `vault.connect_card.*@1` calls; `connectors.publish@1` gains `untested` and `message` (one plain sentence). It is true for a connector that is not built in, is live, and has never had a call to its app answered with a success. One input change: `connectors.define@1` now refuses a key it does not name (at the top level, in `auth` and in each action) instead of storing it, and takes one new optional field, `rate` (`rps` 0.01 to 100 and `burst` 1 to 1000), the speed the app lets the connector call it. No error, event or permission change. The flag is read from one row per connector (`cn_tested`, set on the first 2xx or 3xx answer and filled once from the call log), never from a scan of the log. The tool-token counts go from 573,479 and 688,717 to 573,624 and 688,862 (+145 each, the `rate` field), under the limits 575,029 and 689,545.
+
+Signed: 24 Nov 2026, lead.
