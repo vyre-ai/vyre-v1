@@ -505,8 +505,8 @@ function makeWorld(over = {}) {
   });
   world.control = control_;
   // the extension's service worker stopped and started again: a fresh control over the same browser and the same per-session storage, with nothing in memory
-  world.restartWorker = async () => {
-    const again = createAgentControl(ext, { transport, activeSpace: async () => world.active, now, sleep, settleMs: 0, setTimer, clearTimer, idleMs: 20_000 });
+  world.restartWorker = async (extra = {}) => {
+    const again = createAgentControl(ext, { ...extra, transport, activeSpace: async () => world.active, now, sleep, settleMs: 0, setTimer, clearTimer, idleMs: 20_000 });
     await again.onIncoming({ type: "agent.optin", spaces: ["spc_a"], mode: "computer" });
     return {
       call: (tool, input = {}, who = world.agent, space = "spc_a") => again.run({ tool, input, agent: who, space }),
@@ -2075,6 +2075,20 @@ test("a person's Stop or take-over survives the extension's worker restarting: t
     await w.advance(50);
     assert.equal((await r.call("chrome_status")).paused, false, `${how}: released from the bar after the restart`);
   }
+});
+
+test("while the saved pauses are still being read back, agent calls are refused as paused (fail closed), the status look still answers, and the refusal lifts when the restore is done", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  let finish: () => void = () => {};
+  const slow = (s: any) => new Promise<void>((res) => (finish = () => s.restore().then(res)));
+  const r = await w.restartWorker({ restoreWaitMs: 20, restore: slow });
+  await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused", "refused, never allowed");
+  await assert.rejects(r.call("chrome_open", { url: "https://example.com/" }), (e: any) => e.code === "paused");
+  assert.ok((await r.call("chrome_status")).connected !== undefined, "the status look answers");
+  finish();
+  await new Promise((res) => setTimeout(res, 30));
+  assert.match((await r.call("chrome_snapshot")).tree, /Email|Sign in|\w/, "the restore is done: calls run again");
 });
 
 test("a Stop is kept when its tab closed while the worker slept (the person's message lifts it); a take-over whose tab closed is a hand-back and is dropped", async () => {

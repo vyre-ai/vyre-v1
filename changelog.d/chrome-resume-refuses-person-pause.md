@@ -4,3 +4,4 @@ An agent that has no chat to read (a routine, an automation) can be resumed afte
 An interrupt you start with your own words lifts your Stop like a message does, and the message is found by its id however long the chat is.
 Your Stop or take-over of a tab now survives Chrome restarting the extension's background worker: the agent stays stopped and the bar's Give back still works.
 A Stop of yours is kept even if you close its tab; closing the tab of a take-over counts as giving it back.
+While the extension is still reading back your Stop after a restart, the agent's calls are refused rather than allowed.

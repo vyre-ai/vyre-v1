@@ -35,7 +35,7 @@ function randomRef(n) {
 /**
  * Build the agent control around a browser API. `ext` is `chrome` (or a fake in tests).
  * @param {any} ext
- * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void }} [o]
+ * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, restoreWaitMs?: number, restore?: (s: any) => Promise<void> }} [o] restoreWaitMs and restore are for tests: how long a call waits for the saved pauses, and a restore of their own
  */
 const BAR_BUTTONS = new Set(["stop", "takeover", "giveback", "endtask", "openvyre"]);
 
@@ -93,13 +93,15 @@ export function createAgentControl(ext, o = {}) {
 
   // the worker may have been stopped and started again since the person's Stop or take-over: their pause is read back before any call of an agent is answered
   let restoredDone = false;
-  // a storage fault must not freeze the agent channel: after two seconds the agent goes on with what it has
+  // The wait is capped at two seconds so a storage fault cannot hold the channel open, and it fails closed: while the pauses are still being read back, agent calls are refused as paused (the bar still works),
+  // never allowed. The restore goes on in the background and lifts the refusal when it is done.
+  let restoring = true;
   const restored = new Promise((resolve) => {
-    const t = setTimeout(resolve, 2000);
-    sessions
-      .restore()
+    const t = setTimeout(resolve, o.restoreWaitMs ?? 2000);
+    (o.restore ? o.restore(sessions) : sessions.restore())
       .catch(() => {})
       .finally(() => {
+        restoring = false;
         clearTimeout(t);
         resolve(undefined);
       });
@@ -160,6 +162,7 @@ export function createAgentControl(ext, o = {}) {
     traffic,
     sessions,
     restored,
+    restoring: () => restoring,
     authorize,
     vaultFill,
     emit,
