@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { iconMarkup } from "../rail/icons.tsx";
-import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
+import { collapseKey, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
@@ -94,7 +94,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       (p.initialHold === true ? { title: "", searchPlaceholder: "", noSearch: true, held: true } : null),
   );
   const [query, setQuery] = useState("");
-  const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true);
+  const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true || linkNamesBody(p.compact, p.hash));
   const [outlet, setOutlet] = useState<unknown>(null);
   const [actionsOutlet, setActionsOutlet] = useState<unknown>(null);
   useEffect(() => {
@@ -110,7 +110,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       epochSeen.current = p.epoch;
       return;
     }
-    if (p.compact && p.hash !== undefined && p.hash !== "") setBodyOpen(true);
+    if (linkNamesBody(p.compact, p.hash)) setBodyOpen(true);
   }, [p.compact, p.hash, p.epoch]);
   const setCollapsed = useCallback(
     (v: boolean) => {

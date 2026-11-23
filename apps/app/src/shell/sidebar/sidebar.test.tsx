@@ -9,6 +9,7 @@ import {
   SidebarSlot,
   SidebarSlotProvider,
   collapseKey,
+  linkNamesBody,
   matchRows,
   phoneView,
   readCollapsed,
@@ -17,6 +18,7 @@ import {
 import type { SidebarStorage } from "./index.ts";
 import { createRoot } from "test-renderer";
 import { act } from "react";
+import type { ReactElement } from "react";
 import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
 import { Text } from "react-native";
 import { useSidebarSlot } from "./index.ts";
@@ -37,6 +39,34 @@ test("the phone opens a place with a sidebar on its list; a place without one, o
   assert.equal(phoneView(true, true, true), "body");
   assert.equal(phoneView(false, true, false), "body");
   assert.equal(phoneView(true, false, false), "body");
+});
+
+test("on a phone a link that names a page opens that page from the first frame; a bare address shows the list", () => {
+  assert.equal(linkNamesBody(true, "screen=chats.notes"), true);
+  assert.equal(linkNamesBody(true, ""), false);
+  assert.equal(linkNamesBody(true, undefined), false);
+  assert.equal(linkNamesBody(false, "screen=chats.notes"), false, "a wide window shows both: nothing to open");
+  // the first frame is already the body (no list drawn and swapped away)
+  const first = (hash: string): string => {
+    const Probe = (): ReactElement => <>{useSidebarSlot().view}</>;
+    return renderToStaticMarkup(
+      <SidebarSlotProvider
+        deviceId="d"
+        personId="p"
+        spaceId="s"
+        place="chats"
+        epoch={1}
+        compact
+        hash={hash}
+        initialEntry={{ title: "Chats", searchPlaceholder: "Search" }}
+        storage={null}
+      >
+        <Probe />
+      </SidebarSlotProvider>,
+    );
+  };
+  assert.equal(first("screen=chats.notes"), "body");
+  assert.equal(first(""), "list");
 });
 
 test("search keeps rows holding every word of the query, in order; an empty query keeps all", () => {
