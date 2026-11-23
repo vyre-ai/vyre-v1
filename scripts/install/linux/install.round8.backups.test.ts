@@ -98,7 +98,7 @@ test("the backups folder is mounted into the server: compose.backups.yml names i
       new RegExp(`device: "${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"),
       "the host folder is the bind source",
     );
-    assert.match(txt, /- vyre-backups:\/backups/, "mounted at /backups");
+    assert.match(txt, /- vyre-backups-\d+:\/backups/, "mounted at /backups");
     assert.match(txt, /VYRE_BACKUP_DIR: \/backups/, "the server is told where");
     const t0 = fs.statSync(f).mtimeMs;
     assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status, 0);

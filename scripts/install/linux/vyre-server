@@ -259,9 +259,11 @@ ensure_backups_compose() {
   [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
   # the path goes in as a double-quoted YAML string: a backslash and a double quote are escaped, and a space, comma, colon, hash or brace is then plain text
   _q=$(printf '%s' "$BACKUP_DIR" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+  # the volume is named after the folder: Docker keeps a named volume's bind source from the day it was made, so a folder that changed (the backup-dir file) needs a volume of its own to be mounted
+  _vn="vyre-backups-$(printf '%s' "$BACKUP_DIR" | cksum | cut -d' ' -f1)"
   _want="# Written by vyre-server: the backups folder, mounted into the server.
 volumes:
-  vyre-backups:
+  $_vn:
     driver: local
     driver_opts:
       type: none
@@ -272,7 +274,7 @@ services:
     environment:
       VYRE_BACKUP_DIR: /backups
     volumes:
-      - vyre-backups:/backups"
+      - $_vn:/backups"
   if [ "$(cat "$_bc" 2>/dev/null)" != "$_want" ]; then
     if ! { printf '%s\n' "$_want" >"$_bc.new" && mv -f "$_bc.new" "$_bc"; } 2>/dev/null; then
       rm -f "$_bc.new" "$_bc" 2>/dev/null
