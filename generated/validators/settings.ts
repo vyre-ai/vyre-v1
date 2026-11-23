@@ -124,17 +124,17 @@ if ("channel" in o765) lf(o765["channel"], p + "/channel", e, L344);
 
 function d_s_cb565fe529(v: unknown, p: string, e: string[]): void {
 {
-const x1045 = v;
-const g1045 = typeOf(x1045);
-const b1045: string[] = []; lf(x1045, p, b1045, L0); if (b1045.length) e.push(...b1045);
-if (g1045 === "object") {
-if (g1045 === 'object') { const o1045 = x1045 as Record<string, unknown>;
-if (!("verified" in o1045)) e.push(p + "/verified" + ': required');
-if (!("canVerify" in o1045)) e.push(p + "/canVerify" + ': required');
-if (!("pending" in o1045)) e.push(p + "/pending" + ': required');
-if ("verified" in o1045) lf(o1045["verified"], p + "/verified", e, L3);
-if ("canVerify" in o1045) lf(o1045["canVerify"], p + "/canVerify", e, L3);
-if ("pending" in o1045) lf(o1045["pending"], p + "/pending", e, L3);
+const x1046 = v;
+const g1046 = typeOf(x1046);
+const b1046: string[] = []; lf(x1046, p, b1046, L0); if (b1046.length) e.push(...b1046);
+if (g1046 === "object") {
+if (g1046 === 'object') { const o1046 = x1046 as Record<string, unknown>;
+if (!("verified" in o1046)) e.push(p + "/verified" + ': required');
+if (!("canVerify" in o1046)) e.push(p + "/canVerify" + ': required');
+if (!("pending" in o1046)) e.push(p + "/pending" + ': required');
+if ("verified" in o1046) lf(o1046["verified"], p + "/verified", e, L3);
+if ("canVerify" in o1046) lf(o1046["canVerify"], p + "/canVerify", e, L3);
+if ("pending" in o1046) lf(o1046["pending"], p + "/pending", e, L3);
 }
 }
 }

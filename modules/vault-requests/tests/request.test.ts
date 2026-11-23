@@ -178,19 +178,7 @@ test("without a folder, or when the folder's managers cannot be read, the Space'
   await ask(w2);
   assert.deepEqual(w2.called("tasks.create").length, 2, "the folder could not be read, so the Space managers get it");
   assert.match(w2.warnings.join("\n"), /the folder's managers could not be read/);
-  // a manager who asks is not asked
-  const w3 = world();
-  await handlers["vault.request"](w3.as("usr_mira"), {
-    name: "Mine",
-    reason: "I need it",
-    folderId: FOLDER,
-    idempotencyKey: "m",
-  });
-  assert.deepEqual(
-    w3.called("tasks.create").map((t) => (t.input["assigned"] as { id: string }).id),
-    ["usr_admin", "usr_owner"],
-    "the folder has only Mira, so the Space managers decide Mira's own request",
-  );
+  // a manager who asks is not asked: see the placeholder test below
   const none = world({ owners: [], admins: [], managers: {} });
   assert.equal(await failed(ask(none)), "validation.precondition_failed");
   assert.equal(none.db.dump().includes("Dana_Lawmatics"), false, "a request nobody can decide is not saved");
@@ -205,19 +193,15 @@ test("ruling 74: a key no folder claims is decided by the Space owner, even when
     "the owner is the one decider",
   );
   assert.equal(out.request.folderId, undefined);
-  // the owner asking for their own key has nobody else to decide, so the request is refused rather than saved
-  const own = world({ owners: [], admins: [], managers: {}, spaceOwner: "usr_olivia" });
-  assert.equal(
-    await failed(
-      handlers["vault.request"](own.as("usr_olivia"), {
-        name: "Mine",
-        reason: "I need it",
-        idempotencyKey: "own",
-      } as never),
-    ),
-    "validation.precondition_failed",
-  );
-  assert.equal(own.db.dump().includes("Mine"), false);
+  // the owner asking for their own key has nobody else to decide: it is made for them now (meier-setup finding 1; it was refused before)
+  const own = world({ owners: [], admins: [], managers: {}, spaceOwner: "usr_olivia", folders: [{ id: "vfd_mine", name: "Mine", scope: "mine" }] });
+  const made = await handlers["vault.request"](own.as("usr_olivia"), {
+    name: "Mine",
+    reason: "I need it",
+    idempotencyKey: "own",
+  } as never);
+  assert.equal(made.request.placeholder, true);
+  assert.equal(own.called("tasks.create").length, 0);
 });
 
 test("a manager supplies the key by saving fields in the folder: the value goes to the vault once, the requester gets Use, the cards close and the waiting Run resumes", async () => {
@@ -1105,4 +1089,133 @@ test("15 Nov: a folder the caller cannot see answers fulfil with the same words 
   assert.match(real, /That folder is restricted, so the agent that asked cannot use a key kept there/);
   assert.equal(real, madeUp);
   assert.equal(real, above);
+});
+
+test("a person who manages the folder asks nobody: the item is made at once with its fields empty, the answer says so, no card and no task (meier-setup finding 1)", async () => {
+  // the requester is the folder's only manager: this was a 422 "Nobody can decide this request"
+  const only = world({ managers: { [FOLDER]: ["usr_mira"] }, owners: [], admins: [] });
+  const out = await handlers["vault.request"](only.as("usr_mira"), {
+    name: "Dana_Lawmatics",
+    reason: "I set the Lawmatics key up for the firm",
+    folderId: FOLDER,
+    idempotencyKey: "mgr1",
+  } as never);
+  outputOk("vault.request", out);
+  assert.equal(out.request.placeholder, true);
+  assert.equal(out.request.state, "fulfilled");
+  assert.equal(out.request.itemId, "vit_new");
+  assert.equal(out.request.taskId, undefined);
+  assert.equal(only.called("tasks.create").length, 0, "no card for anyone");
+  const put = only.called("vault.item.put");
+  assert.equal(put.length, 1);
+  assert.deepEqual(put[0]!.input["fields"], [{ key: "value", value: "", secret: true }]);
+  assert.equal(put[0]!.input["folderId"], FOLDER);
+  assert.equal(put[0]!.input["name"], "Dana_Lawmatics");
+  // asking again with the same key answers with the same request and makes nothing new
+  const again = await handlers["vault.request"](only.as("usr_mira"), {
+    name: "Dana_Lawmatics",
+    reason: "I set the Lawmatics key up for the firm",
+    folderId: FOLDER,
+    idempotencyKey: "mgr1",
+  } as never);
+  assert.equal(again.request.id, out.request.id);
+  assert.equal(only.called("vault.item.put").length, 1);
+  // one of several managers is not asked either; a Space owner with no folder asks nobody too
+  const many = world({ managers: { [FOLDER]: ["usr_mira", "usr_noah"] } });
+  const m2 = await handlers["vault.request"](many.as("usr_mira"), {
+    name: "Mine_Key",
+    reason: "Mine",
+    folderId: FOLDER,
+    idempotencyKey: "mgr2",
+  } as never);
+  assert.equal(m2.request.placeholder, true);
+  assert.equal(many.called("tasks.create").length, 0);
+  const owner = world({ folders: [{ id: "vfd_mine", name: "Mine", scope: "mine" }] });
+  const o = await handlers["vault.request"](owner.as("usr_owner"), {
+    name: "Owner_Key",
+    reason: "Mine",
+    idempotencyKey: "mgr3",
+  } as never);
+  assert.equal(o.request.placeholder, true);
+  assert.equal(owner.called("vault.item.put")[0]!.input["folderId"], "vfd_mine", "no folder named: their own Mine");
+});
+
+test("a person who does not manage the folder still asks its managers; an agent still asks, even for a manager's Space (meier-setup finding 1)", async () => {
+  const w = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  const out = await handlers["vault.request"](w.as("usr_member"), {
+    name: "Dana_Lawmatics",
+    reason: "Need it",
+    folderId: FOLDER,
+    idempotencyKey: "nm1",
+  } as never);
+  assert.equal(out.request.placeholder, undefined);
+  assert.equal(out.request.state, "waiting");
+  assert.deepEqual(
+    w.called("tasks.create").map((t) => (t.input["assigned"] as { id: string }).id),
+    ["usr_mira"],
+  );
+  assert.equal(w.called("vault.item.put").length, 0);
+  const agent = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  await ask(agent, "agt_helper");
+  assert.equal(agent.called("vault.item.put").length, 0, "an agent never makes the item itself");
+  assert.equal(agent.called("tasks.create").length, 1);
+});
+
+test("a Space admin who cannot put into the named folder asks its managers as before; one who can gets the item (r-review low 1)", async () => {
+  const w = world({ managers: { [FOLDER]: ["usr_mira"] }, fail: {} });
+  // the Vault refuses the put for rights
+  const refused = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  const base = refused.as("usr_admin");
+  const real = {
+    ...base,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put")
+        throw { error: { code: "permission.no_grant", message: "Adding to this folder needs edit access." } };
+      return base.call(cap as never, input as never);
+    },
+  } as typeof base;
+  const out = await handlers["vault.request"](real, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm1" } as never);
+  assert.equal(out.request.placeholder, undefined);
+  assert.equal(out.request.state, "waiting");
+  assert.deepEqual(
+    refused.called("tasks.create").map((x) => (x.input["assigned"] as { id: string }).id),
+    ["usr_mira"],
+    "the folder's manager is asked",
+  );
+  assert.equal(refused.db.dump().includes('"fulfilled"'), false, "nothing was recorded as made");
+  const ok = await handlers["vault.request"](w.as("usr_admin"), { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm2" } as never);
+  assert.equal(ok.request.placeholder, true);
+  assert.equal(w.called("tasks.create").length, 0);
+});
+
+test("a manager who asks for a name the folder already keeps gets that item back, fulfilled: no duplicate error, nothing overwritten, nobody asked", async () => {
+  const w = world({
+    managers: { [FOLDER]: ["usr_mira"] },
+    saved: [{ id: "vit_old", name: "dana_lawmatics", folderId: FOLDER, fieldKeys: ["api_key"] }],
+  });
+  const base = w.as("usr_admin");
+  const dup = {
+    ...base,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put")
+        throw { error: { code: "validation.duplicate", message: "This folder already has an item with that name." } };
+      return base.call(cap as never, input as never);
+    },
+  } as typeof base;
+  const out = await handlers["vault.request"](dup, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup1" } as never);
+  assert.equal(out.request.state, "fulfilled");
+  assert.equal(out.request.itemId, "vit_old");
+  assert.equal(out.request.placeholder, undefined, "an existing item is not a new empty one");
+  assert.equal(w.called("tasks.create").length, 0);
+  // a duplicate whose item cannot be found is still an error
+  const lost = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  const lb = lost.as("usr_admin");
+  const dup2 = {
+    ...lb,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put") throw { error: { code: "validation.duplicate", message: "taken" } };
+      return lb.call(cap as never, input as never);
+    },
+  } as typeof lb;
+  await assert.rejects(handlers["vault.request"](dup2, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup2" } as never));
 });

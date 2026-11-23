@@ -19,17 +19,17 @@ if ("tools" in o355) d_s_fcd2dfbd95(o355["tools"], p + "/tools", e);
 
 function d_s_c282f10646(v: unknown, p: string, e: string[]): void {
 {
-const x997 = v;
-const g997 = typeOf(x997);
-const b997: string[] = []; lf(x997, p, b997, L0); if (b997.length) e.push(...b997);
-if (g997 === "object") {
-if (g997 === 'object') { const o997 = x997 as Record<string, unknown>;
-if (!("agentId" in o997)) e.push(p + "/agentId" + ': required');
-if (!("person" in o997)) e.push(p + "/person" + ': required');
-if (!("why" in o997)) e.push(p + "/why" + ': required');
-if ("agentId" in o997) lf(o997["agentId"], p + "/agentId", e, L17);
-if ("person" in o997) lf(o997["person"], p + "/person", e, L1);
-if ("why" in o997) lf(o997["why"], p + "/why", e, L1);
+const x998 = v;
+const g998 = typeOf(x998);
+const b998: string[] = []; lf(x998, p, b998, L0); if (b998.length) e.push(...b998);
+if (g998 === "object") {
+if (g998 === 'object') { const o998 = x998 as Record<string, unknown>;
+if (!("agentId" in o998)) e.push(p + "/agentId" + ': required');
+if (!("person" in o998)) e.push(p + "/person" + ': required');
+if (!("why" in o998)) e.push(p + "/why" + ': required');
+if ("agentId" in o998) lf(o998["agentId"], p + "/agentId", e, L17);
+if ("person" in o998) lf(o998["person"], p + "/person", e, L1);
+if ("why" in o998) lf(o998["why"], p + "/why", e, L1);
 }
 }
 }
