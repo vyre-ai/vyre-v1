@@ -92,6 +92,11 @@ const labelOf = (v: unknown): number => Math.max(0, Math.min(3, Math.trunc(num(v
 // asked it ten thousand times (a third of the time the full-text consumer spent on a record). A change of the title field reaches the documents indexed after this window; one reindex puts the rest right.
 const TITLE_FIELD_TTL_MS = 10_000;
 const titleFields = new Map<string, { at: number; field: string }>();
+/** The cached title field of a type is forgotten (its schema changed). */
+export function dropTitleField(space: string, type: string): void {
+  titleFields.delete(`${space}\u0000${type}`);
+}
+
 async function titleFieldOf(ctx: SearchCtx, type: string): Promise<string> {
   const key = `${ctx.space}\u0000${type}`;
   const have = titleFields.get(key);
@@ -99,8 +104,80 @@ async function titleFieldOf(ctx: SearchCtx, type: string): Promise<string> {
   if (have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have.field;
   const t = await read<{ type?: Record<string, unknown> }>(ctx, "schema.types.get", { type });
   const field = text(t?.type?.["titleField"]);
-  if (t) titleFields.set(key, { at: now, field });
+  if (t) {
+    titleFields.set(key, { at: now, field });
+    // what the documents of this type were titled by: noted once, at the first one; a change of the title field moves it only when the documents have been titled again (retitleRun)
+    ctx.db.run("INSERT OR IGNORE INTO search_meta (k, v) VALUES (?, ?)", `tf:${type}`, field);
+  }
   return field;
+}
+
+/**
+ * A type's schema changed: when its title field is no longer the one its documents were titled by, the type's documents are marked to be titled again, a page at a time by `search.retitle` (retitleRun).
+ * Without it a renamed title field left every old record under its old title until the record itself changed.
+ */
+export async function noteTitleChange(ctx: SearchCtx, types: readonly string[], seq: number): Promise<number> {
+  ensure(ctx.db);
+  let marked = 0;
+  for (const type of types) {
+    dropTitleField(ctx.space, type);
+    const fresh = await titleFieldOf(ctx, type);
+    const was = rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = ?", `tf:${type}`)[0]?.["v"];
+    if (was === undefined || str(was) === fresh) continue;
+    ctx.db.run(
+      "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+      `retitle:${type}`,
+      JSON.stringify({ to: fresh, after: 0, seq }),
+    );
+    marked++;
+  }
+  return marked;
+}
+
+const RETITLE_PAGE = 100;
+/** One page of each pending re-titling: the documents of the type are read again (indexApply, as for any change) from where the last page stopped. Returns how many documents it did. */
+export async function retitleRun(ctx: SearchCtx): Promise<number> {
+  ensure(ctx.db);
+  let done = 0;
+  for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'retitle:%'")) {
+    const type = str(m["k"]).slice("retitle:".length);
+    let p: { to: string; after: number; seq: number };
+    try {
+      p = JSON.parse(str(m["v"])) as typeof p;
+    } catch {
+      ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
+      continue;
+    }
+    const docs = rowsOf(
+      ctx.db,
+      "SELECT n, entity, id FROM search_docs WHERE record_type = ? AND n > ? ORDER BY n LIMIT ?",
+      type,
+      p.after,
+      RETITLE_PAGE,
+    );
+    const turn = turns(15);
+    for (const d of docs) {
+      await turn();
+      try {
+        await indexApply(ctx, { entity: str(d["entity"]), id: str(d["id"]), op: "upsert", seq: p.seq });
+      } catch {
+        /* the next change of the record reads it again; one record never holds the page */
+      }
+      done++;
+    }
+    if (docs.length < RETITLE_PAGE) {
+      ctx.db.run(
+        "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+        `tf:${type}`,
+        p.to,
+      );
+      ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
+    } else {
+      p.after = num(docs[docs.length - 1]!["n"]);
+      ctx.db.run("UPDATE search_meta SET v = ? WHERE k = ?", JSON.stringify(p), str(m["k"]));
+    }
+  }
+  return done;
 }
 
 const recordSource: Source = async (ctx, id, sub) => {
