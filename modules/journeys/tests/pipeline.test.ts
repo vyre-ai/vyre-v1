@@ -890,3 +890,17 @@ test("adopted records belong to the person an agent works for, else to the Journ
     "a person owns what they adopt",
   );
 });
+
+test("adopt by an agent with no person named is refused in words when the Journey's first author is not a person either", async () => {
+  const h = harness();
+  const j = await pipe(h);
+  h.db.run("UPDATE journeys_versions SET by_who = 'svc_engine' WHERE journey_id = ?", j.id);
+  h.callee("records.query", () => ({ rows: [{ id: "rec_a", fields: { stage: "lead" } }] }));
+  await assert.rejects(
+    h.call("journeys.adopt", { journeyId: j.id }, { id: "agt_scout", kind: "agent" } as never),
+    (e: { error?: { code?: string; message?: string } }) =>
+      e.error?.code === "validation.precondition_failed" &&
+      /no person to own these records/.test(e.error?.message ?? ""),
+  );
+  assert.equal((h.db.all("SELECT 1 FROM journeys_records") as unknown[]).length, 0, "nothing was adopted");
+});

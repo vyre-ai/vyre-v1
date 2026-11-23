@@ -267,7 +267,7 @@ function ownerForAdopted(ctx: JourneysCtx, j: Journey): string {
   if (ctx.actingFor) return ctx.actingFor;
   if (ctx.principal.kind === "person") return ctx.principal.id;
   const first = listVersions(ctx.db, j.id).at(-1)?.by;
-  if (first && !first.startsWith("agt_")) return first;
+  if (first?.startsWith("usr_")) return first;
   raise(
     ctx,
     "validation.precondition_failed",
