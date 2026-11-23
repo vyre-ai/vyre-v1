@@ -1014,4 +1014,4 @@ Signed: lead, 2026-11-20
 - Why: `journeys_values_set` is already a tool and nothing else reads a record's carried values back, and adopting a pipeline type's existing records into a Journey (page by page) had no caller anywhere (not the app, the server or a skill), so an agent that can set a Journey up could not finish it.
 - Snapshots: docs/frozen/snapshots/journeys.json.
 
-Signed: pending, lead
+Signed: 24 Nov 2026, lead.
