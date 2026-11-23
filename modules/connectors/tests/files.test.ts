@@ -15,7 +15,13 @@ test("connector source writer accepts human test names and rejects traversal bef
   } as unknown as ConnectorsCtx;
   const id = await writeConnectorFolder(ctx, "fixture", [{ path: "tests/ping answers ok.json", content: "{}" }]);
   assert.match(id, /^fld_/);
-  assert.ok(calls.some((row) => row.cap === "files.create_many" && row.input.files.some((f: { name: string }) => f.name === "ping answers ok.json")));
+  assert.ok(
+    calls.some(
+      (row) =>
+        row.cap === "files.create_many" &&
+        row.input.files.some((f: { name: string }) => f.name === "ping answers ok.json"),
+    ),
+  );
   calls.length = 0;
   for (const path of ["../private", "actions/../../private", "tests/a/b.json", "tests/.."])
     await assert.rejects(writeConnectorFolder(ctx, "fixture", [{ path, content: "{}" }]));
@@ -42,5 +48,9 @@ test("a connector export writes each folder in one files.create_many call, not o
   await writeConnectorFolder(ctx, "wide", files);
   assert.equal(calls.filter((c) => c.cap === "files.create").length, 0);
   const many = calls.filter((c) => c.cap === "files.create_many");
-  assert.deepEqual(many.map((c) => c.input.files.length).sort((a, b) => a - b), [2, 25, 50], "root, tests and actions: three calls for 77 files");
+  assert.deepEqual(
+    many.map((c) => c.input.files.length).sort((a, b) => a - b),
+    [2, 25, 50],
+    "root, tests and actions: three calls for 77 files",
+  );
 });

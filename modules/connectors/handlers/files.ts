@@ -33,7 +33,12 @@ async function childFolder(ctx: ConnectorsCtx, parentId: string, name: string): 
 }
 
 /** The files of a connector, written into an existing folder through the original caller's normal Files capabilities: one call for each folder (files.create_many: one commit and one update of access for all of its files, not one for each file). */
-async function writeFilesBatched(ctx: ConnectorsCtx, folderId: string, files: SourceFile[], tag: string): Promise<void> {
+async function writeFilesBatched(
+  ctx: ConnectorsCtx,
+  folderId: string,
+  files: SourceFile[],
+  tag: string,
+): Promise<void> {
   const groups = new Map<string, SourceFile[]>();
   for (const file of files) {
     const parts = file.path.split("/");
@@ -62,7 +67,12 @@ async function writeFilesBatched(ctx: ConnectorsCtx, folderId: string, files: So
 }
 
 /** One call for each file, as a folder under Review changes needs (an agent's file there is staged by files.create). */
-async function writeFilesOneByOne(ctx: ConnectorsCtx, folderId: string, files: SourceFile[], tag: string): Promise<void> {
+async function writeFilesOneByOne(
+  ctx: ConnectorsCtx,
+  folderId: string,
+  files: SourceFile[],
+  tag: string,
+): Promise<void> {
   const dirs = new Map<string, string>();
   for (const file of files) {
     const parts = file.path.split("/");

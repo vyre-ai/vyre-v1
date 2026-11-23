@@ -389,5 +389,7 @@ test("a file's first version is not read a second time: the creation, in the sam
   const ev = (type: string, n: number, seq: number) => ({ type, seq, payload: { fileId: "fil_1", n } });
   assert.deepEqual(targetsOf(ev("file.created", 1, 10)), [{ entity: "file", id: "fil_1", op: "upsert", seq: 10 }]);
   assert.deepEqual(targetsOf(ev("file.version_added", 1, 11)), [], "version 1 follows the creation");
-  assert.deepEqual(targetsOf(ev("file.version_added", 2, 12)), [{ entity: "file", id: "fil_1", op: "upsert", seq: 12 }]);
+  assert.deepEqual(targetsOf(ev("file.version_added", 2, 12)), [
+    { entity: "file", id: "fil_1", op: "upsert", seq: 12 },
+  ]);
 });

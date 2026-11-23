@@ -919,10 +919,7 @@ export default defineManifest({
       {
         in: {
           folderId: id.folder,
-          files: t.arr(
-            t.obj({ name: t.str(), content: t.opt(content) }),
-            { minItems: 1, maxItems: 200 },
-          ),
+          files: t.arr(t.obj({ name: t.str(), content: t.opt(content) }), { minItems: 1, maxItems: 200 }),
         },
         out: { files: t.arr(fileRow) },
         make: ["folder", "/folderId"],

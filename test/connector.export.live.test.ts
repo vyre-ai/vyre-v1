@@ -27,58 +27,80 @@ const wide = () => {
   return s;
 };
 
-test("connectors.export of a 25-table connector in a big Space answers inside its bound and leaves one whole folder", { timeout: 900_000 }, async () => {
-  const w = await world(true);
-  try {
-    assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
-    const t0 = Date.now();
-    await seed(w.d, { matters: Math.round(9400 * SCALE), fields: 100, contacts: Math.round(28000 * SCALE), orgs: Math.round(1100 * SCALE) }, (m) => process.stderr.write(`[export] ${m}\n`));
-    process.stderr.write(`[export] seeded in ${Date.now() - t0} ms\n`);
-    const applied = await call(w.d, "sync_specs.apply", { spec: wide(), idempotencyKey: "export-wide" });
-    assert.equal(applied.status, 200, JSON.stringify(applied.data).slice(0, 400));
-    const key = String(applied.data.connector);
-    const got = await call(w.d, "connectors.get", { key });
-    const actions = (got.data.connector ?? got.data).actions?.length;
-    process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
-    const t1 = Date.now();
-    const cpu0 = process.cpuUsage();
-    // EXPORT_PROFILE=<file>: a CPU profile of the export alone (the seed would drown it otherwise)
-    const session = process.env["EXPORT_PROFILE"] ? new inspector.Session() : undefined;
-    if (session) {
-      session.connect();
-      await new Promise((ok) => session.post("Profiler.enable", () => session.post("Profiler.start", ok)));
-    }
-    const out = await call(w.d, "connectors.export", { key });
-    if (session)
-      await new Promise<void>((ok) =>
-        session.post("Profiler.stop", (_e, r) => {
-          fs.writeFileSync(process.env["EXPORT_PROFILE"]!, JSON.stringify(r.profile));
-          ok();
-        }),
+test(
+  "connectors.export of a 25-table connector in a big Space answers inside its bound and leaves one whole folder",
+  { timeout: 900_000 },
+  async () => {
+    const w = await world(true);
+    try {
+      assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
+      const t0 = Date.now();
+      await seed(
+        w.d,
+        {
+          matters: Math.round(9400 * SCALE),
+          fields: 100,
+          contacts: Math.round(28000 * SCALE),
+          orgs: Math.round(1100 * SCALE),
+        },
+        (m) => process.stderr.write(`[export] ${m}\n`),
       );
-    const ms = Date.now() - t1;
-    const cpu = process.cpuUsage(cpu0);
-    process.stderr.write(`[export] CPU of the process during the export: ${Math.round((cpu.user + cpu.system) / 1000)} ms\n`);
-    process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
-    assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
-    assert.ok(ms < BOUND_MS, `the export took ${ms} ms (bound ${BOUND_MS})`);
-    const folderId = out.data.folderId as string;
-    const listed = await call(w.d, "files.list", { folder: folderId, limit: 500 });
-    const sub = await Promise.all(((listed.data.folders ?? []) as { folderId: string }[]).map((f) => call(w.d, "files.list", { folder: f.folderId, limit: 500 })));
-    const count = (listed.data.files ?? []).length + sub.reduce((n, r) => n + (r.data.files ?? []).length, 0);
-    assert.ok(count >= (actions ?? 0) + 2, `the folder holds ${count} files for ${actions} actions`);
-    // all or none: a batch with one taken name makes nothing, on the real server
-    const before = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files.length;
-    const refused = await call(w.d, "files.create_many", {
-      folderId,
-      files: [{ name: "fresh.txt", content: { text: "x" } }, { name: "connector.toml", content: { text: "dup" } }],
-      idempotencyKey: "export-dup",
-    });
-    assert.equal(refused.status, 422, JSON.stringify(refused.data).slice(0, 200));
-    const afterwards = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files;
-    assert.equal(afterwards.length, before, "the refused batch made no file");
-    assert.ok(!afterwards.some((f: { name: string }) => f.name === "fresh.txt"));
-  } finally {
-    await w.close();
-  }
-});
+      process.stderr.write(`[export] seeded in ${Date.now() - t0} ms\n`);
+      const applied = await call(w.d, "sync_specs.apply", { spec: wide(), idempotencyKey: "export-wide" });
+      assert.equal(applied.status, 200, JSON.stringify(applied.data).slice(0, 400));
+      const key = String(applied.data.connector);
+      const got = await call(w.d, "connectors.get", { key });
+      const actions = (got.data.connector ?? got.data).actions?.length;
+      process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
+      const t1 = Date.now();
+      const cpu0 = process.cpuUsage();
+      // EXPORT_PROFILE=<file>: a CPU profile of the export alone (the seed would drown it otherwise)
+      const session = process.env["EXPORT_PROFILE"] ? new inspector.Session() : undefined;
+      if (session) {
+        session.connect();
+        await new Promise((ok) => session.post("Profiler.enable", () => session.post("Profiler.start", ok)));
+      }
+      const out = await call(w.d, "connectors.export", { key });
+      if (session)
+        await new Promise<void>((ok) =>
+          session.post("Profiler.stop", (_e, r) => {
+            fs.writeFileSync(process.env["EXPORT_PROFILE"]!, JSON.stringify(r.profile));
+            ok();
+          }),
+        );
+      const ms = Date.now() - t1;
+      const cpu = process.cpuUsage(cpu0);
+      process.stderr.write(
+        `[export] CPU of the process during the export: ${Math.round((cpu.user + cpu.system) / 1000)} ms\n`,
+      );
+      process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
+      assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
+      assert.ok(ms < BOUND_MS, `the export took ${ms} ms (bound ${BOUND_MS})`);
+      const folderId = out.data.folderId as string;
+      const listed = await call(w.d, "files.list", { folder: folderId, limit: 500 });
+      const sub = await Promise.all(
+        ((listed.data.folders ?? []) as { folderId: string }[]).map((f) =>
+          call(w.d, "files.list", { folder: f.folderId, limit: 500 }),
+        ),
+      );
+      const count = (listed.data.files ?? []).length + sub.reduce((n, r) => n + (r.data.files ?? []).length, 0);
+      assert.ok(count >= (actions ?? 0) + 2, `the folder holds ${count} files for ${actions} actions`);
+      // all or none: a batch with one taken name makes nothing, on the real server
+      const before = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files.length;
+      const refused = await call(w.d, "files.create_many", {
+        folderId,
+        files: [
+          { name: "fresh.txt", content: { text: "x" } },
+          { name: "connector.toml", content: { text: "dup" } },
+        ],
+        idempotencyKey: "export-dup",
+      });
+      assert.equal(refused.status, 422, JSON.stringify(refused.data).slice(0, 200));
+      const afterwards = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files;
+      assert.equal(afterwards.length, before, "the refused batch made no file");
+      assert.ok(!afterwards.some((f: { name: string }) => f.name === "fresh.txt"));
+    } finally {
+      await w.close();
+    }
+  },
+);

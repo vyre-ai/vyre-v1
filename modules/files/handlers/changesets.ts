@@ -512,13 +512,20 @@ function virtualFile(ctx: Ctx, entry: Row): Record<string, unknown> {
 }
 
 /** files.create_many writes straight into a folder; a folder under Review changes takes an agent's files one at a time through files.create, where each is staged. */
-async function stagedCreateMany(ctx: Ctx, input: unknown): Promise<Awaited<ReturnType<(typeof treeHandlers)["files.create_many"]>>> {
+async function stagedCreateMany(
+  ctx: Ctx,
+  input: unknown,
+): Promise<Awaited<ReturnType<(typeof treeHandlers)["files.create_many"]>>> {
   if (stages(ctx)) {
     const o = record(ctx, input);
     const folderId = typeof o["folderId"] === "string" ? o["folderId"] : "";
     const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
     if (live(folder) && reviewRoot(ctx, folderId))
-      fail(ctx, "validation.precondition_failed", "This folder keeps changes for review: add the files one at a time with files.create.");
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "This folder keeps changes for review: add the files one at a time with files.create.",
+      );
   }
   return treeHandlers["files.create_many"](ctx, input);
 }
