@@ -2,6 +2,7 @@
 // (r43 meier-apps, 24 Nov 2026). Each test is red on the line before this change.
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { kit } from "../fixtures/kit.ts";
 import type { Kit } from "../fixtures/kit.ts";
 import { untestedLine } from "../projections.ts";
@@ -147,4 +148,62 @@ test("the connect card's service lookup says untested, so the card can say it be
   };
   assert.equal(got.found, true);
   assert.equal(got.connector?.untested, true);
+});
+
+test("define takes a rate limit and keeps it, and refuses one that is not a positive speed with a burst", async () => {
+  const k = kit();
+  await k.hs["connectors.init"](k.ctx, { key: "shop", title: "Shop", mode: "api", source: false } as never);
+  const def = (rate: unknown) =>
+    k.hs["connectors.define"](k.ctx, { key: "shop", ...BASE, actions: ACTIONS, rate } as never);
+  await assert.rejects(def({ rps: 0, burst: 1 }), (e) => /rate/.test(msg(e)));
+  await assert.rejects(def({ rps: 2, burst: 0 }), (e) => /rate/.test(msg(e)));
+  await def({ rps: 2, burst: 4 });
+  await k.hs["connectors.publish"](k.ctx, { key: "shop" });
+  const stored = k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", "shop");
+  assert.deepEqual((JSON.parse(stored!.def) as { rate: unknown }).rate, { rps: 2, burst: 4 });
+});
+
+test("the untested answer never reads the call log: 100,000 log rows and no success are listed at once", async () => {
+  const k = kit();
+  await define(k, "shop");
+  await k.hs["connectors.publish"](k.ctx, { key: "shop" });
+  k.tx.run(
+    "WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < 99999) INSERT INTO cn_log (at, connector, action, method, host, path, status, ms) SELECT i, 'shop', 'list', 'GET', 'api.shop.test', '/items', 500, 1 FROM n",
+  );
+  const t0 = process.hrtime.bigint();
+  for (let i = 0; i < 20; i++) await k.hs["connectors.list"](k.ctx, {} as never);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6 / 20;
+  assert.ok(ms < 50, `a list took ${ms} ms with 100,000 failed calls in the log`);
+  // proof it never reads the log: with the log table gone, a list still answers
+  k.tx.exec("DROP TABLE cn_log");
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "shop" })).connector.untested, true);
+});
+
+test("a connector that was answered stays tested after its log is cleared, and a connector made again starts untested", async () => {
+  const k = kit();
+  k.vault["#ShopKey"] = "shop-key-value-1";
+  await define(k, "shop");
+  await k.hs["connectors.publish"](k.ctx, { key: "shop" });
+  const conn = await k.hs["connections.create"](k.ctx, {
+    connector: "shop",
+    title: "Shop",
+    ownerKind: "space",
+    secrets: { Shop_Key: "#ShopKey" },
+  } as never);
+  k.state.reply = () => ({ status: 200, body: { items: [] } });
+  await k.hs["connectors.run"](k.ctx, {
+    key: "shop",
+    action: "list",
+    connectionId: conn.connection.connectionId,
+    input: {},
+  } as never);
+  k.tx.run("DELETE FROM cn_log");
+  assert.equal((await k.hs["connectors.get"](k.ctx, { key: "shop" })).connector.untested, undefined);
+  k.tx.run("DELETE FROM cn_connectors WHERE key = 'shop'");
+  assert.equal(k.tx.get("SELECT 1 AS x FROM cn_tested WHERE key = 'shop'"), undefined, "the delete took its row");
+});
+
+test("a connector answered before the table existed is back-filled once from the log", () => {
+  const sql = readFileSync(new URL("../migrations/0007_tested.sql", import.meta.url), "utf8");
+  assert.match(sql, /INSERT OR IGNORE INTO cn_tested[\s\S]*FROM cn_log[\s\S]*status >= 200 AND status < 400/);
 });

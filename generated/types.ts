@@ -12022,6 +12022,10 @@ export type ConnectorsDefineIn = {
       description: string;
     }>;
   health?: string;
+  rate?: {
+    rps: number;
+    burst: number;
+  };
   actions: Array<{
       name: string;
       method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

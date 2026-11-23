@@ -102,6 +102,8 @@ export interface DefineInput {
   secrets?: { name: string; description: string }[];
   /** The action that stands in for a health check: a declared read (GET). */
   health?: string;
+  /** How fast the app lets this connector call it: requests a second, and a burst. */
+  rate?: { rps: number; burst: number };
   actions: {
     name: string;
     method?: string;
@@ -716,6 +718,9 @@ export async function executeAction(
       error === null ? null : scrub.text(error).slice(0, 300),
       actor,
     );
+    // the first answer that is not a failure is the day this connector stopped being untested
+    if (status !== null && status >= 200 && status < 400)
+      deps.tx.run("INSERT OR IGNORE INTO cn_tested (key, at) VALUES (?, ?)", def.key, started);
   };
   let res: { status: number; text(): Promise<string>; link?: string; retryAfter?: string };
   try {
@@ -1255,13 +1260,18 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           );
       };
       strangers("define", input, [
-        ...["key", "title", "domains", "auth", "secrets", "health", "actions", "idempotencyKey"],
+        ...["key", "title", "domains", "auth", "secrets", "health", "rate", "actions", "idempotencyKey"],
       ]);
       strangers("auth", input.auth, ["type", "secret", "header", "prefix", "user", "password", "template"]);
       for (const a of input.actions)
         strangers(`action ${a.name}`, a, [
           ...["name", "method", "url", "headers", "query", "body", "form", "basic", "paginate", "output", "write"],
         ]);
+      if (
+        input.rate !== undefined &&
+        !(input.rate.rps >= 0.01 && Number.isInteger(input.rate.burst) && input.rate.burst >= 1)
+      )
+        refuse(ctx, "validation.bad_input", "rate is requests a second (at least 0.01) and a burst of at least 1.");
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
       const kind = input.auth.type;
@@ -1321,6 +1331,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: authDoc,
         secrets,
         ...(input.health !== undefined ? { health: input.health } : {}),
+        ...(input.rate !== undefined ? { rate: input.rate } : {}),
       };
       const PAGE_KINDS = ["page", "cursor", "offset", "link"];
       const docs = input.actions.map((a) => {
