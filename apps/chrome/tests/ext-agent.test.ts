@@ -2077,17 +2077,20 @@ test("a person's Stop or take-over survives the extension's worker restarting: t
   }
 });
 
-test("a Stop whose tab closed while the worker slept is not kept: nobody could give it back", async () => {
-  const w = await ready();
-  await w.call("chrome_snapshot");
-  overlayPort(w).send({ type: "stop" });
-  await w.advance(0);
-  await w.advance(100);
-  w.ext.tabs.get = async () => {
-    throw new Error("No tab");
-  };
-  const r = await w.restartWorker();
-  assert.equal((await r.call("chrome_status")).paused, false);
+test("a Stop is kept when its tab closed while the worker slept (the person's message lifts it); a take-over whose tab closed is a hand-back and is dropped", async () => {
+  for (const [how, kept] of [["stop", true], ["takeover", false]] as const) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    overlayPort(w).send({ type: how });
+    await w.advance(0);
+    await w.advance(1000);
+    w.ext.tabs.get = async () => {
+      throw new Error("No tab");
+    };
+    const r = await w.restartWorker();
+    assert.equal((await r.call("chrome_status")).paused, kept, `${how}: kept=${kept}`);
+    if (kept) await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped");
+  }
 });
 
 test("a pause the agent made itself with chrome_stop it may lift itself", async () => {

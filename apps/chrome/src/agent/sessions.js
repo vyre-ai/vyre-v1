@@ -519,8 +519,8 @@ export function createSessions({
       });
     },
     /**
-     * The worker started again: take back the pauses and the bars it had. A Stop or take-over whose bar is gone (its tab closed meanwhile) has nobody left to give it back and is dropped; an Esc keeps its frame and
-     * waits for the person's word like any other. Runs before any call of an agent is answered.
+     * The worker started again: take back the pauses and the bars it had. A take-over whose bar is gone (the person closed the tab they held: a hand-back) has nobody left to give it back and is dropped; a Stop, an Esc and the agent's own stop are kept, and wait
+     * for the person's word like any other. Runs before any call of an agent is answered.
      */
     async restore() {
       const k = keep ? await keep.load() : null;
@@ -535,7 +535,7 @@ export function createSessions({
       for (const p of k.pauses) {
         if (paused.has(p.agent)) continue;
         const barred = [...shown.values()].some((a) => a.id === p.agent);
-        if ((p.by === "person" || p.by === "takeover") && !barred) continue;
+        if (p.by === "takeover" && !barred) continue; // a Stop or Esc is lifted by the person's message, no bar needed; a take-over only by the bar, and its tab is gone
         paused.set(p.agent, { by: p.by, at: p.at });
       }
       await persist();

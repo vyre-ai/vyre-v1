@@ -93,14 +93,19 @@ export function createAgentControl(ext, o = {}) {
 
   // the worker may have been stopped and started again since the person's Stop or take-over: their pause is read back before any call of an agent is answered
   let restoredDone = false;
-  const restored = sessions.restore().then(
-    () => {
-      restoredDone = true;
-    },
-    () => {
-      restoredDone = true;
-    },
-  );
+  // a storage fault must not freeze the agent channel: after two seconds the agent goes on with what it has
+  const restored = new Promise((resolve) => {
+    const t = setTimeout(resolve, 2000);
+    sessions
+      .restore()
+      .catch(() => {})
+      .finally(() => {
+        clearTimeout(t);
+        resolve(undefined);
+      });
+  }).then(() => {
+    restoredDone = true;
+  });
 
   cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
 
