@@ -227,10 +227,12 @@ export function createSessions({
   }
 
   let loaded = !keep;
+  /** The record on disk was read and cannot be understood: a live pause may replace it. */
+  let overwritable = false;
   /** Write the pauses and the bars that show them where the next worker finds them (pausekeep.js). */
   function persist() {
     // nothing is written until the saved pauses have been read back: a write made from a partial picture would erase the rest
-    if (!keep || !loaded) return Promise.resolve();
+    if (!keep || !(loaded || overwritable)) return Promise.resolve();
     return keep.save({
       pauses: [...paused].map(([agent, p]) => ({ agent, by: p.by, at: p.at })),
       bars: [...shown].map(([tab, a]) => ({ tab, id: a.id, name: a.name })),
@@ -526,7 +528,14 @@ export function createSessions({
      * for the person's word like any other. Runs before any call of an agent is answered.
      */
     async restore() {
-      const k = keep ? await keep.load() : null;
+      /** @type {Awaited<ReturnType<NonNullable<typeof keep>["load"]>>} */
+      let k = null;
+      try {
+        k = keep ? await keep.load() : null;
+      } catch (e) {
+        if (/** @type {any} */ (e)?.unreadable) overwritable = true;
+        throw e;
+      }
       /** @type {string[]} the agents whose pause this restore put back */
       const put = [];
       if (k) {

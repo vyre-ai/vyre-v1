@@ -2200,6 +2200,29 @@ test("storage down after a restart, two agents: a Give back on one bar frees onl
   await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }, B), (e: any) => e.code === "person_stopped", "B's kept Stop is in force");
 });
 
+test("a poison record that cannot be read: calls are refused, a live Stop pressed meanwhile acts at once and writes over it, the next retry reads a good record and the Stop is in force", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const good = w.ext.storage.session;
+  await good.set({ agentPauses: { pauses: "poison" } });
+  const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
+  await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+  // the person frees this agent from the bar, it drives, and then they press Stop: it acts at once
+  const port = overlayPort(w);
+  port.send({ type: "giveback", agent: w.agent.id });
+  await w.advance(0);
+  await w.call("chrome_snapshot").catch(() => {});
+  await r.call("chrome_snapshot");
+  port.send({ type: "stop", agent: w.agent.id });
+  await w.advance(0);
+  await w.advance(10);
+  assert.equal((await r.call("chrome_status")).paused, true);
+  await new Promise((res) => setTimeout(res, 60));
+  assert.ok(Array.isArray(good.data.agentPauses.pauses), "the poison record was written over with a good one");
+  await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped", "the Stop is in force after the retry read the good record");
+});
+
 test("a Give back pressed while the restore is pending is applied to the take-over a late restore finds, so it cannot be re-added behind the press", async () => {
   const w = await ready();
   await w.call("chrome_snapshot");

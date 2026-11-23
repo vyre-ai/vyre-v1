@@ -34,7 +34,10 @@ export function createPauseKeep(area) {
       if (!area) return null;
       const raw = await area.get([KEY]);
       if (!(KEY in raw) || raw[KEY] === undefined) return null;
-      if (!valid(raw[KEY])) throw new Error("the kept pauses cannot be read"); // unreadable is not empty: keep refusing and try again
+      if (!valid(raw[KEY])) {
+        // unreadable is not empty: keep refusing and try again. Storage itself answered, so a pause made live meanwhile may be written over it (the next read then finds a good record).
+        throw Object.assign(new Error("the kept pauses cannot be read"), { unreadable: true });
+      }
       return raw[KEY];
     },
     /** @param {Kept} rec */
