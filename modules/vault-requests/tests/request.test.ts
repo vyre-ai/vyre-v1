@@ -1187,3 +1187,35 @@ test("a Space admin who cannot put into the named folder asks its managers as be
   assert.equal(ok.request.placeholder, true);
   assert.equal(w.called("tasks.create").length, 0);
 });
+
+test("a manager who asks for a name the folder already keeps gets that item back, fulfilled: no duplicate error, nothing overwritten, nobody asked", async () => {
+  const w = world({
+    managers: { [FOLDER]: ["usr_mira"] },
+    saved: [{ id: "vit_old", name: "dana_lawmatics", folderId: FOLDER, fieldKeys: ["api_key"] }],
+  });
+  const base = w.as("usr_admin");
+  const dup = {
+    ...base,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put")
+        throw { error: { code: "validation.duplicate", message: "This folder already has an item with that name." } };
+      return base.call(cap as never, input as never);
+    },
+  } as typeof base;
+  const out = await handlers["vault.request"](dup, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup1" } as never);
+  assert.equal(out.request.state, "fulfilled");
+  assert.equal(out.request.itemId, "vit_old");
+  assert.equal(out.request.placeholder, undefined, "an existing item is not a new empty one");
+  assert.equal(w.called("tasks.create").length, 0);
+  // a duplicate whose item cannot be found is still an error
+  const lost = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  const lb = lost.as("usr_admin");
+  const dup2 = {
+    ...lb,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put") throw { error: { code: "validation.duplicate", message: "taken" } };
+      return lb.call(cap as never, input as never);
+    },
+  } as typeof lb;
+  await assert.rejects(handlers["vault.request"](dup2, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "dup2" } as never));
+});

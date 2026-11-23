@@ -342,6 +342,7 @@ async function placeholderFor(
       : await ownMine(ctx, { id } as RequestRow, undefined));
   if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
   let made: Record<string, unknown> | null;
+  let existing: string | undefined;
   try {
     made = asRow(
       await ctx.call("vault.item.put", {
@@ -355,9 +356,15 @@ async function placeholderFor(
   } catch (e) {
     const code = (e as { error?: { code?: string } })?.error?.code ?? "";
     if (code.startsWith("permission.") || code === "validation.not_found") return null;
-    throw e;
+    if (code !== "validation.duplicate") throw e;
+    // the folder already keeps an item with that name: the request is fulfilled with that item, nothing is overwritten
+    const list = (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as { id?: string; name?: string }[]) ?? [];
+    const have = list.find((x) => String(x.name ?? "").toLowerCase() === a.name.toLowerCase());
+    if (!have?.id) throw e;
+    existing = have.id;
+    made = null;
   }
-  const itemId = strOf(asRow(made?.["item"])?.["id"]);
+  const itemId = existing ?? strOf(asRow(made?.["item"])?.["id"]);
   if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
   ctx.db.run(
     `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, item_id, idem_key, managers_json, task_ids_json, at, decided_by, decided_at, handle_only, asker_id, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -381,7 +388,7 @@ async function placeholderFor(
     null,
     ctx.thread ?? null,
   );
-  return { request: { ...requestOut(requestById(ctx, id)!), placeholder: true } };
+  return { request: { ...requestOut(requestById(ctx, id)!), ...(existing ? {} : { placeholder: true }) } };
 }
 
 /** The person an agent asked for may add a key that names no folder into their own Mine (owner ruling 3 Nov). Never a company key, never an outside agent's name-only ask. */
