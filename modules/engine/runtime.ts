@@ -346,14 +346,15 @@ export async function resolveOne(
       code: "engine.model_unavailable",
     });
   if (!res.allowed || !res.accountRef || !res.payer) {
-    h.log?.("no account can pay for this turn", {
-      threadId: q.threadId,
-      agentId: q.agentId,
-      asker: q.askerId,
-      allowed: res.allowed,
-      reason: res.reason,
-      accountRef: res.accountRef ?? null,
-    });
+    if (q.probe !== true)
+      h.log?.("no account can pay for this turn", {
+        threadId: q.threadId,
+        agentId: q.agentId,
+        asker: q.askerId,
+        allowed: res.allowed,
+        reason: res.reason,
+        accountRef: res.accountRef ?? null,
+      });
     return null;
   }
   const list = (await h.call("engine.accounts.list", {}, res.payer)) as { accounts: AccountRow[] };

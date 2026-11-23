@@ -730,6 +730,17 @@ test("a turn's account says when it is a key of the Space and not the person's o
   assert.equal((await resolveOne(on(true), q))?.shared, undefined);
 });
 
+test("a turn with no account says so in the log once; the look for another account while the first is set aside does not", async () => {
+  const none = { accountRef: null, payer: null, reason: "none", allowed: false, why: "no_account" };
+  const logged: string[] = [];
+  const h = { call: async () => none, log: (m: string) => logged.push(m) } as never;
+  const q = { threadId: "thr_1", agentId: "agt_1", askerId: "usr_1" };
+  assert.equal(await resolveOne(h, q), null);
+  assert.deepEqual(logged, ["no account can pay for this turn"], "a turn that really has none says so");
+  assert.equal(await resolveOne(h, { ...q, unavailable: ["#Key"], probe: true }), null);
+  assert.equal(logged.length, 1, "a probe that finds nothing is expected and says nothing");
+});
+
 test("two daemons in one process: a second host half wired over the first does not close the first's opener (its daemon may still be running); the first is handed a retire that does", async () => {
   bindEngine(null);
   const h = harness({ threads: THREADS });
