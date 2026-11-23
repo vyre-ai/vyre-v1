@@ -160,9 +160,12 @@ test("a Space that moves between the relay and its own address is found where it
             console.log(`getting-in: moved to its own address, sign-in ready ${Date.now() - t0} ms after the load`);
             assert.equal(await page.getByTestId("step-not-answering").count(), 0);
             assert.deepEqual(seen, [], "the person never saw a line saying the Space could not be reached");
-            // the stale app worker retires itself and moves the page once: let that finish before the second visit, or the reload below is cut off by it (net::ERR_ABORTED)
+            // the stale app worker retires itself and moves the page once: let that finish before the second visit, or the reload below is cut off by it (net::ERR_ABORTED). The page is moved only after the
+            // worker is unregistered, and until then it still boots through the unregistered worker (two public /v1 reads, answered 503 by the address in front, nothing of the Space), so the wait ends
+            // when no worker is registered AND none controls the page: from there a request through the relay's worker would be a fault
             await page.waitForFunction(
-              async () => (await navigator.serviceWorker.getRegistrations()).length === 0,
+              async () =>
+                (await navigator.serviceWorker.getRegistrations()).length === 0 && !navigator.serviceWorker.controller,
               null,
               {
                 timeout: 20_000,
