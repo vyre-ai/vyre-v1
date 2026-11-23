@@ -5089,6 +5089,12 @@
       "toolset": "agents"
     },
     {
+      "deferred": true,
+      "name": "journeys_adopt",
+      "summary": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
+      "toolset": "automations"
+    },
+    {
       "deferred": false,
       "name": "journeys_create",
       "summary": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
@@ -5170,6 +5176,12 @@
       "deferred": false,
       "name": "journeys_test_path",
       "summary": "Test every stage's Automations on a record; nothing is sent",
+      "toolset": "automations"
+    },
+    {
+      "deferred": true,
+      "name": "journeys_values_get",
+      "summary": "Values a Journey carries for a record",
       "toolset": "automations"
     },
     {

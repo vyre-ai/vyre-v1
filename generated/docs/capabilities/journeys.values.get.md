@@ -17,7 +17,7 @@ Values a Journey carries for a record
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/journeys/values/get |
-| MCP tool | none |
+| MCP tool | journeys_values_get (automations, deferred) |
 | CLI | none |
 | Emits | none |
 

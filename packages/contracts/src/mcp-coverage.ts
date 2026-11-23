@@ -44,6 +44,9 @@ export const MCP_TOOLS: Readonly<Record<string, Toolset>> = {
   "records.purge_trashed": "records",
   "runs.erase": "automations",
   // a person's things that an agent may do for them
+  // a Journey's carried values are read where they are written (journeys_values_set), and a pipeline type's existing records come in page by page
+  "journeys.values.get": "automations",
+  "journeys.adopt": "automations",
   "notes.list": "memory",
   "notes.pin": "memory",
   "notes.update": "memory",
@@ -131,6 +134,14 @@ const DESK_PRESS =
   "A person's own button on the Computer tab: Pause holds an agent's next browser call still, and Resume lets it go on. The agent is the one paused, so it has nothing to call; after a stop it goes on with chrome_resume.";
 const DESK_DRAW =
   "The Computer tab's own call: pointer draws the cursor where the agent last acted, and warm starts the agent's browser in the background when the tab opens. An agent starts and drives its browser with chrome_open and the other chrome tools.";
+const STAGE_OFFERS_APP =
+  "The Journey path tab's own read: it lists the Space Automations that start on a stage of the Journey's type and are not part of it, to draw the offers.";
+const JOURNEY_UPGRADE =
+  "The one-time move of an older Journey onto its subject type as a pipeline. After an upgrade the server does it by itself, one Journey a minute (autoPipeline), and the Retry on the migration banner presses it again; an agent has nothing to move.";
+const JOURNEY_BANNER =
+  "The app's own read: the migration banner on a Journey asks where its move onto the pipeline stands.";
+const JOURNEY_BOARD =
+  "The app's own read: the Records board asks when each record entered its current stage, to draw how long it has sat there.";
 const COMPUTER =
   "Taking over an agent's browser or terminal by a human, and the live view of it, is the person's own act; the computer tools stay off from outside.";
 
@@ -605,6 +616,11 @@ export const NO_TOOL: ReadonlyArray<readonly [RegExp, string]> = [
   ],
   [/^computers\.browser\.(pause|resume)$/, DESK_PRESS],
   [/^computers\.browser\.(pointer|warm)$/, DESK_DRAW],
+  [/^automations\.stage_offers$/, STAGE_OFFERS_APP],
+  [/^automations\.step_ask$/, GATE],
+  [/^journeys\.to_pipeline$/, JOURNEY_UPGRADE],
+  [/^journeys\.migration_state$/, JOURNEY_BANNER],
+  [/^journeys\.stage_since$/, JOURNEY_BOARD],
   [/^tasks\.(still_answer|still_needed)$/, PRESS],
   [/^tasks\.changes$/, APP],
   [/^tasks\.done_when$/, VIA_TASKS_UPDATE],

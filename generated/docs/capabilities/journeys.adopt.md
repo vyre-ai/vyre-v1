@@ -17,7 +17,7 @@ Bring a pipeline type's existing records into the Journey by their stage field, 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/journeys/adopt |
-| MCP tool | none |
+| MCP tool | journeys_adopt (automations, deferred) |
 | CLI | none |
 | Emits | none |
 
