@@ -1,0 +1,1 @@
+- No change for a person: the server typecheck count is back to where it was (the access warm-up and files.create_many no longer add errors; ctx.db now declares the optional batch it always had).

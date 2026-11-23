@@ -2105,7 +2105,7 @@ async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileO
   // then every file is written in one transaction: a name that is taken, or any other refusal, rolls back the files, versions and stored content of the whole call
   const taken = new Set<string>();
   const write = (): FileOut[] => prepared.map((p) => writeFile(ctx, folder, p, taken).file);
-  const batch = (ctx.db as { batch?: <T>(fn: () => T) => T }).batch;
+  const batch = ctx.db.batch;
   // all or none is the contract of this call: without a transaction it would be best effort, so the call is refused rather than written piece by piece
   if (!batch)
     fail(

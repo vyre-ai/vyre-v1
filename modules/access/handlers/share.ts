@@ -2280,9 +2280,10 @@ export async function warmRows(ctx: ShareCtx): Promise<{ warmed: boolean }> {
   const raw = rawDbOf(ctx.db);
   if (!raw || WARMED.has(raw)) return { warmed: false };
   WARMED.add(raw);
-  const store = storeOf(ctx);
-  const ss = shareOf(ctx);
-  ensureFresh(ctx, store, ss);
+  const a = ctx as AccessCtx;
+  const store = storeOf(a);
+  const ss = shareOf(a);
+  ensureFresh(a, store, ss);
   return { warmed: true };
 }
 

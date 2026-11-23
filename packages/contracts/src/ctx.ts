@@ -19,6 +19,8 @@ export interface Decision {
 export interface ScopedDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** Run `fn` (synchronous statements only) as one transaction: one commit for all its writes. Absent where the database has no transactions. */
+  batch?<T>(fn: () => T): T;
 }
 /**
  * afterFailure: the event is still written when the call ends in an error (a refused sign-in must leave its signin.failed in the log). It must be an event the capability declares; the host commits
