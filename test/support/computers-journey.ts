@@ -116,7 +116,17 @@ export function fakeSpaceBrowser(): { sb: SpaceBrowser; rows: Map<string, Profil
     },
     async tool(a?: { tool?: string }) {
       // a held send that the person allowed is sent
-      return a?.tool === "chrome_send" ? { sent: true } : {};
+      if (a?.tool === "chrome_send") return { sent: true };
+      // a page the agent has opened, as browserd answers a step
+      return {
+        url: "https://www.harborquotes.com/pricing",
+        title: "Pricing",
+        tree: "- page [e1]",
+        truncated: false,
+        ok: true,
+        tabId: "t1",
+        loading: false,
+      };
     },
     async downloads() {
       return [];

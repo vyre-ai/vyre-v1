@@ -74,17 +74,22 @@ export const standIn: OpenSession = async () => {
         yield { type: "done" };
         return;
       }
-      // a tool outside the default set is found with tool_search before it can be called, as a model must do
-      const first = `call_${waiting.size + 1}`;
-      const found = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(first, resolve));
-      yield { type: "tool_call", id: first, name: "tool_search", input: { query: m[1]! } };
-      await found;
-      if (cancelled) return;
-      const id = `call_${waiting.size + 1}`;
-      const result = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(id, resolve));
-      yield { type: "tool_call", id, name: m[1]!, input: JSON.parse(m[2]!) };
-      const r = await result;
-      if (cancelled) return;
+      // a tool outside the default set is found with tool_search before it can be called, as a model must do. A message may carry several TOOL lines: they are called one after another in this one turn,
+      // as a model calls several tools in a turn; the answer is the last one's.
+      const calls = [...body.matchAll(/TOOL (\w+) (\{.*\})/g)];
+      let r: { ok: boolean; content: unknown } = { ok: true, content: null };
+      for (const c of calls) {
+        const first = `call_${waiting.size + 1}`;
+        const found = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(first, resolve));
+        yield { type: "tool_call", id: first, name: "tool_search", input: { query: c[1]! } };
+        await found;
+        if (cancelled) return;
+        const id = `call_${waiting.size + 1}`;
+        const result = new Promise<{ ok: boolean; content: unknown }>((resolve) => waiting.set(id, resolve));
+        yield { type: "tool_call", id, name: c[1]!, input: JSON.parse(c[2]!) };
+        r = await result;
+        if (cancelled) return;
+      }
       yield { type: "text", text: `TOOL RESULT ${r.ok ? "ok" : "failed"} ${JSON.stringify(r.content)}` };
       yield { type: "done" };
     },

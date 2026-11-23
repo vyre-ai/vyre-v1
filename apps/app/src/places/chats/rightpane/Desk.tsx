@@ -1023,7 +1023,8 @@ const st = StyleSheet.create({
     backgroundColor: "var(--accent)" as string,
   },
   scrubLiveText: { color: "var(--accent-ink)" as string, fontSize: 12, fontWeight: "600" },
-  stepDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: "var(--ink-3)" as string },
+  // the gap after the dot is the 8 that ui/Row puts between its text and a trailing mark (ROW trailing marginLeft), so a leading mark and a trailing one sit the same distance from the title
+  stepDot: { width: 8, height: 8, borderRadius: 4, marginRight: 8, backgroundColor: "var(--ink-3)" as string },
   stepDotNow: { backgroundColor: "var(--accent)" as string },
   rooms: {
     flexDirection: "row",
