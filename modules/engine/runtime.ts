@@ -108,6 +108,7 @@ import {
   sqlQueue,
   sqlWaits,
   sqlJournal,
+  mintId,
 } from "./projections.ts";
 import type { Db, EngineCtx } from "./projections.ts";
 
@@ -1187,7 +1188,8 @@ export function ensureRuntime(ctx: Pick<EngineCtx, "db">): Promise<TurnEngine | 
     mirrorRef = mirror;
     const engine = createTurnEngine({
       hooks: hooksPort,
-      holder: h.holder,
+      holder: `${h.holder}:${mintId("b").slice(2)}`,
+      family: h.holder,
       // a checkpoint of the agent's work folder as each CLI turn starts, for Rewind (checkpoints.ts)
       ...(h.dataDir
         ? {
