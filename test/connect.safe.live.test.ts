@@ -274,7 +274,6 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     const def = await own.attempt("connectors.define", {
       key: "pages",
       title: "Pages",
-      scope: "person",
       domains: ["api.fathom.ai"],
       auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
       secrets: [{ name: "api_key", description: "Your Pages API key" }],
@@ -283,7 +282,7 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
           name: "list",
           method: "GET",
           url: "https://api.fathom.ai/external/v1/pages",
-          shape: { items: "/items", cursor: { kind: "link", next: "/meta/next" } },
+          paginate: { kind: "link", next: "/meta/next", items: "/items", id: "/id" },
         },
       ],
       idempotencyKey: "ch-def",
@@ -301,7 +300,6 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     await own.call("connectors.define", {
       key: "wide",
       title: "Wide",
-      scope: "person",
       domains: ["api.fathom.ai", "*.evil.example"],
       auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
       secrets: [{ name: "api_key", description: "Your Wide API key" }],
