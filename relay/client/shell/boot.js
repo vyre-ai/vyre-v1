@@ -77,22 +77,23 @@ const CODE_RE = /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/,
  * @returns {Promise<boolean>} true when the page is being reloaded
  */
 async function retireStaleWorker() {
+  const q = new URLSearchParams(location.search);
+  const again = q.has("vyre-sw-retired");
+  if (again) {
+    // loaded once already after removing the worker: the marker goes, and whatever is left is not removed again (no loop, with storage or without)
+    q.delete("vyre-sw-retired");
+    const rest = q.toString();
+    history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  }
   const regs = await navigator.serviceWorker.getRegistrations();
   const stale = regs.filter((r) => {
     const w = r.active || r.waiting || r.installing;
     return r.scope === `${location.origin}/` && w && new URL(w.scriptURL).pathname !== "/__vyre/sw.js";
   });
-  if (!stale.length) return false;
-  try {
-    if (Date.now() - Number(sessionStorage.getItem("vyre-shell-retire") || 0) < 15_000) return false;
-    sessionStorage.setItem("vyre-shell-retire", String(Date.now()));
-  } catch {
-    // storage blocked: nothing remembers a reload, so none is made (the worker is still removed; the next start registers ours)
-    await Promise.all(stale.map((r) => r.unregister().catch(() => false)));
-    return false;
-  }
+  if (!stale.length || again) return false;
   await Promise.all(stale.map((r) => r.unregister().catch(() => false)));
-  location.reload();
+  q.set("vyre-sw-retired", "1");
+  location.replace(`${location.pathname}?${q}${location.hash}`);
   return true;
 }
 
