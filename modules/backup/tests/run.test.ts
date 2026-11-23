@@ -244,21 +244,67 @@ test("a new machine finds its backups through the target's index", async () => {
   );
 });
 
-test("rotation keeps the newest backups and deletes the rest from the target", async () => {
+test("rotation keeps the newest scheduled backups and deletes the rest from the target; manual ones are never rotated out", async () => {
   const w = await ready();
-  const ids: string[] = [];
+  const manual: string[] = [];
   for (let i = 0; i < KEEP + 2; i++) {
     w.setNow(NOW + i * 1000);
+    manual.push(((await call("backup.run", w.ctx, {})) as { backupId: string }).backupId);
+  }
+  const ids: string[] = [];
+  for (let i = 0; i < KEEP + 2; i++) {
+    w.setNow(readConfig(w.ctx).nextAt!);
     ids.push(((await call("backup.run", w.ctx, {})) as { backupId: string }).backupId);
   }
-  const list = (await call("backup.list", w.ctx, { limit: 500 })) as { backups: { backupId: string }[]; total: number };
-  assert.equal(list.total, KEEP);
+  const list = (await call("backup.list", w.ctx, { limit: 500 })) as {
+    backups: { backupId: string; kind: string }[];
+    total: number;
+  };
+  assert.equal(list.backups.filter((b) => b.kind === "scheduled").length, KEEP, "the newest scheduled ones stay");
   assert.deepEqual(
-    list.backups.map((b) => b.backupId),
+    list.backups.filter((b) => b.kind === "scheduled").map((b) => b.backupId),
     ids.slice(2).reverse(),
   );
+  assert.deepEqual(
+    list.backups
+      .filter((b) => b.kind === "manual")
+      .map((b) => b.backupId)
+      .sort(),
+    [...manual].sort(),
+    "every manual backup is still there",
+  );
   assert.ok(!w.target.objects.has(`b/${ids[0]}.vybk`) && !w.target.objects.has(`b/${ids[1]}.vybk`));
-  assert.equal((await readIndex(w.ctx, w.target)).length, KEEP);
+  assert.ok(manual.every((m) => w.target.objects.has(`b/${m}.vybk`)));
+});
+
+test("with no target chosen, backup.run writes to the host's default folder, says it is the server's own disk, and the list also shows the host's own backups", async () => {
+  const w = world();
+  configureBackup({
+    ...w.drivers,
+    defaultTarget: { kind: "local", path: "/data/backups" },
+    hostBackups: async () => [
+      { name: "vyre-manual-20261119T174015Z.tar.gz", at: NOW - 5000, sizeBytes: 3_600_000_000 },
+      { name: "vyre-pre-1.0.0-rc.39-20261118T110323Z.tar.gz", at: NOW - 9000, sizeBytes: 3_400_000_000 },
+    ],
+  });
+  await w.space.append("contact/ada", "Ada Lovelace");
+  assert.equal(readConfig(w.ctx).target, null, "nothing was chosen");
+  const run = (await call("backup.run", w.ctx, {})) as { backupId: string };
+  assert.match(run.backupId, /^bkp_/);
+  const list = (await call("backup.list", w.ctx, {})) as {
+    backups: { backupId: string; kind: string; target: string; sizeBytes: number }[];
+    total: number;
+  };
+  assert.equal(list.total, 3, "one from backup.run and two from the host's command");
+  const own = list.backups.find((b) => b.backupId === run.backupId)!;
+  assert.match(own.target, /local:\/data\/backups/);
+  assert.match(own.target, /this server's own disk/);
+  assert.match(own.target, /off-site/);
+  assert.deepEqual(list.backups.map((b) => b.kind).sort(), ["manual", "manual", "pre_update"]);
+  assert.ok(list.backups.some((b) => b.sizeBytes === 3_600_000_000));
+  // with neither a chosen nor a default target the old message stays
+  configureBackup(w.drivers);
+  await assert.rejects(call("backup.run", w.ctx, {}), /Choose where backups go first/);
 });
 
 test("erasing a person purges the older backups that still hold them at the next backup", async () => {

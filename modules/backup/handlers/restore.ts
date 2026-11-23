@@ -5,7 +5,7 @@
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import {
   asRow,
-  describeTarget,
+  labelOf,
   failWith,
   findItem,
   findItemOrIndex,
@@ -14,7 +14,7 @@ import {
   mint,
   need,
   openTarget,
-  readConfig,
+  targetOf,
   readTombstones,
   unpack,
   unwrap,
@@ -26,11 +26,10 @@ const RESTORE_BYTES_PER_SECOND = 20_000_000;
 const RESTORE_FIXED_SECONDS = 5;
 
 async function targetAndItem(ctx: BackupCtx, backupId: string): Promise<{ target: BackupTarget; item: Item }> {
-  const cfg = readConfig(ctx);
-  if (!cfg.target)
-    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
-  const target = await openTarget(ctx, cfg.target);
-  const item = await findItemOrIndex(ctx, target, backupId, describeTarget(cfg.target));
+  const chosen = targetOf(ctx);
+  if (!chosen) return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
+  const target = await openTarget(ctx, chosen.target);
+  const item = await findItemOrIndex(ctx, target, backupId, labelOf(chosen));
   if (!item)
     return failWith(ctx.trace.traceId, "validation.not_found", "There is no backup with that id.", { backupId });
   return { target, item };

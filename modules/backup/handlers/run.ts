@@ -136,6 +136,17 @@ export interface BackupDrivers {
   credentials?: (vaultName: string) => Promise<S3Credentials>;
   /** Replaces how a target is opened (the host can add more kinds; tests use it for a memory target). */
   openTarget?: (cfg: TargetConfig, ctx: BackupCtx) => Promise<BackupTarget>;
+  /** Where backup.run writes when the admin has chosen no target: a folder on this server's own disk (the host supplies it; nothing is written off-site). */
+  defaultTarget?: TargetConfig;
+  /** The backups `vyre-server backup`, an update and a restore took on the host (tar.gz files), so backup.list shows every backup this server has, in one list. */
+  hostBackups?: () => Promise<HostBackup[]>;
+}
+
+/** A backup the host's own command took: read-only here (restore it with `vyre-server restore`). */
+export interface HostBackup {
+  name: string;
+  at: number;
+  sizeBytes: number;
 }
 
 let drivers: BackupDrivers | null = null;
@@ -391,6 +402,19 @@ export function parseTarget(v: unknown): TargetConfig | null {
     if (s) t[k] = s;
   }
   return t;
+}
+
+/** The target backups go to: the one the admin chose, else the host's own folder on this disk. */
+export function targetOf(ctx: BackupCtx): { target: TargetConfig; isDefault: boolean } | null {
+  const cfg = readConfig(ctx);
+  if (cfg.target) return { target: cfg.target, isDefault: false };
+  return drivers?.defaultTarget ? { target: drivers.defaultTarget, isDefault: true } : null;
+}
+/** What the list says about where a backup went; the default folder says it is on this disk and is no protection against losing it. */
+export function labelOf(t: { target: TargetConfig; isDefault: boolean }): string {
+  return t.isDefault
+    ? `${describeTarget(t.target)} (this server's own disk: choose an off-site target in Console, Backups, or copy these off the server)`
+    : describeTarget(t.target);
 }
 
 export function describeTarget(t: TargetConfig): string {
@@ -850,14 +874,13 @@ export async function runBackup(
   kind: Kind,
 ): Promise<{ backupId: string; ok: boolean; reason?: string }> {
   const d = need(ctx);
-  const cfg = readConfig(ctx);
-  if (!cfg.target)
-    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
-  const label = describeTarget(cfg.target);
+  const chosen = targetOf(ctx);
+  if (!chosen) return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
+  const label = labelOf(chosen);
   const backupId = mint("bkp");
   const at = ctx.now();
   try {
-    const target = await openTarget(ctx, cfg.target);
+    const target = await openTarget(ctx, chosen.target);
     const encrypted = await encryptOn(ctx);
     const snap = await d.source.snapshot();
     const tombs = mergeTombstones(await d.source.tombstones(), await readTombstones(ctx, target).catch(() => []));
@@ -922,7 +945,17 @@ async function rotate(
 ): Promise<void> {
   const items = doneItems(ctx);
   const newestErase = tombs.reduce((m, t) => Math.max(m, t.at), 0);
-  const drop = items.filter((it, i) => it.backupId !== keepId && (i >= KEEP || it.at < newestErase));
+  // only scheduled and pre-update backups rotate out by count: a manual backup is a person's own and goes only when erasing someone purges it
+  let kept = 0;
+  const drop = items.filter((it) => {
+    if (it.backupId === keepId) {
+      if (it.kind !== "manual") kept++;
+      return false;
+    }
+    if (it.at < newestErase) return true;
+    if (it.kind === "manual") return false;
+    return ++kept > KEEP;
+  });
   for (const it of drop) {
     await target.del(it.objectKey).catch(() => undefined);
     ctx.db.run("DELETE FROM backup_item WHERE backup_id = ?", it.backupId);
@@ -992,21 +1025,20 @@ export async function config_set(ctx: BackupCtx, input: { target: unknown; sched
 }
 
 export async function list(ctx: BackupCtx, input: { cursor?: string; limit?: number }) {
-  const cfg = readConfig(ctx);
+  const chosen = targetOf(ctx);
   let items = doneItems(ctx);
-  if (items.length === 0 && cfg.target) {
+  if (items.length === 0 && chosen) {
     // a new machine: the list comes from the target's index and is kept locally from then on
     try {
-      const target = await openTarget(ctx, cfg.target);
-      const label = describeTarget(cfg.target);
+      const target = await openTarget(ctx, chosen.target);
+      const label = labelOf(chosen);
       for (const found of await readIndex(ctx, target)) saveItem(ctx, { ...found, state: "done", target: label });
       items = doneItems(ctx);
     } catch {
       /* an unreachable target shows an empty list; backups.recent says why */
     }
   }
-  const { offset, size } = page(input.cursor, input.limit);
-  const rows = items.slice(offset, offset + size).map((i) => ({
+  const own = items.map((i) => ({
     backupId: i.backupId,
     at: i.at,
     sizeBytes: i.sizeBytes,
@@ -1015,8 +1047,45 @@ export async function list(ctx: BackupCtx, input: { cursor?: string; limit?: num
     verified: i.verified,
     target: i.target,
   }));
-  const more = offset + size < items.length;
-  return { backups: rows, ...(more ? { next: String(offset + size) } : {}), total: items.length };
+  // the host's own backups (`vyre-server backup`, before an update, before a restore) are in the same list, read-only
+  let all = own;
+  try {
+    const host = drivers?.hostBackups ? await drivers.hostBackups() : [];
+    all = [...own, ...host.map(hostRow)].sort((x, y) => y.at - x.at);
+  } catch {
+    /* an unreadable host list leaves the server's own backups, which are still shown */
+  }
+  const { offset, size } = page(input.cursor, input.limit);
+  const rows = all.slice(offset, offset + size);
+  const more = offset + size < all.length;
+  return { backups: rows, ...(more ? { next: String(offset + size) } : {}), total: all.length };
+}
+
+/** A host backup as a list row: kind from its file name (vyre-manual-, vyre-pre-..., vyre-scheduled-), an id that names the file, never verified here. */
+export function hostRow(h: HostBackup): {
+  backupId: string;
+  at: number;
+  sizeBytes: number;
+  seq: number;
+  kind: Kind;
+  verified: boolean;
+  target: string;
+} {
+  const base = h.name.replace(/\.tar\.gz$/, "").replace(/[^A-Za-z0-9]/g, "_");
+  const kind: Kind = /^vyre-pre-/.test(h.name)
+    ? "pre_update"
+    : /^vyre-scheduled-/.test(h.name)
+      ? "scheduled"
+      : "manual";
+  return {
+    backupId: `bkp_host_${base}`,
+    at: h.at,
+    sizeBytes: h.sizeBytes,
+    seq: 0,
+    kind,
+    verified: false,
+    target: `host:${h.name} (taken by vyre-server on this server's disk; restore it with vyre-server restore)`,
+  };
 }
 
 export async function run(ctx: BackupCtx, _input: Record<string, unknown>) {
@@ -1037,8 +1106,9 @@ export async function del(ctx: BackupCtx, input: { backupId: string }) {
     return failWith(ctx.trace.traceId, "validation.not_found", "There is no backup with that id.", {
       backupId: input.backupId,
     });
-  if (cfg.target) {
-    const target = await openTarget(ctx, cfg.target);
+  const chosen = targetOf(ctx);
+  if (chosen) {
+    const target = await openTarget(ctx, chosen.target);
     await target.del(item.objectKey);
     ctx.db.run("DELETE FROM backup_item WHERE backup_id = ?", input.backupId);
     await writeIndex(ctx, target, doneItems(ctx), await encryptOn(ctx));
@@ -1058,8 +1128,7 @@ export async function health(ctx: BackupCtx, _input: Record<string, unknown>) {
     const firstSeen = Number(
       (
         ctx.db.all("SELECT value FROM backup_config WHERE key = ?", "health_first_seen")[0] as
-          | { value?: string }
-          | undefined
+          { value?: string } | undefined
       )?.value,
     );
     if (!Number.isFinite(firstSeen)) {

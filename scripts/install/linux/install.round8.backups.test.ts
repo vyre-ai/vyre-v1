@@ -72,6 +72,18 @@ test("two backups in the same second get two names; a manual backup is never rem
     fs.writeFileSync(path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"), "x");
     assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data scheduled live`, env).status, 0);
     assert.ok(names().includes("vyre-restored-by-hand.tar.gz"), "a name the script does not know is left alone");
+    // the list the server's backup.list reads: one row per backup left in the folder, names and sizes only, readable by its owner alone
+    const idx = JSON.parse(fs.readFileSync(path.join(dir, "data", "host-backups.json"), "utf8")) as {
+      name: string;
+      at: number;
+      sizeBytes: number;
+    }[];
+    assert.deepEqual(idx.map((r) => r.name).sort(), names().sort(), "the index names exactly what is in the folder");
+    assert.ok(
+      idx.every((r) => r.at > 1e12 && r.sizeBytes > 0),
+      "a time in milliseconds and a size",
+    );
+    assert.equal(fs.statSync(path.join(dir, "data", "host-backups.json")).mode & 0o777, 0o600);
     // the kinds keep their own few: a third backup before an update pushes out only the oldest of that kind
     for (const v of ["1.2.0", "1.3.0"])
       assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`, env).status, 0);

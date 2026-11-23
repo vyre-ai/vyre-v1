@@ -60,6 +60,32 @@ export interface BackupHostSeam {
   exports: { save(name: string, bytes: Uint8Array): Promise<{ fileId: string }> };
   transport: S3Transport;
   credentials(vaultName: string): Promise<{ key: string; secret: string; endpoint?: string }>;
+  /** where backup.run writes when the admin chose no target: the backups folder beside the Space folder, on this server's own disk */
+  defaultTarget: { kind: "local"; path: string };
+  /** the backups `vyre-server` took on the host, from the list it keeps (host-backups.json beside the Space folder); empty when it has none */
+  hostBackups(): Promise<{ name: string; at: number; sizeBytes: number }[]>;
+}
+
+export const HOST_BACKUPS_FILE = "host-backups.json";
+/** Read the list `vyre-server` writes after each backup: rows of {name, at, sizeBytes}; anything else in the file is ignored, and a missing or broken file is an empty list. */
+export function readHostBackups(dataDir: string): { name: string; at: number; sizeBytes: number }[] {
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(dataDir, HOST_BACKUPS_FILE), "utf8")) as unknown;
+    const rows = Array.isArray(j) ? j : [];
+    return rows.flatMap((r) => {
+      const x = r as { name?: unknown; at?: unknown; sizeBytes?: unknown };
+      return typeof x.name === "string" &&
+        /^vyre-[A-Za-z0-9._-]+\.tar\.gz$/.test(x.name) &&
+        typeof x.at === "number" &&
+        Number.isFinite(x.at) &&
+        typeof x.sizeBytes === "number" &&
+        Number.isFinite(x.sizeBytes)
+        ? [{ name: x.name, at: x.at, sizeBytes: x.sizeBytes }]
+        : [];
+    });
+  } catch {
+    return [];
+  }
 }
 
 /** Files that make up a Space on disk, relative to the data directory. */
@@ -169,7 +195,10 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
     }
   }
 
+  const dataDir = path.dirname(deps.root);
   return {
+    defaultTarget: { kind: "local", path: path.join(dataDir, "backups") },
+    hostBackups: async () => readHostBackups(dataDir),
     source: {
       head: () => deps.log.currentHead(),
       snapshot,
@@ -202,7 +231,7 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
       async exportEntries() {
         // records and shared chats only: events other people may read (vis space), in the clear, with no label. Private chats and personal memory are never vis space.
         const lines: string[] = [];
-        for (let after = 0; ; ) {
+        for (let after = 0; ;) {
           const page = await deps.log.read({ after, limit: 1000 });
           if (page.length === 0) break;
           for (const e of page) {

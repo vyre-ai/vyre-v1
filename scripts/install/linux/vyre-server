@@ -789,6 +789,7 @@ backup_data() {
   [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
   prune_backups
+  write_backup_index
 }
 
 # prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's
@@ -812,6 +813,28 @@ prune_backups() {
     m_kb=$(du -sk "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
     say "  Manual backups are never removed by this command: $m_n of them take $((m_kb / 1024)) MB in $BACKUP_DIR. Delete the ones you no longer need yourself."
   fi
+  return 0
+}
+
+# file_stat FILE: "<seconds since epoch> <bytes>" of a file, GNU or BSD stat.
+file_stat() { stat -c '%Y %s' "$1" 2>/dev/null || stat -f '%m %z' "$1" 2>/dev/null; }
+
+# write_backup_index: the list of this folder's backups, one JSON row each, in $DATA_DIR/host-backups.json (0600), so the server's backup.list shows the backups this command took beside
+# its own: one list. Names are the only text in it (vyre-<kind>-<stamp>.tar.gz); the file is moved whole into place; a failure here never fails a backup.
+write_backup_index() {
+  [ -d "$DATA_DIR" ] || return 0
+  _bi="$DATA_DIR/host-backups.json"
+  {
+    _sep=
+    printf '['
+    for _bf in "$BACKUP_DIR"/vyre-*.tar.gz; do
+      [ -f "$_bf" ] || continue
+      _bn=$(basename "$_bf"); case "$_bn" in *[!A-Za-z0-9._-]*) continue ;; esac
+      set -- $(file_stat "$_bf") || true; [ -n "${2:-}" ] || continue
+      printf '%s{"name":"%s","at":%s000,"sizeBytes":%s}' "$_sep" "$_bn" "$1" "$2"; _sep=,
+    done
+    printf ']\n'
+  } >"$_bi.new" 2>/dev/null && chmod 0600 "$_bi.new" && mv -f "$_bi.new" "$_bi" || rm -f "$_bi.new"
   return 0
 }
 

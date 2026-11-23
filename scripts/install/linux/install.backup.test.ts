@@ -400,7 +400,14 @@ test("restore puts a backup back after backing up the current data, and starts a
     fs.mkdirSync(chk);
     assert.equal(spawnSync("tar", ["-xzf", path.join(dir, "backups", pre[0]!), "-C", chk]).status, 0);
     assert.equal(valueIn(path.join(chk, "space", "events.db")), "NEW");
-    assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"], "no leftovers");
+    assert.deepEqual(
+      fs
+        .readdirSync(path.join(dir, "data"))
+        .filter((n) => n !== "host-backups.json")
+        .sort(),
+      ["caddy", "space"],
+      "no leftovers",
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -447,7 +454,14 @@ test("restore refuses a bad file, an unconfirmed run and a backup of the wrong s
       assert.notEqual(r.status, 0, name);
       assert.match(r.stderr, /nothing was changed|no such backup/, name);
       assert.equal(treeSig(path.join(dir, "data")), before, `${name}: data unchanged`);
-      assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"], `${name}: no staging left`);
+      assert.deepEqual(
+        fs
+          .readdirSync(path.join(dir, "data"))
+          .filter((n) => n !== "host-backups.json")
+          .sort(),
+        ["caddy", "space"],
+        `${name}: no staging left`,
+      );
     }
     assert.equal(fs.existsSync(path.join(dir, "dc.log")), false, "the server was never touched");
     assert.deepEqual(fs.readdirSync(path.join(dir, "backups")).sort(), backupsBefore, "no backup was made either");
@@ -485,7 +499,13 @@ test("restore puts the old data back when the server is not healthy on the resto
     assert.match(r.stderr, /health check.*the data that was there before is back/);
     assert.equal(valueIn(path.join(dir, "data", "space", "events.db")), "KEEP");
     assert.equal(read(path.join(dir, "data", "caddy", "cert.pem")), "KEEP");
-    assert.deepEqual(fs.readdirSync(path.join(dir, "data")).sort(), ["caddy", "space"]);
+    assert.deepEqual(
+      fs
+        .readdirSync(path.join(dir, "data"))
+        .filter((n) => n !== "host-backups.json")
+        .sort(),
+      ["caddy", "space"],
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
