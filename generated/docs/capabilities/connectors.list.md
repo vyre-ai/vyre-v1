@@ -60,6 +60,8 @@ type Out = {
           delete?: string;
           since?: boolean;
           link?: unknown;
+          eachOf?: unknown;
+          rows?: unknown;
         }>;
       sourceFolderId?: string;
       untested?: boolean;

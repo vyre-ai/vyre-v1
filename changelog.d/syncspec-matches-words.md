@@ -1,0 +1,1 @@
+`onlyWhen.matches` and `eachOf.where.matches` are lists of words matched as whole words by a linear matcher (no pattern from a spec is run), and a page that opens into more than 20,000 inner rows is refused in words instead of held in memory.

@@ -1,0 +1,1 @@
+A SyncSpec list can sit under each record of another object (`list.eachOf`), so a connector reads an app's per-record lists such as a matter's contacts, roles and assets without a script beside it; each row carries its parent's id at `/_parent`.

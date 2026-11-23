@@ -1,0 +1,1 @@
+A SyncSpec object can make one record for every inner item of an array (`rows`, with `/_at` and `/_i` pointers), and a field can be sealed or plain by what another field says (`onlyWhen.matches`, `not`), so a connector reads a role's ranked contacts and tells an account number from an address by its label.

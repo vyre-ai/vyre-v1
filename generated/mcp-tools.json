@@ -64465,30 +64465,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -64592,6 +64569,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -64647,6 +64627,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
@@ -65151,30 +65134,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -65278,6 +65238,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -65333,6 +65296,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
@@ -65956,30 +65922,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -66083,6 +66026,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -66138,6 +66084,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
