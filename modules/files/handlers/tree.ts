@@ -900,8 +900,7 @@ function blobScope(ctx: Ctx, blobId: string): string {
   return boundedScope("files.blob", ctx.space, blobId); // the Space and the blob are bound through a digest: a desktop Space id alone is 36 characters
 }
 
-async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): Promise<{ id: string; hash: string }> {
-  const hash = await sha256(plain);
+function putBlobHashed(ctx: Ctx, plain: Uint8Array, mime: string, id: string, hash: string): void {
   const sealed: Sealed = ctx.seal.seal(plain, blobScope(ctx, id));
   ctx.db.run(
     "INSERT INTO files_blob (id, hash, size, mime, key_id, nonce, bytes, scope, created_at, refs) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -916,7 +915,32 @@ async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): P
     ctx.now(),
     0,
   );
+}
+
+async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): Promise<{ id: string; hash: string }> {
+  const hash = await sha256(plain);
+  putBlobHashed(ctx, plain, mime, id, hash);
   return { id, hash };
+}
+
+/** The size limits of a direct write, checked before any hashing or storing. */
+function checkPlainSize(ctx: Ctx, plain: Uint8Array): void {
+  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
+  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+}
+
+/** The blob of already hashed bytes: the one held under that hash, or a new one. Synchronous, so a batch can hold it in one transaction. */
+function blobForHashed(
+  ctx: Ctx,
+  plain: Uint8Array,
+  hash: string,
+  mime: string,
+): { id: string; hash: string; size: number } {
+  const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
+  if (existing) return { id: String(existing.id), hash, size: num(existing.size) };
+  const id = nid(ctx, "blb");
+  putBlobHashed(ctx, plain, mime, id, hash);
+  return { id, hash, size: plain.byteLength };
 }
 
 async function blobForPlain(
@@ -1941,25 +1965,80 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
 }
 
+/** What a string can be: a text type, JSON, or a vector image (SVG is XML). */
+const TEXTLIKE_MIME = /^(text\/|application\/json$|image\/svg\+xml$)/;
+/** Kinds whose bytes are not a string. */
+const BINARY_KINDS: ReadonlySet<string> = new Set([
+  "image",
+  "spreadsheet",
+  "pdf",
+  "document",
+  "presentation",
+  "video",
+  "audio",
+  "archive",
+]);
+/** ... except the ones that are text on disk. */
+const TEXT_EXT = new Set(["svg", "csv", "tsv"]);
+
 function chosenKind(ctx: Ctx, given: string | undefined, name: string, mime: string): string {
   if (given === undefined) return guessKind(name, mime);
   if (!KINDS.has(given)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
   return given;
 }
 
-async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; changesetId?: string }> {
-  ensureReady(ctx);
-  const o = rec(ctx, input);
-  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
-  let name = cleanName(ctx, reqStr(ctx, o, "name"));
-  // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
-  if (ctx.principal.kind === "agent") name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n));
-  if (nameTaken(ctx, String(folder.id), name))
-    fail(ctx, "validation.duplicate", "That name is already in this folder.");
+/** What one file needs before it is written: the content read, checked and hashed. No write happens here (it awaits), so a batch can prepare every file first and then write them all in one transaction. */
+interface PreparedFile {
+  name: string;
+  content: Content;
+  mime: string;
+  kind: string;
+  plain?: Uint8Array;
+  hash?: string;
+}
+
+/** `textIsText`: a string is a text file whatever its name says (the batch call, which makes whole files from text). A single files.create keeps the name's kind: a mount makes a placeholder of text under the name of a document, and it opens in the document viewer. */
+async function prepareFile(ctx: Ctx, o: Record<string, unknown>, textIsText = false): Promise<PreparedFile> {
+  const name = cleanName(ctx, reqStr(ctx, o, "name"));
   const content = parseContent(ctx, o.content);
-  const mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
-  const kind = chosenKind(ctx, optStr(ctx, o, "kind"), name, mimeHint);
-  const blob = await resolveBlob(ctx, content, mimeHint);
+  let mime = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
+  // text is text: a string written to report.pdf or data.xlsx is not a PDF or a workbook, so the name picks among the text types only and the kind comes from the content
+  const givenKind = optStr(ctx, o, "kind");
+  const textBody = textIsText && content.kind === "text";
+  if (textBody && optStr(ctx, o, "mime") === undefined && !TEXTLIKE_MIME.test(mime)) mime = "text/plain";
+  let kind = chosenKind(ctx, givenKind, name, mime);
+  if (textBody && givenKind === undefined && BINARY_KINDS.has(kind) && !TEXT_EXT.has(extOf(name))) kind = "text";
+  const out: PreparedFile = { name, content, mime, kind };
+  if (content.kind !== "blob") {
+    const plain = plainOf(ctx, content) ?? new Uint8Array();
+    checkPlainSize(ctx, plain);
+    out.plain = plain;
+    out.hash = await sha256(plain);
+  }
+  return out;
+}
+
+/** One prepared file into a folder: the name taken, the content stored, the version made and the events said. Synchronous: a batch holds all its files in one transaction. */
+function writeFile(ctx: Ctx, folder: Row, p: PreparedFile, taken?: Set<string>): { file: FileOut } {
+  let name = p.name;
+  // an agent that makes a file whose name is taken never replaces what is there: the new file is "name (2)" and the answer carries its name (a person is told the name is taken)
+  if (ctx.principal.kind === "agent")
+    name = freeName(name, (n) => nameTaken(ctx, String(folder.id), n) || (taken?.has(n) ?? false));
+  if (nameTaken(ctx, String(folder.id), name) || taken?.has(name))
+    fail(ctx, "validation.duplicate", "That name is already in this folder.");
+  taken?.add(name);
+  let blob: { blobId: string; size: number; mime: string };
+  if (p.plain !== undefined && p.hash !== undefined) {
+    const stored = blobForHashed(ctx, p.plain, p.hash, p.mime);
+    blob = { blobId: stored.id, size: stored.size, mime: p.mime };
+  } else {
+    const c = p.content as Extract<Content, { kind: "blob" }>;
+    const row = one(ctx, "SELECT * FROM files_blob WHERE id = ?", c.blobId);
+    if (!row) fail(ctx, "validation.not_found", "That blob is not in the store.", { blobId: c.blobId });
+    const storedMime = !isNull(row.mime) && String(row.mime).length > 0 ? String(row.mime) : p.mime;
+    blob = { blobId: String(row.id), size: num(row.size), mime: p.mime || storedMime };
+  }
+  const kind = p.kind;
   const id = nid(ctx, "fil");
   const now = ctx.now();
   ctx.db.run(
@@ -1985,6 +2064,57 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
   ctx.emit("file.version_added", `file/${id}`, { fileId: id, versionId, n: 1, by: ctx.principal.id });
   ctx.log.info("files.create", { fileId: id, folderId: String(folder.id), bytes: blob.size });
   return { file: fileOutC(ctx, mustFile(ctx, id)) };
+}
+
+/** One file into a folder. The caller has read the folder. */
+async function createFileIn(ctx: Ctx, folder: Row, o: Record<string, unknown>): Promise<{ file: FileOut }> {
+  return writeFile(ctx, folder, await prepareFile(ctx, o));
+}
+
+async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; changesetId?: string }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
+  return createFileIn(ctx, folder, o);
+}
+
+/** Many files into one folder in one call: one transaction, one commit, one update of who may see what (the access rebuild runs once, not once for each file). All or none: a name taken or a content refused stops the call and nothing is made. */
+const CREATE_MANY_MAX = 200;
+const CREATE_MANY_BYTES = 25 * 1024 * 1024;
+async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileOut[] }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const folder = liveFolder(ctx, reqStr(ctx, o, "folderId"));
+  const list = o["files"];
+  if (!Array.isArray(list) || list.length === 0 || list.length > CREATE_MANY_MAX)
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "files" });
+  // Everything is read, checked and hashed first (that awaits and writes nothing); a call that adds up to more than 25 MB is refused here, before anything is written
+  const prepared: PreparedFile[] = [];
+  let total = 0;
+  for (const one of list as unknown[]) {
+    const p = await prepareFile(ctx, rec(ctx, one), true);
+    total += p.plain?.byteLength ?? 0;
+    if (total > CREATE_MANY_BYTES)
+      fail(
+        ctx,
+        "validation.too_large",
+        "The files in one call add up to more than 25 MB. Send them in smaller groups of files.",
+      );
+    prepared.push(p);
+  }
+  // then every file is written in one transaction: a name that is taken, or any other refusal, rolls back the files, versions and stored content of the whole call
+  const taken = new Set<string>();
+  const write = (): FileOut[] => prepared.map((p) => writeFile(ctx, folder, p, taken).file);
+  const batch = (ctx.db as { batch?: <T>(fn: () => T) => T }).batch;
+  // all or none is the contract of this call: without a transaction it would be best effort, so the call is refused rather than written piece by piece
+  if (!batch)
+    fail(
+      ctx,
+      "internal.unexpected",
+      "This server cannot add several files in one step, so nothing was added. Add them one at a time.",
+    );
+  const files = batch.call(ctx.db, write);
+  return { files };
 }
 
 async function filesWrite(
@@ -2594,6 +2724,7 @@ export const treeHandlers = {
   "files.folder.settings": (ctx: Ctx, input: unknown) => folderSettings(ctx, input),
   "files.upload_url": (ctx: Ctx, input: unknown) => uploadUrl(ctx, input),
   "files.create": (ctx: Ctx, input: unknown) => filesCreate(ctx, input),
+  "files.create_many": (ctx: Ctx, input: unknown) => filesCreateMany(ctx, input),
   "files.write": (ctx: Ctx, input: unknown) => filesWrite(ctx, input),
   "files.rename": (ctx: Ctx, input: unknown) => filesRename(ctx, input),
   "files.move": (ctx: Ctx, input: unknown) => filesMove(ctx, input),

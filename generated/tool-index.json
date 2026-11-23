@@ -3362,6 +3362,12 @@
     },
     {
       "deferred": false,
+      "name": "files_create_many",
+      "summary": "Up to 200 files in one folder in one call, all or none; each as files.create takes it",
+      "toolset": "files"
+    },
+    {
+      "deferred": false,
       "name": "files_delete",
       "summary": "Move a file to Trash",
       "toolset": "files"

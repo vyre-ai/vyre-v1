@@ -35,6 +35,7 @@ const FILE_TARGET: Record<string, string> = {
 };
 const FOLDER_TARGET: Record<string, string> = {
   "files.create": "folderId",
+  "files.create_many": "folderId",
   "files.folder.create": "parentId",
   "files.upload_url": "folderId",
 };
