@@ -6,7 +6,7 @@
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 // @reads /modules/connectors/migrations/0005_hosts.sql
 // @reads /modules/connectors/migrations/0006_revisions.sql
-// @reads /modules/connectors/migrations/0007_tested.sql
+// @reads /modules/connectors/migrations/0008_tested.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -280,7 +280,7 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0006_revisions.sql", import.meta.url), "utf8"));
-  tx.exec(readFileSync(new URL("./migrations/0007_tested.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0008_tested.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
@@ -748,8 +748,7 @@ export function untestedConnector(tx: Tx, key: string, builtin: boolean, state: 
 }
 
 /** What the person is told about an untested connector, on the card and after a publish. */
-export const untestedLine = (title: string): string =>
-  `Not tried yet. Nothing has been sent to ${title}, so the first call may need a fix.`;
+export const untestedLine = "Not tried yet. The first call may need a fix.";
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
 export const originKey = (u: URL): string =>

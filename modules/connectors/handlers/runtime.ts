@@ -1581,7 +1581,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         published: true,
         version,
         result,
-        ...(untested ? { untested: true, message: untestedLine(next.title) } : {}),
+        ...(untested ? { untested: true, message: untestedLine } : {}),
       };
     },
 

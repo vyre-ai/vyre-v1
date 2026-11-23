@@ -26,8 +26,8 @@ test("a published connector no call has answered is untested: the publish says s
   const out = (await k.hs["connectors.publish"](k.ctx, { key: "shop" })) as unknown as Record<string, unknown>;
   assert.equal(out["published"], true);
   assert.equal(out["untested"], true);
-  assert.equal(out["message"], untestedLine("Shop"));
-  assert.match(String(out["message"]), /^Not tried yet\./);
+  assert.equal(out["message"], untestedLine);
+  assert.equal(out["message"], "Not tried yet. The first call may need a fix.");
   assert.equal((await k.hs["connectors.get"](k.ctx, { key: "shop" })).connector.untested, true);
   const listed = await k.hs["connectors.list"](k.ctx, {} as never);
   assert.equal(listed.connectors.find((c) => c.key === "shop")?.untested, true);
@@ -206,6 +206,6 @@ test("a connector that was answered stays tested after its log is cleared, and a
 });
 
 test("a connector answered before the table existed is back-filled once from the log", () => {
-  const sql = readFileSync(new URL("../migrations/0007_tested.sql", import.meta.url), "utf8");
+  const sql = readFileSync(new URL("../migrations/0008_tested.sql", import.meta.url), "utf8");
   assert.match(sql, /INSERT OR IGNORE INTO cn_tested[\s\S]*FROM cn_log[\s\S]*status >= 200 AND status < 400/);
 });

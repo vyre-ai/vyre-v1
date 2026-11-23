@@ -387,7 +387,7 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
           ) : null}
           {p.untested && !working ? (
             <Text style={st.sub} testID={`${id}-untested`}>
-              {`Not tried yet. Nothing has been sent to ${p.service}, so the first call may need a fix.`}
+              Not tried yet. The first call may need a fix.
             </Text>
           ) : null}
           <KeptRow id={id} keptIn={p.keptIn} onOpen={working || state === "offline" ? undefined : p.onKeptIn} />
