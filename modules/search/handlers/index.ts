@@ -88,6 +88,21 @@ function fieldWords(fields: Record<string, unknown>, skip: string): string {
 
 const labelOf = (v: unknown): number => Math.max(0, Math.min(3, Math.trunc(num(v))));
 
+// A record type's title field, asked of the schema once in a while and not for each record: schema.types.get returns the whole type (578 fields of a firm's matter), and a bulk write of ten thousand records
+// asked it ten thousand times (a third of the time the full-text consumer spent on a record). A change of the title field reaches the documents indexed after this window; one reindex puts the rest right.
+const TITLE_FIELD_TTL_MS = 10_000;
+const titleFields = new Map<string, { at: number; field: string }>();
+async function titleFieldOf(ctx: SearchCtx, type: string): Promise<string> {
+  const key = `${ctx.space}\u0000${type}`;
+  const have = titleFields.get(key);
+  const now = ctx.now();
+  if (have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have.field;
+  const t = await read<{ type?: Record<string, unknown> }>(ctx, "schema.types.get", { type });
+  const field = text(t?.type?.["titleField"]);
+  if (t) titleFields.set(key, { at: now, field });
+  return field;
+}
+
 const recordSource: Source = async (ctx, id, sub) => {
   const got = await read<{ record?: Record<string, unknown> }>(ctx, "records.get", {
     recordId: id,
@@ -100,10 +115,7 @@ const recordSource: Source = async (ctx, id, sub) => {
   const type = text(r["type"]) || sub || "";
   const fields = rec(r["fields"]);
   let titleField = "";
-  if (type) {
-    const t = await read<{ type?: Record<string, unknown> }>(ctx, "schema.types.get", { type });
-    titleField = text(t?.type?.["titleField"]);
-  }
+  if (type) titleField = await titleFieldOf(ctx, type);
   const first = Object.entries(fields).find(([, v]) => typeof v === "string" && v.length > 0);
   const title = (
     titleField && typeof fields[titleField] === "string"
@@ -404,19 +416,23 @@ export async function indexApply(
   }
   // an entity nobody here knows how to read: nothing to do, and no sequence is recorded, so a source added later can still index it
   if (r === null) return { indexed: false };
-  ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
-  setSeen(ctx, entity, id, seq);
-  if ("skip" in r) {
-    removeDoc(ctx.db, ctx.space, entity, id);
-    if (WATCH_PRIVATE.has(entity)) {
-      memo.set(key, ctx.now() + PRIVATE_FOR_MS);
-      if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+  // the writes for the row (the failure mark, the sequence, the old document out, the new one and its text in) are one transaction: they were five or six commits
+  const finish = (): { indexed: boolean } => {
+    ctx.db.run("DELETE FROM search_failed WHERE entity = ? AND id = ?", entity, id);
+    setSeen(ctx, entity, id, seq);
+    if ("skip" in r) {
+      removeDoc(ctx.db, ctx.space, entity, id);
+      if (WATCH_PRIVATE.has(entity)) {
+        memo.set(key, ctx.now() + PRIVATE_FOR_MS);
+        if (memo.size > 5000) for (const [k, until] of memo) if (until <= ctx.now()) memo.delete(k);
+      }
+      return { indexed: false };
     }
-    return { indexed: false };
-  }
-  if (r.doc.entity !== entity) r.doc.entity = entity;
-  putDoc(ctx.db, ctx.space, r.doc, ctx.now());
-  return { indexed: true };
+    if (r.doc.entity !== entity) r.doc.entity = entity;
+    putDoc(ctx.db, ctx.space, r.doc, ctx.now());
+    return { indexed: true };
+  };
+  return ctx.db.batch ? ctx.db.batch(finish) : finish();
 }
 
 // ---- search.embed.run
