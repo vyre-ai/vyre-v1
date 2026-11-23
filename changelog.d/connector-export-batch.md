@@ -1,1 +1,3 @@
 Exporting a connector writes its files with one `files.create_many` call for each folder instead of one call for each file: one commit and one update of who may see what for 50 or more files, so the export no longer grows with the number of actions on a big Space. `files.create_many` takes up to 200 files for one folder, all or none, and refuses a folder under Review changes (add an agent's files there one at a time).
+
+Sharing keeps the rows of one rebuild in one transaction, not a commit for each row, so adding a file costs the same on a big Space as on a small one.

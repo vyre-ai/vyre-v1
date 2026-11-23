@@ -127,6 +127,8 @@ export interface ActorRec {
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** One transaction for the writes of `fn`, where the database has one. */
+  batch?<T>(fn: () => T): T;
 }
 export interface AccessCtx {
   preview?: { issue(person: string): { previewToken: string; expiresAt: number } };

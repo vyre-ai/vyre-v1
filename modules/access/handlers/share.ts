@@ -673,20 +673,25 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
   }
   ss.until = until;
   try {
-    for (const g of gone) ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
-    for (const r of touched) {
-      ctx.db.run(
-        "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-        accessId(r.person, r.type, r.id),
-        r.person,
-        r.type,
-        r.id,
-        r.level,
-        r.via,
-        1,
-        ctx.now(),
-      );
-    }
+    // the rows of one rebuild are one transaction: each statement was a commit of its own, and a change to a hundred files (an export of a connector) paid for a few hundred commits, each dearer on a bigger database
+    const write = (): void => {
+      for (const g of gone) ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
+      for (const r of touched) {
+        ctx.db.run(
+          "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+          accessId(r.person, r.type, r.id),
+          r.person,
+          r.type,
+          r.id,
+          r.level,
+          r.via,
+          1,
+          ctx.now(),
+        );
+      }
+    };
+    if (ctx.db.batch) ctx.db.batch(write);
+    else write();
   } catch (e) {
     ss.fresh = -1;
     const raw = rawDbOf(ctx.db);
