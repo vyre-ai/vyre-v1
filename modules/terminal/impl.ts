@@ -751,6 +751,7 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
       }
       // A run of this host that was stopped is still finishing (its script notices the stop within a moment, then its answer is made): the next command is typed only after it, so the stopped command's
       // answer is recorded before the next one starts and the two can never swap. Bounded, so a run that does not end cannot hold the next one.
+      // This orders a run behind the stopped one; it is not a queue: two runs waiting at once both type when the earlier one clears.
       const inFlight = now();
       while (running.has(session) && now() - inFlight < 3000) await sleep(Math.max(10, Math.min(pollMs, 50)));
       const leftMs = Math.max(1000, r.timeoutMs - (now() - t0));
