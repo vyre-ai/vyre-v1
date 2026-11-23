@@ -168,6 +168,7 @@ const miss = (why) => ({
  *   vaultFill: (call: Call, handle: string) => Promise<string | null>,
  *   rights?: ReturnType<typeof import("./rights.js").createRights>,
  *   emit: (event: Record<string, any>) => void,
+ *   restored?: Promise<void>,
  *   now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number,
  * }} kit
  * @typedef {{ id?: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string }} Call
@@ -1250,6 +1251,7 @@ export function createTools(kit) {
    * @param {Call} call @param {boolean} [nested] a step of chrome_batch: already authorized
    */
   async function run(call, nested = false) {
+    await kit.restored;
     const input = checkInput(call.tool, call.input);
     if (!nested && call.tool !== "chrome_status") {
       await kit.authorize(call);

@@ -42,6 +42,9 @@ function randomId(prefix) {
   return `${prefix}_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** How strong a pause is: the agent's own stop gives way to a person's Stop or Esc, and those give way to a take-over, never the other way. */
+const PAUSE_RANK = Object.freeze({ tool: 1, person: 2, esc: 2, takeover: 3 });
+
 /**
  * @typedef {{ id: string, name: string }} AgentRef
  * @typedef {{ agent: AgentRef, space: string, since: number, timer: any, goal: string }} Driver
@@ -54,11 +57,9 @@ function randomId(prefix) {
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, idleMs?: number,
  *   grouping?: () => boolean,
+ *   keep?: ReturnType<typeof import("./pausekeep.js").createPauseKeep>,
  * }} deps
  */
-/** How strong a pause is: the agent's own stop gives way to a person's Stop or Esc, and those give way to a take-over, never the other way. */
-const PAUSE_RANK = Object.freeze({ tool: 1, person: 2, esc: 2, takeover: 3 });
-
 export function createSessions({
   ext,
   cdp,
@@ -69,6 +70,7 @@ export function createSessions({
   clearTimer = (t) => clearTimeout(t),
   idleMs = IDLE_MS,
   grouping = () => true,
+  keep,
 }) {
   /** @type {Map<number, Driver>} */
   const drivers = new Map();
@@ -82,7 +84,7 @@ export function createSessions({
   const current = new Map();
   /** @type {Map<string, Held>} */
   const held = new Map();
-  /** @type {Map<string, { by: "person" | "esc" | "tool", at: number }>} agents the person (or the agent itself) stopped, until chrome_resume */
+  /** @type {Map<string, { by: "person" | "esc" | "tool" | "takeover", at: number }>} agents the person (or the agent itself) stopped or whose tab the person took over, until chrome_resume */
   const paused = new Map();
   /** @type {Map<number, Map<string, import("./selector.js").Selector>>} refs the agent last read, by tab */
   const refs = new Map();
@@ -221,6 +223,15 @@ export function createSessions({
         if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` });
       });
     }
+  }
+
+  /** Write the pauses and the bars that show them where the next worker finds them (pausekeep.js). */
+  function persist() {
+    if (!keep) return Promise.resolve();
+    return keep.save({
+      pauses: [...paused].map(([agent, p]) => ({ agent, by: p.by, at: p.at })),
+      bars: [...shown].map(([tab, a]) => ({ tab, id: a.id, name: a.name })),
+    });
   }
 
   /** @param {number} tabId */
@@ -499,12 +510,35 @@ export function createSessions({
           await draw(tabId, d.agent, by === "person" ? "stopped" : "takeover");
         } else await release(tabId, "stopped by the agent");
       }
+      await persist();
       emit({
         event: by === "esc" ? "paused" : by === "takeover" ? "takeover" : "stopped",
         agent: agentId,
         by,
         ...(reason ? { reason: String(reason).slice(0, 200) } : {}),
       });
+    },
+    /**
+     * The worker started again: take back the pauses and the bars it had. A Stop or take-over whose bar is gone (its tab closed meanwhile) has nobody left to give it back and is dropped; an Esc keeps its frame and
+     * waits for the person's word like any other. Runs before any call of an agent is answered.
+     */
+    async restore() {
+      const k = keep ? await keep.load() : null;
+      if (!k) return;
+      for (const b of k.bars) {
+        const alive = await Promise.resolve(ext.tabs?.get ? ext.tabs.get(b.tab) : null).then(
+          (t) => Boolean(t),
+          () => false,
+        );
+        if (alive && !shown.has(b.tab)) shown.set(b.tab, { id: b.id, name: b.name });
+      }
+      for (const p of k.pauses) {
+        if (paused.has(p.agent)) continue;
+        const barred = [...shown.values()].some((a) => a.id === p.agent);
+        if ((p.by === "person" || p.by === "takeover") && !barred) continue;
+        paused.set(p.agent, { by: p.by, at: p.at });
+      }
+      await persist();
     },
     /**
      * May the agent's own chrome_resume lift the pause it is under? A pause the agent made itself, yes. A person's take-over, never (only the bar's Give back ends it). A person's Stop or Esc, only when the person wrote
@@ -528,6 +562,7 @@ export function createSessions({
         for (const tabId of owned.get(agentId) ?? []) if (!drivers.has(tabId)) await undraw(tabId);
         emit({ event: "resumed", agent: agentId });
       }
+      await persist();
       return was;
     },
 

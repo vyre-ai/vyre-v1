@@ -12,6 +12,7 @@
 // Chrome to an agent) to its permissions. Until then this file is inert: it starts only when chrome.debugger exists.
 
 import { createStore } from "../worker/store.js";
+import { createPauseKeep } from "./pausekeep.js";
 import { parseIncoming } from "../worker/protocol.js";
 import { createCdp } from "./cdp.js";
 import { createTraffic } from "./net.js";
@@ -84,10 +85,22 @@ export function createAgentControl(ext, o = {}) {
     emit,
     now,
     grouping: () => mode === "personal",
+    keep: createPauseKeep(ext.storage.session),
     ...(o.setTimer ? { setTimer: o.setTimer } : {}),
     ...(o.clearTimer ? { clearTimer: o.clearTimer } : {}),
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
   });
+
+  // the worker may have been stopped and started again since the person's Stop or take-over: their pause is read back before any call of an agent is answered
+  let restoredDone = false;
+  const restored = sessions.restore().then(
+    () => {
+      restoredDone = true;
+    },
+    () => {
+      restoredDone = true;
+    },
+  );
 
   cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
 
@@ -141,6 +154,7 @@ export function createAgentControl(ext, o = {}) {
     cdp,
     traffic,
     sessions,
+    restored,
     authorize,
     vaultFill,
     emit,
@@ -154,6 +168,7 @@ export function createAgentControl(ext, o = {}) {
 
   /** One message from the app on the agent channel. @param {unknown} raw */
   async function onIncoming(raw) {
+    await restored;
     const fill = parseIncoming(raw);
     if (fill && "type" in fill && fill.type === "fill") {
       fills.get(fill.ref)?.(fill.value);
@@ -207,7 +222,8 @@ export function createAgentControl(ext, o = {}) {
   ext.runtime.onConnect.addListener((/** @type {any} */ port) => {
     if (port.name !== OVERLAY_PORT || !port.sender || port.sender.id !== ext.runtime.id || !port.sender.tab) return;
     const tabId = port.sender.tab.id;
-    port.onMessage.addListener((/** @type {any} */ m) => {
+    /** @param {any} m */
+    const onBar = (m) => {
       const agent = sessions.driverOf(tabId);
       const shownAgent = sessions.shownAgent(tabId);
       // a press on the bar's buttons that is the agent's own click (it clicked at the bar's place) is not the person's: the bar never obeys the agent it is there to watch
@@ -239,6 +255,11 @@ export function createAgentControl(ext, o = {}) {
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
       else if (m.type === "touch") void sessions.touched(tabId, m);
+    };
+    // a press that comes while the pauses are still being read back waits for them; afterwards it is handled at once
+    port.onMessage.addListener((/** @type {any} */ m) => {
+      if (restoredDone) onBar(m);
+      else void restored.then(() => onBar(m));
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.

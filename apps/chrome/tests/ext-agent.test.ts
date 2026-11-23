@@ -411,6 +411,15 @@ function makeWorld(over = {}) {
   const ext = {
     runtime: { id: "ext", onConnect: { addListener: (f) => world.connectListeners.push(f) } },
     storage: {
+      session: over.session ?? {
+        data: {} as Record<string, any>,
+        async get(keys: string[]) {
+          return Object.fromEntries(keys.filter((k) => k in this.data).map((k) => [k, this.data[k]]));
+        },
+        async set(items: Record<string, any>) {
+          Object.assign(this.data, items);
+        },
+      },
       local: {
         async get() {
           return {};
@@ -495,6 +504,15 @@ function makeWorld(over = {}) {
     idleMs: 20_000,
   });
   world.control = control_;
+  // the extension's service worker stopped and started again: a fresh control over the same browser and the same per-session storage, with nothing in memory
+  world.restartWorker = async () => {
+    const again = createAgentControl(ext, { transport, activeSpace: async () => world.active, now, sleep, settleMs: 0, setTimer, clearTimer, idleMs: 20_000 });
+    await again.onIncoming({ type: "agent.optin", spaces: ["spc_a"], mode: "computer" });
+    return {
+      call: (tool, input = {}, who = world.agent, space = "spc_a") => again.run({ tool, input, agent: who, space }),
+      control: again,
+    };
+  };
   world.ext = ext;
   world.page = page;
   world.agent = { id: "agt_intake", name: "Intake" };
@@ -2037,6 +2055,39 @@ test("chrome_batch cannot carry chrome_resume or chrome_stop, and a plan runs no
   // while a person's Stop stands, a batch is refused whole, so no step of it can resume
   await w.fails("chrome_batch", { steps: [{ tool: "chrome_resume", args: { turnMessageAgeMs: 1 } }] }, "paused");
   assert.equal((await w.call("chrome_status")).paused, true, "still stopped");
+});
+
+test("a person's Stop or take-over survives the extension's worker restarting: the agent is still refused, and the bar's Give back still releases it", async () => {
+  for (const [how, code] of [["stop", "person_stopped"], ["takeover", "takeover_held"]] as const) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    overlayPort(w).send({ type: how });
+    await w.advance(0);
+    await w.advance(1000);
+    const r = await w.restartWorker();
+    await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused", `${how}: still paused after the restart`);
+    await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === code);
+    assert.equal((await r.call("chrome_status")).paused, true);
+    // the person's bar still finds its agent: Give back (or Resume after a Stop) releases it
+    const port = overlayPort(w); // the restarted control registered last, so the bar talks to it
+    port.send({ type: "giveback" });
+    await w.advance(0);
+    await w.advance(50);
+    assert.equal((await r.call("chrome_status")).paused, false, `${how}: released from the bar after the restart`);
+  }
+});
+
+test("a Stop whose tab closed while the worker slept is not kept: nobody could give it back", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  overlayPort(w).send({ type: "stop" });
+  await w.advance(0);
+  await w.advance(100);
+  w.ext.tabs.get = async () => {
+    throw new Error("No tab");
+  };
+  const r = await w.restartWorker();
+  assert.equal((await r.call("chrome_status")).paused, false);
 });
 
 test("a pause the agent made itself with chrome_stop it may lift itself", async () => {
