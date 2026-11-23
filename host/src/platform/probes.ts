@@ -140,6 +140,11 @@ export function diskSpace(p: Platform, dataDir: string): ProbeResult {
 
 export async function docker(p: Platform): Promise<ProbeResult> {
   const t0 = p.now();
+  // one request on Docker's socket where there is one: no process is started from the daemon
+  const viaSocket = p.dockerVersion ? await p.dockerVersion(4000) : null;
+  // a socket that says yes is the answer; one that does not (or none) is confirmed by the CLI, which knows which Docker this machine means
+  if (viaSocket !== null && "version" in viaSocket)
+    return result("healthy", `Docker ${viaSocket.version} answers.`, { latencyMs: p.now() - t0 });
   const r = await p.run("docker", ["info", "--format", "{{.ServerVersion}}"], { timeoutMs: 4000 });
   const latencyMs = p.now() - t0;
   if (r.code === 0) return result("healthy", `Docker ${r.stdout.trim()} answers.`, { latencyMs });

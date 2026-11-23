@@ -50,13 +50,9 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   process.once("SIGTERM", () => abort.abort());
   process.once("SIGINT", () => abort.abort());
   const docker = async (): Promise<boolean> => {
-    try {
-      const { execFileSync } = await import("node:child_process");
-      execFileSync("docker", ["info", "--format", "{{.ServerVersion}}"], { stdio: "ignore", timeout: 4000 });
-      return true;
-    } catch {
-      return false;
-    }
+    // Docker's socket first (no process is started while it answers); the CLI confirms only when it does not
+    const { dockerUp: up } = await import("../platform/index.ts");
+    return up(4000);
   };
   let dockerUp = await docker();
   const timer = setInterval(() => {

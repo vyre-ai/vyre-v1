@@ -10,7 +10,9 @@ import {
   handlers as table,
   indexApply,
   indexDropFolder,
+  noteTitleChange,
   notePrivate,
+  retitleRun,
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
@@ -159,12 +161,33 @@ export const consumers = {
       for (const t of targetsOf(e)) await indexApply(ctx, t);
     },
   },
+  /** A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). */
+  "search.titles": {
+    on: ["schema.changed"],
+    run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
+      const e = indexEventOf(event);
+      const types = Array.isArray(e.payload["types"])
+        ? (e.payload["types"] as unknown[]).filter((x): x is string => typeof x === "string")
+        : typeof e.payload["type"] === "string"
+          ? [e.payload["type"]]
+          : [];
+      if (types.length > 0) await noteTitleChange(ctx, types, e.seq);
+    },
+  },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */
   "search.vectors": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
       if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
     },
+  },
+};
+
+/** Documents whose type got a new title field are titled again, a page of a hundred every few seconds, so a rename never holds the loop or the other consumers. */
+export const periodic = {
+  "search.retitle": {
+    everyMs: 3_000,
+    run: async (ctx: SearchCtx): Promise<number> => retitleRun(ctx),
   },
 };
 
