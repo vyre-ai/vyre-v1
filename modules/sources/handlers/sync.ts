@@ -11,6 +11,7 @@ import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintRecordId } from "../../../lib/ids.ts";
+import { MAX_LINKS } from "../../../kernel/src/store/values.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { ensureTables, mintShort, same } from "../projections.ts";
@@ -231,8 +232,15 @@ function relinkFar(
   }
 }
 
-/** Writes what `relinkFar` noted: one read and one write for each record at the far end, however many links it gains or loses. A record that cannot take it is skipped and logged, the pass goes on. */
-async function writeFar(d: SyncDeps, owed: FarOwed, skip: (what: string, e: unknown) => void, turn: () => Promise<void>): Promise<void> {
+/** Writes what `relinkFar` noted: one read and one write for each record at the far end, however many links it gains or loses. A record that would hold more links than a record may (MAX_LINKS) is not changed at all, and
+ * is named: nothing is dropped without being said. Returns those records, with the count each would have held. */
+async function writeFar(
+  d: SyncDeps,
+  owed: FarOwed,
+  skip: (what: string, e: unknown) => void,
+  turn: () => Promise<void>,
+): Promise<{ type: string; id: string; inverse: string; links: number }[]> {
+  const over: { type: string; id: string; inverse: string; links: number }[] = [];
   for (const o of owed.values()) {
     await turn();
     try {
@@ -247,12 +255,17 @@ async function writeFar(d: SyncDeps, owed: FarOwed, skip: (what: string, e: unkn
           next.push({ urn });
           changed = true;
         }
+      if (next.length > MAX_LINKS) {
+        over.push({ type: o.type, id: o.id, inverse: o.inverse, links: next.length });
+        continue;
+      }
       if (changed) await d.local.update(o.type, rec.id, { [o.inverse]: next }, rec.version);
     } catch (e) {
       skip(`the ${o.inverse} of ${o.type} ${o.id}`, e);
     }
   }
   owed.clear();
+  return over;
 }
 
 const HISTORY_SQL =
@@ -724,7 +737,13 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
       skip(`record ${a.localId}`, e);
     }
   }
-  await writeFar(d, owed, skip, turn);
+  const over = await writeFar(d, owed, skip, turn);
+  for (const x of over) {
+    rep.skipped++;
+    log(d, b.syncTypeId, "error", `${x.inverse} of ${x.type} ${x.id} would hold ${x.links} links, more than the ${MAX_LINKS} a record may hold: its links were not changed`, runId, o.traceId);
+  }
+  if (over.length)
+    rep.summary += ` ${over.length} ${over.length === 1 ? "record" : "records"} at the other end of a link would hold more than ${MAX_LINKS} links and ${over.length === 1 ? "was" : "were"} not changed: ${over.slice(0, 3).map((x) => `${x.type} ${x.id} (${x.links})`).join(", ")}.`;
   for (const l of losses) keepLoser(d, b.type, l.localId, l.field, l.value, l.actor);
   for (const l of vanished) if (!rep.pausedDeletes) saveLink(d.tx, b.syncTypeId, { ...l, removedAt: now(d) });
 
