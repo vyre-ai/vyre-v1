@@ -16245,6 +16245,43 @@ export type FilesCreateOut = {
   };
   changesetId?: string;
 };
+export type FilesCreateManyIn = {
+  folderId: string;
+  files: Array<{
+      name: string;
+      content?: {
+        text?: string;
+        base64?: string;
+        blobId?: string;
+      };
+    }>;
+  idempotencyKey: string;
+};
+export type FilesCreateManyOut = {
+  files: Array<{
+      fileId: string;
+      folderId: string;
+      name: string;
+      kind: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
+      mime: string;
+      size: number;
+      version: number;
+      label: number;
+      ownerId: string;
+      createdAt: number;
+      updatedAt: number;
+      updatedBy: string;
+      source?: {
+        mountId: string;
+        provider: string;
+      };
+      deletedAt?: number;
+      thumb: boolean;
+      holds: number;
+      starred?: boolean;
+      conflict?: boolean;
+    }>;
+};
 export type FilesDeleteIn = {
   fileId: string;
 };
@@ -52401,6 +52438,7 @@ export interface CapMap {
   "files.comments.resolve": { in: FilesCommentsResolveIn; out: FilesCommentsResolveOut };
   "files.copy": { in: FilesCopyIn; out: FilesCopyOut };
   "files.create": { in: FilesCreateIn; out: FilesCreateOut };
+  "files.create_many": { in: FilesCreateManyIn; out: FilesCreateManyOut };
   "files.delete": { in: FilesDeleteIn; out: FilesDeleteOut };
   "files.diff": { in: FilesDiffIn; out: FilesDiffOut };
   "files.external_links": { in: FilesExternalLinksIn; out: FilesExternalLinksOut };
