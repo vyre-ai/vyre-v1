@@ -157,6 +157,31 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
   );
 }
 
+
+/** A relation's cards, a page at a time: the first RELATION_CARDS, then "and N more", which draws the next page where it is pressed. */
+function RelationCards({ field, ids }: { field: FieldDef; ids: readonly string[] }): ReactElement {
+  const [shown, setShown] = useState(RELATION_CARDS);
+  if (ids.length === 0) return <View style={p.cards}><Text style={p.empty}>None</Text></View>;
+  const more = ids.length - shown;
+  return (
+    <View style={p.cards}>
+      {ids.slice(0, shown).map((id) => (
+        <RelationCard key={id} field={field} id={id} />
+      ))}
+      {more > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${Math.min(RELATION_CARDS, more)} more of ${ids.length}`}
+          testID={`rel-more-${field.key}`}
+          onPress={() => setShown((n) => n + RELATION_CARDS)}
+        >
+          <Text style={p.empty}>{`and ${more} more`}</Text>
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
 // ---------------------------------------------------------------- one field
 
 function Tag({ field, value }: { field: FieldDef; value: string }): ReactElement {
@@ -279,17 +304,8 @@ function FieldRow(q: FieldProps): ReactElement {
   } else if (f.type === "sealed") {
     body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
-    const cards: ReactElement[] = [];
-    // a relation can hold thousands of links (a lead attorney's matters): the page draws the first cards and says how many more there are, so one field never mounts thousands of cards
-    const ids = relationIds(f, row);
-    for (const id of ids.slice(0, RELATION_CARDS)) cards.push(<RelationCard key={id} field={f} id={id} />);
-    if (ids.length > RELATION_CARDS)
-      cards.push(
-        <Text key="more" style={p.empty} testID={`rel-more-${f.key}`}>
-          {`and ${ids.length - RELATION_CARDS} more`}
-        </Text>,
-      );
-    body = <View style={p.cards}>{cards.length > 0 ? cards : <Text style={p.empty}>None</Text>}</View>;
+    // a relation can hold thousands of links (a lead attorney's matters): the page draws the first cards and says how many more there are; pressing it draws the next page
+    body = <RelationCards field={f} ids={relationIds(f, row)} />;
   } else if (f.key === "folder" && typeof v === "string" && v.startsWith("fld_") && open === false) {
     body = <FolderLink folderId={v} type={q.type} recordId={row.id} />;
   } else if (isEmpty(v) && kind !== "checkbox") {
