@@ -262,6 +262,9 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 }
 
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
+/** A read that the app could not answer this time (a dropped connection, a service that is down for a moment): the same read is tried again a few times before the pass is given up. A pass over a list the app cannot filter by change is hundreds of pages; one dropped page must not lose it. */
+const TRANSIENT_CODES = new Set(["provider.network", "provider.unavailable"]);
+const TRANSIENT_TRIES = 4;
 /** Waits in a row, with nothing answered between, before a pass gives up on an app that keeps saying slow down. */
 const SLOW_DOWNS = 8;
 const SLOW_DOWN_FIRST_MS = 30_000;
@@ -354,6 +357,7 @@ export function remoteStore(
   };
   let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
+    let transient = 0;
     for (let own = 0; ; own++) {
       try {
         // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
@@ -379,6 +383,13 @@ export function remoteStore(
         return out.output;
       } catch (e) {
         const { code, ms } = waitOf(e);
+        // only a read is repeated this way: a write that did not answer may have happened (it has its own retry through the outbox)
+        if (code !== undefined && TRANSIENT_CODES.has(code) && (action === nameList || action === nameAfter)) {
+          if (transient >= TRANSIENT_TRIES) throw e;
+          transient++;
+          await sleep(Math.min(8000, 1000 * 2 ** (transient - 1)));
+          continue;
+        }
         if (code === undefined || !RATE_CODES.has(code)) throw e;
         if (code === "provider.rate_limited") {
           // the app asked Vyre to slow down

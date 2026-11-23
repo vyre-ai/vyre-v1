@@ -91,6 +91,8 @@ interface Flash {
 
 /** Fields drawn in the first frame of a record page: none. The header, title and summary paint first; the ring, the sections and the right pane follow in the next frame. The perf traces (runs 40282475958) put 51 ms of a 110 ms navigate in the sections and the floor at 45 ms, so nothing else fits the 50 ms budget. */
 const FIRST_FRAME_FIELDS = 0;
+/** The relation cards one field draws; the rest are counted. */
+const RELATION_CARDS = 50;
 
 export function Peek({ type, recordId }: { type: string; recordId: string }): ReactElement | null {
   const data = usePageData();
@@ -152,6 +154,31 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
         </Text>
       </Pressable>
       {peek ? <Peek type={target} recordId={id} /> : null}
+    </View>
+  );
+}
+
+
+/** A relation's cards, a page at a time: the first RELATION_CARDS, then "and N more", which draws the next page where it is pressed. */
+function RelationCards({ field, ids }: { field: FieldDef; ids: readonly string[] }): ReactElement {
+  const [shown, setShown] = useState(RELATION_CARDS);
+  if (ids.length === 0) return <View style={p.cards}><Text style={p.empty}>None</Text></View>;
+  const more = ids.length - shown;
+  return (
+    <View style={p.cards}>
+      {ids.slice(0, shown).map((id) => (
+        <RelationCard key={id} field={field} id={id} />
+      ))}
+      {more > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Show ${Math.min(RELATION_CARDS, more)} more of ${ids.length}`}
+          testID={`rel-more-${field.key}`}
+          onPress={() => setShown((n) => n + RELATION_CARDS)}
+        >
+          <Text style={p.empty}>{`and ${more} more`}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -278,9 +305,8 @@ function FieldRow(q: FieldProps): ReactElement {
   } else if (f.type === "sealed") {
     body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
-    const cards: ReactElement[] = [];
-    for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
-    body = <View style={p.cards}>{cards.length > 0 ? cards : <Text style={p.empty}>None</Text>}</View>;
+    // a relation can hold thousands of links (a lead attorney's matters): the page draws the first cards and says how many more there are; pressing it draws the next page
+    body = <RelationCards field={f} ids={relationIds(f, row)} />;
   } else if (f.key === "folder" && typeof v === "string" && v.startsWith("fld_") && open === false) {
     body = <FolderLink folderId={v} type={q.type} recordId={row.id} />;
   } else if (isEmpty(v) && kind !== "checkbox") {
