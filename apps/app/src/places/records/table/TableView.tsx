@@ -1,6 +1,7 @@
 // Records > table (spec 3.4, 2.9): a type's records as a sheet. 100,000 rows open under 100 ms because the table never holds more than a window: it asks the local copy for 200 rows at
 // a time and draws only the rows and the columns that meet the screen, with the title column and the row numbers held at the left. The count in the foot is the cached count(*).
 // Filter, Sort, Group, Fields and Colour are quiet buttons in the header; each opens a menu with checkmarks and counts. Click a header to sort; Enter or Space opens the record.
+import { rememberRecordName } from "../recordpage/name-hint.ts";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
 import { createElement, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { MutableRefObject, ReactElement, ReactNode } from "react";
@@ -77,7 +78,8 @@ import type { FieldMode } from "../typeedit/index.ts";
 import { recordMenu } from "../menus/record.ts";
 import { NO_PICK, isPickedRow, pickCount, toggleHeader, togglePick } from "./model.ts";
 import type { Column, FieldDef, GroupItem, RowPick, RecordRow, TableViewState, TypeDef } from "./model.ts";
-import { TimePop } from "../../../../../../ui/src/Time/index.tsx";
+import { TimePop, useWhenText } from "../../../../../../ui/src/Time/index.tsx";
+import { WhySheet } from "../../automations/clear/WhySheet.tsx";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { copyLinkText, itemLink } from "../../../share/rows.ts";
 import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
@@ -966,6 +968,18 @@ function Grid({
   if (q.status === "ready" && (kept.current?.rows !== q.data.rows || kept.current.offset !== (v.group ? 0 : offset)))
     kept.current = { offset: v.group ? 0 : offset, rows: q.data.rows };
   const loaded = kept.current;
+  // opening a record from a row remembers the row's name for the page that opens, so its first frame already says it (no "Record" while the record loads)
+  const loadedRef = useRef(loaded);
+  loadedRef.current = loaded;
+  const titleField = def.titleField;
+  const openNamed = useCallback(
+    (id: string): void => {
+      const t = loadedRef.current?.rows.find((x) => x.id === id)?.fields[titleField];
+      if (typeof t === "string") rememberRecordName(id, t);
+      data.nav.openRecord(id);
+    },
+    [data, titleField],
+  );
   // the starred records, for the menu's Star / Remove Star and the S key; a runtime that cannot read stars leaves them all unstarred
   const stars = useLive("stars.list", { type: "record" });
   const starredIds = useMemo(
@@ -1151,7 +1165,7 @@ function Grid({
     makeRecord(data.call, def, name, `new-${type}-${Date.now()}`).then(
       (id) => {
         setAdding(null);
-        if (id) data.nav.openRecord(id);
+        if (id) openNamed(id);
       },
       (e: unknown) => {
         const x = e as { error?: { message?: string }; message?: string };
@@ -1176,6 +1190,9 @@ function Grid({
       );
   };
   const nPicked = pickCount(sel, count ?? 0);
+  // "Why didn't an Automation run?" for one record (rc.41): the sheet the row's menu opens
+  const [why, setWhy] = useState<string | null>(null);
+  const whenText = useWhenText();
   /** The bulk work in flight or just done: a confirm to answer, a progress line, then what was deleted with Undo. */
   const [work, setWork] = useState<
     | { kind: "confirm"; ids: readonly string[]; every: boolean; n: number }
@@ -1235,13 +1252,14 @@ function Grid({
       },
       {
         open: () => {
-          if (id) data.nav.openRecord(id);
+          if (id) openNamed(id);
         },
         ...(id ? { star: (on: boolean) => toggleStar(id, on) } : {}),
         ...(id && data.share && access.on && access.can.share
           ? { share: () => data.share?.open({ type: "record", id, name: titleOf(id), typeName: def.plural }) }
           : {}),
         ...(id ? { copyLink: () => copyText(linkTo(id)) } : {}),
+        ...(id && data.nav.openAutomation ? { whyNotRun: () => setWhy(id) } : {}),
         exportCsv: exportView,
         remove: () => setWork({ kind: "confirm", ids, every, n }),
       },
@@ -1303,7 +1321,7 @@ function Grid({
       move(-1);
     } else if ((ev.key === "Enter" || ev.key === " ") && selected) {
       ev.preventDefault?.();
-      data.nav.openRecord(selected);
+      openNamed(selected);
     } else if (!cmd && (ev.key === "s" || ev.key === "S") && selected) {
       ev.preventDefault?.();
       toggleStar(selected, !starredIds.has(selected));
@@ -1321,12 +1339,12 @@ function Grid({
       const now = Date.now();
       if (tapped.current.id === id && now - tapped.current.at < 450) {
         tapped.current = { id: "", at: 0 };
-        data.nav.openRecord(id);
+        openNamed(id);
       } else tapped.current = { id, at: now };
     },
-    [data],
+    [data, openNamed],
   );
-  const onOpen = data.nav.openRecord;
+  const onOpen = openNamed;
 
   const idleFaces = useRef<ReturnType<typeof setTimeout> | null>(null);
   const upgradeSoon = useCallback((): void => {
@@ -1845,6 +1863,20 @@ function Grid({
         </View>
       )}
       {menu.element}
+      {why && data.nav.openAutomation ? (
+        <WhySheet
+          type={type}
+          recordId={why}
+          call={data.call}
+          nameOf={data.nameOf}
+          whenText={(at) => whenText(at, Date.now())}
+          onOpenAutomation={(automationId) => {
+            setWhy(null);
+            data.nav.openAutomation?.(automationId);
+          }}
+          onClose={() => setWhy(null)}
+        />
+      ) : null}
       {panel ? (
         <FieldsPanel
           key={`${panel.field ?? ""}:${panel.mode ?? ""}`}

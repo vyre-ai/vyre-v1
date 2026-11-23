@@ -5,6 +5,8 @@ import type { SpaceDef } from "../spaces/model.ts";
 
 import { forgetDrafts } from "../../places/chats/conversation/drafts.ts";
 import { forgetNotesTab } from "../../places/chats/notes/notes-tab.ts";
+import { kept } from "./kept.ts";
+import { clearRecordNames } from "../../places/records/recordpage/name-hint.ts";
 const KEY = "vyre.session.v1";
 
 export interface StoredSession {
@@ -162,12 +164,22 @@ export function writeStored(s: StoredSession, store: KeyValueStore | undefined =
 
 export function clearStored(store: KeyValueStore | undefined = browserStore(), baseUrl?: string): void {
   forgetNotesTab(); // the next person to sign in starts on Notes, not on this person's tab
+  clearRecordNames(); // and sees none of the record names this person had open
   // a sign-out forgets what the person had half written on this browser (drafts are kept per person): the people of the sessions that end, or everyone when every session ends
   try {
     const held = sessions(store);
     forgetDrafts(store as never, baseUrl ? (held[baseUrl] ? [held[baseUrl]!.personId] : []) : undefined);
   } catch {
     /* blocked storage */
+  }
+  // and what this device kept of the Space's answers for that person (session/kept.ts): a sign-out, a session the server ended, a purge and a Space that changed all come through here
+  try {
+    const held = sessions(store);
+    const gone = baseUrl ? held[baseUrl] : undefined;
+    if (!baseUrl) kept().forget();
+    else if (gone) kept().forget({ baseUrl, personId: gone.personId, spaceId: gone.def.spaceId });
+  } catch {
+    /* nothing was kept */
   }
   try {
     if (!baseUrl) {

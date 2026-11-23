@@ -24,6 +24,7 @@ import {
   listVersions,
   markDeleted,
   me,
+  pipelineOfType,
   newId,
   out,
   page,
@@ -171,6 +172,9 @@ export async function list(ctx: JourneysCtx, input: In): Promise<unknown> {
     version: j.version,
     stages: j.stages.length,
     inFlight: countInFlight(ctx.db, j.id),
+    mode: j.mode ?? "subject",
+    ...(j.variables ? { variables: j.variables } : {}),
+    ...(j.migrateNote ? { migrateNote: j.migrateNote } : {}),
     updatedAt: j.updatedAt,
   }));
   return clean({ journeys, next: p.next, total: p.total });
@@ -186,6 +190,17 @@ export async function versions(ctx: JourneysCtx, input: In): Promise<unknown> {
 // ---- create and design ----
 
 /** The record type a Journey follows its subject with. The status field names the Journey's stages, which the schema requires (options.stages). */
+/** The field whose options are the stages: "stage" on the Journey's own type, the chosen field on a pipeline. */
+export const stageFieldOf = (j: Pick<Journey, "stageField">): string => j.stageField ?? "stage";
+/** The capabilities allowed to write a stage field: every move goes through the Journey, so its gates, tasks, Automations and time limits cannot be skipped. */
+export const STAGE_WRITERS = [
+  "journeys.move_stage",
+  "journeys.advance",
+  "journeys.migrate",
+  "journeys.start",
+  "journeys.to_pipeline",
+];
+
 function typeDef(key: string, name: string, subjectType: string, stages: readonly Stage[]): Record<string, unknown> {
   return {
     key,
@@ -204,13 +219,21 @@ function typeDef(key: string, name: string, subjectType: string, stages: readonl
         type: "status",
         title: "Stage",
         options: { stages: stages.map((s) => ({ key: s.key, title: s.title })) },
-        writeOnlyBy: ["journeys.move_stage", "journeys.advance", "journeys.migrate", "journeys.start"],
+        writeOnlyBy: STAGE_WRITERS,
       },
       { key: "subject", type: "relation", title: "Subject", required: true, options: { target: subjectType } },
       { key: "owner", type: "person", title: "Owner" },
       { key: "entered_at", type: "datetime", title: "In this stage since" },
     ],
   };
+}
+
+/** While journeys.to_pipeline is moving the records nothing moves them: a move now would be written to a record the migration has already copied. */
+export function refuseWhileMigrating(ctx: JourneysCtx, j: Journey): void {
+  if (j.mode === "migrating")
+    raise(ctx, "validation.precondition_failed", `${j.name} is being moved to its new form. Try again in a moment.`, {
+      reason: "migrating",
+    });
 }
 
 export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
@@ -227,6 +250,7 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
       reason: "bad_start_event",
       event: rule.event,
     });
+  if (input.mode === "pipeline") return createPipeline(ctx, input, name, stages);
   const now = ctx.now();
   const id = newId("jrn", now);
   let recordType = `journey_${slug(name)}`;
@@ -263,6 +287,143 @@ export async function create(ctx: JourneysCtx, input: In): Promise<unknown> {
   return { journey: out(j, 0) };
 }
 
+/** A Journey that is a pipeline on an existing record type: its records move through the stage field themselves. */
+async function createPipeline(ctx: JourneysCtx, input: In, name: string, stages: Stage[]): Promise<unknown> {
+  const type = typeof input.recordType === "string" ? input.recordType : "";
+  if (!type)
+    raise(ctx, "validation.precondition_failed", "Say which record type this Journey runs on.", {
+      reason: "type_required",
+    });
+  if (pipelineOfType(ctx.db, type))
+    raise(ctx, "validation.duplicate", "A Journey already runs this record type.", {
+      reason: "type_has_journey",
+      recordType: type,
+    });
+  const rule = input.startRule as StartRule | undefined;
+  if (rule && !compileStartRule({ id: "jrn_check", subjectType: type }, rule))
+    raise(ctx, "validation.precondition_failed", `Nothing triggers on ${rule.event}.`, {
+      reason: "bad_start_event",
+      event: rule.event,
+    });
+  const now = ctx.now();
+  const id = newId("jrn", now);
+  const j: Journey = clean({
+    id,
+    name,
+    subjectType: type,
+    recordType: type,
+    version: 1,
+    stages,
+    startRule: rule,
+    mode: "pipeline",
+    stageField: typeof input.stageField === "string" && input.stageField ? input.stageField : "stage",
+    variables: input.variables as Journey["variables"],
+    createdAt: now,
+    updatedAt: now,
+  }) as Journey;
+  await bindStageField(ctx, j, { useExisting: input.useExisting === true });
+  if (j.startRule) j.startAutomationId = await syncStartRule(ctx, j);
+  saveJourney(ctx.db, j);
+  saveVersion(ctx, j, "Created");
+  emitJ(ctx, "journey.created", `entity/${id}`, { journeyId: id, name, recordType: type, subjectType: type });
+  emitJ(ctx, "journey.designed", `entity/${id}`, {
+    journeyId: id,
+    version: 1,
+    stages: stages.map((s) => s.key),
+    by: me(ctx),
+  });
+  return { journey: out(j, 0) };
+}
+
+/** A short stable key for a value: the same content gives the same key, a different one gives another. */
+export function contentKey(v: unknown): string {
+  const text = JSON.stringify(v);
+  let h1 = 5381;
+  let h2 = 52711;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    h1 = ((h1 * 33) ^ c) >>> 0;
+    h2 = ((h2 * 31) ^ c) >>> 0;
+  }
+  return `${h1.toString(36)}${h2.toString(36)}${text.length.toString(36)}`;
+}
+
+interface FieldNow {
+  type?: string;
+  options?: { stages?: { key: string; title: string }[] };
+  writeOnlyBy?: string[];
+}
+/** The field as the type has it now, or null when it has none by that key. */
+async function fieldNow(ctx: JourneysCtx, type: string, field: string): Promise<FieldNow | null> {
+  const got = (await ctx.call!("schema.types.get", { type })) as {
+    type?: { fields?: (FieldNow & { key: string })[] };
+  } | null;
+  return got?.type?.fields?.find((f) => f.key === field) ?? null;
+}
+/** Stages already on a field first, in their order, then the ones the Journey adds: nothing a field already allows is ever taken away. */
+const unionStages = (
+  have: readonly { key: string; title: string }[],
+  add: readonly { key: string; title: string }[],
+) => [...have, ...add.filter((a) => !have.some((h) => h.key === a.key))];
+
+/**
+ * The stage field of the type, never replaced: made when the type has none; when it has one, that field has to be a status field, it keeps every option and value it has and gains the Journey's stages, and it becomes writable only
+ * through the Journey. Taking over a field people can edit is said and asked for (`useExisting`), because from then on a table edit of it is refused. A field that does not fit refuses before anything changes.
+ */
+export async function bindStageField(ctx: JourneysCtx, j: Journey, o: { useExisting?: boolean } = {}): Promise<void> {
+  if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
+  const stages = byOrder(j.stages).map((s) => ({ key: s.key, title: s.title }));
+  const field = stageFieldOf(j);
+  const cur = await fieldNow(ctx, j.recordType, field);
+  if (!cur) {
+    await ctx.call("schema.apply", {
+      ops: [
+        {
+          op: "field.add",
+          type: j.recordType,
+          field,
+          def: { type: "status", title: "Stage", options: { stages }, writeOnlyBy: STAGE_WRITERS },
+        },
+      ],
+      reason: `Journey ${j.name}`,
+      idempotencyKey: `jrn-field:${j.id}`,
+    });
+    return;
+  }
+  if (cur.type !== "status")
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `${j.recordType} already has a field called ${field}, and it is not a stage field (it is ${cur.type ?? "another kind"}). Choose another name for the Journey's stage field.`,
+      { reason: "stage_field_type", field },
+    );
+  const writers = cur.writeOnlyBy ?? [];
+  const ours = STAGE_WRITERS.every((w) => writers.includes(w));
+  if (!ours && o.useExisting !== true)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `${j.recordType} already has a field called ${field}. Using it for ${j.name} keeps all its stages and values, and from then on it changes only through the Journey: a table edit of it is refused. Confirm to use it, or choose another name.`,
+      { reason: "field_in_use", field },
+    );
+  const have = cur.options?.stages ?? [];
+  const merged = unionStages(have, stages);
+  if (merged.length === have.length && ours) return;
+  await ctx.call("schema.apply", {
+    ops: [
+      {
+        op: "field.update",
+        type: j.recordType,
+        field,
+        def: { options: { stages: merged }, writeOnlyBy: [...new Set([...writers, ...STAGE_WRITERS])] },
+      },
+    ],
+    reason: `Journey ${j.name}`,
+    // keyed on what it writes, so two different merges of the same size are two different changes
+    idempotencyKey: `jrn-field-up:${j.id}:${contentKey({ stages: merged, writers: [...new Set([...writers, ...STAGE_WRITERS])] })}`,
+  });
+}
+
 /**
  * The record type's stage field has to allow every stage a record can be in: this design's, and those of the older versions records stay on. Without this a stage added to the design could never be entered: the record refuses the value.
  * Written before the design is saved, so a refusal leaves the Journey as it was.
@@ -271,9 +432,14 @@ async function syncStageField(ctx: JourneysCtx, j: Journey): Promise<void> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
   const seen = new Map<string, string>(byOrder(j.stages).map((s) => [s.key, s.title])); // the design first and in its order: the board draws its lanes from this list
   for (const s of allVersionStages(ctx.db, j.id)) if (!seen.has(s.key)) seen.set(s.key, s.title);
-  const stages = [...seen].map(([key, title]) => ({ key, title }));
+  // what the field already allows stays: a later design only adds
+  const now = await fieldNow(ctx, j.recordType, stageFieldOf(j));
+  const stages = unionStages(
+    [...seen].map(([key, title]) => ({ key, title })),
+    now?.options?.stages ?? [],
+  );
   await ctx.call("schema.apply", {
-    ops: [{ op: "field.update", type: j.recordType, field: "stage", def: { options: { stages } } }],
+    ops: [{ op: "field.update", type: j.recordType, field: stageFieldOf(j), def: { options: { stages } } }],
     reason: `Journey ${j.name} version ${j.version}`,
     idempotencyKey: `jrn-stages:${j.id}:${j.version}`,
   });
@@ -287,6 +453,7 @@ async function redesign(
   startRule: StartRule | null | undefined,
   note: string | undefined,
 ): Promise<{ j: Journey; changed: boolean }> {
+  refuseWhileMigrating(ctx, j);
   checkStages(ctx, stages);
   const keep = new Set(stages.map((s) => s.key));
   const blocking = [
@@ -386,6 +553,7 @@ export async function rename(ctx: JourneysCtx, input: In): Promise<unknown> {
 
 export async function remove(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
+  refuseWhileMigrating(ctx, j);
   const n = countInFlight(ctx.db, j.id);
   if (n > 0)
     raise(
@@ -671,6 +839,8 @@ export async function moveTo(
   to: Stage,
   o: { manual: boolean; reason?: string; stages: readonly Stage[]; ungated?: boolean },
 ): Promise<Moved> {
+  // whatever calls it (a move, an advance, a time limit, a version migration): nothing is written to a record while the Journey is being moved onto its new form
+  refuseWhileMigrating(ctx, j);
   const from = rec.stage;
   if (!o.ungated)
     await requireFields(
@@ -689,7 +859,10 @@ export async function moveTo(
     await ctx.call("records.update", {
       type: j.recordType,
       recordId: rec.recordId,
-      patch: { stage: to.key, entered_at: new Date(now).toISOString() },
+      patch:
+        j.mode === "pipeline"
+          ? { [stageFieldOf(j)]: to.key }
+          : { stage: to.key, entered_at: new Date(now).toISOString() },
     });
   await closeStageTasks(ctx, rec);
   saveRecord(ctx.db, next);
@@ -725,6 +898,7 @@ export async function moveTo(
 
 export async function start(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
+  refuseWhileMigrating(ctx, j);
   const key = String(input.idempotencyKey);
   const again = findByKey(ctx.db, key);
   if (again) return { recordId: again.recordId, stage: again.startStage };
@@ -744,6 +918,7 @@ export async function start(ctx: JourneysCtx, input: In): Promise<unknown> {
   if (!ctx.call) raise(ctx, "internal.unavailable", "Records are not available right now.");
   const now = ctx.now();
   const owner = me(ctx);
+  if (j.mode === "pipeline") return startPipeline(ctx, j, key, first, String(input.subjectRecordId));
   const made = (await ctx.call("records.create", {
     type: j.recordType,
     fields: {
@@ -803,6 +978,51 @@ export async function start(ctx: JourneysCtx, input: In): Promise<unknown> {
   return { recordId, stage: first.key };
 }
 
+/** A record of the pipeline's own type enters the Journey: its stage field is set, no Journey record is made and no channel. */
+async function startPipeline(
+  ctx: JourneysCtx,
+  j: Journey,
+  key: string,
+  first: Stage,
+  recordId: string,
+): Promise<unknown> {
+  if (findRecord(ctx.db, recordId))
+    raise(ctx, "validation.duplicate", "That record is already in this Journey.", { reason: "already_enrolled" });
+  const now = ctx.now();
+  const owner = me(ctx);
+  // the record is written first: if that fails nothing has changed and nothing has been said
+  await ctx.call!("records.update", { type: j.recordType, recordId, patch: { [stageFieldOf(j)]: first.key } });
+  const rec: JRecord = {
+    recordId,
+    journeyId: j.id,
+    subjectRecordId: recordId,
+    version: j.version,
+    stage: first.key,
+    startStage: first.key,
+    enteredAt: now,
+    ownerId: owner,
+    startKey: key,
+    startedAt: now,
+  };
+  saveRecord(ctx.db, rec);
+  emitJ(ctx, "journey.started", `record/${recordId}`, {
+    journeyId: j.id,
+    recordId,
+    subjectRecordId: recordId,
+    stage: first.key,
+    version: j.version,
+  });
+  const evId = emitJ(ctx, "journey.stage_entered", `record/${recordId}`, {
+    journeyId: j.id,
+    recordId,
+    stage: first.key,
+    version: j.version,
+    manual: false,
+  });
+  await onEnter(ctx, j, rec, first, undefined, false, evId);
+  return { recordId, stage: first.key };
+}
+
 // ---- moving and advancing ----
 
 async function handoff(ctx: JourneysCtx, rec: JRecord, text: string): Promise<void> {
@@ -820,7 +1040,18 @@ async function handoff(ctx: JourneysCtx, rec: JRecord, text: string): Promise<vo
 
 export async function moveStage(ctx: JourneysCtx, input: In): Promise<unknown> {
   const j = getJourney(ctx, input.journeyId);
+  refuseWhileMigrating(ctx, j);
   const rec = getRecord(ctx, j.id, input.recordId);
+  // a move made on a card that changed under the mover is refused, and nothing is written (the board sends the record's version it was looking at)
+  if (typeof input.expectedVersion === "number" && ctx.call) {
+    const now = (await ctx.call("records.get", { type: j.recordType, recordId: input.recordId }).catch(() => null)) as {
+      record?: { version?: number };
+    } | null;
+    if (typeof now?.record?.version === "number" && now.record.version !== input.expectedVersion)
+      raise(ctx, "validation.version_conflict", "It changed first. Look at the card and try again.", {
+        reason: "stale",
+      });
+  }
   const reason = String(input.reason).trim();
   if (!reason)
     raise(ctx, "validation.precondition_failed", "Say why the record is moving.", { reason: "reason_required" });
@@ -870,7 +1101,7 @@ async function tasksDone(ctx: JourneysCtx, rec: JRecord): Promise<boolean> {
 export async function advance(ctx: JourneysCtx, input: In): Promise<unknown> {
   const rec = findRecordOrFail(ctx, input.recordId);
   const j = getJourney(ctx, rec.journeyId);
-  if (rec.completedAt !== undefined) return { advanced: false, stage: rec.stage };
+  if (rec.completedAt !== undefined || j.mode === "migrating") return { advanced: false, stage: rec.stage };
   const stages = byOrder(stagesOf(ctx.db, j, rec.version) ?? j.stages);
   const here = stages.find((s) => s.key === rec.stage);
   if (!here || here.final || here.exit.manualOnly) return { advanced: false, stage: rec.stage };

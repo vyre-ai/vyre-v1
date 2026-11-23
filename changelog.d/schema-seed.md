@@ -1,0 +1,1 @@
+- The generator writes generated/schema-seed.json (the 40 KB the schema module seeds a Space from) so a start no longer parses the 4 MB registry for it, and the hook runner works out each module's emitted events once.

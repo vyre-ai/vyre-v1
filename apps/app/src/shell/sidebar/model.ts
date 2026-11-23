@@ -26,6 +26,21 @@ export function writeCollapsed(collapsed: boolean): string {
   return JSON.stringify({ v: 1, collapsed });
 }
 
+/**
+ * The places that put a list in the sidebar column (each draws one with SidebarContent). The shell gives the column its room from the first frame for these, so the page does not start full
+ * width and then move aside when the place arrives (r41: the first screen moved 280 px, a layout shift of 0.17).
+ */
+export const PLACES_WITH_LIST: ReadonlySet<string> = new Set([
+  "chats",
+  "inbox",
+  "records",
+  "files",
+  "automations",
+  "vault",
+  "settings",
+  "console",
+]);
+
 /** What the phone shows for a place with a sidebar: its list first, then one item's body with Back (spec 3.0, the prototype's phone). */
 export type PhoneView = "list" | "body";
 

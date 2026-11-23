@@ -23,6 +23,7 @@ export interface ConnectCardData {
   keptIn?: string;
   tested?: string;
   checks?: boolean;
+  untested?: boolean;
   notice?: string;
   checksWith?: string;
   connectedBy?: string;

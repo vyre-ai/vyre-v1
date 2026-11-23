@@ -21,7 +21,8 @@ test(
   { timeout: 120_000 },
   async () => {
     const s = await bootSpace();
-    const mac = await bootDevice({ slowMs: 2500 });
+    const SLOW_MS = 6000; // the slow turn's own time on her computer: long enough that a pass which does not wait returns well inside it, even on a loaded runner
+    const mac = await bootDevice({ slowMs: SLOW_MS });
     try {
       const agentId = await makeAgent(s.d, "Learner");
       await mac.link(s);
@@ -43,6 +44,8 @@ test(
         "ran-on=device handover=no",
         hostLog(s.d),
       );
+      // the bounds below are the ones this walk always had (the slow turn's own time plus 4 s; the next turn inside 4 s): the pass must not slow the turn
+      const SLACK_MS = 4000;
       await waitFor(
         async () => (mac.spawns.length >= 2 ? true : null),
         15_000,
@@ -53,6 +56,11 @@ test(
       // 2. a slow turn is mid-flight on her computer: a pass started now does not wait for it, and the turn is not slowed by it
       const base = Date.now();
       const turnAt = await send(s, threadId, agentId, "I prefer plain text.\nslowwhere", "ml-t2");
+      let turnDoneAt: number | undefined;
+      const turnReply = replyAfter(s, threadId, turnAt).then((r) => {
+        turnDoneAt = Date.now();
+        return r;
+      });
       await new Promise<void>((r) => setTimeout(r, 300));
       const t0 = Date.now();
       const pass = learn("ml-l2");
@@ -62,13 +70,18 @@ test(
         "model",
         `a pass started while the slow turn was running ran its model request on her computer: ${JSON.stringify(passed.data)}`,
       );
-      assert.ok(Date.now() - t0 < 2000, `and it did not wait for the turn (${Date.now() - t0} ms of the turn's 2500)`);
-      const reply = await replyAfter(s, threadId, turnAt);
+      // it did not wait for the turn: the pass came back while the slow turn was still running (an order, not a clock: a loaded runner slows both)
+      assert.equal(
+        turnDoneAt,
+        undefined,
+        `the pass returned only after the slow turn had finished (the pass took ${Date.now() - t0} ms, the turn's own time is ${SLOW_MS} ms)`,
+      );
+      const reply = await turnReply;
       const turnMs = Date.now() - base;
       assert.match(reply, /ran-on=device handover=no$/);
       assert.ok(
-        turnMs < 2500 + 4000,
-        `the slow turn (2.5 s of its own) finished in ${turnMs} ms with a pass running beside it`,
+        turnMs < SLOW_MS + SLACK_MS,
+        `the slow turn (${SLOW_MS} ms of its own) finished in ${turnMs} ms with a pass running beside it (allowed ${SLOW_MS + SLACK_MS})`,
       );
       assert.ok(Date.now() - t0 < 25_000);
       // her next turn, right after: as fast as a turn is
@@ -77,7 +90,7 @@ test(
         await replyAfter(s, threadId, await send(s, threadId, agentId, "whereami", "ml-t3")),
         "ran-on=device handover=no",
       );
-      assert.ok(Date.now() - t1 < 4000, `the next turn took ${Date.now() - t1} ms`);
+      assert.ok(Date.now() - t1 < SLACK_MS, `the next turn took ${Date.now() - t1} ms`);
 
       // 3. her computer stops (the Space still lists it for a moment): the pass is skipped and nothing runs on the server
       const spaceSpawns = await hostSpawns(s);

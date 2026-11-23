@@ -42,6 +42,12 @@ type Out = {
       version: number;
       stages: number;
       inFlight: number;
+      mode?: "subject" | "migrating" | "pipeline";
+      variables?: Array<{
+          key: string;
+          title: string;
+        }>;
+      migrateNote?: string;
       updatedAt: number;
     }>;
   next?: string;
@@ -70,11 +76,19 @@ type Out = {
       {
         "id": "jrn_a1b2c3",
         "inFlight": 1,
+        "migrateNote": "example",
+        "mode": "subject",
         "name": "example",
         "recordType": "contact",
         "stages": 1,
         "subjectType": "contact",
         "updatedAt": 1760000000000,
+        "variables": [
+          {
+            "key": "example",
+            "title": "example"
+          }
+        ],
         "version": 1
       }
     ],

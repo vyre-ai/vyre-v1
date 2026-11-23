@@ -36,6 +36,8 @@ import {
   recordFor,
   fillString,
   fillOptional,
+  untestedConnector,
+  untestedLine,
   withoutSecretValues,
   maskSealed,
   SYNC_PASS_TOKEN,
@@ -73,6 +75,8 @@ export interface ConnectorRow {
   /** The canonical editable source folder in Shared knowledge, when this connector has one. */
   sourceFolderId?: string;
   objects?: Record<string, ObjectActions>;
+  /** Published, but no call to the app has ever come back with a success: it was checked against the docs only. */
+  untested?: boolean;
 }
 export interface TestResult {
   passed: number;
@@ -98,6 +102,8 @@ export interface DefineInput {
   secrets?: { name: string; description: string }[];
   /** The action that stands in for a health check: a declared read (GET). */
   health?: string;
+  /** How fast the app lets this connector call it: requests a second, and a burst. */
+  rate?: { rps: number; burst: number };
   actions: {
     name: string;
     method?: string;
@@ -159,7 +165,7 @@ export interface RuntimeHandlers {
   "connectors.publish"(
     ctx: ConnectorsCtx,
     input: { key: string; draftId?: string; note?: string },
-  ): Promise<{ published: boolean; version?: string; result: TestResult }>;
+  ): Promise<{ published: boolean; version?: string; result: TestResult; untested?: boolean; message?: string }>;
   "connectors.versions"(
     ctx: ConnectorsCtx,
     input: { key: string },
@@ -227,6 +233,38 @@ async function markReconnect(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connec
   );
 }
 
+/** Is this person a current member of the Space? "no" only when the directory says they are not (gone, removed, suspended, not invited yet); "unknown" when the lookup cannot be made. */
+async function memberState(ctx: ConnectorsCtx, id: string): Promise<"yes" | "no" | "unknown"> {
+  try {
+    const got = (await ctx.call("access.principals.get", { principal: { kind: "person", id } })) as {
+      principal?: { status?: string };
+    } | null;
+    const status = got?.principal?.status;
+    return status === undefined ? "unknown" : status === "active" ? "yes" : "no";
+  } catch (e) {
+    return (e as { error?: { code?: string } } | null)?.error?.code === "validation.not_found" ? "no" : "unknown";
+  }
+}
+
+/**
+ * Who is told when nobody in the chain can be: the Space's admins; but in a Personal Space, or a Space where no one holds the admin role, that is nobody, so it is the Space's owner. When the Space cannot be read the admins
+ * are asked, as before.
+ */
+async function lastResort(ctx: ConnectorsCtx): Promise<{ kind: "person" | "role"; id: string }> {
+  const admins = { kind: "role" as const, id: "admin" };
+  try {
+    const space = ((await ctx.call("spaces.get", {})) as { space?: { kind?: string; owner?: string } } | null)?.space;
+    const owner = typeof space?.owner === "string" && space.owner !== "" ? space.owner : undefined;
+    if (!owner) return admins;
+    if (space?.kind === "personal") return { kind: "person", id: owner };
+    const roles = (await ctx.call("access.roles.list", {})) as { roles?: { id?: string; holders?: number }[] } | null;
+    const admin = roles?.roles?.find((x) => x.id === "admin");
+    return admin && admin.holders === 0 ? { kind: "person", id: owner } : admins;
+  } catch {
+    return admins;
+  }
+}
+
 /**
  * One item on Home for whoever connected the app, not one per failed call: "Your <app> key stopped working". The person who connected a sync spec is its owner; a person's own connection is theirs.
  * It closes by itself when a probe of the connection answers well again (clearReconnectTask). Nothing is lost meanwhile: the outbox keeps every edit and syncing resumes.
@@ -236,23 +274,52 @@ async function needsYouTask(deps: ConnectorsDeps, ctx: ConnectorsCtx, c: Connect
     "SELECT applied_by FROM cn_sync_specs WHERE connection_id = ?",
     c.connection_id,
   )?.applied_by;
-  const who = c.owner_kind === "person" ? c.owner_id : by && by !== "system" ? by : undefined;
+  // whoever owns it, else whoever applied its sync spec, else whoever made it; when none of them can be told (nobody is recorded, or they are gone), the Space's admins are: it is never left to fail without a word
+  const created = deps.tx.get<{ created_by: string }>(
+    "SELECT created_by FROM cn_connection_creators WHERE connection_id = ?",
+    c.connection_id,
+  )?.created_by;
+  // the first of them who is a current member of the Space; one who left, was removed or is suspended is skipped (a task made for them would reach nobody)
+  const candidates = [
+    c.owner_kind === "person" ? c.owner_id : undefined,
+    by && by !== "system" ? by : undefined,
+    created && created !== "system" ? created : undefined,
+  ].filter((x): x is string => typeof x === "string" && x !== "");
+  let who: string | undefined;
+  for (const id of candidates) {
+    // fails closed: someone the directory does not vouch for (gone, or the lookup could not be made) is skipped to the next in the chain
+    if ((await memberState(ctx, id)) !== "yes") continue;
+    who = id;
+    break;
+  }
   const title =
     deps.tx.get<{ title: string }>("SELECT title FROM cn_connectors WHERE key = ?", c.connector)?.title ?? c.title;
-  if (!who) return;
-  try {
-    const made = (await ctx.call("tasks.create", {
+  const make = (assigned: { kind: "person" | "role"; id: string }) =>
+    ctx.call("tasks.create", {
       kind: "unblock",
       title: `Your ${title} key stopped working`,
       summary: `${title} refused the key, so nothing syncs from it. Replace the key in the Vault; syncing resumes by itself and nothing was lost.`,
       why: "The app refused the key or sign-in.",
-      assigned: { kind: "person", id: who },
+      assigned,
       source: { kind: "manual", id: c.connection_id },
       blocks: [{ type: "connection_fix", v: 1, data: { connectionId: c.connection_id, title } }],
       // no bare resolve: the task closes when the connection works again (Reconnect, or a replaced key and Check again), never by pressing Done
       actions: [{ key: "cannot", label: "Dismiss", note: "optional" }],
-      idempotencyKey: `needs_reconnect:${c.connection_id}:${nowOf(deps)}`,
-    })) as { task?: { id?: string } } | undefined;
+      idempotencyKey: `needs_reconnect:${c.connection_id}:${assigned.kind}:${nowOf(deps)}`,
+    }) as Promise<{ task?: { id?: string } } | undefined>;
+  try {
+    let made: { task?: { id?: string } } | undefined;
+    // told only when a task exists: the tasks module answers a replayed key with the same task, so an answer without one made none
+    let told = false;
+    if (who) {
+      try {
+        made = await make({ kind: "person", id: who });
+        told = typeof made?.task?.id === "string";
+      } catch {
+        told = false; // the person cannot be given a task
+      }
+    }
+    if (!told) made = await make(await lastResort(ctx));
     const taskId = made?.task?.id;
     if (taskId)
       deps.tx.run(
@@ -712,6 +779,9 @@ export async function executeAction(
       error === null ? null : scrub.text(error).slice(0, 300),
       actor,
     );
+    // the first answer that is not a failure is the day this connector stopped being untested
+    if (status !== null && status >= 200 && status < 400)
+      deps.tx.run("INSERT OR IGNORE INTO cn_tested (key, at) VALUES (?, ?)", def.key, started);
   };
   let res: { status: number; text(): Promise<string>; link?: string; retryAfter?: string };
   try {
@@ -1064,6 +1134,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       sources: def.sources ?? [],
       ...(sourceOf(r.key) ? { sourceFolderId: sourceOf(r.key)! } : {}),
       ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
+      ...(untestedConnector(tx, r.key, r.builtin === 1, r.state) ? { untested: true } : {}),
     };
   };
   const sourceOf = (key: string): string | undefined =>
@@ -1239,6 +1310,35 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           "validation.precondition_failed",
           `${c.key} is edited in its Files folder. Change the files there.`,
         );
+      // a key the contract does not name is refused, never stored: a misspelt body or a field from another tool would otherwise be kept and never used
+      const strangers = (where: string, o: unknown, ok: readonly string[]): void => {
+        const extra = Object.keys((o ?? {}) as Record<string, unknown>).filter((k) => !ok.includes(k));
+        if (extra.length > 0)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            `${where} has no ${extra.map((k) => `"${k}"`).join(", ")}. It takes: ${ok.join(", ")}.`,
+          );
+      };
+      strangers("define", input, [
+        ...["key", "title", "domains", "auth", "secrets", "health", "rate", "actions", "idempotencyKey"],
+      ]);
+      strangers("auth", input.auth, ["type", "secret", "header", "prefix", "user", "password", "template"]);
+      for (const a of input.actions)
+        strangers(`action ${a.name}`, a, [
+          ...["name", "method", "url", "headers", "query", "body", "form", "basic", "paginate", "output", "write"],
+        ]);
+      if (
+        input.rate !== undefined &&
+        !(
+          input.rate.rps >= 0.01 &&
+          input.rate.rps <= 100 &&
+          Number.isInteger(input.rate.burst) &&
+          input.rate.burst >= 1 &&
+          input.rate.burst <= 1000
+        )
+      )
+        refuse(ctx, "validation.bad_input", "rate is requests a second (0.01 to 100) and a burst (1 to 1000).");
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
       const kind = input.auth.type;
@@ -1298,6 +1398,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: authDoc,
         secrets,
         ...(input.health !== undefined ? { health: input.health } : {}),
+        ...(input.rate !== undefined ? { rate: input.rate } : {}),
       };
       const PAGE_KINDS = ["page", "cursor", "offset", "link"];
       const docs = input.actions.map((a) => {
@@ -1536,7 +1637,13 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       );
       tx.run("DELETE FROM cn_drafts WHERE draft_id = ?", row.draft_id);
       ctx.emit("connector.published", `connector/${c.key}`, { key: c.key, version, tests: result.passed });
-      return { published: true, version, result };
+      const untested = untestedConnector(tx, c.key, false, "live");
+      return {
+        published: true,
+        version,
+        result,
+        ...(untested ? { untested: true, message: untestedLine } : {}),
+      };
     },
 
     "connectors.versions": async (ctx, input) => {

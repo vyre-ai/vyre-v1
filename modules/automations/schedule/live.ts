@@ -9,7 +9,7 @@ import {
 import type { ScheduleHostCall } from "../../../host/src/seams/automation-schedule.ts";
 import { regrant } from "../grants.ts";
 import { fire } from "../handlers/triggers.ts";
-import { allAutomations, emitAuto, saveVersion, touch } from "../projections.ts";
+import { allAutomations, carryChecked, emitAuto, saveVersion, touch } from "../projections.ts";
 import type { AutoCtx, Automation } from "../projections.ts";
 import { applyScheduleChoice, planSchedule, scheduleRequestKey } from "./schedule.ts";
 import type {
@@ -336,6 +336,7 @@ export async function chooseScheduleRecovery(
     automation.version += 1;
     touch(ctx, automation);
     saveVersion(ctx, automation, "Schedule limits changed");
+    carryChecked(ctx.db, automation.id, automation.version - 1, automation.id, automation.version);
     await regrant(ctx, automation, "save", automation.definition);
     emitAuto(ctx, "automation.updated", automation.id, { version: automation.version, fields: ["definition"] });
     savePaused(ctx.db, automation.id, true, "backfill_over_cap", ctx.now());

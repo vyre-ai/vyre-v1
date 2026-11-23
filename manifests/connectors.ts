@@ -52,6 +52,8 @@ const objectActions = t.obj({
   delete: t.opt(t.str()),
   since: t.opt(t.bool()),
   link: t.opt(t.json()),
+  eachOf: t.opt(t.json()),
+  rows: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({
@@ -70,6 +72,7 @@ const connectorRow = t.obj({
   sources: t.arr(t.str()),
   objects: t.opt(t.rec(objectActions)),
   sourceFolderId: t.opt(id.folder),
+  untested: t.opt(t.bool()),
 });
 
 const connectionRow = t.obj({
@@ -112,6 +115,8 @@ const serviceRow = t.obj({
   hosts: t.arr(t.str()),
   /** A call exists that tries a key (its health call, else its first read that needs no input) */
   checks: t.bool(),
+  /** Published, but no call to the app has ever succeeded: the card says so */
+  untested: t.opt(t.bool()),
 });
 
 const syncedTypeRow = t.obj({
@@ -182,7 +187,7 @@ const specField = t.obj({
   inverseTitle: t.opt(t.str()),
   readOnly: t.opt(t.bool()),
   key: t.opt(fieldKey),
-  onlyWhen: t.opt(t.obj({ path: ptr, equals: t.union(t.str(), t.arr(t.str(), { minItems: 1 })) })),
+  onlyWhen: t.opt(t.json()),
 });
 const specCursor = t.obj({
   kind: t.enm("none", "page", "cursor", "offset", "link"),
@@ -211,6 +216,7 @@ const specObject = t.obj({
     filter: t.opt(t.obj({ param: t.str(), value: t.str() })),
     checkEveryMinutes: t.opt(t.int({ minimum: 1, maximum: 10080 })),
     sweepEveryDays: t.opt(t.int({ minimum: 1, maximum: 30 })),
+    eachOf: t.opt(t.json()),
   }),
   get: t.opt(t.obj({ path: t.str() })),
   create: t.opt(specWrite),
@@ -219,6 +225,7 @@ const specObject = t.obj({
   id: specPointer,
   updatedAt: t.opt(ptr),
   itemsAt: specPointer,
+  rows: t.opt(t.json()),
   openUrl: t.opt(t.str({ description: "Address of a record in the app, {id} filled in; shown as Open in the app" })),
   fields: t.arr(specField),
   webhook: t.opt(
@@ -506,6 +513,7 @@ export default defineManifest({
           }),
           secrets: t.opt(t.arr(t.obj({ name: t.str(), description: t.str() }))),
           health: t.opt(t.str()),
+          rate: t.opt(t.obj({ rps: t.num({ minimum: 0.01 }), burst: t.int({ minimum: 1 }) })),
           actions: t.arr(
             t.obj({
               name: t.str(),
@@ -613,7 +621,13 @@ export default defineManifest({
       "Publish a draft after a fresh test run; a failing test keeps the last good version live",
       {
         in: { key: id.connector, draftId: t.opt(draftId), note: t.opt(t.str()) },
-        out: { published: t.bool(), version: t.opt(t.str()), result: testResult },
+        out: {
+          published: t.bool(),
+          version: t.opt(t.str()),
+          result: testResult,
+          untested: t.opt(t.bool()),
+          message: t.opt(t.str()),
+        },
         on: ["connector", "/key"],
         perm: "connectors.manage",
         idem: "key",

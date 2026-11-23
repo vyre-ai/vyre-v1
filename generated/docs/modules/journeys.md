@@ -4,8 +4,9 @@ Lane L6. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (16)
+## Capabilities (24)
 
+- [journeys.adopt](../capabilities/journeys.adopt.md): Bring a pipeline type's existing records into the Journey by their stage field, a page at a time
 - [journeys.advance](../capabilities/journeys.advance.md): Check the exit rule of the current stage and advance when its required tasks are done (called on task.completed)
 - [journeys.check_limits](../capabilities/journeys.check_limits.md): Find stages over their time limit, raise Needs you for the owner then the escalation role (called by the scheduler)
 - [journeys.create](../capabilities/journeys.create.md): Create a Journey and its record type (cloned from the Projects template) on a subject record type
@@ -14,14 +15,21 @@ Requires: nothing.
 - [journeys.get](../capabilities/journeys.get.md): Read a Journey design: stages, tasks, rules, time limits and the start rule
 - [journeys.list](../capabilities/journeys.list.md): List Journeys with their stages count and in-flight records
 - [journeys.migrate](../capabilities/journeys.migrate.md): Migrate in-flight records to a new Journey version through a stage mapping (a Run; stoppable)
+- [journeys.migration_state](../capabilities/journeys.migration_state.md): Where the move onto the pipeline stands
 - [journeys.move_stage](../capabilities/journeys.move_stage.md): Move a Journey record to another stage by hand; the reason is required and handoffs post in the record channel
 - [journeys.preview_migrate](../capabilities/journeys.preview_migrate.md): Preview a migration: records per old stage, where each goes, unmapped stages and blockers
 - [journeys.rename](../capabilities/journeys.rename.md): Rename a Journey
 - [journeys.rules.set](../capabilities/journeys.rules.set.md): Set the exit rule and time limit of one stage
 - [journeys.stage_counts](../capabilities/journeys.stage_counts.md): Records in flight per stage, with how many are over their time limit
+- [journeys.stage_since](../capabilities/journeys.stage_since.md): When records entered their current stage
 - [journeys.start](../capabilities/journeys.start.md): Start a Journey on a subject record: creates the Journey record with its channel and folder and enters the first stage
 - [journeys.tasks](../capabilities/journeys.tasks.md): The tasks of one Journey record by stage, each with its state (todo, in review, blocked, done)
+- [journeys.test_path](../capabilities/journeys.test_path.md): Test every stage's Automations on a record; nothing is sent
+- [journeys.to_pipeline](../capabilities/journeys.to_pipeline.md): Move a Journey onto its subject type as a pipeline; run again after a stop, nothing is deleted
+- [journeys.values.get](../capabilities/journeys.values.get.md): Values a Journey carries for a record
+- [journeys.values.set](../capabilities/journeys.values.set.md): Keep a Journey value for a record
 - [journeys.versions](../capabilities/journeys.versions.md): List versions of a Journey definition
+- [journeys.where](../capabilities/journeys.where.md): Where a record is on its Journey
 
 ## Events (10)
 

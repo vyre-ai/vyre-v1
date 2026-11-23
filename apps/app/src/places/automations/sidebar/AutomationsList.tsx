@@ -12,14 +12,20 @@ import { TextAsk } from "../../chats/menus/TextAsk.tsx";
 import { SIDEBAR, useAutomationsData, useScreenQuery } from "../canvas/data.tsx";
 import type { ListRowIn } from "../list/model.ts";
 import { ListView } from "../screens/ListView.tsx";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectNeedOf } from "../clear/model.ts";
+import type { Blocked } from "../clear/model.ts";
+import { readinessKey, useReadiness } from "../clear/useReadiness.ts";
 import { needsYou } from "./model.ts";
 import type { AutoRow, JourneyRow } from "./model.ts";
 
-export const listRowOf = (a: AutoRow, me: string): ListRowIn => ({
+export const listRowOf = (a: AutoRow, me: string, blocked?: Blocked): ListRowIn => ({
   id: a.id,
   name: a.name,
   state: needsYou(a) ? "needs" : a.status === "on" ? "on" : "off",
   scope: a.kind === "space" ? "Space" : a.ownerId !== me ? "Shared" : null,
+  ...(a.sentence ? { sentence: a.sentence } : {}),
+  ...(blocked ? { blocked: { short: blocked.short, button: blocked.button } } : {}),
 });
 
 export function AutomationsList({
@@ -43,7 +49,21 @@ export function AutomationsList({
   const journeys = useScreenQuery<{ journeys: readonly JourneyRow[] }>(SIDEBAR, "journeys", {});
   const groupsQ = useScreenQuery<{ groups: readonly { id: string; name: string }[] }>(SIDEBAR, "groups", {});
   const groups = groupsQ.status === "ready" ? groupsQ.data.groups : [];
+  // what each one is missing, before anyone turns it on: its row says so and carries the one button
+  const blocked = useReadiness(list.status === "ready" ? readinessKey(list.data.automations) : "");
+  const openConnect = useOpenConnect();
   if (list.status !== "ready") return null;
+  /** Connect opens the connect flow where the person is; a fix that lives on a step opens the Automation. */
+  const fix = (id: string): void => {
+    const b = blocked.get(id);
+    const need = b ? connectNeedOf(b) : null;
+    if (b && need && openConnect) {
+      void openConnect(need).catch(() => null);
+      return;
+    }
+    data.nav.openAutomation(id);
+    onChoose();
+  };
   const journeyIds = new Set(journeys.status === "ready" ? journeys.data.journeys.map((j) => j.id) : []);
   const journeyRows: ListRowIn[] =
     journeys.status === "ready"
@@ -146,10 +166,11 @@ export function AutomationsList({
     <>
       {note ? <Text testID="al-note">{note}</Text> : null}
       <ListView
-        rows={[...list.data.automations.map((a) => listRowOf(a, data.me.id)), ...journeyRows]}
+        rows={[...list.data.automations.map((a) => listRowOf(a, data.me.id, blocked.get(a.id))), ...journeyRows]}
         query={query}
         selectedId={selectedId}
         onMenu={rowMenu}
+        onFix={fix}
         onHome={onChoose}
         onOpen={(id) => {
           if (journeyIds.has(id)) data.nav.openJourney(id);

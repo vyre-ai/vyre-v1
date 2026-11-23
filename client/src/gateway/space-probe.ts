@@ -31,8 +31,8 @@ export function spaceHealth(body: unknown): boolean {
   );
 }
 
-/** identity.sign_in_options' answer: what a Space's sign-in page offers. */
-function signInOptions(data: unknown): boolean {
+/** identity.sign_in_options' answer: what a Space's sign-in page offers. An answer of another shape (an empty 200, a page of HTML a proxy or a relay sent) is no Space's answer. */
+export function signInOptions(data: unknown): boolean {
   return (
     isObj(data) &&
     typeof data["name"] === "string" &&

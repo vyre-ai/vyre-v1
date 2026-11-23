@@ -9,7 +9,7 @@ import { ConversationLoading } from "../../places/chats/conversation/Conversatio
 import { ChatsMounted, PANE_W, SIDEBAR_W } from "../../places/chats/mounts/ChatsMounted.tsx";
 import { usePlaceHash } from "../hash/context.tsx";
 import { formatHash } from "../hash/hash.ts";
-import { useHubState, useOptionalHub } from "../spaces/context.tsx";
+import { useOptionalHub, useShownLocation } from "../spaces/context.tsx";
 import type { ShellHub } from "../spaces/hub.ts";
 import { useOptionalShellRuntime } from "./runtime.tsx";
 
@@ -55,7 +55,7 @@ function ChatsLinked({
   return (
     <ChatsMounted
       rt={rt}
-      hash={useHubState(hub).hash}
+      hash={useShownLocation(hub).hash}
       opened={opened}
       onSwitch={hub.hold}
       onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}

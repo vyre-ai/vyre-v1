@@ -9,11 +9,16 @@ import {
   JOIN_PREFIX,
   fieldOf,
   valueOfRemote,
+  asWords,
+  whenHolds,
   SECRET_ID,
   SSN_SHAPE,
   coerceValue,
   compileSpec,
   fieldKeys,
+  expandRows,
+  ROWS_PER_ITEM,
+  ROWS_PER_PAGE,
   firstPageRequest,
   joinTitle,
   parseSpec,
@@ -165,6 +170,8 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
   const tests: TestCase[] = [];
   for (const t of compiled.types) {
     const o = spec.objects.find((x) => x.remote === t.remote)!;
+    // a list that makes its rows from inner arrays is checked by validate against the real answer: a made-up flat item would not have the arrays
+    if (o.rows) continue;
     const m = spec.mapping.find((x) => x.remote === t.remote)!;
     const action = compiled.connector.actions.find((a) => a.name === compiled.connector.objects![t.remote]!.list)!;
     const paths = m.fields.filter((f) => f.direction !== "off").map((f) => f.path);
@@ -186,10 +193,11 @@ function testsOf(spec: SyncSpec, compiled: Compiled): TestCase[] {
     tests.push({
       name: `${t.remote}: first page`,
       action: action.name,
+      ...(o.list.eachOf ? { input: { parent: "p1" } } : {}),
       responses: [
         {
           method: "GET",
-          url: `https://${spec.app.domain}${o.list.path}`,
+          url: `https://${spec.app.domain}${o.list.eachOf ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, "p1") : o.list.path}`,
           status: 200,
           body,
           ...(link ? { link } : {}),
@@ -265,16 +273,50 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       if (!spec.objects.some((o) => o.remote === m.remote))
         err(`mapping.${m.remote}`, `${m.remote} is mapped but not listed in objects.`);
     }
+    // a per-parent list's `where` and `changed` read the parent's (or the feed's) rows as the sync reads them: a path that is not mapped is not in the row
+    const mappedPath = (remote: string, path: string): boolean =>
+      mapped.get(remote)?.fields.some((f) => f.path === path && f.direction !== "off") === true;
+    for (const o of spec.objects) {
+      const e = o.list.eachOf;
+      if (!e) continue;
+      if (!mapped.has(e.object))
+        err(`objects.${o.remote}.list.eachOf`, `${e.object} must be mapped: its list is read to find the parents.`);
+      if (e.where && !mappedPath(e.object, e.where.path))
+        err(`objects.${o.remote}.list.eachOf.where`, `${e.where.path} must be one of ${e.object}'s mapped fields.`);
+      if (e.changed && "path" in e.changed && !mappedPath(e.object, e.changed.path))
+        err(`objects.${o.remote}.list.eachOf.changed`, `${e.changed.path} must be one of ${e.object}'s mapped fields.`);
+      if (e.changed && "object" in e.changed) {
+        for (const p of [e.changed.parentAt, e.changed.at])
+          if (!mappedPath(e.changed.object, p))
+            err(`objects.${o.remote}.list.eachOf.changed`, `${p} must be one of ${e.changed.object}'s mapped fields.`);
+      }
+    }
     for (const o of spec.objects)
       if (!mapped.has(o.remote))
         warn(`objects.${o.remote}`, `${o.remote} is described but not mapped, so it is not brought in.`);
 
-    for (const o of spec.objects) {
+    // a per-parent list is sampled under a record of its parent object, so the parents are read first
+    const ordered = [...spec.objects].sort(
+      (x, y) => Number(x.list.eachOf !== undefined) - Number(y.list.eachOf !== undefined),
+    );
+    for (const o of ordered) {
       const m = mapped.get(o.remote);
       if (!m) continue;
       const at = `objects.${o.remote}`;
       const cursor = o.list.cursor ?? { kind: "none" as const };
-      const req = firstPageRequest(spec, o);
+      let parentId: string | undefined;
+      if (o.list.eachOf) {
+        const po = spec.objects.find((x) => x.remote === o.list.eachOf!.object);
+        const pbody = pages.get(o.list.eachOf.object)?.body;
+        const pitems = po && pbody !== undefined ? pointerGet(pbody, po.itemsAt) : undefined;
+        const pid = Array.isArray(pitems) && po ? pointerGet(pitems[0], po.id) : undefined;
+        if (typeof pid !== "string" && typeof pid !== "number") {
+          err(`${at}.list`, `${o.list.eachOf.object} gave no record to read ${o.remote} under: fix that list first.`);
+          continue;
+        }
+        parentId = String(pid);
+      }
+      const req = firstPageRequest(spec, o, parentId);
       let reply;
       try {
         reply = await probe(ctx, probeRequest(spec, urlOf(spec.app.domain, req.path, req.query)));
@@ -304,7 +346,21 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         err(`${at}.itemsAt`, `There is no list at ${o.itemsAt || "/"} in the answer.`);
         continue;
       }
-      const items = first.slice(0, SAMPLE_ITEMS);
+      let flat = first;
+      if (o.rows) {
+        const left: string[] = [];
+        flat = expandRows(first, o.rows, left);
+        if (left.length)
+          warn(
+            `${at}.rows`,
+            `${left.length} of the ${first.length} sampled items hold more than ${ROWS_PER_ITEM} inner items (or the page more than ${ROWS_PER_PAGE}) at ${o.rows.at}; a sync leaves them out and keeps the records it already holds for them.`,
+          );
+      }
+      const items = (
+        parentId === undefined
+          ? flat
+          : flat.map((it) => (it !== null && typeof it === "object" ? { ...(it as object), _parent: parentId } : it))
+      ).slice(0, SAMPLE_ITEMS);
       if (items.length === 0)
         warn(`${at}.list`, "The sampled page is empty, so the fields could not be checked against records.");
       // ids
@@ -325,6 +381,26 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           `${at}.updatedAt`,
           `${o.updatedAt} holds no date in the sample, so newest wins falls back to when the sync saw the change.`,
         );
+      // a version that is empty on every sampled record would never move: every check would skip every parent
+      for (const dep of spec.objects) {
+        const ch = dep.list.eachOf?.changed;
+        if (!ch || items.length === 0) continue;
+        const emptyEverywhere = (ptr: string): boolean =>
+          items.every((it) => {
+            const v = pointerGet(it, ptr);
+            return v === undefined || v === null || v === "";
+          });
+        if ("path" in ch && dep.list.eachOf!.object === o.remote && emptyEverywhere(ch.path))
+          err(
+            `objects.${dep.remote}.list.eachOf.changed`,
+            `${ch.path} is empty on every sampled ${o.remote}, so no parent would ever look changed: name a field that holds a stamp or a counter.`,
+          );
+        if ("object" in ch && ch.object === o.remote && (emptyEverywhere(ch.at) || emptyEverywhere(ch.parentAt)))
+          err(
+            `objects.${dep.remote}.list.eachOf.changed`,
+            `${emptyEverywhere(ch.at) ? ch.at : ch.parentAt} is empty on every sampled ${o.remote}, so no parent would ever look changed.`,
+          );
+      }
       // pagination: the next page must be reachable and different
       const page = readPage(parsed.body, reply.link, o, cursor, undefined) ?? { items: [] as unknown[] };
       let hasNext = (page as { next?: string }).next !== undefined;
@@ -376,6 +452,15 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
           continue;
         }
         if (mf.direction === "off") continue;
+        if (f.type === "sealed" && f.onlyWhen) {
+          // the sealed field's pointer is taken out of the row once the sealed value is kept: a field at the same pointer that is not conditional would lose its value
+          const plain = m.fields.find((x) => x.path === mf.path && x.direction !== "off" && !fieldOf(o, x)?.onlyWhen);
+          if (plain)
+            err(
+              fa,
+              `${f.label} is sealed only for some records, so every other field at ${mf.path} must also say when it applies (onlyWhen), or it would lose its value.`,
+            );
+        }
         if (f.onlyWhen) {
           if (!o.fields.some((x) => x.path === f.onlyWhen!.path))
             err(
@@ -383,13 +468,13 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
               `${f.label} only applies when ${f.onlyWhen.path} says so, but ${f.onlyWhen.path} is not described in the object's fields.`,
             );
           {
-            const eq = (Array.isArray(f.onlyWhen.equals) ? f.onlyWhen.equals : [f.onlyWhen.equals]).map((v) =>
-              v.trim().toLowerCase(),
-            );
-            const hit = items.filter((it) => {
-              const k = pointerGet(it, f.onlyWhen!.path);
-              return k !== undefined && k !== null && eq.includes(String(k).trim().toLowerCase());
-            }).length;
+            const w = f.onlyWhen;
+            const cond = {
+              ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
+              ...(w.matches !== undefined ? { m: asWords(w.matches) } : {}),
+              ...(w.not === true ? { n: true } : {}),
+            };
+            const hit = items.filter((it) => whenHolds(pointerGet(it, w.path), cond)).length;
             warn(fa, `${f.label} applies to ${hit} of ${items.length} sampled records (the others have it empty).`);
           }
           if (mf.direction !== "pull")

@@ -202,6 +202,7 @@ test(
     const m = lead();
     const dir = seededDir();
     let w = await up(dir, m.open);
+    let stopPoll = (): void => {};
     try {
       await connect(w.d);
       const desk = await newAgent(w.d, "Lab Desk");
@@ -291,17 +292,63 @@ test(
       // the server restarts: the goal goes on from its tables
       await w.stop();
       w = await up(dir, m.open);
+      // when each thing happened after the restart, in milliseconds: the dead turn's queue row (host_lost lands when it turns done), the wake rows, the key held, and each check-in clock tick. A failure prints it, so a late host_lost shows as itself.
+      const restartAt = Date.now();
+      const timeline: string[] = [];
+      let last = "";
+      const watch = w.d;
+      let db: DatabaseSync | undefined;
+      const poll = setInterval(() => {
+        try {
+          db ??= new DatabaseSync(watch.paths.modules, { readOnly: true });
+          const q = db.prepare("SELECT qseq, kind, state FROM engine_thread_queue ORDER BY qseq").all() as Array<
+            Record<string, unknown>
+          >;
+          const ws = db
+            .prepare("SELECT substr(id, 1, 22) AS id, state, attempt FROM goals_wake ORDER BY created_at")
+            .all() as Array<Record<string, unknown>>;
+          const sig = `queue ${q.map((r) => `${r["qseq"]}:${r["state"]}`).join(" ")} | wakes ${ws.map((r) => `${r["id"]}:${r["state"]}:${r["attempt"]}`).join(" ")}`;
+          if (sig !== last) {
+            last = sig;
+            timeline.push(`+${Date.now() - restartAt}ms ${sig}`);
+          }
+        } catch {
+          /* the files are not readable for a moment: open them again at the next look */
+          try {
+            db?.close();
+          } catch {
+            /* already closed */
+          }
+          db = undefined;
+        }
+      }, 200);
+      poll.unref();
+      // one read-only handle, closed with the interval when the test ends, passed or not (the finally below)
+      stopPoll = (): void => {
+        clearInterval(poll);
+        try {
+          db?.close();
+        } catch {
+          /* already closed */
+        }
+        db = undefined;
+      };
+      const stamp = (what: string): void => void timeline.push(`+${Date.now() - restartAt}ms ${what}`);
+      const timed = (): string => ` TIMELINE after the restart: ${timeline.slice(-14).join(" || ")}`;
       await connect(w.d).catch(() => undefined);
+      stamp("key held (connect returned)");
       const before = m.turns.length;
       // two check-ins with the number flat: stuck, with the reason, and the owner hears once
       for (let i = 0; i < 2; i++) {
         const g = (await goalOf(w.d, goalId)).goal;
         clock.t = g.nextCheckinAt + 1_000;
+        stamp(`clock jumped for check-in ${i + 1}`);
         await w.d.hooks!.runPeriodic("goals.clock");
+        stamp(`goals.clock ran for check-in ${i + 1}`);
         await waitFor(
           async () => ((await goalOf(w.d, goalId)).goal.checkins === i + 1 ? true : null),
           20_000,
-          () => hostLog(w.d),
+          () => hostLog(w.d) + timed(),
         );
         await waitFor(
           async () => (m.turns.filter((t) => t.reason.includes("check-in")).length >= i + 1 ? true : null),
@@ -312,6 +359,7 @@ test(
           throw new Error(`${e.message} ACTIVITY ${await activityOf(w.d, goalId)}`);
         });
       }
+      stopPoll();
       const flat = (await goalOf(w.d, goalId)).goal;
       assert.equal(flat.status, "stuck");
       assert.match(flat.statusReason, /^No progress in 2 check-ins; 0 of 3 registrations/);
@@ -377,6 +425,7 @@ test(
         );
       assert.ok(activity.some((a) => a.kind === "plan" && /Why: Past attendees registered at 31%/.test(a.text)));
     } finally {
+      stopPoll();
       await w.stop();
     }
   },

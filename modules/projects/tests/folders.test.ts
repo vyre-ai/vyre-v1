@@ -10,6 +10,7 @@ import {
   folderNameOf,
   onFolderUnfollowed,
   onRecordEvent,
+  sweepNeeded,
   syncAccess,
 } from "../handlers/folders.ts";
 import { FOLLOW_BACKOFF_MS } from "../projections.ts";
@@ -658,4 +659,25 @@ test("class guard: a Space's first run files no Needs-you task whatever the foll
   for (const n of [1, 2]) await created(fresh, mkRecord(fresh, { title: `Plain ${n}` }));
   await backfill(fresh.ctx);
   assert.equal(fresh.only("tasks.create").length, 0, "a Space where everything follows files nothing");
+});
+
+test("the ten-minute look is two counts: it asks for the full sweep only when a project record has no folder or no project behind it", async () => {
+  const h = harness();
+  mkRecord(h, { title: "Test", folder: "fld_theirs" });
+  assert.equal(await sweepNeeded(h.ctx), true, "a project record with no project behind it");
+  await backfill(h.ctx);
+  assert.equal(await sweepNeeded(h.ctx), false, "everything swept: nothing to do");
+  mkRecord(h, { title: "Bare" });
+  assert.equal(await sweepNeeded(h.ctx), true, "a record that came without a folder");
+});
+
+test("a record event asks the schema for its type once, not once for the files and once for the project template", async () => {
+  const h = harness();
+  const id = mkRecord(h, { title: "Ada" }, "contact");
+  await onRecordEvent(h.ctx, {
+    name: "record.created",
+    payload: { recordId: id, type: "contact", fields: { name: "Ada" } },
+    actor: DANA,
+  } as never);
+  assert.equal(h.only("schema.types.get").length, 1, "one read of the type for the event");
 });

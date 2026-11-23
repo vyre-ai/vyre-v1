@@ -24,6 +24,9 @@ jobs:
         run: |
           node scripts/ci-select.ts "" --matrix --perf-only > select.json
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));const n=r.matrix.include.length;console.log("select: "+n+" perf jobs");const o=process.env.GITHUB_OUTPUT;require("fs").appendFileSync(o,"has_tests="+(n>0)+"\nmatrix="+JSON.stringify(n>0?r.matrix:{include:[{name:"none",files:"",slow:"false"}]})+"\n")'
+      - name: The speed files that drive Chromium on the production export are perf entries of the slow list, so each runs below
+        run: |
+          node -e 'const l=JSON.parse(require("fs").readFileSync("test/slow.json","utf8"));for(const f of ["test/instant.perf.test.ts","test/first-load.perf.test.ts","apps/app/tests/chat.newchat-open.perf.test.ts"]){if(!l.some((e)=>e.file===f&&e.perf===true)){console.error("::error::"+f+" is not a perf entry of test/slow.json");process.exit(1)}}console.log("browser perf files are in the perf set")'
   shards:
     name: ${{ matrix.name }}
     needs: select

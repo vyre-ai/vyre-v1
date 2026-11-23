@@ -1,0 +1,1 @@
+On a phone, one tap on a task in a project's Plan opens it: a row of the List view, a card on the Board, and a task's name beside the Timeline. They used to only select the task, and opening was a double click. A new phone walk seeds a project with two tasks and taps a name on the Timeline and a row in the List.

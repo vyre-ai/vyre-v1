@@ -44,6 +44,19 @@ test("the picked model needs the locked sign-in and nothing else serves it: one 
   );
 });
 
+test("the look for another account while the key is locked is marked as a probe", async () => {
+  const seen: Array<boolean | undefined> = [];
+  const wrapped = skipLocked({
+    resolve: async (x) => {
+      seen.push(x.probe);
+      return x.unavailable?.includes("#Claude_Code") ? null : CLAUDE;
+    },
+    held: () => false,
+  });
+  assert.equal((await wrapped(q))?.ref, "#Claude_Code", "nothing else can pay: the pick stays");
+  assert.deepEqual(seen, [undefined, true], "the first resolve is a real turn, the second a probe");
+});
+
 test("an unlocked sign-in answers, and with nothing picked the Space's account answers with the line", async () => {
   const posts: string[] = [];
   const open = skipLocked({ resolve: async () => CLAUDE, held: () => true });

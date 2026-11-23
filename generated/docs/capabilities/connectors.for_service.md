@@ -61,6 +61,7 @@ type Out = {
     host?: string;
     hosts: Array<string>;
     checks: boolean;
+    untested?: boolean;
   };
   connection?: {
     connectionId: string;
@@ -128,7 +129,8 @@ type Out = {
       "revision": "example",
       "scope": "person",
       "site": "example",
-      "title": "example"
+      "title": "example",
+      "untested": true
     },
     "found": true,
     "near": [

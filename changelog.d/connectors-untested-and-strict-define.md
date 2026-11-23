@@ -1,0 +1,4 @@
+A connector published in one call now says "Not tried yet" until a call to the app has come back with a success: the publish answer, the connector list and the connect card all carry it, in one sentence: "Not tried yet. The first call may need a fix."
+connectors.define refuses a key it does not know (a misspelt body, an extra auth field) instead of storing it.
+connectors.define takes a rate limit (requests a second and a burst). Whether a connector has ever been answered is kept as one row per connector, so listing connectors never reads the call log, and it stays true if the log is cleared.
+The first start after this update reads the connector call log once to note which connectors were ever answered; on a very large log (a big first sync) that start can take a little longer.

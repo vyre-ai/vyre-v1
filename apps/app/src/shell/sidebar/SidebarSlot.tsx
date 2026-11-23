@@ -17,6 +17,7 @@ import { SHEET, sq, usePanelPresence, useShellLayout } from "../../../../../ui/s
 import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
 import { SIDEBAR } from "../../../../../ui/src/SidePane/layout.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
+import { NavRows } from "../../../../../ui/src/theme/pending.ts";
 
 export interface SidebarEntry {
   title: string;
@@ -31,6 +32,8 @@ export interface SidebarEntry {
  * between them: the tab strip and the body would slide across and back (owner, 15 Nov 2026; measured in team/v1/TABS-2026-11-15.md). A place with no list lets it go after this.
  */
 export const SIDEBAR_HOLD_MS = 260;
+/** How long the column keeps the room it was given at the first frame for a place that has not drawn its list yet (its code and the session are still arriving). */
+export const INITIAL_HOLD_MS = 2500;
 
 export interface SidebarSlotApi {
   /** The search field's text. */
@@ -69,6 +72,8 @@ export interface SidebarSlotProviderProps {
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
   initialEntry?: SidebarEntry;
+  /** The place that opens first has a list: the column has its room from the first frame, empty, until that place fills it (or lets it go after INITIAL_HOLD_MS when it never does). Read once, at mount. */
+  initialHold?: boolean;
   /** For tests and shots: start on the phone's body view (an item already open). */
   initialBodyOpen?: boolean;
   children?: ReactNode;
@@ -84,7 +89,10 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }
   };
   const [collapsed, setCollapsedState] = useState<boolean>(read);
-  const [entry, setEntry] = useState<SidebarEntry | null>(p.initialEntry ?? null);
+  const [entry, setEntry] = useState<SidebarEntry | null>(
+    p.initialEntry ??
+      (p.initialHold === true ? { title: "", searchPlaceholder: "", noSearch: true, held: true } : null),
+  );
   const [query, setQuery] = useState("");
   const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true);
   const [outlet, setOutlet] = useState<unknown>(null);
@@ -150,12 +158,17 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
     }, SIDEBAR_HOLD_MS);
   }, []);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // the room given at the first frame is let go when no place filled it
+    if (p.initialHold === true && p.initialEntry === undefined)
+      letGo.current = setTimeout(() => {
+        letGo.current = null;
+        setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
+      }, INITIAL_HOLD_MS);
+    return () => {
       if (letGo.current !== null) clearTimeout(letGo.current);
-    },
-    [],
-  );
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- read once, at mount
   const reg = useMemo(() => ({ register, outlet }), [register, outlet]);
   return (
     <Ctx.Provider value={api}>
@@ -223,9 +236,44 @@ export function SidebarContent(props: {
   if (reg === null || slot === null) return null;
   return (
     <>
-      {portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}
+      {/* a place's list is how a person gets around it: a pressed row is lit at once and its page is made after that frame (ui/theme/pending.ts) */}
+      {portalInto(
+        reg.outlet,
+        <InColumn.Provider value={true}>
+          <NavRows>{props.children(slot.query, slot)}</NavRows>
+        </InColumn.Provider>,
+      )}
     </>
   );
+}
+
+/**
+ * One kept place's part of the sidebar column (r41, spaces/kept-places.tsx): what the place puts in the column is drawn into a box of its own, and the box is in the column only while the
+ * place is shown. A hidden place therefore leaves nothing in the column, and its list comes back as it was. Outside a slot, or off the web, it changes nothing.
+ */
+export function SidebarFrame({ active, children }: { active: boolean; children?: ReactNode }): ReactElement {
+  const reg = useContext(Reg);
+  const [box] = useState(() => {
+    const doc = (
+      globalThis as { document?: { createElement?(t: string): { style: { display: string }; remove(): void } } }
+    ).document;
+    if (Platform.OS !== "web" || !doc || typeof doc.createElement !== "function") return null;
+    const el = doc.createElement("div");
+    el.style.display = "contents";
+    return el;
+  });
+  const outlet = reg?.outlet ?? null;
+  useLayoutEffect(() => {
+    const into = outlet as { appendChild?(n: unknown): unknown } | null;
+    if (!box || !active || !into || typeof into.appendChild !== "function") return undefined;
+    into.appendChild(box);
+    return () => box.remove();
+  }, [box, outlet, active]);
+  const value = useMemo(
+    () => (reg === null || box === null ? reg : { register: reg.register, outlet: outlet === null ? null : box }),
+    [reg, box, outlet],
+  );
+  return <Reg.Provider value={value}>{children}</Reg.Provider>;
 }
 
 /** What the shell draws beside the body: the chrome, then an empty outlet the place's content portals into. */

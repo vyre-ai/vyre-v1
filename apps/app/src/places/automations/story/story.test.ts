@@ -17,18 +17,18 @@ test("a step reads as a sentence with real names and value chips that say where 
       id: "2",
       template: "Send {file} to {who} for signature",
       values: {
-        file: { text: "“Engagement letter.docx”" },
+        file: { text: "“Proposal sent.docx”" },
         who: chip("Email", "A form is submitted", "sam@brightpath.io"),
       },
     }),
   );
   assert.deepEqual(
     s.parts.map((p) => (p.t === "chip" ? `[${p.label}]` : p.v)).join(""),
-    "Send “Engagement letter.docx” to [Email] for signature",
+    "Send “Proposal sent.docx” to [Email] for signature",
   );
   const c = s.parts.find((p) => p.t === "chip")!;
   assert.equal(c.t === "chip" && c.tip, "From: A form is submitted\nEmail: sam@brightpath.io");
-  assert.equal(s.text, "Send “Engagement letter.docx” to Email for signature");
+  assert.equal(s.text, "Send “Proposal sent.docx” to Email for signature");
 });
 
 test("a value not set yet is a blank in the sentence, never a field key", () => {

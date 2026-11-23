@@ -100,6 +100,10 @@ export interface StoryIn {
   /** local: edits are kept on this screen until Save (today). draft: the server holds a draft next to what is live. */
   saveMode?: "local" | "draft";
   test: { caseName: string; results: Record<string, TestResult | undefined> } | null;
+  /** What it does, in one sentence written from its steps by the server (rc.41): shown on top of the page. */
+  sentence?: string | undefined;
+  /** What it is missing before it can be turned on, as the server found it: one sentence and its one button. */
+  blocked?: { line: string; button: string } | null | undefined;
 }
 
 export type StoryRow =
@@ -143,6 +147,10 @@ export interface Story {
   tests: Record<string, TestRow>;
   /** Ids after which a step can be added: every trigger and step row but the last, branches included. */
   slots: string[];
+  /** The one sentence on top of the page, when the server wrote one. */
+  sentence: string | null;
+  /** What is missing before it can be turned on, when no step is already asking for it on its own row. */
+  blocked: { line: string; button: string } | null;
 }
 
 const MISSING_ORDER: Need["kind"][] = [
@@ -260,6 +268,8 @@ export function story(i: StoryIn): Story {
           disabled: true,
           why: needsYou === 1 ? "1 step needs you" : `${needsYou} steps need you`,
         };
+      // what is missing is known before the press: Turn on waits for it, and says why
+      else if (i.blocked) primary = { label: "Turn on", disabled: true, why: i.blocked.line };
     } else if (!i.dirty) {
       if (hand) primary = { label: "Run now" };
       secondary = { label: "Turn off" };
@@ -303,6 +313,8 @@ export function story(i: StoryIn): Story {
     needsYou,
     tests: i.test ? Object.fromEntries(testView(i.steps, i.test.results).map((r) => [r.id, r] as const)) : {},
     slots: ids.slice(0, -1),
+    sentence: hasContent && i.sentence ? i.sentence : null,
+    blocked: hasContent && i.blocked ? i.blocked : null,
   };
 }
 

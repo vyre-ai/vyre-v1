@@ -1,0 +1,1 @@
+A card face editor on the board chooses Simple, Detailed or Visual, the fields on the card and the Journey mark, with a live preview; it saves for you alone or for everyone, the same face an agent or the API sets on the type.

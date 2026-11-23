@@ -493,6 +493,16 @@ export function applyFacts(edits) {
   return set;
 }
 
+/** Is this point on Vyre's own control bar (the bar that says an agent is working and holds Stop, Take over, Give back and Resume)? The agent never clicks there. @param {number} x @param {number} y */
+export function pointOnBar(x, y) {
+  const g = /** @type {any} */ (globalThis);
+  const s = g[Symbol.for("vyre.agent.overlay")];
+  if (!s || !s.host || !s.host.isConnected || !s.bar) return false;
+  const r = s.bar.getBoundingClientRect();
+  if (!(r.width > 0 && r.height > 0)) return false;
+  return x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 4 && y <= r.bottom + 4;
+}
+
 /** The actionable control under a point, for a click by coordinates. @param {number} x @param {number} y */
 export function pointInfo(x, y) {
   const g = /** @type {any} */ (globalThis);

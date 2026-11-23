@@ -450,6 +450,7 @@ export function sqlLeases(db: Db, ttlMs: number = LEASE_TTL_MS): LeaseStore {
     renew: (threadId, holder, now) => closedAs(() => store.renew(threadId, holder, now), false),
     setTurn: (threadId, holder, turnId) => closedAs(() => store.setTurn(threadId, holder, turnId), undefined),
     release: (threadId, holder) => closedAs(() => store.release(threadId, holder), false),
+    takeOver: (threadId, holder, from, now) => closedAs(() => store.takeOver(threadId, holder, from, now), null),
     get: (threadId, now) => closedAs(() => store.get(threadId, now), null),
   };
 }
@@ -489,6 +490,18 @@ function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
       ).changes > 0,
     setTurn(threadId, holder, turnId) {
       db.run("UPDATE engine_thread_lease SET turn_id = ? WHERE thread_id = ? AND holder = ?", turnId, threadId, holder);
+    },
+    takeOver(threadId, holder, from, now) {
+      const took =
+        db.run(
+          "UPDATE engine_thread_lease SET holder = ?, expires_at = ?, turn_id = NULL WHERE thread_id = ? AND holder = ? AND expires_at > ?",
+          holder,
+          now + ttlMs,
+          threadId,
+          from,
+          now,
+        ).changes > 0;
+      return took ? read(threadId) : null;
     },
     release: (threadId, holder) =>
       db.run("DELETE FROM engine_thread_lease WHERE thread_id = ? AND holder = ?", threadId, holder).changes > 0,

@@ -59,6 +59,8 @@ const connectCard = t.obj({
   /** one line when a typed key was kept but the service could not be connected */
   notice: t.opt(t.str()),
   checks: t.bool(),
+  /** the connector is published but no call to the app has ever succeeded */
+  untested: t.opt(t.bool()),
   /** the host a typed key is tried against, said on Ask when the connector is not built in */
   checksWith: t.opt(t.str()),
   connectedBy: t.opt(id.user),

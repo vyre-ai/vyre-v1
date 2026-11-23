@@ -1,0 +1,1 @@
+- host/tests/sites.privacy.live.test.ts is split into three files (sites, calendar and artifacts, manage) with their shared pieces in sites.privacy.kit.ts: the same 11 tests and 79 assertions, each file finishing in 17 to 29 s on box C against the 120 s limit it ran into under load.

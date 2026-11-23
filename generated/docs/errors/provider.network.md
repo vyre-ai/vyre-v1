@@ -9,6 +9,7 @@ HTTP 502. Retryable: yes.
 - automations.code_reach
 - automations.http_read
 - automations.http_send
+- automations.step_ask
 - backup.run
 - computers.chrome.api
 - computers.chrome.send
@@ -30,4 +31,3 @@ HTTP 502. Retryable: yes.
 - files.share_external
 - git.push
 - git.sync
-- github.issue.close

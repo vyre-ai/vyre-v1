@@ -21,6 +21,8 @@ import {
   RecordViews,
   badgeFieldOf,
   cardFields,
+  cardFaceOf,
+  PLAIN_FACE,
   coverHue,
   coverOf,
   galleryLayout,
@@ -288,9 +290,12 @@ test("screen: a board draws a lane per option with its cached count, and every c
   );
 });
 
-test("cards are draggable and every lane is a drop target (web), so a drag needs no handle", () => {
+test("every card is a pointer-drag source and every lane a drop target (web), so a drag needs no handle", () => {
   const out = views("board");
-  assert.equal(count(out, 'draggable="true"'), 12, "one draggable wrapper per card");
+  assert.equal(count(out, "data-card-id="), 12, "one drag wrapper per card");
+  assert.equal(count(out, 'draggable="true"'), 0, "no native drag: one pointer path serves mouse, touch and pen");
+  for (const k of ["planning", "active", "done"])
+    assert.ok(has(out, `data-lane="${k}"`), `${k} is found under the pointer`);
   for (const k of ["planning", "active", "done"]) assert.ok(has(out, `data-testid="drop-${k}"`), `${k} takes drops`);
   assert.ok(has(out, 'data-testid="drag-projects_0"'));
 });
@@ -583,4 +588,59 @@ test("a board with no chosen field groups by a status or choice people set, neve
     "a person can still pick one",
   );
   assert.equal(isPersonField(choice("deliverability")), false);
+});
+
+test("a card face: the person's own view first, then the type's, then the plain one; a value that is not a face is passed over; named fields show in order and a missing one is left out", () => {
+  const d = projectsDef;
+  assert.deepEqual(cardFaceOf(d), PLAIN_FACE);
+  const withType = { ...d, card: { preset: "detail", fields: ["due", "lead"], mark: false } } as typeof d;
+  assert.deepEqual(cardFaceOf(withType), { preset: "detail", fields: ["due", "lead"], mark: false });
+  const mine = { config: { card: { preset: "visual", fields: ["budget"] } } };
+  assert.deepEqual(
+    cardFaceOf(withType, mine),
+    { preset: "visual", fields: ["budget"], mark: true },
+    "their own beats the type's",
+  );
+  assert.deepEqual(
+    cardFaceOf(withType, { config: { card: { preset: "huge" } } }),
+    cardFaceOf(withType),
+    "not a face: the type's",
+  );
+  assert.deepEqual(cardFaceOf(withType, { config: { card: "x" } }), cardFaceOf(withType));
+  assert.deepEqual(
+    cardFields(d, [], "status", 3, {
+      preset: "detail",
+      fields: ["due", "gone", "lead", "name", "status"],
+      mark: true,
+    }).map((f) => f.key),
+    ["due", "lead"],
+    "in the face's order; a field that is gone, the title and the lane field are left out",
+  );
+  assert.equal(
+    cardFields(d, ["due"], "status", 3, { preset: "simple", fields: ["due"], mark: true }).length,
+    1,
+    "a named field shows even when the view hid it",
+  );
+});
+
+test("a column's total is exact over a thousand cards: the head reads every card of the column, not the loaded page", () => {
+  const s = createViewsSample(northwind, { bulk: 1000 });
+  const out = views("board", { type: "clients" }, s);
+  const rows = (s.replica.rows("records:clients") as unknown as RecordRow[]).filter(
+    (r) => r.fields["stage"] === "intake",
+  );
+  assert.ok(rows.length > 200, "the lane holds more cards than one page");
+  const sum = rows.reduce(
+    (n, r) =>
+      n +
+      (typeof (r.fields["value"] as { amount?: number } | undefined)?.amount === "number"
+        ? (r.fields["value"] as { amount: number }).amount
+        : typeof r.fields["value"] === "number"
+          ? (r.fields["value"] as number)
+          : 0),
+    0,
+  );
+  const m = new RegExp(`data-testid="col-total-intake"[^>]*>([^<]*)<`).exec(out)?.[1];
+  assert.ok(sum > 0 && m, `a total is drawn (${m})`);
+  assert.ok(!m!.endsWith("+"), "no plus: every card was summed");
 });

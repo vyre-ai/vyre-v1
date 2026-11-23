@@ -557,7 +557,7 @@ test("a connector that exists before the revision table gets its own revision at
   assert.ok(before.length > 0, "there are connectors to upgrade");
   // the migration runs again at the next start
   const { readFileSync } = await import("node:fs");
-  k.tx.exec(readFileSync(new URL("../migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  k.tx.exec(readFileSync(new URL("../migrations/0007_revisions.sql", import.meta.url), "utf8"));
   void ensureTables;
   const revs = k.tx.all<{ key: string; rev: number }>("SELECT key, rev FROM cn_revisions");
   assert.equal(revs.length, before.length, "every connector has a revision");
@@ -604,7 +604,7 @@ test("an old database with the first 0006 trigger and no revision rows is upgrad
   k.tx.run("DELETE FROM cn_revisions");
   k.tx.run("UPDATE cn_revision_seq SET n = 0");
   // the restart runs the migration again
-  k.tx.exec(readFileSync(new URL("../migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  k.tx.exec(readFileSync(new URL("../migrations/0007_revisions.sql", import.meta.url), "utf8"));
   const names = k.tx
     .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'cn_connectors'")
     .map((r) => r.name);

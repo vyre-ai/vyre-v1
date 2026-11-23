@@ -65,13 +65,13 @@ export const RECORD_FIELDS: Record<string, RecordFields> = {
     template: "Projects",
     inherited: TEMPLATE_FIELDS,
     own: [
-      { name: "Matter type", type: "choice" },
+      { name: "Project type", type: "choice" },
       { name: "Referral source", type: "choice" },
-      { name: "Engagement signed", type: "date" },
+      { name: "Proposal signed", type: "date" },
       { name: "ID verified", type: "check" },
     ],
   },
-  "Matter intake": {
+  "Project intake": {
     template: "Projects",
     inherited: TEMPLATE_FIELDS,
     own: [

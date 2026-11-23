@@ -5,7 +5,9 @@
 // @reads /modules/connectors/migrations/0003_oauth.sql
 // @reads /modules/connectors/migrations/0004_sync_specs.sql
 // @reads /modules/connectors/migrations/0005_hosts.sql
-// @reads /modules/connectors/migrations/0006_revisions.sql
+// @reads /modules/connectors/migrations/0006_creators.sql
+// @reads /modules/connectors/migrations/0007_revisions.sql
+// @reads /modules/connectors/migrations/0008_tested.sql
 import { readFileSync } from "node:fs";
 import { mintUuid } from "../../lib/ids.ts";
 import { secretForms } from "../../lib/redact.ts";
@@ -69,6 +71,8 @@ export interface ActionDef {
 /** A list action: where the items are, how to read each one and how to ask for the next page. A write action: nest flat values (keyed by pointer) into the body, and read the new id from the answer. */
 export interface ActionShape {
   items?: string;
+  /** One row for every inner item of each item (SpecObject.rows). */
+  rows?: { at: string; idAt: string | string[] };
   id?: string;
   updatedAt?: string;
   fields?: string[];
@@ -135,6 +139,10 @@ export interface ConnectorDef {
       update?: string;
       delete?: string;
       /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
+      /** The list sits under each record of another object: it is read once per parent id (the call's `parent` input) and every row carries that id at /_parent. */
+      eachOf?: Record<string, unknown> & { remote: string };
+      /** The list opens inner arrays into rows: it is read as a delta list and a sweep vouches for the records of an item it left out. */
+      rows?: boolean;
       /** Each row of this object also relates two already-synced records to each other (a many-to-many made from join rows). */
       link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
     }
@@ -278,7 +286,9 @@ export function ensureTables(tx: Tx): void {
   tx.exec(readFileSync(new URL("./migrations/0003_oauth.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0004_sync_specs.sql", import.meta.url), "utf8"));
   tx.exec(readFileSync(new URL("./migrations/0005_hosts.sql", import.meta.url), "utf8"));
-  tx.exec(readFileSync(new URL("./migrations/0006_revisions.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0006_creators.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0007_revisions.sql", import.meta.url), "utf8"));
+  tx.exec(readFileSync(new URL("./migrations/0008_tested.sql", import.meta.url), "utf8"));
   ready.add(tx);
 }
 
@@ -738,6 +748,15 @@ export function recordWords(entry: string): string {
   const port = m[2] && m[2] !== "443" ? ` on port ${m[2]}` : "";
   return pattern.startsWith("*.") ? `any address ending in ${pattern.slice(1)}${port}` : `${pattern}${port}`;
 }
+
+/** Has this connector never had a live answer (cn_tested holds the first, so the call log is never read)? A published connector made by hand or by an agent is checked against the app's docs only; it is "untested" until a call to the app comes back with a success. Built-ins ship tested. */
+export function untestedConnector(tx: Tx, key: string, builtin: boolean, state: string): boolean {
+  if (builtin || state !== "live") return false;
+  return tx.get<{ x: number }>("SELECT 1 AS x FROM cn_tested WHERE key = ?", key) === undefined;
+}
+
+/** What the person is told about an untested connector, on the card and after a publish. */
+export const untestedLine = "Not tried yet. The first call may need a fix.";
 
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
 export const originKey = (u: URL): string =>

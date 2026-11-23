@@ -23,7 +23,7 @@ const ctx = (o: Partial<AdaptCtx> = {}): AdaptCtx => ({
 const def: DefIn = {
   triggers: [{ key: "form_submit", config: { form: "Contact" } }],
   nodes: [
-    { id: "s1", key: "sign", input: { fileId: "Engagement letter.docx", signers: "{{trigger.email}}" }, next: ["s2"] },
+    { id: "s1", key: "sign", input: { fileId: "Proposal sent.docx", signers: "{{trigger.email}}" }, next: ["s2"] },
     { id: "s2", key: "post_message", input: { channelId: "#ops", text: "New request from {{trigger.name}}" } },
   ],
 };
@@ -48,7 +48,7 @@ test("a definition becomes a trigger and steps in the order they run, each a sen
   const rows = m.rows.filter((x) => x.kind === "step");
   assert.equal(
     rows[0]!.kind === "step" && rows[0]!.sentence.text,
-    "Send Engagement letter.docx for signature to A form is submitted \u00b7 Email",
+    "Send Proposal sent.docx for signature to A form is submitted \u00b7 Email",
   );
   assert.equal(rows[1]!.kind === "step" && rows[1]!.sentence.text.includes("fileId"), false);
 });

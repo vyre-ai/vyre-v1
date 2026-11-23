@@ -1,0 +1,60 @@
+{
+  "targets": [
+    {
+      "id": "R41_01-place-journey",
+      "route": "/m/R41_01?part=place-journey",
+      "waitFor": "body",
+      "note": "A Journey in the Automations place",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-path",
+      "route": "/m/R41_01?part=path",
+      "waitFor": "body",
+      "note": "Journey Path page",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-path-where",
+      "route": "/m/R41_01?part=path-where",
+      "waitFor": "body",
+      "note": "Path: where one record is",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-path-test",
+      "route": "/m/R41_01?part=path-test",
+      "waitFor": "body",
+      "note": "Path: the whole-path test",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-face-simple",
+      "route": "/m/R41_01?part=face-simple",
+      "waitFor": "body",
+      "note": "Board, simple card face",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-face-detail",
+      "route": "/m/R41_01?part=face-detail",
+      "waitFor": "body",
+      "note": "Board, detailed card face",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-face-visual",
+      "route": "/m/R41_01?part=face-visual",
+      "waitFor": "body",
+      "note": "Board, visual card face",
+      "proto": "automations,{skin}"
+    },
+    {
+      "id": "R41_01-ai-step",
+      "route": "/m/R41_01?part=ai-step",
+      "waitFor": "body",
+      "note": "AI step with the Skills field",
+      "proto": "automations,{skin}"
+    }
+  ]
+}
