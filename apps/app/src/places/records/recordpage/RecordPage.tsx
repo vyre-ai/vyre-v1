@@ -158,11 +158,15 @@ function RelationCard({ field, id }: { field: FieldDef; id: string }): ReactElem
   );
 }
 
-
 /** A relation's cards, a page at a time: the first RELATION_CARDS, then "and N more", which draws the next page where it is pressed. */
 function RelationCards({ field, ids }: { field: FieldDef; ids: readonly string[] }): ReactElement {
   const [shown, setShown] = useState(RELATION_CARDS);
-  if (ids.length === 0) return <View style={p.cards}><Text style={p.empty}>None</Text></View>;
+  if (ids.length === 0)
+    return (
+      <View style={p.cards}>
+        <Text style={p.empty}>None</Text>
+      </View>
+    );
   const more = ids.length - shown;
   return (
     <View style={p.cards}>

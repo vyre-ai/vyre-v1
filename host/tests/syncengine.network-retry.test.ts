@@ -4,7 +4,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { remoteStore } from "../src/daemon/syncengine.ts";
 
-const net = (code: string) => ({ error: { code, message: "The app could not be reached: The connector request failed." } });
+const net = (code: string) => ({
+  error: { code, message: "The app could not be reached: The connector request failed." },
+});
 const store = (fail: (n: number) => string | undefined, slept: number[]) => {
   let n = 0;
   const ctx = {

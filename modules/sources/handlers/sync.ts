@@ -289,7 +289,14 @@ async function writeFar(
             else {
               const [t, id] = r.urn.split("/").slice(-2);
               if (t && id && (await d.local.get(t, id))) keep.push(r);
-              else d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND urn = ?", h.ftype, h.fid, h.inverse, r.urn);
+              else
+                d.tx.run(
+                  "DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND urn = ?",
+                  h.ftype,
+                  h.fid,
+                  h.inverse,
+                  r.urn,
+                );
             }
           }
           rows = keep;
@@ -328,13 +335,34 @@ async function writeFar(
           }
           if (changed) await d.local.update(h.ftype, rec.id, { [h.inverse]: next }, rec.version);
         }
-        d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse);
+        d.tx.run(
+          "DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0",
+          h.ftype,
+          h.fid,
+          h.inverse,
+        );
         d.tx.run("DELETE FROM sy_far_notice WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
       } catch (e) {
-        d.tx.run("UPDATE sy_far_owed SET attempts = attempts + 1 WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse);
-        const tries = d.tx.get<{ n: number }>("SELECT max(attempts) AS n FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse)?.n ?? 0;
+        d.tx.run(
+          "UPDATE sy_far_owed SET attempts = attempts + 1 WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0",
+          h.ftype,
+          h.fid,
+          h.inverse,
+        );
+        const tries =
+          d.tx.get<{ n: number }>(
+            "SELECT max(attempts) AS n FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0",
+            h.ftype,
+            h.fid,
+            h.inverse,
+          )?.n ?? 0;
         if (tries >= FAR_TRIES) {
-          d.tx.run("UPDATE sy_far_owed SET parked = 1 WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
+          d.tx.run(
+            "UPDATE sy_far_owed SET parked = 1 WHERE ftype = ? AND fid = ? AND inverse = ?",
+            h.ftype,
+            h.fid,
+            h.inverse,
+          );
           out.parked.push({ type: h.ftype, id: h.fid, inverse: h.inverse, why: msgOf(e) });
         } else skip(`the ${h.inverse} of ${h.ftype} ${h.fid}`, e);
       }
@@ -819,15 +847,33 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   // new trouble only: a record that stays over the most links is said once a day or when its count changes (and counts as skipped then), a write that gave up is said once, when it is parked
   for (const x of over) {
     rep.skipped++;
-    log(d, b.syncTypeId, "error", `${x.inverse} of ${x.type} ${x.id} would hold ${x.links} links, more than the ${MAX_LINKS} a record may hold: its links were not changed`, runId, o.traceId);
+    log(
+      d,
+      b.syncTypeId,
+      "error",
+      `${x.inverse} of ${x.type} ${x.id} would hold ${x.links} links, more than the ${MAX_LINKS} a record may hold: its links were not changed`,
+      runId,
+      o.traceId,
+    );
   }
   for (const x of parked) {
     rep.skipped++;
-    log(d, b.syncTypeId, "error", `the links owed to ${x.inverse} of ${x.type} ${x.id} could not be written after ${FAR_TRIES} tries and are set aside: ${x.why}`, runId, o.traceId);
+    log(
+      d,
+      b.syncTypeId,
+      "error",
+      `the links owed to ${x.inverse} of ${x.type} ${x.id} could not be written after ${FAR_TRIES} tries and are set aside: ${x.why}`,
+      runId,
+      o.traceId,
+    );
   }
   if (over.length)
-    rep.summary += ` ${over.length} ${over.length === 1 ? "record" : "records"} at the other end of a link would hold more than ${MAX_LINKS} links and ${over.length === 1 ? "was" : "were"} not changed: ${over.slice(0, 3).map((x) => `${x.type} ${x.id} (${x.links})`).join(", ")}.`;
-  if (parked.length) rep.summary += ` ${parked.length} ${parked.length === 1 ? "record" : "records"} at the other end of a link could not be written and ${parked.length === 1 ? "was" : "were"} set aside.`;
+    rep.summary += ` ${over.length} ${over.length === 1 ? "record" : "records"} at the other end of a link would hold more than ${MAX_LINKS} links and ${over.length === 1 ? "was" : "were"} not changed: ${over
+      .slice(0, 3)
+      .map((x) => `${x.type} ${x.id} (${x.links})`)
+      .join(", ")}.`;
+  if (parked.length)
+    rep.summary += ` ${parked.length} ${parked.length === 1 ? "record" : "records"} at the other end of a link could not be written and ${parked.length === 1 ? "was" : "were"} set aside.`;
   for (const l of losses) keepLoser(d, b.type, l.localId, l.field, l.value, l.actor);
   for (const l of vanished) if (!rep.pausedDeletes) saveLink(d.tx, b.syncTypeId, { ...l, removedAt: now(d) });
 
