@@ -1,6 +1,6 @@
 # vault.request
 
-Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status
+Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked
 
 | | |
 |---|---|
@@ -55,7 +55,8 @@ type Out = {
     itemId?: string;
     note?: string;
     service?: string;
-    taskId: string;
+    taskId?: string;
+    placeholder?: boolean;
     at: number;
     decidedAt?: number;
     askedYou?: boolean;
@@ -102,6 +103,7 @@ type Out = {
       "itemId": "vit_a1b2c3",
       "name": "Dana_Lawmatics",
       "note": "example",
+      "placeholder": true,
       "reason": "example",
       "requester": {
         "id": "usr_a1b2c3",
