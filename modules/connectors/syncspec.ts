@@ -115,7 +115,7 @@ export interface SpecObject {
   id: string;
   updatedAt?: string;
   itemsAt: string;
-  /** One row for every inner item of each item: `at` is a pointer with `*` for each array to walk (/assignments/*/ contacts /*), `idAt` the item's own id. A row is the item plus `_key` (the id, then the inner places: `id/0/1`, the object's `id` must be /_key), `_at` (the value at each `*`) and `_i` (the index at each `*`), so /_at/0/position is the assignment's and /_i/1 the place inside it. An item with nothing inside makes no row. */;
+  /** One row for every inner item of each item: `at` is a pointer with `*` for each array to walk (for example the assignments, then the contacts of each), `idAt` the item's own id. A row is the item plus `_key` (the id, then the inner places: `id/0/1`, the object's `id` must be /_key), `_at` (the value at each `*`) and `_i` (the index at each `*`), so /_at/0/position is the assignment's and /_i/1 the place inside it. An item with nothing inside makes no row. */
   rows?: { at: string; idAt: string | string[] };
   openUrl?: string;
   fields: SpecField[];
