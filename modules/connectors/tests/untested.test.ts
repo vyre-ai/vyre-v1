@@ -157,6 +157,8 @@ test("define takes a rate limit and keeps it, and refuses one that is not a posi
     k.hs["connectors.define"](k.ctx, { key: "shop", ...BASE, actions: ACTIONS, rate } as never);
   await assert.rejects(def({ rps: 0, burst: 1 }), (e) => /rate/.test(msg(e)));
   await assert.rejects(def({ rps: 2, burst: 0 }), (e) => /rate/.test(msg(e)));
+  await assert.rejects(def({ rps: 1_000_000, burst: 1 }), (e) => /rate/.test(msg(e)), "no ceiling would be no pacing");
+  await assert.rejects(def({ rps: 2, burst: 100_000 }), (e) => /rate/.test(msg(e)));
   await def({ rps: 2, burst: 4 });
   await k.hs["connectors.publish"](k.ctx, { key: "shop" });
   const stored = k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = ?", "shop");

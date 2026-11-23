@@ -1269,9 +1269,15 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         ]);
       if (
         input.rate !== undefined &&
-        !(input.rate.rps >= 0.01 && Number.isInteger(input.rate.burst) && input.rate.burst >= 1)
+        !(
+          input.rate.rps >= 0.01 &&
+          input.rate.rps <= 100 &&
+          Number.isInteger(input.rate.burst) &&
+          input.rate.burst >= 1 &&
+          input.rate.burst <= 1000
+        )
       )
-        refuse(ctx, "validation.bad_input", "rate is requests a second (at least 0.01) and a burst of at least 1.");
+        refuse(ctx, "validation.bad_input", "rate is requests a second (0.01 to 100) and a burst (1 to 1000).");
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
       const kind = input.auth.type;
