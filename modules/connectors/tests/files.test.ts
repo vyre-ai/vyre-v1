@@ -54,29 +54,3 @@ test("a connector export writes each folder in one files.create_many call, not o
     "root, tests and actions: three calls for 77 files",
   );
 });
-
-test("a connector export splits a folder into calls of at most 200 files and 20 MB", async () => {
-  const calls: { cap: string; input: any }[] = [];
-  const ctx = {
-    trace: { traceId: "3".repeat(32) },
-    call: async (cap: string, input: unknown) => {
-      calls.push({ cap, input });
-      if (cap === "files.tree") return { roots: [{ key: "personal", folderId: "fld_personal" }] };
-      if (cap === "files.folder.create") return { folder: { folderId: `fld_${calls.length}` } };
-      return { files: [] };
-    },
-  } as unknown as ConnectorsCtx;
-  const big = "x".repeat(9 * 1024 * 1024);
-  await writeConnectorFolder(ctx, "heavy", [
-    { path: "actions/a.json", content: big },
-    { path: "actions/b.json", content: big },
-    { path: "actions/c.json", content: big },
-    { path: "actions/d.json", content: "{}" },
-  ]);
-  const many = calls.filter((c) => c.cap === "files.create_many");
-  assert.deepEqual(
-    many.map((c) => c.input.files.length),
-    [2, 2],
-    "9 + 9 MB in one call, the next 9 MB and the small one in the next",
-  );
-});

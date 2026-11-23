@@ -55,25 +55,14 @@ async function writeFilesBatched(
       })) as { folder: { folderId: string } };
       target = out.folder.folderId;
     }
-    // a call holds up to 200 files and up to 20 MB of text (files.create_many refuses more than 25 MB)
-    let at = 0;
-    while (at < list.length) {
-      let end = at;
-      let bytes = 0;
-      while (end < list.length && end - at < 200) {
-        const size = Buffer.byteLength(list[end]!.content);
-        if (end > at && bytes + size > 20 * 1024 * 1024) break;
-        bytes += size;
-        end += 1;
-      }
+    // a connector is under 5 MB in all (checkFiles), far below the 25 MB files.create_many takes in one call
+    for (let at = 0; at < list.length; at += 200) {
+      const part = list.slice(at, at + 200);
       await ctx.call("files.create_many", {
         folderId: target,
-        files: list
-          .slice(at, end)
-          .map((file) => ({ name: file.path.split("/").at(-1)!, content: { text: file.content } })),
+        files: part.map((file) => ({ name: file.path.split("/").at(-1)!, content: { text: file.content } })),
         idempotencyKey: `connector-source:${tag}:${dir}:${at}`,
       });
-      at = end;
     }
   }
 }
