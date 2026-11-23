@@ -2200,6 +2200,26 @@ test("storage down after a restart, two agents: a Give back on one bar frees onl
   await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }, B), (e: any) => e.code === "person_stopped", "B's kept Stop is in force");
 });
 
+test("a saved record is read entry by entry: one bad entry is dropped and every other agent's kept Stop stays; past 200 the newest 200 are kept", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const A = w.agent;
+  const good = w.ext.storage.session;
+  const many = Array.from({ length: 250 }, (_, n) => ({ agent: `agt_filler${n}`, by: "person", at: 10 + n }));
+  await good.set({
+    agentPauses: {
+      pauses: [{ agent: "agt_bad", by: "nonsense", at: 1 }, null, { agent: 7 }, { agent: A.id, by: "person", at: 5000 }, ...many],
+      bars: [{ tab: "x" }, { tab: 7, id: A.id, name: A.name }],
+    },
+  });
+  const r = await w.restartWorker({ restoreWaitMs: 50, restoreRetryMs: 5 });
+  await new Promise((res) => setTimeout(res, 40));
+  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 100000 }, A), (e: any) => e.code === "person_stopped", "the good entry beside the bad ones is in force");
+  assert.equal((await r.call("chrome_status", {}, { id: "agt_filler249", name: "F" })).pausedBy, "person", "the newest of the 250 is kept");
+  assert.equal((await r.call("chrome_status", {}, { id: "agt_filler0", name: "F" })).paused, false, "the oldest past 200 is dropped");
+  assert.equal((await r.call("chrome_status", {}, { id: "agt_bad", name: "F" })).paused, false, "the bad entry is dropped");
+});
+
 test("a poison record that cannot be read: calls are refused, a live Stop pressed meanwhile acts at once and writes over it, the next retry reads a good record and the Stop is in force", async () => {
   const w = await ready();
   await w.call("chrome_snapshot");

@@ -7,20 +7,28 @@ const BY = new Set(["person", "esc", "tool", "takeover"]);
 
 /** @typedef {{ pauses: Array<{ agent: string, by: "person" | "esc" | "tool" | "takeover", at: number }>, bars: Array<{ tab: number, id: string, name: string }> }} Kept */
 
-/** @param {unknown} v @returns {v is Kept} */
-function valid(v) {
-  if (!v || typeof v !== "object") return false;
+const MAX = 200;
+/** @param {any} p */
+const goodPause = (p) => Boolean(p) && typeof p.agent === "string" && BY.has(p.by) && Number.isFinite(p.at);
+/** @param {any} b */
+const goodBar = (b) => Boolean(b) && Number.isInteger(b.tab) && typeof b.id === "string" && typeof b.name === "string";
+
+/**
+ * Read a kept record entry by entry: every good entry is kept and only a bad one is dropped (one bad entry must not lose another agent's Stop); past 200 the newest 200 are kept. Null when the record is not a
+ * record at all (its two lists are missing or not lists): that is unreadable, not empty.
+ * @param {unknown} v @returns {Kept | null}
+ */
+function readable(v) {
+  if (!v || typeof v !== "object") return null;
   const o = /** @type {any} */ (v);
-  return (
-    Array.isArray(o.pauses) &&
-    o.pauses.length <= 200 &&
-    o.pauses.every((/** @type {any} */ p) => p && typeof p.agent === "string" && BY.has(p.by) && Number.isFinite(p.at)) &&
-    Array.isArray(o.bars) &&
-    o.bars.length <= 200 &&
-    o.bars.every(
-      (/** @type {any} */ b) => b && Number.isInteger(b.tab) && typeof b.id === "string" && typeof b.name === "string",
-    )
-  );
+  if (!Array.isArray(o.pauses) || !Array.isArray(o.bars)) return null;
+  return {
+    pauses: o.pauses
+      .filter(goodPause)
+      .sort((/** @type {any} */ a, /** @type {any} */ b) => b.at - a.at)
+      .slice(0, MAX),
+    bars: o.bars.filter(goodBar).slice(-MAX),
+  };
 }
 
 /**
@@ -34,11 +42,12 @@ export function createPauseKeep(area) {
       if (!area) return null;
       const raw = await area.get([KEY]);
       if (!(KEY in raw) || raw[KEY] === undefined) return null;
-      if (!valid(raw[KEY])) {
+      const rec = readable(raw[KEY]);
+      if (!rec) {
         // unreadable is not empty: keep refusing and try again. Storage itself answered, so a pause made live meanwhile may be written over it (the next read then finds a good record).
         throw Object.assign(new Error("the kept pauses cannot be read"), { unreadable: true });
       }
-      return raw[KEY];
+      return rec;
     },
     /** @param {Kept} rec */
     async save(rec) {
