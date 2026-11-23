@@ -118,16 +118,20 @@ test("a Space that moves between the relay and its own address is found where it
   try {
     await t.test(
       "1 on the relay, opened from the Space link: the Space's sign-in, carried by the relay's worker",
-      async () => {
+      async (t1) => {
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
         const page = await ctx.newPage();
         await page.goto(`${origin}/#box=${SPACE_KEY}`);
         await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
         assert.equal(await worker(page), "/__vyre/sw.js");
         // the Space's name arrives with its sign-in options: the screen is up first (the route table ships in the app), so wait for the name rather than read the title at once
-      await page.getByTestId("step-sign-in").getByText(/Sign in to Fresh Co/).waitFor({ timeout: 15_000 });
+        await page
+          .getByTestId("step-sign-in")
+          .getByText(/Sign in to Fresh Co/)
+          .waitFor({ timeout: 15_000 });
 
-        await t.test(
+        // a test inside this one runs on this one's own context: on the outer one it would queue behind this test, which is waiting for it (the walk ran into its 120 s cap)
+        await t1.test(
           "2 the Space moves to its own address: the next load ends on the sign-in, direct, with no relay worker",
           async () => {
             mode = "own";
@@ -157,6 +161,14 @@ test("a Space that moves between the relay and its own address is found where it
             assert.equal(await page.getByTestId("step-not-answering").count(), 0);
             assert.deepEqual(seen, [], "the person never saw a line saying the Space could not be reached");
             const before = carried.length;
+            // the stale app worker retires itself and moves the page once: let that finish before the second visit, or the reload below is cut off by it (net::ERR_ABORTED)
+            await page.waitForFunction(
+              async () => (await navigator.serviceWorker.getRegistrations()).length === 0,
+              null,
+              {
+                timeout: 20_000,
+              },
+            );
             await page.reload();
             await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
             assert.equal(carried.length, before, "nothing goes through the relay's worker any more");
@@ -207,7 +219,10 @@ test("a Space that moves between the relay and its own address is found where it
         await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
         assert.equal(await worker(page), "/__vyre/sw.js", "the Space is reached through the relay now");
         // the Space's name arrives with its sign-in options: the screen is up first (the route table ships in the app), so wait for the name rather than read the title at once
-      await page.getByTestId("step-sign-in").getByText(/Sign in to Fresh Co/).waitFor({ timeout: 15_000 });
+        await page
+          .getByTestId("step-sign-in")
+          .getByText(/Sign in to Fresh Co/)
+          .waitFor({ timeout: 15_000 });
         await shoot(page, "32-moved-to-relay");
         await ctx.close();
       },
