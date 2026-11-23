@@ -201,7 +201,7 @@ export class ScheduleQueue {
   waiting(): WaitingJob[] {
     const now = this.now();
     const rows = this.db.all(
-      "SELECT id, cap, run_at, tries, state, claimed_at, last_error FROM host_schedule WHERE state IN ('pending', 'running') ORDER BY run_at, id",
+      "SELECT id, cap, run_at, tries, state, claimed_at, last_error FROM host_schedule WHERE state IN ('pending', 'running') ORDER BY run_at, rowid",
     ) as {
       id: string;
       cap: string;
@@ -258,7 +258,7 @@ export class ScheduleQueue {
     const now = this.now();
     const lease = this.o.leaseMs ?? 120_000;
     const due = this.db.all(
-      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, id LIMIT ?",
+      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, rowid LIMIT ?",
       now,
       now - lease,
       this.o.batch ?? 50,
