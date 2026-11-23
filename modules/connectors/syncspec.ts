@@ -63,7 +63,7 @@ export interface SpecField {
   /** Names this field when several fields of one object share a path (the mapping's `field` is the same name). */
   key?: string;
   /** The field takes its value only when the other pointer of the same item has this value (compared without case or spaces); otherwise it is empty for that record. */
-  onlyWhen?: { path: string; equals?: string | string[]; matches?: string; not?: boolean };
+  onlyWhen?: { path: string; equals?: string | string[]; matches?: string | string[]; not?: boolean };
 }
 export interface SpecCursor {
   kind: (typeof CURSOR_KINDS)[number];
@@ -90,7 +90,7 @@ export interface SpecList {
     /** `false` says the app's ids are the same under no two parents, so a child's id is its own; otherwise each child's id gets its parent's in front. */
     scoped?: boolean;
     /** Only the parents whose value at `path` is one of `equals` or matches `matches` (turned round by `not`) have their children read. `path` is one of the parent object's mapped fields. */
-    where?: { path: string; equals?: string | string[]; matches?: string; not?: boolean };
+    where?: { path: string; equals?: string | string[]; matches?: string | string[]; not?: boolean };
     /** A parent's children are read again at a check only when its version moved since they were last read; the sweep (sweepEveryDays) reads them all. The version is the parent's own value at `path`, or the newest `at` of the rows of another listed object whose `parentAt` names the parent (an events feed). */
     changed?: { path: string } | { object: string; parentAt: string; at: string };
   };
@@ -202,14 +202,40 @@ const pointerOk = (v: unknown): v is string => typeof v === "string" && (v === "
 // ---- parse ----
 
 /** Read an untrusted document into a SyncSpec, or say what is wrong with its shape. Meaning (does the path exist on a real page) is the validator's job. */
-const okRegex = (m: unknown): boolean => {
-  if (typeof m !== "string" || m === "" || m.length > 200) return false;
-  try {
-    new RegExp(m, "i");
-    return true;
-  } catch {
+/** The words of a text, lower case, letters and digits only; at most the first 200 characters are looked at. One pass, no backtracking. */
+export const wordsOf = (s: string): string[] =>
+  s
+    .slice(0, 200)
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
+/** The words and phrases an `onlyWhen.matches` or `where.matches` names, as a list. */
+export const asWords = (m: string | string[]): string[] => (Array.isArray(m) ? m : [m]);
+/** Does the text hold one of the words or phrases, as whole words (a phrase is words side by side)? Case does not matter. Linear in the text, whatever the words are. */
+export function hasWords(text: string, phrases: string[]): boolean {
+  const t = wordsOf(text);
+  return phrases.some((ph) => {
+    const p = wordsOf(ph);
+    if (!p.length) return false;
+    for (let i = 0; i + p.length <= t.length; i++) {
+      let all = true;
+      for (let j = 0; j < p.length; j++)
+        if (t[i + j] !== p[j]) {
+          all = false;
+          break;
+        }
+      if (all) return true;
+    }
     return false;
-  }
+  });
+}
+const okWords = (m: unknown): boolean => {
+  const list = typeof m === "string" ? [m] : m;
+  return (
+    Array.isArray(list) &&
+    list.length > 0 &&
+    list.length <= 50 &&
+    list.every((x) => typeof x === "string" && x.length <= 60 && wordsOf(x).length > 0)
+  );
 };
 const okWhen = (w: unknown): boolean => {
   if (!isObj(w) || !pointerOk(w["path"]) || w["path"] === "") return false;
@@ -220,7 +246,7 @@ const okWhen = (w: unknown): boolean => {
     (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
   return (
     eqOk &&
-    (w["matches"] === undefined || okRegex(w["matches"])) &&
+    (w["matches"] === undefined || okWords(w["matches"])) &&
     (eq === undefined) !== (w["matches"] === undefined) &&
     (w["not"] === undefined || typeof w["not"] === "boolean")
   );
@@ -418,13 +444,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
         eq === undefined ||
         typeof eq === "string" ||
         (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
-      let reOk = mt === undefined || (typeof mt === "string" && mt !== "" && mt.length <= 200);
-      if (reOk && typeof mt === "string")
-        try {
-          new RegExp(mt, "i");
-        } catch {
-          reOk = false;
-        }
+      const reOk = mt === undefined || okWords(mt);
       if (
         !isObj(ow) ||
         !pointerOk(ow["path"]) ||
@@ -435,7 +455,7 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       )
         bad(
           `${at}.fields[${fi}].onlyWhen`,
-          "onlyWhen is { path: a pointer, then equals: a value or a list of values, or matches: a pattern (case does not matter), and not: true to take the field only when it does not hold }.",
+          "onlyWhen is { path: a pointer, then equals: a value or a list of values, or matches: a word or phrase, or a list of them, found as whole words in the value (case does not matter), and not: true to take the field only when it does not hold }.",
         );
     }
     const rw = o["rows"];
@@ -608,6 +628,9 @@ export function coerceValue(
 }
 
 /** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. */
+/** At most this many rows come out of one item and out of one page; more is refused in words, never cut short (cutting short would read as records the app no longer has). */
+export const ROWS_PER_ITEM = 2_000;
+export const ROWS_PER_PAGE = 20_000;
 export function expandRows(items: unknown[], rows: { at: string; idAt: string | string[] }): unknown[] {
   const segs = rows.at
     .slice(1)
@@ -624,9 +647,13 @@ export function expandRows(items: unknown[], rows: { at: string; idAt: string | 
     }
     let made = 0;
     const walk = (cur: unknown, k: number, at: unknown[], idx: number[]): void => {
-      if (made >= 5000) return;
       if (k === segs.length) {
-        made++;
+        if (++made > ROWS_PER_ITEM || out.length >= ROWS_PER_PAGE)
+          throw new Error(
+            made > ROWS_PER_ITEM
+              ? `One item holds more than ${ROWS_PER_ITEM} inner items at ${rows.at}.`
+              : `A page holds more than ${ROWS_PER_PAGE} inner items at ${rows.at}: ask the app for smaller pages.`,
+          );
         out.push({ ...(item as Record<string, unknown>), _key: `${id}/${idx.join("/")}`, _at: at, _i: idx });
         return;
       }
@@ -701,18 +728,18 @@ export const whenRemote = (p: string, w: NonNullable<SpecField["onlyWhen"]>): st
     p,
     w: w.path,
     ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
-    ...(w.matches !== undefined ? { m: w.matches } : {}),
+    ...(w.matches !== undefined ? { m: asWords(w.matches) } : {}),
     ...(w.not === true ? { n: true } : {}),
   })}`;
-/** Does the value at the condition's pointer meet it? Equal to one of the values, or matching the pattern (case and surrounding spaces do not matter); `n` turns it round (a value that is not there never meets a plain condition, and always meets a turned-round one). */
-export function whenHolds(have: unknown, c: { e?: string[]; m?: string; n?: boolean }): boolean {
+/** Does the value at the condition's pointer meet it? Equal to one of the values, or naming one of the words (case and surrounding spaces do not matter); `n` turns it round (a value that is not there never meets a plain condition, and always meets a turned-round one). */
+export function whenHolds(have: unknown, c: { e?: string[]; m?: string[]; n?: boolean }): boolean {
   const present = have !== undefined && have !== null && have !== "[sealed]";
   const text = present ? String(have).trim() : "";
   const hit =
     present &&
     (c.e !== undefined
       ? c.e.some((v) => v.trim().toLowerCase() === text.toLowerCase())
-      : c.m !== undefined && new RegExp(c.m, "i").test(text));
+      : c.m !== undefined && hasWords(text, c.m));
   return c.n === true ? !hit : hit;
 }
 /** The value of a pulled row's remote key, which may be a conditional one. */
@@ -722,7 +749,7 @@ export function valueOfRemote(data: Record<string, unknown>, remote: string): un
     p: string;
     w: string;
     e?: string[];
-    m?: string;
+    m?: string[];
     n?: boolean;
   };
   const v = data[c.p];
@@ -1003,7 +1030,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
                               : [o.list.eachOf.where.equals],
                           }
                         : {}),
-                      ...(o.list.eachOf.where.matches !== undefined ? { m: o.list.eachOf.where.matches } : {}),
+                      ...(o.list.eachOf.where.matches !== undefined ? { m: asWords(o.list.eachOf.where.matches) } : {}),
                       ...(o.list.eachOf.where.not === true ? { n: true } : {}),
                     },
                   }

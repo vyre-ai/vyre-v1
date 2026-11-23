@@ -2,7 +2,7 @@
 // (each role has assignments, each assignment a rank and the people serving together) and assets (a number or an address under one field, told apart by its label). No client data.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { compileSpec, expandRows, parseSpec, valueOfRemote, whenHolds, whenRemote } from "../syncspec.ts";
+import { compileSpec, expandRows, hasWords, parseSpec, valueOfRemote, whenHolds, whenRemote } from "../syncspec.ts";
 import { shapeList } from "../handlers/shape.ts";
 import type { SyncSpec } from "../syncspec.ts";
 
@@ -117,14 +117,14 @@ const base = (): Record<string, any> => ({
           path: "/identifier_value",
           label: "Address or description",
           type: "text",
-          onlyWhen: { path: "/identifier_label", matches: "account|policy|\\bein\\b", not: true },
+          onlyWhen: { path: "/identifier_label", matches: ["account", "policy", "ein"], not: true },
         },
         {
           path: "/identifier_value",
           key: "identifier_sealed",
           label: "Account or policy number",
           type: "sealed",
-          onlyWhen: { path: "/identifier_label", matches: "account|policy|\\bein\\b" },
+          onlyWhen: { path: "/identifier_label", matches: ["account", "policy", "ein"] },
         },
       ],
     },
@@ -185,8 +185,8 @@ test("a bad condition or a plain field beside a conditional sealed one is refuse
   };
   const w = (r: Record<string, any>): Record<string, any> => r["objects"][0].fields[1].onlyWhen;
   assert.ok(
-    mut((r) => (w(r).matches = "(")).some((e) => e.includes("onlyWhen is")),
-    "a pattern that is not one",
+    mut((r) => (w(r).matches = [])).some((e) => e.includes("onlyWhen is")),
+    "an empty list of words",
   );
   assert.ok(
     mut((r) => (w(r).equals = "x")).some((e) => e.includes("onlyWhen is")),
@@ -220,4 +220,47 @@ test("rows needs an id of /_key and a * in its pointer", () => {
     at: "/parts/*",
     idAt: "/id",
   });
+});
+
+test("matches is a list of words: whole words only, any case, a phrase is words side by side, and no pattern from a spec is ever run", () => {
+  const words = ["account", "ein", "vehicle identification", "tax"];
+  assert.equal(hasWords("Account Number (last 4 digits)", words), true);
+  assert.equal(hasWords("EIN", words), true);
+  assert.equal(hasWords("Vehicle Identification Number", words), true);
+  assert.equal(hasWords("Vehicle Make", words), false, "a phrase needs all its words");
+  assert.equal(
+    hasWords("Protein, syntax, accounting", words),
+    false,
+    "whole words: ein is not in protein, tax is not in syntax, account is not accounting",
+  );
+  assert.equal(hasWords("Address / Description", words), false);
+  // a spec that holds what would be a hostile pattern is just words
+  assert.deepEqual(
+    parseSpec(base()).problems.filter((p) => p.level === "error"),
+    [],
+  );
+  const hostile = base();
+  hostile["objects"][0].fields[1].onlyWhen.matches = "(a+)+$";
+  assert.deepEqual(
+    parseSpec(hostile).problems.filter((p) => p.level === "error"),
+    [],
+  );
+  const t0 = performance.now();
+  for (const v of ["a".repeat(30) + "!", "a".repeat(100_000) + "!", "(".repeat(5000)]) {
+    assert.equal(whenHolds(v, { m: ["(a+)+$", "(.*a){12}"] }), false);
+    assert.equal(whenHolds(v, { m: ["(a+)+$"], n: true }), true);
+  }
+  assert.ok(performance.now() - t0 < 200, "a hostile value and a hostile pattern return at once");
+  // only the first 200 characters of a value are looked at
+  assert.equal(whenHolds("x".repeat(300) + " account", { m: ["account"] }), false);
+});
+
+test("inner items are capped per item and per page, and a cap is said in words, never a silent cut", () => {
+  const rows = { at: "/parts/*", idAt: "/id" };
+  const big = (id: string, n: number) => ({ id, parts: Array.from({ length: n }, (_, i) => i) });
+  assert.equal(expandRows([big("a", 2000)], rows).length, 2000);
+  assert.throws(() => expandRows([big("a", 2001)], rows), /more than 2000 inner items/);
+  const ten = Array.from({ length: 10 }, (_, i) => big("i" + i, 2000));
+  assert.equal(expandRows(ten, rows).length, 20_000);
+  assert.throws(() => expandRows([...ten, big("last", 1)], rows), /smaller pages/);
 });

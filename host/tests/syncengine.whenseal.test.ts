@@ -6,7 +6,7 @@ import { remoteStore } from "../src/daemon/syncengine.ts";
 
 const LABEL = "/identifier_label";
 const VALUE = "/identifier_value";
-const RULE = "account|policy|\\bein\\b|vehicle identification";
+const RULE = ["account", "policy", "ein", "vehicle identification"];
 const SEALED = `=when:${JSON.stringify({ p: VALUE, w: LABEL, m: RULE })}`;
 const PLAIN = `=when:${JSON.stringify({ p: VALUE, w: LABEL, m: RULE, n: true })}`;
 

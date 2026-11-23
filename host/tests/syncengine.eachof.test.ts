@@ -301,7 +301,7 @@ test("where: only the parents that meet it have their children read", async () =
     "b",
   ]);
   const re = kids({ mA: { "/k": "planning" }, mB: { "/k": "rep-living" } }, { mA: ["a"], mB: ["b"] });
-  assert.deepEqual((await drain(storeWith(re.ctx, { where: { path: "/k", m: "^rep" } }) as never)).ids, ["b"]);
+  assert.deepEqual((await drain(storeWith(re.ctx, { where: { path: "/k", m: ["rep"] } }) as never)).ids, ["b"]);
 });
 
 test("changed (the parent's own field): a delta pass reads only the parents whose version moved; a full pass reads all and says which were read", async () => {

@@ -9,6 +9,7 @@ import {
   JOIN_PREFIX,
   fieldOf,
   valueOfRemote,
+  asWords,
   whenHolds,
   SECRET_ID,
   SSN_SHAPE,
@@ -343,7 +344,14 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         err(`${at}.itemsAt`, `There is no list at ${o.itemsAt || "/"} in the answer.`);
         continue;
       }
-      const flat = o.rows ? expandRows(first, o.rows) : first;
+      let flat = first;
+      if (o.rows)
+        try {
+          flat = expandRows(first, o.rows);
+        } catch (e) {
+          err(`${at}.rows`, e instanceof Error ? e.message : "The inner items could not be read.");
+          continue;
+        }
       const items = (
         parentId === undefined
           ? flat
@@ -439,7 +447,7 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
             const w = f.onlyWhen;
             const cond = {
               ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
-              ...(w.matches !== undefined ? { m: w.matches } : {}),
+              ...(w.matches !== undefined ? { m: asWords(w.matches) } : {}),
               ...(w.not === true ? { n: true } : {}),
             };
             const hit = items.filter((it) => whenHolds(pointerGet(it, w.path), cond)).length;

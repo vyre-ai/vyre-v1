@@ -226,7 +226,7 @@ export interface LinkDef {
 /** A condition on a value (the =when: form): one of `e`, or matching the pattern `m`, turned round by `n`. */
 export interface WhenCond {
   e?: string[];
-  m?: string;
+  m?: string[];
   n?: boolean;
 }
 /** A per-parent list: read under each record of `remote`. `scoped` is on unless it is false: the child's id gets the parent's in front. `where` keeps only the parents that meet it. `changed` reads a parent's children again only when its version moved. */
@@ -236,6 +236,30 @@ export interface EachOf {
   where?: WhenCond & { path: string };
   changed?: { path: string } | { object: string; parentAt: string; at: string };
 }
+/** The words of a text, lower case, letters and digits only, from its first 200 characters: one pass, no backtracking (a pattern from a spec is never run). */
+const wordsIn = (s: string): string[] =>
+  s
+    .slice(0, 200)
+    .toLowerCase()
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
+/** Does the text hold one of the words or phrases, as whole words? Linear in the text. */
+function hasWords(text: string, phrases: string[]): boolean {
+  const t = wordsIn(text);
+  return phrases.some((ph) => {
+    const p = wordsIn(ph);
+    if (!p.length) return false;
+    for (let i = 0; i + p.length <= t.length; i++) {
+      let all = true;
+      for (let j = 0; j < p.length; j++)
+        if (t[i + j] !== p[j]) {
+          all = false;
+          break;
+        }
+      if (all) return true;
+    }
+    return false;
+  });
+}
 /** Does the value meet the condition (case and surrounding spaces do not matter; a masked value never does)? */
 export function holdsWhen(have: unknown, c: WhenCond): boolean {
   const present = have !== undefined && have !== null && have !== "[sealed]";
@@ -244,7 +268,7 @@ export function holdsWhen(have: unknown, c: WhenCond): boolean {
     present &&
     (c.e !== undefined
       ? c.e.some((v) => v.trim().toLowerCase() === text.toLowerCase())
-      : c.m !== undefined && new RegExp(c.m, "i").test(text));
+      : c.m !== undefined && hasWords(text, c.m));
   return c.n === true ? !hit : hit;
 }
 /** The next place of a list walk, or none when the walk is over: an empty page ends it whatever it says comes next, and so does a next that is the place just read. One rule for every list (flat, list_after, per parent). */
@@ -284,7 +308,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
         ? {
             path: w["path"],
             ...(Array.isArray(w["e"]) ? { e: w["e"].map(String) } : {}),
-            ...(typeof w["m"] === "string" ? { m: w["m"] } : {}),
+            ...(Array.isArray(w["m"]) ? { m: w["m"].map(String) } : {}),
             ...(w["n"] === true ? { n: true } : {}),
           }
         : undefined;

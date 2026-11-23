@@ -147,10 +147,10 @@ test("where and changed compile into the connector's object map, and a bad one i
     errs(raw).some((e) => e.includes("eachOf is")),
     "equals and matches together",
   );
-  raw["objects"][1].list.eachOf.where = { path: "/is_submitted", matches: "(" };
+  raw["objects"][1].list.eachOf.where = { path: "/is_submitted", matches: [] };
   assert.ok(
     errs(raw).some((e) => e.includes("eachOf is")),
-    "a pattern that is not one",
+    "an empty list of words",
   );
   raw["objects"][1].list.eachOf.where = undefined;
   raw["objects"][1].list.eachOf.changed = { object: "nobody", parentAt: "/m", at: "/t" };
