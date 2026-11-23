@@ -1023,4 +1023,4 @@ Signed: 24 Nov 2026, lead.
 - Not a contract change, the rule the tests pin: `journeys.adopt` stamps the records it enrols with the person an agent works for (`actingFor`), else the Journey's owner (who made its first version), never an agent's id.
 - Snapshots: docs/frozen/snapshots/automations.json.
 
-Signed: pending, lead
+Signed: 24 Nov 2026, lead.
