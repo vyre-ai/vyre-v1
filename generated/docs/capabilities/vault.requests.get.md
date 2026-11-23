@@ -48,8 +48,7 @@ type Out = {
     itemId?: string;
     note?: string;
     service?: string;
-    taskId?: string;
-    placeholder?: boolean;
+    taskId: string;
     at: number;
     decidedAt?: number;
     askedYou?: boolean;
@@ -86,7 +85,6 @@ type Out = {
       "itemId": "vit_a1b2c3",
       "name": "Dana_Lawmatics",
       "note": "example",
-      "placeholder": true,
       "reason": "example",
       "requester": {
         "id": "usr_a1b2c3",

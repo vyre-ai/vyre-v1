@@ -5448,11 +5448,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -5598,6 +5598,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -5640,7 +5646,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -5899,11 +5905,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -6049,6 +6055,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -6091,7 +6103,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -6228,11 +6240,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -6378,6 +6390,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -6420,7 +6438,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -7355,6 +7373,32 @@
     },
     {
       "blocks": [],
+      "cap": "automations.readiness",
+      "deferred": false,
+      "description": "What each Automation is missing before it can be turned on",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "name": "automations_readiness",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "automations.replay",
       "deferred": false,
       "description": "Live rerun of a past run on the same definition version or the current one, not a sandbox replay",
@@ -7861,11 +7905,32 @@
           "draft": {
             "type": "boolean"
           },
+          "eventId": {
+            "examples": [
+              "evt_a1b2c3"
+            ],
+            "pattern": "^evt_[a-z0-9]+$",
+            "type": "string"
+          },
           "eventRunId": {
             "examples": [
               "run_a1b2c3"
             ],
             "pattern": "^run_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
           },
           "sample": {
@@ -8031,11 +8096,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -8181,6 +8246,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -8223,7 +8294,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -8355,11 +8426,11 @@
               "ai": {
                 "properties": {
                   "backupKeyId": {
-                    "description": "Takes over when the main account is capped, out of credits or not answering",
+                    "description": "Used when the main account is capped or down",
                     "type": "string"
                   },
                   "keyId": {
-                    "description": "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+                    "description": "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
                     "type": "string"
                   }
                 },
@@ -8505,6 +8576,12 @@
                           ],
                           "type": "object"
                         },
+                        "skills": {
+                          "items": {
+                            "type": "string"
+                          },
+                          "type": "array"
+                        },
                         "timeoutMinutes": {
                           "minimum": 1,
                           "type": "integer"
@@ -8547,7 +8624,7 @@
                       "type": "object"
                     },
                     "key": {
-                      "description": "A StepDef key",
+                      "description": "Step key",
                       "examples": [
                         "records.update"
                       ],
@@ -8838,6 +8915,76 @@
       },
       "name": "automations_webhook_url_rotate",
       "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.why_not",
+      "deferred": false,
+      "description": "Why Automations did not run for a record, and what stopped each",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "eventId": {
+            "examples": [
+              "evt_a1b2c3"
+            ],
+            "pattern": "^evt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_why_not",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "automations.would_run",
+      "deferred": false,
+      "description": "How often it would have started last week",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "automationId": {
+            "examples": [
+              "aut_a1b2c3"
+            ],
+            "pattern": "^aut_[a-z0-9]+$",
+            "type": "string"
+          },
+          "draft": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "automationId"
+        ],
+        "type": "object"
+      },
+      "name": "automations_would_run",
+      "planMode": "allowed",
       "toolset": "automations",
       "v": 1
     },
@@ -16628,6 +16775,23 @@
             ],
             "type": "string"
           },
+          "rate": {
+            "properties": {
+              "burst": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "rps": {
+                "minimum": 0.01,
+                "type": "number"
+              }
+            },
+            "required": [
+              "rps",
+              "burst"
+            ],
+            "type": "object"
+          },
           "secrets": {
             "items": {
               "properties": {
@@ -22860,6 +23024,76 @@
         "type": "object"
       },
       "name": "files_create",
+      "planMode": "blocked",
+      "toolset": "files",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "files.create_many",
+      "deferred": false,
+      "description": "Up to 200 files in one folder in one call, all or none; each as files.create takes it",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "files": {
+            "items": {
+              "properties": {
+                "content": {
+                  "description": "Exactly one of text, base64 (small files) or blobId (from files.upload_url)",
+                  "properties": {
+                    "base64": {
+                      "type": "string"
+                    },
+                    "blobId": {
+                      "examples": [
+                        "blb_a1b2c3"
+                      ],
+                      "pattern": "^blb_[a-z0-9]+$",
+                      "type": "string"
+                    },
+                    "text": {
+                      "type": "string"
+                    }
+                  },
+                  "type": "object"
+                },
+                "name": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name"
+              ],
+              "type": "object"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "type": "array"
+          },
+          "folderId": {
+            "examples": [
+              "fld_a1b2c3"
+            ],
+            "pattern": "^fld_[a-z0-9]+$",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "folderId",
+          "files",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "files_create_many",
       "planMode": "blocked",
       "toolset": "files",
       "v": 1
@@ -35124,6 +35358,40 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.adopt",
+      "deferred": true,
+      "description": "Bring a pipeline type's existing records into the Journey by their stage field, a page at a time",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "cursor": {
+            "type": "string"
+          },
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "limit": {
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "journeyId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_adopt",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.create",
       "deferred": false,
       "description": "Create a Journey and its record type (cloned from the Projects template) on a subject record type",
@@ -35137,8 +35405,25 @@
             "minLength": 1,
             "type": "string"
           },
+          "mode": {
+            "enum": [
+              "subject",
+              "pipeline"
+            ],
+            "type": "string"
+          },
           "name": {
             "minLength": 1,
+            "type": "string"
+          },
+          "recordType": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "stageField": {
             "type": "string"
           },
           "stages": {
@@ -35405,6 +35690,27 @@
             ],
             "pattern": "^[a-z][a-z0-9_]*$",
             "type": "string"
+          },
+          "useExisting": {
+            "type": "boolean"
+          },
+          "variables": {
+            "items": {
+              "properties": {
+                "key": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -35851,6 +36157,9 @@
       "effects": "write",
       "inputSchema": {
         "properties": {
+          "expectedVersion": {
+            "type": "integer"
+          },
           "journeyId": {
             "examples": [
               "jrn_a1b2c3"
@@ -36155,6 +36464,100 @@
     },
     {
       "blocks": [],
+      "cap": "journeys.test_path",
+      "deferred": false,
+      "description": "Test every stage's Automations on a record; nothing is sent",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_test_path",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.values.get",
+      "deferred": true,
+      "description": "Values a Journey carries for a record",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_values_get",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.values.set",
+      "deferred": false,
+      "description": "Keep a Journey value for a record",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "key": {
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          },
+          "value": {
+            "description": "Any JSON value"
+          }
+        },
+        "required": [
+          "recordId",
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_values_set",
+      "planMode": "blocked",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "journeys.versions",
       "deferred": false,
       "description": "List versions of a Journey definition",
@@ -36175,6 +36578,40 @@
         "type": "object"
       },
       "name": "journeys_versions",
+      "planMode": "allowed",
+      "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "journeys.where",
+      "deferred": false,
+      "description": "Where a record is on its Journey",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "journeyId": {
+            "examples": [
+              "jrn_a1b2c3"
+            ],
+            "pattern": "^jrn_[a-z0-9]+$",
+            "type": "string"
+          },
+          "recordId": {
+            "examples": [
+              "rec_a1b2c3"
+            ],
+            "pattern": "^rec_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "journeyId",
+          "recordId"
+        ],
+        "type": "object"
+      },
+      "name": "journeys_where",
       "planMode": "allowed",
       "toolset": "automations",
       "v": 1
@@ -54409,6 +54846,9 @@
             "additionalProperties": true,
             "type": "object"
           },
+          "quiet": {
+            "type": "boolean"
+          },
           "recordId": {
             "examples": [
               "rec_a1b2c3"
@@ -64095,30 +64535,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -64222,6 +64639,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -64277,6 +64697,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
@@ -64781,30 +65204,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -64908,6 +65308,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -64963,6 +65366,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
@@ -65586,30 +65992,7 @@
                             "type": "string"
                           },
                           "onlyWhen": {
-                            "properties": {
-                              "equals": {
-                                "anyOf": [
-                                  {
-                                    "type": "string"
-                                  },
-                                  {
-                                    "items": {
-                                      "type": "string"
-                                    },
-                                    "minItems": 1,
-                                    "type": "array"
-                                  }
-                                ]
-                              },
-                              "path": {
-                                "type": "string"
-                              }
-                            },
-                            "required": [
-                              "path",
-                              "equals"
-                            ],
-                            "type": "object"
+                            "description": "Any JSON value"
                           },
                           "path": {
                             "description": "JSON pointer such as /id; / is all",
@@ -65713,6 +66096,9 @@
                           ],
                           "type": "object"
                         },
+                        "eachOf": {
+                          "description": "Any JSON value"
+                        },
                         "filter": {
                           "properties": {
                             "param": {
@@ -65768,6 +66154,9 @@
                     },
                     "remote": {
                       "type": "string"
+                    },
+                    "rows": {
+                      "description": "Any JSON value"
                     },
                     "update": {
                       "properties": {
@@ -73939,7 +74328,7 @@
       "blocks": [],
       "cap": "vault.request",
       "deferred": false,
-      "description": "Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked",
+      "description": "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
       "effects": "write",
       "inputSchema": {
         "properties": {
