@@ -15,7 +15,22 @@
 //
 // from vyre 0.6.9 kernel/storage/backends.js (dirBackend, s3Backend, signV4 over Web Crypto) and kernel/storage/indexbackup.js (an index written next to the data, checked on read)
 
-import { accessSync, constants, mkdirSync, readFileSync, renameSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import {
+  accessSync,
+  constants,
+  createReadStream,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  statfsSync,
+  writeFileSync,
+} from "node:fs";
+import { Writable } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { createGunzip } from "node:zlib";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts";
@@ -106,6 +121,10 @@ export interface BackupTarget {
   del(key: string): Promise<void>;
   /** Throws when the target cannot be written. */
   ping(): Promise<void>;
+  /** The tar.gz backups `vyre-server` put in the same folder (a folder target only): name, time, size. */
+  listHost?(): Promise<HostBackup[]>;
+  /** Read a host backup start to end and say whether its gzip stream is whole (a folder target only). */
+  checkHost?(name: string): Promise<boolean>;
 }
 
 export interface S3Credentials {
@@ -138,11 +157,9 @@ export interface BackupDrivers {
   openTarget?: (cfg: TargetConfig, ctx: BackupCtx) => Promise<BackupTarget>;
   /** Where backup.run writes when the admin has chosen no target: a folder on this server's own disk (the host supplies it; nothing is written off-site). */
   defaultTarget?: TargetConfig;
-  /** The backups `vyre-server backup`, an update and a restore took on the host (tar.gz files), so backup.list shows every backup this server has, in one list. */
-  hostBackups?: () => Promise<HostBackup[]>;
 }
 
-/** A backup the host's own command took: read-only here (restore it with `vyre-server restore`). */
+/** A backup `vyre-server` took into the shared folder (tar.gz): listed, deleted and checked here; restored with `vyre-server restore`. */
 export interface HostBackup {
   name: string;
   at: number;
@@ -322,8 +339,37 @@ export function dirTarget(root: string): BackupTarget {
       accessSync(root, constants.W_OK);
       statfsSync(root);
     },
+    async listHost() {
+      const out: HostBackup[] = [];
+      for (const name of readdirSync(root)) {
+        if (!HOST_NAME.test(name)) continue;
+        try {
+          const st = statSync(join(root, name));
+          if (st.isFile()) out.push({ name, at: Math.floor(st.mtimeMs), sizeBytes: st.size });
+        } catch {
+          /* gone while listing */
+        }
+      }
+      return out;
+    },
+    async checkHost(name) {
+      if (!HOST_NAME.test(name)) return false;
+      try {
+        await pipeline(
+          createReadStream(join(root, name)),
+          createGunzip(),
+          new Writable({ write: (_c, _e, cb) => cb() }),
+        );
+        return true;
+      } catch {
+        return false;
+      }
+    },
   };
 }
+
+/** The name of a backup vyre-server took: vyre-<kind>-<stamp>.tar.gz, nothing else in the folder counts. */
+export const HOST_NAME = /^vyre-[A-Za-z0-9._-]+\.tar\.gz$/;
 
 /** S3 or any S3-compatible bucket (SeaweedFS, Garage, MinIO), path-style, every request signed with Signature V4. */
 export function s3Target(o: {
@@ -1050,15 +1096,24 @@ export async function list(ctx: BackupCtx, input: { cursor?: string; limit?: num
   // the host's own backups (`vyre-server backup`, before an update, before a restore) are in the same list, read-only
   let all = own;
   try {
-    const host = drivers?.hostBackups ? await drivers.hostBackups() : [];
-    all = [...own, ...host.map(hostRow)].sort((x, y) => y.at - x.at);
+    const host = chosen ? await (await openTarget(ctx, chosen.target)).listHost?.() : undefined;
+    if (host) all = [...own, ...host.map(hostRow)].sort((x, y) => y.at - x.at);
   } catch {
-    /* an unreadable host list leaves the server's own backups, which are still shown */
+    /* an unreadable folder leaves the server's own backups, which are still shown */
   }
   const { offset, size } = page(input.cursor, input.limit);
   const rows = all.slice(offset, offset + size);
   const more = offset + size < all.length;
   return { backups: rows, ...(more ? { next: String(offset + size) } : {}), total: all.length };
+}
+
+/** The file name behind a host backup's id, from the folder as it is now; undefined for any other id. */
+export async function hostNameOf(ctx: BackupCtx, backupId: string): Promise<string | undefined> {
+  if (!backupId.startsWith("bkp_host_")) return undefined;
+  const t = targetOf(ctx);
+  if (!t) return undefined;
+  const list = (await (await openTarget(ctx, t.target)).listHost?.()) ?? [];
+  return list.find((h) => hostRow(h).backupId === backupId)?.name;
 }
 
 /** A host backup as a list row: kind from its file name (vyre-manual-, vyre-pre-..., vyre-scheduled-), an id that names the file, never verified here. */
@@ -1084,7 +1139,7 @@ export function hostRow(h: HostBackup): {
     seq: 0,
     kind,
     verified: false,
-    target: `host:${h.name} (taken by vyre-server on this server's disk; restore it with vyre-server restore)`,
+    target: `host:${h.name} (taken by vyre-server; restore it there with vyre-server restore)`,
   };
 }
 
@@ -1100,6 +1155,12 @@ export async function run(ctx: BackupCtx, _input: Record<string, unknown>) {
 }
 
 export async function del(ctx: BackupCtx, input: { backupId: string }) {
+  const hostName = await hostNameOf(ctx, input.backupId);
+  if (hostName) {
+    const t = targetOf(ctx);
+    await (await openTarget(ctx, t!.target)).del(hostName);
+    return { deleted: true };
+  }
   const cfg = readConfig(ctx);
   const item = findItem(ctx, input.backupId);
   if (!item)

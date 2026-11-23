@@ -5301,6 +5301,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             fetch: d.fetch,
             blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id },
             secrets: () => [token],
+            backupDir: process.env["VYRE_BACKUP_DIR"],
           }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
         setRunsHost: () => runsHost,

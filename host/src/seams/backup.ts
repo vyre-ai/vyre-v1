@@ -60,32 +60,8 @@ export interface BackupHostSeam {
   exports: { save(name: string, bytes: Uint8Array): Promise<{ fileId: string }> };
   transport: S3Transport;
   credentials(vaultName: string): Promise<{ key: string; secret: string; endpoint?: string }>;
-  /** where backup.run writes when the admin chose no target: the backups folder beside the Space folder, on this server's own disk */
-  defaultTarget: { kind: "local"; path: string };
-  /** the backups `vyre-server` took on the host, from the list it keeps (host-backups.json beside the Space folder); empty when it has none */
-  hostBackups(): Promise<{ name: string; at: number; sizeBytes: number }[]>;
-}
-
-export const HOST_BACKUPS_FILE = "host-backups.json";
-/** Read the list `vyre-server` writes after each backup: rows of {name, at, sizeBytes}; anything else in the file is ignored, and a missing or broken file is an empty list. */
-export function readHostBackups(dataDir: string): { name: string; at: number; sizeBytes: number }[] {
-  try {
-    const j = JSON.parse(fs.readFileSync(path.join(dataDir, HOST_BACKUPS_FILE), "utf8")) as unknown;
-    const rows = Array.isArray(j) ? j : [];
-    return rows.flatMap((r) => {
-      const x = r as { name?: unknown; at?: unknown; sizeBytes?: unknown };
-      return typeof x.name === "string" &&
-        /^vyre-[A-Za-z0-9._-]+\.tar\.gz$/.test(x.name) &&
-        typeof x.at === "number" &&
-        Number.isFinite(x.at) &&
-        typeof x.sizeBytes === "number" &&
-        Number.isFinite(x.sizeBytes)
-        ? [{ name: x.name, at: x.at, sizeBytes: x.sizeBytes }]
-        : [];
-    });
-  } catch {
-    return [];
-  }
+  /** where backup.run writes when the admin chose no target: the host's backups folder, mounted into the server (vyre-server's own backups are in the same folder). Absent when the server was not given one. */
+  defaultTarget?: { kind: "local"; path: string };
 }
 
 /** Files that make up a Space on disk, relative to the data directory. */
@@ -122,6 +98,8 @@ export interface BackupHostDeps {
   fetch: SeamFetch;
   /** values an export must never contain (the admin token) */
   secrets?: () => string[];
+  /** the host's backups folder as the server sees it (VYRE_BACKUP_DIR); an absolute path outside the Space folder, or none */
+  backupDir?: string | undefined;
 }
 
 function walk(dir: string, rel = ""): string[] {
@@ -195,10 +173,10 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
     }
   }
 
-  const dataDir = path.dirname(deps.root);
+  const dir = deps.backupDir;
+  const inside = dir !== undefined && (dir === deps.root || dir.startsWith(deps.root.replace(/\/+$/, "") + "/"));
   return {
-    defaultTarget: { kind: "local", path: path.join(dataDir, "backups") },
-    hostBackups: async () => readHostBackups(dataDir),
+    ...(dir && path.isAbsolute(dir) && !inside ? { defaultTarget: { kind: "local" as const, path: dir } } : {}),
     source: {
       head: () => deps.log.currentHead(),
       snapshot,

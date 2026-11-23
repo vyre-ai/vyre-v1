@@ -72,24 +72,39 @@ test("two backups in the same second get two names; a manual backup is never rem
     fs.writeFileSync(path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"), "x");
     assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data scheduled live`, env).status, 0);
     assert.ok(names().includes("vyre-restored-by-hand.tar.gz"), "a name the script does not know is left alone");
-    // the list the server's backup.list reads: one row per backup left in the folder, names and sizes only, readable by its owner alone
-    const idx = JSON.parse(fs.readFileSync(path.join(dir, "data", "host-backups.json"), "utf8")) as {
-      name: string;
-      at: number;
-      sizeBytes: number;
-    }[];
-    assert.deepEqual(idx.map((r) => r.name).sort(), names().sort(), "the index names exactly what is in the folder");
-    assert.ok(
-      idx.every((r) => r.at > 1e12 && r.sizeBytes > 0),
-      "a time in milliseconds and a size",
-    );
-    assert.equal(fs.statSync(path.join(dir, "data", "host-backups.json")).mode & 0o777, 0o600);
     // the kinds keep their own few: a third backup before an update pushes out only the oldest of that kind
     for (const v of ["1.2.0", "1.3.0"])
       assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`, env).status, 0);
     const pre = names().filter((n) => /^vyre-pre-\d/.test(n));
     assert.equal(pre.length, 2, pre.join(" "));
     assert.ok(!pre.some((n) => n.startsWith("vyre-pre-1.1.0-")), "the oldest pre-update backup went first");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+test("the backups folder is mounted into the server: compose.backups.yml names it, is rewritten only when it changes, and every compose call includes it", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "M");
+    const env = world(dir, SAME);
+    const f = path.join(dir, "compose.backups.yml");
+    const r = sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env);
+    assert.equal(r.status, 0, r.stderr);
+    const txt = fs.readFileSync(f, "utf8");
+    assert.match(
+      txt,
+      new RegExp(`device: ${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} }`),
+      "the host folder is the bind source",
+    );
+    assert.match(txt, /- vyre-backups:\/backups/, "mounted at /backups");
+    assert.match(txt, /VYRE_BACKUP_DIR: \/backups/, "the server is told where");
+    const t0 = fs.statSync(f).mtimeMs;
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status, 0);
+    assert.equal(fs.statSync(f).mtimeMs, t0, "unchanged, so not rewritten");
+    assert.ok(fs.statSync(path.join(dir, "backups")).isDirectory());
+    // dc hands compose the file after the override
+    const calls = sh(SERVER, `DATA_DIR="${dir}/data"; docker(){ printf '%s\\n' "$*"; }; dc config`, env);
+    assert.match(calls.stdout, /-f \S+\/compose\.override\.yml -f \S+\/compose\.backups\.yml config/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

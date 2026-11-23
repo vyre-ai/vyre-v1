@@ -236,7 +236,31 @@ cur_version() { cat "$DIR/current/VERSION" 2>/dev/null || printf unknown; }
 # dc ARGS...: docker compose for this install, project folder = the current release.
 dc() {
   c=$(cur_dir)
-  docker compose --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" "$@"
+  ensure_backups_compose
+  docker compose --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" -f "$DIR/compose.backups.yml" "$@"
+}
+
+# ensure_backups_compose: the backups folder is one folder, this command's and the server's: it is mounted into vyred at /backups (VYRE_BACKUP_DIR), and backup.run with no target chosen writes there, so a
+# backup taken from either side is in the other's list. Written to its own file (compose.backups.yml) so an install made before this, whose compose.override.yml may carry edits, gets it on its next
+# start or update with nothing else changed. vyred runs as uid 1000: the folder (and each backup this command writes) is given to it when this runs as root; on a Mac the VM's mount does it.
+ensure_backups_compose() {
+  [ -n "$BACKUP_DIR" ] || return 0
+  mkdir -p "$BACKUP_DIR" 2>/dev/null && chmod 0700 "$BACKUP_DIR" 2>/dev/null || true
+  [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
+  _bc="$DIR/compose.backups.yml"
+  _want="# Written by vyre-server: the backups folder, mounted into the server.
+volumes:
+  vyre-backups:
+    driver: local
+    driver_opts: { type: none, o: bind, device: $BACKUP_DIR }
+services:
+  vyred:
+    environment:
+      VYRE_BACKUP_DIR: /backups
+    volumes:
+      - vyre-backups:/backups"
+  [ "$(cat "$_bc" 2>/dev/null)" = "$_want" ] && return 0
+  printf '%s\n' "$_want" >"$_bc.new" && mv -f "$_bc.new" "$_bc"
 }
 
 lock_get() { sed -n "s/^$1=\\(.*\\)\$/\\1/p" "$(cur_dir)/images.lock" 2>/dev/null | head -n 1; }
@@ -786,10 +810,10 @@ backup_data() {
   tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
   mv "$out.part" "$out" || backup_fail "the backup could not be put in place; nothing was changed."
+  [ "$(id -u)" != 0 ] || chown 1000:1000 "$out" 2>/dev/null || true # the server's user reads it to list, check and delete it
   [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
   prune_backups
-  write_backup_index
 }
 
 # prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's
@@ -813,28 +837,6 @@ prune_backups() {
     m_kb=$(du -sk "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
     say "  Manual backups are never removed by this command: $m_n of them take $((m_kb / 1024)) MB in $BACKUP_DIR. Delete the ones you no longer need yourself."
   fi
-  return 0
-}
-
-# file_stat FILE: "<seconds since epoch> <bytes>" of a file, GNU or BSD stat.
-file_stat() { stat -c '%Y %s' "$1" 2>/dev/null || stat -f '%m %z' "$1" 2>/dev/null; }
-
-# write_backup_index: the list of this folder's backups, one JSON row each, in $DATA_DIR/host-backups.json (0600), so the server's backup.list shows the backups this command took beside
-# its own: one list. Names are the only text in it (vyre-<kind>-<stamp>.tar.gz); the file is moved whole into place; a failure here never fails a backup.
-write_backup_index() {
-  [ -d "$DATA_DIR" ] || return 0
-  _bi="$DATA_DIR/host-backups.json"
-  {
-    _sep=
-    printf '['
-    for _bf in "$BACKUP_DIR"/vyre-*.tar.gz; do
-      [ -f "$_bf" ] || continue
-      _bn=$(basename "$_bf"); case "$_bn" in *[!A-Za-z0-9._-]*) continue ;; esac
-      set -- $(file_stat "$_bf") || true; [ -n "${2:-}" ] || continue
-      printf '%s{"name":"%s","at":%s000,"sizeBytes":%s}' "$_sep" "$_bn" "$1" "$2"; _sep=,
-    done
-    printf ']\n'
-  } >"$_bi.new" 2>/dev/null && chmod 0600 "$_bi.new" && mv -f "$_bi.new" "$_bi" || rm -f "$_bi.new"
   return 0
 }
 

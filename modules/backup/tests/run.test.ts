@@ -3,7 +3,9 @@
 
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { gzipSync } from "node:zlib";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
@@ -277,34 +279,57 @@ test("rotation keeps the newest scheduled backups and deletes the rest from the 
   assert.ok(manual.every((m) => w.target.objects.has(`b/${m}.vybk`)));
 });
 
-test("with no target chosen, backup.run writes to the host's default folder, says it is the server's own disk, and the list also shows the host's own backups", async () => {
+test("one folder for both sides: backup.run with no target writes into it, backups vyre-server took sit beside them, and list, verify, delete and restore treat every row alike", async () => {
   const w = world();
-  configureBackup({
-    ...w.drivers,
-    defaultTarget: { kind: "local", path: "/data/backups" },
-    hostBackups: async () => [
-      { name: "vyre-manual-20261119T174015Z.tar.gz", at: NOW - 5000, sizeBytes: 3_600_000_000 },
-      { name: "vyre-pre-1.0.0-rc.39-20261118T110323Z.tar.gz", at: NOW - 9000, sizeBytes: 3_400_000_000 },
-    ],
-  });
-  await w.space.append("contact/ada", "Ada Lovelace");
-  assert.equal(readConfig(w.ctx).target, null, "nothing was chosen");
-  const run = (await call("backup.run", w.ctx, {})) as { backupId: string };
-  assert.match(run.backupId, /^bkp_/);
-  const list = (await call("backup.list", w.ctx, {})) as {
-    backups: { backupId: string; kind: string; target: string; sizeBytes: number }[];
-    total: number;
-  };
-  assert.equal(list.total, 3, "one from backup.run and two from the host's command");
-  const own = list.backups.find((b) => b.backupId === run.backupId)!;
-  assert.match(own.target, /local:\/data\/backups/);
-  assert.match(own.target, /this server's own disk/);
-  assert.match(own.target, /off-site/);
-  assert.deepEqual(list.backups.map((b) => b.kind).sort(), ["manual", "manual", "pre_update"]);
-  assert.ok(list.backups.some((b) => b.sizeBytes === 3_600_000_000));
-  // with neither a chosen nor a default target the old message stays
-  configureBackup(w.drivers);
-  await assert.rejects(call("backup.run", w.ctx, {}), /Choose where backups go first/);
+  const dir = mkdtempSync(join(tmpdir(), "vyre-bk-"));
+  try {
+    configureBackup({
+      ...w.drivers,
+      defaultTarget: { kind: "local", path: dir },
+      openTarget: async (cfg) => dirTarget(cfg.path ?? ""),
+    });
+    await w.space.append("contact/ada", "Ada Lovelace");
+    // what `vyre-server backup` left in the folder: one whole gzip, one cut short, and files that are not backups
+    writeFileSync(join(dir, "vyre-manual-20261119T174015Z.tar.gz"), gzipSync(Buffer.from("space and caddy")));
+    writeFileSync(
+      join(dir, "vyre-pre-1.0.0-rc.39-20261118T110323Z.tar.gz"),
+      gzipSync(randomBytes(5000)).subarray(0, 100),
+    );
+    writeFileSync(join(dir, "notes.txt"), "not a backup");
+    assert.equal(readConfig(w.ctx).target, null, "nothing was chosen");
+    const run = (await call("backup.run", w.ctx, {})) as { backupId: string };
+    assert.match(run.backupId, /^bkp_/);
+    assert.ok(readdirSync(join(dir, "b")).length === 1, "the server's own backup is in the same folder");
+    type Row = { backupId: string; kind: string; target: string; sizeBytes: number };
+    const list = (await call("backup.list", w.ctx, {})) as { backups: Row[]; total: number };
+    assert.equal(list.total, 3, "one from backup.run and two from vyre-server; notes.txt is not a backup");
+    const own = list.backups.find((b) => b.backupId === run.backupId)!;
+    assert.match(own.target, /this server's own disk/);
+    assert.match(own.target, /off-site/);
+    assert.deepEqual(list.backups.map((b) => b.kind).sort(), ["manual", "manual", "pre_update"]);
+    const good = list.backups.find((b) => b.kind === "manual" && b.backupId !== run.backupId)!;
+    const cut = list.backups.find((b) => b.kind === "pre_update")!;
+    // verify: the whole gzip passes, the cut one does not
+    assert.equal(((await call("backup.verify", w.ctx, { backupId: good.backupId })) as { ok: boolean }).ok, true);
+    assert.equal(((await call("backup.verify", w.ctx, { backupId: cut.backupId })) as { ok: boolean }).ok, false);
+    // restore from the app is refused with the command that does it
+    await assert.rejects(
+      call("backup.restore", w.ctx, { backupId: good.backupId, confirm: true }),
+      /vyre-server restore vyre-manual-20261119T174015Z\.tar\.gz/,
+    );
+    await assert.rejects(call("backup.restore_preview", w.ctx, { backupId: good.backupId }), /vyre-server restore/);
+    // delete removes the file
+    assert.deepEqual(await call("backup.delete", w.ctx, { backupId: good.backupId }), { deleted: true });
+    assert.ok(!readdirSync(dir).includes("vyre-manual-20261119T174015Z.tar.gz"));
+    assert.equal(((await call("backup.list", w.ctx, {})) as { total: number }).total, 2);
+    // the server's own backup restores as before (the same list, the same handlers)
+    assert.equal(((await call("backup.verify", w.ctx, { backupId: run.backupId })) as { ok: boolean }).ok, true);
+    // with neither a chosen nor a default target the old message stays
+    configureBackup(w.drivers);
+    await assert.rejects(call("backup.run", w.ctx, {}), /Choose where backups go first/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("erasing a person purges the older backups that still hold them at the next backup", async () => {
