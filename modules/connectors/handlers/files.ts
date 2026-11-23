@@ -54,15 +54,7 @@ async function writeFilesBatched(ctx: ConnectorsCtx, folderId: string, files: So
       const part = list.slice(at, at + 200);
       await ctx.call("files.create_many", {
         folderId: target,
-        files: part.map((file) => {
-          const name = file.path.split("/").at(-1)!;
-          return {
-            name,
-            content: { text: file.content },
-            mime: name.endsWith(".md") ? "text/markdown" : name.endsWith(".json") ? "application/json" : "text/plain",
-            kind: name.endsWith(".md") ? "markdown" : "code",
-          };
-        }),
+        files: part.map((file) => ({ name: file.path.split("/").at(-1)!, content: { text: file.content } })),
         idempotencyKey: `connector-source:${tag}:${dir}:${at}`,
       });
     }

@@ -920,7 +920,7 @@ export default defineManifest({
         in: {
           folderId: id.folder,
           files: t.arr(
-            t.obj({ name: t.str(), content: t.opt(content), mime: t.opt(t.str()), kind: t.opt(fileKind) }),
+            t.obj({ name: t.str(), content: t.opt(content) }),
             { minItems: 1, maxItems: 200 },
           ),
         },

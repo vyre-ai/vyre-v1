@@ -1732,8 +1732,6 @@ if (g3299 === 'object') { const o3299 = x3299 as Record<string, unknown>;
 if (!("name" in o3299)) e.push(p + "/files" + '/' + i3298 + "/name" + ': required');
 if ("name" in o3299) lf(o3299["name"], p + "/files" + '/' + i3298 + "/name", e, L1);
 if ("content" in o3299) d_s_d928ebc271(o3299["content"], p + "/files" + '/' + i3298 + "/content", e);
-if ("mime" in o3299) lf(o3299["mime"], p + "/files" + '/' + i3298 + "/mime", e, L1);
-if ("kind" in o3299) lf(o3299["kind"], p + "/files" + '/' + i3298 + "/kind", e, L381);
 }
 }
 }

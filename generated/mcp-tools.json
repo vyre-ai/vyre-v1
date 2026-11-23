@@ -22894,27 +22894,6 @@
                   },
                   "type": "object"
                 },
-                "kind": {
-                  "enum": [
-                    "text",
-                    "markdown",
-                    "document",
-                    "spreadsheet",
-                    "presentation",
-                    "pdf",
-                    "image",
-                    "video",
-                    "audio",
-                    "code",
-                    "archive",
-                    "google_native",
-                    "other"
-                  ],
-                  "type": "string"
-                },
-                "mime": {
-                  "type": "string"
-                },
                 "name": {
                   "type": "string"
                 }

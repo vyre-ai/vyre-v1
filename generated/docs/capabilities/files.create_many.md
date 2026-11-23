@@ -33,8 +33,6 @@ type In = {
         base64?: string;
         blobId?: string;
       };
-      mime?: string;
-      kind?: "text" | "markdown" | "document" | "spreadsheet" | "presentation" | "pdf" | "image" | "video" | "audio" | "code" | "archive" | "google_native" | "other";
     }>;
   idempotencyKey: string;
 };
@@ -94,8 +92,6 @@ type Out = {
           "blobId": "blb_a1b2c3",
           "text": "example"
         },
-        "kind": "text",
-        "mime": "example",
         "name": "example"
       }
     ],
