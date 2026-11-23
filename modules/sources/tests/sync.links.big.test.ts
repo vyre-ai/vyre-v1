@@ -224,7 +224,7 @@ test("the drain does not link a record that was deleted while its link was owed"
   await runSync(k.deps(), PERSON_B, {});
   const people = (await k.l.store.query("person", { page: { limit: 10 } })).rows;
   assert.equal(people.length, 3);
-  await k.l.store.delete?.("person", people[0]!.id, (await k.l.store.get("person", people[0]!.id))!.version);
+  await k.l.store.remove("person", people[0]!.id, (await k.l.store.get("person", people[0]!.id))!.version);
   on.v = false;
   await runSync(k.deps(), PERSON_B, {});
   const org = (await k.l.store.query("org", { page: { limit: 10 } })).rows[0]!;

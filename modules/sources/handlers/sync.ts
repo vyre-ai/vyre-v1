@@ -784,7 +784,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId);
   };
   // what an earlier pass owed to the far ends and did not write (it stopped, or a record was busy) is written first
-  await writeFar(d, b.syncTypeId, skip, turn, true);
+  const early = await writeFar(d, b.syncTypeId, skip, turn, true);
   for (const c of creates) {
     await turn();
     try {
@@ -813,7 +813,9 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
       skip(`record ${a.localId}`, e);
     }
   }
-  const { over, parked } = await writeFar(d, b.syncTypeId, skip, turn, false);
+  const late = await writeFar(d, b.syncTypeId, skip, turn, false);
+  const over = [...early.over, ...late.over];
+  const parked = [...early.parked, ...late.parked];
   // new trouble only: a record that stays over the most links is said once a day or when its count changes (and counts as skipped then), a write that gave up is said once, when it is parked
   for (const x of over) {
     rep.skipped++;
