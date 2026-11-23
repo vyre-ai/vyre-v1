@@ -80,14 +80,16 @@ async function retireStaleWorker() {
   const regs = await navigator.serviceWorker.getRegistrations();
   const stale = regs.filter((r) => {
     const w = r.active || r.waiting || r.installing;
-    return w && new URL(w.scriptURL).pathname !== "/__vyre/sw.js";
+    return r.scope === `${location.origin}/` && w && new URL(w.scriptURL).pathname !== "/__vyre/sw.js";
   });
   if (!stale.length) return false;
   try {
     if (Date.now() - Number(sessionStorage.getItem("vyre-shell-retire") || 0) < 15_000) return false;
     sessionStorage.setItem("vyre-shell-retire", String(Date.now()));
   } catch {
-    /* storage blocked: retire and reload once anyway */
+    // storage blocked: nothing remembers a reload, so none is made (the worker is still removed; the next start registers ours)
+    await Promise.all(stale.map((r) => r.unregister().catch(() => false)));
+    return false;
   }
   await Promise.all(stale.map((r) => r.unregister().catch(() => false)));
   location.reload();
