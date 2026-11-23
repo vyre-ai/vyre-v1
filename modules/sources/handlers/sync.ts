@@ -199,36 +199,60 @@ const theirsOf = (d: SyncDeps, f: SyncFieldMap, rec: StoredRecord): unknown => {
 const sameField = (f: SyncFieldMap, a: unknown, b: unknown): boolean =>
   f.relation ? canonical(urnsOf(a)) === canonical(urnsOf(b)) : same(a, b);
 
-/** A two-way relation moves at both ends: when a record's link changes here, the field that links back on the other record changes with it. */
-async function relinkFar(
+/** What a pass owes the far ends of its relations: for each record at the other end, the links to add and to drop. It is written once for the pass, not once for each record pulled: a lead attorney who leads
+ * thousands of matters is one record whose list would otherwise be read and written in full for every one of them. */
+type FarOwed = Map<string, { type: string; id: string; inverse: string; links: Map<string, boolean> }>;
+
+/** A two-way relation moves at both ends: when a record's link changes here, the field that links back on the other record changes with it. The change is noted here and written by `writeFar`. */
+function relinkFar(
   d: SyncDeps,
   b: SyncBinding,
   localId: string,
   fields: SyncFieldMap[],
   was: Record<string, unknown>,
   becomes: Record<string, unknown>,
-): Promise<void> {
+  owed: FarOwed,
+): void {
   const self = `vyre://${d.space ?? "space"}/${b.type}/${localId}`;
   for (const f of fields) {
     const inverse = f.relation?.inverse;
     if (!f.relation || !inverse || !(f.local in becomes)) continue;
     const before = new Set(urnsOf(was[f.local])),
       after = new Set(urnsOf(becomes[f.local]));
-    const touch = async (urn: string, add: boolean): Promise<void> => {
-      const rec = await d.local.get(f.relation!.type, urn.split("/").pop() ?? "");
-      if (!rec) return;
-      const list = Array.isArray(rec.data[inverse]) ? (rec.data[inverse] as { urn?: string }[]) : [];
-      if (urnsOf(list).includes(self) === add) return;
-      await d.local.update(
-        f.relation!.type,
-        rec.id,
-        { [inverse]: add ? [...list, { urn: self }] : list.filter((x) => x.urn !== self) },
-        rec.version,
-      );
+    const note = (urn: string, add: boolean): void => {
+      const id = urn.split("/").pop() ?? "";
+      const key = `${f.relation!.type}|${id}|${inverse}`;
+      let o = owed.get(key);
+      if (!o) owed.set(key, (o = { type: f.relation!.type, id, inverse, links: new Map() }));
+      o.links.set(self, add);
     };
-    for (const urn of before) if (!after.has(urn)) await touch(urn, false);
-    for (const urn of after) if (!before.has(urn)) await touch(urn, true);
+    for (const urn of before) if (!after.has(urn)) note(urn, false);
+    for (const urn of after) if (!before.has(urn)) note(urn, true);
   }
+}
+
+/** Writes what `relinkFar` noted: one read and one write for each record at the far end, however many links it gains or loses. A record that cannot take it is skipped and logged, the pass goes on. */
+async function writeFar(d: SyncDeps, owed: FarOwed, skip: (what: string, e: unknown) => void, turn: () => Promise<void>): Promise<void> {
+  for (const o of owed.values()) {
+    await turn();
+    try {
+      const rec = await d.local.get(o.type, o.id);
+      if (!rec) continue;
+      const list = Array.isArray(rec.data[o.inverse]) ? (rec.data[o.inverse] as { urn?: string }[]) : [];
+      const have = new Set(urnsOf(list));
+      const next = list.filter((x) => !(x.urn !== undefined && o.links.get(x.urn) === false));
+      let changed = next.length !== list.length;
+      for (const [urn, add] of o.links)
+        if (add && !have.has(urn)) {
+          next.push({ urn });
+          changed = true;
+        }
+      if (changed) await d.local.update(o.type, rec.id, { [o.inverse]: next }, rec.version);
+    } catch (e) {
+      skip(`the ${o.inverse} of ${o.type} ${o.id}`, e);
+    }
+  }
+  owed.clear();
 }
 
 const HISTORY_SQL =
@@ -671,13 +695,14 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     rep.skipped++;
     log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId);
   };
+  const owed: FarOwed = new Map();
   for (const c of creates) {
     await turn();
     try {
       const id = mintRecordId(now(d));
       const rec = await d.local.create(b.type, id, c.data);
       saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
-      await relinkFar(d, b, id, fields, {}, c.data);
+      relinkFar(d, b, id, fields, {}, c.data, owed);
       announce("record.created", id, { fields: { ...rec.data } });
     } catch (e) {
       skip(`${label} record ${c.remote.id}`, e);
@@ -692,13 +717,14 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         const changed: Record<string, unknown> = {};
         for (const k of keys) changed[k] = Object.prototype.hasOwnProperty.call(rec.data, k) ? rec.data[k] : null;
         announce("record.updated", a.localId, { fields: changed, prev: a.prev, version: rec.version });
-        await relinkFar(d, b, a.localId, fields, a.prev, a.patch);
+        relinkFar(d, b, a.localId, fields, a.prev, a.patch, owed);
       }
       saveLink(d.tx, b.syncTypeId, a.link);
     } catch (e) {
       skip(`record ${a.localId}`, e);
     }
   }
+  await writeFar(d, owed, skip, turn);
   for (const l of losses) keepLoser(d, b.type, l.localId, l.field, l.value, l.actor);
   for (const l of vanished) if (!rep.pausedDeletes) saveLink(d.tx, b.syncTypeId, { ...l, removedAt: now(d) });
 

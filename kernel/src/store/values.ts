@@ -6,8 +6,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof
 const strArr = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
 export const isSealedRef = (v: unknown): boolean =>
   isObj(v) && typeof v.sealed === "string" && typeof v.ref === "string" && typeof v.present === "boolean";
-/** The most records one `many` link holds. */
-export const MAX_LINKS = 500;
+/** The most records one `many` link holds. A firm's lead attorney leads thousands of matters, so the far end of that relation holds thousands: 500 skipped every matter after the 500th (20 Nov 2026). */
+export const MAX_LINKS = 20_000;
 const ISO = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})?)?$/;
 
 export function validZone(z: string): boolean {
