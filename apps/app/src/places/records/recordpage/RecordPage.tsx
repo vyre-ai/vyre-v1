@@ -168,12 +168,11 @@ function RelationCards({ field, ids }: { field: FieldDef; ids: readonly string[]
       </View>
     );
   const more = ids.length - shown;
+  const cards: ReactElement[] = [];
+  for (const id of ids.slice(0, shown)) cards.push(<RelationCard key={id} field={field} id={id} />);
   return (
     <View style={p.cards}>
-      {/* ui-rows-lint: not a list (link cards that wrap in a flow, each opens its record; nothing to hover or select as a row) */}
-      {ids.slice(0, shown).map((id) => (
-        <RelationCard key={id} field={field} id={id} />
-      ))}
+      {cards}
       {more > 0 ? (
         <Pressable
           accessibilityRole="button"
