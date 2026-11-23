@@ -1160,3 +1160,30 @@ test("a person who does not manage the folder still asks its managers; an agent 
   assert.equal(agent.called("vault.item.put").length, 0, "an agent never makes the item itself");
   assert.equal(agent.called("tasks.create").length, 1);
 });
+
+test("a Space admin who cannot put into the named folder asks its managers as before; one who can gets the item (r-review low 1)", async () => {
+  const w = world({ managers: { [FOLDER]: ["usr_mira"] }, fail: {} });
+  // the Vault refuses the put for rights
+  const refused = world({ managers: { [FOLDER]: ["usr_mira"] } });
+  const base = refused.as("usr_admin");
+  const real = {
+    ...base,
+    call: async (cap: string, input: unknown) => {
+      if (cap === "vault.item.put")
+        throw { error: { code: "permission.no_grant", message: "Adding to this folder needs edit access." } };
+      return base.call(cap as never, input as never);
+    },
+  } as typeof base;
+  const out = await handlers["vault.request"](real, { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm1" } as never);
+  assert.equal(out.request.placeholder, undefined);
+  assert.equal(out.request.state, "waiting");
+  assert.deepEqual(
+    refused.called("tasks.create").map((x) => (x.input["assigned"] as { id: string }).id),
+    ["usr_mira"],
+    "the folder's manager is asked",
+  );
+  assert.equal(refused.db.dump().includes('"fulfilled"'), false, "nothing was recorded as made");
+  const ok = await handlers["vault.request"](w.as("usr_admin"), { name: "Dana_Lawmatics", reason: "Need it", folderId: FOLDER, idempotencyKey: "adm2" } as never);
+  assert.equal(ok.request.placeholder, true);
+  assert.equal(w.called("tasks.create").length, 0);
+});

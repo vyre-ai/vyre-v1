@@ -234,8 +234,11 @@ export async function requestCreate(
   const managers =
     input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id, requester.kind === "person" ? seen : undefined);
   // someone who can manage the folder needs to ask nobody: the item is made now, with the fields empty, for them to fill in
-  if (input.to === undefined && requester.kind === "person" && seen.requesterManages && input.handleOnly !== true)
-    return placeholderFor(ctx, { requester, name, fields, input });
+  if (input.to === undefined && requester.kind === "person" && seen.requesterManages && input.handleOnly !== true) {
+    const made = await placeholderFor(ctx, { requester, name, fields, input });
+    // a Space owner or admin who cannot put into that folder asks its managers as before
+    if (made) return made;
+  }
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
   const block = {
@@ -338,15 +341,22 @@ async function placeholderFor(
       ? await companyFolder(ctx)
       : await ownMine(ctx, { id } as RequestRow, undefined));
   if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
-  const made = asRow(
-    await ctx.call("vault.item.put", {
-      folderId,
-      name: a.name,
-      kind: "api_key",
-      fields: a.fields.map((key) => ({ key, value: "", secret: true })),
-      idempotencyKey: `${id}:placeholder`,
-    }),
-  );
+  let made: Record<string, unknown> | null;
+  try {
+    made = asRow(
+      await ctx.call("vault.item.put", {
+        folderId,
+        name: a.name,
+        kind: "api_key",
+        fields: a.fields.map((key) => ({ key, value: "", secret: true })),
+        idempotencyKey: `${id}:placeholder`,
+      }),
+    );
+  } catch (e) {
+    const code = (e as { error?: { code?: string } })?.error?.code ?? "";
+    if (code.startsWith("permission.") || code === "validation.not_found") return null;
+    throw e;
+  }
   const itemId = strOf(asRow(made?.["item"])?.["id"]);
   if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
   ctx.db.run(

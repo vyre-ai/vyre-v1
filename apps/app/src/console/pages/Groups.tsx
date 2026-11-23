@@ -245,12 +245,43 @@ export function invitedIn(invites: readonly GroupInvite[], groupId: string): Gro
   return invites.filter((invite) => invite.state === "open" && invite.groups.includes(groupId));
 }
 
+type InviteCall = (cap: "members.invites.list", input: Record<string, unknown>) => Promise<unknown>;
+/** The open invites after the first page, read page by page until there are no more. */
+export async function readLaterInvites(call: InviteCall, firstCursor: string): Promise<GroupInvite[]> {
+  const got: GroupInvite[] = [];
+  let cursor: string | undefined = firstCursor;
+  for (let page = 0; cursor && page < 200; page++) {
+    const out = (await call("members.invites.list", { state: "open", limit: 100, cursor })) as CapMap["members.invites.list"]["out"];
+    got.push(...out.invites);
+    cursor = out.next;
+  }
+  return got;
+}
+
 function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void }): ReactElement {
   const data = useConsoleData();
   const detail = useRead<AccessGroupsGetOut>("access.groups.get", { groupId });
   const roles = useRead<AccessRolesListOut>("access.roles.list", { limit: 500 });
   // who may invite sees who was pre-staged; anyone else gets no read and no rows
   const invites = useRead<CapMap["members.invites.list"]["out"]>("members.invites.list", { state: "open", limit: 100 });
+  // every open invite, not just the first page: later pages are read one after another until there are none
+  const [moreInvites, setMoreInvites] = useState<GroupInvite[]>([]);
+  const firstNext = invites.data?.next;
+  useEffect(() => {
+    let live = true;
+    if (!firstNext) {
+      setMoreInvites([]);
+      return;
+    }
+    void readLaterInvites(data.call as InviteCall, firstNext)
+      .then((got) => {
+        if (live) setMoreInvites(got);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [firstNext, data]);
   const [tab, setTab] = useState("overview");
   const [pendingRole, setPendingRole] = useState<AccessRolesListOut["roles"][number] | null>(null);
   const [sheet, setSheet] = useState<"edit" | "members" | "managers" | null>(null);
@@ -386,7 +417,7 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
       {tab === "members" ? (
         <MemberRows
           members={group.members}
-          invited={invites.data ? invitedIn(invites.data.invites, groupId) : []}
+          invited={invites.data ? invitedIn([...invites.data.invites, ...moreInvites], groupId) : []}
           groupId={groupId}
           refresh={detail.refresh}
         />

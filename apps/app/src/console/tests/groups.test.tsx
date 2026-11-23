@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ConsoleDataProvider } from "../shell/data.tsx";
 import { createSampleConsole } from "../shell/sample.ts";
-import { Groups, MemberRows, groupActivityLabel, groupDeleteImpact, invitedIn, mergeGroupRows } from "../pages/Groups.tsx";
+import { Groups, MemberRows, groupActivityLabel, groupDeleteImpact, invitedIn, mergeGroupRows, readLaterInvites } from "../pages/Groups.tsx";
 import type { ConsoleData } from "../shell/data.tsx";
 const custom = {
   id: "grp_review",
@@ -131,4 +131,25 @@ test("people invited into a team show in its member list as Invited, before they
     </ConsoleDataProvider>,
   );
   assert.match(only, /No members yet/);
+});
+
+test("the Members tab reads every open invite, page after page, not only the first hundred (r-review low 2)", async () => {
+  const pages: Record<string, { invites: unknown[]; next?: string }> = {
+    p2: { invites: [invite({ id: "inv_a" })], next: "p3" },
+    p3: { invites: [invite({ id: "inv_b", groups: ["grp_other"] }), invite({ id: "inv_c" })] },
+  };
+  const asked: unknown[] = [];
+  const got = await readLaterInvites(async (_cap, input) => {
+    asked.push(input);
+    return pages[String(input["cursor"])];
+  }, "p2");
+  assert.deepEqual(
+    got.map((row) => row.id),
+    ["inv_a", "inv_b", "inv_c"],
+  );
+  assert.equal(asked.length, 2);
+  assert.deepEqual(
+    invitedIn(got, "grp_review").map((row) => row.id),
+    ["inv_a", "inv_c"],
+  );
 });
