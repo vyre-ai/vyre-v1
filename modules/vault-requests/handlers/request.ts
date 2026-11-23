@@ -358,7 +358,7 @@ async function placeholderFor(
     if (code.startsWith("permission.") || code === "validation.not_found") return null;
     if (code !== "validation.duplicate") throw e;
     // the folder already keeps an item with that name: the request is fulfilled with that item, nothing is overwritten
-    const list = (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as { id?: string; name?: string }[]) ?? [];
+    const list = (asRow(await ctx.call("vault.items.list", { folder: folderId, q: a.name }))?.["items"] as { id?: string; name?: string }[]) ?? [];
     const have = list.find((x) => String(x.name ?? "").toLowerCase() === a.name.toLowerCase());
     if (!have?.id) throw e;
     existing = have.id;
