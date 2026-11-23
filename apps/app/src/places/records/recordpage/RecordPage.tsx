@@ -90,6 +90,8 @@ interface Flash {
 
 /** Fields drawn in the first frame of a record page: none. The header, title and summary paint first; the ring, the sections and the right pane follow in the next frame. The perf traces (runs 40282475958) put 51 ms of a 110 ms navigate in the sections and the floor at 45 ms, so nothing else fits the 50 ms budget. */
 const FIRST_FRAME_FIELDS = 0;
+/** The relation cards one field draws; the rest are counted. */
+const RELATION_CARDS = 50;
 
 export function Peek({ type, recordId }: { type: string; recordId: string }): ReactElement | null {
   const data = usePageData();
@@ -278,7 +280,15 @@ function FieldRow(q: FieldProps): ReactElement {
     body = <SealedField field={f} row={row} type={q.type} />;
   } else if (f.type === "relation") {
     const cards: ReactElement[] = [];
-    for (const id of relationIds(f, row)) cards.push(<RelationCard key={id} field={f} id={id} />);
+    // a relation can hold thousands of links (a lead attorney's matters): the page draws the first cards and says how many more there are, so one field never mounts thousands of cards
+    const ids = relationIds(f, row);
+    for (const id of ids.slice(0, RELATION_CARDS)) cards.push(<RelationCard key={id} field={f} id={id} />);
+    if (ids.length > RELATION_CARDS)
+      cards.push(
+        <Text key="more" style={p.empty} testID={`rel-more-${f.key}`}>
+          {`and ${ids.length - RELATION_CARDS} more`}
+        </Text>,
+      );
     body = <View style={p.cards}>{cards.length > 0 ? cards : <Text style={p.empty}>None</Text>}</View>;
   } else if (f.key === "folder" && typeof v === "string" && v.startsWith("fld_") && open === false) {
     body = <FolderLink folderId={v} type={q.type} recordId={row.id} />;
