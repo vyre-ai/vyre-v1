@@ -4,6 +4,7 @@
 import test from "node:test";
 import fs from "node:fs";
 import inspector from "node:inspector";
+import { DatabaseSync } from "node:sqlite";
 import assert from "node:assert/strict";
 import { call, hostLog } from "./support/eco-live.ts";
 import { spec, world } from "./support/sync-live.ts";
@@ -86,7 +87,17 @@ test(
       const count = (listed.data.files ?? []).length + sub.reduce((n, r) => n + (r.data.files ?? []).length, 0);
       assert.ok(count >= (actions ?? 0) + 2, `the folder holds ${count} files for ${actions} actions`);
       // all or none: a batch with one taken name makes nothing, on the real server
+      const rows = (table: string): number => {
+        const db = new DatabaseSync(w.d.paths.modules, { readOnly: true });
+        try {
+          return Number((db.prepare(`SELECT count(*) AS c FROM ${table}`).get() as { c: number }).c);
+        } finally {
+          db.close();
+        }
+      };
       const before = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files.length;
+      const blobsBefore = rows("files_blob");
+      const versionsBefore = rows("files_file_version");
       const refused = await call(w.d, "files.create_many", {
         folderId,
         files: [
@@ -99,6 +110,21 @@ test(
       const afterwards = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files;
       assert.equal(afterwards.length, before, "the refused batch made no file");
       assert.ok(!afterwards.some((f: { name: string }) => f.name === "fresh.txt"));
+      // the stored content of the refused batch went with it: no blob, no version row is left behind
+      assert.equal(rows("files_blob"), blobsBefore, "a refused batch leaves no blob");
+      assert.equal(rows("files_file_version"), versionsBefore, "a refused batch leaves no version");
+      // a call that adds up to more than 25 MB is refused in words, before anything is written
+      const big = await call(w.d, "files.create_many", {
+        folderId,
+        files: Array.from({ length: 110 }, (_, i) => ({
+          name: `big-${i}.txt`,
+          content: { text: `${i}`.padEnd(250_000, "x") },
+        })),
+        idempotencyKey: "export-big",
+      });
+      assert.equal(big.status, 422, JSON.stringify(big.data).slice(0, 200));
+      assert.match(JSON.stringify(big.data), /25 MB/);
+      assert.equal(rows("files_blob"), blobsBefore, "the over-size call wrote nothing");
     } finally {
       await w.close();
     }

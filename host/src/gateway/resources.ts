@@ -200,6 +200,7 @@ export const AUTHORING_CAPS: ReadonlySet<string> = new Set([
   "email_builder.create",
   "files.copy",
   "files.create",
+  "files.create_many",
   "files.folder.create",
   "folders.create",
   "forms.create",

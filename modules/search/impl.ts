@@ -14,7 +14,7 @@ import {
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
-import { forgetVectors, setEmbedder, setSource } from "./projections.ts";
+import { forgetVectors, rowsOf, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
@@ -128,8 +128,6 @@ export interface IndexTarget {
 export function targetsOf(e: IndexEvent): IndexTarget[] {
   const w = WATCHED[e.type];
   if (!w || e.enc === 2) return [];
-  // a file's first version is announced right after its creation, in the same commit: the creation already reads the file whole, so the first version is not read a second time (a connector export of 77 files indexed every file twice)
-  if (e.type === "file.version_added" && e.payload["n"] === 1) return [];
   const id = typeof e.payload[w.idKey] === "string" ? (e.payload[w.idKey] as string) : e.entityId;
   if (!id) return [];
   const type =
@@ -139,6 +137,14 @@ export function targetsOf(e: IndexEvent): IndexTarget[] {
   if (typeof gone === "string") out.push({ entity: type, id: gone, op: "delete", seq: e.seq });
   out.push({ entity: type, id, op: w.remove ? "delete" : "upsert", seq: e.seq });
   return out;
+}
+
+/** A file's first version is announced right after its creation, and the creation already reads the file whole: the first version is read a second time only when the file is not in the index yet (a flow that adds its first version later is still indexed). */
+export function alreadyIndexed(ctx: SearchCtx, e: IndexEvent, t: IndexTarget): boolean {
+  if (e.type !== "file.version_added" || e.payload["n"] !== 1) return false;
+  return (
+    rowsOf(ctx.db, "SELECT 1 AS x FROM search_docs WHERE entity = ? AND id = ? LIMIT 1", t.entity, t.id).length > 0
+  );
 }
 
 /** The single row an event is about (the last of its targets): what a one-row event means. */
@@ -158,14 +164,15 @@ export const consumers = {
         if (folderId) indexDropFolder(ctx, folderId, e.seq);
         return;
       }
-      for (const t of targetsOf(e)) await indexApply(ctx, t);
+      for (const t of targetsOf(e)) if (!alreadyIndexed(ctx, e, t)) await indexApply(ctx, t);
     },
   },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */
   "search.vectors": {
     on: Object.keys(WATCHED),
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
-      if (targetsOf(indexEventOf(event)).length > 0) await embedRun(ctx, { limit: 50 });
+      const e = indexEventOf(event);
+      if (targetsOf(e).some((t) => !alreadyIndexed(ctx, e, t))) await embedRun(ctx, { limit: 50 });
     },
   },
 };

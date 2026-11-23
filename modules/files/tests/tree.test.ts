@@ -866,3 +866,48 @@ test("files.create_many makes every file of the call in one folder, or none when
     (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input",
   );
 });
+
+test("text content is text: a string written under a binary name is never classed as a PDF, a workbook or a picture", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Texty" })).folder.folderId;
+  const names = ["report.pdf", "sheet.xlsx", "photo.png", "memo.docx", "notes.md", "data.csv", "logo.svg", "run.py"];
+  const made = await handlers["files.create_many"](ctx, {
+    folderId: folder,
+    files: names.map((name) => ({ name, content: { text: "hello" } })),
+  });
+  const by = new Map(made.files.map((f) => [f.name, f]));
+  for (const n of ["report.pdf", "sheet.xlsx", "photo.png", "memo.docx"]) {
+    assert.equal(by.get(n)!.kind, "text", `${n} holds text`);
+    assert.equal(by.get(n)!.mime, "text/plain", `${n} is served as text`);
+  }
+  assert.equal(by.get("notes.md")!.kind, "markdown");
+  assert.equal(by.get("data.csv")!.kind, "spreadsheet", "a csv is text on disk and keeps its viewer");
+  assert.equal(by.get("logo.svg")!.kind, "image");
+  assert.equal(by.get("run.py")!.kind, "code");
+  // a kind the caller names is the caller's
+  const given = await handlers["files.create"](ctx, {
+    folderId: folder,
+    name: "given.pdf",
+    kind: "pdf",
+    content: { text: "x" },
+  });
+  assert.equal(given.file.kind, "pdf");
+});
+
+test("files.create_many refuses a call over 25 MB in words, before any file is made", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Huge" })).folder.folderId;
+  const files = Array.from({ length: 110 }, (_, i) => ({
+    name: `f${i}.txt`,
+    content: { text: `${i}`.padEnd(250_000, "x") },
+  }));
+  await assert.rejects(
+    handlers["files.create_many"](ctx, { folderId: folder, files }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.too_large" && /25 MB/.test(e.error.message),
+  );
+  assert.equal((await handlers["files.list"](ctx, { folder })).total, 0, "nothing was made");
+});

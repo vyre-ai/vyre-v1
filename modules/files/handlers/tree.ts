@@ -1941,6 +1941,22 @@ async function folderSettings(ctx: Ctx, input: unknown): Promise<{ folder: Folde
   return { folder: folderOut(ctx, mustFolder(ctx, String(row.id))) };
 }
 
+/** What a string can be: a text type, JSON, or a vector image (SVG is XML). */
+const TEXTLIKE_MIME = /^(text\/|application\/json$|image\/svg\+xml$)/;
+/** Kinds whose bytes are not a string. */
+const BINARY_KINDS: ReadonlySet<string> = new Set([
+  "image",
+  "spreadsheet",
+  "pdf",
+  "document",
+  "presentation",
+  "video",
+  "audio",
+  "archive",
+]);
+/** ... except the ones that are text on disk. */
+const TEXT_EXT = new Set(["svg", "csv", "tsv"]);
+
 function chosenKind(ctx: Ctx, given: string | undefined, name: string, mime: string): string {
   if (given === undefined) return guessKind(name, mime);
   if (!KINDS.has(given)) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "kind" });
@@ -1962,8 +1978,13 @@ async function createFileIn(
     fail(ctx, "validation.duplicate", "That name is already in this folder.");
   taken?.add(name);
   const content = parseContent(ctx, o.content);
-  const mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
-  const kind = chosenKind(ctx, optStr(ctx, o, "kind"), name, mimeHint);
+  let mimeHint = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
+  // text is text: a string written to report.pdf or data.xlsx is not a PDF or a workbook, so the name picks among the text types only and the kind comes from the content
+  const givenKind = optStr(ctx, o, "kind");
+  const textBody = content.kind === "text";
+  if (textBody && optStr(ctx, o, "mime") === undefined && !TEXTLIKE_MIME.test(mimeHint)) mimeHint = "text/plain";
+  let kind = chosenKind(ctx, givenKind, name, mimeHint);
+  if (textBody && givenKind === undefined && BINARY_KINDS.has(kind) && !TEXT_EXT.has(extOf(name))) kind = "text";
   const blob = await resolveBlob(ctx, content, mimeHint);
   const id = nid(ctx, "fil");
   const now = ctx.now();
@@ -2001,6 +2022,7 @@ async function filesCreate(ctx: Ctx, input: unknown): Promise<{ file: FileOut; c
 
 /** Many files into one folder in one call: one transaction, one commit, one update of who may see what (the access rebuild runs once, not once for each file). All or none: a name taken or a content refused stops the call and nothing is made. */
 const CREATE_MANY_MAX = 200;
+const CREATE_MANY_BYTES = 25 * 1024 * 1024;
 async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileOut[] }> {
   ensureReady(ctx);
   const o = rec(ctx, input);
@@ -2008,6 +2030,23 @@ async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileO
   const list = o["files"];
   if (!Array.isArray(list) || list.length === 0 || list.length > CREATE_MANY_MAX)
     fail(ctx, "validation.bad_input", "The input is not valid.", { field: "files" });
+  // the whole call is one transaction and its content is held in memory until it commits: a call that adds up to more than 25 MB is refused before anything is written
+  let total = 0;
+  for (const one of list as unknown[]) {
+    const c = parseContent(ctx, rec(ctx, one).content);
+    total +=
+      c.kind === "text"
+        ? new TextEncoder().encode(c.text).byteLength
+        : c.kind === "base64"
+          ? (plainOf(ctx, c)?.byteLength ?? 0)
+          : 0;
+  }
+  if (total > CREATE_MANY_BYTES)
+    fail(
+      ctx,
+      "validation.too_large",
+      "The files in one call add up to more than 25 MB. Send them in smaller groups of files.",
+    );
   const taken = new Set<string>();
   const files: FileOut[] = [];
   for (const one of list as unknown[]) files.push((await createFileIn(ctx, folder, rec(ctx, one), taken)).file);
