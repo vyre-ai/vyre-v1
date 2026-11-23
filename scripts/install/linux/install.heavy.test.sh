@@ -235,6 +235,31 @@ t_update() {
   tail -n 1 "$W/srv/state/updates.tsv" | grep -q "ok"
   vs update --check | grep -q "newest"
 }
+# The backups folder is one folder, mounted into the server: a backup from the command shows inside, a file written inside shows on the host, and an install that has no mount yet (as
+# one made before this) gets it on its next start with the Space's own volume, and what was in it, untouched.
+t_backups_mount() {
+  vyred() { docker ps -q --filter "label=com.docker.compose.project=$PROJECT" --filter "label=com.docker.compose.service=vyred"; }
+  c=$(vyred); [ -n "$c" ]
+  [ "$(docker exec "$c" printenv VYRE_BACKUP_DIR)" = /backups ]
+  vs backup >"$W/bk.out"
+  f=$(ls "$W"/srv/backups/vyre-manual-*.tar.gz | head -n 1)
+  docker exec "$c" ls /backups | grep -q "$(basename "$f")"
+  docker exec "$c" sh -c 'printf one >/backups/from-inside.txt'
+  [ "$(cat "$W/srv/backups/from-inside.txt")" = one ]
+  rm -f "$W/srv/backups/from-inside.txt"
+  # an install made before the mount existed: no compose.backups.yml, the server running without it
+  printf 'marker' | docker exec -i "$c" sh -c 'cat >/data/mount-marker'
+  rm -f "$W/srv/compose.backups.yml"
+  COMPOSE_PROJECT_NAME=$PROJECT "$W/shim/docker" compose --project-directory "$W/srv/current" --env-file "$W/srv/compose.env" -f "$W/srv/current/compose.server.yml" -f "$W/srv/compose.override.yml" up -d --force-recreate vyred >/dev/null 2>&1
+  c=$(vyred); [ -n "$c" ]
+  ! docker exec "$c" test -d /backups
+  vs start >/dev/null
+  c=$(vyred); [ -n "$c" ]
+  [ "$(docker exec "$c" printenv VYRE_BACKUP_DIR)" = /backups ]
+  docker exec "$c" ls /backups | grep -q "$(basename "$f")"
+  [ "$(docker exec "$c" cat /data/mount-marker)" = marker ]
+  vs doctor --quiet
+}
 t_manual_rollback() {
   vs rollback
   [ "$(vs version)" = 1.0.0 ]
@@ -271,6 +296,7 @@ check "server and caddy are up and /healthz answers" t_stack_shape
 check "a re-run keeps vyre.env and the chosen relay" t_rerun_keeps_config
 check "doctor goes red when the data directory is on a plain disk" t_doctor_red_on_plain_disk
 check "update checks the signed manifest, backs up, switches and stays healthy" t_update
+check "the backups folder is mounted into the server, and an install without the mount gets it on its next start with its data intact" t_backups_mount
 check "rollback goes back to the earlier release" t_manual_rollback
 check "an update whose server never gets healthy is rolled back" t_failed_update_rolls_back
 check "uninstall removes the units and the command and keeps the data and backups" t_uninstall_keeps_data
