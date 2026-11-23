@@ -115,10 +115,16 @@ export function useOnline(): boolean {
   return useSyncExternalStore(connection.subscribe, online, online);
 }
 
-/** Whether any channel can send: null until the mailboxes and counts have loaded (nothing is decided on a guess), then true or false. */
+/** The last answer this session saw, per Space (the runtime's screens object): a return to the Inbox paints its final state at once instead of deciding after the reads (the + used to draw while the mailboxes loaded, then go). Never written to disk. */
+const KNOWN_CAN_SEND = new WeakMap<object, boolean>();
+
+/** Whether any channel can send: the live answer once the mailboxes and counts have loaded; until then the last answer this session saw for this Space; null on a first visit (nothing is decided on a guess). */
 export function useCanSend(): boolean | null {
+  const { screens } = useInboxData();
   const boxes = useScreenQuery<CapMap["mail.mailbox.list"]["out"]>("inbox.sidebar", "mailboxes");
   const counts = useScreenQuery<CapMap["inbox.counts"]["out"]>("inbox.sidebar", "counts");
-  if (boxes.status !== "ready" || counts.status !== "ready") return null;
-  return canSend(boxes.data.mailboxes, counts.data);
+  if (boxes.status !== "ready" || counts.status !== "ready") return KNOWN_CAN_SEND.get(screens) ?? null;
+  const now = canSend(boxes.data.mailboxes, counts.data);
+  KNOWN_CAN_SEND.set(screens, now);
+  return now;
 }
