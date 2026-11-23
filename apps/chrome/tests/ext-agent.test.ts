@@ -2108,7 +2108,8 @@ test("a restore that never finishes, or keeps failing, refuses the agent (chrome
   const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
   for (const tool of ["chrome_snapshot", "chrome_resume"])
     await assert.rejects(r.call(tool, tool === "chrome_resume" ? { turnMessageAgeMs: 5000 } : {}), (e: any) => e.code === "paused", `${tool}: refused while the restore fails`);
-  assert.ok((await r.call("chrome_status")).connected !== undefined);
+  const st = await r.call("chrome_status");
+  assert.deepEqual([st.paused, st.pausedBy], [true, "restoring"], "the status says what the calls will say");
   broken = 0;
   await new Promise((res) => setTimeout(res, 80));
   // storage is back: the Stop that was kept is there, not an empty start
@@ -2122,6 +2123,34 @@ test("a restore that never finishes, or keeps failing, refuses the agent (chrome
   await new Promise((res) => setTimeout(res, 60));
   await assert.rejects(r2.call("chrome_snapshot"), (e: any) => e.code === "paused", "stuck storage: still refused after the cap");
   void hang;
+});
+
+test("a read that fails twice and then answers with a saved Stop: refused throughout, the Stop in force after; a record that cannot be read is a failed read, not an empty one", async () => {
+  for (const unreadable of [false, true]) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    overlayPort(w).send({ type: "stop" });
+    await w.advance(0);
+    await w.advance(1000);
+    const good = w.ext.storage.session;
+    let fails = 2;
+    let reads = 0;
+    w.ext.storage.session = {
+      get: async (keys: string[]) => {
+        reads++;
+        if (fails-- > 0) throw new Error("storage fault");
+        if (unreadable && reads < 5) return { agentPauses: { nonsense: true } };
+        return good.get(keys);
+      },
+      set: (x: any) => good.set(x),
+    };
+    const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
+    await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+    await new Promise((res) => setTimeout(res, 120));
+    assert.ok(reads >= 3, `it tried again (${reads} reads)`);
+    await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+    await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped", "the saved Stop is in force");
+  }
 });
 
 test("with storage broken the person is never locked out: Give back on the bar frees the agent at once; a bar press during the wait is queued and applied to what a late restore finds; a late restore never overwrites a live pause", async () => {

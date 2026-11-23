@@ -1058,11 +1058,13 @@ export function createTools(kit) {
 
     async chrome_status(call) {
       const p = sessions.pausedFor(call.agent.id);
+      // while the person's saved pauses are still being read back, the agent is told what its calls will say
+      const waiting = kit.restoring?.() === true;
       return {
         connected: kit.connected(call),
-        paused: Boolean(p),
+        paused: Boolean(p) || waiting,
         held: sessions.heldIds(call.agent.id),
-        ...(p ? { pausedBy: p.by } : {}),
+        ...(p ? { pausedBy: p.by } : waiting ? { pausedBy: "restoring" } : {}),
       };
     },
 
