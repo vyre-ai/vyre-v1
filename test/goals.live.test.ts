@@ -202,6 +202,7 @@ test(
     const m = lead();
     const dir = seededDir();
     let w = await up(dir, m.open);
+    let stopPoll = (): void => {};
     try {
       await connect(w.d);
       const desk = await newAgent(w.d, "Lab Desk");
@@ -296,9 +297,10 @@ test(
       const timeline: string[] = [];
       let last = "";
       const watch = w.d;
+      let db: DatabaseSync | undefined;
       const poll = setInterval(() => {
         try {
-          const db = new DatabaseSync(watch.paths.modules, { readOnly: true });
+          db ??= new DatabaseSync(watch.paths.modules, { readOnly: true });
           const q = db.prepare("SELECT qseq, kind, state FROM engine_thread_queue ORDER BY qseq").all() as Array<
             Record<string, unknown>
           >;
@@ -311,10 +313,26 @@ test(
             timeline.push(`+${Date.now() - restartAt}ms ${sig}`);
           }
         } catch {
-          /* the files are not readable for a moment */
+          /* the files are not readable for a moment: open them again at the next look */
+          try {
+            db?.close();
+          } catch {
+            /* already closed */
+          }
+          db = undefined;
         }
       }, 200);
       poll.unref();
+      // one read-only handle, closed with the interval when the test ends, passed or not (the finally below)
+      stopPoll = (): void => {
+        clearInterval(poll);
+        try {
+          db?.close();
+        } catch {
+          /* already closed */
+        }
+        db = undefined;
+      };
       const stamp = (what: string): void => void timeline.push(`+${Date.now() - restartAt}ms ${what}`);
       const timed = (): string => ` TIMELINE after the restart: ${timeline.slice(-14).join(" || ")}`;
       await connect(w.d).catch(() => undefined);
@@ -341,7 +359,7 @@ test(
           throw new Error(`${e.message} ACTIVITY ${await activityOf(w.d, goalId)}`);
         });
       }
-      clearInterval(poll);
+      stopPoll();
       const flat = (await goalOf(w.d, goalId)).goal;
       assert.equal(flat.status, "stuck");
       assert.match(flat.statusReason, /^No progress in 2 check-ins; 0 of 3 registrations/);
@@ -407,6 +425,7 @@ test(
         );
       assert.ok(activity.some((a) => a.kind === "plan" && /Why: Past attendees registered at 31%/.test(a.text)));
     } finally {
+      stopPoll();
       await w.stop();
     }
   },
