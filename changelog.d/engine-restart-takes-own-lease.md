@@ -1,1 +1,1 @@
-A server that restarts under a running turn takes the turn over only after the old process has gone a full heartbeat without renewing its lease (about 6 seconds), never while that process is still alive, and the old process then stops.
+A server that restarts under a running turn takes the turn over only after the old process has gone a full heartbeat without renewing its lease (about 11 seconds), never while that process is still alive, and the old process then stops.

@@ -639,7 +639,7 @@ test("restart: an earlier boot's lease that is still being renewed is never take
   assert.equal(pb.sessions.length, 0, "the new boot ran nothing for that message");
 });
 
-test("restart: an earlier boot that has gone a full heartbeat without a renewal is taken over within about 6 s, and it finds out", async () => {
+test("restart: an earlier boot that has gone a full heartbeat without a renewal is taken over after two missed heartbeats (about 11 s), and it finds out", async () => {
   const clock = manualClock();
   const queue = createMemoryQueue();
   const leases = createMemoryLeases();
@@ -673,9 +673,11 @@ test("restart: an earlier boot that has gone a full heartbeat without a renewal 
   // the old process stops beating (it is dead, or frozen)
   assert.equal(b.recover("T"), false, "first look: only noted");
   clock.advance(5_000);
-  assert.equal(b.recover("T"), false, "not yet a full heartbeat and a margin");
+  assert.equal(b.recover("T"), false, "one missed heartbeat is not enough");
+  clock.advance(5_000);
+  assert.equal(b.recover("T"), false, "two heartbeats, no margin yet");
   clock.advance(1_500);
-  assert.equal(b.recover("T"), true, "6.5 s with no renewal: taken over");
+  assert.equal(b.recover("T"), true, "11.5 s with no renewal: taken over");
   await b.idle("T");
   const lost = b.events("T").find((e) => e.type === "turn.failed");
   assert.deepEqual(lost && lost.type === "turn.failed" ? [lost.code, lost.turnId] : [], ["host_lost", "trn_row1"]);
@@ -690,6 +692,51 @@ test("restart: an earlier boot that has gone a full heartbeat without a renewal 
     false,
     "it never completes the turn",
   );
+});
+
+test("restart: an earlier boot that was 7 s late for one beat but renews is not taken", async () => {
+  const clock = manualClock();
+  const queue = createMemoryQueue();
+  const leases = createMemoryLeases();
+  const hold = gate();
+  const beats: Array<() => void> = [];
+  const script: DriverEvent[] = [{ type: "tool_call", id: "c1", name: "send_email", input: {} }, { type: "done" }];
+  const a = createTurnEngine({
+    ...boot(1),
+    openSession: scriptedProvider({ script }).openSession,
+    queue,
+    leases,
+    now: clock.now,
+    schedule: HOLD_BEATS(beats),
+    callTool: async () => {
+      await hold.wait;
+      return { ok: true, content: {} };
+    },
+  });
+  const b = createTurnEngine({
+    ...boot(2),
+    openSession: scriptedProvider({ script: ok }).openSession,
+    queue,
+    leases,
+    now: clock.now,
+  });
+  a.openThread(thread("T"));
+  b.openThread(thread("T"));
+  a.receive({ threadId: "T", author: person("dana") });
+  await until(() => queue.list("T")[0]?.touched === true && beats.length === 1);
+  assert.equal(b.recover("T"), false, "first look");
+  clock.advance(7_000); // the old process's loop was blocked: it missed its beat by 2 s
+  assert.equal(b.recover("T"), false, "7 s unmoved is under two heartbeats");
+  beats[0]?.(); // it wakes up and renews
+  clock.advance(6_000);
+  assert.equal(b.recover("T"), false, "the renewal moved the lease: the count starts again");
+  clock.advance(7_000);
+  beats[0]?.();
+  assert.equal(b.recover("T"), false, "and again");
+  assert.equal(queue.list("T")[0]?.state, "running", "the old turn is untouched throughout");
+  hold.open();
+  await a.idle("T");
+  assert.equal(queue.list("T").filter((r) => r.state === "done").length, 1);
 });
 
 test("recovery stays off for another host's lease, for a different family, and for a thread this engine runs", async () => {

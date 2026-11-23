@@ -2325,11 +2325,13 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     recover(threadId) {
       const st = need(threadId);
       // Someone still holds it and is beating: any live lease, with one exception. A lease of an EARLIER BOOT of this same host (holder = family + another boot id) is the leftover of the run that died under the
-      // turn, but a process that is slow to exit, paused, or still draining may be alive and beating it, and two processes would then answer the same message. So it is taken over only after it has gone a full
-      // heartbeat with no renewal: the first look records when it expires, a later look sees it unmoved for HEARTBEAT_MS and a margin (a live holder renews every HEARTBEAT_MS, moving it), and the takeover is a
+      // turn, but a process that is slow to exit, paused, or still draining may be alive and beating it, and two processes would then answer the same message. So it is taken over only after it has gone two
+      // heartbeats with no renewal: the first look records when it expires, a later look sees it unmoved for 2 * HEARTBEAT_MS and a margin (a live holder renews every HEARTBEAT_MS, moving it; a busy one may be
+      // 3.6 s late, as the CI box was on 20 Nov, and still misses at most one beat), and the takeover is a
       // compare-and-set, so the old holder's next renew answers false and its turn ends lease_lost instead of carrying on beside ours. Another holder's lease, and a thread this engine runs, still hold recovery off.
       // This assumes one live process per boot id; two processes on one Space are told apart by their boot ids, never by the family.
       const held = leases.get(threadId, now());
+      if (!held) unmoved.delete(threadId); // expired, released or never held: nothing to remember
       if (held) {
         const earlierBoot =
           opts.family !== undefined &&
@@ -2338,13 +2340,16 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           !st.active &&
           st.inflight.size === 0 &&
           st.running.size === 0;
-        if (!earlierBoot) return false;
+        if (!earlierBoot) {
+          unmoved.delete(threadId);
+          return false;
+        }
         const seen = unmoved.get(threadId);
         if (!seen || seen.holder !== held.holder || seen.expiresAt !== held.expiresAt) {
           unmoved.set(threadId, { holder: held.holder, expiresAt: held.expiresAt, since: now() });
           return false;
         }
-        if (now() - seen.since < HEARTBEAT_MS + 1_000) return false;
+        if (now() - seen.since < 2 * HEARTBEAT_MS + 1_000) return false;
         if (!leases.takeOver(threadId, opts.holder, held.holder, now())) return false;
         unmoved.delete(threadId);
       }
