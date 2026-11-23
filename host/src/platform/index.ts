@@ -3,9 +3,9 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import http from "node:http";
+import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import os from "node:os";
 import path from "node:path";
-import crypto from "node:crypto";
 
 export interface RunResult {
   code: number;
@@ -59,7 +59,7 @@ function dockerSocket(): string | null {
     try {
       const meta = JSON.parse(
         fs.readFileSync(
-          path.join(dir, "contexts", "meta", crypto.createHash("sha256").update(context).digest("hex"), "meta.json"),
+          path.join(dir, "contexts", "meta", sha256Hex(context), "meta.json"),
           "utf8",
         ),
       ) as { Endpoints?: { docker?: { Host?: unknown } } };

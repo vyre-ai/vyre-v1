@@ -1,11 +1,11 @@
 // The Docker probe asks Docker's socket and starts no process: the daemon holds gigabytes, and a fork from it every minute cost a quarter of a second of the event loop on a firm's Mac mini (Nov 2026).
 import test from "node:test";
 import assert from "node:assert/strict";
-import crypto from "node:crypto";
 import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { sha256Hex } from "../../kernel/src/log/hash.ts";
 import { nodePlatform } from "../src/platform/index.ts";
 import type { Platform } from "../src/platform/index.ts";
 import { docker } from "../src/platform/probes.ts";
@@ -39,7 +39,7 @@ const withHost = async <T>(host: string | undefined, f: () => Promise<T>): Promi
 function contextDir(name: string, sock: string): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-dcfg-"));
   fs.writeFileSync(path.join(dir, "config.json"), JSON.stringify({ currentContext: name }));
-  const meta = path.join(dir, "contexts", "meta", crypto.createHash("sha256").update(name).digest("hex"));
+  const meta = path.join(dir, "contexts", "meta", sha256Hex(name));
   fs.mkdirSync(meta, { recursive: true });
   fs.writeFileSync(
     path.join(meta, "meta.json"),
