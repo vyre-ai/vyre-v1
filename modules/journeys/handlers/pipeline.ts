@@ -261,11 +261,11 @@ export async function migrationState(ctx: JourneysCtx, input: In): Promise<unkno
 }
 
 /**
- * Who the adopted records belong to: the person an agent works for, else the Journey's own owner (who made its first version); never an agent's id. A person who runs it owns what they adopt.
+ * Who the adopted records belong to: the person an agent works for, else the person who runs it, else the Journey's own owner (who made its first version); never an agent's or a service's id.
  */
 function ownerForAdopted(ctx: JourneysCtx, j: Journey): string {
   if (ctx.actingFor) return ctx.actingFor;
-  if (ctx.principal.kind !== "agent") return ctx.principal.id;
+  if (ctx.principal.kind === "person") return ctx.principal.id;
   const first = listVersions(ctx.db, j.id).at(-1)?.by;
   if (first && !first.startsWith("agt_")) return first;
   raise(

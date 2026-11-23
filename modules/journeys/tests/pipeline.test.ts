@@ -857,7 +857,7 @@ test("a record whose value is its stage already keeps its version; one that adop
 });
 
 test("adopted records belong to the person an agent works for, else to the Journey's owner, never to the agent", async () => {
-  const run = async (who: { id: string; kind: "agent"; actingFor?: string }) => {
+  const run = async (who: { id: string; kind: "agent" | "service"; actingFor?: string }) => {
     const h = harness();
     const j = await pipe(h);
     h.callee("records.query", () => ({ rows: [{ id: "rec_a", fields: { stage: "lead" } }] }));
@@ -874,6 +874,11 @@ test("adopted records belong to the person an agent works for, else to the Journ
     await run({ id: "agt_scout", kind: "agent" }),
     "usr_alice",
     "no one named: the Journey's owner, who made its first version",
+  );
+  assert.equal(
+    await run({ id: "svc_engine", kind: "service" }),
+    "usr_alice",
+    "a service is not a person either: the Journey's owner",
   );
   const h = harness();
   const j = await pipe(h);
