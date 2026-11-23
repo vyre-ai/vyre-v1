@@ -2223,6 +2223,43 @@ test("a poison record that cannot be read: calls are refused, a live Stop presse
   await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped", "the Stop is in force after the retry read the good record");
 });
 
+test("while storage is down, a Give back that is the agent's own click, or a keyboard click its own Enter made, frees nobody; the person's own frees only the agent named", async () => {
+  for (const how of ["pointer", "key"]) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const A = w.agent;
+    const B = { id: "agt_scout", name: "Scout" };
+    w.ext.storage.session = { get: () => Promise.reject(new Error("storage fault")), set: async () => {} };
+    const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
+    const port = overlayPort(w);
+    port.send({ type: "giveback", agent: A.id }); // the person frees A
+    await w.advance(0);
+    await r.call("chrome_snapshot", {}, A);
+    let release: () => void = () => {};
+    const hold = new Promise<void>((res) => (release = res));
+    const orig = w.ext.debugger.sendCommand;
+    w.ext.debugger.sendCommand = async (t: any, m: string, p: any) => {
+      if (how === "key" ? m === "Input.dispatchKeyEvent" && p.type === "keyUp" : m === "Input.dispatchMouseEvent" && p.type === "mouseReleased") await hold;
+      return orig(t, m, p);
+    };
+    const step = how === "key" ? r.call("chrome_act", { action: "press", value: "Enter" }, A) : r.call("chrome_click", { x: 5, y: 5 }, A);
+    await w.advance(0);
+    // the press that is A's own click or Enter, naming B: ignored, B stays refused
+    port.send(how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 5, y: 6, agent: B.id });
+    await w.advance(0);
+    assert.equal((await r.call("chrome_status", {}, B)).paused, true, `${how}: the agent's own press freed nobody`);
+    // the same press again is the person's (the entry was used up): it frees B only
+    port.send(how === "key" ? { type: "giveback", key: true, agent: B.id } : { type: "giveback", x: 500, y: 300, agent: B.id });
+    await w.advance(0);
+    assert.equal((await r.call("chrome_status", {}, B)).paused, false, `${how}: a person's press frees the agent it names`);
+    const C = { id: "agt_other", name: "Other" };
+    assert.equal((await r.call("chrome_status", {}, C)).paused, true, `${how}: an agent nobody named stays refused`);
+    release();
+    await step.catch(() => undefined);
+    w.ext.debugger.sendCommand = orig;
+  }
+});
+
 test("a Give back pressed while the restore is pending is applied to the take-over a late restore finds, so it cannot be re-added behind the press", async () => {
   const w = await ready();
   await w.call("chrome_snapshot");

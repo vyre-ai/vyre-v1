@@ -6,3 +6,4 @@ Your Stop or take-over of a tab now survives Chrome restarting the extension's b
 A Stop of yours is kept even if you close its tab; closing the tab of a take-over counts as giving it back.
 While the extension is still reading back your Stop after a restart, the agent's calls are refused rather than allowed.
 If Chrome's storage fails after the extension restarts, the agent stays stopped and the extension keeps trying; pressing Give back or Resume on the bar still frees it.
+While Chrome's storage is down after an extension restart, a Stop you press is kept only in memory; if the extension restarts a second time before storage is back, it is lost. Buttons on the bar act only on your own click or key, never on a click a page script makes.

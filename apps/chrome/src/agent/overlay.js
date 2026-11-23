@@ -156,6 +156,8 @@ export function overlayShow(o) {
       btn.addEventListener("click", (/** @type {any} */ e) => {
         e.preventDefault();
         e.stopPropagation();
+        // a click a script made (element.click(), dispatchEvent) is never a person's: only the browser's own click, from a hand or a key, acts
+        if (!e.isTrusted) return;
         if (pressed) {
           pressed = false;
           return;

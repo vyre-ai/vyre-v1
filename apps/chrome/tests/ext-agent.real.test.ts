@@ -131,8 +131,13 @@ const EVENTS = [
 
 /** A browser the extension code believes is Chrome with the debugger permission: one real tab, a DevTools session standing in for chrome.debugger, scripting run in the page. */
 /** The person gives the tab back from the bar (its Give back button); the agent's chrome_resume cannot lift a take-over. */
+/** A person's keyboard press on a bar button: the button gets the focus and Enter makes the browser's own (trusted) click. A click a script makes is refused by the bar. */
+const keyPress = async (r: any, name: string) => {
+  await r.page.evaluate((n: string) => (globalThis as any)[Symbol.for("vyre.agent.overlay")][n].focus(), name);
+  await r.page.keyboard.press("Enter");
+};
 const giveBack = async (r: any) => {
-  await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].give.click());
+  await keyPress(r, "give");
   await new Promise((res) => setTimeout(res, 300));
 };
 
@@ -560,7 +565,7 @@ test(
 
           // Stop, from the bar itself
           await r.call("chrome_snapshot");
-          await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].stop.click());
+          await keyPress(r, "stop");
           await new Promise((res) => setTimeout(res, 200));
           const stoppedBar = await r.overlayState();
           assert.ok(stoppedBar, "Stop leaves the Stopped bar, with Resume and End task");
@@ -678,8 +683,20 @@ test(
       );
       await giveBack(r);
       await r.call("chrome_snapshot");
+      // a click a script makes on a bar button (element.click(), dispatchEvent) is refused: it sends nothing and takes nothing over
+      const scripted = r.barMessages.length;
+      await r.page.evaluate(() => {
+        const o = (globalThis as any)[Symbol.for("vyre.agent.overlay")];
+        o.take.click();
+        o.give.click();
+        o.end.click();
+        o.take.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+      });
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(r.barMessages.length, scripted, "a script's clicks sent nothing");
+      assert.equal((await r.call("chrome_status")).paused, false, "and took nothing over");
       const mark2 = r.barMessages.length;
-      await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].take.click());
+      await keyPress(r, "take");
       await new Promise((res) => setTimeout(res, 300));
       const key = r.barMessages.slice(mark2).find((m: any) => m.type === "takeover");
       assert.ok(key && key.x === undefined, "a keyboard click carries no place");
@@ -704,7 +721,7 @@ test(
       await new Promise((res) => setTimeout(res, 300));
       await giveBack(r);
       await r.call("chrome_snapshot");
-      await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].take.click());
+      await keyPress(r, "take");
       await new Promise((res) => setTimeout(res, 300));
       assert.equal(
         (await r.call("chrome_status")).paused,
