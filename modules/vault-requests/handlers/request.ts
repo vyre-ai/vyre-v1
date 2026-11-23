@@ -359,7 +359,7 @@ async function placeholderFor(
     if (code !== "validation.duplicate") throw e;
     // the folder already keeps an item with that name: the request is fulfilled with that item, nothing is overwritten
     const list =
-      (asRow(await ctx.call("vault.items.list", { folder: folderId }))?.["items"] as {
+      (asRow(await ctx.call("vault.items.list", { folder: folderId, q: a.name }))?.["items"] as {
         id?: string;
         name?: string;
       }[]) ?? [];

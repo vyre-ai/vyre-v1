@@ -1228,6 +1228,7 @@ test("a manager who asks for a name the folder already keeps gets that item back
   assert.equal(out.request.itemId, "vit_old");
   assert.equal(out.request.placeholder, undefined, "an existing item is not a new empty one");
   assert.equal(w.called("tasks.create").length, 0);
+  assert.equal(w.called("vault.items.list")[0]?.input["q"], "Dana_Lawmatics", "the lookup asks for the name, so an item past the first page is found too");
   // a duplicate whose item cannot be found is still an error
   const lost = world({ managers: { [FOLDER]: ["usr_mira"] } });
   const lb = lost.as("usr_admin");
