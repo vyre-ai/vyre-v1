@@ -10,13 +10,14 @@
 // never fails on one. A row the app marks archived reads as removed.
 import { turns } from "../../../lib/yield-loop.ts";
 
-/** Work between two turns while sealed values are kept: short, because each value waits for the Vault (a key derivation, a write) and the stretch before the loop is already one block. */
-const SEAL_TURN_MS = 5;
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import { hasWords } from "../../../lib/words.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/store/types.ts";
+
+/** Work between two turns while sealed values are kept: short, because each value waits for the Vault (a key derivation, a write) and the stretch before the loop is already one block. */
+const SEAL_TURN_MS = 5;
 
 // ---- what the engine takes from the connectors module (structural copies; the module's own types are not importable here)
 
