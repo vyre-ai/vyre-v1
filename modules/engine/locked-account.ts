@@ -48,7 +48,7 @@ export function skipLocked(d: LockedDeps): (q: AccountQuery) => Promise<Resolved
     for (let i = 0; i < 8; i++) {
       // the picked model needs this sign-in and nothing else serves it: never another model under its name, one plain line instead (the owner's rc.20 test)
       const next = await d
-        .resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped] })
+        .resolve({ ...q, unavailable: [...(q.unavailable ?? []), ...skipped], probe: true })
         .catch((e: unknown) => {
           if ((e as { code?: unknown } | null)?.code === "engine.model_unavailable")
             throw Object.assign(new Error(lockedWords(first)), { code: "engine.model_unavailable" });
