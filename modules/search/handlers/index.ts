@@ -180,11 +180,18 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
       ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
       continue;
     }
+    // where the last page stopped: "entity\u0000id" (an older build kept a number or an id alone: those start over)
+    const [afterEntity, afterId] =
+      typeof p.after === "string" && p.after.includes("\u0000") ? p.after.split("\u0000") : ["", ""];
     const docs = rowsOf(
       ctx.db,
-      "SELECT n, entity, id FROM search_docs WHERE record_type = ? AND id > ? ORDER BY id LIMIT ?",
+      "SELECT n, entity, id FROM search_docs WHERE record_type = ? AND (entity > ? OR (entity = ? AND id > ?)) ORDER BY entity, id LIMIT ?",
       type,
-      typeof p.after === "string" ? p.after : "", // by id, not by n: a document put in again gets a new n, and a page by n would meet it again and again
+      // by (entity, id), not by n: a document put in again gets a new n, and a page by n would meet it again and again; the key is the table's own, so two documents that share an id under different
+      // entities are never split by a page boundary
+      afterEntity,
+      afterEntity,
+      afterId,
       RETITLE_PAGE,
     );
     const turn = turns(15);
@@ -220,7 +227,7 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
       }
       ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
     } else {
-      p.after = str(docs[docs.length - 1]!["id"]);
+      p.after = `${str(docs[docs.length - 1]!["entity"])}\u0000${str(docs[docs.length - 1]!["id"])}`;
       ctx.db.run("UPDATE search_meta SET v = ? WHERE k = ?", JSON.stringify(p), str(m["k"]));
     }
   }
