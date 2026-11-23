@@ -36,6 +36,8 @@ import {
   recordFor,
   fillString,
   fillOptional,
+  untestedConnector,
+  untestedLine,
   withoutSecretValues,
   maskSealed,
   SYNC_PASS_TOKEN,
@@ -73,6 +75,8 @@ export interface ConnectorRow {
   /** The canonical editable source folder in Shared knowledge, when this connector has one. */
   sourceFolderId?: string;
   objects?: Record<string, ObjectActions>;
+  /** Published, but no call to the app has ever come back with a success: it was checked against the docs only. */
+  untested?: boolean;
 }
 export interface TestResult {
   passed: number;
@@ -98,6 +102,8 @@ export interface DefineInput {
   secrets?: { name: string; description: string }[];
   /** The action that stands in for a health check: a declared read (GET). */
   health?: string;
+  /** How fast the app lets this connector call it: requests a second, and a burst. */
+  rate?: { rps: number; burst: number };
   actions: {
     name: string;
     method?: string;
@@ -159,7 +165,7 @@ export interface RuntimeHandlers {
   "connectors.publish"(
     ctx: ConnectorsCtx,
     input: { key: string; draftId?: string; note?: string },
-  ): Promise<{ published: boolean; version?: string; result: TestResult }>;
+  ): Promise<{ published: boolean; version?: string; result: TestResult; untested?: boolean; message?: string }>;
   "connectors.versions"(
     ctx: ConnectorsCtx,
     input: { key: string },
@@ -1064,6 +1070,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       sources: def.sources ?? [],
       ...(sourceOf(r.key) ? { sourceFolderId: sourceOf(r.key)! } : {}),
       ...(objectsOf(def) ? { objects: objectsOf(def)! } : {}),
+      ...(untestedConnector(tx, r.key, r.builtin === 1, r.state) ? { untested: true } : {}),
     };
   };
   const sourceOf = (key: string): string | undefined =>
@@ -1239,6 +1246,26 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
           "validation.precondition_failed",
           `${c.key} is edited in its Files folder. Change the files there.`,
         );
+      // a key the contract does not name is refused, never stored: a misspelt body or a field from another tool would otherwise be kept and never used
+      const strangers = (where: string, o: unknown, ok: readonly string[]): void => {
+        const extra = Object.keys((o ?? {}) as Record<string, unknown>).filter((k) => !ok.includes(k));
+        if (extra.length > 0)
+          refuse(
+            ctx,
+            "validation.bad_input",
+            `${where} has no ${extra.map((k) => `"${k}"`).join(", ")}. It takes: ${ok.join(", ")}.`,
+          );
+      };
+      strangers("define", input, [
+        ...["key", "title", "domains", "auth", "secrets", "health", "rate", "actions", "idempotencyKey"],
+      ]);
+      strangers("auth", input.auth, ["type", "secret", "header", "prefix", "user", "password", "template"]);
+      for (const a of input.actions)
+        strangers(`action ${a.name}`, a, [
+          ...["name", "method", "url", "headers", "query", "body", "form", "basic", "paginate", "output", "write"],
+        ]);
+      if (input.rate !== undefined && !(input.rate.rps >= 0.01 && Number.isInteger(input.rate.burst) && input.rate.burst >= 1))
+        refuse(ctx, "validation.bad_input", "rate is requests a second (at least 0.01) and a burst of at least 1.");
       const live = JSON.parse(c.def) as ConnectorDef;
       const slot = input.auth.secret ?? input.secrets?.[0]?.name;
       const kind = input.auth.type;
@@ -1298,6 +1325,7 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
         auth: authDoc,
         secrets,
         ...(input.health !== undefined ? { health: input.health } : {}),
+        ...(input.rate !== undefined ? { rate: input.rate } : {}),
       };
       const PAGE_KINDS = ["page", "cursor", "offset", "link"];
       const docs = input.actions.map((a) => {
@@ -1536,7 +1564,13 @@ export function createRuntimeHandlers(deps: ConnectorsDeps): RuntimeHandlers {
       );
       tx.run("DELETE FROM cn_drafts WHERE draft_id = ?", row.draft_id);
       ctx.emit("connector.published", `connector/${c.key}`, { key: c.key, version, tests: result.passed });
-      return { published: true, version, result };
+      const untested = untestedConnector(tx, c.key, false, "live");
+      return {
+        published: true,
+        version,
+        result,
+        ...(untested ? { untested: true, message: untestedLine(next.title) } : {}),
+      };
     },
 
     "connectors.versions": async (ctx, input) => {

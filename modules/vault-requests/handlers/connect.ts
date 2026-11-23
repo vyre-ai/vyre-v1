@@ -38,6 +38,8 @@ interface Service {
   };
   builtin: boolean;
   checks: boolean;
+  /** published, but no call to the app has ever succeeded */
+  untested?: boolean;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
 }
 export type CardState = "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
@@ -93,6 +95,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
       : {}),
     builtin: c["builtin"] === true,
     checks: c["checks"] === true,
+    ...(c["untested"] === true ? { untested: true } : {}),
     ...(conn
       ? {
           connection: {
@@ -262,6 +265,8 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
       ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
       : {}),
     checks: svc.checks,
+    // said before a key is typed or after a try went wrong: a connector no call has ever answered may need a fix, and the person is told so
+    ...(svc.untested && ["ask", "wrong", "offline"].includes(state) ? { untested: true } : {}),
     ...(svc.hosts.length > 0 && mayFill && ["ask", "wrong", "offline", "have"].includes(state)
       ? { checksWith: svc.hosts.join(", ") }
       : {}),

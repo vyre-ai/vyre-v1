@@ -246,6 +246,7 @@ export function ConnectCardLive({
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
         checksWith={hostsNow.length > 0 ? hostsNow.join(", ") : undefined}
+        untested={card.untested === true}
         choice={
           card.choice && option
             ? {

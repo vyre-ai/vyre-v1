@@ -10,6 +10,7 @@ import {
   keyHosts,
   recordFor,
   probeHost,
+  untestedConnector,
   probeOf,
   mintShort,
   nowOf,
@@ -729,6 +730,7 @@ export function createConnectionsHandlers(deps: ConnectorsDeps): ConnectionsHand
           hosts: keyHosts(hit),
           builtin: hit.builtin === true,
           checks: probeHost(hit) !== undefined,
+          ...(untestedConnector(tx, hit.key, hit.builtin === true, "live") ? { untested: true } : {}),
         },
         ...(best
           ? {

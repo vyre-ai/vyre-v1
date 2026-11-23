@@ -739,6 +739,21 @@ export function recordWords(entry: string): string {
   return pattern.startsWith("*.") ? `any address ending in ${pattern.slice(1)}${port}` : `${pattern}${port}`;
 }
 
+/** Has this connector never had a live answer? A published connector made by hand or by an agent is checked against the app's docs only; it is "untested" until a call to the app comes back with a success. Built-ins ship tested. */
+export function untestedConnector(tx: Tx, key: string, builtin: boolean, state: string): boolean {
+  if (builtin || state !== "live") return false;
+  return (
+    tx.get<{ x: number }>(
+      "SELECT 1 AS x FROM cn_log WHERE connector = ? AND status >= 200 AND status < 400 LIMIT 1",
+      key,
+    ) === undefined
+  );
+}
+
+/** What the person is told about an untested connector, on the card and after a publish. */
+export const untestedLine = (title: string): string =>
+  `Not tried yet. Nothing has been sent to ${title}, so the first call may need a fix.`;
+
 /** A host with its port, the default when none is given: what a connection's record holds and what a request is compared with, so the same host on another port gets nothing. */
 export const originKey = (u: URL): string =>
   `${u.hostname.toLowerCase().replace(/\.$/, "")}:${u.port || (u.protocol === "http:" ? "80" : "443")}`;

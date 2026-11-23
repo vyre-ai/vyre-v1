@@ -1,0 +1,2 @@
+A connector published in one call now says "Not tried yet" until a call to the app has come back with a success: the publish answer, the connector list and the connect card all carry it, in words like "Not tried yet. Nothing has been sent to Shop, so the first call may need a fix."
+connectors.define refuses a key it does not know (a misspelt body, an extra auth field) instead of storing it, and takes a rate limit (requests a second and a burst).
