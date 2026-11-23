@@ -385,3 +385,37 @@ test("the parent list is read once for several passes when a cache keeps it", as
   await drain(storeWith(w.ctx, {}, opts) as never);
   assert.equal(w.calls.filter((c) => c === "list_matters:-").length, 1);
 });
+
+test("a parent list that repeats a page is not known: no parent is counted as gone, and the list is not kept", async () => {
+  const calls: string[] = [];
+  let kept: unknown;
+  const ctx = {
+    trace: { traceId: "t1" },
+    call: async (_cap: string, a: { action: string; input?: Record<string, unknown> }): Promise<unknown> => {
+      calls.push(a.action);
+      if (calls.length > 100) throw new Error("the walk did not end");
+      // every page of the parent list is the same page and says there is more
+      if (a.action.startsWith("list_matters"))
+        return { output: { results: [{ id: "mA", properties: {} }], next: "p" } };
+      return { output: { results: [row("a1")] } };
+    },
+  };
+  const s = remoteStore(ctx as never, { connector: "crm_intake", connectionId: "con_1", remote: "contacts" }, OBJECTS, {
+    parentCache: { get: () => kept as never, set: (i: unknown) => (kept = i) },
+  });
+  assert.deepEqual((await drain(s)).ids, ["a1"]);
+  const info = await s.parentInfo();
+  assert.equal(info.all, undefined, "the list of parents may be cut short: it is not a list of who exists");
+  assert.equal(kept, undefined, "and it is not kept for the next pass");
+  assert.ok(s.notes.some((n) => n.includes("may be cut short")));
+  // a list that ends when the app says so is known and kept
+  const w = kids({ mA: {}, mB: {} }, { mA: ["a"], mB: ["b"] });
+  let kept2: unknown;
+  const ok = storeWith(
+    w.ctx,
+    {},
+    { parentCache: { get: () => kept2 as never, set: (i: unknown) => (kept2 = i) } },
+  ) as ReturnType<typeof store>;
+  assert.deepEqual((await ok.parentInfo()).all, ["mA", "mB"]);
+  assert.ok(kept2);
+});

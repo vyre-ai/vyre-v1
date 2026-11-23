@@ -46,6 +46,7 @@ async function kit(eachOf: Record<string, unknown>) {
   ]);
   const bad = new Set<string>();
   const tooBig = new Map<string, string[]>();
+  const repeatParents = { on: false };
   const reads: string[] = [];
   let t = 1_800_000_000_000;
   const ctx: EngineCtx = {
@@ -67,6 +68,8 @@ async function kit(eachOf: Record<string, unknown>) {
           },
         };
       const i = input as { action: string; input?: { parent?: string } };
+      if (i.action.startsWith("list_matters") && repeatParents.on)
+        return { output: { results: [{ id: "mA", properties: { "/sub": true, "/rev": "1" } }], next: "p" } };
       if (i.action === "list_matters")
         return { output: { results: [...parents].map(([id, properties]) => ({ id, properties })) } };
       const p = i.input?.parent as string;
@@ -118,6 +121,7 @@ async function kit(eachOf: Record<string, unknown>) {
       .map((x) => x.remote_id)
       .sort();
   return {
+    repeatParents,
     tooBig,
     bad,
     parents,
@@ -253,4 +257,16 @@ test("an item the app's page held too many inner rows for is left out and named;
   assert.ok((await k.names()).includes("b1 edited"), "the neighbours sync");
   assert.ok((await k.names()).includes("big zero") && (await k.names()).includes("big one"));
   assert.ok(said.includes("holds too many inner items"), said);
+});
+
+test("a parent list that repeats a page leaves every child where it is: the sweep removes nothing for a parent it never saw", async () => {
+  const k = await kit({});
+  await k.pass();
+  assert.equal((await k.names()).length, 90);
+  // the app's parent list now answers with the same page over and over (mB and mC are never seen)
+  k.repeatParents.on = true;
+  k.advance(2 * DAY);
+  await k.pass();
+  assert.deepEqual(k.removed(), [], "mB's and mC's children stay");
+  assert.equal((await k.names()).length, 90);
 });

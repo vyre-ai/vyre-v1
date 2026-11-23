@@ -378,6 +378,8 @@ export interface ParentInfo {
   ids: string[];
   /** Every parent the app lists, met `where` or not: a parent that is not here any more was deleted at the app. */
   all?: string[];
+  /** False when the feed that gives the versions may have been cut short: every parent is read. */
+  versionsKnown?: boolean;
   ver: Record<string, string>;
 }
 
@@ -565,8 +567,10 @@ export function remoteStore(
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
   });
   /** Every row of a list, page by page, ending by the one rule of nextPlace and when a page brings nothing new. */
-  const walkAll = async (first: string, afterName: string): Promise<RemoteRow[]> => {
+  const walkAll = async (first: string, afterName: string): Promise<{ rows: RemoteRow[]; complete: boolean }> => {
     const out: RemoteRow[] = [];
+    // complete: the app said there was no more. Any other end (a place seen again, a page that brought nothing new, an empty page that still had a next, the cap) leaves the list possibly cut short.
+    let complete = false;
     const seen = new Set<string>();
     const places = new Set<string>();
     let after: string | undefined;
@@ -576,6 +580,7 @@ export function remoteStore(
       for (const r of fresh) seen.add(r.id);
       out.push(...fresh);
       const next = fresh.length === 0 ? undefined : nextPlace(got, after);
+      if (got.next === undefined) complete = true;
       if (next !== undefined && places.has(next)) {
         notes.push("A list kept answering with a page it had given before, and was read no further.");
         break;
@@ -583,7 +588,7 @@ export function remoteStore(
       if (next !== undefined) places.add(next);
       after = next;
     } while (after !== undefined && out.length < 100_000);
-    return out;
+    return { rows: out, complete };
   };
   // The parent ids of a per-parent list, in a fixed order (sorted), so a place kept between passes ("this parent, from this cursor") still means the same thing when the parents have changed.
   // Only the parents that meet `where` are listed. A parent whose id cannot go in an address (a slash, "..", ?, #) is skipped and said once.
@@ -597,7 +602,9 @@ export function remoteStore(
     const everyone: string[] = [];
     const ver: Record<string, string> = {};
     let unsafe = 0;
-    for (const r of await walkAll(parentList, parentAfter)) {
+    let versionsKnown = true;
+    const walked = await walkAll(parentList, parentAfter);
+    for (const r of walked.rows) {
       if (r.archived) continue;
       everyone.push(r.id);
       if (each.where && !holdsWhen(r.data[each.where.path], each.where)) continue;
@@ -610,7 +617,9 @@ export function remoteStore(
     }
     if (feed) {
       // the newest stamp the feed holds for each parent is its version
-      for (const r of await walkAll(feedList, feedAfter)) {
+      const feedWalk = await walkAll(feedList, feedAfter);
+      versionsKnown = feedWalk.complete;
+      for (const r of feedWalk.rows) {
         const who = r.data[feed.parentAt];
         const at = r.data[feed.at];
         if (typeof who !== "string" || who === "") continue;
@@ -620,8 +629,15 @@ export function remoteStore(
     }
     if (unsafe > 0) notes.push(`${unsafe} parent${unsafe === 1 ? "" : "s"} skipped: the id cannot go in an address.`);
     ids.sort();
-    parentInfo = { ids, all: everyone, ver };
-    opts.parentCache?.set(parentInfo);
+    // a list that may have been cut short is not known: no parent counts as deleted (the sweep vouches for every child), no parent is skipped as unchanged, and nothing is kept for the next pass
+    parentInfo = {
+      ids,
+      ...(walked.complete ? { all: everyone } : {}),
+      ver,
+      ...(versionsKnown ? {} : { versionsKnown: false }),
+    };
+    if (walked.complete && versionsKnown) opts.parentCache?.set(parentInfo);
+    else notes.push("The list of parents may be cut short: nothing is removed under a parent because of it.");
     return parentInfo;
   };
   /** At most this many parents are asked for one page, so a run of parents with empty lists is not one endless call; the page then comes back empty with a place to go on from. */
@@ -670,7 +686,7 @@ export function remoteStore(
         if (idx < 0) return { rows: [] };
       }
     }
-    const changedOnly = since !== undefined && names.eachOf?.changed !== undefined;
+    const changedOnly = since !== undefined && names.eachOf?.changed !== undefined && info.versionsKnown !== false;
     const here = (): string => JSON.stringify({ p: parents[idx]!, ...(cursor !== undefined ? { c: cursor } : {}) });
     const done: string[] = [];
     let asked = 0;
