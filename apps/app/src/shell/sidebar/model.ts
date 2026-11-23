@@ -50,10 +50,10 @@ export function phoneView(hasSidebar: boolean, compact: boolean, bodyOpen: boole
 
 /**
  * On a phone, a link that names a body (an address with something after the place: a screen, an item) opens that body, and Back goes to the list (lead ruling, 24 Nov 2026). The same on
- * every load and every compact width, and from the first frame: the list is never drawn first and swapped for the body. A bare place address names no body and shows the list.
+ * every load and every compact width, and from the first frame: the list is never drawn first and swapped for the body. A bare place address, or a hash that names no page, shows the list.
  */
 export function linkNamesBody(compact: boolean, hash: string | undefined): boolean {
-  return compact && hash !== undefined && hash !== "";
+  return compact && hash !== undefined && /(^|&)(screen|subject)=/.test(hash.replace(/^#/, ""));
 }
 
 /** Rows whose text contains every word of the query, case-insensitively. An empty query keeps them all. */

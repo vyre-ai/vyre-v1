@@ -45,6 +45,8 @@ test("on a phone a link that names a page opens that page from the first frame; 
   assert.equal(linkNamesBody(true, "screen=chats.notes"), true);
   assert.equal(linkNamesBody(true, ""), false);
   assert.equal(linkNamesBody(true, undefined), false);
+  assert.equal(linkNamesBody(true, "section-2"), false, "a hash that names no page shows the list");
+  assert.equal(linkNamesBody(true, "subject=thread:thr_1"), true);
   assert.equal(linkNamesBody(false, "screen=chats.notes"), false, "a wide window shows both: nothing to open");
   // the first frame is already the body (no list drawn and swapped away)
   const first = (hash: string): string => {

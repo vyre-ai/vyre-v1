@@ -32,11 +32,19 @@ for (const width of [390, 320]) {
           const w = window as unknown as { __list: number; __body: number };
           return { list: w.__list, body: document.querySelector('[data-testid="notes-artifacts"]') ? 1 : w.__body };
         });
-        assert.deepEqual(seen, { list: 0, body: 1 }, `load ${load} at ${width}: the list was drawn before the Notes page`);
+        assert.deepEqual(
+          seen,
+          { list: 0, body: 1 },
+          `load ${load} at ${width}: the list was drawn before the Notes page`,
+        );
         // a bare address is the list
         await page.goto(`${s.web.origin}/chat`, { waitUntil: "load" });
         await page.getByText("Notes & artifacts", { exact: true }).first().waitFor({ timeout: 30_000 });
-        assert.equal(await page.getByTestId("notes-artifacts").count(), 0, `load ${load} at ${width}: a bare address opened a page`);
+        assert.equal(
+          await page.getByTestId("notes-artifacts").count(),
+          0,
+          `load ${load} at ${width}: a bare address opened a page`,
+        );
       }
     } finally {
       await s.close();
