@@ -9,6 +9,7 @@
 // through the capability API (`connectors.run`), so the Vault, the egress list, the rate limit and the audit apply as for any other call. Remote records carry no version, so a write
 // never fails on one. A row the app marks archived reads as removed.
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
+import { hasWords } from "../../../lib/words.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/store/types.ts";
@@ -190,7 +191,7 @@ interface RemoteRow {
 }
 
 /** One page out of a list answer, in either shape. */
-export function readRows(output: unknown): { rows: RemoteRow[]; next?: string } {
+export function readRows(output: unknown): { rows: RemoteRow[]; next?: string; skipped?: string[] } {
   if (!isObj(output)) throw new Error("The app did not answer with a list.");
   const list = Array.isArray(output["results"])
     ? output["results"]
@@ -214,7 +215,14 @@ export function readRows(output: unknown): { rows: RemoteRow[]; next?: string } 
   });
   const paging = output["paging"];
   const after = isObj(paging) && isObj(paging["next"]) ? paging["next"]["after"] : output["next"];
-  return { rows, ...(typeof after === "string" && after !== "" ? { next: after } : {}) };
+  const skipped = Array.isArray(output["skipped"])
+    ? output["skipped"].filter((x): x is string => typeof x === "string")
+    : [];
+  return {
+    rows,
+    ...(typeof after === "string" && after !== "" ? { next: after } : {}),
+    ...(skipped.length ? { skipped } : {}),
+  };
 }
 
 export interface LinkDef {
@@ -236,30 +244,6 @@ export interface EachOf {
   where?: WhenCond & { path: string };
   changed?: { path: string } | { object: string; parentAt: string; at: string };
 }
-/** The words of a text, lower case, letters and digits only, from its first 200 characters: one pass, no backtracking (a pattern from a spec is never run). */
-const wordsIn = (s: string): string[] =>
-  s
-    .slice(0, 200)
-    .toLowerCase()
-    .match(/[\p{L}\p{N}]+/gu) ?? [];
-/** Does the text hold one of the words or phrases, as whole words? Linear in the text. */
-function hasWords(text: string, phrases: string[]): boolean {
-  const t = wordsIn(text);
-  return phrases.some((ph) => {
-    const p = wordsIn(ph);
-    if (!p.length) return false;
-    for (let i = 0; i + p.length <= t.length; i++) {
-      let all = true;
-      for (let j = 0; j < p.length; j++)
-        if (t[i + j] !== p[j]) {
-          all = false;
-          break;
-        }
-      if (all) return true;
-    }
-    return false;
-  });
-}
 /** Does the value meet the condition (case and surrounding spaces do not matter; a masked value never does)? */
 export function holdsWhen(have: unknown, c: WhenCond): boolean {
   const present = have !== undefined && have !== null && have !== "[sealed]";
@@ -272,8 +256,12 @@ export function holdsWhen(have: unknown, c: WhenCond): boolean {
   return c.n === true ? !hit : hit;
 }
 /** The next place of a list walk, or none when the walk is over: an empty page ends it whatever it says comes next, and so does a next that is the place just read. One rule for every list (flat, list_after, per parent). */
-export function nextPlace(got: { rows: unknown[]; next?: string }, after: string | undefined): string | undefined {
-  if (got.next === undefined || got.rows.length === 0 || got.next === after) return undefined;
+export function nextPlace(
+  got: { rows: unknown[]; next?: string; skipped?: string[] },
+  after: string | undefined,
+): string | undefined {
+  // a page whose items were all left out is not an empty page: there may be more
+  if (got.next === undefined || (got.rows.length === 0 && !got.skipped?.length) || got.next === after) return undefined;
   return got.next;
 }
 export interface ObjectNames {
@@ -283,6 +271,8 @@ export interface ObjectNames {
   update?: string;
   delete?: string;
   /** The list takes { since } and answers only what changed since. */ since?: boolean;
+  /** The list opens inner arrays into rows: read as a delta list; an item left out for being too big keeps its records. */
+  rows?: boolean;
   /** Each row also relates two already-synced records (a many-to-many made from join rows). */
   link?: LinkDef;
   /** The list sits under each record of this other object: it is read once per parent id, and every row carries the parent's id at /_parent. */
@@ -299,6 +289,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
   for (const k of ["list", "listAfter", "create", "update", "delete"] as const)
     if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
   if (hit["since"] === true) out.since = true;
+  if (hit["rows"] === true) out.rows = true;
   const each = hit["eachOf"];
   if (isObj(each) && typeof each["remote"] === "string" && each["remote"] !== "") {
     const w = each["where"];
@@ -423,6 +414,7 @@ export function remoteStore(
   supportsSince: boolean;
   /** Said in plain words in the pass's summary: a list that stopped because it repeated itself, parents skipped. */
   notes: string[];
+  skippedPrefixes: Set<string>;
   /** Versions of parents whose children were read to the end in this store's life: kept by the engine once the rows are in (for `changed`). */
   pendingVersions: Map<string, string>;
   eachOf: EachOf | undefined;
@@ -464,6 +456,16 @@ export function remoteStore(
     parentRemote !== undefined ? [parentList, parentAfter, ...(feed ? [feedList, feedAfter] : [])] : [],
   );
   const notes: string[] = [];
+  /** Key prefixes of the items a page left out for holding too many inner items: the records under them are kept by a sweep. */
+  const skippedPrefixes = new Set<string>();
+  const leftOut = (ids: string[] | undefined, within: string): void => {
+    for (const id of ids ?? []) {
+      skippedPrefixes.add(`${within}${id}/`);
+      notes.push(
+        `An item (${id}) holds too many inner items and was left out; the records already held for it were kept.`,
+      );
+    }
+  };
   const pendingVersions = new Map<string, string>();
   let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
@@ -636,6 +638,7 @@ export function remoteStore(
           ...(since !== undefined ? { since } : {}),
         }),
       );
+      leftOut(got.skipped, "");
       const next = nextPlace(got, after);
       if (got.next !== undefined && next === undefined && got.rows.length > 0)
         notes.push("A list answered with the place it had been asked from, and was read no further.");
@@ -692,6 +695,7 @@ export function remoteStore(
         ...(names.eachOf?.scoped !== false ? { id: `${parent}/${r.id}` } : {}),
         data: { ...r.data, "/_parent": parent },
       }));
+      leftOut(got.skipped, names.eachOf?.scoped !== false ? `${parent}/` : "");
       const more = nextPlace(got, cursor);
       if (got.next !== undefined && more === undefined && got.rows.length > 0)
         notes.push("A list answered with the place it had been asked from, and was read no further.");
@@ -785,10 +789,11 @@ export function remoteStore(
     updatedAtOf: (id: string) => stamps.get(id) ?? 0,
     page,
     // a per-parent list is read as a delta list: its checks add and change records, and only a sweep, which vouches parent by parent, removes any
-    supportsSince: names.since === true || parentRemote !== undefined,
+    supportsSince: names.since === true || parentRemote !== undefined || names.rows === true,
     lazy: names.since === true,
     held,
     notes,
+    skippedPrefixes,
     pendingVersions,
     eachOf: names.eachOf,
     parentInfo: parentsOf,
@@ -1073,6 +1078,7 @@ export function createSyncEngine(o: {
       "CREATE TABLE IF NOT EXISTS sy_parent (sync_type TEXT NOT NULL, remote_id TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (sync_type, remote_id))",
       "CREATE TABLE IF NOT EXISTS sy_parent_done (sync_type TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (sync_type, parent))",
       "CREATE TABLE IF NOT EXISTS sy_parent_ver (sync_type TEXT NOT NULL, parent TEXT NOT NULL, ver TEXT NOT NULL, PRIMARY KEY (sync_type, parent))",
+      "CREATE TABLE IF NOT EXISTS sy_skipped (sync_type TEXT NOT NULL, prefix TEXT NOT NULL, PRIMARY KEY (sync_type, prefix))",
       "CREATE TABLE IF NOT EXISTS sy_parent_ids (sync_type TEXT PRIMARY KEY, at INTEGER NOT NULL, info TEXT NOT NULL)",
     ])
       try {
@@ -1353,6 +1359,9 @@ export function createSyncEngine(o: {
           }
           after = next;
         }
+        for (const prefix of remote.skippedPrefixes)
+          tx.run("INSERT OR IGNORE INTO sy_skipped (sync_type, prefix) VALUES (?, ?)", b.syncTypeId, prefix);
+        remote.skippedPrefixes.clear();
         // which parent each record sits under: a sweep removes nothing under a parent it did not read to the end
         if (remote.eachOf)
           for (const r of rows) {
@@ -1388,6 +1397,7 @@ export function createSyncEngine(o: {
         if (!p.sweep) {
           tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
           tx.run("DELETE FROM sy_parent_done WHERE sync_type = ?", b.syncTypeId);
+          tx.run("DELETE FROM sy_skipped WHERE sync_type = ?", b.syncTypeId);
         }
         const g = await group(p.sweep?.after);
         for (const r of g.rows)
@@ -1418,6 +1428,15 @@ export function createSyncEngine(o: {
             .map((x) => x.remote_id),
         );
         // a record under a parent this sweep did not read to the end is vouched for as it is (a parent made after the sweep began, one that did not meet `where`, one that was skipped): nothing under it is removed
+        // the records of an item the app's page held too many inner items for are vouched for as they are: the item was left out, not removed
+        for (const x of tx.all<{ prefix: string }>("SELECT prefix FROM sy_skipped WHERE sync_type = ?", b.syncTypeId))
+          for (const l of tx.all<{ remote_id: string }>(
+            "SELECT remote_id FROM sy_links WHERE sync_type = ? AND remote_id >= ? AND remote_id < ?",
+            b.syncTypeId,
+            x.prefix,
+            x.prefix.slice(0, -1) + "0",
+          ))
+            ids.add(l.remote_id);
         // (a parent the app no longer lists was deleted there: its children are not vouched for and go)
         if (remote.eachOf) {
           const info = await remote.parentInfo();
@@ -1433,6 +1452,7 @@ export function createSyncEngine(o: {
         const said = await linkPass([], ids);
         tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
         tx.run("DELETE FROM sy_parent_done WHERE sync_type = ?", b.syncTypeId);
+        tx.run("DELETE FROM sy_skipped WHERE sync_type = ?", b.syncTypeId);
         const { sweep: _done, ...rest } = p;
         save({ ...rest, sweepAt: startedAt });
         return outOf(r, r.summary + said, false);

@@ -139,6 +139,8 @@ export interface ConnectorDef {
       /** The list can be asked for what changed since a time (`input.since`, in ms): a poll reads only that. */ since?: boolean;
       /** The list sits under each record of another object: it is read once per parent id (the call's `parent` input) and every row carries that id at /_parent. */
       eachOf?: Record<string, unknown> & { remote: string };
+      /** The list opens inner arrays into rows: it is read as a delta list and a sweep vouches for the records of an item it left out. */
+      rows?: boolean;
       /** Each row of this object also relates two already-synced records to each other (a many-to-many made from join rows). */
       link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
     }

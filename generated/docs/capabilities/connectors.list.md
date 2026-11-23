@@ -61,6 +61,7 @@ type Out = {
           since?: boolean;
           link?: unknown;
           eachOf?: unknown;
+          rows?: unknown;
         }>;
       sourceFolderId?: string;
     }>;

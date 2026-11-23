@@ -16,7 +16,7 @@ export function shapeList(
   link: string | undefined,
   shape: ActionShape,
   after: string | undefined,
-): { rows: ShapedRow[]; next?: string } {
+): { rows: ShapedRow[]; next?: string; skipped?: string[] } {
   const cursor = (shape.cursor ?? { kind: "none" }) as SpecCursor;
   const page = readPage(
     body,
@@ -26,7 +26,8 @@ export function shapeList(
     after,
   );
   if (!page) throw new ShapeError(`The answer has no list at ${shape.items === "" ? "the top" : shape.items}.`);
-  const items = shape.rows ? expandRows(page.items, shape.rows) : page.items;
+  const skipped: string[] = [];
+  const items = shape.rows ? expandRows(page.items, shape.rows, skipped) : page.items;
   const rows = items.map((item, i): ShapedRow => {
     const raw = pointerGet(item, shape.id ?? "");
     if (typeof raw !== "string" && typeof raw !== "number") throw new ShapeError(`Item ${i} has no id at ${shape.id}.`);
@@ -40,7 +41,11 @@ export function shapeList(
     const at = typeof stamp === "number" ? (stamp > 1e11 ? stamp : stamp * 1000) : stamp;
     return { id: String(raw), data, ...(typeof at === "string" || typeof at === "number" ? { updatedAt: at } : {}) };
   });
-  return { rows, ...(page.next !== undefined ? { next: page.next } : {}) };
+  return {
+    rows,
+    ...(page.next !== undefined ? { next: page.next } : {}),
+    ...(skipped.length ? { skipped } : {}),
+  };
 }
 
 export class ShapeError extends Error {}

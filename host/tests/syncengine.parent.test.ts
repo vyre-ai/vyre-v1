@@ -45,6 +45,7 @@ async function kit(eachOf: Record<string, unknown>) {
     ["mC", many("c")],
   ]);
   const bad = new Set<string>();
+  const tooBig = new Map<string, string[]>();
   const reads: string[] = [];
   let t = 1_800_000_000_000;
   const ctx: EngineCtx = {
@@ -76,6 +77,7 @@ async function kit(eachOf: Record<string, unknown>) {
             id,
             properties: { "/name": name, ...(bad.has(id) ? { "/ref": "not a list" } : {}) },
           })),
+          ...(tooBig.has(p) ? { skipped: tooBig.get(p) } : {}),
         },
       };
     },
@@ -116,6 +118,7 @@ async function kit(eachOf: Record<string, unknown>) {
       .map((x) => x.remote_id)
       .sort();
   return {
+    tooBig,
     bad,
     parents,
     children,
@@ -225,4 +228,29 @@ test("a parent deleted at the app releases its children to the sweep; a parent t
   k.advance(2 * DAY);
   await k.pass();
   assert.deepEqual(k.removed(), ["d1", "d2", "d3"], "mD is gone at the app; mE is only not submitted any more");
+});
+
+test("an item the app's page held too many inner rows for is left out and named; its records stay, the rest of the object syncs", async () => {
+  const k = await kit({});
+  // mB holds records of an item "big" (keys with a slash, as rows from an inner array have)
+  k.children.get("mB")!.set("big/0/0", "big zero");
+  k.children.get("mB")!.set("big/0/1", "big one");
+  await k.pass();
+  assert.equal((await k.names()).length, 92);
+  // now the item is over the cap: the page leaves it out and names it; the app also dropped b2 and edited b1
+  k.children.get("mB")!.delete("big/0/0");
+  k.children.get("mB")!.delete("big/0/1");
+  k.tooBig.set("mB", ["big"]);
+  k.children.get("mB")!.delete("b2");
+  k.children.get("mB")!.set("b1", "b1 edited");
+  k.advance(2 * DAY);
+  const said = await k.pass();
+  assert.deepEqual(
+    k.removed(),
+    ["b2"],
+    "only what the app really dropped is removed; the big item's records are vouched for",
+  );
+  assert.ok((await k.names()).includes("b1 edited"), "the neighbours sync");
+  assert.ok((await k.names()).includes("big zero") && (await k.names()).includes("big one"));
+  assert.ok(said.includes("holds too many inner items"), said);
 });

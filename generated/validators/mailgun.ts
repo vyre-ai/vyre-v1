@@ -63,15 +63,15 @@ if ("description" in o75) lf(o75["description"], p + "/description", e, L1);
 
 function d_s_c81f008ed8(v: unknown, p: string, e: string[]): void {
 {
-const x1015 = v;
-const g1015 = typeOf(x1015);
-const b1015: string[] = []; lf(x1015, p, b1015, L0); if (b1015.length) e.push(...b1015);
-if (g1015 === "object") {
-if (g1015 === 'object') { const o1015 = x1015 as Record<string, unknown>;
-if (!("domain" in o1015)) e.push(p + "/domain" + ': required');
-if (!("records" in o1015)) e.push(p + "/records" + ': required');
-if ("domain" in o1015) d_s_09238f98e5(o1015["domain"], p + "/domain", e);
-if ("records" in o1015) d_s_13c1b1d2bc(o1015["records"], p + "/records", e);
+const x1024 = v;
+const g1024 = typeOf(x1024);
+const b1024: string[] = []; lf(x1024, p, b1024, L0); if (b1024.length) e.push(...b1024);
+if (g1024 === "object") {
+if (g1024 === 'object') { const o1024 = x1024 as Record<string, unknown>;
+if (!("domain" in o1024)) e.push(p + "/domain" + ': required');
+if (!("records" in o1024)) e.push(p + "/records" + ': required');
+if ("domain" in o1024) d_s_09238f98e5(o1024["domain"], p + "/domain", e);
+if ("records" in o1024) d_s_13c1b1d2bc(o1024["records"], p + "/records", e);
 }
 }
 }

@@ -255,12 +255,45 @@ test("matches is a list of words: whole words only, any case, a phrase is words 
   assert.equal(whenHolds("x".repeat(300) + " account", { m: ["account"] }), false);
 });
 
-test("inner items are capped per item and per page, and a cap is said in words, never a silent cut", () => {
+test("an item over the cap is left out and named, the rest of the page is read", () => {
   const rows = { at: "/parts/*", idAt: "/id" };
   const big = (id: string, n: number) => ({ id, parts: Array.from({ length: n }, (_, i) => i) });
-  assert.equal(expandRows([big("a", 2000)], rows).length, 2000);
-  assert.throws(() => expandRows([big("a", 2001)], rows), /more than 2000 inner items/);
+  const left: string[] = [];
+  const out = expandRows([big("a", 3), big("huge", 2001), big("b", 2)], rows, left) as Record<string, any>[];
+  assert.deepEqual(
+    out.map((r) => r["_key"]),
+    ["a/0", "a/1", "a/2", "b/0", "b/1"],
+    "the normal items are read",
+  );
+  assert.deepEqual(left, ["huge"], "the big one is named");
+  assert.equal(expandRows([big("a", 2000)], rows, []).length, 2000, "2,000 is allowed");
+  // a page over its cap leaves out the items that do not fit, and reads the rest
   const ten = Array.from({ length: 10 }, (_, i) => big("i" + i, 2000));
-  assert.equal(expandRows(ten, rows).length, 20_000);
-  assert.throws(() => expandRows([...ten, big("last", 1)], rows), /smaller pages/);
+  const l2: string[] = [];
+  assert.equal(expandRows([...ten, big("late", 5)], rows, l2).length, 20_000);
+  assert.deepEqual(l2, ["late"]);
+  // shapeList carries the names of what was left out
+  const shaped = shapeList(
+    {
+      roles: [
+        ROLE("r1", [{ position: 1, contacts: ["c1"] }]),
+        { id: "r2", assignments: [{ contacts: Array.from({ length: 2001 }, (_, i) => "c" + i) }] },
+      ],
+    },
+    undefined,
+    {
+      items: "/roles",
+      id: "/_key",
+      rows: { at: "/assignments/*/contacts/*", idAt: "/id" },
+      fields: ["/id"],
+      types: { "/id": "text" },
+      cursor: { kind: "none" },
+    },
+    undefined,
+  );
+  assert.deepEqual(
+    shaped.rows.map((r) => r.id),
+    ["r1/0/0"],
+  );
+  assert.deepEqual(shaped.skipped, ["r2"]);
 });

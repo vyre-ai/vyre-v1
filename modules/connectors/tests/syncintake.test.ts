@@ -292,3 +292,25 @@ test("validate refuses a version that is empty on every sampled parent, since no
     bad.problems.some((p) => p.level === "error" && p.message.includes("/rev is empty on every sampled matters")),
   );
 });
+
+test("validate says an item that holds too many inner items would be left out, and still passes", async () => {
+  const w = world();
+  const roles = answers["/v1/matters/matter_A/roles"] as { roles: Record<string, unknown>[] };
+  const saved = roles.roles;
+  roles.roles = [
+    ...saved,
+    {
+      id: "role_big",
+      role_description: "Huge",
+      focus_contact: null,
+      assignments: [{ position: 1, contacts: Array.from({ length: 2001 }, (_, i) => "c" + i) }],
+    },
+  ];
+  try {
+    const v = await w.k.hs["sync_specs.validate"](w.k.ctx, { spec: SPEC });
+    assert.equal(v.ok, true, JSON.stringify(v.problems.filter((p) => p.level === "error")));
+    assert.ok(v.problems.some((p) => p.level === "warn" && p.message.includes("hold more than 2000 inner items")));
+  } finally {
+    roles.roles = saved;
+  }
+});

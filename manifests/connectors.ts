@@ -53,6 +53,7 @@ const objectActions = t.obj({
   since: t.opt(t.bool()),
   link: t.opt(t.json()),
   eachOf: t.opt(t.json()),
+  rows: t.opt(t.json()),
 });
 
 const connectorRow = t.obj({

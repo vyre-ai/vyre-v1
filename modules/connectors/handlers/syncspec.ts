@@ -17,6 +17,8 @@ import {
   compileSpec,
   fieldKeys,
   expandRows,
+  ROWS_PER_ITEM,
+  ROWS_PER_PAGE,
   firstPageRequest,
   joinTitle,
   parseSpec,
@@ -345,13 +347,15 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
         continue;
       }
       let flat = first;
-      if (o.rows)
-        try {
-          flat = expandRows(first, o.rows);
-        } catch (e) {
-          err(`${at}.rows`, e instanceof Error ? e.message : "The inner items could not be read.");
-          continue;
-        }
+      if (o.rows) {
+        const left: string[] = [];
+        flat = expandRows(first, o.rows, left);
+        if (left.length)
+          warn(
+            `${at}.rows`,
+            `${left.length} of the ${first.length} sampled items hold more than ${ROWS_PER_ITEM} inner items (or the page more than ${ROWS_PER_PAGE}) at ${o.rows.at}; a sync leaves them out and keeps the records it already holds for them.`,
+          );
+      }
       const items = (
         parentId === undefined
           ? flat

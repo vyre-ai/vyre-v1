@@ -2,6 +2,7 @@
 // page, and compiles it into connector actions (the engine's list/create/update/delete, shaped by ActionDef.shape), record types (fields, choices, relations, stages) and bindings.
 // The document holds a Vault handle, never a value, and a write is compiled only where the spec cites the docs that show it.
 import { pointerGet } from "./projections.ts";
+import { hasWords, wordsOf } from "../../lib/words.ts";
 import type { ActionDef, ConnectorDef } from "./projections.ts";
 
 export const FIELD_TYPES = [
@@ -202,32 +203,9 @@ const pointerOk = (v: unknown): v is string => typeof v === "string" && (v === "
 // ---- parse ----
 
 /** Read an untrusted document into a SyncSpec, or say what is wrong with its shape. Meaning (does the path exist on a real page) is the validator's job. */
-/** The words of a text, lower case, letters and digits only; at most the first 200 characters are looked at. One pass, no backtracking. */
-export const wordsOf = (s: string): string[] =>
-  s
-    .slice(0, 200)
-    .toLowerCase()
-    .match(/[\p{L}\p{N}]+/gu) ?? [];
 /** The words and phrases an `onlyWhen.matches` or `where.matches` names, as a list. */
 export const asWords = (m: string | string[]): string[] => (Array.isArray(m) ? m : [m]);
-/** Does the text hold one of the words or phrases, as whole words (a phrase is words side by side)? Case does not matter. Linear in the text, whatever the words are. */
-export function hasWords(text: string, phrases: string[]): boolean {
-  const t = wordsOf(text);
-  return phrases.some((ph) => {
-    const p = wordsOf(ph);
-    if (!p.length) return false;
-    for (let i = 0; i + p.length <= t.length; i++) {
-      let all = true;
-      for (let j = 0; j < p.length; j++)
-        if (t[i + j] !== p[j]) {
-          all = false;
-          break;
-        }
-      if (all) return true;
-    }
-    return false;
-  });
-}
+export { hasWords, wordsOf };
 const okWords = (m: unknown): boolean => {
   const list = typeof m === "string" ? [m] : m;
   return (
@@ -627,11 +605,15 @@ export function coerceValue(
   }
 }
 
-/** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. */
-/** At most this many rows come out of one item and out of one page; more is refused in words, never cut short (cutting short would read as records the app no longer has). */
+/** At most this many rows come out of one item and out of one page. An item over the cap is left out and named (never cut short: a cut would read as records the app no longer has), and the rest of the page is read. */
 export const ROWS_PER_ITEM = 2_000;
 export const ROWS_PER_PAGE = 20_000;
-export function expandRows(items: unknown[], rows: { at: string; idAt: string | string[] }): unknown[] {
+/** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. An item that holds too many inner items is left out and its id is added to `skipped`. */
+export function expandRows(
+  items: unknown[],
+  rows: { at: string; idAt: string | string[] },
+  skipped: string[] = [],
+): unknown[] {
   const segs = rows.at
     .slice(1)
     .split("/")
@@ -645,16 +627,16 @@ export function expandRows(items: unknown[], rows: { at: string; idAt: string | 
       out.push(item);
       continue;
     }
-    let made = 0;
+    const mine: unknown[] = [];
+    let over = false;
     const walk = (cur: unknown, k: number, at: unknown[], idx: number[]): void => {
+      if (over) return;
       if (k === segs.length) {
-        if (++made > ROWS_PER_ITEM || out.length >= ROWS_PER_PAGE)
-          throw new Error(
-            made > ROWS_PER_ITEM
-              ? `One item holds more than ${ROWS_PER_ITEM} inner items at ${rows.at}.`
-              : `A page holds more than ${ROWS_PER_PAGE} inner items at ${rows.at}: ask the app for smaller pages.`,
-          );
-        out.push({ ...(item as Record<string, unknown>), _key: `${id}/${idx.join("/")}`, _at: at, _i: idx });
+        if (mine.length >= ROWS_PER_ITEM) {
+          over = true;
+          return;
+        }
+        mine.push({ ...(item as Record<string, unknown>), _key: `${id}/${idx.join("/")}`, _at: at, _i: idx });
         return;
       }
       const seg = segs[k]!;
@@ -672,6 +654,8 @@ export function expandRows(items: unknown[], rows: { at: string; idAt: string | 
       if (next !== undefined) walk(next, k + 1, at, idx);
     };
     walk(item, 0, [], []);
+    if (over || out.length + mine.length > ROWS_PER_PAGE) skipped.push(id);
+    else out.push(...mine);
   }
   return out;
 }
@@ -1014,6 +998,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
       list: names.list,
       listAfter: names.listAfter,
       ...(o.list.updatedSince ? { since: true } : {}),
+      ...(o.rows ? { rows: true } : {}),
       ...(o.list.eachOf
         ? {
             eachOf: {

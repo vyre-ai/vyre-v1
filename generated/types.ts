@@ -12142,6 +12142,7 @@ export type ConnectorsGetOut = {
         since?: boolean;
         link?: unknown;
         eachOf?: unknown;
+        rows?: unknown;
       }>;
     sourceFolderId?: string;
   };
@@ -12196,6 +12197,7 @@ export type ConnectorsListOut = {
           since?: boolean;
           link?: unknown;
           eachOf?: unknown;
+          rows?: unknown;
         }>;
       sourceFolderId?: string;
     }>;
