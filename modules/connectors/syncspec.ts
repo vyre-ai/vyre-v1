@@ -84,7 +84,16 @@ export interface SpecList {
   /** How often the whole list is read to find what the app deleted, in days (1 to 30; default 1). A large table can be swept weekly. */
   sweepEveryDays?: number;
   /** A list that sits under each record of another object (an app's /matters/{matter}/contacts): the sync reads this list once for every record of `object`, in order, with the record's id put where `{param}` stands in the path. Every item also carries the record's id at the pointer /_parent, so a field can relate the item to its parent. The parent object is listed and mapped itself and cannot be a per-parent list. Not with updatedSince: the app cannot say which parents changed. */
-  eachOf?: { object: string; param: string; scoped?: boolean };
+  eachOf?: {
+    object: string;
+    param: string;
+    /** `false` says the app's ids are the same under no two parents, so a child's id is its own; otherwise each child's id gets its parent's in front. */
+    scoped?: boolean;
+    /** Only the parents whose value at `path` is one of `equals` or matches `matches` (turned round by `not`) have their children read. `path` is one of the parent object's mapped fields. */
+    where?: { path: string; equals?: string | string[]; matches?: string; not?: boolean };
+    /** A parent's children are read again at a check only when its version moved since they were last read; the sweep (sweepEveryDays) reads them all. The version is the parent's own value at `path`, or the newest `at` of the rows of another listed object whose `parentAt` names the parent (an events feed). */
+    changed?: { path: string } | { object: string; parentAt: string; at: string };
+  };
 }
 export interface SpecWrite {
   path: string;
@@ -193,6 +202,35 @@ const pointerOk = (v: unknown): v is string => typeof v === "string" && (v === "
 // ---- parse ----
 
 /** Read an untrusted document into a SyncSpec, or say what is wrong with its shape. Meaning (does the path exist on a real page) is the validator's job. */
+const okRegex = (m: unknown): boolean => {
+  if (typeof m !== "string" || m === "" || m.length > 200) return false;
+  try {
+    new RegExp(m, "i");
+    return true;
+  } catch {
+    return false;
+  }
+};
+const okWhen = (w: unknown): boolean => {
+  if (!isObj(w) || !pointerOk(w["path"]) || w["path"] === "") return false;
+  const eq = w["equals"];
+  const eqOk =
+    eq === undefined ||
+    typeof eq === "string" ||
+    (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
+  return (
+    eqOk &&
+    (w["matches"] === undefined || okRegex(w["matches"])) &&
+    (eq === undefined) !== (w["matches"] === undefined) &&
+    (w["not"] === undefined || typeof w["not"] === "boolean")
+  );
+};
+const okChanged = (c: unknown): boolean =>
+  isObj(c) &&
+  (pointerOk(c["path"]) && c["path"] !== ""
+    ? c["object"] === undefined
+    : str(c["object"]) && pointerOk(c["parentAt"]) && c["parentAt"] !== "" && pointerOk(c["at"]) && c["at"] !== "");
+
 export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] } {
   const problems: Problem[] = [];
   const bad = (at: string, message: string): void => {
@@ -315,11 +353,13 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
         !str(e["object"]) ||
         !str(e["param"]) ||
         !/^[a-z][a-z0-9_]*$/.test(String(e["param"])) ||
-        (e["scoped"] !== undefined && typeof e["scoped"] !== "boolean")
+        (e["scoped"] !== undefined && typeof e["scoped"] !== "boolean") ||
+        (e["where"] !== undefined && !okWhen(e["where"])) ||
+        (e["changed"] !== undefined && !okChanged(e["changed"]))
       )
         bad(
           `${at}.list.eachOf`,
-          "eachOf is { object: the object whose records each have this list, param: a lowercase name, scoped: true when the app's ids repeat from one parent to the next }.",
+          "eachOf is { object: the object whose records each have this list, param: a lowercase name, scoped: false when the app's ids are unique across parents, where: { path, equals or matches, not }, changed: { path } or { object, parentAt, at } }.",
         );
       else {
         if (!String(list["path"]).includes(`{${e["param"]}}`))
@@ -331,6 +371,17 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
             bad(`${at}.list.eachOf.object`, `${String(e["object"])} is not one of the listed objects.`);
           else if (isObj(parent["list"]) && parent["list"]["eachOf"] !== undefined)
             bad(`${at}.list.eachOf.object`, "The parent is itself a per-parent list: only one level is read.");
+          const feedName = isObj(e["changed"]) ? e["changed"]["object"] : undefined;
+          if (
+            typeof feedName === "string" &&
+            !(objects as unknown[]).some(
+              (x) => isObj(x) && x["remote"] === feedName && !(isObj(x["list"]) && x["list"]["eachOf"] !== undefined),
+            )
+          )
+            bad(
+              `${at}.list.eachOf.changed.object`,
+              `${feedName} is not one of the listed objects (and cannot itself be a per-parent list).`,
+            );
         }
         if (list["updatedSince"] !== undefined)
           bad(
@@ -937,7 +988,29 @@ export function compileSpec(spec: SyncSpec): Compiled {
       listAfter: names.listAfter,
       ...(o.list.updatedSince ? { since: true } : {}),
       ...(o.list.eachOf
-        ? { eachOf: { remote: o.list.eachOf.object, ...(o.list.eachOf.scoped ? { scoped: true } : {}) } }
+        ? {
+            eachOf: {
+              remote: o.list.eachOf.object,
+              ...(o.list.eachOf.scoped === false ? { scoped: false } : {}),
+              ...(o.list.eachOf.where
+                ? {
+                    where: {
+                      path: o.list.eachOf.where.path,
+                      ...(o.list.eachOf.where.equals !== undefined
+                        ? {
+                            e: Array.isArray(o.list.eachOf.where.equals)
+                              ? o.list.eachOf.where.equals
+                              : [o.list.eachOf.where.equals],
+                          }
+                        : {}),
+                      ...(o.list.eachOf.where.matches !== undefined ? { m: o.list.eachOf.where.matches } : {}),
+                      ...(o.list.eachOf.where.not === true ? { n: true } : {}),
+                    },
+                  }
+                : {}),
+              ...(o.list.eachOf.changed ? { changed: o.list.eachOf.changed } : {}),
+            },
+          }
         : {}),
     };
     if (o.create && (m.createAtSource ?? false)) {

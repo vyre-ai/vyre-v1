@@ -114,7 +114,7 @@ const SPEC = {
       label: "Contact",
       id: "/id",
       itemsAt: "/contacts",
-      list: { path: "/v1/matters/{matter}/contacts", eachOf: { object: "matters", param: "matter" } },
+      list: { path: "/v1/matters/{matter}/contacts", eachOf: { object: "matters", param: "matter", scoped: false } },
       fields: [
         { path: "/full_name", label: "Full name", type: "text" },
         { path: "/phone_numbers/0/number", label: "Phone", type: "phone" },
@@ -127,7 +127,7 @@ const SPEC = {
       id: "/_key",
       itemsAt: "/roles",
       rows: { at: "/assignments/*/contacts/*", idAt: ["/id", "/focus_contact"] },
-      list: { path: "/v1/matters/{matter}/roles", eachOf: { object: "matters", param: "matter", scoped: true } },
+      list: { path: "/v1/matters/{matter}/roles", eachOf: { object: "matters", param: "matter" } },
       fields: [
         { path: "/role_description", label: "Role", type: "text" },
         { path: "/_at/0/position", label: "Rank", type: "number" },
@@ -141,7 +141,7 @@ const SPEC = {
       label: "Asset",
       id: "/id",
       itemsAt: "/assets",
-      list: { path: "/v1/matters/{matter}/assets", eachOf: { object: "matters", param: "matter" } },
+      list: { path: "/v1/matters/{matter}/assets", eachOf: { object: "matters", param: "matter", scoped: false } },
       fields: [
         { path: "/identifier_label", label: "Identifier is", type: "text" },
         {
@@ -254,4 +254,24 @@ test("preview: the roles are one row for every person named, the address is plai
   const sealed = assets.fields.find((f) => f.key === "identifier_sealed")!;
   assert.deepEqual(sealed.value, { sealed: true, present: false }, "the first asset is an address: nothing sealed");
   assert.equal(assets.fields.find((f) => f.key === "identifier")!.value, ADDRESS);
+});
+
+test("validate says where and changed must name mapped fields of the parent (or the feed), and accepts them when they do", async () => {
+  const w = world();
+  const spec = JSON.parse(JSON.stringify(SPEC));
+  spec.objects[0].fields.push({ path: "/is_submitted", label: "Submitted", type: "bool" });
+  spec.mapping[0].fields.push({ path: "/is_submitted", field: "is_submitted", direction: "pull" });
+  spec.objects[1].list.eachOf.where = { path: "/is_submitted", equals: "true" };
+  const good = await w.k.hs["sync_specs.validate"](w.k.ctx, { spec });
+  assert.equal(good.ok, true, JSON.stringify(good.problems.filter((p) => p.level === "error")));
+  spec.objects[1].list.eachOf.where = { path: "/not_mapped", equals: "true" };
+  spec.objects[1].list.eachOf.changed = { path: "/also_not_mapped" };
+  const bad = await w.k.hs["sync_specs.validate"](w.k.ctx, { spec });
+  assert.equal(bad.ok, false);
+  const said = bad.problems.filter((p) => p.level === "error").map((p) => p.message);
+  assert.ok(
+    said.some((m) => m.includes("/not_mapped must be one of matters's mapped fields")),
+    said.join(" | "),
+  );
+  assert.ok(said.some((m) => m.includes("/also_not_mapped must be one of")));
 });

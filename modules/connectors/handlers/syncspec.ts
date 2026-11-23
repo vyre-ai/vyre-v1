@@ -270,6 +270,24 @@ export function createSpecHandlers(deps: SyncDeps): SpecHandlers {
       if (!spec.objects.some((o) => o.remote === m.remote))
         err(`mapping.${m.remote}`, `${m.remote} is mapped but not listed in objects.`);
     }
+    // a per-parent list's `where` and `changed` read the parent's (or the feed's) rows as the sync reads them: a path that is not mapped is not in the row
+    const mappedPath = (remote: string, path: string): boolean =>
+      mapped.get(remote)?.fields.some((f) => f.path === path && f.direction !== "off") === true;
+    for (const o of spec.objects) {
+      const e = o.list.eachOf;
+      if (!e) continue;
+      if (!mapped.has(e.object))
+        err(`objects.${o.remote}.list.eachOf`, `${e.object} must be mapped: its list is read to find the parents.`);
+      if (e.where && !mappedPath(e.object, e.where.path))
+        err(`objects.${o.remote}.list.eachOf.where`, `${e.where.path} must be one of ${e.object}'s mapped fields.`);
+      if (e.changed && "path" in e.changed && !mappedPath(e.object, e.changed.path))
+        err(`objects.${o.remote}.list.eachOf.changed`, `${e.changed.path} must be one of ${e.object}'s mapped fields.`);
+      if (e.changed && "object" in e.changed) {
+        for (const p of [e.changed.parentAt, e.changed.at])
+          if (!mappedPath(e.changed.object, p))
+            err(`objects.${o.remote}.list.eachOf.changed`, `${p} must be one of ${e.changed.object}'s mapped fields.`);
+      }
+    }
     for (const o of spec.objects)
       if (!mapped.has(o.remote))
         warn(`objects.${o.remote}`, `${o.remote} is described but not mapped, so it is not brought in.`);

@@ -121,11 +121,40 @@ test("a per-parent list that is wrong is refused in plain words", () => {
   assert.deepEqual(errs(intakeRaw()), []);
 });
 
-test("scoped ids: an app whose ids repeat from one parent to the next gets the parent in front of each id", () => {
+test("ids are scoped to the parent unless the spec says they are unique across parents", () => {
   const raw = intakeRaw();
-  raw["objects"][1].list.eachOf.scoped = true;
-  const c = compileSpec(ok(raw));
-  assert.deepEqual(c.connector.objects!["contacts"]!.eachOf, { remote: "matters", scoped: true });
+  assert.deepEqual(compileSpec(ok(raw)).connector.objects!["contacts"]!.eachOf, { remote: "matters" });
+  raw["objects"][1].list.eachOf.scoped = false;
+  assert.deepEqual(compileSpec(ok(raw)).connector.objects!["contacts"]!.eachOf, { remote: "matters", scoped: false });
   raw["objects"][1].list.eachOf.scoped = "yes";
+  assert.ok(errs(raw).some((e) => e.includes("eachOf is")));
+});
+
+test("where and changed compile into the connector's object map, and a bad one is refused", () => {
+  const raw = intakeRaw();
+  raw["objects"][0].fields.push({ path: "/is_submitted", label: "Submitted", type: "bool" });
+  raw["mapping"][0].fields.push({ path: "/is_submitted", field: "is_submitted", direction: "pull" });
+  raw["objects"][1].list.eachOf.where = { path: "/is_submitted", equals: "true" };
+  raw["objects"][1].list.eachOf.changed = { path: "/name" };
+  const each = compileSpec(ok(raw)).connector.objects!["contacts"]!.eachOf;
+  assert.deepEqual(each, {
+    remote: "matters",
+    where: { path: "/is_submitted", e: ["true"] },
+    changed: { path: "/name" },
+  });
+  raw["objects"][1].list.eachOf.where = { path: "/is_submitted", equals: "x", matches: "y" };
+  assert.ok(
+    errs(raw).some((e) => e.includes("eachOf is")),
+    "equals and matches together",
+  );
+  raw["objects"][1].list.eachOf.where = { path: "/is_submitted", matches: "(" };
+  assert.ok(
+    errs(raw).some((e) => e.includes("eachOf is")),
+    "a pattern that is not one",
+  );
+  raw["objects"][1].list.eachOf.where = undefined;
+  raw["objects"][1].list.eachOf.changed = { object: "nobody", parentAt: "/m", at: "/t" };
+  assert.ok(errs(raw).some((e) => e.includes("changed.object")));
+  raw["objects"][1].list.eachOf.changed = { object: "matters", parentAt: "", at: "/t" };
   assert.ok(errs(raw).some((e) => e.includes("eachOf is")));
 });

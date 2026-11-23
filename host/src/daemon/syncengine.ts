@@ -223,6 +223,35 @@ export interface LinkDef {
   key: string;
   inverseKey: string;
 }
+/** A condition on a value (the =when: form): one of `e`, or matching the pattern `m`, turned round by `n`. */
+export interface WhenCond {
+  e?: string[];
+  m?: string;
+  n?: boolean;
+}
+/** A per-parent list: read under each record of `remote`. `scoped` is on unless it is false: the child's id gets the parent's in front. `where` keeps only the parents that meet it. `changed` reads a parent's children again only when its version moved. */
+export interface EachOf {
+  remote: string;
+  scoped?: boolean;
+  where?: WhenCond & { path: string };
+  changed?: { path: string } | { object: string; parentAt: string; at: string };
+}
+/** Does the value meet the condition (case and surrounding spaces do not matter; a masked value never does)? */
+export function holdsWhen(have: unknown, c: WhenCond): boolean {
+  const present = have !== undefined && have !== null && have !== "[sealed]";
+  const text = present ? String(have).trim() : "";
+  const hit =
+    present &&
+    (c.e !== undefined
+      ? c.e.some((v) => v.trim().toLowerCase() === text.toLowerCase())
+      : c.m !== undefined && new RegExp(c.m, "i").test(text));
+  return c.n === true ? !hit : hit;
+}
+/** The next place of a list walk, or none when the walk is over: an empty page ends it whatever it says comes next, and so does a next that is the place just read. One rule for every list (flat, list_after, per parent). */
+export function nextPlace(got: { rows: unknown[]; next?: string }, after: string | undefined): string | undefined {
+  if (got.next === undefined || got.rows.length === 0 || got.next === after) return undefined;
+  return got.next;
+}
 export interface ObjectNames {
   list?: string;
   listAfter?: string;
@@ -233,7 +262,7 @@ export interface ObjectNames {
   /** Each row also relates two already-synced records (a many-to-many made from join rows). */
   link?: LinkDef;
   /** The list sits under each record of this other object: it is read once per parent id, and every row carries the parent's id at /_parent. */
-  eachOf?: { remote: string; scoped?: boolean };
+  eachOf?: EachOf;
 }
 export type ObjectMap = Record<string, ObjectNames>;
 
@@ -247,8 +276,31 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
     if (typeof hit[k] === "string" && hit[k] !== "") out[k] = hit[k];
   if (hit["since"] === true) out.since = true;
   const each = hit["eachOf"];
-  if (isObj(each) && typeof each["remote"] === "string" && each["remote"] !== "")
-    out.eachOf = { remote: each["remote"], ...(each["scoped"] === true ? { scoped: true } : {}) };
+  if (isObj(each) && typeof each["remote"] === "string" && each["remote"] !== "") {
+    const w = each["where"];
+    const c = each["changed"];
+    const cond: (WhenCond & { path: string }) | undefined =
+      isObj(w) && typeof w["path"] === "string"
+        ? {
+            path: w["path"],
+            ...(Array.isArray(w["e"]) ? { e: w["e"].map(String) } : {}),
+            ...(typeof w["m"] === "string" ? { m: w["m"] } : {}),
+            ...(w["n"] === true ? { n: true } : {}),
+          }
+        : undefined;
+    out.eachOf = {
+      remote: each["remote"],
+      ...(each["scoped"] === false ? { scoped: false } : {}),
+      ...(cond ? { where: cond } : {}),
+      ...(isObj(c) && typeof c["path"] === "string" ? { changed: { path: c["path"] } } : {}),
+      ...(isObj(c) &&
+      typeof c["object"] === "string" &&
+      typeof c["parentAt"] === "string" &&
+      typeof c["at"] === "string"
+        ? { changed: { object: c["object"], parentAt: c["parentAt"], at: c["at"] } }
+        : {}),
+    };
+  }
   const l = hit["link"];
   if (
     isObj(l) &&
@@ -306,6 +358,11 @@ export function objectNamesOf(
   };
 }
 
+export interface ParentInfo {
+  ids: string[];
+  ver: Record<string, string>;
+}
+
 export function remoteStore(
   ctx: Pick<EngineCtx, "call">,
   b: Pick<BindingRow, "connector" | "connectionId" | "remote">,
@@ -328,11 +385,20 @@ export function remoteStore(
     /** The real values of sealed fields of a row, kept in this process by the connector (never in an answer). */
     heldOf?: (nonce: string, rowId: string) => Record<string, unknown> | undefined;
     heldDone?: (nonce: string) => void;
+    /** The parent ids of a per-parent list kept from an earlier pass (and its versions), so a pass does not read the whole parent list again; `get` answers nothing when it is too old. */
+    parentCache?: { get(): ParentInfo | undefined; set(info: ParentInfo): void };
+    /** The version of a parent as it was when its children were last read (for `changed`). */
+    versionOf?: (parent: string) => string | undefined;
   } = {},
 ): Store & {
   updatedAtOf(id: string): number;
-  page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }>;
+  page(after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string; done?: string[] }>;
   supportsSince: boolean;
+  /** Said in plain words in the pass's summary: a list that stopped because it repeated itself, parents skipped. */
+  notes: string[];
+  /** Versions of parents whose children were read to the end in this store's life: kept by the engine once the rows are in (for `changed`). */
+  pendingVersions: Map<string, string>;
+  eachOf: EachOf | undefined;
   lazy: boolean;
   held: Map<string, { at: number; values: Record<string, string | null> }>;
 } {
@@ -361,7 +427,15 @@ export function remoteStore(
   const parentNames = parentRemote !== undefined ? namesFor(objects, parentRemote) : {};
   const parentList = parentNames.list ?? `list_${parentRemote}`;
   const parentAfter = parentNames.listAfter ?? `list_${parentRemote}_after`;
-  const parentReads = new Set(parentRemote !== undefined ? [parentList, parentAfter] : []);
+  const feed = names.eachOf?.changed && "object" in names.eachOf.changed ? names.eachOf.changed : undefined;
+  const feedNames = feed ? namesFor(objects, feed.object) : {};
+  const feedList = feedNames.list ?? `list_${feed?.object}`;
+  const feedAfter = feedNames.listAfter ?? `list_${feed?.object}_after`;
+  const parentReads = new Set(
+    parentRemote !== undefined ? [parentList, parentAfter, ...(feed ? [feedList, feedAfter] : [])] : [],
+  );
+  const notes: string[] = [];
+  const pendingVersions = new Map<string, string>();
   let slowedDowns = 0;
   const run = async (action: string, input: unknown): Promise<unknown> => {
     for (let own = 0; ; own++) {
@@ -417,24 +491,9 @@ export function remoteStore(
     const real = opts.heldOf?.(passNonce, r.id);
     if (real) for (const [k, v] of Object.entries(real)) data[k] = v;
     for (const wk of whens) {
-      const c = JSON.parse(wk.slice("=when:".length)) as {
-        p: string;
-        w: string;
-        e?: string[];
-        m?: string;
-        n?: boolean;
-      };
-      const have = data[c.w];
-      const present = have !== undefined && have !== null && have !== "[sealed]";
-      const text = present ? String(have).trim().toLowerCase() : "";
-      const hit =
-        present &&
-        (c.e !== undefined
-          ? c.e.some((v) => v.trim().toLowerCase() === text)
-          : c.m !== undefined && new RegExp(c.m, "i").test(String(have).trim()));
-      const holds = c.n === true ? !hit : hit;
+      const c = JSON.parse(wk.slice("=when:".length)) as WhenCond & { p: string; w: string };
       // a masked value ("[sealed]": the pass was not given the real one) is never taken as the plain value of a field
-      data[wk] = holds && data[c.p] !== "[sealed]" ? (data[c.p] ?? null) : null;
+      data[wk] = holdsWhen(data[c.w], c) && data[c.p] !== "[sealed]" ? (data[c.p] ?? null) : null;
     }
     for (const j of joins) {
       const parts: string[] = [];
@@ -474,35 +533,85 @@ export function remoteStore(
     updated_at: r.updatedAt,
     ...(r.archived ? { deleted_at: r.updatedAt || 1 } : {}),
   });
-  // The parent ids of a per-parent list, in a fixed order (sorted), so a place kept between passes ("this parent, from this cursor") still means the same thing when the parents have changed.
-  let parentIds: string[] | undefined;
-  const parentsOf = async (): Promise<string[]> => {
-    if (parentIds) return parentIds;
-    const ids = new Set<string>();
+  /** Every row of a list, page by page, ending by the one rule of nextPlace and when a page brings nothing new. */
+  const walkAll = async (first: string, afterName: string): Promise<RemoteRow[]> => {
+    const out: RemoteRow[] = [];
+    const seen = new Set<string>();
+    const places = new Set<string>();
     let after: string | undefined;
     do {
-      const got = readRows(
-        await run(after === undefined ? parentList : parentAfter, after === undefined ? {} : { after }),
-      );
-      const fresh = got.rows.filter((r) => !r.archived && !ids.has(r.id));
-      for (const r of fresh) ids.add(r.id);
-      after = fresh.length === 0 ? undefined : got.next;
-    } while (after !== undefined && ids.size < 100_000);
-    parentIds = [...ids].sort();
-    return parentIds;
+      const got = readRows(await run(after === undefined ? first : afterName, after === undefined ? {} : { after }));
+      const fresh = got.rows.filter((r) => !seen.has(r.id));
+      for (const r of fresh) seen.add(r.id);
+      out.push(...fresh);
+      const next = fresh.length === 0 ? undefined : nextPlace(got, after);
+      if (next !== undefined && places.has(next)) {
+        notes.push("A list kept answering with a page it had given before, and was read no further.");
+        break;
+      }
+      if (next !== undefined) places.add(next);
+      after = next;
+    } while (after !== undefined && out.length < 100_000);
+    return out;
   };
-  /** At most this many parents are tried for one page, so a run of parents with empty lists is not one endless call; the page then comes back empty with a place to go on from. */
+  // The parent ids of a per-parent list, in a fixed order (sorted), so a place kept between passes ("this parent, from this cursor") still means the same thing when the parents have changed.
+  // Only the parents that meet `where` are listed. A parent whose id cannot go in an address (a slash, "..", ?, #) is skipped and said once.
+  let parentInfo: ParentInfo | undefined;
+  const parentsOf = async (): Promise<ParentInfo> => {
+    if (parentInfo) return parentInfo;
+    const cached = opts.parentCache?.get();
+    if (cached) return (parentInfo = cached);
+    const each = names.eachOf!;
+    const ids: string[] = [];
+    const ver: Record<string, string> = {};
+    let unsafe = 0;
+    for (const r of await walkAll(parentList, parentAfter)) {
+      if (r.archived) continue;
+      if (each.where && !holdsWhen(r.data[each.where.path], each.where)) continue;
+      if (r.id === "" || r.id === "." || r.id === ".." || /[\\/?#]/.test(r.id)) {
+        unsafe++;
+        continue;
+      }
+      ids.push(r.id);
+      if (each.changed && "path" in each.changed) ver[r.id] = String(r.data[each.changed.path] ?? "");
+    }
+    if (feed) {
+      // the newest stamp the feed holds for each parent is its version
+      for (const r of await walkAll(feedList, feedAfter)) {
+        const who = r.data[feed.parentAt];
+        const at = r.data[feed.at];
+        if (typeof who !== "string" || who === "") continue;
+        const stamp = at === undefined || at === null ? "" : String(at);
+        if (stamp > (ver[who] ?? "")) ver[who] = stamp;
+      }
+    }
+    if (unsafe > 0) notes.push(`${unsafe} parent${unsafe === 1 ? "" : "s"} skipped: the id cannot go in an address.`);
+    ids.sort();
+    parentInfo = { ids, ver };
+    opts.parentCache?.set(parentInfo);
+    return parentInfo;
+  };
+  /** At most this many parents are asked for one page, so a run of parents with empty lists is not one endless call; the page then comes back empty with a place to go on from. */
   const PARENTS_PER_PAGE = 40;
-  /** One page of the list: for a per-parent list the place kept is {"p": parent id, "c": the app's cursor inside that parent}; a page holds one parent's rows (or the next non-empty one's). */
-  const listPage = async (after?: string, since?: number): Promise<{ rows: RemoteRow[]; next?: string }> => {
-    if (parentRemote === undefined)
-      return readRows(
+  /** One page of the list. For a per-parent list the place kept is {"p": parent id, "c": the app's cursor inside that parent}; a page holds one parent's rows (or the next non-empty one's); `done` names the parents read to the end. */
+  const listPage = async (
+    after?: string,
+    since?: number,
+  ): Promise<{ rows: RemoteRow[]; next?: string; done?: string[] }> => {
+    if (parentRemote === undefined) {
+      const got = readRows(
         await run(after === undefined ? nameList : nameAfter, {
           ...(after === undefined ? {} : { after }),
           ...(since !== undefined ? { since } : {}),
         }),
       );
-    const parents = await parentsOf();
+      const next = nextPlace(got, after);
+      if (got.next !== undefined && next === undefined && got.rows.length > 0)
+        notes.push("A list answered with the place it had been asked from, and was read no further.");
+      return { rows: got.rows, ...(next !== undefined ? { next } : {}) };
+    }
+    const info = await parentsOf();
+    const parents = info.ids;
     let place: { p?: string; c?: string } = {};
     if (after !== undefined) {
       try {
@@ -524,35 +633,46 @@ export function remoteStore(
         // the parent is gone since the place was kept: go on with the next one after it
         idx = parents.findIndex((x) => x > place.p!);
         cursor = undefined;
+        if (idx < 0) return { rows: [] };
       }
     }
-    if (idx < 0) return { rows: [] };
-    for (let tried = 0; idx < parents.length && tried < PARENTS_PER_PAGE; tried++) {
+    const changedOnly = since !== undefined && names.eachOf?.changed !== undefined;
+    const here = (): string => JSON.stringify({ p: parents[idx]!, ...(cursor !== undefined ? { c: cursor } : {}) });
+    const done: string[] = [];
+    let asked = 0;
+    while (idx < parents.length) {
       const parent = parents[idx]!;
+      // a delta pass reads again only the parents whose version moved since their children were last read
+      if (changedOnly && cursor === undefined && opts.versionOf?.(parent) === (info.ver[parent] ?? "")) {
+        idx++;
+        continue;
+      }
+      if (asked >= PARENTS_PER_PAGE) return { rows: [], next: here(), done };
+      asked++;
       const got = readRows(
         await run(cursor === undefined ? nameList : nameAfter, {
           parent,
           ...(cursor === undefined ? {} : { after: cursor }),
         }),
       );
-      // an app whose ids repeat from one parent to the next (a role id is the same on every matter) gets the parent's id in front, so one record is one row
+      // an app whose ids repeat from one parent to the next (a role id is the same on every matter) gets the parent's id in front, so one record is one row; `scoped: false` says they do not
       const rows = got.rows.map((r) => ({
         ...r,
-        ...(names.eachOf?.scoped ? { id: `${parent}/${r.id}` } : {}),
+        ...(names.eachOf?.scoped !== false ? { id: `${parent}/${r.id}` } : {}),
         data: { ...r.data, "/_parent": parent },
       }));
-      const nextPlace =
-        got.next !== undefined
-          ? { p: parent, c: got.next }
-          : idx + 1 < parents.length
-            ? { p: parents[idx + 1]! }
-            : undefined;
-      if (rows.length > 0 || nextPlace === undefined || tried === PARENTS_PER_PAGE - 1)
-        return { rows, ...(nextPlace !== undefined ? { next: JSON.stringify(nextPlace) } : {}) };
-      idx = nextPlace.c === undefined ? idx + 1 : idx;
-      cursor = nextPlace.c;
+      const more = nextPlace(got, cursor);
+      if (got.next !== undefined && more === undefined && got.rows.length > 0)
+        notes.push("A list answered with the place it had been asked from, and was read no further.");
+      if (more === undefined) {
+        done.push(parent);
+        pendingVersions.set(parent, info.ver[parent] ?? "");
+        idx++;
+        cursor = undefined;
+      } else cursor = more;
+      if (rows.length > 0) return { rows, ...(idx < parents.length ? { next: here() } : {}), done };
     }
-    return { rows: [] };
+    return { rows: [], done };
   };
   // One pass reads the app's list once: a push that looks a record up uses that same listing instead of paging through the app again for every record.
   let listed: RemoteRow[] | undefined;
@@ -561,13 +681,17 @@ export function remoteStore(
     const out: RemoteRow[] = [];
     let after: string | undefined;
     const seen = new Set<string>();
+    const places = new Set<string>();
     do {
       const page = await listPage(after);
       // an app that ignores the page parameter answers the same page again: stop when a page brings nothing new (a per-parent list may have an empty page and more parents to go)
       const fresh = page.rows.filter((r) => !seen.has(r.id));
       for (const r of fresh) seen.add(r.id);
       out.push(...fresh);
-      after = fresh.length === 0 && (parentRemote === undefined || page.rows.length > 0) ? undefined : page.next;
+      let next = fresh.length === 0 && (parentRemote === undefined || page.rows.length > 0) ? undefined : page.next;
+      if (next !== undefined && places.has(next)) next = undefined;
+      if (next !== undefined) places.add(next);
+      after = next;
     } while (after !== undefined && out.length < 100_000);
     for (const r of out) stamps.set(r.id, r.updatedAt);
     listed = out;
@@ -614,20 +738,28 @@ export function remoteStore(
     features: () => ({ aggregate: false, search: false, changes: false, cursor_paging: true as const }),
   };
   // One page of the app's list, for a big app pulled a page group at a time (the whole list is never held).
-  const page = async (after?: string, since?: number): Promise<{ rows: StoredRecord[]; next?: string }> => {
+  const page = async (
+    after?: string,
+    since?: number,
+  ): Promise<{ rows: StoredRecord[]; next?: string; done?: string[] }> => {
     const got = await listPage(after, since);
     for (const r of got.rows) stamps.set(r.id, r.updatedAt);
     return {
       rows: got.rows.filter((r) => !r.archived).map((r) => toRecord(r)),
       ...(got.next !== undefined ? { next: got.next } : {}),
+      ...(got.done !== undefined ? { done: got.done } : {}),
     };
   };
   return Object.assign(store as Store, {
     updatedAtOf: (id: string) => stamps.get(id) ?? 0,
     page,
-    supportsSince: names.since === true,
+    // a per-parent list is read as a delta list: its checks add and change records, and only a sweep, which vouches parent by parent, removes any
+    supportsSince: names.since === true || parentRemote !== undefined,
     lazy: names.since === true,
     held,
+    notes,
+    pendingVersions,
+    eachOf: names.eachOf,
   });
 }
 
@@ -848,6 +980,9 @@ export async function applyLinks(o: {
   return { made, removed, waiting };
 }
 
+/** How long the parent list of a per-parent list is kept between passes: long enough that a run of passes reads it once, short enough that a new parent shows within minutes. */
+const PARENT_CACHE_MS = 10 * 60_000;
+
 export function createSyncEngine(o: {
   core: SyncCore;
   local: LocalSide;
@@ -901,7 +1036,57 @@ export function createSyncEngine(o: {
         }
       },
     };
+    // what a per-parent list keeps between passes: which parent each record sits under, which parents a sweep has read to the end, the version of each parent when its children were last read, and the parent list itself
+    for (const q of [
+      "CREATE TABLE IF NOT EXISTS sy_parent (sync_type TEXT NOT NULL, remote_id TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (sync_type, remote_id))",
+      "CREATE TABLE IF NOT EXISTS sy_parent_done (sync_type TEXT NOT NULL, parent TEXT NOT NULL, PRIMARY KEY (sync_type, parent))",
+      "CREATE TABLE IF NOT EXISTS sy_parent_ver (sync_type TEXT NOT NULL, parent TEXT NOT NULL, ver TEXT NOT NULL, PRIMARY KEY (sync_type, parent))",
+      "CREATE TABLE IF NOT EXISTS sy_parent_ids (sync_type TEXT PRIMARY KEY, at INTEGER NOT NULL, info TEXT NOT NULL)",
+    ])
+      try {
+        tx.exec(q);
+      } catch {
+        /* the tables are for a per-parent list only */
+      }
     const remote = remoteStore(ctx, b, await objectsOf(ctx, b.connector), {
+      parentCache: {
+        get: (): ParentInfo | undefined => {
+          try {
+            const row = tx.get<{ at: number; info: string }>(
+              "SELECT at, info FROM sy_parent_ids WHERE sync_type = ?",
+              b.syncTypeId,
+            );
+            return row && (o.now ?? Date.now)() - row.at < PARENT_CACHE_MS
+              ? (JSON.parse(row.info) as ParentInfo)
+              : undefined;
+          } catch {
+            return undefined;
+          }
+        },
+        set: (info: ParentInfo): void => {
+          try {
+            tx.run(
+              "INSERT INTO sy_parent_ids (sync_type, at, info) VALUES (?, ?, ?) ON CONFLICT(sync_type) DO UPDATE SET at = excluded.at, info = excluded.info",
+              b.syncTypeId,
+              (o.now ?? Date.now)(),
+              JSON.stringify(info),
+            );
+          } catch {
+            /* a pass without the kept list reads it again */
+          }
+        },
+      },
+      versionOf: (parent: string): string | undefined => {
+        try {
+          return tx.get<{ ver: string }>(
+            "SELECT ver FROM sy_parent_ver WHERE sync_type = ? AND parent = ?",
+            b.syncTypeId,
+            parent,
+          )?.ver;
+        } catch {
+          return undefined;
+        }
+      },
       ...(o.sleep ? { sleep: o.sleep } : {}),
       nonce: ctx.trace.traceId,
       ...slow,
@@ -1099,7 +1284,7 @@ export function createSyncEngine(o: {
         );
       };
       const outOf = (r: SyncReportLike, summary: string, more: boolean): RunOut => ({
-        summary,
+        summary: remote.notes.length ? `${summary} ${[...new Set(remote.notes)].join(" ")}`.slice(0, 600) : summary,
         pulled: r.local.created + r.local.updated,
         pushed: r.remote.created + r.remote.updated + r.remote.removed,
         skipped: r.skipped ?? 0,
@@ -1116,9 +1301,10 @@ export function createSyncEngine(o: {
       const group = async (
         from: string | undefined,
         since?: number,
-      ): Promise<{ rows: StoredRecord[]; next?: string }> => {
+      ): Promise<{ rows: StoredRecord[]; next?: string; done: string[] }> => {
         const rows: StoredRecord[] = [];
         const seen = new Set<string>();
+        const done: string[] = [];
         let after = from;
         let next: string | undefined;
         for (let pages = 0; pages < FIRST_GROUP_PAGES && rows.length < (o.groupRows ?? GROUP_ROWS); pages++) {
@@ -1126,6 +1312,8 @@ export function createSyncEngine(o: {
           const brought = got.rows.filter((r) => !seen.has(r.id));
           for (const r of brought) seen.add(r.id);
           rows.push(...brought);
+          done.push(...(got.done ?? []));
+          // the page's own `next` already ends at an empty page and at the place just read (nextPlace); a page that brought nothing new ends the walk too
           next = got.next;
           if (!next || (brought.length === 0 && got.rows.length > 0)) {
             next = undefined;
@@ -1133,13 +1321,45 @@ export function createSyncEngine(o: {
           }
           after = next;
         }
-        return { rows, ...(next !== undefined ? { next } : {}) };
+        // which parent each record sits under: a sweep removes nothing under a parent it did not read to the end
+        if (remote.eachOf)
+          for (const r of rows) {
+            const parent = (r.data as Record<string, unknown>)["/_parent"];
+            if (typeof parent === "string")
+              tx.run(
+                "INSERT INTO sy_parent (sync_type, remote_id, parent) VALUES (?, ?, ?) ON CONFLICT(sync_type, remote_id) DO UPDATE SET parent = excluded.parent",
+                b.syncTypeId,
+                r.id,
+                parent,
+              );
+          }
+        return { rows, ...(next !== undefined ? { next } : {}), done };
+      };
+      /** The versions of the parents read to the end are kept once their rows are in, so a pass that failed half way reads them again. */
+      const keepVersions = (): void => {
+        if (!remote.eachOf?.changed) return;
+        for (const [parent, ver] of remote.pendingVersions)
+          tx.run(
+            "INSERT INTO sy_parent_ver (sync_type, parent, ver) VALUES (?, ?, ?) ON CONFLICT(sync_type, parent) DO UPDATE SET ver = excluded.ver",
+            b.syncTypeId,
+            parent,
+            ver,
+          );
+        remote.pendingVersions.clear();
       };
       const sweepStep = async (p: Progress): Promise<RunOut> => {
-        if (!p.sweep) tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        if (!p.sweep) {
+          tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+          tx.run("DELETE FROM sy_parent_done WHERE sync_type = ?", b.syncTypeId);
+        }
         const g = await group(p.sweep?.after);
         for (const r of g.rows)
           tx.run("INSERT OR IGNORE INTO sy_seen (sync_type, remote_id) VALUES (?, ?)", b.syncTypeId, r.id);
+        for (const parent of g.done)
+          tx.run("INSERT OR IGNORE INTO sy_parent_done (sync_type, parent) VALUES (?, ?)", b.syncTypeId, parent);
+        // a per-parent list's checks may skip parents (`changed`), so the sweep, which reads them all, also brings in what it finds new or changed
+        if (remote.eachOf && g.rows.length > 0)
+          await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
         if (g.next !== undefined) {
           save({ ...p, sweep: { after: g.next } });
           return {
@@ -1157,9 +1377,19 @@ export function createSyncEngine(o: {
             .all<{ remote_id: string }>("SELECT remote_id FROM sy_seen WHERE sync_type = ?", b.syncTypeId)
             .map((x) => x.remote_id),
         );
+        // a record under a parent this sweep did not read to the end is vouched for as it is (a parent made after the sweep began, one that did not meet `where`, one that was skipped): nothing under it is removed
+        if (remote.eachOf)
+          for (const x of tx.all<{ remote_id: string }>(
+            "SELECT remote_id FROM sy_parent WHERE sync_type = ? AND parent NOT IN (SELECT parent FROM sy_parent_done WHERE sync_type = ?)",
+            b.syncTypeId,
+            b.syncTypeId,
+          ))
+            ids.add(x.remote_id);
         const r = await runSyncS(deps, binding, { mode: "both", partial: [], sweepSeen: ids, ...common });
+        keepVersions();
         const said = await linkPass([], ids);
         tx.run("DELETE FROM sy_seen WHERE sync_type = ?", b.syncTypeId);
+        tx.run("DELETE FROM sy_parent_done WHERE sync_type = ?", b.syncTypeId);
         const { sweep: _done, ...rest } = p;
         save({ ...rest, sweepAt: startedAt });
         return outOf(r, r.summary + said, false);
@@ -1173,6 +1403,7 @@ export function createSyncEngine(o: {
           pushLocalSince: p.lastStart ?? d.since,
           ...common,
         });
+        keepVersions();
         const said = await linkPass(g.rows);
         if (g.next !== undefined) {
           save({ ...p, done: false, delta: { ...d, after: g.next } });
@@ -1191,6 +1422,7 @@ export function createSyncEngine(o: {
           const began = progress.began ?? startedAt;
           const g = await group(progress.after);
           const r = await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
+          keepVersions();
           const said = await linkPass(g.rows);
           const total = progress.pulled + g.rows.length;
           const saved: Progress =

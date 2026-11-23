@@ -34,7 +34,7 @@ function world(parents: string[], kids: Record<string, string[][]>) {
 }
 const OBJECTS = {
   matters: { list: "list_matters", listAfter: "list_matters_after" },
-  contacts: { list: "list_contacts", listAfter: "list_contacts_after", eachOf: { remote: "matters" } },
+  contacts: { list: "list_contacts", listAfter: "list_contacts_after", eachOf: { remote: "matters", scoped: false } },
 };
 const store = (ctx: unknown) =>
   remoteStore(ctx as never, { connector: "crm_intake", connectionId: "con_1", remote: "contacts" }, OBJECTS);
@@ -61,7 +61,7 @@ async function drain(
 }
 
 test("namesFor reads eachOf, and an object without it has none", () => {
-  assert.deepEqual(namesFor(OBJECTS, "contacts").eachOf, { remote: "matters" });
+  assert.deepEqual(namesFor(OBJECTS, "contacts").eachOf, { remote: "matters", scoped: false });
   assert.equal(namesFor(OBJECTS, "matters").eachOf, undefined);
   assert.equal(namesFor({ contacts: { list: "l", eachOf: { remote: "" } } }, "contacts").eachOf, undefined);
 });
@@ -129,14 +129,259 @@ test("a long run of parents with nothing under them is not one endless call: a p
   );
 });
 
-test("scoped: the same child id under two parents is two rows, the id carries its parent", async () => {
-  const w = world(["mA", "mB"], { mA: [["role1"]], mB: [["role1"]] });
+test("by default the same child id under two parents is two rows, the id carries its parent; scoped: false keeps the app's own id", async () => {
+  const objects = {
+    ...OBJECTS,
+    contacts: { list: "list_contacts", listAfter: "list_contacts_after", eachOf: { remote: "matters" } },
+  };
+  const mk = () => world(["mA", "mB"], { mA: [["role1"]], mB: [["role1"]] });
   const s = remoteStore(
-    w.ctx as never,
+    mk().ctx as never,
     { connector: "crm_intake", connectionId: "con_1", remote: "contacts" },
-    { ...OBJECTS, contacts: { ...OBJECTS.contacts, eachOf: { remote: "matters", scoped: true } } },
+    objects,
   );
   const got = await drain(s);
   assert.deepEqual(got.ids, ["mA/role1", "mB/role1"]);
   assert.deepEqual(got.parents, ["mA", "mB"]);
+  const g = await drain(store(mk().ctx));
+  assert.deepEqual(g.ids, ["role1", "role1"], "scoped: false");
+});
+
+// ---- the one walk rule: an empty page ends a walk, and so does a next that is the place just read; for the flat list, list_after and a per-parent list alike
+
+function flat(answer: (action: string, input: Record<string, unknown>) => unknown) {
+  const calls: { action: string; input: Record<string, unknown> }[] = [];
+  const ctx = {
+    trace: { traceId: "t1" },
+    call: async (_cap: string, a: { action: string; input?: Record<string, unknown> }): Promise<unknown> => {
+      calls.push({ action: a.action, input: a.input ?? {} });
+      if (calls.length > 200) throw new Error("the walk did not end");
+      return { output: answer(a.action, a.input ?? {}) };
+    },
+  };
+  const s = remoteStore(ctx as never, { connector: "crm_x", connectionId: "con_1", remote: "things" }, undefined);
+  return { s, calls };
+}
+const row = (id: string) => ({ id, properties: { name: id } });
+
+test("flat list: a first page that is empty but has a next ends the walk (it was an endless one)", async () => {
+  const { s, calls } = flat(() => ({ results: [], next: "x" }));
+  const g = await s.page();
+  assert.deepEqual(g.rows, []);
+  assert.equal(g.next, undefined);
+  assert.equal(calls.length, 1);
+  assert.deepEqual((await s.query("things", {} as never)).rows, [], "and the whole listing ends too");
+});
+
+test("list_after: an answer whose next is the place just asked from ends the walk, rows kept", async () => {
+  const { s, calls } = flat((action) =>
+    action === "list_things" ? { results: [row("a")], next: "x" } : { results: [row("b")], next: "x" },
+  );
+  const first = await s.page();
+  assert.equal(first.next, "x");
+  const second = await s.page("x");
+  assert.deepEqual(
+    second.rows.map((r) => r.id),
+    ["b"],
+    "the page's rows are kept",
+  );
+  assert.equal(second.next, undefined, "the same place again is the end");
+  assert.ok(
+    s.notes.some((n) => n.includes("place it had been asked from")),
+    "and it is said",
+  );
+  assert.equal(calls.length, 2);
+});
+
+test("list_after: an empty page with a next that keeps changing ends at the first empty page", async () => {
+  let n = 0;
+  const { s, calls } = flat((action) =>
+    action === "list_things" ? { results: [row("a")], next: "1" } : { results: [], next: String(++n + 1) },
+  );
+  const first = await s.page();
+  const second = await s.page(first.next);
+  assert.deepEqual(second.rows, []);
+  assert.equal(second.next, undefined);
+  assert.equal(calls.length, 2);
+});
+
+test("per parent: a parent whose list is empty with the same next, or empty with a next that changes, is read once and passed over", async () => {
+  let n = 0;
+  const calls: string[] = [];
+  const ctx = {
+    trace: { traceId: "t1" },
+    call: async (_cap: string, a: { action: string; input?: Record<string, unknown> }): Promise<unknown> => {
+      calls.push(a.action + ":" + String(a.input?.["parent"] ?? "-") + ":" + String(a.input?.["after"] ?? "-"));
+      if (calls.length > 100) throw new Error("the walk did not end");
+      if (a.action === "list_matters")
+        return {
+          output: {
+            results: [
+              { id: "mA", properties: {} },
+              { id: "mB", properties: {} },
+              { id: "mC", properties: {} },
+            ],
+          },
+        };
+      const p = a.input?.["parent"];
+      if (p === "mA") return { output: { results: [], next: "x" } };
+      if (p === "mB") return { output: { results: [], next: String(++n) } };
+      return { output: { results: [row("c1")] } };
+    },
+  };
+  const s = remoteStore(ctx as never, { connector: "crm_intake", connectionId: "con_1", remote: "contacts" }, OBJECTS);
+  const got = await drain(s);
+  assert.deepEqual(got.ids, ["c1"]);
+  assert.equal(calls.filter((c) => c.startsWith("list_contacts")).length, 3, "one read for each parent");
+  assert.deepEqual(
+    (await store(ctx).query("contacts", {} as never)).rows.map((r) => r.id),
+    ["c1"],
+  );
+});
+
+// ---- where, changed, unsafe ids
+
+function kids(
+  parentsData: Record<string, Record<string, unknown>>,
+  children: Record<string, string[]>,
+  feed?: { matter: string; at: string }[],
+) {
+  const calls: string[] = [];
+  const ctx = {
+    trace: { traceId: "t1" },
+    call: async (_cap: string, a: { action: string; input?: Record<string, unknown> }): Promise<unknown> => {
+      const p = String(a.input?.["parent"] ?? "-");
+      calls.push(a.action + ":" + p);
+      if (a.action === "list_matters")
+        return { output: { results: Object.entries(parentsData).map(([id, properties]) => ({ id, properties })) } };
+      if (a.action === "list_events")
+        return {
+          output: {
+            results: (feed ?? []).map((f, i) => ({
+              id: "e" + i,
+              properties: { "/matter/id": f.matter, "/occured_at": f.at },
+            })),
+          },
+        };
+      return { output: { results: (children[p] ?? []).map(row) } };
+    },
+  };
+  return { ctx, calls };
+}
+const objectsWith = (eachOf: Record<string, unknown>) => ({
+  matters: { list: "list_matters" },
+  events: { list: "list_events" },
+  contacts: {
+    list: "list_contacts",
+    listAfter: "list_contacts_after",
+    eachOf: { remote: "matters", scoped: false, ...eachOf },
+  },
+});
+const storeWith = (ctx: unknown, eachOf: Record<string, unknown>, extra: Record<string, unknown> = {}) =>
+  remoteStore(
+    ctx as never,
+    { connector: "crm_intake", connectionId: "con_1", remote: "contacts" },
+    objectsWith(eachOf),
+    extra as never,
+  );
+
+test("where: only the parents that meet it have their children read", async () => {
+  const w = kids(
+    { mA: { "/sub": true }, mB: { "/sub": false }, mC: { "/sub": true }, mD: {} },
+    { mA: ["a"], mB: ["b"], mC: ["c"], mD: ["d"] },
+  );
+  const got = await drain(storeWith(w.ctx, { where: { path: "/sub", e: ["true"] } }) as never);
+  assert.deepEqual(got.ids, ["a", "c"]);
+  assert.deepEqual(
+    w.calls.filter((c) => c.startsWith("list_contacts")),
+    ["list_contacts:mA", "list_contacts:mC"],
+  );
+  const not = kids({ mA: { "/sub": true }, mB: { "/sub": false } }, { mA: ["a"], mB: ["b"] });
+  assert.deepEqual((await drain(storeWith(not.ctx, { where: { path: "/sub", e: ["true"], n: true } }) as never)).ids, [
+    "b",
+  ]);
+  const re = kids({ mA: { "/k": "planning" }, mB: { "/k": "rep-living" } }, { mA: ["a"], mB: ["b"] });
+  assert.deepEqual((await drain(storeWith(re.ctx, { where: { path: "/k", m: "^rep" } }) as never)).ids, ["b"]);
+});
+
+test("changed (the parent's own field): a delta pass reads only the parents whose version moved; a full pass reads all and says which were read", async () => {
+  const w = kids(
+    { mA: { "/rev": "1" }, mB: { "/rev": "2" }, mC: { "/rev": "3" } },
+    { mA: ["a"], mB: ["b"], mC: ["c"] },
+  );
+  const stored: Record<string, string> = { mA: "1", mB: "OLD" };
+  const s = storeWith(w.ctx, { changed: { path: "/rev" } }, { versionOf: (p: string) => stored[p] }) as ReturnType<
+    typeof store
+  >;
+  assert.equal(s.supportsSince, true, "a per-parent list is read as a delta list");
+  const delta = await s.page(undefined, 123);
+  const ids: string[] = [];
+  let g = delta;
+  for (let i = 0; i < 9; i++) {
+    ids.push(...g.rows.map((r) => r.id));
+    if (!g.next) break;
+    g = await s.page(g.next, 123);
+  }
+  assert.deepEqual(ids, ["b", "c"], "mA's version did not move; mB's did; mC was never read");
+  assert.deepEqual(
+    w.calls.filter((c) => c.startsWith("list_contacts")),
+    ["list_contacts:mB", "list_contacts:mC"],
+  );
+  assert.deepEqual(
+    [...s.pendingVersions],
+    [
+      ["mB", "2"],
+      ["mC", "3"],
+    ],
+    "versions of what was read, kept by the engine once the rows are in",
+  );
+  const w2 = kids({ mA: { "/rev": "1" }, mB: { "/rev": "2" } }, { mA: ["a"], mB: ["b"] });
+  const full = storeWith(w2.ctx, { changed: { path: "/rev" } }, { versionOf: () => "1" }) as ReturnType<typeof store>;
+  const all = await drain(full);
+  assert.deepEqual(all.ids, ["a", "b"], "no since: every parent");
+});
+
+test("changed (a feed object): a parent's version is the newest stamp the feed holds for it", async () => {
+  const feed = [
+    { matter: "mA", at: "2026-11-01T00:00:00Z" },
+    { matter: "mA", at: "2026-11-05T00:00:00Z" },
+    { matter: "mB", at: "2026-10-01T00:00:00Z" },
+  ];
+  const w = kids({ mA: {}, mB: {}, mC: {} }, { mA: ["a"], mB: ["b"], mC: ["c"] }, feed);
+  const stored: Record<string, string> = { mA: "2026-11-01T00:00:00Z", mB: "2026-10-01T00:00:00Z", mC: "" };
+  const s = storeWith(
+    w.ctx,
+    { changed: { object: "events", parentAt: "/matter/id", at: "/occured_at" } },
+    { versionOf: (p: string) => stored[p] },
+  ) as ReturnType<typeof store>;
+  const ids: string[] = [];
+  let g = await s.page(undefined, 1);
+  for (let i = 0; i < 9; i++) {
+    ids.push(...g.rows.map((r) => r.id));
+    if (!g.next) break;
+    g = await s.page(g.next, 1);
+  }
+  assert.deepEqual(
+    ids,
+    ["a"],
+    "only mA has an event newer than its stored version; mB is unchanged; mC has none and was read before",
+  );
+  assert.equal(w.calls.filter((c) => c === "list_events:-").length, 1, "the feed is read once");
+});
+
+test("a parent id that cannot go in an address is skipped and said once; the pass goes on", async () => {
+  const w = kids({ mA: {}, "m/B": {}, "..": {}, "m?C": {}, mD: {} }, { mA: ["a"], mD: ["d"] });
+  const s = storeWith(w.ctx, {}) as ReturnType<typeof store>;
+  const got = await drain(s);
+  assert.deepEqual(got.ids, ["a", "d"]);
+  assert.equal(s.notes.filter((n) => n.includes("3 parents skipped")).length, 1);
+});
+
+test("the parent list is read once for several passes when a cache keeps it", async () => {
+  const w = kids({ mA: {}, mB: {} }, { mA: ["a"], mB: ["b"] });
+  let kept: unknown;
+  const opts = { parentCache: { get: () => kept as never, set: (i: unknown) => (kept = i) } };
+  await drain(storeWith(w.ctx, {}, opts) as never);
+  await drain(storeWith(w.ctx, {}, opts) as never);
+  assert.equal(w.calls.filter((c) => c === "list_matters:-").length, 1);
 });
