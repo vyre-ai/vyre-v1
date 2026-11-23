@@ -396,7 +396,10 @@ test(
       // phone width: the same list
       await page.setViewportSize({ width: 390, height: 844 });
       await page.waitForTimeout(500);
+      // the phone layout is a fresh mount of the desk: the list is opened again with the same button
+      if ((await page.locator('[data-testid^="row-step-"]').count()) === 0) await page.getByTestId("step-ring-button").click();
       await page.locator('[data-testid^="row-step-"]').first().waitFor({ timeout: 15_000 });
+      assert.ok((await page.locator('[data-testid^="row-step-"]').count()) >= 2, "the steps are listed at phone width");
       const files = await shoot(page, DIR, "steps-phone");
       for (const f of files) fs.renameSync(f, f.replace("-desktop.png", "-phone.png"));
     } finally {
