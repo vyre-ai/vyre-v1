@@ -309,7 +309,10 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
           );
         // the gap from the Inbox's frame to the tiles (wall ms as the browser driver sees it; the paint budget is 100 ms on a return visit: the first tile is the first visit, the rest return)
         fs.mkdirSync(SHOTS, { recursive: true });
-        fs.appendFileSync(path.join(SHOTS, "inbox-gap.txt"), `${tile} ${tilesCame ? Date.now() - framed : "no tiles"} ms\n`);
+        fs.appendFileSync(
+          path.join(SHOTS, "inbox-gap.txt"),
+          `${tile} ${tilesCame ? Date.now() - framed : "no tiles"} ms\n`,
+        );
         // a Space with nothing connected never draws the + (it used to draw while the mailboxes loaded, then go): once the tiles are there it is not
         if (tilesCame) assert.equal(await plus.count(), 0, "the + is drawn on the Connect choice");
         if (!tilesCame) await plus.click({ timeout: 10_000 });

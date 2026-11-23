@@ -199,7 +199,10 @@ test("the buttons wait for the answer: the last known one, or nothing on a first
     data.screens.query = (() => loading) as unknown as typeof live;
     try {
       const first = render();
-      assert.ok(!has(first, 'data-testid="inbox-connect"') && !has(first, 'data-testid="inbox-new"'), `${tag}: first visit, empty slot`);
+      assert.ok(
+        !has(first, 'data-testid="inbox-connect"') && !has(first, 'data-testid="inbox-new"'),
+        `${tag}: first visit, empty slot`,
+      );
     } finally {
       data.screens.query = live;
     }
@@ -208,7 +211,11 @@ test("the buttons wait for the answer: the last known one, or nothing on a first
     data.screens.query = (() => loading) as unknown as typeof live;
     try {
       const again = render();
-      assert.equal(has(again, 'data-testid="inbox-connect"'), tag === "connected", `${tag}: return visit paints the last answer`);
+      assert.equal(
+        has(again, 'data-testid="inbox-connect"'),
+        tag === "connected",
+        `${tag}: return visit paints the last answer`,
+      );
       assert.equal(has(again, 'data-testid="inbox-new"'), tag === "connected", `${tag}: pencil too`);
     } finally {
       data.screens.query = live;
