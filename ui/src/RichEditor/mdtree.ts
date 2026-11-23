@@ -125,34 +125,35 @@ function linkAt(
   return { len: end + 2 - i, text, href, title: src.slice(q + 1, end) };
 }
 
-/** Inline markdown to pieces: text with marks, and line breaks. */
+type Fails = Map<string, { from: number; until: number }>;
+/** Has this kind of span failed to close at a start before `at`, with nothing that could close it since? */
+function known(fails: Fails | undefined, key: string, at: number): boolean {
+  const f = fails?.get(key);
+  return f !== undefined && at >= f.from && at < f.until;
+}
+/** The first of these characters at or after `from`, or never. */
+function firstOf(src: string, cache: SearchCache, chars: string[], from: number): number {
+  let best = Infinity;
+  for (const c of chars) {
+    const k = nextIdx(src, cache, c, from);
+    if (k >= 0 && k < best) best = k;
+  }
+  return best;
+}
+/** The text so far goes out as a piece. */
+function flushTo(out: Piece[], buf: string, marks: readonly PMMark[]): void {
+  if (buf !== "") out.push({ text: buf, marks: [...marks] });
+}
+
+/**
+ * Inline markdown to pieces: text with marks, and line breaks. A text full of openers that never close makes thousands of calls (each unclosed pair is a span of its own), so a call sets up nothing it may not
+ * need: the search caches are made when first used, and there are no helper closures to build.
+ */
 function scan(src: string, marks: readonly PMMark[], out: Piece[], before: string): void {
   let buf = "";
   let i = 0;
-  const cache: SearchCache = new Map();
-  const fails = new Map<string, { from: number; until: number }>();
-  const known = (key: string, at: number): boolean => {
-    const f = fails.get(key);
-    return f !== undefined && at >= f.from && at < f.until;
-  };
-  const failed = (key: string, at: number, until: number): void => {
-    fails.set(key, { from: at, until });
-  };
-  /** The first of these characters at or after `from`, or never. */
-  const firstOf = (chars: string[], from: number): number => {
-    let best = Infinity;
-    for (const c of chars) {
-      const k = nextIdx(src, cache, c, from);
-      if (k >= 0 && k < best) best = k;
-    }
-    return best;
-  };
-  // the character before this one: every character put in `buf` is the one just behind `i` in `src` (an escape adds the escaped character), so no read of `buf` is needed
-  const prev = (): string => (i === 0 ? before : src.charAt(i - 1));
-  const flush = (): void => {
-    if (buf !== "") out.push({ text: buf, marks: [...marks] });
-    buf = "";
-  };
+  let cache: SearchCache | undefined;
+  let fails: Fails | undefined;
   while (i < src.length) {
     const ch = src.charAt(i);
     if (ch === "{") {
@@ -161,14 +162,16 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
         CHIP.lastIndex = i;
         hit = CHIP.exec(src);
         if (hit) {
-          flush();
+          flushTo(out, buf, marks);
+          buf = "";
           out.push({ chip: hit[1] ?? "", marks: [...marks] });
           i += hit[0].length;
           continue;
         }
         const c = criticAt(src, i);
         if (c) {
-          flush();
+          flushTo(out, buf, marks);
+          buf = "";
           if (c.kind === "add") scan(c.added, [...marks, sgMark("suggestAdd", c.author, c.at, false)], out, "");
           else if (c.kind === "del") scan(c.old, [...marks, sgMark("suggestDel", c.author, c.at, false)], out, "");
           else {
@@ -191,7 +194,8 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     }
     const rest = src.slice(i);
     if (ch === "\n") {
-      flush();
+      flushTo(out, buf, marks);
+      buf = "";
       out.push("br");
       i += 1;
       continue;
@@ -203,13 +207,14 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     }
     let m: RegExpExecArray | null = null;
     if (ch === "`" && (m = /^(`+)(?!`)([\s\S]*?[^`])\1(?!`)/.exec(rest))) {
-      flush();
+      flushTo(out, buf, marks);
+      buf = "";
       const body = (m[2] ?? "").replace(/^ (.*[^ ].*) $/s, "$1");
       out.push({ text: body, marks: [...marks, { type: "code" }] });
       i += m[0].length;
       continue;
     }
-    const pv = prev();
+    const pv = i === 0 ? before : src.charAt(i - 1);
     const c1 = src.charAt(i + 1);
     // each kind of span that failed to close at some start is remembered, so a text full of openers that never close is read in one pass
     if (
@@ -217,51 +222,57 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       c1 === ch &&
       /\S/.test(src.charAt(i + 2)) &&
       (ch === "*" || !WORD.test(pv)) &&
-      !known(ch + ch, i)
+      !known(fails, ch + ch, i)
     ) {
       m = (
         ch === "*" ? /^\*\*(?=\S)([\s\S]+?)(?<=\S)\*\*(?!\*)/ : /^__(?=\S)([\s\S]+?)(?<=\S)__(?![\p{L}\p{N}_])/u
       ).exec(rest);
-      if (!m) failed(ch + ch, i, Infinity);
+      if (!m) (fails ??= new Map()).set(ch + ch, { from: i, until: Infinity });
       else {
-        flush();
+        flushTo(out, buf, marks);
+        buf = "";
         scan(m[1] ?? "", [...marks, mark("bold")], out, "");
         i += m[0].length;
         continue;
       }
     }
-    if (ch === "~" && c1 === "~" && /\S/.test(src.charAt(i + 2)) && !known("~~", i)) {
+    if (ch === "~" && c1 === "~" && /\S/.test(src.charAt(i + 2)) && !known(fails, "~~", i)) {
       m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest);
-      if (!m) failed("~~", i, Infinity);
+      if (!m) (fails ??= new Map()).set("~~", { from: i, until: Infinity });
       else {
-        flush();
+        flushTo(out, buf, marks);
+        buf = "";
         scan(m[1] ?? "", [...marks, mark("strike")], out, "");
         i += m[0].length;
         continue;
       }
     }
-    if (ch === "*" && c1 !== "*" && /[^\s*]/.test(c1) && !known("*", i)) {
+    if (ch === "*" && c1 !== "*" && /[^\s*]/.test(c1) && !known(fails, "*", i)) {
       m = /^\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?!\*)/.exec(rest);
-      if (!m) failed("*", i, firstOf(["*", "\n"], i + 1));
+      if (!m)
+        (fails ??= new Map()).set("*", { from: i, until: firstOf(src, (cache ??= new Map()), ["*", "\n"], i + 1) });
       else {
-        flush();
+        flushTo(out, buf, marks);
+        buf = "";
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
         i += m[0].length;
         continue;
       }
     }
-    if (ch === "_" && c1 !== "_" && /[^\s_]/.test(c1) && !WORD.test(pv) && !known("_", i)) {
+    if (ch === "_" && c1 !== "_" && /[^\s_]/.test(c1) && !WORD.test(pv) && !known(fails, "_", i)) {
       m = /^_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?![\p{L}\p{N}_])/u.exec(rest);
-      if (!m) failed("_", i, firstOf(["_", "\n"], i + 1));
+      if (!m)
+        (fails ??= new Map()).set("_", { from: i, until: firstOf(src, (cache ??= new Map()), ["_", "\n"], i + 1) });
       else {
-        flush();
+        flushTo(out, buf, marks);
+        buf = "";
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
         i += m[0].length;
         continue;
       }
     }
     if (ch === "!" && c1 === "[") {
-      const l = linkAt(src, i + 1, true, cache);
+      const l = linkAt(src, i + 1, true, (cache ??= new Map()));
       if (l) {
         buf += src.slice(i, i + 1 + l.len);
         i += 1 + l.len;
@@ -269,9 +280,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       }
     }
     if (ch === "[") {
-      const l = linkAt(src, i, false, cache);
+      const l = linkAt(src, i, false, (cache ??= new Map()));
       if (l) {
-        flush();
+        flushTo(out, buf, marks);
+        buf = "";
         scan(l.text, [...marks.filter((x) => x.type !== "link"), mark("link", l.href, l.title)], out, "");
         i += l.len;
         continue;
@@ -280,14 +292,34 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     buf += ch;
     i += 1;
   }
-  flush();
+  flushTo(out, buf, marks);
+  buf = "";
+}
+
+/** Do two attribute sets hold the same values? (keys with no value count as absent, as they do in JSON). Primitive values only (strings, booleans): an object value would compare by identity. */
+function sameAttrs(a: Record<string, unknown> | undefined, b: Record<string, unknown> | undefined): boolean {
+  if (a === b) return true;
+  let n = 0;
+  if (a) for (const k in a) if (a[k] !== undefined) n += 1;
+  let m = 0;
+  if (b) for (const k in b) if (b[k] !== undefined) m += 1;
+  if (n !== m) return false;
+  if (a) for (const k in a) if (a[k] !== undefined && (!b || b[k] !== a[k])) return false;
+  return true;
 }
 
 function sameMarks(a: readonly PMMark[], b: readonly PMMark[]): boolean {
-  return (
-    a.length === b.length &&
-    a.every((x) => b.some((y) => y.type === x.type && JSON.stringify(y.attrs ?? {}) === JSON.stringify(x.attrs ?? {})))
-  );
+  if (a.length !== b.length) return false;
+  for (const x of a) {
+    let found = false;
+    for (const y of b)
+      if (y.type === x.type && sameAttrs(x.attrs, y.attrs)) {
+        found = true;
+        break;
+      }
+    if (!found) return false;
+  }
+  return true;
 }
 
 /** Inline markdown to document nodes (text with marks, hard breaks). Neighbours with the same marks join. */
@@ -486,14 +518,15 @@ function inlineText(raw: readonly PMNode[] | undefined): string {
 const MARK_KEYS = ["suggestAdd", "suggestDel", "link", "bold", "italic", "strike", "code"];
 function marksKey(marks: readonly PMMark[] | undefined): string {
   if (!marks || marks.length === 0) return "";
-  return marks
-    .filter((m) => MARK_KEYS.includes(m.type))
-    .map(
-      (m) =>
-        `${m.type}:${String(m.attrs?.["href"] ?? "")}|${String(m.attrs?.["title"] ?? "")}|${String(m.attrs?.["author"] ?? "")}|${String(m.attrs?.["at"] ?? "")}|${m.attrs?.["sub"] === true ? 1 : 0}`,
-    )
-    .sort()
-    .join(";");
+  const keys: string[] = [];
+  for (const m of marks) {
+    if (!MARK_KEYS.includes(m.type)) continue;
+    const a = m.attrs;
+    keys.push(
+      `${m.type}:${String(a?.["href"] ?? "")}|${String(a?.["title"] ?? "")}|${String(a?.["author"] ?? "")}|${String(a?.["at"] ?? "")}|${a?.["sub"] === true ? 1 : 0}`,
+    );
+  }
+  return keys.length === 1 ? keys[0]! : keys.sort().join(";");
 }
 /** A fingerprint of inline content: the same for what the reader produced and what the editor holds after the same words were typed. */
 const PAGE_SALT: [number, number] = ((): [number, number] => {
