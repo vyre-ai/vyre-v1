@@ -142,7 +142,7 @@ test("the real app on a booted daemon: sign-in screen, then Home, Chats, Records
       await desk.getByTestId("space-address").fill("http://127.0.0.1:1");
       await desk.getByTestId("resolve-space").click();
       await desk.getByTestId("space-error").waitFor({ timeout: 15_000 });
-      assert.match(await desk.getByTestId("space-error").innerText(), /cannot reach this Space/);
+      assert.match(await desk.getByTestId("space-error").innerText(), /127\.0\.0\.1 is not answering/);
       await desk.getByTestId("space-address").fill(web.origin);
       await desk.getByTestId("resolve-space").click();
       await desk.getByTestId("si-user").waitFor({ timeout: 15_000 });

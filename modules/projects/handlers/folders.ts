@@ -397,6 +397,33 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
 }
 
 /**
+ * The cheap look before a repeat of the sweep: is there a project-type record with an empty folder field, or more project records than projects behind them? Two counts, no scan. Anything left
+ * unseen here (a failed event, a type that became a project type later, a cleared folder) is what the full sweep then mends.
+ */
+export async function sweepNeeded(ctx: ProjectsCtx): Promise<boolean> {
+  ensure(ctx.db);
+  const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
+    ctx,
+    "schema.describe",
+    {},
+    {},
+  );
+  let records = 0;
+  for (const t of described.types ?? []) {
+    const type = t.name ?? t.key;
+    if (t.template !== "project" || !type) continue;
+    const empty = await call<{ count: number }>(ctx, "records.counts", {
+      type,
+      filter: { field: "folder", op: "empty" },
+    });
+    if ((empty.count ?? 0) > 0) return true;
+    records += (await call<{ count: number }>(ctx, "records.counts", { type })).count ?? 0;
+  }
+  const projects = (ctx.db.all("SELECT COUNT(*) AS n FROM projects_project") as Array<{ n: number }>)[0]?.n ?? 0;
+  return records > projects;
+}
+
+/**
  * The boot sweep (and the slow repeat): every project record with no project behind it is adopted as a real project (a channel, roles, and a folder when it has none). Returns how many folders it made.
  */
 export async function backfill(realCtx: ProjectsCtx): Promise<number> {
@@ -409,6 +436,7 @@ export async function backfill(realCtx: ProjectsCtx): Promise<number> {
         : (realCtx.emit as (n: string, ...r: unknown[]) => unknown)(name, ...rest)) as ProjectsCtx["emit"],
   };
   await followRecords(ctx);
+  let since = performance.now();
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
     ctx,
     "schema.describe",
@@ -426,6 +454,11 @@ export async function backfill(realCtx: ProjectsCtx): Promise<number> {
         next?: string;
       }>(ctx, "records.query", { type, limit: 200, ...(cursor ? { cursor } : {}) });
       for (const row of page.rows ?? []) {
+        // bounded slices: at most 20 ms of this sweep's own work, then the event loop runs
+        if (performance.now() - since >= 20) {
+          await new Promise<void>((r) => setImmediate(r));
+          since = performance.now();
+        }
         const fields = row.fields ?? row.data ?? {};
         const had = fstr(fields["folder"]);
         try {

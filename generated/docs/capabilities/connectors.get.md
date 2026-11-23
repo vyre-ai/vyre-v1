@@ -60,6 +60,7 @@ type Out = {
         link?: unknown;
       }>;
     sourceFolderId?: string;
+    untested?: boolean;
   };
 };
 ```
@@ -109,6 +110,7 @@ type Out = {
         "example"
       ],
       "title": "example",
+      "untested": true,
       "version": "1.0.0"
     }
   }

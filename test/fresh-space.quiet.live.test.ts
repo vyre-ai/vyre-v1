@@ -1,5 +1,5 @@
 // The class guard: a brand-new Space (Personal and Team), booted the way the app's own walks boot one (a real daemon process, apps/app/tests/real-app-harness.test.ts), claimed and signed in over HTTP, seeded the way
-// the walk seeds it (a project, its Files folder and a file in it), and let to settle, holds nothing for its owner: Needs you is empty, its count is zero, and no task of any kind exists. Any lane that files
+// the walk seeds it (a project, its Files folder and a file in it), and let to settle, holds nothing for its owner: Needs you is empty, its count is zero, and no task of any kind exists. (The wait is polled, not fixed: it ends when the events that matter have not changed for four rounds.) Any lane that files
 // a task into a fresh Space (a folder that could not follow its record, a setup nag, a seed side effect) fails here.
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -89,6 +89,22 @@ for (const kind of ["personal", "team"] as const) {
         seen = now;
       }
       assert.ok(still >= 4, `${kind}: the first run settled`);
+      // the seed really made what the guard is about: the project's Files folder exists, and in a Team Space it follows its record (the follow was attempted and worked); a Personal Space has no sharing, so
+      // there the answer is that nothing can follow, not a failure
+      const folder = await post(owner, "/v1/files/folder/get", { folderId: made.body.data.folderId });
+      assert.equal(folder.status, 200, `${kind}: the project's folder exists: ${JSON.stringify(folder.body)}`);
+      const shares = await post(owner, "/v1/access/shares_of", {
+        resource: { type: "folder", id: made.body.data.folderId },
+      });
+      if (kind === "team") {
+        assert.equal(shares.status, 200, JSON.stringify(shares.body));
+        assert.equal(shares.body.data.inherits, made.body.data.recordId, "team: the folder follows its record");
+      } else {
+        assert.ok(
+          shares.status === 200 || shares.body.error?.code === "permission.needs_team",
+          `personal: no failure other than "no sharing here": ${JSON.stringify(shares.body)}`,
+        );
+      }
       const needs = await post(owner, "/v1/tasks/needs_you", {});
       assert.equal(needs.status, 200, JSON.stringify(needs.body));
       assert.deepEqual(

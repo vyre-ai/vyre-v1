@@ -76,16 +76,26 @@ export const SEQUENTIAL_READS: ReadonlySet<string> = new Set([
   "vault_request",
 ]);
 
+/**
+ * What the tool sets are built from: the generated registry and tool list, read and parsed once per process. The first agent turn used to pay for it (176 ms in one stretch, in a profile of a busy server);
+ * the engine module asks for it in the first idle tick after it loads, so a turn finds it warm.
+ */
+export function warmApiToolCatalog(): void {
+  if (catalog && defaults) return;
+  const reg = JSON.parse(read("generated/registry.json")) as {
+    capabilities: RegistryCapRow[];
+    agentTools: AgentToolRow[];
+  };
+  const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
+  catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
+  defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
+}
+/** Has the catalog been built (a turn would not pay for it)? */
+export const apiToolCatalogWarm = (): boolean => catalog !== null && defaults !== null;
+
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
-  if (!catalog || !defaults) {
-    const reg = JSON.parse(read("generated/registry.json")) as {
-      capabilities: RegistryCapRow[];
-      agentTools: AgentToolRow[];
-    };
-    const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
-    catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
-    defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
-  }
+  warmApiToolCatalog();
+  if (!catalog || !defaults) throw new Error("the tool catalog is not built");
   // What decides a turn's tool set is read as the asker before the set is built (the tool session asks synchronously): the agent's allow and deny lists, what the thread is (an Ask pane about an object,
   // plan mode), and the asker's level on that object. An Ask pane never offers more than the asker holds on what it is about.
   const rules = new Map<string, AgentRules>();

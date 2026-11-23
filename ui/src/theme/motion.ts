@@ -17,7 +17,10 @@ export const MOTION_CSS = [
   `[data-panel-in]{animation:vyre-panel ${MOTION.panel}ms ${MOTION.ease}}`,
   `.vyre-row{transition:background-color ${MOTION.hover}ms ${MOTION.ease}}`,
   `[data-swap]{position:absolute;inset:0;z-index:40;pointer-events:none;overflow:hidden;transition:opacity ${MOTION.swap}ms ${MOTION.ease}}`,
-  "@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}",
+  // The page being left, while the next one is made (r41): it stays as it is for 80 ms, so a quick change shows nothing, then eases to 60 % and waits there. It says "your press landed" on a slow change without a spinner.
+  `@keyframes vyre-wait{0%,40%{opacity:1}100%{opacity:.6}}`,
+  `[data-pending] [data-swap] [data-stage]{animation:vyre-wait 200ms ${MOTION.ease} forwards}`,
+  "@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}[data-pending] [data-swap] [data-stage]{animation:none!important}}",
 ].join("\n");
 
 export function installMotion(doc: Parameters<typeof injectCss>[0]): void {
@@ -53,17 +56,14 @@ export function holdView(el: unknown, host: unknown): Swap | null {
   // until the page stopped answering). What the old copy was covering is on screen under it already, so removing it only finishes the reveal.
   for (const old of Array.from(on.querySelectorAll("[data-swap]") as unknown as ArrayLike<{ remove(): void }>))
     old.remove();
-  const copy = from.cloneNode(true);
-  const a = from.querySelectorAll("*"),
-    b = copy.querySelectorAll("*");
-  for (let i = 0; i < a.length && i < b.length; i++) {
-    const x = a[i]!,
-      y = b[i]!;
-    if (x.scrollTop !== 0 || x.scrollLeft !== 0) {
-      y.scrollTop = x.scrollTop;
-      y.scrollLeft = x.scrollLeft;
-    }
+  // Where each scrolled part stands is read once, before the page changes: reading it again after the copy is in the page would lay the whole page out twice inside the press (r41).
+  const a = from.querySelectorAll("*");
+  const scroll: [number, number, number][] = [];
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i]!;
+    if (x.scrollTop !== 0 || x.scrollLeft !== 0) scroll.push([i, x.scrollTop, x.scrollLeft]);
   }
+  const copy = from.cloneNode(true);
   copy.removeAttribute("data-testid");
   for (const n of Array.from(
     copy.querySelectorAll("[data-testid]") as unknown as ArrayLike<{ removeAttribute(k: string): void }>,
@@ -72,12 +72,14 @@ export function holdView(el: unknown, host: unknown): Swap | null {
   copy.setAttribute("data-swap", "1");
   copy.setAttribute("aria-hidden", "true");
   on.appendChild(copy);
-  for (let i = 0; i < a.length && i < b.length; i++) {
-    const x = a[i]!,
-      y = b[i]!;
-    if (x.scrollTop !== 0 || x.scrollLeft !== 0) {
-      y.scrollTop = x.scrollTop;
-      y.scrollLeft = x.scrollLeft;
+  if (scroll.length > 0) {
+    const b = copy.querySelectorAll("*");
+    for (const [i, top, left] of scroll) {
+      const y = b[i];
+      if (y) {
+        y.scrollTop = top;
+        y.scrollLeft = left;
+      }
     }
   }
   let gone = false;

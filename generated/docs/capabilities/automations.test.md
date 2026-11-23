@@ -31,6 +31,9 @@ type In = {
   version?: number;
   draft?: boolean;
   eventRunId?: string;
+  eventId?: string;
+  recordId?: string;
+  recordType?: string;
 };
 ```
 
@@ -58,7 +61,10 @@ type Out = {
   "input": {
     "automationId": "aut_a1b2c3",
     "draft": true,
+    "eventId": "evt_a1b2c3",
     "eventRunId": "run_a1b2c3",
+    "recordId": "rec_a1b2c3",
+    "recordType": "contact",
     "sample": {},
     "trigger": "example",
     "version": 1

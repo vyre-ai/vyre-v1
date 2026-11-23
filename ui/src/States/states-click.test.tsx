@@ -166,3 +166,22 @@ test("Copy falls back to a selection copy when the clipboard never answers, and 
     restore();
   }
 });
+
+test("a second way out sits beside Retry and does its own thing; without one there is no second button", async () => {
+  const restore = installDom();
+  try {
+    let went = 0;
+    const root = await mount(
+      createRoot,
+      <ErrorState props={props({ second: { label: "Your Spaces", onPress: () => void went++ } })} />,
+    );
+    assert.match(textOf(find(root, "state-second")), /Your Spaces/);
+    assert.ok(find(root, "state-retry"), "Retry stays");
+    await press(find(root, "state-second"));
+    assert.equal(went, 1);
+    const plain = await mount(createRoot, <ErrorState props={props()} />);
+    assert.equal(find(plain, "state-second"), null);
+  } finally {
+    restore();
+  }
+});

@@ -12,6 +12,9 @@ import type { LogReader } from "./consumers.ts";
 
 export const MAX_PROJECTION_TRIES = 5;
 const PAGE = 200;
+/** After this many ms of synchronous work a pass lets the event loop run: a page of 200 heavy events held the loop for seconds on a large Space (Meier, Nov 2026). */
+const YIELD_EVERY_MS = 20;
+const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isAsync = (p: unknown): p is AsyncConsumer =>
@@ -117,20 +120,35 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
   async function passFor(p: AsyncConsumer): Promise<void> {
     const c = row(p.name);
     if (!c) return; // start() has not run for it yet
-    let at = c.seq;
+    let at = c.seq,
+      stored = c.seq;
+    // The cursor is written when the pass lets the loop run (at most every YIELD_EVERY_MS of work), when a page ends and when an event is kept for the next try, not after every event: one write for
+    // each event, on a Space that makes hundreds of thousands of them, was a third of this pass's time and a commit each. A crash repeats the events since the last write; a projection is idempotent
+    // (the contract of AsyncConsumer), as it already is for the one event in flight.
+    const store = (): void => {
+      if (at !== stored) setCursor(p, at);
+      stored = at;
+    };
     const size = p.batch ?? PAGE;
+    let since = performance.now();
     for (;;) {
       const page = await d.log.read({ after: at, limit: size });
       if (!page.length) return;
       for (const e of page) {
         if (!(await handle(p, e))) {
-          setCursor(p, at);
+          store();
           return;
         } // this event is tried again on the next pass, before any later one
         at = e.seq;
-        setCursor(p, at);
+        if (performance.now() - since >= YIELD_EVERY_MS) {
+          store();
+          await yieldLoop();
+          since = performance.now();
+        }
       }
+      store();
       if (page.length < size) return;
+      await yieldLoop();
     }
   }
 

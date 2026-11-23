@@ -71,3 +71,24 @@ test("purge removes ended Runs older than the cutoff in batches, oldest first, a
     more: false,
   });
 });
+
+test("erase and purge take a Run's step notes with it: nothing of an erased Run is left behind", async () => {
+  const h = harness();
+  const gone = await finished(h, "Intake for Pat", "Pat is divorcing");
+  const kept = await finished(h, "Weekly digest");
+  for (const id of [gone, kept])
+    h.db.run(
+      "INSERT INTO runs_step_notes (run_id, step, attempt, note) VALUES (?, ?, ?, ?)",
+      id,
+      "s1",
+      1,
+      "{{trigger.email}} isn't set when this runs by hand.",
+    );
+  await h.call("runs.erase", { runId: gone, idempotencyKey: "kn1" }, engine);
+  assert.deepEqual(
+    (h.db.all("SELECT run_id FROM runs_step_notes") as { run_id: string }[]).map((r) => r.run_id),
+    [kept],
+  );
+  await h.call("runs.purge", { before: Date.now() + 10 * 86_400_000, idempotencyKey: "kn2" }, engine);
+  assert.equal(h.db.all("SELECT * FROM runs_step_notes").length, 0, "purge takes them too");
+});

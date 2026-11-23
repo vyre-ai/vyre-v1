@@ -2,8 +2,11 @@
 // uses everywhere, and the key work loads the crypto chunk only when a person presses Continue.
 import { loadCryptoKeys } from "../../../../client/src/crypto/load.ts";
 import type { RecoveryBundle } from "../../../../client/src/crypto/keys.ts";
-import { createCapCaller } from "../shell/session/caps.ts";
+import { createCapCaller, findSpaceQuietly } from "../shell/session/caps.ts";
+import type { Found } from "../shell/session/caps.ts";
 import { readStored, spaceEndpoint, writeStored } from "../shell/session/stored.ts";
+import { spaceHost } from "../shell/spaces/space-label.ts";
+import { boxNotAnswering, noSpaceAt } from "./failure.ts";
 import { normalizeSpaceAddress } from "./logic.ts";
 import type { HaveAccountDeps } from "./HaveAccount.tsx";
 import {
@@ -41,6 +44,10 @@ export function homeDeps(device: { deviceName: string; deviceClass: string }): H
   };
 }
 
+/** The Space a person named as where their account lives is on Vyre's relay: another page cannot reach it, so the account cannot be brought from it. */
+export const HOME_ON_RELAY =
+  "That Space is on Vyre’s relay, so your account cannot be brought from it. Use a different account.";
+
 /** The deps HaveAccount needs, reached over the network from this device. */
 export function haveAccountDeps(device: { deviceName: string; deviceClass: string }): HaveAccountDeps {
   const deps = homeDeps(device);
@@ -50,7 +57,18 @@ export function haveAccountDeps(device: { deviceName: string; deviceClass: strin
       const address = normalized ? spaceEndpoint(normalized) : null;
       if (!address)
         throw new CarryError("unreachable", "That is not a Space address. It looks like northwind.vyre.run.");
-      return { ...(await homeOptions(deps, address)), address };
+      try {
+        return { ...(await homeOptions(deps, address)), address };
+      } catch {
+        // no answer: asked again quietly, then said for what it is (a wrong name, a Space on Vyre's relay, or one that is not answering), never one line for all three
+        const found = await findSpaceQuietly(address).catch((): Found => ({ kind: "offline" }));
+        if (found.kind === "direct") return { ...(await homeOptions(deps, address)), address };
+        const host = spaceHost(address);
+        throw new CarryError(
+          "unreachable",
+          found.kind === "relay" ? HOME_ON_RELAY : found.kind === "none" ? noSpaceAt(host) : boxNotAnswering(host),
+        );
+      }
     },
     signIn: (address, username, password, totp) => signInHome(deps, address, username, password, totp),
     recovery: (address, username) => recoveryAtHome(deps, address, username),

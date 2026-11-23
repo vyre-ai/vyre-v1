@@ -2,13 +2,14 @@
 // right rail. A place never draws this frame: its sidebar and its panes land in the sheets through ui/SidePane's host. One Space is open at a time:
 // a switch shows the skeleton as its first frame, unmounts every place, and keys the next place by the new Space, so two Spaces' rows never meet on screen.
 // Places are drawn by `renderPlace`; the shell owns the frame, the tabs, the keys and the Space.
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { lazyPart } from "../../../../../ui/src/Lazy/index.tsx";
 import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { reportProblem } from "../../../../../ui/src/Menu/index.tsx";
 import { Avatar } from "../../../../../ui/src/Avatar/index.tsx";
 import { holdView, installMotion, keepView, showKept } from "../../../../../ui/src/theme/motion.ts";
+import { afterPaint, holdNav, navBusy } from "../../../../../ui/src/theme/pending.ts";
 import type { Kept, Swap } from "../../../../../ui/src/theme/motion.ts";
 import {
   SHEET_GAP,
@@ -40,15 +41,17 @@ import {
   useSidebarSlot,
 } from "../sidebar/index.ts";
 import type { SidebarStorage } from "../sidebar/index.ts";
+import { PLACES_WITH_LIST } from "../sidebar/model.ts";
 import type { KitDef, PlaceId } from "../rail/kits.ts";
 import { MainTabs, useTabs } from "../tabs/MainTabs.tsx";
 import { PROFILE_HASH } from "../tabs/store.ts";
 import { TitleBar } from "../titlebar/TitleBar.tsx";
 import { notices } from "../noticeslot/model.ts";
 import { inTerminal } from "../keyboard/useShellKeys.ts";
-import { HubProvider, useHubState } from "./context.tsx";
+import { HubProvider, ShownLocationProvider, useHubState } from "./context.tsx";
+import { KEPT_PLACES, PlaceStack, isKeptPlace } from "./kept-places.tsx";
 import { titleText } from "./hub.ts";
-import type { ShellHub, ShellTheme } from "./hub.ts";
+import type { HubState, ShellHub, ShellTheme } from "./hub.ts";
 import { shellKey } from "./keys.ts";
 
 /** A slow view stops holding the old one after this long: its own quiet sign takes over. */
@@ -127,7 +130,7 @@ export function Stage({ children }: { children: ReactNode }): ReactElement {
       {/* the place stays mounted while the phone shows its list, because its sidebar content is drawn from inside the place */}
       <View testID="place-body" aria-hidden={showList} style={[styles.stageCol, showList && styles.hidden]}>
         <SidebarBack />
-        <View testID="place-stage" style={styles.stage}>
+        <View testID="place-stage" style={styles.stage} {...(Platform.OS === "web" ? { dataSet: { stage: "1" } } : {})}>
           {children}
         </View>
       </View>
@@ -163,11 +166,14 @@ export function Sheets({
   hub,
   shown,
   scope,
+  keptKey,
   children,
 }: {
   tabs: ReactNode;
   toast?: ReactNode;
   hub?: ShellHub;
+  /** The key a place is held under in the kept places (kept-places.tsx), so a press on a tab of a kept place can be told from one that must be made. */
+  keptKey?: ((place: string) => string) | undefined;
   /** The tab whose view is on screen, and what its views belong to (the Space and its sign-in): a view kept for one is never shown for another. */
   shown?: string | undefined;
   scope?: string | undefined;
@@ -177,6 +183,9 @@ export function Sheets({
   // What each of the last tabs showed when it was left. Pressing a tab shows its own last view at once, and the live view takes its place when it is ready: the
   // press is answered in the same frame instead of after the place has been made again (owner, 16 Nov 2026, F97: "switching tab ... takes about 2 seconds").
   const onScreen = useRef<string | undefined>(undefined);
+  // read by the holder when it runs; a ref, so the holder is not taken down and made again (cancelling a copy in flight) each time the shell draws
+  const keptKeyRef = useRef(keptKey);
+  keptKeyRef.current = keptKey;
   const keptViews = useRef<{ scope: string; views: Map<string, Kept> }>({ scope: "", views: new Map() });
   useEffect(() => {
     onScreen.current = shown;
@@ -189,13 +198,25 @@ export function Sheets({
     if (!hub || Platform.OS !== "web") return undefined;
     installMotion((globalThis as { document?: Parameters<typeof installMotion>[0] }).document);
     let held: Swap | null = null;
-    hub.setHolder((to, then) => {
-      if (held !== null) return false;
+    let queued: (() => void) | null = null;
+    const hold = (
+      to: string | undefined,
+      then: (() => void) | undefined,
+      from: string | undefined,
+      place?: string,
+    ): boolean => {
+      // A place that is still made (kept-places.tsx) is revealed in the frame of the press: nothing is made after it, so no still copy of any page is taken or held in front of it, and the press does not wait a frame.
+      if (
+        to !== undefined &&
+        place !== undefined &&
+        keptKeyRef.current !== undefined &&
+        isKeptPlace(keptKeyRef.current(place))
+      )
+        return false;
       const el0 = main.current as { querySelector?: (q: string) => unknown } | null;
       const body = el0?.querySelector?.('[data-testid="place-body"]') ?? null;
       const views = keptViews.current.views;
       // the tab being left: its view is kept as it looks now (the newest six)
-      const from = onScreen.current;
       if (from !== undefined && body !== null) {
         const k = keepView(body);
         if (k !== null) {
@@ -216,6 +237,12 @@ export function Sheets({
       const swap = (back !== undefined ? showKept(back, body, paper) : null) ?? holdView(main.current, main.current);
       if (swap === null) return false;
       held = swap;
+      // the page being left dims if the next one is slow (ui/theme/motion.ts); the mark goes when the copy does
+      const sheet = main.current as {
+        setAttribute?(k: string, v: string): void;
+        removeAttribute?(k: string): void;
+      } | null;
+      sheet?.setAttribute?.("data-pending", "1");
       const began = Date.now();
       let frames = 0;
       const wait = (): void => {
@@ -224,15 +251,17 @@ export function Sheets({
         // the view that arrived has nothing on its page yet (a file or a record still being read): the still copy stays over it. Never a frame with an empty page between two views (owner, 16 Nov: "2 seconds of blank screen").
         const stage = el?.querySelector?.('[data-testid="place-stage"]') as { innerText?: string } | null | undefined;
         const empty = stage !== null && stage !== undefined && (stage.innerText ?? "").replace(/\s+/g, "").length < 12;
+        // the next page is made after the frame that answers the press (r41): until it is drawn the page under the copy is still the old one, so the copy stays
         if (
           frames < 3 ||
-          ((el?.querySelector?.("[data-loading]:not([data-swap] [data-loading])") || empty) &&
+          ((navBusy() || el?.querySelector?.("[data-loading]:not([data-swap] [data-loading])") || empty) &&
             Date.now() - began < HOLD_MAX_MS)
         ) {
           requestAnimationFrame(wait);
           return;
         }
         swap.fade();
+        sheet?.removeAttribute?.("data-pending");
         held = null;
       };
       // The tab's own last view is over the page: it is painted first and the place is made after that paint, so the press is answered in the next frame and not
@@ -251,8 +280,29 @@ export function Sheets({
       }
       requestAnimationFrame(wait);
       return false;
+    };
+    hub.setHolder((to, then, soon, place) => {
+      if (held !== null || queued !== null) return false;
+      const from = onScreen.current;
+      // A change the shell draws after the next painted frame (r41): the copy is taken after that frame as well. The frame that answers the press then has only the rail or the tab strip to
+      // repaint, not a second copy of the whole page (measured: the press was painted after 64 to 96 ms with the copy in that frame).
+      if (soon === true && to === undefined) {
+        queued = afterPaint(() => {
+          queued = null;
+          // the place the press leads to is still made (kept-places.tsx): it is revealed after this frame, complete, so there is nothing for a still copy to stand in for
+          const dest = hub?.state().place;
+          if (dest !== undefined && keptKeyRef.current !== undefined && isKeptPlace(keptKeyRef.current(dest))) return;
+          hold(undefined, undefined, from);
+        });
+        return false;
+      }
+      return hold(to, then, from, place);
     });
-    return () => hub.setHolder(null);
+    return () => {
+      queued?.();
+      queued = null;
+      hub.setHolder(null);
+    };
   }, [hub]);
   const [left, setLeft] = useState<unknown>(null);
   const [right, setRight] = useState<unknown>(null);
@@ -471,7 +521,10 @@ export function ShellStage({
   renderPlace,
   renderNewTab,
   onSpaceAction,
+  keep = 1,
 }: {
+  /** How many places stay made, the one on screen among them (kept-places.tsx). 1: none is kept, a place is made and unmade as it is opened and left. */
+  keep?: number;
   hub: Pick<ShellHub, "placeDrawn" | "retry">;
   state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string };
   spaceName: string;
@@ -483,9 +536,23 @@ export function ShellStage({
   renderNewTab?(ctx: PlaceContext): ReactNode;
   onSpaceAction?(a: SpaceAction): void;
 }): ReactElement {
-  if (state.phase === "skeleton") return <SpaceSkeleton />;
-  if (state.error !== null)
-    return (
+  // The places a person was just in stay made, out of the page (kept-places.tsx): going back to one shows it as it was left. They belong to the Space and the switch that opened it, so a
+  // Space switch (a new epoch, and its skeleton) unmakes them all, as it always unmade every place. The stack is always the first thing the stage draws, whatever is on screen beside it,
+  // so a new tab or a failure does not unmake it.
+  const scope = `${state.epoch}:${ctx.spaceId}`;
+  const blocked = kind === "personal" ? teamOnly(state.place, state.hash) : null;
+  const newTab = activeTab !== undefined && activeTab.isNew === true;
+  const place = state.phase !== "skeleton" && state.error === null && !newTab && blocked === null;
+  const placeKey = `${state.epoch}:${ctx.spaceId}:${state.place}`;
+  const placeBody = place ? (
+    <ShownLocationProvider place={state.place} hash={state.hash}>
+      {renderPlace(ctx)}
+    </ShownLocationProvider>
+  ) : null;
+  const other =
+    state.phase === "skeleton" ? (
+      <SpaceSkeleton />
+    ) : state.error !== null ? (
       <>
         <ScreenUsable />
         <States
@@ -497,9 +564,7 @@ export function ShellStage({
           onRetry={() => hub.retry()}
         />
       </>
-    );
-  if (activeTab !== undefined && activeTab.isNew === true)
-    return (
+    ) : newTab ? (
       <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${activeTab.key}`}>
         <ScreenUsable />
         {renderNewTab !== undefined ? (
@@ -508,24 +573,53 @@ export function ShellStage({
           <States kind="empty" title="Open anything, or start something" icon="search" />
         )}
       </PlaceFrame>
+    ) : blocked !== null ? (
+      <PlaceFrame hub={hub} epoch={state.epoch} key={placeKey}>
+        <ScreenUsable />
+        <NeedsTeamSpace
+          what={blocked}
+          density={compact ? "compact" : "regular"}
+          onAction={() => onSpaceAction?.("add")}
+        />
+      </PlaceFrame>
+    ) : keep > 1 ? null : (
+      <PlaceFrame hub={hub} epoch={state.epoch} key={placeKey}>
+        {placeBody}
+      </PlaceFrame>
     );
-  const blocked = kind === "personal" ? teamOnly(state.place, state.hash) : null;
+  if (keep <= 1) return <>{other}</>;
   return (
-    <PlaceFrame hub={hub} epoch={state.epoch} key={`${state.epoch}:${ctx.spaceId}:${state.place}`}>
-      {blocked !== null ? (
-        <>
-          <ScreenUsable />
-          <NeedsTeamSpace
-            what={blocked}
-            density={compact ? "compact" : "regular"}
-            onAction={() => onSpaceAction?.("add")}
-          />
-        </>
-      ) : (
-        renderPlace(ctx)
-      )}
-    </PlaceFrame>
+    <>
+      <PlaceStack
+        scope={scope}
+        current={place ? placeKey : null}
+        keep={keep}
+        node={
+          place ? (
+            <PlaceFrame hub={hub} epoch={state.epoch}>
+              {placeBody}
+            </PlaceFrame>
+          ) : null
+        }
+      />
+      {other}
+    </>
   );
+}
+
+/** What the stage draws, as one value. The shell defers it: a press is answered by the rail and the tab strip in a frame of their own, and the page is made after that frame. */
+interface StageInput {
+  state: HubState;
+  spaceId: string;
+  spaceName: string;
+  kind: SpaceKind;
+  kit: KitDef;
+  tabKey: string | undefined;
+  tabNew: boolean;
+  compact: boolean;
+  renderPlace: ShellProps["renderPlace"];
+  renderNewTab: ShellProps["renderNewTab"];
+  onSpaceAction: ShellProps["onSpaceAction"];
 }
 
 export function Shell(props: ShellProps): ReactElement {
@@ -636,32 +730,93 @@ export function Shell(props: ShellProps): ReactElement {
     return () => doc.removeEventListener("keydown", onKey);
   });
 
-  const ctx: PlaceContext = {
-    spaceId: session.def.spaceId,
-    spaceName: session.def.name,
-    kind: session.def.kind,
-    place: state.place,
-    hash: state.hash,
-    epoch: state.epoch,
-    kit: session.kit,
-  };
   // The place frame is keyed by epoch, Space and place only: an item change (ctx.hash) updates the place in place, so its sidebar scroll, pane and composer keep their state.
   const activeTab = tabs.tabs.find((t) => t.key === tabs.active);
-
-  const stage = (
-    <ShellStage
-      hub={hub}
-      state={state}
-      spaceName={session.def.name}
-      kind={session.def.kind}
-      ctx={ctx}
-      activeTab={activeTab}
-      compact={compact}
-      renderPlace={props.renderPlace}
-      {...(props.renderNewTab !== undefined ? { renderNewTab: props.renderNewTab } : {})}
-      {...(props.onSpaceAction !== undefined ? { onSpaceAction: props.onSpaceAction } : {})}
-    />
+  // A press is answered inside 100 ms (r41). The hub's change draws the rail, the title and the tab strip at once; the page (the place and everything in it) is made after that frame has been
+  // painted, as a transition: React makes it without holding the next frames, and a second press before it is done starts over from that press. Until the page is drawn the old one stays (under the
+  // still copy of Sheets, which dims when the wait is long). What is not a change of address (a count, the session arriving) reaches the page in the same pass, and a Space switch is never held back:
+  // its skeleton is the first frame by design.
+  const tabKey = activeTab?.key;
+  const tabNew = activeTab?.isNew === true;
+  const live = useMemo<StageInput>(
+    () => ({
+      state,
+      spaceId: session.def.spaceId,
+      spaceName: session.def.name,
+      kind: session.def.kind,
+      kit: session.kit,
+      tabKey,
+      tabNew,
+      compact,
+      renderPlace: props.renderPlace,
+      renderNewTab: props.renderNewTab,
+      onSpaceAction: props.onSpaceAction,
+    }),
+    [
+      state,
+      session.def.spaceId,
+      session.def.name,
+      session.def.kind,
+      session.kit,
+      tabKey,
+      tabNew,
+      compact,
+      props.renderPlace,
+      props.renderNewTab,
+      props.onSpaceAction,
+    ],
   );
+  const scope = `${state.epoch}\n${state.phase}\n${session.def.spaceId}`;
+  const address = `${scope}\n${state.place}\n${state.hash}\n${tabKey ?? ""}\n${tabNew ? 1 : 0}`;
+  const [drawn, setDrawn] = useState({ scope, address });
+  // the page on screen is not the one the hub names yet
+  const behind = drawn.scope === scope && drawn.address !== address;
+  // what the stage drew last, kept from the pass that was drawn (an effect, so a pass React threw away never counts)
+  const last = useRef(live);
+  useEffect(() => {
+    if (!behind) last.current = live;
+  }, [behind, live]);
+  const shown = behind ? last.current : live;
+  useEffect(() => {
+    if (!behind) {
+      if (drawn.address !== address || drawn.scope !== scope) setDrawn({ scope, address });
+      return undefined;
+    }
+    // the copy of the old page is kept until the new one is drawn (Sheets), and a pressed row stays lit (ui/theme/pending.ts)
+    const release = holdNav();
+    const cancel = afterPaint(() => startTransition(() => setDrawn({ scope, address })));
+    return () => {
+      cancel();
+      release();
+    };
+  }, [behind, scope, address, drawn.address, drawn.scope]);
+  const stage = useMemo(
+    () => (
+      <ShellStage
+        hub={hub}
+        state={shown.state}
+        spaceName={shown.spaceName}
+        kind={shown.kind}
+        ctx={{
+          spaceId: shown.spaceId,
+          spaceName: shown.spaceName,
+          kind: shown.kind,
+          place: shown.state.place,
+          hash: shown.state.hash,
+          epoch: shown.state.epoch,
+          kit: shown.kit,
+        }}
+        activeTab={shown.tabKey === undefined ? undefined : { key: shown.tabKey, isNew: shown.tabNew }}
+        compact={shown.compact}
+        keep={Platform.OS === "web" && !shown.compact ? KEPT_PLACES : 1}
+        renderPlace={shown.renderPlace}
+        {...(shown.renderNewTab !== undefined ? { renderNewTab: shown.renderNewTab } : {})}
+        {...(shown.onSpaceAction !== undefined ? { onSpaceAction: shown.onSpaceAction } : {})}
+      />
+    ),
+    [hub, shown],
+  );
+  const ctx = { spaceId: session.def.spaceId };
 
   const spaceTile = (
     <SpaceTile
@@ -718,9 +873,10 @@ export function Shell(props: ShellProps): ReactElement {
           deviceId={props.sidebar?.deviceId ?? "device"}
           personId={props.sidebar?.personId ?? "me"}
           spaceId={ctx.spaceId}
-          place={state.place}
-          epoch={state.epoch}
-          hash={state.hash}
+          place={shown.state.place}
+          epoch={shown.state.epoch}
+          hash={shown.state.hash}
+          initialHold={!compact && (PLACES_WITH_LIST.has(state.place) || tabNew)}
           compact={compact}
           storage={props.sidebar?.storage ?? null}
         >
@@ -733,6 +889,7 @@ export function Shell(props: ShellProps): ReactElement {
               hub={hub}
               shown={activeTab?.key}
               scope={`${state.epoch}:${ctx.spaceId}`}
+              keptKey={(place) => `${state.epoch}:${ctx.spaceId}:${place}`}
               tabs={
                 <MainTabs
                   controller={session.tabs}

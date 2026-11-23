@@ -56,6 +56,8 @@ export interface ConnectCardProps {
   problem?: "permission" | undefined;
   /** Ask: the hosts the key is sent to ("a, b"), said before the person saves, built in or not, so Connect is an informed yes. */
   checksWith?: string | undefined;
+  /** Ask, wrong or offline: the connector is published but no call to the app has ever succeeded, so the first one may need a fix. */
+  untested?: boolean | undefined;
   /** One line when a typed key was kept but could not be connected ("Your key is saved in Mine. Couldn't connect."). */
   notice?: string | undefined;
   usedBy?: string | undefined;
@@ -382,6 +384,11 @@ export function ConnectCard(p: ConnectCardProps): ReactElement {
           ) : null}
           {p.checksWith && !working ? (
             <Text style={st.sub} testID={`${id}-checks`}>{`Your key is sent only to ${hostsSaid(p.checksWith)}`}</Text>
+          ) : null}
+          {p.untested && !working ? (
+            <Text style={st.sub} testID={`${id}-untested`}>
+              Not tried yet. The first call may need a fix.
+            </Text>
           ) : null}
           <KeptRow id={id} keptIn={p.keptIn} onOpen={working || state === "offline" ? undefined : p.onKeptIn} />
           {working ? (

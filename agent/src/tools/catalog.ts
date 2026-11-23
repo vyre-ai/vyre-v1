@@ -6,6 +6,7 @@ import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
 import { shareFragments } from "./share-fragments.ts";
 import { MCP_TOOLS } from "../../../packages/contracts/src/mcp-coverage.ts";
+import { shareRepeats } from "./share.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
 const EFFECT_RANK: Readonly<Record<Effects, number>> = { read: 0, write: 1, outward: 2 };
@@ -189,7 +190,8 @@ export function buildCatalog(
       ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
-  const all = shareFragments(defs);
+  // a large object several tools take (a SyncSpec) is shown in full by the first and pointed at by the rest; then any other large fragment several tools carry word for word is shown once
+  const all = shareFragments(shareRepeats(defs));
   const byName = new Map(all.map((d) => [d.name, d] as const));
   return { all, byName: (n) => byName.get(n) };
 }

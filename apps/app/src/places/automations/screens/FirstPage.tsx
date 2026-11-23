@@ -10,6 +10,9 @@ import { RecoveryRequests } from "../operations/StudioViews.tsx";
 import { FirstPageView } from "./FirstPageView.tsx";
 import { ApprovalCard } from "../approvals/ApprovalCard.tsx";
 import { loadApproval } from "../approvals/load.ts";
+import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { connectNeedOf } from "../clear/model.ts";
+import { readinessKey, useReadiness } from "../clear/useReadiness.ts";
 import type { ApprovalCard as Card } from "../approvals/model.ts";
 
 interface HomeOut {
@@ -71,6 +74,13 @@ export function FirstPage({
     // the rows are read through waitingKey
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, waitingKey]);
+  // what is missing before one can be turned on: its own block under Needs you, each with the one button (the left list says the same on the row)
+  const blocked = useReadiness(readinessKey(rows));
+  const openConnect = useOpenConnect();
+  const notReady = rows.flatMap((a) => {
+    const b = blocked.get(a.id);
+    return b ? [{ id: a.id, name: a.name, line: b.line, button: b.button }] : [];
+  });
   const offers: ConnectorOffer[] = home?.suggestion ? [home.suggestion] : [];
   const [gone, setGone] = useState<readonly string[]>([]);
   const shown = offers.filter((o) => !gone.includes(o.itemId));
@@ -108,6 +118,14 @@ export function FirstPage({
           : ""
       }
       onFix={(id) => data.nav.openAutomation(id)}
+      notReady={notReady}
+      onOpen={(id) => data.nav.openAutomation(id)}
+      onReady={(id) => {
+        const b = blocked.get(id);
+        const need = b ? connectNeedOf(b) : null;
+        if (need && openConnect) void openConnect(need).catch(() => null);
+        else data.nav.openAutomation(id);
+      }}
       onSeeRun={(runId) => data.nav.openRun(runId)}
       onSetUp={(id) => {
         const o = offerOf(id);

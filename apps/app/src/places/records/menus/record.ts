@@ -23,6 +23,8 @@ export interface RecordDo {
   star?(on: boolean): void;
   share?(): void;
   copyLink?(): void;
+  /** Which Automations watch this kind of record, and what became of each for this one (rc.41). */
+  whyNotRun?(): void;
   exportCsv(): void;
   remove(): void;
 }
@@ -34,6 +36,8 @@ export function recordMenu(f: RecordFacts, d: RecordDo): MenuEntry[] {
     one && d.star ? item(f.starred ? "Remove Star" : "Star", () => d.star?.(!f.starred), { hint: "S" }) : null,
     one && d.share ? item("Share…", d.share) : null,
     one && d.copyLink ? item("Copy Link", d.copyLink) : null,
+    one && d.whyNotRun ? sep : null,
+    one && d.whyNotRun ? item("Why Didn’t an Automation Run…", d.whyNotRun) : null,
     one ? sep : null,
     (f.every || f.nothingPicked) && f.canExport ? item("Export as CSV", d.exportCsv) : null,
     sep,

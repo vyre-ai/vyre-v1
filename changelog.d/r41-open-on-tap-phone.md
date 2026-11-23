@@ -1,0 +1,1 @@
+On a phone, one tap now opens a form or site from the Apps list and a conversation from the Inbox's unmatched list, as a tap already did in Files, Chats, Tasks and Records. They used to only select the row, and opening was a double tap. A new phone walk covers Apps.

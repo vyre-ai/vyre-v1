@@ -48,7 +48,9 @@ import { PLACE_QUERIES, WARM_ORDER } from "./prefetch.ts";
 import { directoryOf, standInsOf } from "./private-agents.ts";
 import { setAgentFaces, setAgentStatuses, setStandIns } from "../../../../../ui/src/Avatar/assistant.ts";
 import { setFaceImageLoader } from "../../../../../ui/src/Avatar/faceimages.ts";
-import { createRemoteScreenHooks } from "./remote-hooks.ts";
+import { createRemoteScreenHooks, stableJson } from "./remote-hooks.ts";
+import { mayKeep } from "./kept.ts";
+import type { KeptSession } from "./kept.ts";
 const SIDEBAR_QUIET_MS = 1_000;
 import type { RemoteHooks } from "./remote-hooks.ts";
 import { onRetryLoads } from "../../../../../ui/src/States/retry.ts";
@@ -91,6 +93,25 @@ export interface OpenSessionOptions {
   warmAfterMs?: number;
   now?: () => number;
   openUrl?(url: string): void;
+  /**
+   * What this device kept of the Space (session/kept.ts). Every read that was kept is drawn at once and read again; every answer is handed back to be kept. With `bootFromKept` the session also
+   * opens from the kept sign-in facts without waiting for the Space, and confirms them behind the first screen (`confirmed`).
+   */
+  kept?: KeptSession;
+  bootFromKept?: boolean;
+  /** Start loading a place's code (the shell knows how): a row that leads there is being pointed at or pressed. */
+  warmPlace?(place: PlaceId): void;
+  /** The facts the session opened from are out of date (the person's roles, the Space's name, kind, Kit or image changed since they were kept): the shell opens the session again from the new ones. */
+  onBootChanged?(): void;
+  /** How long to wait before asking the Space again for the facts a kept session opened from, after it could not be reached (ms, by try). */
+  confirmRetryMs?(tries: number): number;
+}
+
+/** What the Space says this session is, once it has answered: the shell checks it against the saved sign-in (stored.ts). */
+export interface Confirmed {
+  personId: string;
+  spaceId: string;
+  marker: string;
 }
 
 export interface RealSession {
@@ -105,6 +126,12 @@ export interface RealSession {
   liveStatus(): LiveStatus;
   /** Warm a place's first queries (pointer-enter or focus on its rail item or tab). */
   prefetchPlace(place: PlaceId): void;
+  /** Warm what a thing's page reads first, and nothing else: the pointer is resting on its row, or (`pressed`) the row is being pressed. Never the Vault. */
+  prefetchTarget(target: ShellTarget, pressed?: boolean): void;
+  /** The place on screen changed: the reads watched from now on are that place's (what pointing at it in the rail brings up to date later). */
+  shownPlace(place: PlaceId | null): void;
+  /** The Space's own word on who this session is. A session opened the usual way has it already; one opened from what this device kept gets it behind the first screen. Rejects when the Space refuses. */
+  readonly confirmed: Promise<Confirmed>;
   /** Re-read everything on screen now. */
   refresh(): void;
   close(why?: string): void;
@@ -190,6 +217,64 @@ export function derived<T>(
 const AI_CONNECTORS = /anthropic|claude|openai|codex|grok|opencode|gemini/i;
 const CALENDAR_CONNECTORS = /calendar|gcal|outlook|caldav/i;
 
+/** The answers a session opens from, each as its capability gave it. */
+interface Boot {
+  who: Out<"identity.whoami">;
+  space: Out<"spaces.get">["space"];
+  switcher: Out<"spaces.switcher"> | null;
+  kit: Out<"settings.kit.get"> | null;
+  face: { logoFileId?: string; image?: string } | null;
+  console: boolean;
+}
+
+/** What this device kept, when it has the shape a session can open from; anything else is as if nothing was kept. */
+function bootOf(
+  kept: { who: unknown; space: unknown; switcher: unknown; kit: unknown; face: unknown; console: boolean } | null,
+): Boot | null {
+  if (!kept) return null;
+  const who = kept.who as Partial<Out<"identity.whoami">> | null;
+  const space = kept.space as Partial<Out<"spaces.get">["space"]> | null;
+  if (
+    !who ||
+    typeof who !== "object" ||
+    typeof who.principal?.id !== "string" ||
+    !Array.isArray(who.roles) ||
+    !space ||
+    typeof space !== "object" ||
+    typeof space.id !== "string" ||
+    typeof space.fingerprint !== "string" ||
+    (space.kind !== "team" && space.kind !== "personal") ||
+    typeof space.defaults !== "object" ||
+    space.defaults === null
+  )
+    return null;
+  return kept as Boot;
+}
+
+/** What a session is built from, without what changes by itself (a count, a time): when this differs between what was kept and what the Space says now, the session is opened again. */
+function bootShape(b: Boot): string {
+  return stableJson({
+    person: b.who.principal.id,
+    name: b.who.name,
+    roles: [...b.who.roles].sort(),
+    device: b.who.deviceId ?? null,
+    deferred: b.who.deferred ?? null,
+    deferredModules: (b.who as { deferredModules?: readonly string[] }).deferredModules ?? null,
+    space: [
+      b.space.id,
+      b.space.name,
+      b.space.kind,
+      b.space.fingerprint,
+      b.space.logoFileId ?? null,
+      b.space.defaults.skin ?? null,
+    ],
+    role: b.switcher?.role ?? null,
+    kit: b.kit?.kit.effective ?? null,
+    face: b.face?.logoFileId ?? null,
+    console: b.console,
+  });
+}
+
 export async function openRealSession(o: OpenSessionOptions): Promise<RealSession> {
   let token: string | null = o.token;
   let reachable = true;
@@ -238,13 +323,17 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     }
   };
 
-  const who = (await reach("identity.whoami", {})) as Out<"identity.whoami">;
-  const [spaceOut, switcher, screens, kitChoice] = await Promise.all([
-    reach("spaces.get", {}) as Promise<Out<"spaces.get">>,
-    reach("spaces.switcher", {}).catch(() => null) as Promise<Out<"spaces.switcher"> | null>,
-    (o.screens ?? loadScreens)(),
-    reach("settings.kit.get", {}).catch(() => null) as Promise<Out<"settings.kit.get"> | null>,
-  ]);
+  // The facts a session opens from. Kept from the last launch (r41), the session is there at once and the Space is asked behind the first screen; otherwise the Space is asked first, as on a sign-in.
+  const keptBoot = o.bootFromKept === true ? bootOf(o.kept?.boot() ?? null) : null;
+  const who = keptBoot ? keptBoot.who : ((await reach("identity.whoami", {})) as Out<"identity.whoami">);
+  const [spaceOut, switcher, screens, kitChoice] = keptBoot
+    ? [{ space: keptBoot.space }, keptBoot.switcher, await (o.screens ?? loadScreens)(), keptBoot.kit]
+    : await Promise.all([
+        reach("spaces.get", {}) as Promise<Out<"spaces.get">>,
+        reach("spaces.switcher", {}).catch(() => null) as Promise<Out<"spaces.switcher"> | null>,
+        (o.screens ?? loadScreens)(),
+        reach("settings.kit.get", {}).catch(() => null) as Promise<Out<"settings.kit.get"> | null>,
+      ]);
   const space = spaceOut.space;
   const deferred = createDeferred(
     who.deferred,
@@ -291,6 +380,10 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     ignoreError: (e) => e instanceof CapError && e.status === 401,
     // a busy Space asks for the sidebar again and again; once a second is as fresh as a person can tell (their own actions are read at once)
     quietMs: { "chats.sidebar": SIDEBAR_QUIET_MS },
+    // what this device kept is drawn at once and read again; an answer the Space refuses (access taken away, the thing gone) is dropped, one it could not be asked about stays
+    ...(o.kept ? { kept: o.kept } : {}),
+    refused: (e) =>
+      e instanceof CapError && e.status >= 400 && e.status < 500 && ![401, 408, 425, 429].includes(e.status),
   });
   const stopPerms = livePerms ? hooks.onInvalidate(rereadPerms) : (): void => undefined;
   // While the window is hidden a change re-reads the screen at most every HIDDEN_REFRESH_MS; showing it again re-reads at once whatever is waiting.
@@ -315,7 +408,11 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // the window showing again is activity too: it moves last seen (touchShown, set once the session knows its device)
   let touchShown = (): void => undefined;
   const shown = (): void => {
-    if (hidden()) return;
+    // a window being hidden may be closed next: what changed is written to this device's kept copy now
+    if (hidden()) {
+      o.kept?.flush();
+      return;
+    }
     if (refreshTimer !== null) reread(true);
     touchShown();
   };
@@ -355,6 +452,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
 
   const once: CapCall = async (cap, input, opts) => {
     const r = await reach(cap, input, opts);
+    // a read a page makes itself (not through the screen hooks) is kept for the next launch as well, when it is one of the reads that may be: the page starts from it with `recall`
+    if (
+      o.kept &&
+      reads?.has(cap) &&
+      mayKeep(cap) &&
+      !closed &&
+      (input === undefined || (typeof input === "object" && input !== null))
+    )
+      o.kept.wrote(cap, (input ?? {}) as Record<string, unknown>, r, stableJson(r).length);
     // an Automation made, copied or promoted is in the list at once (not after the quiet 120 ms): a person's own action is read at once
     if (!reads?.has(cap))
       /^automations\.(create|templates\.use|promote|make_personal_copy)$/.test(cap) ? reread(true) : refresh();
@@ -483,6 +589,8 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
         /* a screen the registry lacks is not worth failing a hover for */
       }
     }
+    // and whatever the place was reading when it was last on screen in this session, brought up to date
+    hooks.warmScope(place);
   };
   // Idle warm-up: once the Space is open, read each place's first list one after another so the first visit paints from the session's cache.
   const warmTimers: ReturnType<typeof setTimeout>[] = [];
@@ -606,9 +714,20 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
   // a Space that never learnt its name answers its id: it is called by its address instead (spaces/space-label.ts)
   const shownName = spaceLabel(space.name, o.baseUrl);
   // the Space image for the tile and the switcher; a Space too old to have spaces.image shows its letter
-  const face = space.logoFileId
-    ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null)
-    : null;
+  const face = keptBoot
+    ? keptBoot.face
+    : space.logoFileId
+      ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null)
+      : null;
+  // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
+  const consoleOk = keptBoot
+    ? keptBoot.console
+    : await railConsole(who.roles, () =>
+        reach("console.nav", {}).then(
+          () => true,
+          () => false,
+        ),
+      );
   const def: SpaceDef = {
     spaceId: space.id,
     name: shownName,
@@ -621,13 +740,7 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     skinDefault: typeof space.defaults.skin === "string" ? space.defaults.skin : "system",
     starred: true,
     needsYou: (switcher?.needsYou ?? 0) > 0,
-    // whoever holds console.access gets the rail button: the same answer as opening the Console by its address
-    console: await railConsole(who.roles, () =>
-      reach("console.nav", {}).then(
-        () => true,
-        () => false,
-      ),
-    ),
+    console: consoleOk,
     ...(offRail.length ? { hidden: offRail as PlaceId[] } : {}),
     // a Personal Space has one person and their own computer: the terminal is always theirs. A Team Space gives it to owners and developers
     terminal: space.kind === "personal" || holdsRole(who.roles, "owner", "developer"),
@@ -739,11 +852,90 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     deferredModules: deferred.deferredModules,
     isDeferred: deferred.isDeferred,
     open,
+    recall: <T>(cap: string, input?: Record<string, unknown>) => hooks.peek(cap, input ?? {}) as T | undefined,
+    warm: (t, pressed) => prefetchTarget(t, pressed === true),
     links,
     openUrl: (url) => {
       if (o.openUrl) o.openUrl(url);
       else (globalThis as { open?: (u: string, t: string, f: string) => unknown }).open?.(url, "_blank", "noopener");
     },
+  };
+
+  // A session opened the usual way knows who it is from the Space itself, and keeps those facts for the next launch. One opened from what this device kept asks the Space now, behind the first
+  // screen: until it answers, the session is this device's own memory of it. A Space that cannot be reached is asked again (the screen says it is offline); one that refuses ends the session.
+  const fresh: Boot = { who, space, switcher, kit: kitChoice, face, console: consoleOk };
+  let confirmTimer: ReturnType<typeof setTimeout> | null = null;
+  const confirm = async (): Promise<Confirmed> => {
+    for (let tries = 0; ; tries++) {
+      try {
+        const w = (await reach("identity.whoami", {})) as Out<"identity.whoami">;
+        const [sp, sw, kit] = await Promise.all([
+          reach("spaces.get", {}) as Promise<Out<"spaces.get">>,
+          reach("spaces.switcher", {}).catch(() => null) as Promise<Out<"spaces.switcher"> | null>,
+          reach("settings.kit.get", {}).catch(() => null) as Promise<Out<"settings.kit.get"> | null>,
+        ]);
+        const img = sp.space.logoFileId
+          ? await (reach("spaces.image", {}) as Promise<{ logoFileId?: string; image?: string }>).catch(() => null)
+          : null;
+        const con = await railConsole(w.roles, () =>
+          reach("console.nav", {}).then(
+            () => true,
+            () => false,
+          ),
+        );
+        const now: Boot = { who: w, space: sp.space, switcher: sw, kit, face: img, console: con };
+        if (!closed) o.kept?.saveBoot(now);
+        if (!closed && bootShape(now) !== bootShape(fresh)) o.onBootChanged?.();
+        else if (!closed && livePerms && w.permissions) {
+          // the same person in the same roles, with a permission exception changed since: the gates read the new set, and what is on screen is read again
+          if (w.permissions.length !== livePerms.size || !w.permissions.every((k) => livePerms.has(k))) {
+            livePerms.clear();
+            for (const k of w.permissions) livePerms.add(k);
+            hooks.invalidate();
+          }
+        }
+        return { personId: w.principal.id, spaceId: sp.space.id, marker: sp.space.fingerprint };
+      } catch (e) {
+        // the Space answered and refused: the session is not what this device remembered
+        if (e instanceof CapError || closed) throw e;
+        await new Promise<void>((r) => {
+          confirmTimer = setTimeout(r, o.confirmRetryMs?.(tries) ?? Math.min(30_000, 1_500 * 2 ** Math.min(tries, 5)));
+        });
+        if (closed) throw e;
+      }
+    }
+  };
+  let confirmed: Promise<Confirmed>;
+  if (keptBoot) confirmed = confirm();
+  else {
+    o.kept?.saveBoot(fresh);
+    confirmed = Promise.resolve({ personId: who.principal.id, spaceId: space.id, marker: space.fingerprint });
+  }
+  // nobody may be listening yet (the shell attaches after the session is returned)
+  confirmed.catch(() => undefined);
+
+  // What a thing's page reads first, warmed while the pointer rests on its row or the row is being pressed (r41). What a page of that kind reads is learnt from the last one the person opened
+  // (remote-hooks learn / warmLike), so nothing is asked for that the page would not ask for itself. Pressed, the row also says "learn from this one". The Vault and the Console are never warmed.
+  const kindOf = (t: ShellTarget): { place: PlaceId; kind: string; id: string } | null => {
+    const where = t.screen
+      ? (screens.get(t.screen)?.place ?? railPlace(t.screen.split(".")[0] ?? "") ?? "")
+      : t.subject
+        ? (placeForSubject(t.subject.type) ?? "")
+        : (t.place ?? "");
+    const place = railPlace(where);
+    if (!place || place === "vault" || place === "console") return null;
+    if (t.subject) return { place, kind: `${place}:${t.subject.type}`, id: t.subject.id };
+    const ids = Object.values(t.args ?? {}).filter((v): v is string => typeof v === "string" && v !== "");
+    return { place, kind: `${place}:${t.screen ?? ""}`, id: ids.length === 1 ? ids[0]! : "" };
+  };
+  const prefetchTarget = (t: ShellTarget, pressed = false): void => {
+    if (closed) return;
+    const k = kindOf(t);
+    if (!k) return;
+    o.warmPlace?.(k.place);
+    if (k.id === "") return;
+    hooks.warmLike(k.kind, k.id);
+    if (pressed) hooks.learn(k.kind, k.id);
   };
 
   // the chats whose agents (or helpers left running in the background) work now: the tab strip marks their tabs
@@ -767,10 +959,15 @@ export async function openRealSession(o: OpenSessionOptions): Promise<RealSessio
     },
     liveStatus: () => live,
     prefetchPlace,
+    prefetchTarget,
+    shownPlace: (place) => hooks.scope(place),
+    confirmed,
     refresh,
     close(why = "unspecified") {
       if (closed) return;
       closed = true;
+      if (confirmTimer !== null) clearTimeout(confirmTimer);
+      o.kept?.flush();
       stopPerms();
       stopWorking();
       if (permsTimer !== null) clearTimeout(permsTimer);

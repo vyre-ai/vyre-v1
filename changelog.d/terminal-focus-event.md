@@ -1,0 +1,1 @@
+- Taking the keyboard in a terminal puts it on the screen by an event (the screen focuses itself when drawn with the keyboard), not a one-second timer that could give up before the screen was there.

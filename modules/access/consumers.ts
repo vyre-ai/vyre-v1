@@ -484,6 +484,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         writes += r.changes;
         return r;
       },
+      batch: <T>(fn: () => T): T => (ctx.db.batch ? ctx.db.batch(fn) : fn()),
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);

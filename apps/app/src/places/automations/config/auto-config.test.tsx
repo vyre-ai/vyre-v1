@@ -96,7 +96,7 @@ const designer = (
   s: ConfigSample,
   id = "jrn_onboard",
   props: Partial<Parameters<typeof JourneyDesigner>[0]> = {},
-): string => page(s, <JourneyDesigner journeyId={id} {...props} />);
+): string => page(s, <JourneyDesigner journeyId={id} initialTab="stages" {...props} />);
 const pane = (
   s: ConfigSample,
   sel: { stage: string; task?: string } | null,
@@ -549,7 +549,7 @@ test("the designer: where the records are, the stages in order with their counts
     [...stages].sort((a, b) => a - b),
     stages,
   );
-  for (const t of ["Consult booked", "Intake", "Engagement letter", "Kickoff", "Onboarded"]) assert.ok(has(out, t), t);
+  for (const t of ["First call booked", "Intake", "Proposal sent", "Kickoff", "Onboarded"]) assert.ok(has(out, t), t);
   assert.ok(has(out, ">3 records<") && has(out, ">4 records<") && has(out, ">1 late<"), "counts and the late ones");
   assert.ok(has(out, "Stages") && has(out, 'data-testid="open-records"') && has(out, "Open board"));
   assert.ok(has(out, 'data-testid="add-stage"') && has(out, 'data-testid="subtab-settings"'));
@@ -626,9 +626,9 @@ test("the Journey list, the pane for no selection, a stage and a task", () => {
   assert.ok(
     has(none, 'data-testid="journey-pane"') &&
       has(none, "14 active records") &&
-      has(none, "1. Consult booked") &&
+      has(none, "1. First call booked") &&
       has(none, "Automations on its stages") &&
-      has(none, "On entering Consult booked"),
+      has(none, "On entering First call booked"),
   );
   const st = pane(s, { stage: "intake" });
   assert.ok(

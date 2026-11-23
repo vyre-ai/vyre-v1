@@ -1,5 +1,7 @@
 // A Flow in plain words, from its definition and the step and trigger catalogue: "When a record changes", then one line per step, and a step that sends something marked as held for the person's yes.
 // Built by code, so what the card in chat promises is what the definition does; an agent's own description is not trusted for it.
+import { asksFirst } from "./ask-first.ts";
+
 /** The parts of a definition the words need (modules/automations/projections.ts holds the full type). */
 export interface FlowNode {
   id: string;
@@ -20,7 +22,7 @@ type Definition = FlowDefinition;
 
 /** The catalogue the words come from: the registry's steps and triggers (a lib file does not import the registry, so the caller hands it in). */
 export interface Catalogue {
-  steps: readonly { key: string; title: string; effects?: string }[];
+  steps: readonly { key: string; title: string; effects?: string; gateAct?: string }[];
   triggers: readonly { key: string; title: string }[];
 }
 
@@ -67,7 +69,7 @@ export function describeFlow(def: Definition, cat: Catalogue): string[] {
       step?.effects === "outward" ||
       (n.key === "code" && Array.isArray(n.input?.["hosts"]) && n.input["hosts"].length > 0);
     lines.push(
-      `${lines.length === 1 ? "Then" : "Then"} ${lower(title)}${n.askBeforeSending === true ? ", held for your yes" : sends ? ", goes out once you turn this on" : ""}`,
+      `${lines.length === 1 ? "Then" : "Then"} ${lower(title)}${sends && asksFirst(n.askBeforeSending, step?.gateAct) ? ", held for your yes" : n.askBeforeSending === true ? ", held for your yes" : sends ? ", goes out once you turn this on" : ""}`,
     );
   }
   if (def.nodes.length === 0) lines.push("It has no steps yet");

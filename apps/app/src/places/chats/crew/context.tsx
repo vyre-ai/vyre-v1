@@ -40,6 +40,9 @@ export interface CrewCtx {
 
 const Ctx = createContext<CrewCtx | null>(null);
 export const useCrew = (): CrewCtx | null => useContext(Ctx);
+/** Whether the Crew pane has something to draw: the one gate, read by the pane itself and by the light wrapper that decides to load it (an open pane with helpers in it). */
+export const crewPaneShows = (crew: CrewCtx | null): crew is CrewCtx & { status: CrewStatusOut; call: Call } =>
+  crew !== null && crew.open && crew.status !== null && crew.status.members.length > 0 && crew.call !== undefined;
 
 const NO_NODES: readonly RunNode[] = [];
 const same = (a: readonly CrewMember[], b: readonly CrewMember[]): boolean =>

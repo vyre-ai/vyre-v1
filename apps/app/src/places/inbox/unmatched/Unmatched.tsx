@@ -150,6 +150,7 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
   const q = useScreenQuery<UnmatchedOut>(SCREEN, "rows");
   const [selected, setSelected] = useState<string | null>(null);
   const [note, setNote] = useState<{ text: string; undo?: () => void } | null>(null);
+  const narrow = useWindowDimensions().width < NARROW;
   const last = useRef<{ key: string; at: number }>({ key: "", at: 0 });
   const clock = data.clock();
   const rows = q.status === "ready" ? newestFirst(q.data.rows) : [];
@@ -234,7 +235,8 @@ function List({ onSearchRecords, onShowAll }: UnmatchedProps): ReactElement {
     const dbl = last.current.key === u.id && now - last.current.at < DOUBLE_MS;
     last.current = { key: u.id, at: now };
     setSelected(u.id);
-    if (dbl) data.nav.openConversation(u.id);
+    // a narrow window (a phone) has no double tap: one tap opens
+    if (dbl || narrow) data.nav.openConversation(u.id);
   };
   const renderLine = (u: Unmatched): ReactElement => (
     <Line

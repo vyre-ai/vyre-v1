@@ -1,0 +1,1 @@
+A card on a board drags the same way with a mouse, a finger (hold, then drag) or a pen; every move, undo, key and bar move checks the card has not changed since you looked at it and says so on the card if it has; a column's total is exact; who moved a card is read from the Space's directory.

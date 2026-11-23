@@ -12,7 +12,7 @@ import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts
 export interface Db {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
-  /** One transaction for the writes of `fn` (synchronous statements only), where the database has one. */
+  /** One transaction for the writes of `fn`, where the database has one (ctx.db does). */
   batch?<T>(fn: () => T): T;
 }
 
@@ -546,6 +546,31 @@ export function writeVector(db: Db, space: string, n: number, v: Float32Array): 
     encodeVector(v),
   );
   index.set(n, v);
+  const c = caches.get(space);
+  if (c) c.gen = bump(db);
+}
+
+/**
+ * The vectors of a page of documents, and their `embedded` marks, in one transaction with ONE generation write for the page: the generation is read once and the index is changed in memory. Written one at a
+ * time a document cost four statements and as many commits (vector, mark, generation read, generation write), about 0.9 ms of the 2.4 ms a bulk-written row costs the consumers (Nov 2026).
+ */
+export function writeVectors(db: Db, space: string, items: ReadonlyArray<{ n: number; v: Float32Array }>): void {
+  if (items.length === 0) return;
+  const index = vectorsOf(db, space);
+  const write = (): void => {
+    for (const { n, v } of items) {
+      db.run(
+        "INSERT INTO search_vectors (n, dim, vec) VALUES (?, ?, ?) ON CONFLICT (n) DO UPDATE SET dim = excluded.dim, vec = excluded.vec",
+        n,
+        DIM,
+        encodeVector(v),
+      );
+      db.run("UPDATE search_docs SET embedded = 1 WHERE n = ?", n);
+    }
+  };
+  if (db.batch) db.batch(write);
+  else write();
+  for (const { n, v } of items) index.set(n, v);
   const c = caches.get(space);
   if (c) c.gen = bump(db);
 }

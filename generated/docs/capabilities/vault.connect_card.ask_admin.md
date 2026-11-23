@@ -75,6 +75,7 @@ type Out = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -155,6 +156,7 @@ type Out = {
       },
       "state": "ask",
       "tested": "example",
+      "untested": true,
       "usedBy": [
         {
           "id": "usr_a1b2c3",

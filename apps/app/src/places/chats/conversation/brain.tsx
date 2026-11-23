@@ -210,8 +210,15 @@ export function stripAgents(
 }
 
 /** The connected accounts, read once per conversation and again when one is connected in place. */
-export function useAccounts(data: { call(cap: string, input: unknown): unknown }, version = 0): PanelAccount[] | null {
-  const [rows, setRows] = useState<PanelAccount[] | null>(null);
+export function useAccounts(
+  data: { call(cap: string, input: unknown): unknown; recall?(cap: string, input?: Record<string, unknown>): unknown },
+  version = 0,
+): PanelAccount[] | null {
+  // the first draw starts from the last answer this device has (r41): the line under the composer that says no AI is connected is there or not from the first frame, not a moment later
+  const [rows, setRows] = useState<PanelAccount[] | null>(() => {
+    const was = data.recall?.("engine.accounts.list", { place: "chat" }) as { accounts?: AccountRow[] } | undefined;
+    return was ? connectedAccounts(was.accounts ?? []) : null;
+  });
   useEffect(() => {
     let live = true;
     void Promise.resolve(data.call("engine.accounts.list", { place: "chat" })).then(
