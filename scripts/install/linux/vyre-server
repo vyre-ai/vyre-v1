@@ -247,7 +247,8 @@ dc() {
 own_backup_dir() {
   if [ "$1" = 1 ] || [ "$BACKUP_DIR" = "$DIR/backups" ]; then
     chmod 0700 "$BACKUP_DIR" 2>/dev/null || true
-    [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
+    # only on Linux: on a Mac the VM mounts the folder under the person's own account, and a chown to 1000 would be wrong (and is refused for anyone but root)
+    [ "$(spacedb_os)" = Darwin ] || [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
     return 0
   fi
   if [ ! -w "$BACKUP_DIR" ] || { [ "$(id -u)" = 0 ] && [ -z "$(find "$BACKUP_DIR" -maxdepth 0 \( -user 1000 -o -perm -0002 \) 2>/dev/null)" ]; }; then
