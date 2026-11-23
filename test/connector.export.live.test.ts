@@ -39,7 +39,9 @@ test("connectors.export of a 25-table connector in a big Space answers inside it
     const actions = (got.data.connector ?? got.data).actions?.length;
     process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
     const t1 = Date.now();
+    process.stderr.write(`[export] PROFILE-START\n`);
     const out = await call(w.d, "connectors.export", { key });
+    process.stderr.write(`[export] PROFILE-END\n`);
     const ms = Date.now() - t1;
     process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
     assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
