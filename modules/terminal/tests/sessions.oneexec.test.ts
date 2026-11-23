@@ -9,17 +9,26 @@ import type { FakeTmuxOptions } from "../fixtures/fake-tmux.ts";
 
 function rig(
   o: FakeTmuxOptions = {},
-  extra: { maxOutput?: number; scrollback?: number; oneExec?: boolean; wrap?: (exec: Exec) => Exec } = {},
+  extra: {
+    maxOutput?: number;
+    scrollback?: number;
+    oneExec?: boolean;
+    wrap?: (exec: Exec) => Exec;
+    real?: boolean;
+  } = {},
 ) {
   const tm = fakeTmux(o);
   const clock = { t: 0 };
   const host = createTmuxHost({
     exec: extra.wrap ? extra.wrap(tm.exec) : tm.exec,
     control: tm.control,
-    now: () => clock.t,
-    sleep: async (ms) => {
-      clock.t += ms;
-    },
+    now: extra.real === true ? Date.now : () => clock.t,
+    sleep:
+      extra.real === true
+        ? (ms) => new Promise((r) => setTimeout(r, ms))
+        : async (ms) => {
+            clock.t += ms;
+          },
     pollMs: 50,
     oneExec: extra.oneExec ?? true,
     ...(extra.maxOutput === undefined ? {} : { maxOutput: extra.maxOutput }),
@@ -283,11 +292,12 @@ test("a machine that cannot run the script (no sh, an exec that refuses) typed n
   );
 });
 
-test("a command typed right after a stop waits for the stopped command's answer: the two results are recorded in the order the commands were run", async () => {
+test("a command typed while a stopped run is still finishing waits for it: the stopped command's answer is recorded before the next one is typed", async () => {
   const events: string[] = [];
   const { tm, host } = rig(
     { scripts: { "sleep 999": { hang: true }, ...SCRIPTS } },
     {
+      real: true,
       wrap: (exec) => async (argv, x) => {
         if (argv[0] === "sh" && String(argv[2]).startsWith("# vyre-run") && String(argv[5]).includes("git status"))
           events.push("B typed");
@@ -296,14 +306,19 @@ test("a command typed right after a stop waits for the stopped command's answer:
     },
   );
   await open(host);
+  // the run script takes a while to notice the stop (the real one looks every 0.2 s), and meanwhile the shell is back at its prompt (Ctrl-C reached it another way)
+  tm.setCancelLag(300);
   const ac = new AbortController();
   const a = run(host, "sleep 999", 60_000, ac.signal).then((r) => (events.push("A answered"), r));
-  setTimeout(() => ac.abort(), 20);
-  await new Promise((r) => setTimeout(r, 40));
-  const b = await run(host, "git status");
+  await new Promise((r) => setTimeout(r, 30));
+  ac.abort();
+  await new Promise((r) => setTimeout(r, 30));
+  const sess = tm.sessions.get("vyre-trm_a1");
+  assert.ok(sess, "the session exists");
+  sess.hung = false;
+  const b = await run(host, "git status", 10_000);
   const ra = await a;
   assert.equal(ra.exitCode, 130);
   assert.equal(b.exitCode, 0);
   assert.deepEqual(events, ["A answered", "B typed"], "the stopped command answered before the next one was typed");
-  void tm;
 });
