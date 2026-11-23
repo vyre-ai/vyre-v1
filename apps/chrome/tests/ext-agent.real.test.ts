@@ -130,6 +130,12 @@ const EVENTS = [
 ];
 
 /** A browser the extension code believes is Chrome with the debugger permission: one real tab, a DevTools session standing in for chrome.debugger, scripting run in the page. */
+/** The person gives the tab back from the bar (its Give back button); the agent's chrome_resume cannot lift a take-over. */
+const giveBack = async (r: any) => {
+  await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].give.click());
+  await new Promise((res) => setTimeout(res, 300));
+};
+
 async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?: number } = {}) {
   const context = await browser.newContext({
     viewport: { width: 1100, height: 720 },
@@ -548,7 +554,8 @@ test(
           assert.deepEqual([p!.paused, p!.text, p!.stop], [true, "Intake is paused", false]);
           await r.page.screenshot({ path: path.join(OUT, `agent-frame-paused-${scheme}.png`) });
           await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
-          await r.call("chrome_resume");
+          await assert.rejects(r.call("chrome_resume"), (e: any) => e.code === "person_stopped");
+          await r.call("chrome_resume", { personLineAgeMs: 10 }); // the person wrote to the agent just now
           assert.equal(await r.overlayState(), null, "answered: the frame is gone");
 
           // Stop, from the bar itself
@@ -669,14 +676,14 @@ test(
         press && Math.abs(press.x - take.x) <= 1 && Math.abs(press.y - take.y) <= 1,
         "the press carried its place",
       );
-      await r.call("chrome_resume");
+      await giveBack(r);
       await r.call("chrome_snapshot");
       const mark2 = r.barMessages.length;
       await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].take.click());
       await new Promise((res) => setTimeout(res, 300));
       const key = r.barMessages.slice(mark2).find((m: any) => m.type === "takeover");
       assert.ok(key && key.x === undefined, "a keyboard click carries no place");
-      await r.call("chrome_resume");
+      await giveBack(r);
       await r.call("chrome_snapshot");
       // a press held for two seconds acts once
       const held = await boxOf(r.page, "button", "Take over");
@@ -686,7 +693,7 @@ test(
       await r.page.mouse.up();
       await new Promise((res) => setTimeout(res, 300));
       assert.equal((await r.call("chrome_status")).paused, true, "the long press took the tab over");
-      await r.call("chrome_resume");
+      await giveBack(r);
       await r.call("chrome_snapshot");
       // pressed on Take over and let go elsewhere, then the keyboard: the press is over, so the keyboard click acts
       const again = await boxOf(r.page, "button", "Take over");
@@ -695,7 +702,7 @@ test(
       await r.page.mouse.move(again.x, again.y - 300);
       await r.page.mouse.up();
       await new Promise((res) => setTimeout(res, 300));
-      await r.call("chrome_resume");
+      await giveBack(r);
       await r.call("chrome_snapshot");
       await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].take.click());
       await new Promise((res) => setTimeout(res, 300));
@@ -745,7 +752,7 @@ test(
       await r.page.keyboard.press("Enter");
       await new Promise((res) => setTimeout(res, 300));
       assert.equal((await r.call("chrome_status")).paused, true, "a person's Enter pressed Stop");
-      await r.call("chrome_resume");
+      await r.call("chrome_resume", { personLineAgeMs: 10 });
       await new Promise((res) => setTimeout(res, 300));
       assert.equal(await r.page.evaluate("window.__net"), 0, "no listener of the bar is left on the window");
     } finally {

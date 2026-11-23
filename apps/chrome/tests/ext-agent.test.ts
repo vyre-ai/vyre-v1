@@ -938,7 +938,8 @@ test("Esc pauses everything with a dashed frame until the person answers; the ag
   assert.equal(w.attached.size, 0, "nothing can run");
   assert.equal(w.eventsOf("paused").length, 1);
   await w.fails("chrome_act", { ref: "e1", action: "click" }, "paused");
-  await w.call("chrome_resume");
+  await w.advance(50);
+  await w.call("chrome_resume", { personLineAgeMs: 10 }); // the person wrote to the agent 10 ms ago, after the Esc
   assert.equal(w.overlay.size, 0, "answered: the dashed frame comes off");
   assert.match((await w.call("chrome_snapshot")).tree, /Email/);
 });
@@ -1952,6 +1953,47 @@ test("a keyboard click on the bar that the agent's own Enter made is ignored; a 
   release();
   await step.catch(() => undefined);
   w.ext.debugger.sendCommand = orig;
+});
+
+test("the agent cannot lift a person's take-over with chrome_resume; only the bar's Give back does", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  port.send({ type: "takeover" });
+  await w.advance(0);
+  await w.advance(100);
+  await w.fails("chrome_resume", { personLineAgeMs: 1 }, "takeover_held");
+  await w.fails("chrome_resume", {}, "takeover_held");
+  assert.equal((await w.call("chrome_status")).paused, true, "still the person's");
+  port.send({ type: "giveback" });
+  await w.advance(0);
+  assert.equal((await w.call("chrome_status")).paused, false, "Give back released it");
+});
+
+test("after a person's Stop or Esc, chrome_resume works only when the person has written since: older, missing or invalid lines do not count", async () => {
+  for (const how of ["stop", "esc"]) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const port = overlayPort(w);
+    port.send({ type: how });
+    await w.advance(0);
+    await w.advance(1000);
+    await w.fails("chrome_resume", {}, "person_stopped");
+    await w.fails("chrome_resume", { personLineAgeMs: 5000 }, "person_stopped"); // the line is older than the stop
+    await w.fails("chrome_resume", { personLineAgeMs: 1000 }, "person_stopped"); // sent at the stop itself
+    await w.fails("chrome_resume", { personLineAgeMs: -5 }, "person_stopped");
+    assert.equal((await w.call("chrome_status")).paused, true, `${how}: still stopped`);
+    await w.call("chrome_resume", { personLineAgeMs: 200 }); // a line 200 ms ago, after the stop
+    assert.equal((await w.call("chrome_status")).paused, false, `${how}: the person wrote, the agent goes on`);
+  }
+});
+
+test("a pause the agent made itself with chrome_stop it may lift itself", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  await w.call("chrome_stop", { reason: "waiting for the invoice" });
+  await w.call("chrome_resume");
+  assert.equal((await w.call("chrome_status")).paused, false);
 });
 
 test("Stopped offers Resume, which goes on, and End task, which tells the app the task ended", async () => {

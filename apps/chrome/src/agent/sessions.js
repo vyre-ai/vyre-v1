@@ -500,6 +500,20 @@ export function createSessions({
         ...(reason ? { reason: String(reason).slice(0, 200) } : {}),
       });
     },
+    /**
+     * May the agent's own chrome_resume lift the pause it is under? A pause the agent made itself, yes. A person's take-over, never (only the bar's Give back ends it). A person's Stop or Esc, only when the person wrote
+     * to the agent after the pause: the Space says how long ago the person's newest line in the chat was sent, and that line must be newer than the pause. Returns the failure code, or null.
+     * @param {string} agentId @param {unknown} lineAgeMs
+     */
+    resumeRefusal(agentId, lineAgeMs) {
+      const p = paused.get(agentId);
+      if (!p) return null;
+      if (p.by === "takeover") return "takeover_held";
+      if (p.by === "tool") return null;
+      const sentAfter =
+        typeof lineAgeMs === "number" && Number.isFinite(lineAgeMs) && lineAgeMs >= 0 && now() - lineAgeMs > p.at;
+      return sentAfter ? null : "person_stopped";
+    },
     /** @param {string} agentId */
     async resume(agentId) {
       const was = paused.delete(agentId);

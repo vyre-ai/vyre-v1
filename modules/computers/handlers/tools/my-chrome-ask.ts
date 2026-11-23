@@ -28,6 +28,9 @@ interface Line {
   author?: { kind?: string; id?: string };
   body?: string;
   threadSeq?: number;
+  kind?: string;
+  via?: unknown;
+  createdAt?: number;
 }
 
 /** The person asked in the turn this call belongs to. False when there is no chat to read, nobody to ask for, or the newest line from the person does not ask. */
@@ -43,5 +46,29 @@ export async function askedThisTurn(ctx: Pick<CompCtx, "call" | "thread" | "acti
     return last !== undefined && saidMyChrome(String(last.body ?? ""));
   } catch {
     return false;
+  }
+}
+
+/**
+ * How long ago the person this turn works for last wrote in this chat, for Vyre for Chrome to compare with when the person stopped the agent: the agent may go on after a Stop only if the person wrote after it.
+ * Read from the thread's own lines (who wrote, when), never from what the agent says or what the line means: a line a routine posted for them, an agent's line, and a system line do not count. Undefined when
+ * there is no chat, nobody to work for, or no such line.
+ */
+export async function personLineAgeMs(ctx: Pick<CompCtx, "call" | "thread" | "actingFor" | "now">): Promise<number | undefined> {
+  if (!ctx.thread || !ctx.actingFor) return undefined;
+  try {
+    const page = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 12 })) as { messages?: Line[] };
+    const mine = (page.messages ?? []).filter(
+      (m) =>
+        m.author?.kind === "person" &&
+        m.author.id === ctx.actingFor &&
+        (m.kind === undefined || m.kind === "text") &&
+        m.via === undefined &&
+        typeof m.createdAt === "number",
+    );
+    const last = mine.reduce<Line | undefined>((a, m) => (a === undefined || m.createdAt! >= a.createdAt! ? m : a), undefined);
+    return last === undefined ? undefined : Math.max(0, ctx.now() - last.createdAt!);
+  } catch {
+    return undefined;
   }
 }

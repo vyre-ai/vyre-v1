@@ -273,6 +273,44 @@ test("held sends, Stop and Resume need no new ask: they finish what an ask began
   }
 });
 
+test("chrome_resume tells the extension how long ago the person last wrote: their own plain line only, never an agent's, a routine's, someone else's or the agent's own claim", async () => {
+  const calls = port({ answers: { chrome_resume: { resumed: true } } });
+  try {
+    const h = harness({
+      principal: { kind: "agent", id: "agt_scout" },
+      actingFor: DANA,
+      respond: { "chat.messages.list": () => ({ messages: [] }) },
+    });
+    h.ctx.thread = "thr_1";
+    const now = h.ctx.now();
+    const lines = [
+      { threadSeq: 1, author: { kind: "person", id: DANA }, kind: "text", createdAt: now - 60_000, body: "older" },
+      { threadSeq: 2, author: { kind: "person", id: DANA }, kind: "text", createdAt: now - 5_000, body: "go on" },
+      { threadSeq: 3, author: { kind: "agent", id: "agt_scout" }, kind: "agent", createdAt: now - 1_000, body: "ok" },
+      { threadSeq: 4, author: { kind: "person", id: DANA }, kind: "text", via: { routineOwner: DANA }, createdAt: now - 500, body: "routine" },
+      { threadSeq: 5, author: { kind: "person", id: "usr_other" }, kind: "text", createdAt: now - 200, body: "someone else" },
+    ];
+    const withLines = (l: unknown[]) =>
+      harness({
+        principal: { kind: "agent", id: "agt_scout" },
+        actingFor: DANA,
+        respond: { "chat.messages.list": () => ({ messages: l }) },
+      });
+    const g = withLines(lines);
+    g.ctx.thread = "thr_1";
+    await tool["computers.chrome.resume"]!(g.ctx, { ...MINE });
+    const sent = calls.at(-1)!.args["personLineAgeMs"] as number;
+    assert.ok(sent >= 4_900 && sent <= 6_000, `the person's own plain line, five seconds ago (${sent})`);
+    const none = withLines(lines.slice(2));
+    none.ctx.thread = "thr_1";
+    await tool["computers.chrome.resume"]!(none.ctx, { ...MINE });
+    assert.equal(calls.at(-1)!.args["personLineAgeMs"], undefined, "no line of theirs: nothing is claimed");
+    void h;
+  } finally {
+    bindPersonalChrome(null);
+  }
+});
+
 test("when the app or the extension is not connected the answer says so plainly and offers the Space browser", async () => {
   try {
     port({ open: false });

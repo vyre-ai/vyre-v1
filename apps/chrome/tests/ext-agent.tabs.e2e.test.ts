@@ -156,7 +156,11 @@ test(
         (await r.worker.evaluate(async (id: number) => (globalThis as any).chrome.tabs.get(id), tabId)).groupId > 0,
         "still grouped",
       );
-      await call("chrome_resume");
+      // the agent cannot lift the person's take-over; the bar's Give back does
+      await assert.rejects(call("chrome_resume"), (e: any) => e.code === "takeover_held");
+      const give = await buttonBox(page, "Give back");
+      await page.mouse.click(give.x, give.y);
+      await r.waitFor(async () => !(await call("chrome_status")).paused, 5000, "given back");
 
       // Stop
       await call("chrome_snapshot");
@@ -164,7 +168,8 @@ test(
       await page.mouse.click(stop.x, stop.y);
       await r.waitFor(() => eventsOf("stopped").some((e) => e["by"] === "person"), 5000, "stopped by the person");
       await assert.rejects(call("chrome_snapshot"), (e: any) => e.code === "paused");
-      await call("chrome_resume");
+      await assert.rejects(call("chrome_resume"), (e: any) => e.code === "person_stopped");
+      await call("chrome_resume", { personLineAgeMs: 10 }); // the person wrote to the agent just now, after the Stop
 
       // Esc
       await call("chrome_snapshot");

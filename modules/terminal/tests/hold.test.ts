@@ -359,6 +359,18 @@ test("give back: only the holder, the terminal's owner or an admin; someone else
   assert.equal((await call(hn, "terminal.give_back", { terminalId: id })).terminal.heldBy, undefined);
 });
 
+test("an agent, even one acting for the holder, cannot hand the keyboard back: only the person (or the owner or an admin) can", async () => {
+  const { hn } = setup();
+  const id = await open(hn);
+  await call(hn, "terminal.take_over", { terminalId: id });
+  assert.equal(
+    await rejects(() => h["terminal.give_back"]!(hn.as(AGENT, "usr_dana"), { terminalId: id })),
+    "permission.role_lacks_permission",
+  );
+  assert.equal((await call(hn, "terminal.get", { terminalId: id })).terminal.heldBy, "usr_dana", "still held");
+  assert.equal((await call(hn, "terminal.give_back", { terminalId: id })).terminal.heldBy, undefined, "the person hands it back");
+});
+
 test("taking from another person: someone who may enter the workspace but neither owns the terminal nor manages the agent is refused by the take rule itself", async () => {
   const { hn } = setup();
   const id = await open(hn); // owner usr_dana
