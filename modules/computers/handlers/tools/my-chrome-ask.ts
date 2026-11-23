@@ -52,20 +52,22 @@ export async function askedThisTurn(ctx: Pick<CompCtx, "call" | "thread" | "acti
 
 /**
  * How long ago the message that started this turn was sent, for Vyre for Chrome to compare with when the person stopped the agent: the agent may go on after a Stop only if a person's own message started this turn
- * after it. Read from the engine's record of the turn (ctx.turn: a "message" turn, its message id, the author a person and the person this turn acts for) and the stored message (plain text, not posted by a routine),
+ * after it. Read from the engine's record of the turn (ctx.turn: a "message" or "interrupt" turn, its message id, the author a person and the person this turn acts for) and the stored message (plain text, not posted by a routine),
  * never from what the agent says or what a line means. A routine, wake, resumed or agent-started turn has none: undefined, and nothing is claimed.
  */
 export async function turnMessageAgeMs(
   ctx: Pick<CompCtx, "call" | "thread" | "actingFor" | "now" | "turn">,
 ): Promise<number | undefined> {
   const t = ctx.turn;
-  if (!ctx.thread || !ctx.actingFor || !t || t.kind !== "message" || !t.messageId) return undefined;
+  if (!ctx.thread || !ctx.actingFor || !t || (t.kind !== "message" && t.kind !== "interrupt") || !t.messageId) return undefined;
   if (t.authorKind !== "person" || t.authorId !== ctx.actingFor) return undefined;
   try {
-    const page = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 30 })) as { messages?: Line[] };
-    const m = (page.messages ?? []).find((x) => x.messageId === t.messageId);
+    // the starting message by its id, however far back it is in a long chat
+    const got = (await ctx.call("chat.message.get", { threadId: ctx.thread, messageId: t.messageId })) as { message?: Line };
+    const m = got.message;
     if (
       !m ||
+      m.messageId !== t.messageId ||
       m.author?.kind !== "person" ||
       m.author.id !== ctx.actingFor ||
       (m.kind !== undefined && m.kind !== "text") ||
