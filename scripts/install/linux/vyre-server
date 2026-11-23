@@ -242,6 +242,20 @@ dc() {
   fi
 }
 
+# own_backup_dir: mode 0700 and the server's owner are set only on a folder this command made itself: the default folder under $DIR, or one it has just made. A folder that already existed (an admin pointed
+# backup-dir at a shared folder) is left exactly as it is; when the server user (uid 1000) could not write it, one warning says so. $1 is 1 when the folder was just made.
+own_backup_dir() {
+  if [ "$1" = 1 ] || [ "$BACKUP_DIR" = "$DIR/backups" ]; then
+    chmod 0700 "$BACKUP_DIR" 2>/dev/null || true
+    [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
+    return 0
+  fi
+  if [ ! -w "$BACKUP_DIR" ] || { [ "$(id -u)" = 0 ] && [ -z "$(find "$BACKUP_DIR" -maxdepth 0 \( -user 1000 -o -perm -0002 \) 2>/dev/null)" ]; }; then
+    [ -n "${BACKUPS_OWN_NOTED:-}" ] || { BACKUPS_OWN_NOTED=1; printf 'vyre-server: the backups folder %s already exists and is left as it is; the server user (uid 1000) may not be able to write to it. Give it write access, or choose another folder.\n' "$BACKUP_DIR" >&2; }
+  fi
+  return 0
+}
+
 # ensure_backups_compose: the backups folder is one folder, this command's and the server's: it is mounted into vyred at /backups (VYRE_BACKUP_DIR), and backup.run with no target chosen writes there, so a
 # backup taken from either side is in the other's list. Written to its own file (compose.backups.yml) so an install made before this, whose compose.override.yml may carry edits, gets it on its next
 # start or update with nothing else changed. vyred runs as uid 1000: the folder (and each backup this command writes) is given to it when this runs as root; on a Mac the VM's mount does it.
@@ -250,13 +264,14 @@ dc() {
 ensure_backups_compose() {
   _bc="$DIR/compose.backups.yml"
   if [ -z "$BACKUP_DIR" ]; then rm -f "$_bc"; return 1; fi
-  mkdir -p "$BACKUP_DIR" 2>/dev/null && chmod 0700 "$BACKUP_DIR" 2>/dev/null || true
+  _made=
+  if [ ! -d "$BACKUP_DIR" ] && mkdir -p "$BACKUP_DIR" 2>/dev/null; then _made=1; fi
   if [ ! -d "$BACKUP_DIR" ]; then
     rm -f "$_bc"
     [ -n "${BACKUPS_NOTED:-}" ] || { BACKUPS_NOTED=1; printf 'vyre-server: the backups folder %s does not exist and could not be made, so the server starts without it mounted.\n' "$BACKUP_DIR" >&2; }
     return 1
   fi
-  [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
+  own_backup_dir "$_made"
   # the path goes in as a double-quoted YAML string: a backslash and a double quote are escaped, and a space, comma, colon, hash or brace is then plain text
   _q=$(printf '%s' "$BACKUP_DIR" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
   # the volume is named after the folder: Docker keeps a named volume's bind source from the day it was made, so a folder that changed (the backup-dir file) needs a volume of its own to be mounted
@@ -811,8 +826,9 @@ backup_fail() {
 backup_data() {
   BACKUP_MODE=${2:-stopped}
   [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
+  _bmade=; [ -d "$BACKUP_DIR" ] || _bmade=1
   mkdir -p "$BACKUP_DIR" "$DIR/state"
-  chmod 0700 "$BACKUP_DIR"
+  own_backup_dir "$_bmade"
   # a name no backup has yet: two backups in the same second get -2, -3 (before, the second silently replaced the first)
   stamp=$(date -u +%Y%m%dT%H%M%SZ); out="$BACKUP_DIR/vyre-$1-$stamp.tar.gz"; bn=1
   while [ -e "$out" ] || [ -e "$out.part" ]; do bn=$((bn + 1)); out="$BACKUP_DIR/vyre-$1-$stamp-$bn.tar.gz"; done
