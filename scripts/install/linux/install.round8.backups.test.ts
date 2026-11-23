@@ -158,6 +158,47 @@ test("compose.backups.yml survives a hard folder name, and when the folder or th
     fs.rmSync(dir, { recursive: true, force: true });
   }
 });
+test("mode and owner are set only on a backups folder the command made: a folder an admin pointed at is left as it is, with a warning when the server user cannot write it", () => {
+  const dir = tmp();
+  try {
+    mkSpace(dir, "O");
+    const env = world(dir, SAME);
+    const mode = (p: string): number => fs.statSync(p).mode & 0o777;
+    // the default folder is the command's own: made, and 0700
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status, 0);
+    assert.equal(mode(path.join(dir, "backups")), 0o700);
+    // a folder named in backup-dir that does not exist yet is made by the command: 0700
+    const fresh = path.join(dir, "elsewhere", "mine");
+    const made = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${fresh}'; ensure_backups_compose`, env);
+    assert.equal(made.status, 0, made.stderr);
+    assert.equal(mode(fresh), 0o700, "a folder it just made is closed to others");
+    assert.doesNotMatch(made.stderr, /left as it is/);
+    // a folder that already exists and is not the default: mode untouched, on a compose call and on a backup
+    const shared = path.join(dir, "shared");
+    fs.mkdirSync(shared);
+    fs.chmodSync(shared, 0o775);
+    const kept = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; ensure_backups_compose; ensure_backups_compose`, env);
+    assert.equal(kept.status, 0, kept.stderr);
+    assert.equal(mode(shared), 0o775, "a shared folder keeps its mode");
+    const bk = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; dc(){ :; }; backup_data manual live`, env);
+    assert.equal(bk.status, 0, bk.stderr + bk.stdout);
+    assert.equal(mode(shared), 0o775, "a backup does not close it either");
+    assert.ok(fs.existsSync(path.join(dir, "compose.backups.yml")), "it is still mounted");
+    // one that the server user cannot write: left as it is, one warning (skipped as root, who can write anything)
+    if (process.getuid && process.getuid() !== 0) {
+      const ro = path.join(dir, "readonly");
+      fs.mkdirSync(ro);
+      fs.chmodSync(ro, 0o555);
+      const w = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${ro}'; ensure_backups_compose; ensure_backups_compose`, env);
+      assert.equal(w.status, 0, w.stderr);
+      assert.equal(mode(ro), 0o555);
+      assert.equal(w.stderr.match(/already exists and is left as it is/g)?.length, 1, "said once: " + w.stderr);
+      fs.chmodSync(ro, 0o755);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
 test("the copy-off hint on a Mac names the file and says to take it off this Mac, never root@", () => {
   const dir = tmp();
   try {
