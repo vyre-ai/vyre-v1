@@ -817,3 +817,28 @@ test("a file the document fill makes can be larger than a direct write: 400 KB a
     assert.equal(refused?.error?.code, "validation.too_large", "a direct write keeps its limit");
   }
 });
+
+test("files.create_many makes every file of the call in one folder, or none when one name is taken", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Batch" })).folder.folderId;
+  const made = await handlers["files.create_many"](ctx, {
+    folderId: folder,
+    files: [
+      { name: "a.json", content: { text: "{}" }, mime: "application/json" },
+      { name: "b.md", content: { text: "# b" } },
+      { name: "c.txt", content: { text: "c" } },
+    ],
+  });
+  assert.deepEqual(made.files.map((f) => f.name), ["a.json", "b.md", "c.txt"]);
+  assert.equal(made.files[1]!.kind, "markdown");
+  const listed = await handlers["files.list"](ctx, { folder });
+  assert.equal(listed.total, 3);
+  // a name that is taken, or named twice in the call, is refused
+  await assert.rejects(handlers["files.create_many"](ctx, { folderId: folder, files: [{ name: "a.json", content: { text: "x" } }] }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate");
+  await assert.rejects(handlers["files.create_many"](ctx, { folderId: folder, files: [{ name: "d.txt", content: { text: "x" } }, { name: "d.txt", content: { text: "y" } }] }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate");
+  // an empty list, and more than 200 files, are refused
+  await assert.rejects(handlers["files.create_many"](ctx, { folderId: folder, files: [] }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input");
+  await assert.rejects(handlers["files.create_many"](ctx, { folderId: folder, files: Array.from({ length: 201 }, (_, i) => ({ name: `f${i}.txt` })) }), (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input");
+});
