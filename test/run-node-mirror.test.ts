@@ -218,7 +218,7 @@ test("the node is told whose money the turn spends, once: the Space's when its a
   }
 });
 
-test("a helper node records the tools its agent was limited to when it began; a chat turn and a helper whose agent has no limits record none", async () => {
+test("a helper node records the tools its agent was limited to when it began; a chat turn and a helper whose agent has no limits record none; limits that cannot be read are recorded as unknown", async () => {
   const limited = world({ tools: { allowed: ["web_search"], denied: ["mail_send"] } });
   await limited.mirror.turn(turn("trn_1", HELP), "started");
   await limited.mirror.turn(turn("trn_2", CHAT), "started");
@@ -234,6 +234,7 @@ test("a helper node records the tools its agent was limited to when it began; a 
   assert.equal(policy(free, "helper"), null, "no limits, nothing recorded");
   const unreadable = world();
   await unreadable.mirror.turn(turn("trn_4", HELP), "started");
-  assert.equal(policy(unreadable, "helper"), null);
+  // limits that cannot be read are not "no limits": the node says they are unknown, so a save or a re-run reads them again and refuses when it still cannot (rc.43)
+  assert.deepEqual(JSON.parse(policy(unreadable, "helper")!), { toolsUnknown: true });
   assert.equal(unreadable.rows().length, 1, "and the node is made all the same");
 });
