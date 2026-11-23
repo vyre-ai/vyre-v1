@@ -164,12 +164,12 @@ export function overlayShow(o) {
         fn({ ...where(e, true), ...(e.detail === 0 ? { key: true } : {}) });
       });
     };
-    onPress(stop, (at) => port && port.postMessage({ type: "stop", ...at }));
-    onPress(open, (at) => port && port.postMessage({ type: "openvyre", ...at }), true);
-    onPress(give, (at) => port && port.postMessage({ type: "giveback", ...at }));
-    onPress(resume, (at) => port && port.postMessage({ type: "giveback", ...at }));
-    onPress(end, (at) => port && port.postMessage({ type: "endtask", ...at }), true);
-    onPress(take, (at) => port && port.postMessage({ type: "takeover", ...at }));
+    onPress(stop, (at) => port && port.postMessage({ agent: o.agent, type: "stop", ...at }));
+    onPress(open, (at) => port && port.postMessage({ agent: o.agent, type: "openvyre", ...at }), true);
+    onPress(give, (at) => port && port.postMessage({ agent: o.agent, type: "giveback", ...at }));
+    onPress(resume, (at) => port && port.postMessage({ agent: o.agent, type: "giveback", ...at }));
+    onPress(end, (at) => port && port.postMessage({ agent: o.agent, type: "endtask", ...at }), true);
+    onPress(take, (at) => port && port.postMessage({ agent: o.agent, type: "takeover", ...at }));
     // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
     // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
     let lastTouch = 0;

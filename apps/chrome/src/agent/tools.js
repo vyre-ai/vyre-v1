@@ -169,7 +169,7 @@ const miss = (why) => ({
  *   rights?: ReturnType<typeof import("./rights.js").createRights>,
  *   emit: (event: Record<string, any>) => void,
  *   restored?: Promise<void>,
- *   restoring?: () => boolean,
+ *   restoring?: (agentId: string) => boolean,
  *   now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number,
  * }} kit
  * @typedef {{ id?: string, tool: string, input: Record<string, any>, agent: { id: string, name: string }, space: string }} Call
@@ -1059,7 +1059,7 @@ export function createTools(kit) {
     async chrome_status(call) {
       const p = sessions.pausedFor(call.agent.id);
       // while the person's saved pauses are still being read back, the agent is told what its calls will say
-      const waiting = kit.restoring?.() === true;
+      const waiting = kit.restoring?.(call.agent.id) === true;
       return {
         connected: kit.connected(call),
         paused: Boolean(p) || waiting,
@@ -1256,7 +1256,7 @@ export function createTools(kit) {
   async function run(call, nested = false) {
     await kit.restored;
     // the person's pauses are still being read back (the wait ran out): fail closed, nothing runs until they are known
-    if (kit.restoring?.() && call.tool !== "chrome_status") fail("paused");
+    if (kit.restoring?.(call.agent.id) && call.tool !== "chrome_status") fail("paused");
     const input = checkInput(call.tool, call.input);
     if (!nested && call.tool !== "chrome_status") {
       await kit.authorize(call);

@@ -205,6 +205,7 @@ export function createSessions({
         args: [
           {
             name: agent.name,
+            agent: agent.id,
             goal: goalText(agent.id),
             paused: isPaused,
             ...(state ? { state } : {}),
@@ -225,9 +226,11 @@ export function createSessions({
     }
   }
 
+  let loaded = !keep;
   /** Write the pauses and the bars that show them where the next worker finds them (pausekeep.js). */
   function persist() {
-    if (!keep) return Promise.resolve();
+    // nothing is written until the saved pauses have been read back: a write made from a partial picture would erase the rest
+    if (!keep || !loaded) return Promise.resolve();
     return keep.save({
       pauses: [...paused].map(([agent, p]) => ({ agent, by: p.by, at: p.at })),
       bars: [...shown].map(([tab, a]) => ({ tab, id: a.id, name: a.name })),
@@ -524,21 +527,27 @@ export function createSessions({
      */
     async restore() {
       const k = keep ? await keep.load() : null;
-      if (!k) return;
-      for (const b of k.bars) {
-        const alive = await Promise.resolve(ext.tabs?.get ? ext.tabs.get(b.tab) : null).then(
-          (t) => Boolean(t),
-          () => false,
-        );
-        if (alive && !shown.has(b.tab)) shown.set(b.tab, { id: b.id, name: b.name });
+      /** @type {string[]} the agents whose pause this restore put back */
+      const put = [];
+      if (k) {
+        for (const b of k.bars) {
+          const alive = await Promise.resolve(ext.tabs?.get ? ext.tabs.get(b.tab) : null).then(
+            (t) => Boolean(t),
+            () => false,
+          );
+          if (alive && !shown.has(b.tab)) shown.set(b.tab, { id: b.id, name: b.name });
+        }
+        for (const p of k.pauses) {
+          if (paused.has(p.agent)) continue;
+          const barred = [...shown.values()].some((a) => a.id === p.agent);
+          if (p.by === "takeover" && !barred) continue; // a take-over only ends at the bar, and its tab is gone
+          paused.set(p.agent, { by: p.by, at: p.at });
+          put.push(p.agent);
+        }
       }
-      for (const p of k.pauses) {
-        if (paused.has(p.agent)) continue;
-        const barred = [...shown.values()].some((a) => a.id === p.agent);
-        if (p.by === "takeover" && !barred) continue; // a Stop or Esc is lifted by the person's message, no bar needed; a take-over only by the bar, and its tab is gone
-        paused.set(p.agent, { by: p.by, at: p.at });
-      }
+      loaded = true;
       await persist();
+      return put;
     },
     /**
      * May the agent's own chrome_resume lift the pause it is under? A pause the agent made itself, yes. A person's take-over, never (only the bar's Give back ends it). A person's Stop or Esc, only when the person wrote
@@ -559,7 +568,9 @@ export function createSessions({
       const was = paused.delete(agentId);
       if (was) {
         // An Esc pause left a dashed frame on the tabs: take it off now that the person has answered.
-        for (const tabId of owned.get(agentId) ?? []) if (!drivers.has(tabId)) await undraw(tabId);
+        const tabs = new Set(owned.get(agentId) ?? []);
+        for (const [tabId, a] of shown) if (a.id === agentId) tabs.add(tabId); // a bar read back after a restart is not in `owned`
+        for (const tabId of tabs) if (!drivers.has(tabId)) await undraw(tabId);
         emit({ event: "resumed", agent: agentId });
       }
       await persist();

@@ -91,24 +91,27 @@ export function createAgentControl(ext, o = {}) {
     ...(o.idleMs !== undefined ? { idleMs: o.idleMs } : {}),
   });
 
-  // the worker may have been stopped and started again since the person's Stop or take-over: their pause is read back before any call of an agent is answered
-  // The wait is capped at two seconds so nothing holds the channel open, and it fails closed: until the saved pauses are known, agent calls are refused as paused (chrome_status still answers), never allowed.
-  // A restore that fails or never answers is tried again until it works, and never starts empty. The person is never locked out: their press of the bar's Give back, Resume or End task while it is pending frees the
-  // agent at once (they have said so), and is applied again to what the restore finds when it comes in late. Presses on the bar during the wait are queued, not dropped.
-  let restoring = true;
-  /** @type {Array<() => void>} */
-  const queued = [];
+  // The worker may have been stopped and started again since the person's Stop or take-over: their pauses are read back before any call of an agent is answered.
+  // It fails closed and per agent: until they are known, an agent's calls are refused as paused (chrome_status still answers), never allowed. The wait for the answer is capped at two seconds so nothing holds the
+  // channel open, and a restore that fails or never answers is tried again until it works, and never starts empty. The person is never locked out, and never made to wait: every press on the bar is handled at once
+  // on what is live (a Stop acts now). Their Give back or End task while the restore is pending frees that bar's agent only (named by the bar itself), and is applied again to the take-over or Stop the late
+  // restore finds for that agent. Resume on a Stop is the same press as Give back. Nothing is written to storage until the restore has read what was there.
   let restoreOk = false;
+  /** Agents the person freed from the bar while their saved pause was unknown. @type {Set<string>} */
+  const freed = new Set();
+  /** @param {string} agentId */
+  const restoring = (agentId) => !restoreOk && !freed.has(agentId);
   const restored = new Promise((resolve) => {
     const t = setTimeout(resolve, o.restoreWaitMs ?? 2000);
     const attempt = () => {
       Promise.resolve(o.restore ? o.restore(sessions) : sessions.restore()).then(
-        () => {
+        (put) => {
           restoreOk = true;
-          restoring = false;
           clearTimeout(t);
           resolve(undefined);
-          for (const f of queued.splice(0)) f();
+          // the person freed these while the pauses were unknown: lift what the restore found for them (only what it put back, never a Stop made since)
+          if (Array.isArray(put)) for (const id of put) if (freed.has(id)) void sessions.resume(id);
+          freed.clear();
         },
         () => {
           const again = /** @type {any} */ (setTimeout(attempt, o.restoreRetryMs ?? 500));
@@ -172,7 +175,7 @@ export function createAgentControl(ext, o = {}) {
     traffic,
     sessions,
     restored,
-    restoring: () => restoring,
+    restoring,
     authorize,
     vaultFill,
     emit,
@@ -274,14 +277,13 @@ export function createAgentControl(ext, o = {}) {
       else if (m.type === "esc") void sessions.pause(agent.id, "esc");
       else if (m.type === "touch") void sessions.touched(tabId, m);
     };
-    // a press that comes while the pauses are still being read back waits for them; afterwards it is handled at once
     port.onMessage.addListener((/** @type {any} */ m) => {
-      if (restoreOk) {
-        onBar(m);
-        return;
+      // a release during the wait names its agent: the bar's own (from this page's overlay, never the page)
+      if (!restoreOk && m && (m.type === "giveback" || m.type === "endtask")) {
+        const who = sessions.shownAgent(tabId)?.id ?? (typeof m.agent === "string" ? m.agent : undefined);
+        if (who) freed.add(who);
       }
-      queued.push(() => onBar(m));
-      if (m && (m.type === "giveback" || m.type === "endtask")) restoring = false;
+      onBar(m);
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.
