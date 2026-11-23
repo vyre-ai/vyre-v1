@@ -64,6 +64,17 @@ test("connectors.export of a 25-table connector in a big Space answers inside it
     const sub = await Promise.all(((listed.data.folders ?? []) as { folderId: string }[]).map((f) => call(w.d, "files.list", { folder: f.folderId, limit: 500 })));
     const count = (listed.data.files ?? []).length + sub.reduce((n, r) => n + (r.data.files ?? []).length, 0);
     assert.ok(count >= (actions ?? 0) + 2, `the folder holds ${count} files for ${actions} actions`);
+    // all or none: a batch with one taken name makes nothing, on the real server
+    const before = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files.length;
+    const refused = await call(w.d, "files.create_many", {
+      folderId,
+      files: [{ name: "fresh.txt", content: { text: "x" } }, { name: "connector.toml", content: { text: "dup" } }],
+      idempotencyKey: "export-dup",
+    });
+    assert.equal(refused.status, 422, JSON.stringify(refused.data).slice(0, 200));
+    const afterwards = (await call(w.d, "files.list", { folder: folderId, limit: 500 })).data.files;
+    assert.equal(afterwards.length, before, "the refused batch made no file");
+    assert.ok(!afterwards.some((f: { name: string }) => f.name === "fresh.txt"));
   } finally {
     await w.close();
   }
