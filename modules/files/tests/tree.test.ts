@@ -886,14 +886,9 @@ test("text content is text: a string written under a binary name is never classe
   assert.equal(by.get("data.csv")!.kind, "spreadsheet", "a csv is text on disk and keeps its viewer");
   assert.equal(by.get("logo.svg")!.kind, "image");
   assert.equal(by.get("run.py")!.kind, "code");
-  // a kind the caller names is the caller's
-  const given = await handlers["files.create"](ctx, {
-    folderId: folder,
-    name: "given.pdf",
-    kind: "pdf",
-    content: { text: "x" },
-  });
-  assert.equal(given.file.kind, "pdf");
+  // one files.create keeps the name's kind (a mount makes a placeholder of text under a document's name)
+  const single = await handlers["files.create"](ctx, { folderId: folder, name: "single.pdf", content: { text: "x" } });
+  assert.equal(single.file.kind, "pdf");
 });
 
 test("files.create_many refuses a call over 25 MB in words, before any file is made", async () => {

@@ -1997,13 +1997,14 @@ interface PreparedFile {
   hash?: string;
 }
 
-async function prepareFile(ctx: Ctx, o: Record<string, unknown>): Promise<PreparedFile> {
+/** `textIsText`: a string is a text file whatever its name says (the batch call, which makes whole files from text). A single files.create keeps the name's kind: a mount makes a placeholder of text under the name of a document, and it opens in the document viewer. */
+async function prepareFile(ctx: Ctx, o: Record<string, unknown>, textIsText = false): Promise<PreparedFile> {
   const name = cleanName(ctx, reqStr(ctx, o, "name"));
   const content = parseContent(ctx, o.content);
   let mime = optStr(ctx, o, "mime") ?? guessMime(name, content.kind === "text" || content.kind === "empty");
   // text is text: a string written to report.pdf or data.xlsx is not a PDF or a workbook, so the name picks among the text types only and the kind comes from the content
   const givenKind = optStr(ctx, o, "kind");
-  const textBody = content.kind === "text";
+  const textBody = textIsText && content.kind === "text";
   if (textBody && optStr(ctx, o, "mime") === undefined && !TEXTLIKE_MIME.test(mime)) mime = "text/plain";
   let kind = chosenKind(ctx, givenKind, name, mime);
   if (textBody && givenKind === undefined && BINARY_KINDS.has(kind) && !TEXT_EXT.has(extOf(name))) kind = "text";
@@ -2091,7 +2092,7 @@ async function filesCreateMany(ctx: Ctx, input: unknown): Promise<{ files: FileO
   const prepared: PreparedFile[] = [];
   let total = 0;
   for (const one of list as unknown[]) {
-    const p = await prepareFile(ctx, rec(ctx, one));
+    const p = await prepareFile(ctx, rec(ctx, one), true);
     total += p.plain?.byteLength ?? 0;
     if (total > CREATE_MANY_BYTES)
       fail(

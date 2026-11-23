@@ -114,18 +114,6 @@ test(
       assert.equal(rows("files_blob"), blobsBefore, "a refused batch leaves no blob");
       assert.equal(rows("files_file WHERE name = 'fresh.txt'"), 0, "a refused batch leaves no file row");
       assert.equal(rows("files_file_version"), versionsBefore, "a refused batch leaves no version");
-      // a call that adds up to more than 25 MB is refused in words, before anything is written
-      const big = await call(w.d, "files.create_many", {
-        folderId,
-        files: Array.from({ length: 110 }, (_, i) => ({
-          name: `big-${i}.txt`,
-          content: { text: `${i}`.padEnd(250_000, "x") },
-        })),
-        idempotencyKey: "export-big",
-      });
-      assert.equal(big.status, 422, JSON.stringify(big.data).slice(0, 200));
-      assert.match(JSON.stringify(big.data), /25 MB/);
-      assert.equal(rows("files_blob"), blobsBefore, "the over-size call wrote nothing");
     } finally {
       await w.close();
     }
