@@ -123,11 +123,22 @@ export async function noteTitleChange(ctx: SearchCtx, types: readonly string[], 
     dropTitleField(ctx.space, type);
     const fresh = await titleFieldOf(ctx, type);
     const was = rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = ?", `tf:${type}`)[0]?.["v"];
-    if (was === undefined || str(was) === fresh) continue;
+    if (was === undefined) continue;
+    if (str(was) === fresh) {
+      // the title field went back to the one the documents were titled by: a pending re-titling towards the other one is started again towards this one (the pages it had done are titled by the other)
+      const pending = rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = ?", `retitle:${type}`)[0]?.["v"];
+      if (pending !== undefined)
+        ctx.db.run(
+          "UPDATE search_meta SET v = ? WHERE k = ?",
+          JSON.stringify({ to: fresh, after: "", seq }),
+          `retitle:${type}`,
+        );
+      continue;
+    }
     ctx.db.run(
       "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
       `retitle:${type}`,
-      JSON.stringify({ to: fresh, after: 0, seq }),
+      JSON.stringify({ to: fresh, after: "", seq }),
     );
     marked++;
   }
@@ -146,7 +157,7 @@ export function queueAllRetitles(ctx: SearchCtx): number {
     ctx.db.run(
       "INSERT OR IGNORE INTO search_meta (k, v) VALUES (?, ?)",
       `retitle:${str(r["t"])}`,
-      JSON.stringify({ to: "", after: 0, seq: 0 }),
+      JSON.stringify({ to: "", after: "", seq: 0 }),
     );
     n++;
   }
@@ -162,7 +173,7 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
   let done = 0;
   for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'retitle:%'")) {
     const type = str(m["k"]).slice("retitle:".length);
-    let p: { to: string; after: number; seq: number };
+    let p: { to: string; after: string | number; seq: number };
     try {
       p = JSON.parse(str(m["v"])) as typeof p;
     } catch {
@@ -171,9 +182,9 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
     }
     const docs = rowsOf(
       ctx.db,
-      "SELECT n, entity, id FROM search_docs WHERE record_type = ? AND n > ? ORDER BY n LIMIT ?",
+      "SELECT n, entity, id FROM search_docs WHERE record_type = ? AND id > ? ORDER BY id LIMIT ?",
       type,
-      p.after,
+      typeof p.after === "string" ? p.after : "", // by id, not by n: a document put in again gets a new n, and a page by n would meet it again and again
       RETITLE_PAGE,
     );
     const turn = turns(15);
@@ -196,9 +207,20 @@ export async function retitleRun(ctx: SearchCtx): Promise<number> {
         `tf:${type}`,
         to,
       );
+      // the title field may have moved again while the pages ran (A to B to A): what it is now is read fresh, and a different one starts the type over
+      dropTitleField(ctx.space, type);
+      const now = await titleFieldOf(ctx, type);
+      if (now !== "" && now !== to) {
+        ctx.db.run(
+          "UPDATE search_meta SET v = ? WHERE k = ?",
+          JSON.stringify({ to: now, after: "", seq: p.seq }),
+          str(m["k"]),
+        );
+        continue;
+      }
       ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
     } else {
-      p.after = num(docs[docs.length - 1]!["n"]);
+      p.after = str(docs[docs.length - 1]!["id"]);
       ctx.db.run("UPDATE search_meta SET v = ? WHERE k = ?", JSON.stringify(p), str(m["k"]));
     }
   }

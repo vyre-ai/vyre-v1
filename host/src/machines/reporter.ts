@@ -1,8 +1,7 @@
 // The report a daemon sends about its own computer (lane l-machines): the sampler over the real machine, what Vyre runs on it now (the daemon says), what it can run, its version. One reporter per
 // daemon: the Space server reads it for its own row, a person's device link and an added server send it over their socket every 30 seconds.
-import { execFile } from "node:child_process";
 import os from "node:os";
-import { dockerVersionOverSocket } from "../platform/index.ts";
+import { dockerUp as dockerUpQuick } from "../platform/index.ts";
 import type { Can, Report, Runs } from "./report.ts";
 import { buildReport, createSampler, realDeps } from "./sample.ts";
 import type { SampleDeps } from "./sample.ts";
@@ -31,17 +30,10 @@ function dockerNow(now: number): boolean {
   if (!dockerBusy && now - dockerAt > 5 * 60_000) {
     dockerBusy = true;
     dockerAt = now;
-    // Docker's socket first (no process is started from the daemon); the CLI only where there is no socket to ask
-    void dockerVersionOverSocket(4000).then((r) => {
-      if (r !== null) {
-        dockerUp = "version" in r;
-        dockerBusy = false;
-        return;
-      }
-      execFile("docker", ["info", "--format", "{{.ServerVersion}}"], { timeout: 4000 }, (e) => {
-        dockerUp = !e;
-        dockerBusy = false;
-      });
+    // Docker's socket first (no process is started while it answers); the CLI confirms only when it does not
+    void dockerUpQuick(4000).then((up) => {
+      dockerUp = up;
+      dockerBusy = false;
     });
   }
   return dockerUp;

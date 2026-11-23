@@ -127,3 +127,78 @@ test("records indexed before the update, whose type's title field changed meanwh
     `the field the documents were titled by is recorded (${JSON.stringify(h.d.db!.all("SELECT k, v FROM search_meta"))})`,
   );
 });
+
+test("a title field that goes A, B, A while the pages run ends with every document titled by A", async () => {
+  const made = await h.owner.call("schema.apply", {
+    idempotencyKey: "rt3-type",
+    ops: [
+      {
+        op: "type.create",
+        type: "retitle_back",
+        def: {
+          title: "Back",
+          plural: "Backs",
+          icon: "table",
+          titleField: "name",
+          fields: [
+            { key: "name", type: "text", title: "Name", required: true },
+            { key: "zalias", type: "text", title: "Zalias" },
+          ],
+        },
+      },
+    ],
+  });
+  assert.ok(made, JSON.stringify(made));
+  const rows = Array.from({ length: 250 }, (_, i) => ({ name: `Name ${i}`, zalias: `Alias ${i}` }));
+  for (let from = 0; from < rows.length; from += 125) {
+    const r = await h.owner.call("records.bulk_upsert", {
+      type: "retitle_back",
+      match: ["name"],
+      createOnly: true,
+      rows: rows.slice(from, from + 125),
+      idempotencyKey: `rt3-rows-${from}`,
+    });
+    assert.ok(r, JSON.stringify(r));
+  }
+  const titles = (): string[] =>
+    (h.d.db!.all("SELECT title FROM search_docs WHERE record_type = 'retitle_back'") as { title: string }[]).map(
+      (x) => x.title,
+    );
+  await waitFor(
+    async () => {
+      await h.d.hooks!.pump();
+      const t = titles();
+      return t.length === 250 && t.every((x) => x.startsWith("Name ")) ? true : null;
+    },
+    60_000,
+    "the 250 records are indexed under their names",
+  );
+  const change = async (titleField: string, key: string): Promise<void> => {
+    await h.owner.call("schema.apply", {
+      idempotencyKey: key,
+      ops: [{ op: "type.update", type: "retitle_back", def: { titleField } }],
+    });
+    await h.d.hooks!.pump();
+  };
+  await change("zalias", "rt3-b");
+  await h.d.hooks!.runPeriodic("search.retitle"); // one page of two: the type is part way through
+  assert.ok(
+    titles().some((x) => x.startsWith("Alias ")) && titles().some((x) => x.startsWith("Name ")),
+    "part way: some documents are titled by the new field",
+  );
+  await change("name", "rt3-a"); // back to the first
+  for (let i = 0; i < 10; i++) await h.d.hooks!.runPeriodic("search.retitle");
+  assert.ok(
+    titles().every((x) => x.startsWith("Name ")),
+    "every document is titled by the field the type has now",
+  );
+  const recorded = h.d.db!.all("SELECT v FROM search_meta WHERE k = 'tf:retitle_back'")[0] as
+    | { v?: string }
+    | undefined;
+  assert.equal(recorded?.v, "name");
+  assert.equal(
+    (h.d.db!.all("SELECT k FROM search_meta WHERE k LIKE 'retitle:retitle_back'") as unknown[]).length,
+    0,
+    "the re-titling ended: a document put in again is not met twice",
+  );
+});

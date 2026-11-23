@@ -50,18 +50,9 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   process.once("SIGTERM", () => abort.abort());
   process.once("SIGINT", () => abort.abort());
   const docker = async (): Promise<boolean> => {
-    // Docker's socket first: no process is started (and none is waited for with the loop held, as execFileSync did)
-    const { dockerVersionOverSocket } = await import("../platform/index.ts");
-    const viaSocket = await dockerVersionOverSocket(4000);
-    if (viaSocket !== null) return "version" in viaSocket;
-    try {
-      const { execFile } = await import("node:child_process");
-      return await new Promise<boolean>((resolve) =>
-        execFile("docker", ["info", "--format", "{{.ServerVersion}}"], { timeout: 4000 }, (e) => resolve(!e)),
-      );
-    } catch {
-      return false;
-    }
+    // Docker's socket first (no process is started while it answers); the CLI confirms only when it does not
+    const { dockerUp: up } = await import("../platform/index.ts");
+    return up(4000);
   };
   let dockerUp = await docker();
   const timer = setInterval(() => {
