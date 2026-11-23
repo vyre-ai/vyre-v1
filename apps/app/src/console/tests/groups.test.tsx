@@ -153,3 +153,14 @@ test("the Members tab reads every open invite, page after page, not only the fir
     ["inv_a", "inv_c"],
   );
 });
+
+test("a team with 250 open invites lists all of them: three pages are read, not the first 100", async () => {
+  const mk = (from: number, n: number) => Array.from({ length: n }, (_, i) => invite({ id: `inv_${from + i}` }));
+  const pages: Record<string, { invites: unknown[]; next?: string }> = {
+    c2: { invites: mk(100, 100), next: "c3" },
+    c3: { invites: mk(200, 50) },
+  };
+  const got = await readLaterInvites(async (_cap, input) => pages[String(input["cursor"])], "c2");
+  assert.equal(got.length, 150);
+  assert.equal(invitedIn([...mk(0, 100), ...got], "grp_review").length, 250);
+});
