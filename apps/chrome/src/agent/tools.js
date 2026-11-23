@@ -1072,7 +1072,7 @@ export function createTools(kit) {
 
     async chrome_resume(call, input, note) {
       // the person's take-over is theirs to end (the bar's Give back), and their Stop only ends when they have written to the agent since
-      const refused = sessions.resumeRefusal(call.agent.id, input["personLineAgeMs"]);
+      const refused = sessions.resumeRefusal(call.agent.id, input["turnMessageAgeMs"]);
       if (refused) fail(refused);
       const was = await sessions.resume(call.agent.id);
       note(was ? "resumed" : "was not stopped");

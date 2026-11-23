@@ -16,7 +16,7 @@ import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
 import { MY_CHROME, pageOf, call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
-import { personLineAgeMs } from "./my-chrome-ask.ts";
+import { turnMessageAgeMs } from "./my-chrome-ask.ts";
 import type { ToolAnswer, ToolArgs, ToolSpec } from "./common.ts";
 
 interface Base {
@@ -474,7 +474,7 @@ export async function resume(
     input,
     { name: "chrome_resume", caption: () => "Resumed the browser", noWake: true, asleep: { resumed: false } },
     // in the person's own Chrome, whether the agent may go on after a Stop is decided there, from when the person last wrote to it: the Space says when (the agent cannot)
-    whereOf(input) === MY_CHROME ? defined({ personLineAgeMs: await personLineAgeMs(ctx) }) : {},
+    whereOf(input) === MY_CHROME ? defined({ turnMessageAgeMs: await turnMessageAgeMs(ctx) }) : {},
   );
   return shape(ctx, "chrome_resume", out, { resumed: "b" });
 }

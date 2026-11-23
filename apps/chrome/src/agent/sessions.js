@@ -502,7 +502,7 @@ export function createSessions({
     },
     /**
      * May the agent's own chrome_resume lift the pause it is under? A pause the agent made itself, yes. A person's take-over, never (only the bar's Give back ends it). A person's Stop or Esc, only when the person wrote
-     * to the agent after the pause: the Space says how long ago the person's newest line in the chat was sent, and that line must be newer than the pause. Returns the failure code, or null.
+     * to the agent after the pause: the Space says how long ago the person's message that started this turn was sent, and it must be newer than the pause. Returns the failure code, or null.
      * @param {string} agentId @param {unknown} lineAgeMs
      */
     resumeRefusal(agentId, lineAgeMs) {

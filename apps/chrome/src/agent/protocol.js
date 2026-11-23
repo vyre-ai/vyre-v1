@@ -97,8 +97,8 @@ const SHAPES = {
   chrome_state: { tabId: "s?" },
   chrome_status: {},
   chrome_stop: { reason: "s?" },
-  // personLineAgeMs: how long ago the person's newest line in the chat was sent; only the Space sets it (the agent's own input never reaches this field)
-  chrome_resume: { personLineAgeMs: "n?" },
+  // turnMessageAgeMs: how long ago the person's message that started this turn was sent (none for a routine, wake or resumed turn); only the Space sets it (the agent's own input never reaches this field)
+  chrome_resume: { turnMessageAgeMs: "n?" },
   chrome_send: { heldId: "s", edits: "o?" },
   chrome_batch: { tabId: "s?", steps: "a" },
   chrome_plan: { goal: "s", steps: "a?" },

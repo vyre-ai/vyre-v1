@@ -102,7 +102,8 @@ export interface Ctx {
   run?: string;
   thread?: string;
   /** why the engine started the turn an agent's call is made in: message, wake (the engine woke the agent: the baton, a Routine, a nudge), resume (a held call was answered), interrupt, handoff. Absent when unknown. */
-  turn?: { kind: string };
+  /** `messageId` and its author: the message that started a "message" or "interrupt" turn, from the engine's own record (never from a caller). */
+  turn?: { kind: string; messageId?: string; authorKind?: string; authorId?: string };
   origin: string;
   depth: number;
   /** this call was forwarded for its caller by another module (CallOpts.asCaller): it carries the caller's standing, not that module's */

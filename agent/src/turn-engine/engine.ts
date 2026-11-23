@@ -1236,7 +1236,15 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     pendingCause.delete(pendingKey);
     sweepPendingCause(st.thread.id);
     const cause = wait ? (wait.cause ?? "resume") : (parkedCause ?? item.kind);
-    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, cause);
+    // the message that started a plain message or interrupt turn, from the queue row and the stored message (never from words)
+    const startedBy =
+      !wait && !parkedCause && (item.kind === "message" || item.kind === "interrupt") && item.messageId
+        ? (() => {
+            const m = findMessage(st, item.messageId);
+            return m ? { messageId: item.messageId!, authorKind: m.author.kind, authorId: m.author.id } : undefined;
+          })()
+        : undefined;
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, cause, startedBy);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,

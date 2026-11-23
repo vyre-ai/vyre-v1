@@ -169,7 +169,7 @@ test(
       await r.waitFor(() => eventsOf("stopped").some((e) => e["by"] === "person"), 5000, "stopped by the person");
       await assert.rejects(call("chrome_snapshot"), (e: any) => e.code === "paused");
       await assert.rejects(call("chrome_resume"), (e: any) => e.code === "person_stopped");
-      await call("chrome_resume", { personLineAgeMs: 10 }); // the person wrote to the agent just now, after the Stop
+      await call("chrome_resume", { turnMessageAgeMs: 10 }); // the person wrote to the agent just now, after the Stop
 
       // Esc
       await call("chrome_snapshot");

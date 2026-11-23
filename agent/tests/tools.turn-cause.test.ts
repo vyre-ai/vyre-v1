@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createToolSession } from "../src/tools/index.ts";
 import { ctx, loadGenerated } from "../src/tools/harness.ts";
-import { noteTurnStart, turnCauseOf } from "../src/tools/turn-start.ts";
+import { noteTurnStart, turnCauseOf, turnTriggerOf } from "../src/tools/turn-start.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 
 function rig() {
@@ -161,4 +161,49 @@ test("a wake that answers a held call and is dropped before it runs leaves no pe
   e.wake("TD", "intake", { answers: "tsk_ran" });
   await e.idle("TD");
   assert.equal(e.pendingWakeCauses(), 0, "a wake that ran leaves none");
+});
+
+test("the message that started a turn (its id and author) reaches the capability with the cause; a wake, a routine or a turn noted without one has no message", async () => {
+  const r = rig();
+  const call = () =>
+    r.session.call(ctx({ thread: { threadId: "thr_cause", kind: "chat", planMode: false } }), "tasks_get", {
+      taskId: "tsk_a1b2c3",
+    });
+  noteTurnStart("thr_cause", "agt_intake", 1, "message", { messageId: "msg_1", authorKind: "person", authorId: "usr_dana" });
+  await call();
+  assert.deepEqual(r.seeds[0]!.turn, { kind: "message", messageId: "msg_1", authorKind: "person", authorId: "usr_dana" });
+  noteTurnStart("thr_cause", "agt_intake", 2, "wake");
+  await call();
+  assert.deepEqual(r.seeds[1]!.turn, { kind: "wake" });
+  assert.equal(turnTriggerOf("thr_cause", "agt_intake"), undefined);
+});
+
+test("the engine notes the message that started a message turn, and none for a wake", async () => {
+  const { createTurnEngine, scriptedProvider } = await import("../src/turn-engine/index.ts");
+  const { until } = await import("../src/turn-engine/harness.ts");
+  const seen: Array<{ cause?: string | undefined; by?: string | undefined; kind?: string | undefined }> = [];
+  const p = scriptedProvider({
+    script: [{ type: "tool_call", id: "c1", name: "read_prices", input: {} }, { type: "done" }],
+  });
+  const e = createTurnEngine({
+    holder: "host:a",
+    openSession: p.openSession,
+    toolSafety: () => "read",
+    callTool: async () => {
+      const t = turnTriggerOf("TM", "intake");
+      seen.push({ cause: turnCauseOf("TM", "intake"), by: t?.authorId, kind: t?.authorKind });
+      return { ok: true, content: {} };
+    },
+  });
+  e.openThread({ id: "TM", kind: "chat", starter: "dana", agents: [{ id: "intake", mode: "lead" }] });
+  e.receive({ threadId: "TM", author: { kind: "person", id: "dana" }, body: "Go" });
+  await until(() => seen.length === 1);
+  await e.idle("TM");
+  e.wake("TM", "intake");
+  await until(() => seen.length === 2);
+  await e.idle("TM");
+  assert.deepEqual(seen, [
+    { cause: "message", by: "dana", kind: "person" },
+    { cause: "wake", by: undefined, kind: undefined },
+  ]);
 });

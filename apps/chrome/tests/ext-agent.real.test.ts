@@ -555,7 +555,7 @@ test(
           await r.page.screenshot({ path: path.join(OUT, `agent-frame-paused-${scheme}.png`) });
           await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
           await assert.rejects(r.call("chrome_resume"), (e: any) => e.code === "person_stopped");
-          await r.call("chrome_resume", { personLineAgeMs: 10 }); // the person wrote to the agent just now
+          await r.call("chrome_resume", { turnMessageAgeMs: 10 }); // the person wrote to the agent just now
           assert.equal(await r.overlayState(), null, "answered: the frame is gone");
 
           // Stop, from the bar itself
@@ -752,7 +752,7 @@ test(
       await r.page.keyboard.press("Enter");
       await new Promise((res) => setTimeout(res, 300));
       assert.equal((await r.call("chrome_status")).paused, true, "a person's Enter pressed Stop");
-      await r.call("chrome_resume", { personLineAgeMs: 10 });
+      await r.call("chrome_resume", { turnMessageAgeMs: 10 });
       await new Promise((res) => setTimeout(res, 300));
       assert.equal(await r.page.evaluate("window.__net"), 0, "no listener of the bar is left on the window");
     } finally {

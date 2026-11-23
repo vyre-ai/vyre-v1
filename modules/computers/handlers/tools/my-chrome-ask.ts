@@ -28,6 +28,7 @@ interface Line {
   author?: { kind?: string; id?: string };
   body?: string;
   threadSeq?: number;
+  messageId?: string;
   kind?: string;
   via?: unknown;
   createdAt?: number;
@@ -50,24 +51,29 @@ export async function askedThisTurn(ctx: Pick<CompCtx, "call" | "thread" | "acti
 }
 
 /**
- * How long ago the person this turn works for last wrote in this chat, for Vyre for Chrome to compare with when the person stopped the agent: the agent may go on after a Stop only if the person wrote after it.
- * Read from the thread's own lines (who wrote, when), never from what the agent says or what the line means: a line a routine posted for them, an agent's line, and a system line do not count. Undefined when
- * there is no chat, nobody to work for, or no such line.
+ * How long ago the message that started this turn was sent, for Vyre for Chrome to compare with when the person stopped the agent: the agent may go on after a Stop only if a person's own message started this turn
+ * after it. Read from the engine's record of the turn (ctx.turn: a "message" turn, its message id, the author a person and the person this turn acts for) and the stored message (plain text, not posted by a routine),
+ * never from what the agent says or what a line means. A routine, wake, resumed or agent-started turn has none: undefined, and nothing is claimed.
  */
-export async function personLineAgeMs(ctx: Pick<CompCtx, "call" | "thread" | "actingFor" | "now">): Promise<number | undefined> {
-  if (!ctx.thread || !ctx.actingFor) return undefined;
+export async function turnMessageAgeMs(
+  ctx: Pick<CompCtx, "call" | "thread" | "actingFor" | "now" | "turn">,
+): Promise<number | undefined> {
+  const t = ctx.turn;
+  if (!ctx.thread || !ctx.actingFor || !t || t.kind !== "message" || !t.messageId) return undefined;
+  if (t.authorKind !== "person" || t.authorId !== ctx.actingFor) return undefined;
   try {
-    const page = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 12 })) as { messages?: Line[] };
-    const mine = (page.messages ?? []).filter(
-      (m) =>
-        m.author?.kind === "person" &&
-        m.author.id === ctx.actingFor &&
-        (m.kind === undefined || m.kind === "text") &&
-        m.via === undefined &&
-        typeof m.createdAt === "number",
-    );
-    const last = mine.reduce<Line | undefined>((a, m) => (a === undefined || m.createdAt! >= a.createdAt! ? m : a), undefined);
-    return last === undefined ? undefined : Math.max(0, ctx.now() - last.createdAt!);
+    const page = (await ctx.call("chat.messages.list", { threadId: ctx.thread, limit: 30 })) as { messages?: Line[] };
+    const m = (page.messages ?? []).find((x) => x.messageId === t.messageId);
+    if (
+      !m ||
+      m.author?.kind !== "person" ||
+      m.author.id !== ctx.actingFor ||
+      (m.kind !== undefined && m.kind !== "text") ||
+      m.via !== undefined ||
+      typeof m.createdAt !== "number"
+    )
+      return undefined;
+    return Math.max(0, ctx.now() - m.createdAt);
   } catch {
     return undefined;
   }
