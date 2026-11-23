@@ -1,6 +1,6 @@
 # vault.request
 
-Ask for a missing key: a task for the folder's managers (or the Space's) and the status; a manager asking gets the item made empty at once (placeholder true), nobody asked
+Ask for a missing key: a task for the folder's managers and the status; a manager gets an empty item at once
 
 | | |
 |---|---|
