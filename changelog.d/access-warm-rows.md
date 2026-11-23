@@ -1,0 +1,1 @@
+- The rows people are served (who may see what) are built ten seconds after a start, once, so the first list of Files after a restart no longer waits for the first build (about a second of CPU on a Space of 40,000 resources).
