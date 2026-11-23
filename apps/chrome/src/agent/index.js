@@ -35,7 +35,7 @@ function randomRef(n) {
 /**
  * Build the agent control around a browser API. `ext` is `chrome` (or a fake in tests).
  * @param {any} ext
- * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, restoreWaitMs?: number, restore?: (s: any) => Promise<void> }} [o] restoreWaitMs and restore are for tests: how long a call waits for the saved pauses, and a restore of their own
+ * @param {{ transport?: ReturnType<typeof createTransport>, activeSpace?: () => Promise<string | null>, now?: () => number, sleep?: (ms: number) => Promise<void>, settleMs?: number, idleMs?: number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, restoreWaitMs?: number, restoreRetryMs?: number, restore?: (s: any) => Promise<void> }} [o] restoreWaitMs and restore are for tests: how long a call waits for the saved pauses, and a restore of their own
  */
 const BAR_BUTTONS = new Set(["stop", "takeover", "giveback", "endtask", "openvyre"]);
 
@@ -92,21 +92,31 @@ export function createAgentControl(ext, o = {}) {
   });
 
   // the worker may have been stopped and started again since the person's Stop or take-over: their pause is read back before any call of an agent is answered
-  let restoredDone = false;
-  // The wait is capped at two seconds so a storage fault cannot hold the channel open, and it fails closed: while the pauses are still being read back, agent calls are refused as paused (the bar still works),
-  // never allowed. The restore goes on in the background and lifts the refusal when it is done.
+  // The wait is capped at two seconds so nothing holds the channel open, and it fails closed: until the saved pauses are known, agent calls are refused as paused (chrome_status still answers), never allowed.
+  // A restore that fails or never answers is tried again until it works, and never starts empty. The person is never locked out: their press of the bar's Give back, Resume or End task while it is pending frees the
+  // agent at once (they have said so), and is applied again to what the restore finds when it comes in late. Presses on the bar during the wait are queued, not dropped.
   let restoring = true;
+  /** @type {Array<() => void>} */
+  const queued = [];
+  let restoreOk = false;
   const restored = new Promise((resolve) => {
     const t = setTimeout(resolve, o.restoreWaitMs ?? 2000);
-    (o.restore ? o.restore(sessions) : sessions.restore())
-      .catch(() => {})
-      .finally(() => {
-        restoring = false;
-        clearTimeout(t);
-        resolve(undefined);
-      });
-  }).then(() => {
-    restoredDone = true;
+    const attempt = () => {
+      Promise.resolve(o.restore ? o.restore(sessions) : sessions.restore()).then(
+        () => {
+          restoreOk = true;
+          restoring = false;
+          clearTimeout(t);
+          resolve(undefined);
+          for (const f of queued.splice(0)) f();
+        },
+        () => {
+          const again = /** @type {any} */ (setTimeout(attempt, o.restoreRetryMs ?? 500));
+          again?.unref?.(); // a test process may end while storage is still broken; the browser gives no such handle
+        },
+      );
+    };
+    attempt();
   });
 
   cdp.allowOnly((tabId) => sessions.driverOf(tabId) !== null);
@@ -266,8 +276,12 @@ export function createAgentControl(ext, o = {}) {
     };
     // a press that comes while the pauses are still being read back waits for them; afterwards it is handled at once
     port.onMessage.addListener((/** @type {any} */ m) => {
-      if (restoredDone) onBar(m);
-      else void restored.then(() => onBar(m));
+      if (restoreOk) {
+        onBar(m);
+        return;
+      }
+      queued.push(() => onBar(m));
+      if (m && (m.type === "giveback" || m.type === "endtask")) restoring = false;
     });
   });
   // Chrome's own "stop debugging" bar is a Stop too; a tab that closes simply ends its session.

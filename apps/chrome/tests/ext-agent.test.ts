@@ -14,6 +14,7 @@ import { MASK, bareUrl, maskBody, maskHeaders, maskJson, maskText, maskUrl, scru
 import { BATCHABLE, TOOLS, WORDS, AgentFailure, checkInput, parseCommand } from "../src/agent/protocol.js";
 import { parseKey, isPublicUrl, DATA_LABEL } from "../src/agent/tools.js";
 import { createAgentControl } from "../src/agent/index.js";
+import { createSessions } from "../src/agent/sessions.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.resolve(ROOT, "..", "..");
@@ -2089,6 +2090,78 @@ test("while the saved pauses are still being read back, agent calls are refused 
   finish();
   await new Promise((res) => setTimeout(res, 30));
   assert.match((await r.call("chrome_snapshot")).tree, /Email|Sign in|\w/, "the restore is done: calls run again");
+});
+
+test("a restore that never finishes, or keeps failing, refuses the agent (chrome_resume too), retries, and never starts empty: the person's Stop is still there when storage comes back", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  overlayPort(w).send({ type: "stop" });
+  await w.advance(0);
+  await w.advance(1000);
+  const good = w.ext.storage.session;
+  let broken = 1e9; // every read fails until the storage "comes back" below
+  let hang = false;
+  w.ext.storage.session = {
+    get: (keys: string[]) => (hang ? new Promise(() => {}) : broken-- > 0 ? Promise.reject(new Error("storage fault")) : good.get(keys)),
+    set: (x: any) => good.set(x),
+  };
+  const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
+  for (const tool of ["chrome_snapshot", "chrome_resume"])
+    await assert.rejects(r.call(tool, tool === "chrome_resume" ? { turnMessageAgeMs: 5000 } : {}), (e: any) => e.code === "paused", `${tool}: refused while the restore fails`);
+  assert.ok((await r.call("chrome_status")).connected !== undefined);
+  broken = 0;
+  await new Promise((res) => setTimeout(res, 80));
+  // storage is back: the Stop that was kept is there, not an empty start
+  await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+  await assert.rejects(r.call("chrome_resume", { turnMessageAgeMs: 5000 }), (e: any) => e.code === "person_stopped");
+  // and one that never answers at all keeps refusing
+  const w2 = await ready();
+  await w2.call("chrome_snapshot");
+  w2.ext.storage.session = { get: () => new Promise(() => {}), set: async () => {} };
+  const r2 = await w2.restartWorker({ restoreWaitMs: 20 });
+  await new Promise((res) => setTimeout(res, 60));
+  await assert.rejects(r2.call("chrome_snapshot"), (e: any) => e.code === "paused", "stuck storage: still refused after the cap");
+  void hang;
+});
+
+test("with storage broken the person is never locked out: Give back on the bar frees the agent at once; a bar press during the wait is queued and applied to what a late restore finds; a late restore never overwrites a live pause", async () => {
+  // storage broken for good: the bar frees the agent
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  w.ext.storage.session = { get: () => Promise.reject(new Error("storage fault")), set: async () => {} };
+  const r = await w.restartWorker({ restoreWaitMs: 20, restoreRetryMs: 5 });
+  await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
+  overlayPort(w).send({ type: "giveback" });
+  await w.advance(0);
+  assert.match((await r.call("chrome_snapshot")).tree, /\w/, "the person freed the agent from the bar");
+  // a take-over, a slow restore, a Give back pressed during the wait: queued, then applied when the restore comes in
+  const w3 = await ready();
+  await w3.call("chrome_snapshot");
+  overlayPort(w3).send({ type: "takeover" });
+  await w3.advance(0);
+  await w3.advance(100);
+  let finish: () => void = () => {};
+  const r3 = await w3.restartWorker({
+    restoreWaitMs: 20,
+    restore: (s: any) => new Promise<void>((res) => (finish = () => s.restore().then(res))),
+  });
+  overlayPort(w3).send({ type: "giveback" });
+  await w3.advance(0);
+  finish();
+  await new Promise((res) => setTimeout(res, 30));
+  await w3.advance(50);
+  assert.equal((await r3.call("chrome_status")).paused, false, "the queued Give back was applied to the restored take-over");
+  // a late restore never overwrites a pause that is already live
+  const sessions = createSessions({
+    ext: w3.ext,
+    cdp: { detach: async () => {} },
+    traffic: { forget() {} },
+    emit() {},
+    keep: { load: async () => ({ pauses: [{ agent: "agt_x", by: "person", at: 1 }], bars: [] }), save: async () => {} },
+  });
+  await sessions.pause("agt_x", "tool");
+  await sessions.restore();
+  assert.equal(sessions.pausedFor("agt_x")?.by, "tool", "the live pause stays as it is");
 });
 
 test("a Stop is kept when its tab closed while the worker slept (the person's message lifts it); a take-over whose tab closed is a hand-back and is dropped", async () => {

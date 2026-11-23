@@ -29,14 +29,11 @@ function valid(v) {
 export function createPauseKeep(area) {
   return {
     /** @returns {Promise<Kept | null>} */
+    /** Nothing kept (or a record that cannot be read) is null; a storage that fails to answer throws, so the caller keeps refusing and tries again instead of starting empty. */
     async load() {
       if (!area) return null;
-      try {
-        const raw = await area.get([KEY]);
-        return valid(raw[KEY]) ? raw[KEY] : null;
-      } catch {
-        return null;
-      }
+      const raw = await area.get([KEY]);
+      return valid(raw[KEY]) ? raw[KEY] : null;
     },
     /** @param {Kept} rec */
     async save(rec) {

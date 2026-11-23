@@ -5,3 +5,4 @@ An interrupt you start with your own words lifts your Stop like a message does, 
 Your Stop or take-over of a tab now survives Chrome restarting the extension's background worker: the agent stays stopped and the bar's Give back still works.
 A Stop of yours is kept even if you close its tab; closing the tab of a take-over counts as giving it back.
 While the extension is still reading back your Stop after a restart, the agent's calls are refused rather than allowed.
+If Chrome's storage fails after the extension restarts, the agent stays stopped and the extension keeps trying; pressing Give back or Resume on the bar still frees it.
