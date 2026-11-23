@@ -234,44 +234,66 @@ function relinkFar(
 
 /** How many far records are written between two turns of the event loop, and one chunk's worth of owed rows read at a time. */
 const FAR_CHUNK = 200;
+/** A write to a far record that fails this many times is parked: never tried again, and said once. */
+const FAR_TRIES = 5;
+/** A record that stays over the most links is said again after this long, or sooner when its count changes. */
+const FAR_NOTICE_MS = 24 * 3600 * 1000;
 interface OwedRow {
-  ftype: string;
-  fid: string;
-  inverse: string;
   urn: string;
   add_link: number;
 }
+interface FarOutcome {
+  /** records that would hold more links than a record may and that were not said already (new, or their count changed, or a day has passed) */
+  over: { type: string; id: string; inverse: string; links: number }[];
+  /** records whose write failed FAR_TRIES times and are parked now */
+  parked: { type: string; id: string; inverse: string; why: string }[];
+}
 
-/** Writes what is owed to the far ends of this binding's relations: one read and one write for each far record, however many links it gains or loses, in chunks of FAR_CHUNK records, and the owed rows of a record are
- * removed once its write has gone through. A record that would hold more links than a record may (MAX_LINKS) is not changed, stays owed, and is named: nothing is dropped without being said. */
+/** Writes what is owed to the far ends of this binding's relations: one read and one write for each far record, however many links it gains or loses, in chunks of FAR_CHUNK records (a keyset over the owed index, so a big owed
+ * set is never read whole), and the owed rows of a record are removed once its write has gone through. A record that would hold more links than a record may (MAX_LINKS) is not changed and stays owed; nothing is dropped without being said.
+ * A write that fails is counted and, at FAR_TRIES, parked. `verify`: an add whose linking record is gone since it was noted is dropped, not written (set for what an earlier pass left). */
 async function writeFar(
   d: SyncDeps,
   syncTypeId: string,
   skip: (what: string, e: unknown) => void,
   turn: () => Promise<void>,
-): Promise<{ type: string; id: string; inverse: string; links: number }[]> {
-  const over: { type: string; id: string; inverse: string; links: number }[] = [];
-  const skippedKeys = new Set<string>();
+  verify: boolean,
+): Promise<FarOutcome> {
+  const out: FarOutcome = { over: [], parked: [] };
+  let after = { ftype: "", fid: "", inverse: "" };
   for (;;) {
-    // the next chunk of far records that are owed something (a record seen as over, or one that failed, is left for the next pass)
-    const heads = d.tx
-      .all<{ ftype: string; fid: string; inverse: string }>(
-        "SELECT DISTINCT ftype, fid, inverse FROM sy_far_owed WHERE sync_type = ? ORDER BY ftype, fid, inverse",
-        syncTypeId,
-      )
-      .filter((h) => !skippedKeys.has(`${h.ftype}|${h.fid}|${h.inverse}`))
-      .slice(0, FAR_CHUNK);
+    const heads = d.tx.all<{ ftype: string; fid: string; inverse: string }>(
+      "SELECT DISTINCT ftype, fid, inverse FROM sy_far_owed WHERE sync_type = ? AND parked = 0 AND (ftype, fid, inverse) > (?, ?, ?) ORDER BY ftype, fid, inverse LIMIT ?",
+      syncTypeId,
+      after.ftype,
+      after.fid,
+      after.inverse,
+      FAR_CHUNK,
+    );
     if (!heads.length) break;
     for (const h of heads) {
       await turn();
-      const key = `${h.ftype}|${h.fid}|${h.inverse}`;
+      after = h;
       try {
-        const rows = d.tx.all<OwedRow>(
-          "SELECT ftype, fid, inverse, urn, add_link FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ?",
+        let rows = d.tx.all<OwedRow>(
+          "SELECT urn, add_link FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0",
           h.ftype,
           h.fid,
           h.inverse,
         );
+        if (verify) {
+          // a record that was linked and has been deleted since: its link is not added to the far record
+          const keep: OwedRow[] = [];
+          for (const r of rows) {
+            if (!r.add_link) keep.push(r);
+            else {
+              const [t, id] = r.urn.split("/").slice(-2);
+              if (t && id && (await d.local.get(t, id))) keep.push(r);
+              else d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND urn = ?", h.ftype, h.fid, h.inverse, r.urn);
+            }
+          }
+          rows = keep;
+        }
         const rec = await d.local.get(h.ftype, h.fid);
         if (rec) {
           const list = Array.isArray(rec.data[h.inverse]) ? (rec.data[h.inverse] as { urn?: string }[]) : [];
@@ -285,20 +307,40 @@ async function writeFar(
               changed = true;
             }
           if (next.length > MAX_LINKS) {
-            over.push({ type: h.ftype, id: h.fid, inverse: h.inverse, links: next.length });
-            skippedKeys.add(key);
+            const said = d.tx.get<{ links: number; at: number }>(
+              "SELECT links, at FROM sy_far_notice WHERE ftype = ? AND fid = ? AND inverse = ?",
+              h.ftype,
+              h.fid,
+              h.inverse,
+            );
+            if (!said || said.links !== next.length || now(d) - said.at >= FAR_NOTICE_MS) {
+              out.over.push({ type: h.ftype, id: h.fid, inverse: h.inverse, links: next.length });
+              d.tx.run(
+                "INSERT OR REPLACE INTO sy_far_notice (ftype, fid, inverse, links, at) VALUES (?, ?, ?, ?, ?)",
+                h.ftype,
+                h.fid,
+                h.inverse,
+                next.length,
+                now(d),
+              );
+            }
             continue;
           }
           if (changed) await d.local.update(h.ftype, rec.id, { [h.inverse]: next }, rec.version);
         }
-        d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
+        d.tx.run("DELETE FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse);
+        d.tx.run("DELETE FROM sy_far_notice WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
       } catch (e) {
-        skippedKeys.add(key);
-        skip(`the ${h.inverse} of ${h.ftype} ${h.fid}`, e);
+        d.tx.run("UPDATE sy_far_owed SET attempts = attempts + 1 WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse);
+        const tries = d.tx.get<{ n: number }>("SELECT max(attempts) AS n FROM sy_far_owed WHERE ftype = ? AND fid = ? AND inverse = ? AND parked = 0", h.ftype, h.fid, h.inverse)?.n ?? 0;
+        if (tries >= FAR_TRIES) {
+          d.tx.run("UPDATE sy_far_owed SET parked = 1 WHERE ftype = ? AND fid = ? AND inverse = ?", h.ftype, h.fid, h.inverse);
+          out.parked.push({ type: h.ftype, id: h.fid, inverse: h.inverse, why: msgOf(e) });
+        } else skip(`the ${h.inverse} of ${h.ftype} ${h.fid}`, e);
       }
     }
   }
-  return over;
+  return out;
 }
 
 const HISTORY_SQL =
@@ -742,7 +784,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     log(d, b.syncTypeId, "error", `skipped ${what}: ${msgOf(e)}`, runId, o.traceId);
   };
   // what an earlier pass owed to the far ends and did not write (it stopped, or a record was busy) is written first
-  await writeFar(d, b.syncTypeId, skip, turn);
+  await writeFar(d, b.syncTypeId, skip, turn, true);
   for (const c of creates) {
     await turn();
     try {
@@ -771,13 +813,19 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
       skip(`record ${a.localId}`, e);
     }
   }
-  const over = await writeFar(d, b.syncTypeId, skip, turn);
+  const { over, parked } = await writeFar(d, b.syncTypeId, skip, turn, false);
+  // new trouble only: a record that stays over the most links is said once a day or when its count changes (and counts as skipped then), a write that gave up is said once, when it is parked
   for (const x of over) {
     rep.skipped++;
     log(d, b.syncTypeId, "error", `${x.inverse} of ${x.type} ${x.id} would hold ${x.links} links, more than the ${MAX_LINKS} a record may hold: its links were not changed`, runId, o.traceId);
   }
+  for (const x of parked) {
+    rep.skipped++;
+    log(d, b.syncTypeId, "error", `the links owed to ${x.inverse} of ${x.type} ${x.id} could not be written after ${FAR_TRIES} tries and are set aside: ${x.why}`, runId, o.traceId);
+  }
   if (over.length)
     rep.summary += ` ${over.length} ${over.length === 1 ? "record" : "records"} at the other end of a link would hold more than ${MAX_LINKS} links and ${over.length === 1 ? "was" : "were"} not changed: ${over.slice(0, 3).map((x) => `${x.type} ${x.id} (${x.links})`).join(", ")}.`;
+  if (parked.length) rep.summary += ` ${parked.length} ${parked.length === 1 ? "record" : "records"} at the other end of a link could not be written and ${parked.length === 1 ? "was" : "were"} set aside.`;
   for (const l of losses) keepLoser(d, b.type, l.localId, l.field, l.value, l.actor);
   for (const l of vanished) if (!rep.pausedDeletes) saveLink(d.tx, b.syncTypeId, { ...l, removedAt: now(d) });
 

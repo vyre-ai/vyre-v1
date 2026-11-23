@@ -79,9 +79,14 @@ export function ensureTables(tx: Tx): void {
   // an outbox made before pushes named who asked for them gains the column
   if (!tx.all<{ name: string }>("PRAGMA table_info(sy_outbox)").some((c) => c.name === "by_actor"))
     tx.exec("ALTER TABLE sy_outbox ADD COLUMN by_actor TEXT");
-  // what a pass owes the far end of a two-way relation, kept until it is written: a process that stops between a record's links and the far end's write loses nothing
+  // what a pass owes the far end of a two-way relation, kept until it is written: a process that stops between a record's links and the far end's write loses nothing.
+  // `attempts` counts the writes that failed; at 5 the row is parked (never tried again, said once). `sy_far_notice` remembers what was said about a record that stays over the most links, so it is said once a day or when its count changes.
   tx.exec(
-    "CREATE TABLE IF NOT EXISTS sy_far_owed (ftype TEXT NOT NULL, fid TEXT NOT NULL, inverse TEXT NOT NULL, urn TEXT NOT NULL, add_link INTEGER NOT NULL, sync_type TEXT NOT NULL, PRIMARY KEY (ftype, fid, inverse, urn))",
+    "CREATE TABLE IF NOT EXISTS sy_far_owed (ftype TEXT NOT NULL, fid TEXT NOT NULL, inverse TEXT NOT NULL, urn TEXT NOT NULL, add_link INTEGER NOT NULL, sync_type TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, parked INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (ftype, fid, inverse, urn))",
+  );
+  tx.exec("CREATE INDEX IF NOT EXISTS sy_far_owed_sync ON sy_far_owed (sync_type, parked, ftype, fid, inverse)");
+  tx.exec(
+    "CREATE TABLE IF NOT EXISTS sy_far_notice (ftype TEXT NOT NULL, fid TEXT NOT NULL, inverse TEXT NOT NULL, links INTEGER NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (ftype, fid, inverse))",
   );
   ready.add(tx);
 }

@@ -149,3 +149,106 @@ test("a pass that stops between a record's links and the far end's write loses n
   assert.equal((after.data["persons"] as unknown[]).length, 450, "every inverse link is present");
   assert.equal(l.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_far_owed")!.n, 0, "nothing is owed any more");
 });
+
+async function kit2() {
+  const clock = { t: 1000 };
+  const l = openRecordStore({ path: ":memory:", space: "sp_local", clock: () => clock.t });
+  const r = openRecordStore({ path: ":memory:", space: "sp_remote", clock: () => clock.t });
+  await l.store.define({ add_types: [ORG, PERSON] });
+  await r.store.define({ add_types: [R_ORG, R_PERSON] });
+  openSources({ tx: l.host.tx, now: () => clock.t });
+  const logs: string[] = [];
+  const deps = (): SyncDeps => ({ local: l.store, remote: r.store, tx: l.host.tx, space: "sp_local", now: () => clock.t, emit: () => undefined });
+  const owedCount = () => l.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_far_owed")!.n;
+  const errorsLogged = () => l.host.tx.all<{ summary: string }>("SELECT summary FROM sy_log WHERE kind = 'error'").map((x) => x.summary);
+  return { clock, l, r, deps, logs, owedCount, errorsLogged };
+}
+const failOrgWrites = (l: ReturnType<typeof openRecordStore>, on: { v: boolean }, calls: { n: number }) => {
+  const real = l.store.update.bind(l.store);
+  l.store.update = (async (type: string, id: string, patch: Record<string, unknown>, version: number) => {
+    if (type === "org") calls.n++;
+    if (on.v && type === "org") throw new Error("this record cannot take it");
+    return real(type, id, patch, version);
+  }) as typeof l.store.update;
+};
+
+test("a record that stays over the most links is said when it first happens, again when its count changes or a day has passed, and not on every pass", { timeout: 120_000 }, async () => {
+  const k = await kit2();
+  const remoteOrg = (await k.r.store.create("r_org", mintRecordId(), { "/name": "Full Org" })).id;
+  await runSync(k.deps(), ORG_B, {});
+  const org = (await k.l.store.query("org", { page: { limit: 10 } })).rows[0]!;
+  const full = Array.from({ length: MAX_LINKS }, (_, i) => ({ urn: `vyre://sp_local/person/p${i}` }));
+  await k.l.store.update("org", org.id, { persons: full }, (await k.l.store.get("org", org.id))!.version);
+  await k.r.store.create("r_person", mintRecordId(), { "/name": "Late 1", "/org": remoteOrg });
+  const first = await runSync(k.deps(), PERSON_B, {});
+  assert.equal(first.skipped, 1);
+  assert.match(first.summary, /would hold more than/);
+  const second = await runSync(k.deps(), PERSON_B, {});
+  assert.equal(second.skipped, 0, "a standing over-cap record is not new trouble");
+  assert.doesNotMatch(second.summary, /would hold more than/);
+  k.clock.t += 25 * 3600 * 1000;
+  const third = await runSync(k.deps(), PERSON_B, {});
+  assert.equal(third.skipped, 1, "said again after a day");
+  await k.r.store.create("r_person", mintRecordId(), { "/name": "Late 2", "/org": remoteOrg });
+  const fourth = await runSync(k.deps(), PERSON_B, {});
+  assert.equal(fourth.skipped, 1, "said again when the count changes");
+  assert.equal(((await k.l.store.get("org", org.id))!.data["persons"] as unknown[]).length, MAX_LINKS, "no link was dropped");
+});
+
+test("a far write that keeps failing is set aside after five tries, said once, and not tried again", { timeout: 120_000 }, async () => {
+  const k = await kit2();
+  const remoteOrg = (await k.r.store.create("r_org", mintRecordId(), { "/name": "Org" })).id;
+  await runSync(k.deps(), ORG_B, {});
+  await k.r.store.create("r_person", mintRecordId(), { "/name": "P", "/org": remoteOrg });
+  const on = { v: true },
+    calls = { n: 0 };
+  failOrgWrites(k.l, on, calls);
+  const parkedSaid: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const rep = await runSync(k.deps(), PERSON_B, {});
+    if (/set aside/.test(rep.summary)) parkedSaid.push(rep.summary);
+  }
+  assert.equal(calls.n, 5, "tried five times, then no more");
+  assert.equal(parkedSaid.length, 1, "said once, when it was set aside");
+  assert.equal(k.l.host.tx.get<{ n: number }>("SELECT count(*) AS n FROM sy_far_owed WHERE parked = 1")!.n, 1);
+});
+
+test("the drain does not link a record that was deleted while its link was owed", { timeout: 120_000 }, async () => {
+  const k = await kit2();
+  const remoteOrg = (await k.r.store.create("r_org", mintRecordId(), { "/name": "Org" })).id;
+  await runSync(k.deps(), ORG_B, {});
+  for (let i = 0; i < 3; i++) await k.r.store.create("r_person", mintRecordId(), { "/name": `P ${i}`, "/org": remoteOrg });
+  const on = { v: true },
+    calls = { n: 0 };
+  failOrgWrites(k.l, on, calls);
+  await runSync(k.deps(), PERSON_B, {});
+  const people = (await k.l.store.query("person", { page: { limit: 10 } })).rows;
+  assert.equal(people.length, 3);
+  await k.l.store.delete?.("person", people[0]!.id, (await k.l.store.get("person", people[0]!.id))!.version);
+  on.v = false;
+  await runSync(k.deps(), PERSON_B, {});
+  const org = (await k.l.store.query("org", { page: { limit: 10 } })).rows[0]!;
+  const urns = (org.data["persons"] as { urn: string }[]).map((x) => x.urn);
+  assert.equal(urns.length, 2, "the deleted person is not linked");
+  assert.ok(!urns.some((u) => u.endsWith(`/${people[0]!.id}`)));
+});
+
+test("owed far records are written in chunks of 200: 450 far records, none lost, none read twice", { timeout: 120_000 }, async () => {
+  const k = await kit2();
+  const orgs: string[] = [];
+  for (let i = 0; i < 450; i++) orgs.push((await k.r.store.create("r_org", mintRecordId(), { "/name": `Org ${i}` })).id);
+  await runSync(k.deps(), ORG_B, {});
+  for (let i = 0; i < 450; i++) await k.r.store.create("r_person", mintRecordId(), { "/name": `P ${i}`, "/org": orgs[i] });
+  const on = { v: true },
+    calls = { n: 0 };
+  failOrgWrites(k.l, on, calls);
+  await runSync(k.deps(), PERSON_B, {});
+  assert.equal(k.owedCount(), 450);
+  on.v = false;
+  calls.n = 0;
+  await runSync(k.deps(), PERSON_B, {});
+  assert.equal(k.owedCount(), 0);
+  assert.equal(calls.n, 450, "each far record written once");
+  const withOne = (await k.l.store.query("org", { page: { limit: 500 } })).rows.filter((o) => ((o.data["persons"] as unknown[]) ?? []).length === 1).length;
+  assert.equal(withOne, 450);
+});
