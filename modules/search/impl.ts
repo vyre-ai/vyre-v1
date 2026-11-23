@@ -128,6 +128,8 @@ export interface IndexTarget {
 export function targetsOf(e: IndexEvent): IndexTarget[] {
   const w = WATCHED[e.type];
   if (!w || e.enc === 2) return [];
+  // a file's first version is announced right after its creation, in the same commit: the creation already reads the file whole, so the first version is not read a second time (a connector export of 77 files indexed every file twice)
+  if (e.type === "file.version_added" && e.payload["n"] === 1) return [];
   const id = typeof e.payload[w.idKey] === "string" ? (e.payload[w.idKey] as string) : e.entityId;
   if (!id) return [];
   const type =

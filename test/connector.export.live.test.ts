@@ -41,6 +41,7 @@ test("connectors.export of a 25-table connector in a big Space answers inside it
     const actions = (got.data.connector ?? got.data).actions?.length;
     process.stderr.write(`[export] connector ${key}: ${actions} actions\n`);
     const t1 = Date.now();
+    const cpu0 = process.cpuUsage();
     // EXPORT_PROFILE=<file>: a CPU profile of the export alone (the seed would drown it otherwise)
     const session = process.env["EXPORT_PROFILE"] ? new inspector.Session() : undefined;
     if (session) {
@@ -56,6 +57,8 @@ test("connectors.export of a 25-table connector in a big Space answers inside it
         }),
       );
     const ms = Date.now() - t1;
+    const cpu = process.cpuUsage(cpu0);
+    process.stderr.write(`[export] CPU of the process during the export: ${Math.round((cpu.user + cpu.system) / 1000)} ms\n`);
     process.stderr.write(`[export] export answered ${out.status} in ${ms} ms\n`);
     assert.equal(out.status, 200, JSON.stringify(out.data).slice(0, 400) + "\n" + hostLog(w.d));
     assert.ok(ms < BOUND_MS, `the export took ${ms} ms (bound ${BOUND_MS})`);
