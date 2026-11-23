@@ -211,6 +211,7 @@ export const WORDS = Object.freeze({
   paused:
     "The person stopped the agent in this Chrome, or took over the tab. Wait until they say to go on, then call chrome_resume.",
   busy: "Another agent is using that tab.",
+  bar: "That spot is Vyre's control bar. Click somewhere else on the page.",
   no_tab: "There is no tab to work in. Open a page with chrome_open first.",
   no_page: "That tab is not a web page the agent may drive.",
   tab_limit: "The tab limit is reached. Close a tab with chrome_tabs first.",

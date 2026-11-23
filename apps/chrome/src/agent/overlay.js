@@ -123,36 +123,53 @@ export function overlayShow(o) {
 
     const port =
       g.chrome && g.chrome.runtime && g.chrome.runtime.connect ? g.chrome.runtime.connect({ name: o.port }) : null;
-    stop.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "stop" });
-    });
-    open.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "openvyre" });
-    });
-    give.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "giveback" });
-    });
-    resume.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "giveback" });
-    });
-    end.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "endtask" });
-    });
-    take.addEventListener("click", (/** @type {any} */ e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (port) port.postMessage({ type: "takeover" });
-    });
+    // A button on the bar acts when it is pressed, not when it is let go: the bar is drawn again as the agent works (its line grows, it moves) and a release that lands somewhere else
+    // is no click, so a person's press on Stop or Take over, the one moment it matters, would be lost. The click that follows a press is ignored; a click with no press (the keyboard) acts.
+    // End and Open Vyre are the exceptions: End cannot be undone and Open Vyre opens a tab, and neither is urgent, so they act when the button is let go on it and a person can slide off to cancel.
+    // Each message says where the press was (rounded), so the worker can tell the agent's own click on the bar from a person's hand and ignore it.
+    // every listener on the page's window is taken off again when the overlay goes (overlayHide), so they do not pile up across tasks
+    /** @type {Array<() => void>} */
+    const cleanup = [];
+    const listen = (/** @type {string} */ type, /** @type {any} */ f) => {
+      g.addEventListener(type, f, true);
+      cleanup.push(() => g.removeEventListener(type, f, true));
+    };
+    /** @param {any} btn @param {(at: { x?: number, y?: number, key?: boolean }) => void} fn @param {boolean} [onRelease] */
+    const onPress = (btn, fn, onRelease = false) => {
+      let pressed = false;
+      // where the press was, rounded; a keyboard click (detail 0) has no place
+      const where = (/** @type {any} */ e, keyboardTest = false) =>
+        e && !(keyboardTest && e.detail === 0) && Number.isFinite(e.clientX)
+          ? { x: Math.round(e.clientX), y: Math.round(e.clientY) }
+          : {};
+      if (!onRelease) {
+        btn.addEventListener("pointerdown", (/** @type {any} */ e) => {
+          if (!e.isTrusted || (e.button !== undefined && e.button !== 0)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          pressed = true;
+          fn(where(e));
+        });
+        // the gesture is over when the pointer goes up or is cancelled: a press let go elsewhere must not swallow a later keyboard click
+        for (const t of ["pointerup", "pointercancel"]) listen(t, () => void setTimeout(() => (pressed = false), 0));
+      }
+      btn.addEventListener("click", (/** @type {any} */ e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (pressed) {
+          pressed = false;
+          return;
+        }
+        // a click with no pointer (detail 0) came from the keyboard: say so, so the worker can tell a person's Enter from the agent's
+        fn({ ...where(e, true), ...(e.detail === 0 ? { key: true } : {}) });
+      });
+    };
+    onPress(stop, (at) => port && port.postMessage({ type: "stop", ...at }));
+    onPress(open, (at) => port && port.postMessage({ type: "openvyre", ...at }), true);
+    onPress(give, (at) => port && port.postMessage({ type: "giveback", ...at }));
+    onPress(resume, (at) => port && port.postMessage({ type: "giveback", ...at }));
+    onPress(end, (at) => port && port.postMessage({ type: "endtask", ...at }), true);
+    onPress(take, (at) => port && port.postMessage({ type: "takeover", ...at }));
     // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
     // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
     let lastTouch = 0;
@@ -177,12 +194,12 @@ export function overlayShow(o) {
         ...(kind === "key" ? { code: String(e.code || "").slice(0, 20) } : {}),
       });
     };
-    for (const type of ["pointerdown", "wheel", "touchstart"]) g.addEventListener(type, onTouch, true);
+    for (const type of ["pointerdown", "wheel", "touchstart"]) listen(type, onTouch);
     const onKey = (/** @type {any} */ e) => {
       if (e.key === "Escape" && !s.paused && port) port.postMessage({ type: "esc" });
       else onTouch(e);
     };
-    g.addEventListener("keydown", onKey, true);
+    listen("keydown", onKey);
     s = {
       host,
       frame,
@@ -200,6 +217,9 @@ export function overlayShow(o) {
       chip,
       port,
       onKey,
+      cleanup: () => {
+        for (const f of cleanup.splice(0)) f();
+      },
       paused: false,
       moved: false,
     };
@@ -274,7 +294,8 @@ export function overlayHide() {
   const KEY = Symbol.for("vyre.agent.overlay");
   const s = g[KEY];
   if (!s) return false;
-  g.removeEventListener("keydown", s.onKey, true);
+  if (typeof s.cleanup === "function") s.cleanup();
+  else g.removeEventListener("keydown", s.onKey, true);
   try {
     if (s.port) s.port.disconnect();
   } catch {
