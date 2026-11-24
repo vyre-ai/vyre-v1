@@ -81,3 +81,30 @@ test("a group of new rows leaves the same state as one row at a time, in far few
   assert.ok(one.batches >= 449 + 30, `one commit per new row before: ${one.batches}`);
   assert.ok(many.batches <= 8, `a run of rows is one commit: ${many.batches}`);
 });
+
+test("a group that fails at its commit leaves none of its rows: no record, no event, no field clock; the next group is made whole", async () => {
+  const rec = openRecords({ space: "spc_aaaaaaaaaaaa", path: ":memory:" });
+  await rec.store.define({ add_types: [PARTY] as never });
+  const count = (sql: string): number => Number(rec.host.tx.all<Record<string, unknown>>(sql)[0]!["n"]);
+  const before = { events: count("SELECT count(*) AS n FROM events"), rows: count("SELECT count(*) AS n FROM rt_party") };
+  const db = (rec.host as unknown as { raw: { exec: (sql: string) => void } }).raw;
+  const exec = db.exec.bind(db);
+  let armed = true;
+  db.exec = (sql: string) => {
+    if (armed && sql === "COMMIT") {
+      armed = false;
+      throw new Error("disk full");
+    }
+    return exec(sql);
+  };
+  const items = Array.from({ length: 50 }, (_, i) => ({ id: `rec_${i.toString(16).padStart(32, "0")}`, data: { name: `P ${i}`, email: `p${i}@x.test`, age: i } }));
+  const failed = await rec.store.createMany!("party", items);
+  assert.equal(failed.filter((m) => m.ok).length, 0, "every item of the group reports the failure");
+  assert.equal(count("SELECT count(*) AS n FROM events"), before.events, "no event of the group is left");
+  assert.equal(count("SELECT count(*) AS n FROM rt_party"), before.rows, "no record of the group is left");
+  assert.equal(count("SELECT count(*) AS n FROM rt_party__fm"), 0, "no field clock is left");
+  const made = await rec.store.createMany!("party", items);
+  assert.equal(made.filter((m) => m.ok).length, 50);
+  assert.equal(count("SELECT count(*) AS n FROM rt_party"), 50);
+  assert.equal(count("SELECT count(*) AS n FROM rt_party__fm"), 150);
+});
