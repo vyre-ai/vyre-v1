@@ -10,14 +10,16 @@ import { asKeptWriter } from "../modules/access/projections.ts";
 
 let h: Hour;
 let m: Person;
+let savedFrom = sliceTuning.from;
 // slicing starts at 2,000 resource-people in the product; the test lowers it so a round of a hundred new records is enough (a CI runner has 30 s for the whole file)
 const ROUND = 100;
 before(async () => {
+  savedFrom = sliceTuning.from;
   sliceTuning.from = 150;
   h = await bootHour("kvchunk");
 });
 after(async () => {
-  sliceTuning.from = 2000;
+  sliceTuning.from = savedFrom;
   await h?.stop();
 });
 
