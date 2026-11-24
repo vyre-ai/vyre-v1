@@ -1,0 +1,1 @@
+- On a phone, pressing Back before the place has even reported the address of the row just pressed no longer lets that item come back over the list: the first address reported after such a Back is skipped, until the person presses or types something else; anything the person does next, and any link, opens as before.

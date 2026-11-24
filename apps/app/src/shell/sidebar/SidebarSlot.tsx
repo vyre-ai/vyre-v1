@@ -85,6 +85,21 @@ export interface SidebarSlotProviderProps {
   children?: ReactNode;
 }
 
+// How many presses and keys the person has made so far: Back remembers it, so a report issued with no input since is still the press Back dismissed, and one after another input is a new open.
+let inputs = 0;
+let listening = false;
+export const inputsSoFar = (): number => {
+  if (!listening) {
+    listening = true;
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, f: () => void, c: boolean) => void } })
+      .document;
+    for (const t of ["pointerdown", "keydown"]) doc?.addEventListener?.(t, () => void (inputs += 1), true);
+  }
+  return inputs;
+};
+/** For tests: the person made one more press or key. */
+export const noteInputForTests = (): void => void (inputs += 1);
+
 export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const key = collapseKey(p.deviceId, p.personId);
   const read = (): boolean => {
@@ -116,6 +131,11 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const reportsSeen = useRef(p.reports ?? 0);
   // the own-report count when Back last closed the body: a report up to that count was issued before Back, so its address coming into the page now is not a new open (-1: Back has not closed anything since the last link)
   const backedAt = useRef(-1);
+  // a row was pressed and the address that press writes has not been drawn yet; and whether Back came while it was still to come (the place reports after its own render, so Back can beat the report
+  // being issued at all: the count Back remembered does not include it, yet it is still the press Back dismissed)
+  const pressPending = useRef(false);
+  const backedWhilePending = useRef(false);
+  const backedInputs = useRef(0);
   const liveReports = useRef(p.liveReports);
   liveReports.current = p.liveReports;
   useEffect(() => {
@@ -131,8 +151,21 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }
     // only an address reported before Back was pressed is skipped (it was the press Back dismissed): an item opened after that (New chat, a created record, a search result, a press that wrote
     // nothing and a later open of another item) is a later report, past the count Back remembered, and opens the body
-    if (linked) backedAt.current = -1;
-    const echo = reported && !linked && backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
+    if (linked) {
+      backedAt.current = -1;
+      pressPending.current = false;
+      backedWhilePending.current = false;
+    }
+    const issuedBeforeBack = backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
+    // the press's late report is issued with no input between Back and it: anything the person does next (a press, a key) is a new act, whose report is a new open
+    const echo =
+      reported &&
+      !linked &&
+      (issuedBeforeBack || (backedWhilePending.current && inputsSoFar() === backedInputs.current));
+    if (reported) {
+      pressPending.current = false;
+      backedWhilePending.current = false;
+    }
     if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo })) setBodyOpen(true);
   }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
@@ -154,9 +187,15 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       setCollapsed,
       hasSidebar,
       compact: p.compact,
-      openBody: () => setBodyOpen(true),
+      openBody: () => {
+        pressPending.current = true;
+        backedWhilePending.current = false;
+        setBodyOpen(true);
+      },
       back: () => {
         backedAt.current = liveReports.current?.() ?? -1;
+        backedWhilePending.current = pressPending.current;
+        backedInputs.current = inputsSoFar();
         setBodyOpen(false);
       },
       view: phoneView(hasSidebar, p.compact, bodyOpen),
