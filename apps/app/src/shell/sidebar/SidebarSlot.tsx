@@ -72,6 +72,8 @@ export interface SidebarSlotProviderProps {
   links?: number;
   /** Addresses the place wrote itself so far (HubState.reports). */
   reports?: number;
+  /** The hub's count of own reports as of now (not as last drawn): Back remembers it, so a report issued before Back that is drawn after it is known for what it is. */
+  liveReports?: () => number;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -112,6 +114,10 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const hashSeen = useRef(p.hash);
   const linksSeen = useRef(p.links ?? 0);
   const reportsSeen = useRef(p.reports ?? 0);
+  // the own-report count when Back last closed the body: a report up to that count was issued before Back, so its address coming into the page now is not a new open (-1: Back has not closed anything since the last link)
+  const backedAt = useRef(-1);
+  const liveReports = useRef(p.liveReports);
+  liveReports.current = p.liveReports;
   useEffect(() => {
     const hashChanged = p.hash !== hashSeen.current;
     const linked = (p.links ?? 0) !== linksSeen.current;
@@ -123,8 +129,11 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       epochSeen.current = p.epoch;
       return;
     }
-    if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: reported && !linked }))
-      setBodyOpen(true);
+    // only an address reported before Back was pressed is skipped (it was the press Back dismissed): an item opened after that (New chat, a created record, a search result, a press that wrote
+    // nothing and a later open of another item) is a later report, past the count Back remembered, and opens the body
+    if (linked) backedAt.current = -1;
+    const echo = reported && !linked && backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
+    if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo })) setBodyOpen(true);
   }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
     (v: boolean) => {
@@ -146,7 +155,10 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       hasSidebar,
       compact: p.compact,
       openBody: () => setBodyOpen(true),
-      back: () => setBodyOpen(false),
+      back: () => {
+        backedAt.current = liveReports.current?.() ?? -1;
+        setBodyOpen(false);
+      },
       view: phoneView(hasSidebar, p.compact, bodyOpen),
       title: entry?.title ?? "",
       actionsOutlet,
