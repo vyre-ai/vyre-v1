@@ -42,6 +42,7 @@ test("passes of several types on one connection never report it missing while a 
     };
     const conns = await call(w.d, "connections.list", {});
     log(`connections ${JSON.stringify(conns.data).slice(0, 300)}`);
+    const passStart = Date.now(); // the passes are asked for here
     for (const type of Object.keys(TYPES)) {
       const r = await asMember("connectors.sync_now", { idempotencyKey: `m-${type}`, type, mode: "incremental" });
       log(`member sync_now ${type}: ${r.status} ${JSON.stringify(r.data).slice(0, 200)}`);
@@ -71,6 +72,7 @@ test("passes of several types on one connection never report it missing while a 
     // the same on a fast runner and a slow one and its time does not scale with the load. Each batch's start and commit time is kept to check that a batch was in flight during every pass.
     const EARLY_STOP = process.env["STALE_WRITERS_STOP_EARLY"] === "1"; // the red proof: writers that stop after one batch each must fail the overlap check
     const WRITER_PAUSE_MS = 1000; // a writer that never pauses starves the passes on the one loop: this is a firm bulk-loading beside a sync, not a flood
+    const BURST = 3; // batches each writer makes with no pause: the early pressure of the 17 Nov defect
     const MAX_BATCHES = 400; // a guard against a runaway writer; the wait below fails the walk long before it
     let writing = true;
     let written = 0;
@@ -95,12 +97,11 @@ test("passes of several types on one connection never report it missing while a 
           assert.equal(r.status, 200, JSON.stringify(r.data).slice(0, 300));
           written += 100;
           batches.push({ start, end: Date.now() });
-          await new Promise<void>((done) => setTimeout(done, WRITER_PAUSE_MS));
+          if (b >= BURST) await new Promise<void>((done) => setTimeout(done, WRITER_PAUSE_MS)); // the first batches go back to back, as the old walk did, then one a second
         }
       })(),
     );
     const missing = new Set<string>();
-    const passStart = Date.now(); // the passes were asked for before the writers began
     const passEnd = new Map<string, number>();
     let pumping: Promise<void> | null = null;
     try {
