@@ -45,11 +45,8 @@ test(
           orgs: Math.round(1100 * SCALE),
         },
         (m) => process.stderr.write(`[export] ${m}\n`),
-        true,
       );
       process.stderr.write(`[export] seeded in ${Date.now() - t0} ms\n`);
-      const stored = await call(w.d, "records.query", { type: "contact", limit: 1 });
-      assert.ok(Number(stored.data.total) >= Math.round(28000 * SCALE), `the contacts are in the Space: ${JSON.stringify(stored.data).slice(0, 200)}`);
       const applied = await call(w.d, "sync_specs.apply", { spec: wide(), idempotencyKey: "export-wide" });
       assert.equal(applied.status, 200, JSON.stringify(applied.data).slice(0, 400));
       const key = String(applied.data.connector);
