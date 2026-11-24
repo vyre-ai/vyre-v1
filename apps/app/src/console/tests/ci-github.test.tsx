@@ -40,6 +40,10 @@ import {
   postManifest,
 } from "../pages/GithubApp.tsx";
 import { dataWith } from "./sheet-helper.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const SETTINGS = {
   enabled: false,

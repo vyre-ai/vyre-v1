@@ -8,7 +8,9 @@ import { stopBackground } from "../background.ts";
 import { probePick } from "./extra/models.ts";
 import type { TurnEngine } from "../../../agent/src/turn-engine/engine.ts";
 import type { EngineAgent, StoppedBy, ThreadKind } from "../../../agent/src/turn-engine/types.ts";
-import { isHostService } from "../../../lib/trust.ts";
+import { isHostService, isSystemCall } from "../../../lib/trust.ts";
+import { activeSubNodes } from "../sub-nodes.ts";
+import { holdOff, holdOn } from "../spend-hold.ts";
 import { noteHandoff } from "../context.ts";
 import { engineThreadOf } from "../thread-open.ts";
 import type { ThreadGet } from "../thread-open.ts";
@@ -716,4 +718,65 @@ export function incidentNote(ctx: EngineCtx, input: { incidentId: string; text: 
   if (input.text.trim() === "") raise(ctx, "validation.bad_input", "A note needs some text.");
   addNote(ctx, input.incidentId, input.text);
   return { incident: loadIncident(ctx, input.incidentId) };
+}
+
+/**
+ * Pause one agent's turn in a thread at its next safe point (after the call it is on), keeping everything it did; it goes on with engine.resume_paused. The same reach as Stop: a person may pause what they could stop.
+ */
+export async function pause(
+  ctx: EngineCtx,
+  input: { threadId: string; agentId?: string; reason?: string },
+): Promise<{ paused: number; held: number }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+  const engine = await open(ctx, input.threadId);
+  const own =
+    ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
+  const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
+  if (none) return { paused: 0, held: 0 };
+  const who = { ...(reach.agentId === undefined ? {} : { agentId: reach.agentId }) };
+  const paused = engine.pause(input.threadId, { ...who, reason: input.reason ?? "a limit was reached" });
+  // a turn on an engine that runs its own tools is not paused between calls: its next call, and every one after, is refused at the hook until the limit is raised or the turn ends
+  const cli = engine.cliRunning(input.threadId, who);
+  for (const a of cli) holdOn(input.threadId, a);
+  return { paused, held: cli.length };
+}
+
+/** Go on with the turns paused in a thread: each starts again as a turn of its own, told what it had done. */
+export async function resumePaused(
+  ctx: EngineCtx,
+  input: { threadId: string; agentId?: string },
+): Promise<{ resumed: number; lost: number; released: number }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+
+  const engine = await open(ctx, input.threadId);
+  const own =
+    ctx.principal.kind === "agent" && ctx.actingFor === undefined ? await ownsHelper(ctx, input.threadId) : false;
+  const { none, ...reach } = stopReach(ctx, input.agentId, false, input.agentId === undefined, own);
+  if (none) return { resumed: 0, lost: 0, released: 0 };
+  // the limit is raised: what it held at the hook goes on, and what it paused starts again
+  const released = holdOff(input.threadId, reach.agentId);
+  return {
+    ...engine.resumePaused(input.threadId, reach.agentId === undefined ? undefined : { agentId: reach.agentId }),
+    released,
+  };
+}
+
+/**
+ * Ask one subagent of a command-line engine to stop (the node that stands for it): its next call is refused with a reason and it ends. Not a kill: a subagent that makes no more calls goes on to its end. The same reach as Stop
+ * for the thread it works in. Returns whether this server knew it.
+ */
+export async function subagentStop(
+  ctx: EngineCtx,
+  input: { threadId: string; runId: string; reason?: string },
+): Promise<{ requested: boolean }> {
+  // for the server only: the person's own handle is runs.node.control (owner or manager of the run), which asks this after checking who is pressing
+  if (!isSystemCall(ctx as Parameters<typeof isSystemCall>[0]))
+    raise(ctx, "permission.no_grant", "That is for the server, not for a person.", { reason: "system_call" });
+
+  await open(ctx, input.threadId); // the same check as every control: the chat is open to this person
+  return { requested: activeSubNodes()?.requestStop(input.runId, input.reason ?? "it was asked to stop") ?? false };
 }

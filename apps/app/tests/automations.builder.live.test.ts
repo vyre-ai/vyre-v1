@@ -90,13 +90,14 @@ for (const look of LOOKS) {
       const made2 = await api("automations.create", { name: "Intake" });
       const intake = (made2.automation ?? made2.data?.automation ?? made2.data ?? made2).id as string;
       const valid = {
-        triggers: [{ key: "manual" }],
+        triggers: [{ key: "record_change", filter: { type: "company", op: "created" } }],
         nodes: [{ id: "n1", key: "create_task", input: { title: "Call back", assigned: { kind: "person", id: who } } }],
         start: ["n1"],
       };
       await api("automations.update", { automationId: intake, definition: valid });
       await api("automations.set_enabled", { automationId: intake, enabled: true });
-      await api("automations.run", { automationId: intake, payload: { name: "Sam Reyes" } });
+      // a real earlier event for it to be tried on: a company created after the Automation was on
+      await api("records.create", { type: "company", fields: { name: "Sam Reyes" }, idempotencyKey: "intake-sam" });
       await page.waitForTimeout(1500);
       const edited = {
         ...valid,
@@ -113,6 +114,13 @@ for (const look of LOOKS) {
       assert.equal(await page.getByTestId("sv-bar-Save").count(), 0, "no Save");
       await shot("7-draft-bar");
       await page.getByTestId("sv-test").click();
+      // Test opens a pane to pick what to try it on: a real past event, never the made-up example
+      await page.getByTestId("test-pane").waitFor({ timeout: 20_000 });
+      const past = page.locator('[data-testid^="row-tp-try-"]').first();
+      await past.waitFor({ timeout: 20_000 });
+      const pastName = ((await past.innerText()).split("\n").find((l) => l.trim().length > 1) ?? "").trim();
+      assert.ok(pastName !== "", "the past event has a name");
+      await past.click();
       await page.waitForTimeout(4000);
       await shot("7-test-on-draft");
       const tr = await api("runs.list", { scope: "subject", subject: { type: "automation", id: intake } });
@@ -121,6 +129,7 @@ for (const look of LOOKS) {
         console.log("TESTRUN", trun.id, JSON.stringify(await api("runs.steps", { runId: trun.id })).slice(0, 400));
       const body = await page.locator("body").innerText();
       assert.match(body, /Test with /, "the bar names the past event");
+      assert.ok(body.includes(`Test with ${pastName}`), `the bar names the one that was picked: ${pastName}`);
       assert.match(body, /The test sent nothing/);
     } finally {
       await browser.close();

@@ -1,0 +1,1 @@
+- Internal: the kept terminal output takes its secret scrubber from the shared library, and the tests build their fake private keys at run time.

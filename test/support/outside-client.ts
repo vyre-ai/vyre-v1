@@ -161,7 +161,47 @@ export class Client {
   tool(name: string, args: unknown = {}): Promise<{ status: number; json: Json; headers: http.IncomingHttpHeaders }> {
     return this.rpc("tools/call", { name, arguments: args });
   }
+  /**
+   * One request the way a client of the current revision (2026-07-28) sends it: no handshake before it and no session header, the version and the client's capabilities in `_meta`, and the method and the
+   * name (or the address) repeated in the headers. `headers` changes what is sent beside the body.
+   */
+  async ask(
+    method: string,
+    params: Record<string, unknown> = {},
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; json: Json; headers: http.IncomingHttpHeaders }> {
+    const named = method === "resources/read" ? params["uri"] : params["name"];
+    const r = await raw(this.url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        authorization: `Bearer ${this.token}`,
+        "mcp-protocol-version": MODERN,
+        "mcp-method": method,
+        ...(typeof named === "string" ? { "mcp-name": named } : {}),
+        ...this.extra,
+        ...headers,
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method,
+        params: {
+          ...params,
+          _meta: {
+            "io.modelcontextprotocol/protocolVersion": MODERN,
+            "io.modelcontextprotocol/clientInfo": { name: this.name, version: "3.0" },
+            "io.modelcontextprotocol/clientCapabilities": {},
+          },
+        },
+      }),
+    });
+    return { status: r.status, json: r.text ? JSON.parse(r.text) : null, headers: r.headers };
+  }
 }
+/** The current MCP revision, which has no handshake. */
+export const MODERN = "2026-07-28";
 
 /** The whole sign-in: a person presses Allow with their own session. */
 /** `setup`: the person chooses "Act for me, including setup" on the Allow screen (owner ruling 3 Nov). */

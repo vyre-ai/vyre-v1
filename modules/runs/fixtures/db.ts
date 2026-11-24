@@ -14,7 +14,15 @@ import type { Caller } from "./seed.ts";
 // so the fixture asks the runtime for the built-in.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
 const schema = readFileSync(new URL("../../../generated/modules/runs/schema.sql", import.meta.url), "utf8");
-const migration = ["0001_runs_engine.sql", "0003_run_trigger.sql", "0005_step_notes.sql"]
+const migration = [
+  "0001_runs_engine.sql",
+  "0003_run_trigger.sql",
+  "0005_step_notes.sql",
+  "0006_run_nodes.sql",
+  "0007_board.sql",
+  "0008_node_rows.sql",
+  "0009_spend_scope.sql",
+]
   .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"))
   .join("\n");
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -163,4 +171,15 @@ export function codeOf(e: unknown): string | undefined {
 }
 export function reasonOf(e: unknown): unknown {
   return ((e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details ?? {}).reason;
+}
+
+/** What a worker's move names: the attempt always, and the lease when the node holds one. runs.node.move is fenced by both. */
+export function hold(
+  h: { sqlite: { prepare(sql: string): { get(...a: unknown[]): unknown } } },
+  runId: string,
+): { holder?: string; attempt: number } {
+  const r = h.sqlite.prepare("SELECT lease_holder, attempt FROM runs_node WHERE run_id = ?").get(runId) as
+    | { lease_holder: string | null; attempt: number }
+    | undefined;
+  return { ...(r?.lease_holder ? { holder: r.lease_holder } : {}), attempt: r?.attempt ?? 1 };
 }

@@ -21,6 +21,8 @@ export const HOST_NAME = "run.vyre.bridge";
 /** Capabilities the extension calls (manifests/vault.ts, chat.ts): what each is for. */
 export const CAPABILITIES = Object.freeze({
   "vault.items.match": "items that fit a page address: names and field keys, never values",
+  "vault.login.check":
+    "compare a submitted login with the Vault inside the Vault: known, changed or new, never a stored value",
   "vault.use": "ask for an item by name or id and get a handle",
   "vault.items.list": "the person's card items, names only, for the popup's Cards list (never values)",
   "vault.fill": "fill a handle field into a browser ref; the filler pushes the value to the page",

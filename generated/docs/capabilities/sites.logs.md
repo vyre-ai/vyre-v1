@@ -1,6 +1,6 @@
 # sites.logs
 
-The log of a site: its running app, or with build the build log of a deployment (the latest when none is named). Text from the site, not Vyre content
+A site's log: its app, or with build a deploy's build log. Text from the site
 
 | | |
 |---|---|
@@ -38,6 +38,13 @@ type In = {
 type Out = {
   lines: Array<string>;
   state?: "queued" | "building" | "ready" | "failed" | "stopped";
+  steps?: Array<{
+      key: "fetch" | "build" | "start" | "check";
+      state: "waiting" | "running" | "ok" | "failed" | "skipped";
+      ms?: number;
+      startedAt?: number;
+      from?: number;
+    }>;
 };
 ```
 
@@ -65,7 +72,16 @@ type Out = {
     "lines": [
       "example"
     ],
-    "state": "queued"
+    "state": "queued",
+    "steps": [
+      {
+        "from": 1,
+        "key": "fetch",
+        "ms": 1,
+        "startedAt": 1760000000000,
+        "state": "waiting"
+      }
+    ]
   }
 }
 ```

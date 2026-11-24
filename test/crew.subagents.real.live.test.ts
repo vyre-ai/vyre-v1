@@ -175,14 +175,20 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       const knownAt = Date.now();
       // and the moment the person sees both
       await page.waitForSelector(T("subagents-live"), { timeout: 8_000 });
+      // two helpers at work on a wide screen are tiles side by side; on a phone, rows: either way both are on screen
       await page.waitForFunction(
-        () =>
-          document
-            .querySelector('[data-testid="subagents-live"]')
-            ?.querySelectorAll('[data-testid^="crew-chip-sub_"][data-testid$="-state"]').length === 2,
+        () => {
+          const live = document.querySelector('[data-testid="subagents-live"]');
+          const rows = live?.querySelectorAll('[data-testid^="crew-chip-sub_"][data-testid$="-state"]').length ?? 0;
+          const tiles = [...(live?.querySelectorAll('[data-testid^="crew-tile-sub_"]') ?? [])].filter(
+            (e) => !/-(window|time|task|meter|retry|ring)$|-line-\d+$/.test(e.getAttribute("data-testid") ?? ""),
+          ).length;
+          return rows === 2 || tiles === 2;
+        },
         undefined,
         { timeout: 8_000 },
       );
+      const asTiles = (await page.locator(`${T("subagents-live")} ${T("crew-tiles")}`).count()) > 0;
       const liveAfterMs = Date.now() - knownAt;
       assert.ok(liveAfterMs <= 1_000, `both on screen ${liveAfterMs} ms after the server knew them`);
       await page.waitForFunction(
@@ -190,9 +196,9 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
         undefined,
         { timeout: 5_000 },
       );
-      const names = await page
-        .locator(`${T("subagents-live")} ${T("crew-strip")} [data-testid$="-toggle"]`)
-        .allInnerTexts();
+      const names = asTiles
+        ? await page.locator(`${T("subagents-live")} [data-testid^="crew-tile-sub_"][role="button"]`).allInnerTexts()
+        : await page.locator(`${T("subagents-live")} ${T("crew-strip")} [data-testid$="-toggle"]`).allInnerTexts();
       assert.ok(
         names.some((n) => /Test the terminal/.test(n)) && names.some((n) => /Test the browser/.test(n)),
         `the two tasks are the rows: ${JSON.stringify(names)}`,
@@ -205,17 +211,34 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       await shot("1-working");
       await guard.check(`${tag} working`);
 
-      // a row opens to what it is on
-      await page
-        .locator(`${T("subagents-live")} [data-testid$="-toggle"]`)
-        .first()
-        .click();
-      await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
+      // a row opens to what it is on; a tile already shows it in its own window (and the same two helpers, as rows, still open to their steps: checked below, once the pane has narrowed the chat to rows)
+      if (asTiles) {
+        await page.waitForSelector(`${T("subagents-live")} [data-testid$="-window"]`, { timeout: 5_000 });
+        assert.ok(
+          (
+            (await page
+              .locator(`${T("subagents-live")} [data-testid$="-window"]`)
+              .first()
+              .innerText()) ?? ""
+          ).trim() !== "",
+          "a tile says what it is on",
+        );
+      } else {
+        await page
+          .locator(`${T("subagents-live")} [data-testid$="-toggle"]`)
+          .first()
+          .click();
+        await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
+      }
       await shot("2-row-open");
 
-      // its face opens the pane's peek
+      // its face (a tile, as a whole) opens the pane's peek
       await page
-        .locator(`${T("subagents-live")} [data-testid$="-name"]`)
+        .locator(
+          asTiles
+            ? `${T("subagents-live")} [data-testid^="crew-tile-sub_"][role="button"]`
+            : `${T("subagents-live")} [data-testid$="-name"]`,
+        )
         .first()
         .click();
       await page.waitForSelector(T("crew-peek"), { timeout: 8_000 });
@@ -224,6 +247,15 @@ test("subagents of a CLI engine, real app: on screen within a second, openable, 
       // what it is on rides the asker's own live frames: the person who asked sees steps in the peek
       await page.waitForSelector(T("crew-step-0"), { timeout: 8_000 });
       await shot("3-peek-working");
+      if (asTiles) {
+        // the pane is open beside the chat now, so the live block is rows again: a row still opens to what it is on, which the wide path used to check before the peek
+        await page
+          .locator(`${T("subagents-live")} [data-testid$="-toggle"]`)
+          .first()
+          .click({ timeout: 8_000 });
+        await page.waitForSelector(`${T("subagents-live")} [data-testid$="-steps"]`, { timeout: 5_000 });
+        await shot("3b-row-open-after-tiles");
+      }
 
       // on a phone the pane is a screen of its own: closed, the chat is back under it
       if (size === "phone") await page.locator(T("crew-side-close")).click();

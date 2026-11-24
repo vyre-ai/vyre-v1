@@ -97,7 +97,8 @@ const SHAPES = {
   chrome_state: { tabId: "s?" },
   chrome_status: {},
   chrome_stop: { reason: "s?" },
-  chrome_resume: {},
+  // turnMessageAgeMs: how long ago the person's message that started this turn was sent (none for a routine, wake or resumed turn); only the Space sets it (the agent's own input never reaches this field)
+  chrome_resume: { turnMessageAgeMs: "n?" },
   chrome_send: { heldId: "s", edits: "o?" },
   chrome_batch: { tabId: "s?", steps: "a" },
   chrome_plan: { goal: "s", steps: "a?" },
@@ -211,6 +212,9 @@ export const WORDS = Object.freeze({
   paused:
     "The person stopped the agent in this Chrome, or took over the tab. Wait until they say to go on, then call chrome_resume.",
   busy: "Another agent is using that tab.",
+  takeover_held: "The person has the tab and holds it until they give it back. Wait for them, or ask them in the chat.",
+  person_stopped: "The person stopped you. Wait until they write to you in the chat to go on, then call chrome_resume.",
+  bar: "That spot is Vyre's control bar. Click somewhere else on the page.",
   no_tab: "There is no tab to work in. Open a page with chrome_open first.",
   no_page: "That tab is not a web page the agent may drive.",
   tab_limit: "The tab limit is reached. Close a tab with chrome_tabs first.",
@@ -219,6 +223,8 @@ export const WORDS = Object.freeze({
   no_element: "Nothing on the page matches that.",
   held_gone: "That held item is not waiting any more. Ask again.",
   not_public: "Agents browse the public web only. That address is on this computer or a private network.",
+  net_not_allowed:
+    "This site's network calls are not open to the agent. Add the site in Vault > Connections > Browser to let it read them.",
   read_only:
     "This agent may read this site but not act on it. The person gives it the Act right in Vyre, Vault, Connections, Browser.",
   not_in_batch: "That step cannot run inside a batch because it needs its own approval.",

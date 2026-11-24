@@ -202,10 +202,11 @@ test("the overview: totals in one sentence, rows sorted needs you first, the tim
   await press(find(root, "crew-stop-all"));
   await flush();
   assert.deepEqual(
-    calls.map((c) => c.cap),
+    // the pane also READS the runtime (runs.*) for its Board and its list of what runs or sleeps; the one thing a press WRITES is the stop
+    calls.map((c) => c.cap).filter((c) => !c.startsWith("runs.")),
     ["engine.helpers.stop_all"],
   );
-  assert.deepEqual(calls[0]!.input, { threadId: "thr_0" });
+  assert.deepEqual(calls.find((c) => c.cap === "engine.helpers.stop_all")!.input, { threadId: "thr_0" });
 });
 
 test("the overview says Ran together only when they overlapped and all ended", async () => {

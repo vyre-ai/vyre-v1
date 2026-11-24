@@ -1,3 +1,4 @@
+import { eraseCmdLogsOfAgent, eraseCmdLogsOfPerson, expireCmdLogs } from "./cmdlog.ts";
 import { tryAll, tryRun } from "../../lib/erase-agent.ts";
 import { ensure as ensureTerminalTables, forgetAgentSecrets } from "./projections.ts";
 type Row = Record<string, unknown>;
@@ -99,6 +100,8 @@ export interface TmuxOptions {
   maxOutput?: number;
   /** Lines of scrollback read when looking for a command's end. Default 5000. */
   scrollback?: number;
+  /** Run a command through one script inside the machine (type, wait, read, clear) instead of a round trip per look: a host whose exec is a container exec asks for it. Default off. */
+  oneExec?: boolean;
   /** The command a new session runs instead of the default shell (a workspace: a bash with a private umask). */
   shell?: readonly string[];
   /** tmux session names are `<prefix><terminalId>`. Default "vyre-". */
@@ -196,20 +199,84 @@ export async function shellAtPrompt(exec: Exec, target: string): Promise<boolean
   if (pid === undefined || !/^\d+$/.test(pid) || dead === "1" || mode === "1") return false;
   // the foreground program must be a shell as well: `exec python` keeps the shell's pid and process group (third look, F2)
   if (cmd === undefined || !SHELLS.has(cmd) || cmd === "tmux") return false;
-  const p = await exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null);
+  // the process group and the cursor's line depend only on what the first look said: asked together, one round trip instead of two (every check still has to pass)
+  const cursorOk = cursor !== undefined && /^\d+$/.test(cursor);
+  const [p, line] = await Promise.all([
+    exec(["ps", "-o", "tpgid=", "-p", pid]).catch(() => null),
+    cursorOk
+      ? exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null)
+      : Promise.resolve(undefined),
+  ]);
   if (p === null || p.code !== 0 || p.stdout.trim() !== pid) return false;
   // a construct a person left open (an open bracket or quote, a here-document) has the shell on its continuation prompt: the line the cursor is on starts with PS2, by default "> ".
   // A prompt of one's own that starts with "> " reads as one too, which is the safe side. A `read` a person typed shows no prompt and cannot be seen from here.
-  if (cursor !== undefined && /^\d+$/.test(cursor)) {
-    const line = await exec(["tmux", "capture-pane", "-p", "-t", target, "-S", cursor, "-E", cursor]).catch(() => null);
+  if (cursorOk) {
     // tmux trims a line's trailing spaces, so an empty continuation line reads as ">"
-    if (line === null || line.code !== 0 || /^>( |\n|$)/.test(line.stdout)) return false;
+    if (line === undefined || line === null || line.code !== 0 || /^>( |\n|$)/.test(line.stdout)) return false;
   }
   return true;
 }
 
 /** The tmux host, with the sweep of leftover values buffers for a caller that makes a session itself (a workspace that lost its tmux) or starts using a server. */
 export type TmuxHost = TerminalHost & { sweep(): Promise<void> };
+
+/** The most a command's retained output holds: the answer is cut to `maxOutput`, the kept copy to this (the log's per-command cap is the same). */
+const FULL_MAX = 5 * 1024 * 1024;
+/**
+ * The script of a run, run as `sh -c SCRIPT sh session line end rcOption scrollbackLines deadlineMs cancelOption` in the machine the session lives on. It types the line, then looks at the pane (the screen and the
+ * stored exit code and the cancel option, in ONE tmux call) until the end marker shows, the exit code is stored, the cancel option is set (the turn was stopped) or the deadline passes; then it prints one header
+ * line, the screen, and, when the command ended, the whole history of the pane, and clears both options. The header carries the byte length of each part, so what the command printed can never be taken for
+ * the script's own marks. Exit 90 means the line was not typed, 91 that it was typed and Enter failed (typed again, never). The cancel is a tmux option of the session, not a file: only what can reach the
+ * session's tmux server can set it. The looks come fast at first (most commands end at once) and back off to 0.2 s, so a long build costs about 15 forks a second, not about 250.
+ */
+export const RUN_SCRIPT = `# vyre-run
+s=$1; line=$2; end=$3; rc=$4; scroll=$5; deadline=$6; cx=$7
+tmux send-keys -t "$s" -l -- "$line" || exit 90
+tmux send-keys -t "$s" Enter || exit 91
+printf '__VYRE_SENT__\n' >&2
+nl='
+'
+t0=$(date +%s); st=wait; n=0; cap=; rcv=
+while :; do
+  n=$((n + 1))
+  out=$(tmux capture-pane -p -J -t "$s" -S "-$scroll" \\; display-message -p -t "$s" "__VYRE_X__#{$rc}|#{$cx}")
+  meta=\${out##*__VYRE_X__}; cap=\${out%__VYRE_X__*}
+  rcv=\${meta%%|*}; cxv=\${meta#*|}
+  # the end mark counts only as a whole line of its own: a command that prints the mark text in the middle of a line, or with more after the digits, does not end the run
+  rest=\${nl}\${cap}; rest=\${rest#*"\${nl}$end:"}
+  if [ "$rest" != "\${nl}\${cap}" ]; then
+    num=\${rest%%"$nl"*}
+    case $num in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  fi
+  case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  if [ -n "$cxv" ]; then st=cancel; break; fi
+  if [ $n -gt 25 ]; then
+    now=$(date +%s)
+    if [ $(( (now - t0) * 1000 )) -ge "$deadline" ]; then st=timeout; break; fi
+    if [ $n -gt 45 ]; then sleep 0.2; else sleep 0.05; fi
+  else sleep 0.02; fi
+done
+full=
+if [ "$st" = done ]; then full=$(tmux capture-pane -p -J -t "$s" -S -); fi
+sl=$(printf '%s' "$cap" | wc -c); fl=$(printf '%s' "$full" | wc -c)
+printf '__VYRE_HDR__:%s:%s:%s:%s\n' "$((sl + 0))" "$((fl + 0))" "$rcv" "$st"
+printf '%s%s' "$cap" "$full"
+tmux set-option -u -q -t "$s" "$rc" 2>/dev/null
+tmux set-option -u -q -t "$s" "$cx" 2>/dev/null
+exit 0
+`;
+/** What the script printed, taken apart by the lengths in its header: the screen, the stored exit code, how it ended, and the whole history when it ended well. Null when it is not the script's output or the parts do not add up. */
+export function parseRunScript(out: string): { screen: string; rc: string; status: string; full?: string } | null {
+  const m = /^__VYRE_HDR__:(\d+):(\d+):([^:\n]*):(\w+)\n/.exec(out);
+  if (!m) return null;
+  const buf = Buffer.from(out.slice(m[0].length), "utf8");
+  const sl = Number(m[1]);
+  const fl = Number(m[2]);
+  if (buf.length !== sl + fl) return null;
+  const screen = buf.subarray(0, sl).toString("utf8");
+  const full = m[4] === "done" ? buf.subarray(sl).toString("utf8") : undefined;
+  return { screen, rc: (m[3] ?? "").trim(), status: m[4] ?? "", ...(full === undefined ? {} : { full }) };
+}
 
 export function createTmuxHost(o: TmuxOptions): TmuxHost {
   const now = o.now ?? Date.now;
@@ -418,13 +485,12 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     timeoutMs: number,
     rcOption: string,
     signal?: AbortSignal,
-  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number }> {
+  ): Promise<{ exitCode: number | null; output: string; truncated: boolean; durationMs: number; full?: string }> {
     const t0 = now();
-    await tmux(["send-keys", "-t", session, "-l", "--", line]);
-    await tmux(["send-keys", "-t", session, "Enter"]);
     const endRe = new RegExp(`^${end}:(\\d+)$`, "m");
     const RC = "__VYRE_RC__:";
-    const cut = (lines: string[], code: number) => {
+    /** The output of the command from its begin marker, cut to `limit` characters from the end. */
+    const body = (lines: string[], limit: number): { output: string; truncated: boolean } => {
       let from = -1;
       for (let i = lines.length - 1; i >= 0; i--)
         if (lines[i] === beg) {
@@ -438,14 +504,93 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
           .join("\n"),
       );
       let truncated = from < 0;
-      if (output.length > maxOutput) {
-        output = output.slice(output.length - maxOutput);
+      if (output.length > limit) {
+        output = output.slice(output.length - limit);
         truncated = true;
       }
-      return { exitCode: code, output, truncated, durationMs: now() - t0 };
+      return { output, truncated };
     };
+    /** `fullScreen`: the whole history of the pane (a run through the script reads it once at the end), from which the retained output is cut: far more than the answer holds. */
+    const cut = (lines: string[], code: number, fullLines?: string[]) => {
+      const { output, truncated } = body(lines, maxOutput);
+      // the history is kept only from this command's own begin marker: when it is not in the history (scrolled out), nothing of it is kept and the log keeps the answer, never another command's lines
+      const full = fullLines === undefined || !fullLines.includes(beg) ? undefined : body(fullLines, FULL_MAX).output;
+      return { exitCode: code, output, truncated, durationMs: now() - t0, ...(full === undefined ? {} : { full }) };
+    };
+    let polls = 0;
     const forget = (): Promise<unknown> =>
       o.exec(["tmux", "set-option", "-u", "-q", "-t", session, rcOption]).catch(() => undefined);
+
+    // One exec for the whole run on a host that asks for it (a workspace): type the line, wait for the end marker or the stored exit code inside the container, read the screen and the history once, clear the
+    // exit-code option, and answer. The wait costs no round trips, so a quick command is one exec instead of about seven. Anything unexpected falls back to the polling loop below: a script that could not
+    // type the line (exit 90) lets the loop type it, one that typed it and then failed lets the loop go on watching without typing again.
+    let sent = false;
+    if (o.oneExec === true) {
+      // the stop is a tmux option of the session: nothing on the disk, and the name is worth nothing to anyone who cannot reach the session's tmux server
+      const cancel = `@vyre_cancel_${end.replace(/\W/g, "")}`;
+      const onAbort = (): void =>
+        void o.exec(["tmux", "set-option", "-q", "-t", session, cancel, "1"]).catch(() => undefined);
+      if (signal?.aborted) onAbort();
+      else signal?.addEventListener("abort", onAbort, { once: true });
+      let r: ExecResult | null = null;
+      try {
+        r = await o.exec([
+          "sh",
+          "-c",
+          RUN_SCRIPT,
+          "sh",
+          session,
+          line,
+          end,
+          rcOption,
+          String(Math.max(1, scrollback)),
+          String(Math.max(1000, timeoutMs)),
+          cancel,
+        ]);
+      } catch {
+        // the exec was cut: the line may be typed, and typing it again could run it twice. It is read, never typed again.
+        sent = true;
+      } finally {
+        signal?.removeEventListener("abort", onAbort);
+        // a stop that came after the script ended leaves its option behind: it is taken off (only then, so a run that ends by itself stays one exec)
+        if (signal?.aborted)
+          await o.exec(["tmux", "set-option", "-u", "-q", "-t", session, cancel]).catch(() => undefined);
+      }
+      if (r !== null) {
+        const parsed = parseRunScript(r.stdout);
+        // The line is typed again ONLY when the script itself said it typed nothing: exit 90 (or 127, no sh) with nothing printed. Every other answer (a kill, a cut, a silent exit, an
+        // exit 91 where Enter failed) means it may have been typed: the loop below reads the screen and never types the line (after 91 it presses Enter only).
+        sent = !((r.code === 90 || r.code === 127) && r.stdout === "");
+        if (r.code === 91) await tmux(["send-keys", "-t", session, "Enter"]).catch(() => undefined);
+        if (parsed !== null) {
+          const screen = tidy(parsed.screen);
+          // the history ends at the end marker, like the screen: what follows (the next prompt, the empty rows of the screen) is not the command's
+          const fullTidy = parsed.full === undefined ? undefined : tidy(parsed.full);
+          const fm = fullTidy === undefined ? null : endRe.exec(fullTidy);
+          const fullLines =
+            fullTidy === undefined
+              ? undefined
+              : (fm && fm.index !== undefined ? fullTidy.slice(0, fm.index) : fullTidy).split("\n");
+          const m = endRe.exec(screen);
+          if (m && m.index !== undefined) return cut(screen.slice(0, m.index).split("\n"), Number(m[1]), fullLines);
+          if (/^\d+$/.test(parsed.rc)) return cut(screen.split("\n"), Number(parsed.rc), fullLines);
+          if (parsed.status === "cancel") {
+            await stopIn(session);
+            await forget();
+            const c = cut(screen.split("\n"), 130);
+            return { ...c, output: `${c.output}\n${STOPPED_LINE}`.trim() };
+          }
+          if (parsed.status === "timeout") {
+            await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
+            throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
+          }
+        }
+      }
+    }
+    if (!sent) {
+      await tmux(["send-keys", "-t", session, "-l", "--", line]);
+      await tmux(["send-keys", "-t", session, "Enter"]);
+    }
     for (;;) {
       // the screen and the stored exit code in one tmux call
       const both = tidy(
@@ -487,7 +632,9 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         await tmux(["send-keys", "-t", session, "C-c"]).catch(() => undefined);
         throw Object.assign(new Error("the command did not finish in time"), { code: "timeout" });
       }
-      await sleep(pollMs);
+      // the first looks come quickly (most commands end at once), then at the poll interval
+      polls += 1;
+      await sleep(polls <= 2 ? Math.min(10, pollMs) : pollMs);
     }
   }
 
@@ -602,6 +749,11 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         }
         await sleep(Math.max(pollMs, 250));
       }
+      // A run of this host that was stopped is still finishing (its script notices the stop within a moment, then its answer is made): the next command is typed only after it, so the stopped command's
+      // answer is recorded before the next one starts and the two can never swap. Bounded, so a run that does not end cannot hold the next one.
+      // This orders a run behind the stopped one; it is not a queue: two runs waiting at once both type when the earlier one clears.
+      const inFlight = now();
+      while (running.has(session) && now() - inFlight < 3000) await sleep(Math.max(10, Math.min(pollMs, 50)));
       const leftMs = Math.max(1000, r.timeoutMs - (now() - t0));
       // what a run of an earlier daemon left behind is removed first, whatever this run carries; the buffers of runs of this host still in flight are theirs
       await sweepBuffers();
@@ -1369,6 +1521,15 @@ function accessDeps(ctx: TermCtx): AccessDeps {
 }
 
 export const periodic = {
+  /** Hourly: the kept output of commands that ended a week ago or more is deleted (cmdlog.ts). */
+  "terminal.cmdlog_expire": {
+    everyMs: 60 * 60_000,
+    run: (ctx: TermCtx): string[] => {
+      ensureTerminalTables(ctx.db);
+      const n = expireCmdLogs(ctx.db, ctx.now());
+      return n > 0 ? [`${n} kept outputs expired`] : [];
+    },
+  },
   /** Every 15 seconds: whoever lost the use of an agent in any way (a group, a role, an expiry, a suspension) is out of its computer and their programs there end; chat folders follow chat membership. */
   "terminal.use_sweep": {
     everyMs: 15_000,
@@ -1450,6 +1611,7 @@ export const hostCalls = {
         "terminal_lease",
         "terminal_key_batch",
         "terminal_tickets",
+        "terminal_cmd_log",
       ])
         tryRun(ctx.db, `DELETE FROM ${t} WHERE terminal_id = ?`, id);
       tryRun(ctx.db, "DELETE FROM terminal_sessions WHERE terminal_id = ?", id);
@@ -1474,6 +1636,22 @@ export const hostCalls = {
 
 /** What the module reads from the event log (host/src/daemon/consumers.ts runs each after commit, at least once). */
 export const consumers = {
+  /** A person left the Space: what their commands printed (run by them, or by an agent for them) is erased with them (cmdlog.ts). */
+  "terminal.cmdlog_person_left": {
+    on: ["member.removed"],
+    run: (ctx: TermCtx, event: { payload: { personId?: unknown } }): number => {
+      ensureTerminalTables(ctx.db);
+      return typeof event.payload.personId === "string" ? eraseCmdLogsOfPerson(ctx.db, event.payload.personId) : 0;
+    },
+  },
+  /** An agent was deleted for good: the output its commands kept goes with it (cmdlog.ts). */
+  "terminal.cmdlog_agent_deleted": {
+    on: ["agent.deleted"],
+    run: (ctx: TermCtx, event: { payload: { agentId?: unknown } }): number => {
+      ensureTerminalTables(ctx.db);
+      return typeof event.payload.agentId === "string" ? eraseCmdLogsOfAgent(ctx.db, event.payload.agentId) : 0;
+    },
+  },
   /** A person left the Space: unreachable at once, their processes stopped where they run; their folder is erased at once where it is (and by the hourly pass where the workspace could not be reached). */
   "terminal.person_left": {
     on: ["member.removed"],
@@ -1529,10 +1707,17 @@ export const consumers = {
   },
   /** A turn was stopped: the commands it started in a terminal are interrupted at once (release gate, 12 Nov). */
   "terminal.turn_stopped": {
-    on: ["turn.cancelled", "run.stopped"],
+    on: ["turn.cancelled", "run.stopped", "run.node_state"],
     run: (_ctx: TermCtx, event: { name?: string; payload: Record<string, unknown>; at?: number }): string[] => {
       const p = event.payload ?? {};
       const str = (k: string): string | undefined => (typeof p[k] === "string" ? (p[k] as string) : undefined);
+      // a node of the agent work tree that stands for a command left running was stopped (a person pressed Stop on it): the command is interrupted in its tab
+      if (event.name === "run.node_state") {
+        const runId = str("runId");
+        if (!runId || p["to"] !== "stopped") return [];
+        const n = stopRuns({ runId, ...(typeof event.at === "number" ? { at: event.at } : {}) });
+        return n > 0 ? [String(n)] : [];
+      }
       // a Run stopped: its own commands, matched on the run (its reason is the stopper's free text, never a marker; ninth look Z1)
       if (event.name === "run.stopped") {
         const runId = str("runId");

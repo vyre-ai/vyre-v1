@@ -110,6 +110,7 @@ export default defineManifest({
           fields: t.rec(t.json()),
           prev: t.rec(t.json()),
           version: t.int(),
+          quiet: t.opt(t.bool()),
         },
         subject: ["record", "/recordId"],
         label: "subject",
@@ -398,7 +399,7 @@ export default defineManifest({
       cli: "vyre records create",
     }),
     write("records.update", "Update fields of a record (per-field merge for sync, base version for API callers)", {
-      in: { ...target, patch: t.rec(), baseVersion: t.opt(t.int()) },
+      in: { ...target, patch: t.rec(), baseVersion: t.opt(t.int()), quiet: t.opt(t.bool()) },
       out: { record: recordRow },
       on: ["record", "/recordId"],
       perm: "records.edit",
@@ -408,6 +409,30 @@ export default defineManifest({
       errors: ["validation.field_locked", "validation.version_conflict", "validation.duplicate"],
       hook: true,
     }),
+    write(
+      "records.update_many",
+      "Update a group of records of one type in one commit (the sync engine's sealed write-back)",
+      {
+        in: {
+          type: id.recordType,
+          items: t.arr(t.obj({ recordId: id.record, patch: t.rec(), baseVersion: t.opt(t.int()) }), {
+            description: "At most 200 items; each is checked and answered on its own",
+          }),
+        },
+        out: {
+          results: t.arr(
+            t.obj({
+              recordId: id.record,
+              record: t.opt(recordRow),
+              error: t.opt(t.obj({ code: t.str(), message: t.str(), reason: t.opt(t.str()) })),
+            }),
+          ),
+        },
+        on: ["record_type", "/type"],
+        perm: "records.edit",
+        emits: ["record.updated"],
+      },
+    ),
     create("records.bulk_upsert", "Create or update many records by match key, quietly (no automations unless asked)", {
       in: {
         type: id.recordType,

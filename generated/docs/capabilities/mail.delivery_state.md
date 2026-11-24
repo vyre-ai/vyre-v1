@@ -1,0 +1,60 @@
+# mail.delivery_state
+
+A sent message's delivery trail (messageId), else the sent messages that bounced or are being retried
+
+| | |
+|---|---|
+| Module | mail |
+| Version | 1 (since 1.0.0) |
+| Effects | read |
+| Permission | grant only |
+| Grant level | view |
+| Risk | low |
+| Resource | space |
+| Gate | none |
+| Idempotency | natural |
+| Offline | online |
+| Audit | none |
+| Team Space only | no |
+| HTTP | POST /v1/mail/delivery_state |
+| MCP tool | mail_delivery_state (inbox) |
+| CLI | none |
+| Emits | none |
+
+## Input
+
+```ts
+type In = {
+  messageId?: string;
+};
+```
+
+## Output
+
+```ts
+type Out = {
+  result: unknown;
+};
+```
+
+## Errors
+
+- internal.unexpected
+- permission.above_clearance
+- permission.no_grant
+- validation.bad_input
+- validation.not_found
+
+## Example
+
+```json
+{
+  "name": "example",
+  "input": {
+    "messageId": "eml_a1b2c3"
+  },
+  "output": {
+    "result": {}
+  }
+}
+```

@@ -15,12 +15,12 @@ export const CODE_MS = 60_000;
 export const ACCESS_MS = 15 * 60_000;
 export const REFRESH_MS = 30 * 86_400_000;
 export const REQUEST_MS = 5 * 60_000;
-const MAX_REDIRECTS = 5;
+export const MAX_REDIRECTS = 5;
 const MAX_NAME = 60;
-const MAX_CLIENTS = 5000;
+export const MAX_CLIENTS = 5000;
 const MAX_OPEN_REQUESTS = 500;
 const MAX_STATE = 1024;
-const UNUSED_CLIENT_MS = 86_400_000;
+export const UNUSED_CLIENT_MS = 86_400_000;
 
 type Row = Record<string, unknown>;
 const str = (v: unknown): string => (typeof v === "string" ? v : "");
@@ -101,6 +101,7 @@ export const serverMetadata = (origin: string): Record<string, unknown> => ({
   code_challenge_methods_supported: ["S256"],
   token_endpoint_auth_methods_supported: ["none"],
   authorization_response_iss_parameter_supported: true,
+  client_id_metadata_document_supported: true,
 });
 
 // ---- clients ----------------------------------------------------------------------------------------------------------------------------------------

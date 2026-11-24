@@ -17,6 +17,7 @@ import { Empty, Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { WarnTile } from "./overview/Overview.tsx";
 import { IconTile } from "./CiRunners.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 import {
   Actions,
   Button,
@@ -466,17 +467,15 @@ export function HooksPage(): ReactElement {
         )}
         {removing ? (
           <>
-            <Note>Remove this hook? {removing.line} It stops running at once.</Note>
-            <Actions>
-              <Button label="Cancel" testID="hook-remove-cancel" onPress={() => setConfirm("")} />
-              <Button
-                label="Remove"
-                testID="hook-remove-confirm"
-                danger
-                disabled={action.busy}
-                onPress={() => void remove(removing)}
-              />
-            </Actions>
+            <InlineConfirm
+              question={<>Remove this hook? {removing.line} It stops running at once.</>}
+              confirmLabel="Remove"
+              disabled={action.busy}
+              confirmTestID="hook-remove-confirm"
+              cancelTestID="hook-remove-cancel"
+              onConfirm={() => remove(removing)}
+              onCancel={() => setConfirm("")}
+            />
           </>
         ) : null}
         {removed ? (

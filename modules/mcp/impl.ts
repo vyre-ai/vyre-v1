@@ -19,6 +19,9 @@ import { recordWork, sessionWorkKey } from "../../agent/src/tools/work-cards.ts"
 import type { McpCaller, McpServer, McpServerDeps } from "../../agent/src/mcp/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
+import { createGuardedFetch } from "../../lib/net-guard.ts";
+import { fetchDoc, isDocId, keepDoc } from "./client-doc.ts";
+import { WATCHED_EVENTS, changeOf } from "../../agent/src/mcp/watch.ts";
 import { onAgentDeleted, onHoldAnswered, onKeyAnswered } from "./handlers/oauth.ts";
 import type { OauthCtx } from "./handlers/oauth.ts";
 import type { Handler } from "../../host/src/invoke.ts";
@@ -42,6 +45,7 @@ import { allowTab, refusalPage } from "./allow-page.ts";
 import {
   beginAuthorize,
   challenge,
+  clientBy,
   collect,
   createLimiter,
   exchange,
@@ -61,6 +65,8 @@ export interface RuntimeOptions {
   endpoint?: Endpoint | (() => Endpoint);
   /** Are this agent and the person it acts for still active members? Read on every request, so a person removed or suspended ends their agents at once. Unset means no. */
   active?: (agentId: string, person: string) => boolean;
+  /** How a client metadata document is read (tests give their own); default is the guarded fetch that refuses private addresses. */
+  clientDocGet?: Parameters<typeof fetchDoc>[1];
   /** The Space's name, for the page a client opens. */
   spaceName?: () => Promise<string>;
   /** A capability called as the host itself. */
@@ -192,6 +198,35 @@ const formOf = (body: string): Record<string, string | undefined> | null => {
 };
 
 /** The MCP server on this host's tables. Binds itself so mcp.session.close also ends the live session. */
+/** When each client page was last tried (this process): a kept page is read again after a day, a page that failed is not tried again for a minute, and an address is never fetched on every request. */
+const docTried = new Map<string, number>();
+const DOC_REFRESH_MS = 24 * 3_600_000;
+/** How many new apps one source may name in a day (this process): one actor cannot fill the table or make the Space fetch without end; another actor's first is never refused for it. */
+const NEW_DOCS_PER_SOURCE = 20;
+const sourceDocs = new Map<string, number[]>();
+function sourceMay(space: string, visitor: string, at: number): boolean {
+  const key = `${space} ${visitor}`;
+  const recent = (sourceDocs.get(key) ?? []).filter((t) => at - t < DOC_REFRESH_MS);
+  if (recent.length >= NEW_DOCS_PER_SOURCE) {
+    sourceDocs.set(key, recent);
+    return false;
+  }
+  recent.push(at);
+  sourceDocs.set(key, recent);
+  if (sourceDocs.size > 5000) sourceDocs.delete(sourceDocs.keys().next().value as string);
+  return true;
+}
+const DOC_RETRY_MS = 60_000;
+function docDue(db: Db, space: string, clientId: string, at: number): boolean {
+  const key = `${space} ${clientId}`;
+  const last = docTried.get(key);
+  const known = clientBy(db, clientId) !== null;
+  if (last !== undefined && at - last < (known ? DOC_REFRESH_MS : DOC_RETRY_MS)) return false;
+  if (docTried.size > 5000) docTried.delete(docTried.keys().next().value as string);
+  docTried.set(key, at);
+  return true;
+}
+
 export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
   const now = o.now ?? Date.now;
   ensure(o.db);
@@ -477,6 +512,24 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
         }
         q[k] = v;
       }
+      // an app that names itself by an address: read its page once (guarded), keep it as a registered client; a page that cannot be read leaves the client unknown, which is the usual refusal
+      const named = q["client_id"];
+      if (named && isDocId(named) && clientBy(o.db, named) === null && !sourceMay(o.space, req.visitor, at)) {
+        const page = refusalPage("Too many new apps", "Try again tomorrow.");
+        return { status: 429, headers: { ...page.headers }, body: page.body };
+      }
+      if (named && isDocId(named) && docDue(o.db, o.space, named, at)) {
+        const doc = await fetchDoc(named, o.clientDocGet ?? createGuardedFetch({ own: false }));
+        // a page that could not be read is tried again in a minute, even for a known app
+        if ("refused" in doc) docTried.set(`${o.space} ${named}`, at - DOC_REFRESH_MS + DOC_RETRY_MS);
+        if (!("refused" in doc) && !keepDoc(o.db, doc, at)) {
+          const full = refusalPage(
+            "Too many apps",
+            "This Space has no room for another app right now. Try again later.",
+          );
+          return { status: 503, headers: { ...full.headers }, body: full.body };
+        }
+      }
       const begun = beginAuthorize(o.db, q, origin, at);
       if (begun.kind === "refuse") {
         const page = refusalPage(begun.title, begun.text);
@@ -492,6 +545,7 @@ export function createMcpRuntime(o: RuntimeOptions): McpRuntimeServer {
         proof: begun.proof,
         origin,
         ...(begun.redirectHost ? { redirectHost: begun.redirectHost } : {}),
+        ...(isDocId(begun.client.clientId) ? { clientHost: new URL(begun.client.clientId).host } : {}),
         ...(o.webApp ? { webApp: o.webApp } : {}),
       });
       return { status: 200, headers: { ...page.headers }, body: page.body };
@@ -540,6 +594,16 @@ export const consumers = {
   "mcp.agent_gone": {
     on: ["agent.deleted"],
     run: (ctx: McpCtx, event: { payload: { agentId?: unknown } }): string[] => onAgentDeleted(ctx, event),
+  },
+  /** Something changed that a connected app may be watching: the open streams are told, each only after a read made as that app passes. Never throws, never waits for the event to commit. */
+  "mcp.watch": {
+    on: [...WATCHED_EVENTS],
+    run: (_ctx: McpCtx, event: { name: string; payload: unknown }): string[] => {
+      const live = boundServer();
+      const change = live && live.listeners() > 0 ? changeOf(event.name, event.payload) : null;
+      if (live && change) void live.changed(change).catch(() => undefined);
+      return [];
+    },
   },
   /** A person answered a call an outside agent was held on. */
   "mcp.hold_answered": {

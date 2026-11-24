@@ -12,7 +12,7 @@ Scaffold a connector folder: connector.toml, transforms.js, tests, README
 | Risk | medium |
 | Resource | space |
 | Gate | none |
-| Idempotency | key |
+| Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
@@ -30,7 +30,6 @@ type In = {
   mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
   docsUrl?: string;
   source?: boolean;
-  idempotencyKey: string;
 };
 ```
 
@@ -58,7 +57,6 @@ type Out = {
   "name": "example",
   "input": {
     "docsUrl": "example",
-    "idempotencyKey": "idem_1",
     "key": "hubspot",
     "mode": "api",
     "source": true,

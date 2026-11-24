@@ -5,13 +5,20 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, EventName, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
+import { recordWriter } from "../../../kernel/src/store/records.ts";
+import { callerStamp } from "./merge.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
 export interface WriteCtx {
   trace: Ctx["trace"];
   emit: (name: EventName, subject: string, payload: Record<string, unknown>) => unknown;
+  /** On a nested call: the capability whose handler made it (the pipeline sets it, a caller cannot). */
+  callerCap?: string | undefined;
 }
+
+/** The modules whose own moves may be quiet (no Automation starts for them): the Journey migration. Everyone else, a person, an agent, a script or an Automation's step, is refused. */
+const QUIET_BY = /^journeys\./;
 
 export interface RecordRow {
   id: string;
@@ -37,7 +44,7 @@ export interface WriteHandlers {
   ): Promise<{ record: RecordRow }>;
   "records.update"(
     ctx: WriteCtx,
-    input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number },
+    input: { type: string; recordId: string; patch: Record<string, unknown>; baseVersion?: number; quiet?: boolean },
   ): Promise<{ record: RecordRow }>;
   "records.delete"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ deleted: boolean }>;
   "records.restore"(ctx: WriteCtx, input: { type: string; recordId: string }): Promise<{ record: RecordRow }>;
@@ -151,6 +158,8 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
           if (have) return { record: toRow(have, deps.meta(prior.type, prior.id)) };
         }
         const id = mintRecordId();
+        const writer = recordWriter.getStore();
+        if (writer) writer.announce = callerStamp(ctx); // announced below by record.created (see host/src/daemon/record-announce.ts)
         const rec = await deps.store.create(input.type, id, input.fields);
         if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
         ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });
@@ -158,6 +167,13 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
       }),
     "records.update": (ctx, input) =>
       guard(ctx, async () => {
+        if (input.quiet === true && !(ctx.callerCap !== undefined && QUIET_BY.test(ctx.callerCap)))
+          fail(
+            ctx,
+            "validation.bad_input",
+            "A write cannot ask to be quiet: only the server's own moves of a Journey do. Ordinary edits start the Automations that watch them.",
+            { reason: "quiet_not_allowed" },
+          );
         let base = input.baseVersion;
         if (base === undefined) {
           const cur = await deps.store.get(input.type, input.recordId);
@@ -175,6 +191,8 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
           fields: changed(keys, rec.data),
           prev: before(keys, prior?.data ?? {}),
           version: rec.version,
+          // a system move (a Journey migration) says so: Automations do not start for it
+          ...(input.quiet === true ? { quiet: true } : {}),
         });
         return { record: toRow(rec, deps.meta(rec.type, rec.id)) };
       }),

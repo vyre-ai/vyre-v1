@@ -1,17 +1,31 @@
-import { normalizeSpaceAddress } from "../../join/logic.ts";
+import { bareSpaceName, normalizeSpaceAddress } from "../../join/logic.ts";
 import type { DesktopRoute } from "./desktop.ts";
 import { probeDirectSpace } from "./caps.ts";
-export type EntryTarget =
+import { SHELL_PLACES } from "../places.ts";
+/**
+ * What one address box makes of what was typed or pasted: a Space to sign in to, an invite to join, an owner link to claim. `link` is the address as it was given when it carries more than
+ * the Space's address (a relay link's key lives in its fragment), kept so a browser can be handed exactly that.
+ */
+export type EntryTarget = (
   | Extract<DesktopRoute, { kind: "signin" | "join" }>
-  | { kind: "claim"; address: string; url: string };
+  | { kind: "claim"; address: string; url: string }
+) & { link?: string };
 const control = /[\u0000-\u001f\u007f-\u009f]/u;
-/** Canonical invitation/owner links remain distinct from a Space sign-in address. */
+/** A Space's own key in a link's fragment (#box=): the link a relay Space opens from the first time on a device. */
+const BOX_KEY = /^[A-Za-z0-9_-]{43}$/;
+/** The app's own pages (/chat, /home, ...): an address copied from the browser's bar names the Space it is in. */
+const ownPage = (pathname: string): boolean => {
+  const first = pathname.split("/")[1] ?? "";
+  return SHELL_PLACES.some((p) => p.id === first);
+};
+/** Canonical invitation/owner links remain distinct from a Space sign-in address. A bare name is that name under vyre.run, here as in every address box. */
 export function entryTarget(raw: string): EntryTarget | null {
   const value = raw.trim();
   if (!value || value.length > 4096 || control.test(value)) return null;
   let url: URL;
   try {
-    url = new URL(/^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`);
+    const named = bareSpaceName(value);
+    url = new URL(named ? `https://${named}` : /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`);
   } catch {
     return null;
   }
@@ -19,6 +33,11 @@ export function entryTarget(raw: string): EntryTarget | null {
   const address = normalizeSpaceAddress(url.origin);
   if (!address || url.username || url.password) return null;
   if (url.pathname === "/" && !url.search && !url.hash) return { kind: "signin", address };
+  // the Space link of a relay Space: its address with the Space's key in the fragment, on any page of it
+  if (BOX_KEY.test(new URLSearchParams(url.hash.slice(1)).get("box") ?? ""))
+    return { kind: "signin", address, link: url.href };
+  // an address copied from the browser while in the Space: the page it was on is not part of where the Space is
+  if (ownPage(url.pathname)) return { kind: "signin", address };
   const invite = /^\/join\/([A-Z0-9]{4}-[A-Z0-9]{4})\/?$/.exec(url.pathname);
   if (invite) {
     const fingerprint = new URLSearchParams(url.hash.slice(1)).get("fp");
@@ -32,7 +51,7 @@ export function entryTarget(raw: string): EntryTarget | null {
     const code = h.get("c"),
       fingerprint = h.get("fp");
     return code && /^[A-Z0-9]{4}-[A-Z0-9]{4}$/.test(code) && fingerprint && /^[a-f0-9]{8,128}$/i.test(fingerprint)
-      ? { kind: "join", address, code, fingerprint }
+      ? { kind: "join", address, code, fingerprint, link: url.href }
       : null;
   }
   if (/^\/claim\/[A-Za-z0-9_-]{16,256}$/.test(url.pathname) && new URLSearchParams(url.hash.slice(1)).has("s"))
@@ -78,8 +97,6 @@ export function isPhoneAddress(address: string): boolean {
     return false;
   }
 }
-/** What the desktop app says for a phone address, in place of a sign-in or join that cannot reach it. */
-export const PHONE_ADDRESS_IN_BROWSER = "This Space is reached through Vyre’s relay. Open the link in your browser.";
 /** A page on a relay name runs under the phone shell's service worker (/__vyre/sw.js), which carries every request to the box: its /healthz is the box's, so the page's own probe proves nothing there. */
 export function underRelayShell(
   nav: { serviceWorker?: { controller?: { scriptURL?: string } | null } } | undefined = (
@@ -122,12 +139,25 @@ export async function isRelayAddress(address: string, o: AddressCheck = {}): Pro
   if (!yes && direct.get(origin) === asked) direct.delete(origin);
   return !yes;
 }
-/** Why the desktop app cannot open this sign-in or join, or null when it can. A claim link is the app's own flow. */
-export async function desktopEntryRefusal(target: EntryTarget, o?: AddressCheck): Promise<string | null> {
-  if (target.kind === "claim") return null;
-  return (await isRelayAddress(target.address, o)) ? PHONE_ADDRESS_IN_BROWSER : null;
+/**
+ * The address a browser is handed for a Space on Vyre's relay. The desktop app cannot carry a relay Space itself: a relay name answers only a small shell page, and everything else rides that
+ * page's service worker over a channel sealed to the Space's key, which lives in that page's own storage and is never supplied by the relay. The app's window is another origin (and a Mac
+ * webview runs no service workers), so the app opens the browser for the person instead of telling them to. The link as given goes along when it has one: its fragment holds the key.
+ */
+export function browserLink(target: EntryTarget): string {
+  if (target.kind === "claim") return target.url;
+  if (target.link) {
+    try {
+      if (new URL(target.link).origin === new URL(target.address).origin) return target.link;
+    } catch {
+      /* the plain address below */
+    }
+  }
+  return target.kind === "join"
+    ? `${target.address}/join/${target.code}#fp=${target.fingerprint}`
+    : new URL("/chat", target.address).href;
 }
-/** The existing desktop join protocol accepts HTTPS Space addresses only, and not a relay phone address, which the desktop app cannot reach. `relay` is isRelayAddress's answer; the name rule until it arrives. */
+/** The existing desktop join protocol accepts HTTPS Space addresses only, and not a relay phone address, which opens in a browser (browserLink). `relay` is isRelayAddress's answer; the name rule until it arrives. */
 export function inviteAppLink(
   route: Extract<DesktopRoute, { kind: "join" }>,
   relay: boolean = isPhoneAddress(route.address),

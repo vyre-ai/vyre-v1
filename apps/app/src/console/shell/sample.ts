@@ -36,6 +36,7 @@ const PERMS: Readonly<Record<Viewer, readonly string[]>> = {
     "ai.spend",
     "ai.incidents",
     "comms.domains",
+    "comms.templates",
     "comms.numbers",
     "comms.shared_send",
     "engineer.mcp",

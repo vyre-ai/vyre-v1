@@ -4,7 +4,7 @@ import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { grantOnProject } from "./handlers/project.ts";
-import { backfill, onRecordEvent } from "./handlers/folders.ts";
+import { backfill, onFolderUnfollowed, onRecordEvent, sweepNeeded } from "./handlers/folders.ts";
 import { itemOf, offer } from "./handlers/attach.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
@@ -30,6 +30,16 @@ export const consumers = {
       if (item) await offer(ctx as never, item);
     },
   },
+  /**
+   * A folder that could not follow its record is narrowed to the people added by the host's own service (the caller that was refused has no Manage, so it cannot narrow either), the original caller
+   * is named in the log line, and the owner gets a task that says whether it was narrowed: the person who asked if it was a person, else the record's owner, else the Space's admins.
+   */
+  "projects.folder_unfollowed": {
+    on: ["project.folder_unfollowed"],
+    async run(ctx: Ctx, event: { id?: string; payload: Record<string, unknown> }): Promise<void> {
+      await onFolderUnfollowed(ctx as never, event.payload, (event as { id?: string }).id);
+    },
+  },
   /** Every project record has its folder in Files > Projects: made with the record, renamed and trashed with it (handlers/folders.ts). */
   "projects.record_folder": {
     on: ["record.created", "record.updated", "record.deleted", "record.restored"],
@@ -39,12 +49,18 @@ export const consumers = {
   },
 };
 
-/** At boot, and again every ten minutes: project records with an empty folder field get one, and the folders' access is brought back in line with their records. */
+/**
+ * At boot the full sweep runs: project records with an empty folder field get one, and the folders' access is brought back in line with their records. Every ten minutes after that a cheap count
+ * looks for work (sweepNeeded) and the full sweep runs only when there is some; the sweep works in 20 ms slices, so it never holds the event loop on a big Space.
+ */
+const SWEPT = new WeakSet<object>();
 export const periodic = {
   "projects.folder_backfill": {
     everyMs: 10 * 60_000,
     immediate: true,
     async run(ctx: Ctx): Promise<void> {
+      if (SWEPT.has(ctx.db as object) && !(await sweepNeeded(ctx as never))) return;
+      SWEPT.add(ctx.db as object);
       await backfill(ctx as never);
     },
   },

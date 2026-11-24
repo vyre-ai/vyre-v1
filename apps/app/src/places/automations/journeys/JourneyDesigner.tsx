@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
+import { Switch } from "../../../../../../ui/src/Switch/index.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import { useAutomationsData } from "../canvas/data.tsx";
@@ -16,6 +17,8 @@ import { Glyph } from "../config/glyphs.tsx";
 import { useJourney, useDesign } from "./data.ts";
 import { FieldsTab } from "./FieldsTab.tsx";
 import { JourneySettings } from "./JourneySettings.tsx";
+import { MigrationBanner } from "./MigrationBanner.tsx";
+import { PathTab } from "./PathTab.tsx";
 import {
   SLOTS,
   TASK_STATES,
@@ -37,12 +40,13 @@ import {
   updateTask,
 } from "./model.ts";
 import type { Journey, Ref, Stage, StageCounts, Task, TaskState } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 
 export interface Selection {
   stage: string;
   task?: string;
 }
-export type DesignerTab = "stages" | "fields" | "settings";
+export type DesignerTab = "path" | "stages" | "fields" | "settings";
 
 export interface JourneyDesignerProps {
   journeyId: string;
@@ -55,16 +59,19 @@ export interface JourneyDesignerProps {
   initialFolded?: readonly string[];
   /** The shared Ask control, supplied by the shell. */
   ask?: ReactNode;
+  /** The Path tab opens looking at one record, and optionally with its whole-path test started. */
+  pathStart?: { recordId: string; name: string; test?: boolean };
 }
 
 export function JourneyDesigner({
   journeyId,
   selection,
   onSelect,
-  initialTab = "stages",
+  initialTab = "path",
   canDesign = true,
   initialFolded = [],
   ask,
+  pathStart,
 }: JourneyDesignerProps): ReactElement {
   const st = useJourney(journeyId);
   const [tab, setTab] = useState<DesignerTab>(initialTab);
@@ -99,6 +106,7 @@ export function JourneyDesigner({
       canDesign={canDesign}
       initialFolded={initialFolded}
       ask={ask}
+      pathStart={pathStart}
     />
   );
 }
@@ -114,6 +122,7 @@ function Body({
   canDesign,
   initialFolded,
   ask,
+  pathStart,
 }: {
   journey: Journey;
   counts: StageCounts;
@@ -125,6 +134,7 @@ function Body({
   canDesign: boolean;
   initialFolded: readonly string[];
   ask: ReactNode;
+  pathStart: JourneyDesignerProps["pathStart"];
 }): ReactElement {
   const data = useAutomationsData();
   const extras = useConfigExtras();
@@ -339,27 +349,28 @@ function Body({
           />
         </View>
         {confirmDelete === g.key ? (
-          <View testID={`confirm-delete-${g.key}`} style={s.confirm}>
-            {canDeleteStage(counts, g.key) ? (
-              <>
-                <Text style={s.confirmText}>{`Delete ${g.title}?`}</Text>
-                <TextButton
-                  label="Delete"
-                  testID={`delete-stage-${g.key}`}
-                  onPress={() => {
-                    setConfirmDelete(null);
-                    edit(removeStage(stages, g.key), `Deleted ${g.title}`);
-                    if (sel?.stage === g.key) choose(null);
-                  }}
-                />
-              </>
-            ) : (
+          canDeleteStage(counts, g.key) ? (
+            <InlineConfirm
+              testID={`confirm-delete-${g.key}`}
+              question={`Delete ${g.title}?`}
+              confirmLabel="Delete"
+              confirmTestID={`delete-stage-${g.key}`}
+              cancelTestID={`cancel-delete-${g.key}`}
+              onConfirm={() => {
+                setConfirmDelete(null);
+                edit(removeStage(stages, g.key), `Deleted ${g.title}`);
+                if (sel?.stage === g.key) choose(null);
+              }}
+              onCancel={() => setConfirmDelete(null)}
+            />
+          ) : (
+            <View testID={`confirm-delete-${g.key}`} style={s.confirm}>
               <Text
                 style={s.confirmText}
               >{`${plural(c.count, "record")} ${c.count === 1 ? "is" : "are"} in ${g.title}. Move them on first, then delete it.`}</Text>
-            )}
-            <TextButton label="Cancel" testID={`cancel-delete-${g.key}`} onPress={() => setConfirmDelete(null)} />
-          </View>
+              <TextButton label="Close" testID={`cancel-delete-${g.key}`} onPress={() => setConfirmDelete(null)} />
+            </View>
+          )
         ) : null}
         {closed ? null : (
           <View style={s.stageBody}>
@@ -552,6 +563,19 @@ function Body({
           {over ? `  ·  ${over} late` : ""}
         </Text>
         <View style={{ flex: 1 }} />
+        {j.startRule ? (
+          <View style={s.onRow} testID="journey-on">
+            <Text style={s.meta}>{j.startRule.enabled ? "On" : "Off"}</Text>
+            <Switch
+              on={j.startRule.enabled}
+              label="Start records on this Journey"
+              disabled={!canDesign}
+              onChange={(on) =>
+                void d.design(j.stages, on ? "Turned on" : "Turned off", { ...j.startRule!, enabled: on })
+              }
+            />
+          </View>
+        ) : null}
         {canDesign ? null : (
           <View testID="view-only" style={s.viewOnly}>
             <Glyph name="lock" size={13} color="var(--ink-3)" />
@@ -568,18 +592,32 @@ function Body({
         />
         {ask}
       </View>
+      <MigrationBanner journey={j} canDesign={canDesign} />
       <SubTabs
         label="Journey"
         active={tab}
         onSelect={(k) => setTab(k as DesignerTab)}
         tabs={[
+          { key: "path", label: "Path" },
           { key: "stages", label: "Stages", note: String(stages.length) },
           { key: "fields", label: "Fields", note: String(fieldCount) },
           ...(canDesign ? [{ key: "settings", label: "Settings" }] : []),
         ]}
       />
-      <ScrollView style={s.scroll} contentContainerStyle={s.col} keyboardShouldPersistTaps="handled">
-        {tab === "settings" && canDesign ? (
+      <ScrollView
+        style={s.scroll}
+        contentContainerStyle={tab === "path" ? s.colWide : s.col}
+        keyboardShouldPersistTaps="handled"
+      >
+        {tab === "path" ? (
+          <PathTab
+            journey={j}
+            counts={counts}
+            design={d}
+            canDesign={canDesign}
+            {...(pathStart ? { start: pathStart } : {})}
+          />
+        ) : tab === "settings" && canDesign ? (
           <JourneySettings journey={j} versions={versions} design={d} />
         ) : tab === "fields" ? (
           <FieldsTab recordType={j.recordType} />
@@ -758,6 +796,8 @@ const s = StyleSheet.create({
   viewOnlyDim: { fontSize: 12.5, color: "var(--ink-4)" as string },
   scroll: { flex: 1, minHeight: 0 },
   col: { width: "100%", maxWidth: 820, alignSelf: "center", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
+  onRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  colWide: { width: "100%", paddingHorizontal: 28, paddingTop: 22, paddingBottom: 64 },
   lab: { fontSize: 11.5, fontWeight: "600", color: "var(--ink-3)" as string },
   labDim: { fontSize: 11.5, color: "var(--ink-4)" as string, marginLeft: 6, flexShrink: 1 },
   fbar: { flexDirection: "row", gap: 2, height: 10, marginTop: 8, borderRadius: 5, overflow: "hidden" },

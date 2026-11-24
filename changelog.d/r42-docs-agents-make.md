@@ -1,0 +1,1 @@
+Agents make a document with one call by naming the template and the record (documents_make): it lands in the record's files and the answer is the file and what was missing. A skill, working-with-documents, teaches the flow from template to signature.

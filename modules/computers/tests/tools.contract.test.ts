@@ -6,7 +6,28 @@ import { registry } from "../../../generated/registry.ts";
 import { handlers } from "../impl.ts";
 import { bindHost } from "../projections.ts";
 import { assertEventsConform, contractErrors } from "../fixtures/harness.ts";
+import { setDocumentNetwork } from "../../../lib/document-network.ts";
 import { tool, world } from "./tools.fixture.ts";
+
+/** The Space's public-page network always dials checked addresses (a pinned connect); the tests' scripted fetch stands behind one. */
+function setNet(d: import("../../../lib/public-fetch.ts").FetchDeps): void {
+  setDocumentNetwork({
+    ...d,
+    connect: d.connect ?? (async (r) => d.fetch(r.url.href, r.headers ? { headers: { ...r.headers } } : {})),
+  });
+}
+
+// the two web tools read through the public reader: a scripted network answers them, so this file asks no real site
+setNet({
+  lookup: async () => ["93.184.216.34"],
+  fetch: (async (u: string) =>
+    new Response(
+      u.includes("duckduckgo")
+        ? '<a class="result__a" href="https://docs.example.com/api">API</a><a class="result__snippet">Docs.</a>'
+        : "<title>API</title><p>Use a token.</p>",
+      { status: 200, headers: { "content-type": "text/html" } },
+    )) as typeof fetch,
+});
 
 const mine = registry.capabilities.filter(
   (c) => c.module === "computers" && /^computers\.(chrome|screen|files)\./.test(c.name),
@@ -43,6 +64,8 @@ const CASES: Array<[string, Record<string, unknown>]> = [
   ["computers.chrome.plan", { goal: "Open the intake form", steps: ["Open it", "Fill it"] }],
   ["computers.chrome.api", { method: "GET", url: "https://example.com/api/items" }],
   ["computers.chrome.sources", {}],
+  ["computers.chrome.read", { url: "https://docs.example.com/api" }],
+  ["computers.chrome.search", { query: "how to authenticate", site: "docs.example.com" }],
   ["computers.screen.screenshot", {}],
   ["computers.screen.click", { x: 10, y: 20, button: "left", double: true }],
   ["computers.screen.move", { x: 10, y: 20 }],
@@ -58,9 +81,9 @@ const CASES: Array<[string, Record<string, unknown>]> = [
   ["computers.files.delete", { path: "work/old.md" }],
 ];
 
-test("the 35 tools are 22 Chrome, 8 Screen and 5 Files, each with a handler in the module's table", () => {
-  assert.equal(mine.length, 35);
-  assert.equal(mine.filter((c) => c.name.startsWith("computers.chrome.")).length, 22);
+test("the 37 tools are 24 Chrome, 8 Screen and 5 Files, each with a handler in the module's table", () => {
+  assert.equal(mine.length, 37);
+  assert.equal(mine.filter((c) => c.name.startsWith("computers.chrome.")).length, 24);
   assert.equal(mine.filter((c) => c.name.startsWith("computers.screen.")).length, 8);
   assert.equal(mine.filter((c) => c.name.startsWith("computers.files.")).length, 5);
   for (const c of mine) assert.equal(typeof (handlers as Record<string, unknown>)[c.name], "function", c.name);
@@ -96,8 +119,9 @@ test("the same tools work for a person who names the computer, and not without i
     assert.deepEqual(contractErrors(name, "out", out), [], `${name}: output`);
   }
   for (const [name, input] of CASES) {
-    // The batch carries its own steps and reports a missing computer per step instead of refusing the whole call.
-    if (name === "computers.chrome.batch") continue;
+    // The batch carries its own steps and reports a missing computer per step instead of refusing the whole call; the two web tools are answered by the Space and need no computer.
+    if (name === "computers.chrome.batch" || name === "computers.chrome.read" || name === "computers.chrome.search")
+      continue;
     await assert.rejects(
       () => tool[name]!(w.h.ctx, input),
       (e: any) => e?.error?.code === "validation.bad_input",

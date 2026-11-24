@@ -155,6 +155,8 @@ export default defineManifest({
         emits: ["settings.changed"],
         audit: "always",
         tool: "engineer",
+        // the setting that decides how the whole Space sends email (mail.provider) is held for an agent; every other setting is as before
+        gate: { act: "send", when: "mail.is_provider_setting(input.key)" },
         errors: ["validation.field_locked"],
       },
     ),
@@ -166,6 +168,7 @@ export default defineManifest({
       emits: ["settings.changed"],
       audit: "always",
       tool: "engineer",
+      gate: { act: "send", when: "mail.is_provider_setting(input.key)" },
     }),
     read("settings.search", "Find settings rows by words (Cmd-F)", {
       ...V,
@@ -379,5 +382,21 @@ export default defineManifest({
     setting("reports.send", "person", "privacy", "Send problem reports to Vyre", t.bool(), true),
     setting("kit.person_choice", "person", "appearance", "My Kit", t.nullable(id.kit), null),
     setting("kit.space_choice", "space", "spaces", "Space Kit", t.nullable(id.kit), null),
+    setting(
+      "search.provider",
+      "space",
+      "spaces",
+      "Web search for agents (the default needs no key; Brave Search or Bing use the Space's own key)",
+      t.enm("default", "brave", "bing"),
+      "default",
+    ),
+    setting(
+      "search.key",
+      "space",
+      "spaces",
+      "Web search key: the Vault handle of the key, never the key itself",
+      t.str({ maxLength: 120, examples: ["#Brave_Search.api_key"] }),
+      "",
+    ),
   ],
 });

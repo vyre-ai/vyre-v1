@@ -4,10 +4,19 @@
 // Held items: agentd holds a send, a post or a payment instead of doing it and answers `heldId`. Only chrome_send releases it, and that capability is behind the Gate (the person approves).
 // chrome_batch therefore refuses every tool the Gate or the risk class would treat differently from a plain step (send, api, eval, batch itself, stop, resume): a batch can never do what its parts
 // could not do alone. #Handle.field references go to agentd untouched; it substitutes them on the computer and reports the values it used, which are scrubbed from every answer (common.ts).
+import { documentNetwork } from "../../../../lib/document-network.ts";
+import { LIMIT, PROVIDERS, createLimiter, readPage, searchWeb } from "../../../../lib/web-read.ts";
+import type { Provider } from "../../../../lib/web-read.ts";
+import { searchHost } from "../../search-host.ts";
+import { rememberSearchUrls, webTurnKey } from "../../../../lib/web-turns.ts";
+import type { FetchDeps } from "../../../../lib/public-fetch.ts";
+import { holdsHandedOutSecret } from "../../projections.ts";
+import { scan } from "../../../../lib/secret-scrub.ts";
 import { maskValue } from "../record.ts";
 import { raise } from "../../projections.ts";
 import type { CompCtx } from "../../projections.ts";
-import { pageOf, call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
+import { MY_CHROME, pageOf, call, clip, defined, keepShot, prepare, run, shape, siteOf, whereOf } from "./common.ts";
+import { turnMessageAgeMs } from "./my-chrome-ask.ts";
 import type { ToolAnswer, ToolArgs, ToolSpec } from "./common.ts";
 
 interface Base {
@@ -120,6 +129,118 @@ export async function status(ctx: CompCtx, input: Base) {
 export async function sources(ctx: CompCtx, input: Base) {
   const out = await run(ctx, input, { name: "chrome_sources", caption: null }, defined({ tabId: input.tabId }));
   return shape(ctx, "chrome_sources", out, { scripts: "a", endpoints: "a" });
+}
+
+// ---- the public web (documentation of the site being worked on)
+
+/** Reads and searches per agent, per minute: an agent that loops stops after a few. */
+const webLimit = createLimiter(LIMIT.n, LIMIT.windowMs);
+/** The hosts of this Space's own address: never opened, so a page can never send the reader back at the Space it runs in. */
+async function ownHosts(ctx: CompCtx): Promise<Set<string>> {
+  const hosts = new Set<string>();
+  try {
+    const out = (await ctx.call("spaces.get", {})) as { space?: { address?: unknown } } | null;
+    const a = out?.space?.address;
+    if (typeof a === "string" && a !== "")
+      hosts.add(new URL(/^[a-z]+:\/\//i.test(a) ? a : `https://${a}`).hostname.toLowerCase());
+  } catch {
+    /* no address to refuse: the private-address checks still hold */
+  }
+  return hosts;
+}
+async function webNet(ctx: CompCtx): Promise<FetchDeps> {
+  const own = await ownHosts(ctx);
+  const base = documentNetwork();
+  // a read dials the addresses that were checked (a pinned connection); a plain fetch would look the name up again and could be sent somewhere else (DNS rebinding), so without one nothing is read
+  if (!base || typeof base.connect !== "function")
+    raise(
+      ctx,
+      "provider.unavailable",
+      "This Space cannot read the web safely here: its network for public pages is not set up.",
+    );
+  return { ...base, refuseHost: (h) => own.has(h) || [...own].some((o) => h.endsWith(`.${o}`)) };
+}
+function webGate(ctx: CompCtx): void {
+  if (!webLimit.take(`${ctx.principal.kind}:${ctx.principal.id}`))
+    raise(ctx, "rate_limit.exceeded", "That is too many reads in a minute. Wait a little, then go on.");
+}
+
+export async function readWeb(ctx: CompCtx, input: { url: string }) {
+  webGate(ctx);
+  // an address that carries a value the Vault gave this agent (a key, a password) is never opened, approved or not: it would be sending the secret out in the path or the query
+  if (holdsHandedOutSecret(String(input.url ?? "")))
+    raise(
+      ctx,
+      "validation.bad_input",
+      "That address carries a value from the Vault. Secrets are never sent in an address.",
+    );
+  const found = scan(String(input.url ?? "").slice(0, 4000));
+  if (found.length > 0)
+    raise(
+      ctx,
+      "validation.bad_input",
+      `That address looks like it carries a secret (${found[0]}). Secrets are never sent in an address.`,
+    );
+  const r = await readPage(String(input.url ?? ""), await webNet(ctx));
+  if (!r.ok) raise(ctx, "validation.bad_input", r.reason);
+  return { url: r.url, title: r.title, text: r.text, truncated: r.truncated, source: r.source };
+}
+
+/** The Space's search service: the key-less default unless an admin chose Brave Search or Bing in Console and named the Vault handle of its key. The key is read for this call only and never returned. */
+async function searchProvider(ctx: CompCtx): Promise<Provider> {
+  const read = async (key: string): Promise<unknown> => {
+    try {
+      return ((await ctx.call("settings.get", { key })) as { row?: { value?: unknown } } | null)?.row?.value;
+    } catch {
+      return undefined;
+    }
+  };
+  const kind = await read("search.provider");
+  if (kind !== "brave" && kind !== "bing") return { kind: "default" };
+  if (!(PROVIDERS as readonly string[]).includes(kind)) return { kind: "default" };
+  const handle = String((await read("search.key")) ?? "").trim();
+  const host = searchHost();
+  let key = "";
+  if (handle !== "" && host) {
+    try {
+      key = await host.secret(handle);
+    } catch {
+      key = "";
+    }
+  }
+  if (key === "")
+    raise(
+      ctx,
+      "provider.unavailable",
+      "The search service chosen for this Space has no key it can use. An admin sets the key's Vault handle in Console, Settings.",
+    );
+  return { kind, key };
+}
+
+export async function searchWebTool(ctx: CompCtx, input: { query: string; site?: string | undefined }) {
+  webGate(ctx);
+  if (holdsHandedOutSecret(String(input.query ?? "")))
+    raise(
+      ctx,
+      "validation.bad_input",
+      "That search carries a value from the Vault. Secrets are never sent to a search service.",
+    );
+  // a query goes to the search service: nothing that looks like a secret leaves in it, and the reason says what it looked like
+  const found = scan(String(input.query ?? "").slice(0, 4000), { bare: true });
+  if (found.length > 0)
+    raise(
+      ctx,
+      "validation.bad_input",
+      `That search looks like it contains a secret (${found[0]}). Secrets are never sent to a search service.`,
+    );
+  const r = await searchWeb(String(input.query ?? ""), input.site, await webNet(ctx), await searchProvider(ctx));
+  if (!r.ok) raise(ctx, r.kind ? "provider.unavailable" : "validation.bad_input", r.reason);
+  // what this search showed the agent in this turn: chrome_read opens exactly these addresses without asking (never a host, never with more in the query)
+  rememberSearchUrls(
+    webTurnKey(ctx.principal.id, ctx.thread),
+    r.results.map((x) => x.url),
+  );
+  return { query: r.query, results: r.results, source: r.source };
 }
 
 // ---- acting
@@ -352,7 +473,8 @@ export async function resume(
     ctx,
     input,
     { name: "chrome_resume", caption: () => "Resumed the browser", noWake: true, asleep: { resumed: false } },
-    {},
+    // in the person's own Chrome, whether the agent may go on after a Stop is decided there, from when the person last wrote to it: the Space says when (the agent cannot)
+    whereOf(input) === MY_CHROME ? defined({ turnMessageAgeMs: await turnMessageAgeMs(ctx) }) : {},
   );
   return shape(ctx, "chrome_resume", out, { resumed: "b" });
 }

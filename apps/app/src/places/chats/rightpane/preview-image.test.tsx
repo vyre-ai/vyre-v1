@@ -14,6 +14,7 @@ test("frames are shown in order, a repeat is skipped, a failure keeps going, hid
     () => ({ state: "live", png: "BBB" }),
   ];
   const asked: string[] = [];
+  const warmed: string[] = [];
   const shown: string[] = [];
   let tick = 0;
   let hidden = false;
@@ -26,6 +27,10 @@ test("frames are shown in order, a repeat is skipped, a failure keeps going, hid
   };
   stop = pullFrames(
     async (cap, input) => {
+      if (cap === "computers.browser.warm") {
+        warmed.push((input as { agentId: string }).agentId);
+        return { state: "skipped" };
+      }
       asked.push(`${cap} ${(input as { agentId: string }).agentId}`);
       const a = answers.shift();
       if (!a) return { state: "live", png: "CCC" };
@@ -39,4 +44,34 @@ test("frames are shown in order, a repeat is skipped, a failure keeps going, hid
   assert.deepEqual(shown, ["data:image/png;base64,AAA", "data:image/png;base64,BBB"]);
   assert.ok(asked.every((x) => x === "computers.browser.preview agt_x"));
   assert.equal(asked.length, 5, "five reads, none while hidden (ticks 5 and 6)");
+  assert.deepEqual(warmed, ["agt_x"], "the browser is asked to warm once, when the pane is first seen");
+});
+
+test("a failed warm ask, and a pane that starts hidden, change nothing: frames still come, a hidden start asks nothing", async () => {
+  const shown: string[] = [];
+  const warmedHidden: string[] = [];
+  const stopA = pullFrames(
+    async (cap) => {
+      if (cap === "computers.browser.warm") throw new Error("refused");
+      return { state: "live", png: "ZZZ" };
+    },
+    "agt_y",
+    (u) => shown.push(u),
+    { wait: () => new Promise<void>(() => undefined) },
+  );
+  for (let i = 0; i < 20; i++) await Promise.resolve();
+  stopA();
+  assert.deepEqual(shown, ["data:image/png;base64,ZZZ"]);
+  const stopB = pullFrames(
+    async (cap) => {
+      if (cap === "computers.browser.warm") warmedHidden.push(cap);
+      return { state: "asleep" };
+    },
+    "agt_z",
+    () => undefined,
+    { hidden: () => true, wait: () => new Promise<void>(() => undefined) },
+  );
+  for (let i = 0; i < 10; i++) await Promise.resolve();
+  stopB();
+  assert.deepEqual(warmedHidden, []);
 });

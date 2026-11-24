@@ -7,6 +7,10 @@ import { ConsoleDataProvider } from "../shell/data.tsx";
 import { SpaceKey, keyHeadline, keyProviders, modelsLine } from "../pages/SpaceKey.tsx";
 import { usageLine } from "../pages/Spend.tsx";
 import { dataWith } from "./sheet-helper.tsx";
+import { setArmDelay } from "../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const KEY = "ocg-live-7a1f-NEVER-ON-A-PAGE-0123456789"; // secret-scan: fake
 const CATALOG = {

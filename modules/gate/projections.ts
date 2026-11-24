@@ -20,9 +20,12 @@ export type ActKey =
   | "push_protected"
   | "secret_export"
   | "site_promote"
+  | "deploy"
   | "signature_send"
   | "spend_raise"
   | "signin_change"
+  | "admit"
+  | "access"
   | "github_approval"
   | "agent_erase"
   | "approve";
@@ -91,11 +94,14 @@ export const ACTS: readonly ActDef[] = [
   act("push_protected", "Push to a protected branch", "high", "diff", "role:admin", { humanToo: true }),
   act("secret_export", "Export secrets", "high", "table", "role:admin", { humanToo: true }),
   act("site_promote", "Promote a site to production", "high", "deploy", "role:admin", { humanToo: true }),
+  act("deploy", "Run code with a site's production keys", "high", "deploy", "asker", { alwaysStops: true }),
   act("signature_send", "Send a document for signature", "high", "file", "role:admin"),
   act("spend_raise", "Raise a spend cap", "medium", "table", "role:admin"),
   act("signin_change", "Change how people sign in to the Space", "high", "record_card", "role:admin", {
     alwaysStops: true,
   }),
+  act("admit", "Let someone in or change who can reach what", "medium", "record_card", "asker"),
+  act("access", "Change the rules of access", "high", "record_card", "asker", { alwaysStops: true }),
   act("agent_erase", "Delete an agent for good", "high", "record_card", "asker", {
     alwaysStops: true,
     personOnly: true,
@@ -633,6 +639,9 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
     if (Array.isArray(v)) recipients += v.length;
     else if (typeof v === "string" && v.length > 0) recipients += 1;
   }
+  // a held signature send of a copy that is not the exact one says so in its title (built here, from the call's own flag, never from the caller's words)
+  if (a.key === "signature_send" && o.plainOk === true)
+    return cut(`${a.title} via ${capName} as a preview copy in the plain page look`, 120);
   const parts = [
     a.key === "send" && (outwardOf(capName, input) === null || outwardOf(capName, input)?.channel === "event")
       ? holdTitle(capName, input, a.title)
@@ -643,6 +652,33 @@ export function summaryLine(a: ActDef, capName: string, input: unknown): string 
   if (typeof amount === "number" && Number.isFinite(amount))
     parts.push(`for ${amount}${typeof o.currency === "string" ? ` ${o.currency.slice(0, 3).toUpperCase()}` : ""}`);
   return cut(parts.join(" "), 120);
+}
+
+/** The sentence the card of a held signature send carries when the sender chose a preview copy: built by the server, with no word from the caller in it, so the person pressing Allow is told what it is. */
+export function plainCopyNote(a: ActDef, input: unknown): string | undefined {
+  if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true) return undefined;
+  return "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.";
+}
+
+/** The names the preview copy goes to, as names and nothing else: control characters and line breaks removed, runs of spaces made one, each cut at 60 letters, six at most. The card shows them apart from the sentence. */
+export function plainCopySigners(a: ActDef, input: unknown): string[] {
+  if (a.key !== "signature_send" || !isObj(input) || input.plainOk !== true || !Array.isArray(input.signers)) return [];
+  return input.signers
+    .flatMap((x) =>
+      isObj(x) && typeof x.name === "string"
+        ? [
+            cut(
+              x.name
+                .replace(/[\p{Cc}\p{Cf}\u2028\u2029]+/gu, " ")
+                .replace(/\s+/g, " ")
+                .trim(),
+              60,
+            ),
+          ]
+        : [],
+    )
+    .filter((n) => n !== "")
+    .slice(0, 6);
 }
 
 /** The exact preview (spec 2.14): the whole input, as the act kind's block, so the approver sees what will go out. */
@@ -670,6 +706,7 @@ export function previewBlocks(
         cap: capName,
         input,
         ...(holdId ? { holdId } : {}),
+        ...(plainCopyNote(a, input) ? { note: plainCopyNote(a, input), noteSigners: plainCopySigners(a, input) } : {}),
         ...(outward ? { outward: { ...outward, ...(edited ? { edited } : {}) } } : {}),
       },
     },

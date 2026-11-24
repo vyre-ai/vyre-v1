@@ -58,6 +58,8 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
+  // the form this editor's fields have been filled from: until they have, the editor says it is loading, so the first thing drawn after the record arrives (or is peeked from the kept copy) is the saved name, never an empty one
+  const [filledFrom, setFilledFrom] = useState("");
   const [preview, setPreview] = useState(false),
     [notice, setNotice] = useState("");
   const [published, setPublished] = useState<{ url: string; embed: string } | null>(null);
@@ -89,6 +91,7 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
       setThankYou(form.data.settings.thankYou?.text ?? "");
       setDirty(false);
       setPreview(false);
+      setFilledFrom(route.id ?? "");
     }
   }, [form.data]);
   // the preview draws what the publisher has chosen to publish, by its label, never the record list behind it
@@ -655,7 +658,8 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     back,
     offline: !online,
     error: error ?? form.error ?? types.error ?? schema.error,
-    loading: form.loading && form.data === null,
+    loading:
+      (form.loading && form.data === null) || (Boolean(route.id) && form.data !== null && filledFrom !== route.id),
     retry: form.refresh,
   };
   return route.id ? (

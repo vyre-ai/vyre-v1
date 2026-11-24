@@ -284,10 +284,10 @@ function Sidebar(): ReactElement {
   const inColumn = useInSidebarColumn();
   const buttons = (
     <>
-      {bare ? null : (
+      {bare || canSend === null ? null : (
         <IconButton icon="pen" label="New message" testID="inbox-new" onPress={() => data.nav.compose()} />
       )}
-      {bare ? null : (
+      {bare || canSend === null ? null : (
         <IconButton icon="plus" label="Connect a mailbox or number" testID="inbox-connect" onPress={connectMenu} />
       )}
     </>

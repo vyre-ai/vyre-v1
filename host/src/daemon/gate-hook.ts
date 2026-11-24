@@ -6,13 +6,37 @@
 //   verify   the sealed approval token tasks.act minted must carry the hash of exactly this call, for this caller, and not be past its expiry. gate.release then re-invokes the parked
 //            call as its original caller with that token (CallOpts.approvalToken and .onBehalfOf, honoured by the pipeline for gate.release alone).
 // The daemon wraps this hook with withGateNesting, so one approval covers one send and not its provider call.
+import { scan } from "../../../lib/secret-scrub.ts";
+import { exactUrl, hostOf, searchShowed, webTurnKey } from "../../../lib/web-turns.ts";
 import { CARRIES_MARK, HELD_FROM_AUTOMATION_SET } from "../../../lib/automation-content.ts";
 import { canonical, sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { evalExpr, parseExpr } from "../../../lib/expr/expr.ts";
 import { OUTWARD_ACTS, bringsOutside, linksIn, targetsOf } from "../../../lib/grants.ts";
-import { hostOfUrl, keyReadHost } from "../../../lib/key-target.ts";
+import { isHostOwnService } from "../../../lib/trust.ts";
+import {
+  KEY_HOST_CAPS,
+  carriesHandle,
+  envHandles,
+  exposesKeys,
+  hostOfUrl,
+  keyReadHost,
+  heldGateFp,
+  holdGateFp,
+  keySendOf,
+  noteApproved,
+  noteGateFp,
+  peekGateFp,
+  protectionHolds,
+  rotatesLiveSecret,
+  siteKeyPairs,
+  sourceKeyHost,
+  sourceOfInput,
+  uploadFingerprint,
+  usedGateFp,
+} from "../../../lib/key-target.ts";
+import type { SiteFacts, SiteSource } from "../../../lib/key-target.ts";
 import { resolveKeyRef } from "../seams/key-ref.ts";
-import { fail } from "../routes/errors.ts";
+import { HostError, fail } from "../routes/errors.ts";
 import type { CtxSeed, GateHook } from "../invoke.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
 import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
@@ -20,6 +44,15 @@ import type { ScopedDb } from "../../../packages/contracts/src/ctx.ts";
 export interface GateHookDeps {
   /** Call a capability as the Space itself (its owner, origin "gate"), through the whole pipeline. */
   call(cap: string, input: unknown, trace?: { traceId: string; spanId: string }): Promise<unknown>;
+  /**
+   * What a call is parked as: the call's input with what the hold must pin (a deploy that names no commit is pinned to the branch's head at hold time, so the yes builds exactly what the card showed). The held row keeps it, so it
+   * survives a restart. Absent or throwing, the call is parked as it was asked.
+   */
+  pin?(
+    cap: string,
+    input: unknown,
+    seed: Pick<CtxSeed, "principal" | "actingFor" | "trace" | "origin">,
+  ): Promise<unknown>;
   /** ctx.seal.unseal: opens the approval token. */
   unseal(s: { keyId: string; nonce: string; bytes: string }): Uint8Array;
   now(): number;
@@ -31,7 +64,13 @@ export interface GateHookDeps {
     string,
     (
       input: unknown,
-      seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+      seed: Pick<CtxSeed, "principal" | "thread"> & {
+        actingFor?: string | undefined;
+        setupGrant?: boolean | undefined;
+        trace?: CtxSeed["trace"];
+        approvedBy?: string | undefined;
+        origin?: string | undefined;
+      },
     ) => boolean | Promise<boolean>
   >;
   /** The uncleared mark from an Automation's outside-started Run ("automation:...") on any of these threads, as opposed to a page an agent read on a person's ask; null when none. */
@@ -96,21 +135,41 @@ export function whenHolds(when: string | undefined, input: unknown, seed: Pick<C
 /** `fn.name(input.field)`: a condition the module behind `fn.name` evaluates. */
 const MODULE_WHEN = /^\s*([a-z_]+\.[a-z_]+)\(\s*input(?:\.[A-Za-z_]+)*\s*\)\s*$/;
 
+/** The refusals an evaluator chose to make, by identity: nothing a caller sends, and no error an inner call builds from caller input (which could carry any field), can be on this list. */
+const REFUSALS = new WeakSet<object>();
+export function markRefusal<T extends object>(e: T): T {
+  REFUSALS.add(e);
+  return e;
+}
+/** A refusal the key rule chose to make: the very error it marked, whatever class it is. */
+export function isMarkedRefusal(e: unknown): boolean {
+  return typeof e === "object" && e !== null && REFUSALS.has(e);
+}
+
 async function appliesWhen(
   d: Pick<GateHookDeps, "evaluators">,
   when: string | undefined,
   input: unknown,
-  seed: Pick<CtxSeed, "principal" | "thread"> & { actingFor?: string | undefined },
+  seed: Pick<CtxSeed, "principal" | "thread"> & {
+    actingFor?: string | undefined;
+    setupGrant?: boolean | undefined;
+    trace?: CtxSeed["trace"];
+    origin?: string | undefined;
+  },
 ): Promise<boolean> {
   const fn = when === undefined ? undefined : MODULE_WHEN.exec(when)?.[1];
   const evaluate = fn === undefined ? undefined : d.evaluators?.[fn];
   if (!evaluate) return whenHolds(when, input, seed);
   try {
     return await evaluate(input, seed);
-  } catch {
+  } catch (e) {
+    // a refusal the condition itself marked (details.refusal: an agent that may not use the key at all) is the answer; every other failure, a HostError from an inner call included, holds
+    if (isMarkedRefusal(e)) throw e;
     return true;
   }
 }
+
+export { KEY_HOST_CAPS, carriesHandle, exposesKeys, keySendOf, siteKeyPairs, sourceKeyHost };
 
 interface Claims {
   v?: unknown;
@@ -148,6 +207,17 @@ function threadsIn(output: unknown): string[] {
   look(output, 0);
   return [...out];
 }
+
+/** An agent, an outside actor, or any service that is not one the host itself runs (an allow-list: a tenant's, a legacy or an unknown service id is held; svc_host, svc_engine, svc_sync are not). */
+export function actorLike(p: { kind: string; id: string }): boolean {
+  return (
+    p.kind === "agent" ||
+    p.kind === "actor" ||
+    (p.kind === "service" && !isHostOwnService({ kind: "service", id: p.id }))
+  );
+}
+
+const PERSONAL_SPACE = Symbol("personal space");
 
 export function createGateHook(d: GateHookDeps): GateHook {
   const threads = (id: string): string[] => d.threads?.(id) ?? [id];
@@ -220,6 +290,9 @@ export function createGateHook(d: GateHookDeps): GateHook {
         typeof done === "string"
       )
         await d.evaluators?.["automations.after_person_bind"]?.({ connectionId: done, bound: true }, seed);
+      // an agent's call that waited for a person and ran on their yes: the host it sent the key to is approved for that item from now on, by that person, so the next call flows
+      if (KEY_HOST_CAPS.has(cap.name) && seed.approval !== undefined && seed.principal.kind !== "person")
+        await d.evaluators?.["vault.after_approved_key_use"]?.(input, seed);
       if (!seed.thread || seed.principal.kind !== "agent") return;
       // the mark follows the work: a task, a helper, a crew job or a chat the agent starts from a thread an Automation's outside-started Run marked carries the same mark, so the work it
       // does there is held as the Run's own is (lead 12 Nov)
@@ -247,7 +320,11 @@ export function createGateHook(d: GateHookDeps): GateHook {
       // A step of an automation is the automation's act, not a person's, even when the Run runs as its owner: a condition that lets a person's own act through does not let a step through, and an outward
       // act needs a grant. Only a person's press makes one, so an automation an agent made or edited stops here (chat design, hole 1).
       const asked = seed.step ? { principal: { kind: "service" as const, id: seed.step.automationId } } : seed;
-      const held = await appliesWhen(conditions, cap.gate?.when, input, { ...asked, thread: seed.thread });
+      const held = await appliesWhen(conditions, cap.gate?.when, input, {
+        ...asked,
+        thread: seed.thread,
+        setupGrant: seed.setupGrant,
+      });
       // A capability that can go out without saying so (a terminal command) names what this call does. A person's own command is their own act.
       const said = held ? null : (d.outward?.(cap.name, input) ?? null);
       if (!held && (said === null || (seed.principal.kind === "person" && !seed.step))) return null;
@@ -258,8 +335,13 @@ export function createGateHook(d: GateHookDeps): GateHook {
         const g = (await d.call("gate.grants.take", { act, targets, step: seed.step })) as { granted?: unknown } | null;
         if (g?.granted !== true) return { act };
       }
+      // a deploy a push asked for runs as the person who last deployed (their access, their Vault keys), but it is not their act: the Gate judges it as anything else that is not a person
       const r = (await d.call("gate.effective_rule", {
-        principal: { kind: seed.principal.kind, id: seed.principal.id },
+        principal: {
+          kind:
+            seed.origin === "sites-push" && held && seed.principal.kind === "person" ? "service" : seed.principal.kind,
+          id: seed.principal.id,
+        },
         act,
         ...(seed.gateMode === "admin_only" ? { adminOnly: true } : {}),
       })) as { hold?: unknown; adminRule?: unknown } | null;
@@ -302,16 +384,23 @@ export function createGateHook(d: GateHookDeps): GateHook {
       const runner: Pick<CtxSeed, "principal" | "actingFor"> = person
         ? { principal: { kind: "person", id: person } }
         : a.seed;
+      // what the card is made over: the input as asked, with the commit a deploy that named none will build
+      // a call that cannot be pinned when it must be refuses here (the pin throws): it is never parked unpinned
+      const parked = (await d.pin?.(a.cap.name, a.input, a.seed)) ?? a.input;
       const input: Record<string, unknown> = {
         capName: a.cap.name,
         capVersion: a.cap.v,
-        input: a.input,
-        payloadHash: payloadHash(a.cap, a.input, runner),
+        input: parked,
+        payloadHash: payloadHash(a.cap, parked, runner),
         act: a.act,
         principal: { kind: runner.principal.kind, id: runner.principal.id },
         decisionId: a.decisionId,
         idempotencyKey: a.decisionId,
       };
+      // the files the Gate read when it made this hold are what a yes approves: kept by the held call's hash for the resumed call
+      const heldSite = (a.input as { siteId?: unknown } | null)?.siteId;
+      const readFp = typeof heldSite === "string" ? peekGateFp(a.seed.trace, heldSite) : null;
+      if (readFp) holdGateFp(input["payloadHash"] as string, readFp);
       // what happens, in the capability's own words: its summary up to the first ";" (the rest is for developers)
       if (person)
         input["ask"] = {
@@ -319,6 +408,7 @@ export function createGateHook(d: GateHookDeps): GateHook {
           what: a.cap.summary.split(";")[0]!.trim() || a.cap.name,
         };
       else if (a.seed.actingFor) input["actingFor"] = a.seed.actingFor;
+      if (a.seed.origin === "sites-push") input["origin"] = a.seed.origin;
       if (a.seed.run) input["runId"] = a.seed.run;
       if (a.seed.thread) input["threadId"] = a.seed.thread;
       if (a.seed.step) input["step"] = a.seed.step;
@@ -352,13 +442,18 @@ export function createGateHook(d: GateHookDeps): GateHook {
     },
     verify(token, a) {
       const claims = claimsOf(d, token);
-      return (
+      const ok =
         claims !== null &&
         claims.v === 1 &&
         typeof claims.exp === "number" &&
         claims.exp >= d.now() &&
-        claims.hash === payloadHash(a.cap, a.input, a.seed)
-      );
+        claims.hash === payloadHash(a.cap, a.input, a.seed);
+      // the resumed call builds only the files that were read when the hold was made: a yes approves exactly those
+      const site = (a.input as { siteId?: unknown } | null)?.siteId;
+      const held = ok && typeof claims?.hash === "string" && typeof site === "string" ? heldGateFp(claims.hash) : null;
+      if (held && typeof site === "string") noteGateFp(a.seed.trace, site, held);
+      if (ok && typeof site === "string") noteApproved(a.seed.trace, site);
+      return ok;
     },
   };
 }
@@ -425,6 +520,30 @@ export function moduleWhens(
   handlesOf?: (connectionId: string) => { connector: string; handles: string[] } | null,
 ): NonNullable<GateHookDeps["evaluators"]> {
   const out: NonNullable<GateHookDeps["evaluators"]> = {};
+  // How the Space sends email is set by one setting (mail.provider). An agent changing it, or putting it back to its default, waits for a person; every other setting, and a person's own change, goes straight through.
+  // Testing the Space's own mail server with nothing typed is open to everyone. Typing a host, port, username, security or password handle sends a sign-in to a place the person names: for an agent that waits for a person.
+  out["mail.smtp_override"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    ["host", "port", "security", "username", "passwordHandle"].some(
+      (k) => (input as Record<string, unknown> | null)?.[k] !== undefined,
+    );
+  // Pausing, resuming or marking a mailbox's sync stops incoming mail: held for an agent, an Automation (its step runs as a service named for the automation) and any other actor, and let through for the syncs' own
+  // service principals. A list, not "service": the sync's id is not an automation's.
+  out["mail.non_sync_actor"] = (_input, seed) => actorLike(seed.principal);
+  // an invitation, a role, a grant or another way in made by an agent, an outside actor, an Automation step or a service a tenant can make (svc_form_*, svc_site_*, svc_<32 hex>) is held; the host's own
+  // services (svc_host, svc_engine, svc_sync: the seed and the join flow among them) are not. The setup grant ("Act for me, including setup", owner ruling 3 Nov) names these, so an outside agent under it is not held.
+  out["gate.by_actor"] = (_input, seed) => actorLike(seed.principal) && seed.setupGrant !== true;
+  // a Vault key handed to someone is a way in to whatever it opens: held for an agent, outside actor, Automation step or tenant service, on vault.share and on access.share of a Vault item or folder (a share of anything
+  // else inside the Space stays under the caller's own access); the card names the key and who gets it (lib/hold-words.ts)
+  out["gate.vault_share_by_actor"] = (input, seed) => {
+    const t = (input as { resource?: { type?: unknown } } | null)?.resource?.type;
+    return actorLike(seed.principal) && seed.setupGrant !== true && (t === "vault_item" || t === "vault_folder");
+  };
+  // a changeset's approval is a reviewer's: any agent is held, push or not; a person's own approval is held only for a push to a protected branch
+  out["changesets.agent_or_push"] = (input, seed) =>
+    actorLike(seed.principal) || (input as { push?: unknown } | null)?.push === true;
+  out["mail.is_provider_setting"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { key?: unknown } | null)?.key === "mail.provider";
   // an agent's delete inside work/ on its own computer is its own change; anywhere else asks
   out["computers.deletes_outside_work"] = (input, seed) =>
     seed.principal.kind !== "person" &&
@@ -467,6 +586,203 @@ export function moduleWhens(
   // for a person who may use the item, and so does anything this cannot name: a host it cannot read or an item it cannot resolve holds, it never lets the read through. The host and the item are read
   // with the same functions the card's lookup and the sender use (lib/key-target.ts, seams/key-ref.ts). A person's own read is theirs: the Vault releases the key only if they may use it.
   const approved = exports.get("automations")?.["keyHostApproved"];
+  // A Vault key sent to a place the call names (a sync spec's app, a sample read, a site's git repo) goes, without a person, only to a host approved for that item, by the same rule and store as a test read.
+  // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own. Anything this cannot read holds.
+  // An agent that may not use the item itself is refused (not held): its person's access does not stand in for its own.
+  const mayUse = async (
+    ref: { id: string },
+    seed: Parameters<NonNullable<(typeof out)[string]>>[1],
+    asker: string | undefined,
+  ): Promise<void> => {
+    if (seed.principal.kind !== "agent") return;
+    const r = (await call("access.check", {
+      principal: { kind: "agent", id: seed.principal.id },
+      ...(asker ? { actingFor: { kind: "person", id: asker } } : {}),
+      action: { level: "use" },
+      resource: { type: "vault_item", id: ref.id },
+    }).catch((e: unknown) => {
+      // the checker is a Team capability: a Personal Space answers permission.needs_team, and there the person's own agents use their own items (nothing is shared), so there is nothing to refuse on
+      if (e instanceof HostError && e.error.code === "permission.needs_team") return PERSONAL_SPACE;
+      return null;
+    })) as { decision?: { effect?: unknown } } | typeof PERSONAL_SPACE | null;
+    // any other check that could not be made (null) is not a no: the call goes on to the approved-host rule, which holds it; only an answer that is not "allow" refuses
+    if (r !== null && r !== PERSONAL_SPACE && r.decision?.effect !== "allow")
+      throw markRefusal(
+        fail("permission.no_grant", seed.trace?.traceId ?? "0".repeat(32), {
+          message: "This agent may not use that Vault item, so its key cannot be sent anywhere.",
+        }),
+      );
+  };
+  /** What the Gate knows of the site a call names (its source, stored Vault env, and where a preview was built from), read through the sites module. */
+  const siteFactsOf = (input: unknown): SiteFacts | null => {
+    const i = (input ?? {}) as { siteId?: unknown; branch?: unknown };
+    const fn = exports.get("sites")?.["siteFacts"];
+    const h = db();
+    if (typeof i.siteId !== "string" || typeof fn !== "function" || !h) return null;
+    return (fn as (c: { db: ScopedDb }, id: string, branch?: string) => SiteFacts | null)(
+      { db: h },
+      i.siteId,
+      typeof i.branch === "string" ? i.branch : undefined,
+    );
+  };
+  /** The pairs a call makes new, with the source of each as the name the approved-key store keeps; the uploaded files a source names are read as the person the agent works for. */
+  const pairsOf = async (
+    input: unknown,
+    asker: string | undefined,
+    trace?: CtxSeed["trace"],
+    approved = false,
+  ): Promise<{ handle: string; host: string | null }[]> => {
+    const siteId = (input as { siteId?: unknown } | null)?.siteId;
+    // a yes records the files the build was held to (what the person approved), never a fresh look at files that may have changed since
+    const approvedFp = approved && typeof siteId === "string" ? usedGateFp(trace, siteId) : null;
+    const read = async (s: SiteSource | null): Promise<SiteSource | null> => {
+      if (!s || !(s.folderId || s.fileId)) return s;
+      if (approvedFp) return { ...s, fp: approvedFp };
+      if (!asker || !callAs) return s;
+      const fp = await uploadFingerprint(s, (cap, i) => callAs(cap, i, asker) as Promise<unknown>);
+      return fp ? { ...s, fp } : s;
+    };
+    let facts = siteFactsOf(input);
+    if (facts) facts = { ...facts, source: await read(facts.source) };
+    const given = await read(sourceOfInput(input));
+    // what the Gate judged is what the build must read: the fingerprint of the files this call would build is kept for the handler
+    const built = given ?? facts?.source ?? null;
+    if (!approved && typeof siteId === "string" && built?.fp) noteGateFp(trace, siteId, built.fp);
+    const out: { handle: string; host: string | null }[] = [];
+    for (const p of siteKeyPairs(input, facts, given))
+      out.push({ handle: p.handle, host: p.source === null ? null : await sourceKeyHost(p.source) });
+    return out;
+  };
+  out["vault.key_host_unapproved"] = async (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    // a Vault key that will reach code from a source (a key given to a site as env, a site moved to another source, a preview from elsewhere promoted) goes only where a person approved that key for that source; anything this cannot read holds
+    const asker0 = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    // what gets built for production on a site that stores Vault keys is a person's to change
+    if (exposesKeys(input, siteFactsOf(input))) return true;
+    // a new secret while one is live breaks the webhook GitHub uses until it is given the new one
+    if (rotatesLiveSecret(input, siteFactsOf(input))) return true;
+    const pairs = await pairsOf(input, asker0, seed.trace);
+    if (pairs.length > 0) {
+      const h = db();
+      if (!h || typeof approved !== "function") return true;
+      const asker = asker0;
+      for (const pair of pairs) {
+        if (pair.host === null) return true;
+        const ref = resolveKeyRef(h, pair.handle, asker);
+        if (ref === null) return true;
+        await mayUse(ref, seed, asker);
+        if (!(approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, pair.host)) return true;
+      }
+    }
+    const use = keySendOf(input);
+    // a Vault handle anywhere in the input that no known shape reads holds: the rule cannot tell where it goes
+    if (use === undefined) return envHandles(input).length > 0 ? false : carriesHandle(input);
+    const h = db();
+    if (use.host === null || !h || typeof approved !== "function") return true;
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    const ref = resolveKeyRef(h, use.handle, asker);
+    if (ref === null) return true;
+    await mayUse(ref, seed, asker);
+    if ((approved as (d: unknown, id: string, host: string) => boolean)(h, ref.id, use.host)) return false;
+    return !asker || !callAs ? true : !(await ownAddress(callAs, asker, ref.id, use.host));
+  };
+  // A production deploy: the key rule, and the host's branch protection. A person's own deploy is one step; a deploy that only runs as a person because a push asked for it (origin sites-push) is not.
+  out["sites.deploy_gate"] = async (input, seed) => {
+    const push = seed.origin === "sites-push";
+    if (seed.principal.kind === "person" && !push) return false;
+    // the files a non-person's call says it is for must be the files the Gate reads: another claim is other code, and a person decides
+    const claimed = (input as { fp?: unknown } | null)?.fp;
+    if (typeof claimed === "string" && seed.principal.kind !== "person") {
+      const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+      const src = siteFactsOf(input)?.source;
+      const read =
+        src && (src.folderId || src.fileId) && asker && callAs
+          ? await uploadFingerprint(src, (cap, i) => callAs(cap, i, asker) as Promise<unknown>)
+          : null;
+      if (read !== claimed) return true;
+    }
+    if (protectionHolds(siteFactsOf(input))) return true;
+    if (seed.principal.kind === "person") return false;
+    return out["vault.key_host_unapproved"]!(input, seed);
+  };
+  // A command an agent writes (a scheduled job, a worker) runs in the site's image with the site's production env: the Vault keys it stores. So it is held for a person under the same rule as a deploy of
+  // that site's code: only a site that stores Vault keys or has a database addon (a site that cannot be read as stored is held too), and only for a non-person. A person's own job is one step. Pausing a job, running it, or
+  // restarting a worker changes no command and is never held. Putting a backup back replaces the live database, which no key rule can bound: held for any non-person.
+  // The site's own database (a Postgres or Redis addon) puts its password in the production env too (DATABASE_URL, PGPASSWORD, REDIS_URL), from a sealed row that is not a Vault key: it counts as a key.
+  const hasAddon = (input: unknown): boolean => {
+    const id = (input as { siteId?: unknown } | null)?.siteId;
+    const h = db();
+    return (
+      typeof id === "string" &&
+      h !== null &&
+      h.all("SELECT 1 AS x FROM sites_addon WHERE site_id = ? LIMIT 1", id).length > 0
+    );
+  };
+  const storesKeys = (input: unknown): boolean => {
+    const f = siteFactsOf(input);
+    return f === null || f.env.length > 0 || hasAddon(input);
+  };
+  const argsOf = (input: unknown): Record<string, unknown> => {
+    const a = (input as { args?: unknown } | null)?.args;
+    return a !== null && typeof a === "object" ? (a as Record<string, unknown>) : {};
+  };
+  out["sites.run_gate"] = (input, seed) => seed.principal.kind !== "person" && storesKeys(input);
+  out["sites.run_update_gate"] = (input, seed) =>
+    seed.principal.kind !== "person" &&
+    (input as { command?: unknown } | null)?.command !== undefined &&
+    storesKeys(input);
+  out["sites.ops_gate"] = (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const action = (input as { action?: unknown } | null)?.action;
+    if (action === "backup_restore" || action === "backup_download") return true;
+    if (action === "backup_delete" || action === "job_delete" || action === "worker_remove") return true;
+    if (action === "job_create" || action === "worker_add") return storesKeys(input);
+    if (action === "job_update") return argsOf(input)["command"] !== undefined && storesKeys(input);
+    return false;
+  };
+  // saving work as an agent makes a new agent from it: an agent asking waits for a person's yes (the same hold runs.node.save_as_agent has on its own)
+  // an agent raising a limit (or taking it away) is an agent giving itself more of the Space's money: held. Lowering one, or setting the first, goes through. A limit this cannot read holds.
+  const budgetRaises = (input: unknown): boolean => {
+    const fn = exports.get("runs")?.["budgetRaise"];
+    const h = db();
+    if (typeof fn !== "function" || !h) return true;
+    try {
+      return (fn as (c: { db: ScopedDb }, i: unknown) => boolean)({ db: h }, input);
+    } catch {
+      return true;
+    }
+  };
+  out["runs.budget_raise_gate"] = (input, seed) => seed.principal.kind !== "person" && budgetRaises(input);
+  // saving work as an agent makes a new agent. A limit raised through the tool is not held here: the tool calls runs.budget.set, which holds it under the spend act, so both doors have one rule
+  out["runs.ops_gate"] = (input, seed) =>
+    seed.principal.kind !== "person" && (input as { action?: unknown } | null)?.action === "save_as_agent";
+  out["vault.after_approved_key_use"] = async (input, seed) => {
+    const use = keySendOf(input);
+    const h = db();
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    // the keys that were to reach code from a source: each pair is approved, by the person who pressed yes
+    const pairs = await pairsOf(input, asker, seed.trace, true);
+    if (pairs.length > 0 && h && asker && callAs) {
+      const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
+      for (const pair of pairs) {
+        if (pair.host === null) continue;
+        const ref = resolveKeyRef(h, pair.handle, asker);
+        if (ref !== null)
+          await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: pair.host }, approver).catch(
+            () => undefined,
+          );
+      }
+    }
+    if (use === undefined || use.host === null || !h || !asker || !callAs) return pairs.length > 0;
+    const ref = resolveKeyRef(h, use.handle, asker);
+    if (ref === null) return false;
+    // through the capability the key's own page uses: it checks that the approving person may use the item. The host is recorded as approved by the person who pressed yes, not the one the agent works for
+    const approver = seed.approvedBy?.startsWith("usr_") ? seed.approvedBy : asker;
+    await callAs("automations.key_hosts.allow", { vaultItemId: ref.id, host: use.host }, approver).catch(
+      () => undefined,
+    );
+    return true;
+  };
   out["automations.key_host_unapproved"] = async (input, seed) => {
     if (seed.principal.kind === "person") return false;
     const host = keyReadHost(input);
@@ -484,6 +800,30 @@ export function moduleWhens(
   };
   // Binding a Vault key to a connector (connections.create, connections.set_secret) sends that key to the connector's domains from then on. An agent's binding waits for a person unless every one of
   // those domains is approved for every key it binds; anything this cannot read (the connector, a domain, a key) holds. A person's own binding is theirs, and records the domains for the key.
+  // chrome_read is an outward read from the Space: an agent opens, without a person, only the exact address its own search showed it in this turn, or a host on the person's Browser connections list. Any other
+  // address is a place the agent chose itself (and could carry something out in its path), so it waits for a person. A person's own read is theirs. Anything this cannot read holds.
+  out["computers.web_read_unapproved"] = async (input, seed) => {
+    if (seed.principal.kind === "person") return false;
+    const host = hostOf(String((input as { url?: unknown } | null)?.url ?? ""));
+    // an address that is not a web address is refused by the read itself with its reason; it is never held for a person to approve
+    if (host === null || exactUrl(String((input as { url?: unknown } | null)?.url ?? "")) === null) return false;
+    // an address that carries a secret of a known shape is refused by the read itself too: no card is made for a read that cannot succeed
+    if (scan(String((input as { url?: unknown } | null)?.url ?? "").slice(0, 4000)).length > 0) return false;
+    if (
+      searchShowed(webTurnKey(seed.principal.id, seed.thread), String((input as { url?: unknown } | null)?.url ?? ""))
+    )
+      return false;
+    const asker = seed.actingFor?.startsWith("usr_") ? seed.actingFor : undefined;
+    if (!asker || !callAs) return true;
+    try {
+      const l = (await callAs("browser.sites.list", {}, asker)) as { sites?: { host?: unknown }[] } | null;
+      return !(l?.sites ?? []).some(
+        (x) => typeof x.host === "string" && (host === x.host || host.endsWith(`.${x.host}`)),
+      );
+    } catch {
+      return true;
+    }
+  };
   // a person binding a key themselves approves the connector's domains for it, through the same capability their press on the key's page uses (it checks they may use the key)
   const personBinds = async (input: unknown, person: string): Promise<void> => {
     if (!callAs) return;
@@ -576,4 +916,43 @@ export function moduleWhens(
   if (typeof danger === "function")
     out["terminal.is_danger"] = (input) => (danger as (ctx: unknown, input: unknown) => Promise<boolean>)(null, input);
   return out;
+}
+
+/**
+ * What the Gate parks a deploy as: when a sites.deploy names no commit, the branch's head at hold time is written into the parked input (read as the person the call works for, with the site's own token, within a few seconds), so the card shows it and
+ * the yes builds exactly it. For a deploy that is not a person's own (an agent's, or one a push asked for) on a site that comes from a repo, a head that cannot be read, or not within the time, refuses: parked unpinned, the yes would build whatever the head
+ * is later. A person's own deploy is parked as it was asked.
+ */
+export function pinnedDeploy(
+  callAs: () => ((cap: string, input: unknown, person: string) => Promise<unknown>) | null,
+  timeoutMs = 5_000,
+): NonNullable<GateHookDeps["pin"]> {
+  return async (cap, input, seed) => {
+    const i = (input ?? {}) as { siteId?: unknown; commit?: unknown };
+    if (cap !== "sites.deploy" || typeof i.siteId !== "string" || typeof i.commit === "string") return input;
+    const own = seed.principal.kind === "person" && seed.origin !== "sites-push";
+    const asker = seed.actingFor?.startsWith("usr_")
+      ? seed.actingFor
+      : seed.principal.kind === "person"
+        ? seed.principal.id
+        : undefined;
+    const read = callAs();
+    type Head = { head?: unknown; repo?: unknown; branch?: unknown } | null;
+    let r = null as Head;
+    if (asker && read) {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      r = (await Promise.race([
+        read("sites.head_check", { siteId: i.siteId }, asker).catch(() => null),
+        new Promise<null>((res) => {
+          timer = setTimeout(() => res(null), timeoutMs);
+        }),
+      ]).finally(() => clearTimeout(timer))) as Head;
+    }
+    if (typeof r?.head === "string" && /^[0-9a-f]{40}$/.test(r.head)) return { ...(input as object), commit: r.head };
+    // not read: a person's own call goes as asked; anything else on a repo site (or one that could not be told) refuses
+    if (own || (r !== null && r.repo !== true)) return input;
+    throw fail("validation.precondition_failed", seed.trace?.traceId ?? "0".repeat(32), {
+      message: `Couldn't read ${typeof r?.branch === "string" && r.branch ? r.branch : "the branch"} to show what would deploy. Try again.`,
+    });
+  };
 }

@@ -464,7 +464,7 @@ function RecordSheet({
           <View testID="sheet-confirm" style={st.sheetFoot}>
             <Text style={st.confirmText}>Delete this recording?</Text>
             <View style={{ flex: 1 }} />
-            <SheetButton label="Cancel" onPress={onCancelDiscard} testID="sheet-cancel" />
+            <SheetButton label="Cancel" focus onPress={onCancelDiscard} testID="sheet-cancel" />
             <SheetButton label="Delete" primary onPress={onDiscard} testID="sheet-delete" />
           </View>
         ) : (

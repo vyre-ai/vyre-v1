@@ -1,6 +1,6 @@
 // One component for one job (contract P3, the screen set). A new one-off copy of a shared piece fails here, and the old copies only go down.
 // It counts, per file in the app (apps/app/src) and the shared UI (ui/src), five kinds of copy:
-//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, MoreRow, Field, Sheet, FormSheet, Status, StatusLabel, StatusDot, Page, LiveSurface, LiveScreen) outside its home folder;
+//   declared    a component declared under the name of a shared piece (Switch, TextButton, SmallButton, Section, Empty, Select, Choice, Stepper, Segmented, MoreRow, Field, Sheet, FormSheet, Status, StatusLabel, StatusDot, StateMark, InlineConfirm, Page, LiveSurface, LiveScreen) outside its home folder;
 //   read-hook   a declared `useScreenQuery` or `useRead`: the one data hook is `useLoad` (App/load, client/src/query);
 //   load-more   the words "Load more" by hand: the paging row of `useLoadList` draws them;
 //   crew-poll   a `setInterval` in a file that reads `crew.status` and that is not a clock (a clock ticker reads Date.now(); one named timer is excused in EXCEPTIONS below): a watched read replaces the timer;
@@ -36,6 +36,11 @@ const PIECES: ReadonlyArray<{ names: readonly string[]; home: string; use: strin
     use: "ui/Field and its controls (TextBox, Select, NumberBox)",
   },
   { names: ["Segmented"], home: "ui/src/Segmented/", use: "ui/Segmented" },
+  {
+    names: ["InlineConfirm"],
+    home: "ui/src/InlineConfirm/",
+    use: "ui/InlineConfirm (an in-place Delete? ask: Cancel focused, Delete armed after a short wait, Escape cancels)",
+  },
   { names: ["Page"], home: "ui/src/Page/", use: "ui/Page (one head, tabs, one scroll column)" },
   {
     names: ["LiveSurface", "LiveScreen"],
@@ -43,9 +48,9 @@ const PIECES: ReadonlyArray<{ names: readonly string[]; home: string; use: strin
     use: "ui/LiveSurface (a live picture, stream or terminal in a fixed box)",
   },
   {
-    names: ["Status", "StatusLabel", "StatusDot"],
+    names: ["Status", "StatusLabel", "StatusDot", "StateMark"],
     home: "ui/src/Status/",
-    use: "ui/Status (a dot, a few words, one note, one action)",
+    use: "ui/Status (a dot, a few words, one note, one action) or its StateMark (the state of a row's work as one glyph, never a word)",
   },
   {
     names: ["MoreRow"],

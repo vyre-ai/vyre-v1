@@ -26,7 +26,7 @@ import {
   seedManifestTypes,
   toStoreType,
 } from "../projections.ts";
-import type { FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
+import type { CardFaceT, FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
 import { SEALABLE_FROM, openJob, putInVault, writeRefsMany } from "./seal.ts";
 import type { Move } from "./seal.ts";
@@ -38,6 +38,7 @@ export type OpName =
   | "type.drop"
   | "field.add"
   | "field.update"
+  | "field.mergeable"
   | "field.retype"
   | "field.rename"
   | "field.drop"
@@ -84,6 +85,10 @@ export interface ApplyHandlers {
     input: { ops: SchemaOp[]; previewToken?: string; confirm?: string[]; reason?: string },
   ): Promise<{ changeId: string; applied: number; items: DiffItem[] }>;
   "schema.set_label"(ctx: SchemaCtx, input: { type: string; field?: string; label: Label }): Promise<{ ok: boolean }>;
+  "schema.set_mergeable"(
+    ctx: SchemaCtx,
+    input: { type: string; field: string; mergeable: boolean },
+  ): Promise<{ ok: boolean }>;
   "schema.infer"(
     ctx: SchemaCtx,
     input: { text?: string; fileId?: string; name?: string; sheet?: string },
@@ -341,6 +346,39 @@ export function heldRows(deps: SchemaDeps, type: string): number {
 }
 
 /** Fields a manifest declared on a system type: they stay (title and label may change). */
+/** The "Can go in emails" switch is the one change a system field's options accept: everything but `mergeable` must stay as it is. */
+export function onlyMergeableDiffers(was: unknown, next: unknown): boolean {
+  // sorted keys at every level, so nested content (choices, nested settings) is compared in full
+  const stable = (v: unknown): string =>
+    Array.isArray(v)
+      ? `[${v.map(stable).join(",")}]`
+      : v && typeof v === "object"
+        ? `{${Object.keys(v as object)
+            .sort()
+            .map((k) => `${JSON.stringify(k)}:${stable((v as Record<string, unknown>)[k])}`)
+            .join(",")}}`
+        : (JSON.stringify(v) ?? "null");
+  const strip = (v: unknown): string => {
+    const o = { ...((v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>) };
+    delete o["mergeable"];
+    return stable(o);
+  };
+  return strip(was) === strip(next);
+}
+
+/** Field kinds whose values must never go into an email: sealed (secret), files, signatures, buttons, and relations (they hold ids). */
+const NEVER_IN_EMAILS = new Set([
+  "sealed",
+  "files",
+  "signature",
+  "button",
+  "relation",
+  "person",
+  "created_by",
+  "modified_by",
+]);
+// (computed kinds, formula, rollup and lookup, are refused too: they can read a private field and still carry a public label)
+
 function manifestField(deps: SchemaDeps, d: TypeDefT, field: string): boolean {
   return (
     d.system === true &&
@@ -391,6 +429,19 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
   if (isDerived(deps.registry, f.type) && (f.required || f.unique))
     no(`field ${f.key}: a ${f.type} field is computed, so it cannot be required or unique`);
   if (f.type === "sealed" && f.unique) no(`field ${f.key}: a sealed field cannot be unique`);
+  // "Can go in emails": a switch for fields that are fine to read out loud. A private or secret field can never be switched on, by anyone.
+  const mergeable = (f.options ?? {})["mergeable"];
+  if (mergeable !== undefined && typeof mergeable !== "boolean") no(`field ${f.key}: mergeable is yes or no`);
+  if (mergeable === true) {
+    const label = f.label ?? t.label;
+    if (
+      NEVER_IN_EMAILS.has(f.type) ||
+      isDerived(deps.registry, f.type) ||
+      (label !== "public" && label !== "internal") ||
+      (Array.isArray(f.writeOnlyBy) && f.writeOnlyBy.length > 0)
+    )
+      no(`field ${f.key} cannot go in emails: it is private or secret, or its kind cannot be read into text`);
+  }
   const o = f.options ?? {};
   const own = new Set(t.fields.map((x) => x.key));
   switch (f.type) {
@@ -466,6 +517,17 @@ function checkType(st: Map<string, TypeDefT>, t: TypeDefT): void {
   }
   if (t.statusField && !["status", "choice"].includes(t.fields.find((f) => f.key === t.statusField)?.type ?? ""))
     no(`${t.key}: the status field must be a status or choice`);
+  if (t.card !== undefined) {
+    const c = t.card as unknown as { preset?: unknown; fields?: unknown; mark?: unknown };
+    if (!c || typeof c !== "object" || !["simple", "detail", "visual"].includes(String(c.preset)))
+      no(`${t.key}: a card is simple, detail or visual`);
+    if (!Array.isArray(c.fields) || c.fields.length > 6) no(`${t.key}: a card shows at most six fields`);
+    for (const f of c.fields as unknown[])
+      if (typeof f !== "string" || !keys.has(f)) no(`${t.key}: card field ${String(f)} is not a field`);
+    if (new Set(c.fields as string[]).size !== (c.fields as string[]).length)
+      no(`${t.key}: a card names a field twice`);
+    if (c.mark !== undefined && typeof c.mark !== "boolean") no(`${t.key}: a card's mark is on or off`);
+  }
   for (const f of t.fields)
     if (f.type === "relation" && !st.has(String(f.options?.["target"])))
       no(`${t.key}.${f.key}: relation target ${String(f.options?.["target"])} no longer exists`);
@@ -483,6 +545,7 @@ const TYPE_PATCH = [
   "ownerField",
   "retention",
   "attribution",
+  "card",
 ] as const;
 const FIELD_PATCH = [
   "title",
@@ -587,8 +650,19 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
     plan.touched.add(to.key);
   };
 
-  for (const op of ops) {
+  for (const asked of ops) {
+    let op = asked;
     try {
+      // "Can go in emails" for one field: def {mergeable: true|false}. It is a field.update of the field's options, so every rule of one (system fields, the never-private check) applies as is.
+      if (asked.op === "field.mergeable") {
+        const on = (asked.def ?? {})["mergeable"];
+        if (typeof on !== "boolean") no("field.mergeable takes def {mergeable: true or false}");
+        const f0 = needField(needType(asked.type), asked.field);
+        const options: Record<string, unknown> = { ...(f0.options ?? {}) };
+        if (on) options["mergeable"] = true;
+        else delete options["mergeable"];
+        op = { ...asked, op: "field.update", def: { options } };
+      }
       switch (op.op) {
         case "type.create": {
           const d = op.def ?? {};
@@ -618,6 +692,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of ["group", "summaryField", "statusField", "ownerField", "retention", "scope"] as const)
             if (typeof d[k] === "string") t[k] = d[k] as string;
           if (typeof d["attribution"] === "boolean") t.attribution = d["attribution"];
+          if (d["card"] && typeof d["card"] === "object") t.card = d["card"] as CardFaceT;
           if (typeof d["workspace"] === "boolean") t.workspace = d["workspace"];
           if (!LABELS.includes(t.label)) no(`${String(t.label)} is not a sensitivity label`);
           st.set(t.key, t);
@@ -635,7 +710,7 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           const touched: string[] = [];
           for (const k of Object.keys(patch)) {
             if (!(TYPE_PATCH as readonly string[]).includes(k)) no(`${k} cannot be changed with type.update`);
-            if (t.system && !["title", "plural", "icon", "group", "label"].includes(k))
+            if (t.system && !["title", "plural", "icon", "group", "label", "card"].includes(k))
               no(`${t.key} is a system type: only its name, icon, group and label can change`);
             const prev = (t as unknown as Record<string, unknown>)[k];
             const v = patch[k];
@@ -695,7 +770,11 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
           for (const k of Object.keys(patch)) {
             if (!(FIELD_PATCH as readonly string[]).includes(k))
               no(`${k} cannot be changed with field.update: use field.retype or field.rename`);
-            if (manifestField(deps, t, f.key) && !["title", "label"].includes(k))
+            if (
+              manifestField(deps, t, f.key) &&
+              !["title", "label"].includes(k) &&
+              !(k === "options" && onlyMergeableDiffers(f.options, patch[k]))
+            )
               no(`${f.key} is part of the ${t.key} system type: only its title and label can change`);
             const v = patch[k];
             if (v === null || v === undefined) delete (f as unknown as Record<string, unknown>)[k];
@@ -1403,6 +1482,20 @@ export function createApplyHandlers(deps: SchemaDeps): ApplyHandlers {
           ? { op: "type.update", type: t.key, def: { label: input.label } }
           : { op: "field.update", type: t.key, field: input.field, def: { label: input.label } };
       await execute(deps, ctx, [op], { skipConfirm: true, labelEvents: true });
+      return { ok: true };
+    },
+
+    "schema.set_mergeable": async (ctx, input) => {
+      if (typeof input.mergeable !== "boolean") refuse(ctx, "validation.bad_input", "mergeable is yes or no.");
+      const t = await needType(ctx, input.type);
+      const f = t.fields.find((x) => x.key === input.field);
+      if (!f) refuse(ctx, "validation.not_found", `${input.field} is not a field of ${t.title}.`);
+      const options: Record<string, unknown> = { ...(f!.options ?? {}) };
+      if (input.mergeable) options["mergeable"] = true;
+      else delete options["mergeable"];
+      await execute(deps, ctx, [{ op: "field.update", type: t.key, field: f!.key, def: { options } }], {
+        skipConfirm: true,
+      });
       return { ok: true };
     },
 

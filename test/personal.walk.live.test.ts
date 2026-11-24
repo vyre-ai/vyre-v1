@@ -294,8 +294,28 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
     ] as const) {
       await step(`Inbox: the ${tile} Connect tile opens its sheet`, async () => {
         await go("mail", "inbox-place");
+        // The page chooses which door there is: with nothing connected it IS the Connect choice (the tiles, and no + button); once something is connected the + opens the same choice. The + is
+        // not drawn until the mailboxes have answered (a return visit paints the last answer), so the first frame never shows a + that goes. Give the tiles a moment; only when they do not come, use the +.
         const tileEl = page.getByTestId(`connect-${tile}`);
-        if ((await tileEl.count()) === 0) await page.getByTestId("inbox-connect").click({ timeout: 10_000 });
+        const plus = page.getByTestId("inbox-connect");
+        const framed = Date.now();
+        await tileEl.or(plus).first().waitFor({ timeout: 20_000 });
+        const tilesCame = await tileEl
+          .first()
+          .waitFor({ timeout: 4_000 })
+          .then(
+            () => true,
+            () => false,
+          );
+        // the gap from the Inbox's frame to the tiles (wall ms as the browser driver sees it; the paint budget is 100 ms on a return visit: the first tile is the first visit, the rest return)
+        fs.mkdirSync(SHOTS, { recursive: true });
+        fs.appendFileSync(
+          path.join(SHOTS, "inbox-gap.txt"),
+          `${tile} ${tilesCame ? Date.now() - framed : "no tiles"} ms\n`,
+        );
+        // a Space with nothing connected never draws the + (it used to draw while the mailboxes loaded, then go): once the tiles are there it is not
+        if (tilesCame) assert.equal(await plus.count(), 0, "the + is drawn on the Connect choice");
+        if (!tilesCame) await plus.click({ timeout: 10_000 });
         await page.getByTestId(`connect-${tile}`).first().click({ timeout: 10_000 });
         // Gmail and Outlook open the generic connect sheet or the mail connections page; Other email opens the mailbox sheet; Twilio opens the Vault's Add sheet
         const seen = page
@@ -470,10 +490,8 @@ test("a fresh Personal Space: the first hour works end to end in the real app", 
       // the plus shows while the pointer is over the head (and on focus, and always on touch)
       await page.getByTestId("head-team").hover({ timeout: 10_000 });
       await page.getByTestId("head-plus-team").first().click({ timeout: 10_000 });
-      await page
-        .getByRole("menuitem", { name: /^New agent/ })
-        .first()
-        .click({ timeout: 10_000 });
+      // a Personal Space's Team plus has one thing to make (a person cannot be invited), so it makes it at once: no menu
+      // (the plus of a head with one item runs it; a head with two opens a menu)
       // the New agent form opens at once: a name, then Save
       await page.getByTestId("agent-name").fill("Walk Agent", { timeout: 10_000 });
       await page.getByTestId("agent-save").click({ timeout: 10_000 });

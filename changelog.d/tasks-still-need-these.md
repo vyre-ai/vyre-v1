@@ -1,0 +1,1 @@
+The weekly card "Still need these?" asks about tasks the Space cannot tell about, with the reason for each; Keep stops the question for 90 days, Archive puts the task away, and a row nobody answers for a week archives itself. Only a moment someone stated puts a task away by itself; a guessed one only asks.

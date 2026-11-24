@@ -1,0 +1,1 @@
+- A tab press paints the tab's own last view at once again (the still copy), so choosing a tab shows its view within 150 ms; Back and Forward to a kept place still reveal it without a copy.

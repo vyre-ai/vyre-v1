@@ -13,6 +13,7 @@ import { Info } from "../../../../../../ui/src/Tip/index.tsx";
 import { SignInPanel } from "../../../ai-signin/SignInPanel.tsx";
 import { startFlow } from "../../../ai-signin/flow.ts";
 import type { Flow } from "../../../ai-signin/flow.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 import {
   canShare,
   cliDriverOf,
@@ -224,11 +225,15 @@ export function ProviderPanel({ provider, onNote, onRemoved }: ProviderPanelProp
             />
           ) : null}
           {asking ? (
-            <View style={s.ask}>
-              <Text style={s.askText}>{`Remove ${provider.name}?`}</Text>
-              <Btn label="Remove" danger onPress={() => void remove()} testID="provider-remove-yes" />
-              <Btn label="Keep" onPress={() => setAsking(false)} testID="provider-remove-no" />
-            </View>
+            <InlineConfirm
+              question={`Remove ${provider.name}?`}
+              confirmLabel="Remove"
+              cancelLabel="Keep"
+              confirmTestID="provider-remove-yes"
+              cancelTestID="provider-remove-no"
+              onConfirm={() => remove()}
+              onCancel={() => setAsking(false)}
+            />
           ) : (
             <Btn label="Remove" danger onPress={() => setAsking(true)} testID="provider-remove" />
           )}

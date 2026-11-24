@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { iconMarkup } from "../rail/icons.tsx";
-import { collapseKey, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
+import { collapseKey, hashOpensBody, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
@@ -17,6 +17,7 @@ import { SHEET, sq, usePanelPresence, useShellLayout } from "../../../../../ui/s
 import type { ShellLayoutApi } from "../../../../../ui/src/SidePane/host.tsx";
 import { SIDEBAR } from "../../../../../ui/src/SidePane/layout.ts";
 import { RADIUS } from "../../../../../ui/src/tokens/radius.ts";
+import { NavRows } from "../../../../../ui/src/theme/pending.ts";
 
 export interface SidebarEntry {
   title: string;
@@ -31,6 +32,8 @@ export interface SidebarEntry {
  * between them: the tab strip and the body would slide across and back (owner, 15 Nov 2026; measured in team/v1/TABS-2026-11-15.md). A place with no list lets it go after this.
  */
 export const SIDEBAR_HOLD_MS = 260;
+/** How long the column keeps the room it was given at the first frame for a place that has not drawn its list yet (its code and the session are still arriving). */
+export const INITIAL_HOLD_MS = 2500;
 
 export interface SidebarSlotApi {
   /** The search field's text. */
@@ -65,14 +68,37 @@ export interface SidebarSlotProviderProps {
   epoch: number;
   /** The item the place has open (its address). A link that opens an item while the phone shows the list takes the phone to the body, as pressing a row does. */
   hash?: string;
+  /** Addresses that came from outside so far (HubState.links). */
+  links?: number;
+  /** Addresses the place wrote itself so far (HubState.reports). */
+  reports?: number;
+  /** The hub's count of own reports as of now (not as last drawn): Back remembers it, so a report issued before Back that is drawn after it is known for what it is. */
+  liveReports?: () => number;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
   initialEntry?: SidebarEntry;
+  /** The place that opens first has a list: the column has its room from the first frame, empty, until that place fills it (or lets it go after INITIAL_HOLD_MS when it never does). Read once, at mount. */
+  initialHold?: boolean;
   /** For tests and shots: start on the phone's body view (an item already open). */
   initialBodyOpen?: boolean;
   children?: ReactNode;
 }
+
+// How many presses and keys the person has made so far: Back remembers it, so a report issued with no input since is still the press Back dismissed, and one after another input is a new open.
+let inputs = 0;
+let listening = false;
+export const inputsSoFar = (): number => {
+  if (!listening) {
+    listening = true;
+    const doc = (globalThis as { document?: { addEventListener?: (t: string, f: () => void, c: boolean) => void } })
+      .document;
+    for (const t of ["pointerdown", "keydown"]) doc?.addEventListener?.(t, () => void (inputs += 1), true);
+  }
+  return inputs;
+};
+/** For tests: the person made one more press or key. */
+export const noteInputForTests = (): void => void (inputs += 1);
 
 export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   const key = collapseKey(p.deviceId, p.personId);
@@ -84,9 +110,12 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }
   };
   const [collapsed, setCollapsedState] = useState<boolean>(read);
-  const [entry, setEntry] = useState<SidebarEntry | null>(p.initialEntry ?? null);
+  const [entry, setEntry] = useState<SidebarEntry | null>(
+    p.initialEntry ??
+      (p.initialHold === true ? { title: "", searchPlaceholder: "", noSearch: true, held: true } : null),
+  );
   const [query, setQuery] = useState("");
-  const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true);
+  const [bodyOpen, setBodyOpen] = useState(p.initialBodyOpen === true || linkNamesBody(p.compact, p.hash));
   const [outlet, setOutlet] = useState<unknown>(null);
   const [actionsOutlet, setActionsOutlet] = useState<unknown>(null);
   useEffect(() => {
@@ -97,13 +126,48 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   // a link to a goal, a chat or any item (an address, a notification, Cmd-K) shows that item at once, also where only one panel fits (K9, 13 Nov 2026)
   // A place switch resets to the list even when the new place carries an address: the switch is the epoch, so a change of epoch is not a link to an item.
   const epochSeen = useRef(p.epoch);
+  const hashSeen = useRef(p.hash);
+  const linksSeen = useRef(p.links ?? 0);
+  const reportsSeen = useRef(p.reports ?? 0);
+  // the own-report count when Back last closed the body: a report up to that count was issued before Back, so its address coming into the page now is not a new open (-1: Back has not closed anything since the last link)
+  const backedAt = useRef(-1);
+  // a row was pressed and the address that press writes has not been drawn yet; and whether Back came while it was still to come (the place reports after its own render, so Back can beat the report
+  // being issued at all: the count Back remembered does not include it, yet it is still the press Back dismissed)
+  const pressPending = useRef(false);
+  const backedWhilePending = useRef(false);
+  const backedInputs = useRef(0);
+  const liveReports = useRef(p.liveReports);
+  liveReports.current = p.liveReports;
   useEffect(() => {
+    const hashChanged = p.hash !== hashSeen.current;
+    const linked = (p.links ?? 0) !== linksSeen.current;
+    const reported = (p.reports ?? 0) !== reportsSeen.current;
+    hashSeen.current = p.hash;
+    linksSeen.current = p.links ?? 0;
+    reportsSeen.current = p.reports ?? 0;
     if (epochSeen.current !== p.epoch) {
       epochSeen.current = p.epoch;
       return;
     }
-    if (p.compact && p.hash !== undefined && p.hash !== "") setBodyOpen(true);
-  }, [p.compact, p.hash, p.epoch]);
+    // only an address reported before Back was pressed is skipped (it was the press Back dismissed): an item opened after that (New chat, a created record, a search result, a press that wrote
+    // nothing and a later open of another item) is a later report, past the count Back remembered, and opens the body
+    if (linked) {
+      backedAt.current = -1;
+      pressPending.current = false;
+      backedWhilePending.current = false;
+    }
+    const issuedBeforeBack = backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
+    // the press's late report is issued with no input between Back and it: anything the person does next (a press, a key) is a new act, whose report is a new open
+    const echo =
+      reported &&
+      !linked &&
+      (issuedBeforeBack || (backedWhilePending.current && inputsSoFar() === backedInputs.current));
+    if (reported) {
+      pressPending.current = false;
+      backedWhilePending.current = false;
+    }
+    if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo })) setBodyOpen(true);
+  }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
     (v: boolean) => {
       setCollapsedState(v);
@@ -123,8 +187,17 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       setCollapsed,
       hasSidebar,
       compact: p.compact,
-      openBody: () => setBodyOpen(true),
-      back: () => setBodyOpen(false),
+      openBody: () => {
+        pressPending.current = true;
+        backedWhilePending.current = false;
+        setBodyOpen(true);
+      },
+      back: () => {
+        backedAt.current = liveReports.current?.() ?? -1;
+        backedWhilePending.current = pressPending.current;
+        backedInputs.current = inputsSoFar();
+        setBodyOpen(false);
+      },
       view: phoneView(hasSidebar, p.compact, bodyOpen),
       title: entry?.title ?? "",
       actionsOutlet,
@@ -150,12 +223,17 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
     }, SIDEBAR_HOLD_MS);
   }, []);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // the room given at the first frame is let go when no place filled it
+    if (p.initialHold === true && p.initialEntry === undefined)
+      letGo.current = setTimeout(() => {
+        letGo.current = null;
+        setEntry((cur) => (cur !== null && cur.held === true ? null : cur));
+      }, INITIAL_HOLD_MS);
+    return () => {
       if (letGo.current !== null) clearTimeout(letGo.current);
-    },
-    [],
-  );
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- read once, at mount
   const reg = useMemo(() => ({ register, outlet }), [register, outlet]);
   return (
     <Ctx.Provider value={api}>
@@ -223,9 +301,44 @@ export function SidebarContent(props: {
   if (reg === null || slot === null) return null;
   return (
     <>
-      {portalInto(reg.outlet, <InColumn.Provider value={true}>{props.children(slot.query, slot)}</InColumn.Provider>)}
+      {/* a place's list is how a person gets around it: a pressed row is lit at once and its page is made after that frame (ui/theme/pending.ts) */}
+      {portalInto(
+        reg.outlet,
+        <InColumn.Provider value={true}>
+          <NavRows>{props.children(slot.query, slot)}</NavRows>
+        </InColumn.Provider>,
+      )}
     </>
   );
+}
+
+/**
+ * One kept place's part of the sidebar column (r41, spaces/kept-places.tsx): what the place puts in the column is drawn into a box of its own, and the box is in the column only while the
+ * place is shown. A hidden place therefore leaves nothing in the column, and its list comes back as it was. Outside a slot, or off the web, it changes nothing.
+ */
+export function SidebarFrame({ active, children }: { active: boolean; children?: ReactNode }): ReactElement {
+  const reg = useContext(Reg);
+  const [box] = useState(() => {
+    const doc = (
+      globalThis as { document?: { createElement?(t: string): { style: { display: string }; remove(): void } } }
+    ).document;
+    if (Platform.OS !== "web" || !doc || typeof doc.createElement !== "function") return null;
+    const el = doc.createElement("div");
+    el.style.display = "contents";
+    return el;
+  });
+  const outlet = reg?.outlet ?? null;
+  useLayoutEffect(() => {
+    const into = outlet as { appendChild?(n: unknown): unknown } | null;
+    if (!box || !active || !into || typeof into.appendChild !== "function") return undefined;
+    into.appendChild(box);
+    return () => box.remove();
+  }, [box, outlet, active]);
+  const value = useMemo(
+    () => (reg === null || box === null ? reg : { register: reg.register, outlet: outlet === null ? null : box }),
+    [reg, box, outlet],
+  );
+  return <Reg.Provider value={value}>{children}</Reg.Provider>;
 }
 
 /** What the shell draws beside the body: the chrome, then an empty outlet the place's content portals into. */

@@ -14,6 +14,7 @@ import { Actions, Button, TextBox, FormSheet, Note, Select, attempt, useAction, 
 import { EMPTY_START, InviteStart, startInput } from "./InviteStart.tsx";
 import type { StartSet } from "./InviteStart.tsx";
 import { reachedLink } from "../../share/rows.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Invite = CapMap["members.invites.list"]["out"]["invites"][number];
 
@@ -247,24 +248,23 @@ export function OpenInvites({
         ))}
         {confirm ? (
           <>
-            <Note>
-              {confirm.email ? `Revoke the invite for ${confirm.email}?` : "Revoke this invite?"} The link stops
-              working.
-            </Note>
-            <Actions>
-              <Button label="Cancel" onPress={() => setConfirm(null)} />
-              <Button
-                label="Revoke invite"
-                danger
-                testID="console-invite-revoke-confirm"
-                disabled={action.busy}
-                onPress={() =>
-                  void action
-                    .run("members.invites.revoke", { inviteId: confirm.id }, "Invite revoked.")
-                    .then(() => setConfirm(null))
-                }
-              />
-            </Actions>
+            <InlineConfirm
+              question={
+                <>
+                  {confirm.email ? `Revoke the invite for ${confirm.email}?` : "Revoke this invite?"} The link stops
+                  working.
+                </>
+              }
+              confirmLabel="Revoke invite"
+              disabled={action.busy}
+              confirmTestID="console-invite-revoke-confirm"
+              onConfirm={() =>
+                action
+                  .run("members.invites.revoke", { inviteId: confirm.id }, "Invite revoked.")
+                  .then(() => setConfirm(null))
+              }
+              onCancel={() => setConfirm(null)}
+            />
           </>
         ) : null}
         {fresh ? (

@@ -11,13 +11,13 @@ Erase one mail message for good (governance erase)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/mail/message/erase |
-| MCP tool | none |
+| MCP tool | mail_message_erase (inbox, deferred) |
 | CLI | none |
 | Emits | mail.message_erased |
 

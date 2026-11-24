@@ -5,12 +5,14 @@ import assert from "node:assert/strict";
 import { call, hostLog, waitFor } from "./eco-live.ts";
 import { pump, rowsOf, spec, world } from "./sync-live.ts";
 import type { AppOptions } from "./sync-live.ts";
+import { TRANSIENT_TRIES } from "../../host/src/daemon/syncengine.ts";
 
 const TOTAL = 2102; // 2 people and 2,100 more: the first group is 2,000 rows (20 pages of 100), the second the rest
 
 export function retryCase(mode: "500" | "drop"): void {
   test(`a first pull cut off by ${mode === "500" ? "an app error" : "a dropped connection"} in its second group finishes by itself`, async () => {
-    const options: AppOptions = { bulk: TOTAL - 2, failOnce: { at: 22, mode } };
+    // the engine reads a failed page again (TRANSIENT_TRIES times, waiting 1, 2, 4, 8 s): the app must fail the same page more often than that, or the pass is never cut off
+    const options: AppOptions = { bulk: TOTAL - 2, failOnce: { at: 22, mode, times: TRANSIENT_TRIES + 1 } };
     const w = await world(true, options);
     try {
       assert.equal(w.item.status, 200, JSON.stringify(w.item.data));
@@ -29,7 +31,9 @@ export function retryCase(mode: "500" | "drop"): void {
         115_000,
         () => hostLog(w.d),
       );
-      assert.ok(failed.failures[0].summary.length > 0, "the page says what happened");
+      const own = failed.failures.find((f: { summary: string }) => /^sync of /.test(f.summary));
+      assert.ok(own, `the page names the failed sync: ${JSON.stringify(failed.failures)}`);
+      assert.ok(own.summary.length > 0, "the page says what happened");
       assert.ok(
         typeof failed.nextPollAt === "number",
         `a next poll is scheduled: ${JSON.stringify(failed.nextPollAt)}`,

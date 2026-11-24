@@ -1,0 +1,1 @@
+A job can be given a limit; when its helpers reach it they stop at a safe point with their work kept and you are asked to raise it or stop them, and a helper that has gone quiet is nudged and then brought to you.

@@ -1,6 +1,7 @@
-// A hand-built Ctx for the documents tests: a fake files service behind ctx.call (get, read, create, versions), fake records, a tiny database for the template marks,
+// A hand-built Ctx for the documents tests: a fake files service behind ctx.call (get, read, create, versions), fake records, a real in-memory SQLite database with the module's migrations for the template marks,
 // a Word file built in code (no binary fixture) and a clock that ticks. Nothing here touches the host.
 
+import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -9,6 +10,12 @@ import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts"
 type Row = Record<string, unknown>;
 
 export const MIGRATION = new URL("../migrations/0001_documents.sql", import.meta.url);
+const MIGRATIONS = [
+  "0001_documents.sql",
+  "0002_documents_bind.sql",
+  "0003_documents_signing.sql",
+  "0004_documents_plain.sql",
+].map((f) => new URL(`../migrations/${f}`, import.meta.url));
 export const FOLDER = "fld_main";
 export const OTHER_FOLDER = "fld_other";
 export const TRACE = "0123456789abcdef0123456789abcdef";
@@ -85,34 +92,23 @@ export interface World {
   marks(): Row[];
 }
 
-function err(code: "validation.duplicate" | "validation.not_found", message: string): VyreErr {
+function err(code: "validation.duplicate" | "validation.not_found" | "validation.bad_input", message: string): VyreErr {
   return new VyreErr({ code, message, retryable: false, traceId: TRACE, next: [] });
 }
 
-function memoryDb(): Ctx["db"] & { rows: Row[] } {
-  const rows: Row[] = [];
+// Boundary B2 keeps the node:sqlite import out of modules; the tests still run the module's own migrations on a real SQL engine, so a statement the handlers write is a statement SQLite takes.
+const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
+
+function memoryDb(): Ctx["db"] & { rows(): Row[] } {
+  const sql = new DatabaseSync(":memory:");
+  for (const m of MIGRATIONS) sql.exec(readFileSync(m, "utf8"));
+  type Arg = string | number | bigint | null | Uint8Array;
   return {
-    rows,
-    all(sql: string, ...args: unknown[]): unknown[] {
-      if (sql === "SELECT * FROM documents_template") return rows.map((r) => ({ ...r }));
-      if (sql === "SELECT * FROM documents_template WHERE file_id = ?")
-        return rows.filter((r) => r.file_id === args[0]).map((r) => ({ ...r }));
-      throw new Error(`unsupported query: ${sql}`);
-    },
-    run(sql: string, ...args: unknown[]): { changes: number } {
-      if (sql === "INSERT INTO documents_template (file_id, marked_by, marked_at) VALUES (?, ?, ?)") {
-        rows.push({ file_id: args[0], marked_by: args[1], marked_at: args[2] });
-        return { changes: 1 };
-      }
-      if (sql === "DELETE FROM documents_template WHERE file_id = ?") {
-        const before = rows.length;
-        const kept = rows.filter((r) => r.file_id !== args[0]);
-        rows.length = 0;
-        rows.push(...kept);
-        return { changes: before - kept.length };
-      }
-      throw new Error(`unsupported statement: ${sql}`);
-    },
+    rows: () => sql.prepare("SELECT * FROM documents_template ORDER BY marked_at").all() as Row[],
+    all: (q: string, ...args: unknown[]): unknown[] => sql.prepare(q).all(...(args as Arg[])),
+    run: (q: string, ...args: unknown[]): { changes: number } => ({
+      changes: Number(sql.prepare(q).run(...(args as Arg[])).changes),
+    }),
   };
 }
 
@@ -229,6 +225,15 @@ export function world(): World {
             throw err("validation.not_found", "That record does not exist.");
           return { record: { id: i.recordId, type: i.type, fields } };
         }
+        // the module's own capabilities answer each other, as they do through the host; a record's files folder is the main folder
+        case "projects.files_folder":
+          return { folderId: FOLDER };
+        case "documents.fill":
+        case "documents.preview_fill":
+        case "documents.templates.list": {
+          const { handlers } = await import("../impl.ts");
+          return (handlers as Record<string, (c: Ctx, x: unknown) => Promise<unknown>>)[cap]!(ctx, input);
+        }
         default:
           throw new Error(`unexpected call ${cap}`);
       }
@@ -263,6 +268,6 @@ export function world(): World {
       files.set(id, { id, name, folderId, bytes, mime: "application/octet-stream", versions: 1 });
       return id;
     },
-    marks: () => db.rows.map((r) => ({ ...r })),
+    marks: () => db.rows().map((r) => ({ ...r })),
   };
 }

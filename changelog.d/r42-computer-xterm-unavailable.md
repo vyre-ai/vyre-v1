@@ -1,0 +1,1 @@
+- If the terminal screen cannot load or start, the person keeps the plain screen and the failure is logged as an error that the walks and the report can see, so a broken build is a red test instead of a quiet fallback.

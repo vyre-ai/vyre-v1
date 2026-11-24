@@ -11,7 +11,7 @@ Choose the default sender of a channel for me; it must be a usable sender from c
 | Grant level | view |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | queue |
 | Audit | none |

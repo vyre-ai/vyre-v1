@@ -8,6 +8,8 @@ export const OBJECT_ACTION_KEYS = ["list", "listAfter", "create", "update", "del
 export type ObjectActions = Partial<Record<(typeof OBJECT_ACTION_KEYS)[number], string>> & {
   /** The list answers `{ since }` with only what changed. */ since?: boolean;
   link?: { from: { type: string; at: string }; to: { type: string; at: string }; key: string; inverseKey: string };
+  /** The list opens inner arrays into rows. */ rows?: boolean;
+  /** The list is read once per record of this object. */ eachOf?: Record<string, unknown> & { remote: string };
 };
 
 /** The per-object action names of a definition, keeping only the five known keys with non-empty string values. Undefined when the connector names none. */
@@ -24,6 +26,10 @@ export function objectsOf(def: Pick<ConnectorDef, "objects">): Record<string, Ob
     }
     if ((names as ObjectActions).since === true) kept.since = true;
     if ((names as ObjectActions).link !== undefined) kept.link = (names as ObjectActions).link!;
+    if ((names as ObjectActions).rows === true) kept.rows = true;
+    const each = (names as ObjectActions).eachOf;
+    if (each !== undefined && typeof each === "object" && typeof each.remote === "string" && each.remote !== "")
+      kept.eachOf = each;
     if (Object.keys(kept).length > 0) out[object] = kept;
   }
   return Object.keys(out).length > 0 ? out : undefined;

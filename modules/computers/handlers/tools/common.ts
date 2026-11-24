@@ -72,6 +72,7 @@ function namesRef(v: unknown, depth = 0): boolean {
   );
 }
 import { currentHold, DURING_HOLD, HELD_LINE, heldBy } from "../../sbrowser/hold.ts";
+import { admitAfterPause, PAUSED_LINE, STOPPED_LINE } from "../../sbrowser/pause.ts";
 import { agentInfo } from "../../sbrowser/agentinfo.ts";
 import { faceSvg } from "../../sbrowser/face.ts";
 import { waitingNote } from "../../capacity.ts";
@@ -85,7 +86,13 @@ export type ToolAnswer = Record<string, unknown>;
 export type ToolCode = "timeout" | "paused" | "not_found" | "bad_input" | "held" | "unavailable";
 
 /** A reason that travels with a refusal and never changes with its wording: `profile_held` (a person has the controls), `profile_busy` (a step is running). Lane f-desktop's move matches on it. */
-export type ToolReason = "profile_held" | "profile_busy" | "browser_full" | "browser_reopened";
+export type ToolReason =
+  | "profile_held"
+  | "profile_busy"
+  | "browser_full"
+  | "browser_reopened"
+  | "browser_paused"
+  | "browser_stopped";
 
 export class ToolError extends Error {
   readonly code: ToolCode;
@@ -877,8 +884,20 @@ async function browserCallIn(ctx: CompCtx, profileId: string, spec: ToolSpec, ar
   const sb = spaceBrowser();
   if (!sb) raise(ctx, "provider.unavailable", "The Space browser is not running on this host.");
   // a person at the controls: the agent's tools wait here, before the call reaches the browser service, however that service is reached and after it restarts (the hold is the module's own)
-  const readAt = Date.now();
-  const hold = await currentHold(ctx, sb, profileId);
+  // a person paused the browser: the call waits here, spending nothing, and runs when they resume (sbrowser/pause.ts); then the hold is read, and if a pause came while it was read the call waits again. A take-over
+  // that ended the pause is seen by the call it let go (refused with the hold's line, never run); a stop that ended it means the call does not run at all; a pause that outlasts the wait answers one plain line.
+  const admitted = await admitAfterPause(ctx, profileId, DURING_HOLD.has(spec.name), () =>
+    currentHold(ctx, sb, profileId),
+  );
+  if (!admitted.ok)
+    refuse(
+      ctx,
+      admitted.why === "gave_up"
+        ? new ToolError("unavailable", PAUSED_LINE, "browser_paused")
+        : new ToolError("unavailable", STOPPED_LINE, "browser_stopped"),
+      profileId,
+    );
+  const { hold, readAt } = admitted;
   if (hold && !DURING_HOLD.has(spec.name))
     refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: hold.personId });
   const binding = boundFill();
@@ -925,6 +944,25 @@ async function browserStep(
       spec.name !== "chrome_plan"
     )
       await needRoom(ctx, sb, profileId);
+    // the call may have waited a long while for room: a pause or a take-over that came meanwhile is honoured right before the send, the same way as at the start (admitAfterPause)
+    if (
+      spec.name !== "chrome_status" &&
+      spec.name !== "chrome_stop" &&
+      spec.name !== "chrome_resume" &&
+      spec.name !== "chrome_plan"
+    ) {
+      const again = await admitAfterPause(ctx, profileId, false, () => currentHold(ctx, sb, profileId));
+      if (!again.ok)
+        refuse(
+          ctx,
+          again.why === "gave_up"
+            ? new ToolError("unavailable", PAUSED_LINE, "browser_paused")
+            : new ToolError("unavailable", STOPPED_LINE, "browser_stopped"),
+          profileId,
+        );
+      if (again.hold && !DURING_HOLD.has(spec.name))
+        refuse(ctx, new ToolError("paused", HELD_LINE, "profile_held"), profileId, { takeoverBy: again.hold.personId });
+    }
     // the agent's name rides every call (the service keeps it in memory); its face is drawn once and kept with the profile
     let agent: { name: string; faceSvg?: string } | undefined;
     const who = await agentInfo(ctx, ctx.principal.id);

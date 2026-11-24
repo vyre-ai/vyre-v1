@@ -10,6 +10,10 @@ import { find, flush, installDom, mount, press, textOf, typeInto } from "../test
 import type { Node } from "../testing/dom.ts";
 import { AccessSheet, frozenAddSheetProps, frozenShareSheetProps } from "./index.tsx";
 import type { AccessPick, AddSheetProps, ShareSheetProps } from "./index.tsx";
+import { setArmDelay } from "../InlineConfirm/index.tsx";
+
+// the confirm strips arm after a short wait (ui/InlineConfirm); these tests press Delete at once
+setArmDelay(0);
 
 const clean = (s: string): string =>
   s.replaceAll("<!-- -->", "").replaceAll("&#x27;", "'").replaceAll("&quot;", '"').replaceAll("&amp;", "&");

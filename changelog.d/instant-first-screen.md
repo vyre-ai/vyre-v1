@@ -1,0 +1,1 @@
+The app answers a press in the next frame: the pressed row or rail button is lit at once and the page is made after that frame; the last five places stay made; the first screen of a Space opens from what this device kept last time (encrypted, seven days, never the Vault, keys or links).

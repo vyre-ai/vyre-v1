@@ -1,0 +1,1 @@
+The card Still need these? counts a row as seen only while the page is visible and the card is on screen for a second. A request put away because its goal ended says why and stays when you put it back. The clock passes visit every task in turn, so old tasks that are skipped never hide newer ones.

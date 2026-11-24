@@ -10,6 +10,7 @@
 import type http from "node:http";
 import type { PortRequest, PortSink } from "../seams/port-fetch.ts";
 import { safeUrl } from "../safe-url.ts";
+import { verifiedVisitor, visitorOfRequest } from "../seams/visitor-proof.ts";
 
 export const PUBLIC_SANDBOX = "sandbox allow-scripts allow-forms allow-popups allow-downloads";
 /** Who may frame an artifact: this origin (the web app, which is served from the Space) and the desktop app's own origins (tauri://localhost on a Mac, http(s)://tauri.localhost on Windows). Nothing wider. */
@@ -51,7 +52,16 @@ const FROM_SITE = new Set([
   "vary",
 ]);
 /** The headers a caller may not bring into the public path: identity, and what this route sets itself. */
-const DROP = ["cookie", "authorization", "x-forwarded-for", "x-real-ip", "x-vyre-public-base", "x-vyre-public-origin"];
+const DROP = [
+  "cookie",
+  "authorization",
+  "x-forwarded-for",
+  "x-real-ip",
+  "x-vyre-public-base",
+  "x-vyre-public-origin",
+  "x-vyre-visitor",
+  "x-vyre-visitor-mac",
+];
 
 interface Inner {
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
@@ -273,9 +283,8 @@ export function createPublicPathRoute(deps: PublicPathDeps): Inner {
       if (url.pathname !== "/p" && !url.pathname.startsWith("/p/")) return false;
       for (const h of DROP) delete req.headers[h];
       // the visitor the relay saw, for the per-visitor limits; on a direct connection the socket stands in
-      const visitor = req.headers["x-vyre-visitor"];
-      delete req.headers["x-vyre-visitor"];
-      if (typeof visitor === "string" && visitor !== "") req.headers["x-forwarded-for"] = visitor;
+      const visitor = visitorOfRequest(req); // vouched for by the relay, read before any route ran; a client-written header was removed then
+      if (verifiedVisitor(req)) req.headers["x-forwarded-for"] = visitor;
       guard(res);
       const method = (req.method ?? "GET").toUpperCase();
       const sign = SIGN.exec(url.pathname);

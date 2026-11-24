@@ -10,7 +10,7 @@ The sender cancelled an envelope; every link stopped working
 | Visibility | space |
 | Label | none |
 | Replay | pure |
-| Automation trigger | no |
+| Automation trigger | A signature request is cancelled |
 | Notification | none |
 | Retention | default |
 
@@ -19,5 +19,6 @@ The sender cancelled an envelope; every link stopped working
 ```ts
 type Payload = {
   envelopeId: string;
+  recordId?: string;
 };
 ```

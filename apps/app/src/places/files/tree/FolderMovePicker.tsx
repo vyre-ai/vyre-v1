@@ -10,13 +10,23 @@ import { pathInto } from "./model.ts";
 export interface FolderMovePickerProps {
   /** The folder being moved: it and everything inside it are never offered. */
   moving: { id: string; name: string };
+  /** The sheet's title and the verb of its button, when it picks a folder for something other than a move ("Save to Files", "Save"). */
+  title?: string;
+  verb?: string;
   call(cap: string, input: unknown): Promise<unknown>;
   onMove(parentId: string | null): void;
   onClose(): void;
 }
 type Row = { folderId: string; name: string; path?: string };
 
-export function FolderMovePicker({ moving, call, onMove, onClose }: FolderMovePickerProps): ReactElement {
+export function FolderMovePicker({
+  moving,
+  title,
+  verb = "Move",
+  call,
+  onMove,
+  onClose,
+}: FolderMovePickerProps): ReactElement {
   const [at, setAt] = useState<{ id: string | null; trail: readonly { id: string | null; name: string }[] }>({
     id: null,
     trail: [{ id: null, name: "Top of Files" }],
@@ -57,14 +67,15 @@ export function FolderMovePicker({ moving, call, onMove, onClose }: FolderMovePi
   const here = at.trail[at.trail.length - 1]!;
   return (
     <Dialog
-      title={`Move ${moving.name}`}
+      title={title ?? `Move ${moving.name}`}
       onClose={onClose}
       testID="folder-move"
       width={460}
       actions={[
-        { label: "Cancel", onPress: onClose },
+        { label: "Cancel", testID: "folder-move-cancel", onPress: onClose },
         {
-          label: q.trim() === "" ? `Move to ${here.name}` : "Move here",
+          label: q.trim() === "" ? `${verb} to ${here.name}` : `${verb} here`,
+          testID: "folder-move-go",
           primary: true,
           disabled: q.trim() !== "",
           why: "Pick a folder from the search first",

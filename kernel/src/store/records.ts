@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { canonical } from "../../../lib/canonical.ts";
 import { isRecordId } from "../../../lib/ids.ts";
 import { sha256Hex } from "../log/hash.ts";
-import type { StoredEvent } from "../log/types.ts";
+import type { NewEvent, StoredEvent } from "../log/types.ts";
 import { aggregate as agg, encodeCursor, fieldOf, page } from "./query.ts";
 import { ProjectionHost, payloadOf } from "./projection.ts";
 import type { InlineProjection, Tx } from "./projection.ts";
@@ -17,6 +17,8 @@ import type {
   AggregateRow,
   AggregateSpec,
   ChangeEntry,
+  CreateManyResult,
+  UpdateManyResult,
   DefineDiff,
   DefineResult,
   ExportChunk,
@@ -221,6 +223,8 @@ export interface RecordWriter {
   onBehalf?: string | undefined;
   traceId?: string | undefined;
   runId?: string | undefined;
+  /** Set by a handler that announces each record it makes with a module `record.created` event after the call: the record's own event then names who and how (see host/src/daemon/record-announce.ts), so a stop between the two writes can be repaired. */
+  announce?: { quiet?: boolean; depth?: number; origin?: string } | undefined;
 }
 export const recordWriter = new AsyncLocalStorage<RecordWriter>();
 
@@ -235,7 +239,11 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const clock = o.clock ?? Date.now;
   const tx = host.tx;
 
-  const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
+  const announceOf = (): { announce?: { quiet?: boolean; depth?: number; origin?: string } } => {
+    const a = recordWriter.getStore()?.announce;
+    return a ? { announce: { ...a } } : {};
+  };
+  const eventOf = (type: string, entity: string, entityId: string | undefined, payload: object): NewEvent => {
     // whoever made the call this write is part of (recordWriter.run): the person or agent, the person an agent acts for, the trace and the run; the store's own actor only when nobody is
     const w = recordWriter.getStore();
     const who = w
@@ -246,17 +254,20 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         }
       : { actor };
     const trace = w?.traceId !== undefined && /^[0-9a-f]{32}$/.test(w.traceId) ? w.traceId : TRACE();
+    return {
+      type,
+      sv: 1,
+      trace_id: trace,
+      ...who,
+      vis: "space",
+      entity,
+      ...(entityId ? { entity_id: entityId } : {}),
+      payload,
+    };
+  };
+  const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
     try {
-      host.append({
-        type,
-        sv: 1,
-        trace_id: trace,
-        ...who,
-        vis: "space",
-        entity,
-        ...(entityId ? { entity_id: entityId } : {}),
-        payload,
-      });
+      host.append(eventOf(type, entity, entityId, payload));
     } catch (e) {
       throw fail("unavailable", e instanceof Error ? e.message : String(e));
     }
@@ -334,6 +345,17 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         throw fail("sealed_value_refused", `${f.name} is sealed: a value is never stored, only a reference`);
       if (err) throw fail("invalid", err);
     }
+  }
+  /** What create asks of one new record before it writes: a contract id that is not taken (nor repeated in the batch), and values the type accepts. Throws the refusal. */
+  function checkNewItem(
+    def: TypeDef,
+    type: string,
+    it: { id: string; data: Readonly<Record<string, unknown>> },
+    seen: ReadonlySet<string>,
+  ): void {
+    if (!isRecordId(it.id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
+    if (seen.has(it.id) || rowOf(type, it.id)) throw fail("invalid", `${type} ${it.id} already exists`);
+    validate(def, it.data as Record<string, unknown>);
   }
   const uniques = (def: TypeDef): FieldDef[] => def.fields.filter((f) => f.unique === true);
   /** Refuse a value another LIVE record holds. */
@@ -480,8 +502,147 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       validate(def, data as Record<string, unknown>);
       checkUnique(def, data as Record<string, unknown>, null);
       const at = clock();
-      emit("record.created", type, id, { type, id, data: clone(data), at });
+      emit("record.created", type, id, { type, id, data: clone(data), at, ...announceOf() });
       return record(type, rowOf(type, id)!);
+    },
+    async checkNew(type, items) {
+      const def = needType(type);
+      const seen = new Set<string>();
+      return items.map((it) => {
+        try {
+          checkNewItem(def, type, it, seen);
+          seen.add(it.id);
+          return null;
+        } catch (e) {
+          return e;
+        }
+      });
+    },
+    async createMany(type, items) {
+      const def = needType(type);
+      const out: CreateManyResult[] = new Array(items.length);
+      // a unique field is checked against the records already stored, and a batch is not stored yet: one record at a time keeps that check exact
+      if (uniques(def).length) {
+        for (let i = 0; i < items.length; i++) {
+          try {
+            out[i] = { ok: true, record: await store.create(type, items[i]!.id, items[i]!.data) };
+          } catch (e) {
+            out[i] = { ok: false, error: e };
+          }
+        }
+        return out;
+      }
+      const evs: NewEvent[] = [];
+      const at: number[] = [];
+      const seen = new Set<string>();
+      items.forEach((it, i) => {
+        try {
+          checkNewItem(def, type, it, seen);
+          seen.add(it.id);
+          evs.push(
+            eventOf("record.created", type, it.id, {
+              type,
+              id: it.id,
+              data: clone(it.data),
+              at: clock(),
+              ...announceOf(),
+            }),
+          );
+          at.push(i);
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      });
+      // one transaction and one commit for the whole group (the log's group commit); a record's own projections still run for each event, in order
+      let results: ReturnType<ProjectionHost["appendGroup"]>;
+      try {
+        results = host.appendGroup(evs);
+      } catch (e) {
+        throw fail("unavailable", e instanceof Error ? e.message : String(e));
+      }
+      results.forEach((r, k) => {
+        const i = at[k]!;
+        out[i] = r.ok
+          ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
+          : // the whole transaction failed (every item answers "internal", nothing was committed): the store is unavailable. One event the log refused on its own (the rest committed) is that row's refusal.
+            {
+              ok: false,
+              error:
+                r.code === "internal"
+                  ? fail("unavailable", r.message)
+                  : // a row the log refused alone: the caller gets a plain sentence; the log's own words stay on the error as `detail` for the host log
+                    Object.assign(fail("invalid", "This record could not be saved."), { detail: r.message }),
+            };
+      });
+      return out;
+    },
+    async updateMany(type, items) {
+      const def = needType(type);
+      const out: UpdateManyResult[] = new Array(items.length);
+      // a unique field is checked against the records already stored, and an id that repeats must see its earlier update: one at a time keeps both exact
+      if (uniques(def).length || new Set(items.map((x) => x.id)).size !== items.length) {
+        for (let i = 0; i < items.length; i++) {
+          try {
+            out[i] = {
+              ok: true,
+              record: await store.update(type, items[i]!.id, items[i]!.patch, items[i]!.base_version),
+            };
+          } catch (e) {
+            out[i] = { ok: false, error: e };
+          }
+        }
+        return out;
+      }
+      const evs: NewEvent[] = [];
+      const at: number[] = [];
+      items.forEach((it, i) => {
+        try {
+          const r = rowOf(type, it.id);
+          if (!r || r.deleted_at !== null) throw fail("not_found", `no ${type} ${it.id}`);
+          if (r.version !== it.base_version)
+            throw fail("version_conflict", `${type} ${it.id} is at version ${r.version}, not ${it.base_version}`);
+          const before = JSON.parse(r.data) as Record<string, unknown>,
+            merged = { ...before };
+          for (const [k, v] of Object.entries(it.patch)) {
+            if (v === null) delete merged[k];
+            else merged[k] = clone(v);
+          }
+          validate(def, merged);
+          // an update that changes nothing is not a write: no event, no new version
+          if (sameValue(before, merged)) {
+            out[i] = { ok: true, record: record(type, r) };
+            return;
+          }
+          evs.push(
+            eventOf("record.updated", type, it.id, {
+              type,
+              id: it.id,
+              data: merged,
+              before,
+              version: r.version + 1,
+              at: clock(),
+            }),
+          );
+          at.push(i);
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      });
+      if (!evs.length) return out;
+      // one transaction and one commit for the whole group; a record's own projections still run for each event, in order
+      let results: ReturnType<ProjectionHost["appendGroup"]>;
+      try {
+        results = host.appendGroup(evs);
+      } catch (e) {
+        throw fail("unavailable", e instanceof Error ? e.message : String(e));
+      }
+      results.forEach((r, k) => {
+        const i = at[k]!;
+        out[i] = r.ok
+          ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
+          : { ok: false, error: r.code === "internal" ? fail("unavailable", r.message) : fail("invalid", r.message) };
+      });
+      return out;
     },
     async update(type, id, patch, base) {
       const def = needType(type);

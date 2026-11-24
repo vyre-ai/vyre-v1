@@ -1,6 +1,7 @@
 // chat.post and the delivery every message shares (spec 2.5, 3.2, 4.6; ARCH 6.1, 7.2).
 //   One message in a thread or channel, numbered by the thread (gap-free), with its hop depth, its blocks and its mentions. The turn engine reads message.received (ids and counts only, never the
 //   text) and routes to the lead agent or the @mentioned agents; this module does not start turns. People get message.mentioned, message.direct and thread.replied.
+import { sealCards } from "./record-cards.ts";
 import { agentStanding } from "../../../lib/agent-asker.ts";
 import {
   MAX_BLOCKS,
@@ -445,7 +446,7 @@ export async function post(ctx: ChatCtx, input: PostInput) {
     raise(ctx, "validation.bad_input", "This chat is closed. Reopen it to write in it.");
 
   const body = input.body;
-  const blocks = cleanBlocks(ctx, input.blocks);
+  const blocks = await sealCards(ctx, cleanBlocks(ctx, input.blocks));
   const attachments = [...new Set(input.attachments ?? [])];
   // someone with no standing in the Space (a guest) sends plain words: no cards (a forged system card would read as the server's own) and no files they have no way to name
   const outsider = author.kind === "person" && !seesSpace(ctx);

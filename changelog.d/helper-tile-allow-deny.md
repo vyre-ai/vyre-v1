@@ -1,0 +1,2 @@
+- Allow and Deny in a helper tile now show only to someone who could answer the same request on the chat card, Deny asks for a reason as the card does, and the card and the tile follow each other.
+- A helper tile's Allow and Deny answer only their own request, a second request of the same helper gets its own buttons, a double press answers once, and who may answer is read again instead of staying wrong.

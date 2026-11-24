@@ -1,6 +1,6 @@
 {
   "name": "vyre-v1",
-  "version": "1.0.0-rc.41",
+  "version": "1.0.0-rc.42",
   "private": true,
   "type": "module",
   "engines": {
@@ -40,6 +40,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,mts,mjs,js,cjs,css}\""
   },
   "dependencies": {
+    "tldts": "7.4.18",
     "y-protocols": "1.0.6",
     "yjs": "13.6.27"
   },

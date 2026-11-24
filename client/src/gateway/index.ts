@@ -77,6 +77,11 @@ export function queryString(input: unknown): string {
   return s === "" ? "" : `?${s}`;
 }
 
+/** The code of the error for an answer that was not a Space's (a 2xx that is not JSON). The app treats it as no answer at all. */
+export const BAD_ANSWER = "gateway.bad_answer";
+/** The statuses that carry no body by definition (the relay bridge reads them the same way): an answer of one of these says nothing and is not a bad answer. */
+const BODYLESS: ReadonlySet<number> = new Set([204, 205, 304]);
+
 function errorOf(status: number, body: unknown, trace: string | null): CapError {
   const e = isObj(body) && isObj(body["error"]) ? body["error"] : null;
   const code =
@@ -111,6 +116,16 @@ const mint = (): string => {
 export function withKey(route: RouteRow, input: unknown, supplied?: string): unknown {
   if (route.idempotency !== "key" || !isObj(input) || input["idempotencyKey"] !== undefined) return input ?? {};
   return { ...input, idempotencyKey: supplied ?? mint() };
+}
+
+/** A connection that was reset or hung up before an answer came (Node: ECONNRESET, "socket hang up", on the error or its cause). A browser's own "Failed to fetch" does not say why and is not this. */
+export function isConnectionReset(e: unknown): boolean {
+  for (let x: unknown = e, i = 0; x && typeof x === "object" && i < 3; x = (x as { cause?: unknown }).cause, i++) {
+    const code = (x as { code?: unknown }).code;
+    const message = String((x as { message?: unknown }).message ?? "");
+    if (code === "ECONNRESET" || code === "UND_ERR_SOCKET" || /ECONNRESET|socket hang up/i.test(message)) return true;
+  }
+  return false;
 }
 
 export function createCapCaller(o: CapCallerOptions): CapCall {
@@ -196,18 +211,48 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
-    const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
-      method: route.method.toUpperCase(),
-      headers,
-      ...(get ? {} : { body: JSON.stringify(withKey(route, input, opts.idempotencyKey)) }),
-      ...(opts.signal ? { signal: opts.signal } : {}),
-    });
+    // The body is made once, so a repeat of the call carries the same key (a key minted for it is part of it).
+    const payload = get ? undefined : withKey(route, input, opts.idempotencyKey);
+    // only a route whose contract is idempotency "key" is repeated: the server stores the call under (person, capability, key, input) and answers the stored result to a repeat. For "none" and "natural" it never reads the key,
+    // and a reset can come after the server ran the call (the connection dies on the way back), so a repeat would do it twice.
+    const keyed =
+      !get &&
+      route.idempotency === "key" &&
+      ((isObj(payload) && typeof payload["idempotencyKey"] === "string") || headers["idempotency-key"] !== undefined);
+    const go = (): Promise<Response> =>
+      doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
+        method: route.method.toUpperCase(),
+        headers,
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+        ...(opts.signal ? { signal: opts.signal } : {}),
+      });
+    // A connection the server closed as the call went out (a reused connection reset, a socket hang-up) never reached the handler: a call that carries an idempotency key is sent once more, so a person's save does not
+    // fail at random. A call without a key is never repeated (it could be done twice), and a call the caller stopped (an abort) is not either.
+    let res: Response;
+    try {
+      res = await go();
+    } catch (e) {
+      if (!keyed || opts.signal?.aborted || !isConnectionReset(e)) throw e;
+      res = await go();
+    }
     let body: unknown = null;
+    let parsed = true;
     try {
       body = await res.json();
     } catch {
-      /* an empty or non-JSON answer: the status decides */
+      parsed = false;
+      /* an empty or non-JSON answer: the status decides (below) */
     }
+    // A success that is not JSON is not a Space's answer: a proxy, a captive portal or a relay page answered in its place. Said as an error, never returned as an empty success (every capability
+    // answers with a JSON envelope; only a 204 says nothing). Errors keep going the way they did: the status decides.
+    if (!parsed && res.status < 400 && !BODYLESS.has(res.status))
+      throw new CapError({
+        code: BAD_ANSWER,
+        message: "This address did not answer as a Space.",
+        traceId: res.headers.get("x-vyre-trace") ?? "",
+        status: res.status,
+        details: { contentType: res.headers.get("content-type") ?? "" },
+      });
     if (res.status === 401 && token && !vaultLocked(body)) o.onUnauthenticated?.();
     if (res.status >= 400 || (isObj(body) && body["error"] !== undefined))
       throw errorOf(res.status, body, res.headers.get("x-vyre-trace"));

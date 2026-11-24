@@ -5,6 +5,8 @@ export const KEYED = new Set([
   "sites.create",
   "sites.addon_add",
   "sites.rollback",
+  "sites.job_create",
+  "sites.service_add",
   "forms.create",
   "forms.link_create",
   "bookings.page_create",

@@ -46,6 +46,7 @@ const aiBlock = t.obj({
   escalateTo: t.opt(assignee),
   mode: t.opt(t.enm("answer", "task")),
   doneMeans: t.opt(t.arr(t.str({ minLength: 1 }), { maxItems: 20 })),
+  skills: t.opt(t.arr(t.str())),
 });
 const anyJson = t.json();
 // HTTP request step (spec 2.12): the same request shape for a read and for a send. The secret is a Vault handle; the host fills it for one call and it never reaches the definition, the log or the output.
@@ -70,7 +71,7 @@ const httpIn = {
 const httpOut = { status: t.int(), ok: t.bool(), headers: t.rec(t.str()), body: t.json() };
 const node = t.obj({
   id: t.str({ examples: ["step_1"] }),
-  key: t.str({ description: "A StepDef key", examples: ["records.update"] }),
+  key: t.str({ description: "Step key", examples: ["records.update"] }),
   title: t.opt(t.str()),
   input: t.rec(),
   next: t.opt(t.arr(t.str())),
@@ -96,13 +97,10 @@ const definition = t.obj({
     t.obj({
       keyId: t.opt(
         t.str({
-          description:
-            "Vault handle of the AI account every AI step runs on unless it chooses its own; absent is Automatic",
+          description: "Vault handle of the AI account steps use unless they pick one; absent is Automatic",
         }),
       ),
-      backupKeyId: t.opt(
-        t.str({ description: "Takes over when the main account is capped, out of credits or not answering" }),
-      ),
+      backupKeyId: t.opt(t.str({ description: "Used when the main account is capped or down" })),
     }),
   ),
 });
@@ -127,7 +125,22 @@ const summary = t.obj({
   updatedAt: t.ts(),
   lastRun: t.opt(t.obj({ runId: id.run, status: t.str(), at: t.ts() })),
   failedRuns: t.int({ minimum: 0 }),
+  sentence: t.opt(t.str({ description: "What it does, in one plain sentence written from its steps" })),
 });
+// What an Automation is missing before it can be turned on: a few words for a list row, one sentence for the page, and the one fix.
+const blockedRow = t.obj({
+  automationId: t.opt(id.automation),
+  nodeId: t.opt(t.str()),
+  short: t.str(),
+  line: t.str(),
+  button: t.enm("Connect", "Fix"),
+  fix: t.obj({
+    kind: t.enm("ai_account", "mailbox", "number", "connection", "file", "step"),
+    connector: t.opt(t.str()),
+  }),
+});
+// One thing a trigger's filter looked at, as a line a person reads; `detail` says what was there instead when it did not hold.
+const checkRow = t.obj({ ok: t.bool(), line: t.str(), detail: t.opt(t.str()) });
 const packageNeeds = t.obj({
   connections: t.arr(t.obj({ slot: t.str(), label: t.str(), stepIds: t.arr(t.str()) })),
   vault: t.arr(t.str()),
@@ -809,6 +822,20 @@ export default defineManifest({
         gate: { act: "send" },
       },
     ),
+    outward(
+      "automations.step_ask",
+      "System: a chat post set to ask passes the Gate here first. It does nothing itself",
+      {
+        in: { act: t.enm("post"), threadId: t.opt(id.thread), text: t.opt(t.str()) },
+        out: { ok: t.bool() },
+        perm: null,
+        level: "view",
+        risk: "medium",
+        idem: "key",
+        // only a step of an automation asks here (the Gate sees a step as a service): a call from anyone else is not held, so no member or agent can raise a card with words of its choosing
+        gate: { act: "post", when: "actor.kind == 'service'" },
+      },
+    ),
     write("automations.schedule_choose", "Apply one recovery choice to a schedule whose backlog is over its cap", {
       in: {
         ...target,
@@ -903,6 +930,82 @@ export default defineManifest({
         tool: "automations",
       },
     ),
+    read("automations.readiness", "What each Automation is missing before it can be turned on", {
+      in: { automationId: t.opt(id.automation), draft: t.opt(t.bool()) },
+      out: { blocked: t.arr(blockedRow), sentence: t.opt(t.str()) },
+      tool: "automations",
+      label: "check",
+    }),
+    read("automations.would_run", "How often it would have started last week", {
+      in: { ...target, draft: t.opt(t.bool()) },
+      out: {
+        supported: t.bool(),
+        days: t.int(),
+        n: t.int(),
+        of: t.int(),
+        capped: t.bool(),
+        what: t.opt(t.str()),
+        noun: t.opt(t.str()),
+        recordType: t.opt(id.recordType),
+        titleField: t.opt(t.str()),
+        starts: t.arr(
+          t.obj({
+            eventId: id.event,
+            at: t.ts(),
+            starts: t.bool(),
+            name: t.str(),
+            change: t.str(),
+            why: t.opt(t.str()),
+            recordId: t.opt(id.record),
+            type: t.opt(id.recordType),
+          }),
+        ),
+      },
+      on: ["automation", "/automationId"],
+      tool: "automations",
+      label: "check",
+    }),
+    read(
+      "automations.stage_offers",
+      "Space Automations that start on a stage of a Journey's type and are not part of it",
+      {
+        in: {
+          recordType: id.recordType,
+          stageField: t.opt(t.str()),
+          stages: t.arr(t.str(), { maxItems: 100 }),
+          members: t.opt(t.arr(id.automation, { maxItems: 500 })),
+        },
+        out: { offers: t.arr(t.obj({ automationId: id.automation, name: t.str(), stage: t.str(), on: t.bool() })) },
+      },
+    ),
+    read("automations.why_not", "Why Automations did not run for a record, and what stopped each", {
+      in: { type: id.recordType, recordId: id.record, eventId: t.opt(id.event) },
+      out: {
+        record: t.obj({
+          id: id.record,
+          type: t.opt(id.recordType),
+          typeName: t.opt(t.str()),
+          typePlural: t.opt(t.str()),
+          title: t.opt(t.str()),
+        }),
+        changes: t.arr(t.obj({ eventId: id.event, at: t.ts(), line: t.str(), by: t.opt(t.str()) })),
+        eventId: t.opt(id.event),
+        automations: t.arr(
+          t.obj({
+            automationId: id.automation,
+            name: t.str(),
+            status,
+            verdict: t.enm("not_started", "stopped", "failed", "waiting", "running", "ran", "off"),
+            line: t.str(),
+            checks: t.arr(checkRow),
+            runId: t.opt(id.run),
+          }),
+        ),
+      },
+      on: ["record", "/recordId"],
+      tool: "automations",
+      label: "check",
+    }),
     read(
       "automations.draft_connector",
       "Draft actions from an OpenAPI document already in memory, or from the official OpenAPI directory for a named app. A docs URL the person supplies is stored and is not fetched. Nothing is promoted.",
@@ -992,6 +1095,9 @@ export default defineManifest({
           version: t.opt(t.int()),
           draft: t.opt(t.bool()),
           eventRunId: t.opt(id.run),
+          eventId: t.opt(id.event),
+          recordId: t.opt(id.record),
+          recordType: t.opt(id.recordType),
         },
         out: runStarted,
         on: ["automation", "/automationId"],

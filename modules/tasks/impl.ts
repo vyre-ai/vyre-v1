@@ -9,6 +9,9 @@ import { resumeRunOf, settleFromSource } from "./handlers/resume.ts";
 import { syncPolicy, syncTz } from "./projections.ts";
 import { tick } from "./handlers/clock.ts";
 import { onAgentDeleted, onPersonLeft } from "./handlers/departures.ts";
+import { onChatGone, onGoalEnded, onParentFinished } from "./handlers/orphans.ts";
+import { onEvidence } from "./handlers/evidence.ts";
+import { lookDaily } from "./handlers/look.ts";
 import { onCrewMerged, onRunStopped, onTaskChanged } from "./handlers/schedule.ts";
 import type { TasksCtx } from "./projections.ts";
 export { findStuck, mintApprovalToken, readApprovalToken, ACT_KEYS } from "./handlers/act.ts";
@@ -75,6 +78,8 @@ export const hostCalls = {
 
 /** The clock (handlers/clock.ts): due days and times on each holder's own clock, snoozes that end, steps that sat too long. Once a minute. */
 export const periodic = {
+  /** The daily look at the unclear few (handlers/look.ts): one batched model call, proposals only. Checked hourly, runs at most once a day. */
+  "tasks.look": { everyMs: 3_600_000, run: async (ctx: TasksCtx): Promise<unknown> => lookDaily(ctx) },
   "tasks.clock": { everyMs: 60_000, run: async (ctx: TasksCtx): Promise<unknown> => tick(ctx) },
 };
 
@@ -118,6 +123,24 @@ export const consumers = {
       "vault.request_canceled",
     ],
     run: (ctx: TasksCtx, event: Parameters<typeof settleFromSource>[1]) => settleFromSource(ctx, event),
+  },
+  /** The event that proves a task done arrived: a Vault item, a sent message, a meeting that ended, a connection (handlers/evidence.ts). */
+  "tasks.evidence": {
+    on: ["vault.item_created", "message.sent", "meeting.ended", "connection.created"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onEvidence>[1]) => onEvidence(ctx, event),
+  },
+  /** The ask's source is gone: its chat closed or erased, its parent finished (handlers/orphans.ts). */
+  "tasks.orphans_chat": {
+    on: ["thread.closed", "thread.deleted", "thread.erased"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onChatGone>[1]) => onChatGone(ctx, event),
+  },
+  "tasks.orphans_goal": {
+    on: ["goal.ended"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onGoalEnded>[1]) => onGoalEnded(ctx, event),
+  },
+  "tasks.orphans_parent": {
+    on: ["task.transitioned"],
+    run: (ctx: TasksCtx, event: Parameters<typeof onParentFinished>[1]) => onParentFinished(ctx, event),
   },
   /** Nothing waits on someone who is gone: what they held moves on, with one line of history. */
   "tasks.person_left": {

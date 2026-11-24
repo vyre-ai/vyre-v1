@@ -13,6 +13,7 @@ import {
   browse,
   canMount,
   canNext,
+  chooseHere,
   chooseSource,
   crumbs,
   emptyDraft,
@@ -26,6 +27,7 @@ import {
   submitMount,
   togglePerson,
   unmountWords,
+  walkAllowed,
   walkInto,
   walkTo,
   whoLabel,
@@ -118,6 +120,81 @@ test("walking into a folder adds a crumb, a crumb takes you back up, and the sou
   assert.deepEqual(crumbs(d), ["Google Drive", "My Drive"]);
   d = walkTo(d, 0);
   assert.deepEqual(crumbs(d), []);
+});
+
+test("Choose this folder picks the folder you are in and goes on to its options; at the root of a source, and for GitHub, it does nothing", () => {
+  let d = chooseSource(emptyDraft("fld_github"), "google_drive");
+  assert.equal(chooseHere(d), d, "at the root there is no folder to choose");
+  d = walkInto(d, item("google_drive", "gd:My Drive", "My Drive"));
+  d = walkInto(d, item("google_drive", "gd:My Drive/Client intake", "Client intake"));
+  const chosen = chooseHere(d);
+  assert.equal(chosen.step, 3);
+  assert.equal(chosen.picked?.ref, "gd:My Drive/Client intake");
+  assert.equal(chosen.picked?.name, "Client intake");
+  assert.equal(canMount(chosen), true);
+  const gh = {
+    ...chooseSource(emptyDraft("fld_github"), "github"),
+    path: [{ ref: "r", name: "r", kind: "github" as const }],
+  };
+  assert.equal(chooseHere(gh), gh);
+});
+
+test("OneDrive opens its one drive for you: the bare drive root is not offered, a folder inside it is", () => {
+  let d = chooseSource(emptyDraft("fld_github"), "onedrive");
+  d = walkInto(d, item("onedrive", "od:drive", "OneDrive"));
+  assert.equal(chooseHere(d), d, "the drive root alone is not a choice");
+  d = walkInto(d, item("onedrive", "od:drive/Clients", "Clients"));
+  assert.equal(chooseHere(d).picked?.ref, "od:drive/Clients");
+  const s = createSampleMounts();
+  const shown = (path: Draft["path"]): string =>
+    html(
+      s,
+      <MountSheet
+        onClose={noop}
+        onMounted={noop}
+        initial={{ step: 2, source: "onedrive", path }}
+        preload={{ listing: { items: [] } }}
+      />,
+    );
+  assert.ok(!has(shown([{ ref: "od:drive", name: "OneDrive", kind: "onedrive" }]), 'data-testid="mount-choose-here"'));
+  assert.ok(
+    has(
+      shown([
+        { ref: "od:drive", name: "OneDrive", kind: "onedrive" },
+        { ref: "od:drive/Clients", name: "Clients", kind: "onedrive" },
+      ]),
+      'data-testid="mount-choose-here"',
+    ),
+  );
+});
+
+test("the Choose this folder button is in the sheet inside a folder, and not at the root or for GitHub", () => {
+  const s = createSampleMounts();
+  const items = [item("google_drive", "gd:Marketing", "Marketing", { path: "Shared drive" })];
+  const root = html(
+    s,
+    <MountSheet
+      onClose={noop}
+      onMounted={noop}
+      initial={{ step: 2, source: "google_drive" }}
+      preload={{ listing: { items } }}
+    />,
+  );
+  assert.ok(!has(root, 'data-testid="mount-choose-here"'));
+  const deep = html(
+    s,
+    <MountSheet
+      onClose={noop}
+      onMounted={noop}
+      initial={{
+        step: 2,
+        source: "google_drive",
+        path: [{ ref: "gd:My Drive", name: "My Drive", kind: "google_drive" }],
+      }}
+      preload={{ listing: { items } }}
+    />,
+  );
+  assert.ok(has(deep, 'data-testid="mount-choose-here"') && has(deep, "Choose this folder"));
 });
 
 test("step 2 draws the provider's folders as ui/Row lines; an already mounted folder reads Mounted and is dimmed; the crumbs show under a folder", () => {
@@ -486,4 +563,22 @@ test("OneDrive opens its one drive at once, and the crumbs do not say OneDrive t
   const docs = await browse(s.data.call, d, s.data.accounts);
   const inDocs = walkInto(d, docs.items[0] as BrowseItem);
   assert.deepEqual(crumbs(inDocs), ["OneDrive", "Documents"]);
+});
+
+test("the Unmount sheet never unmounts on a stray Enter: it has no document key handler, and focus opens on Cancel through the Dialog", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("../mounts/UnmountSheet.tsx", import.meta.url), "utf8");
+  assert.doesNotMatch(src, /onKey=/, "Enter anywhere used to confirm the destructive Unmount");
+  assert.match(
+    src,
+    /label: "Cancel"[\s\S]*danger: true/,
+    "Cancel is the quiet action beside the danger one, so ui/Dialog focuses it",
+  );
+});
+
+test("the folder-walk guard is on time alone: a second press within 300 ms is dropped whatever row it lands on, a later one is allowed", () => {
+  assert.equal(walkAllowed(1000, 1100), false, "the second click of a double click");
+  assert.equal(walkAllowed(1000, 1299), false);
+  assert.equal(walkAllowed(1000, 1300), true, "a person retargeting after the list changed");
+  assert.equal(walkAllowed(0, Date.now()), true, "the first walk, nothing before it");
 });

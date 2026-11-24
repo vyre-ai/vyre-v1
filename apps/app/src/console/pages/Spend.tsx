@@ -8,6 +8,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
 import { capsMatch, dollarInput, dollars, limitDraft, raiseAmount } from "./ai-data-values.ts";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Scope = "space" | "person" | "agent";
 type SpendAgent = CapMap["agents.list"]["out"]["agents"][number];
@@ -229,32 +230,32 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
               {error ? <Note>{error}</Note> : null}
               {reviewedCaps ? (
                 <>
-                  <Note>These exact limits will replace the current limits after verified readback.</Note>
-                  <Actions>
-                    <Button label="Back to editing" onPress={() => setReviewedCaps(null)} />
-                    <Button
-                      label="Apply limits"
-                      disabled={action.busy}
-                      onPress={() =>
-                        void action
-                          .run("engine.spend.caps.set", { ...input, caps: reviewedCaps }, async () => {
-                            const readback = (await data.call(
-                              "engine.spend.get",
-                              input,
-                            )) as CapMap["engine.spend.get"]["out"];
-                            if (!capsMatch(readback.caps, reviewedCaps))
-                              throw new Error("The saved limits did not match the reviewed limits.");
-                            return "Limits updated";
-                          })
-                          .then((out) => {
-                            if (out) {
-                              setReviewedCaps(null);
-                              setEditingCaps(false);
-                            }
-                          })
-                      }
-                    />
-                  </Actions>
+                  <InlineConfirm
+                    question={<>These exact limits will replace the current limits after verified readback.</>}
+                    cancelLabel="Back to editing"
+                    confirmLabel="Apply limits"
+                    danger={false}
+                    disabled={action.busy}
+                    onConfirm={() =>
+                      action
+                        .run("engine.spend.caps.set", { ...input, caps: reviewedCaps }, async () => {
+                          const readback = (await data.call(
+                            "engine.spend.get",
+                            input,
+                          )) as CapMap["engine.spend.get"]["out"];
+                          if (!capsMatch(readback.caps, reviewedCaps))
+                            throw new Error("The saved limits did not match the reviewed limits.");
+                          return "Limits updated";
+                        })
+                        .then((out) => {
+                          if (out) {
+                            setReviewedCaps(null);
+                            setEditingCaps(false);
+                          }
+                        })
+                    }
+                    onCancel={() => setReviewedCaps(null)}
+                  />
                 </>
               ) : (
                 <Actions>
@@ -320,29 +321,28 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
               <Button label="Pause all AI…" danger onPress={() => setConfirmPause(true)} />
               {confirmPause ? (
                 <>
-                  <Note>
-                    Every person and agent in this Space will stop starting new AI work. Reason:{" "}
-                    {pauseReason.trim() || "No reason supplied"}.
-                  </Note>
-                  <Actions>
-                    <Button label="Cancel" onPress={() => setConfirmPause(false)} />
-                    <Button
-                      label="Confirm pause"
-                      danger
-                      disabled={action.busy}
-                      onPress={() =>
-                        void action
-                          .run(
-                            "engine.spend.pause_all",
-                            pauseReason.trim() ? { reason: pauseReason.trim() } : {},
-                            "AI paused",
-                          )
-                          .then((out) => {
-                            if (out) setConfirmPause(false);
-                          })
-                      }
-                    />
-                  </Actions>
+                  <InlineConfirm
+                    question={
+                      <>
+                        Every person and agent in this Space will stop starting new AI work. Reason:{" "}
+                        {pauseReason.trim() || "No reason supplied"}.
+                      </>
+                    }
+                    confirmLabel="Confirm pause"
+                    disabled={action.busy}
+                    onConfirm={() =>
+                      action
+                        .run(
+                          "engine.spend.pause_all",
+                          pauseReason.trim() ? { reason: pauseReason.trim() } : {},
+                          "AI paused",
+                        )
+                        .then((out) => {
+                          if (out) setConfirmPause(false);
+                        })
+                    }
+                    onCancel={() => setConfirmPause(false)}
+                  />
                 </>
               ) : null}
             </>
@@ -408,24 +408,24 @@ function SpendScope({ scope, scopeId }: { scope: Scope; scopeId?: string }): Rea
           />
           {reviewedRaise ? (
             <>
-              <Note>
-                {reviewedRaise.mode === "once"
-                  ? "This reviewed increase applies to the current limit period once."
-                  : "This reviewed increase changes the cap until an admin edits it again."}
-              </Note>
-              <Actions>
-                <Button label="Back" onPress={() => setReviewedRaise(null)} />
-                <Button
-                  label="Confirm raise"
-                  danger
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action.run("engine.spend.raise", reviewedRaise, "Limit raised").then((out) => {
-                      if (out) setReviewedRaise(null);
-                    })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                question={
+                  <>
+                    {reviewedRaise.mode === "once"
+                      ? "This reviewed increase applies to the current limit period once."
+                      : "This reviewed increase changes the cap until an admin edits it again."}
+                  </>
+                }
+                cancelLabel="Back"
+                confirmLabel="Confirm raise"
+                disabled={action.busy}
+                onConfirm={() =>
+                  action.run("engine.spend.raise", reviewedRaise, "Limit raised").then((out) => {
+                    if (out) setReviewedRaise(null);
+                  })
+                }
+                onCancel={() => setReviewedRaise(null)}
+              />
             </>
           ) : null}
         </Group>

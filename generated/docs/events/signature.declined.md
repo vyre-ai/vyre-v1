@@ -21,5 +21,6 @@ type Payload = {
   envelopeId: string;
   signer: string;
   reason?: string;
+  recordId?: string;
 };
 ```

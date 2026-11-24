@@ -5,7 +5,17 @@
 import { fail } from "../../../../host/src/routes/errors.ts";
 import { bad, first, isId, missing, newId, num, rowsOf, str } from "../../projections.ts";
 import type { MailCtx, Row } from "../../projections.ts";
-import { ensureAll, idemRef, liveMailbox, pageOf, parsePage, rememberIdem } from "./common.ts";
+import { oweProviderRouteDelete } from "../cleanup.ts";
+import {
+  duplicate,
+  ensureAll,
+  idemRef,
+  liveMailbox,
+  pageOf,
+  parsePage,
+  preconditionFailed,
+  rememberIdem,
+} from "./common.ts";
 import type { PageIn } from "./common.ts";
 
 type Provider = "resend" | "mailgun";
@@ -69,7 +79,15 @@ export function mailgunExpression(localPart: string, domain: string): string {
 
 export async function routeSet(
   ctx: MailCtx,
-  input: { domainId: string; localPart: string; mailboxId: string; idempotencyKey: string },
+  input: {
+    domainId: string;
+    localPart: string;
+    mailboxId: string;
+    idempotencyKey: string;
+    create?: boolean;
+    /** a move: the inbox the caller saw the address going to; if it goes elsewhere now, nothing is changed */
+    expectMailboxId?: string;
+  },
 ): Promise<{ route: RouteOut }> {
   ensureAll(ctx);
   const prior = idemRef(ctx, input.idempotencyKey, "routeset");
@@ -83,6 +101,12 @@ export async function routeSet(
     bad(ctx, "The address part must be letters, digits, dots, plus or dashes, or * for the catch-all.");
   if (!isId("mbx", input.mailboxId)) bad(ctx, "Mailbox id is not valid.");
   if (!liveMailbox(ctx, input.mailboxId)) missing(ctx, "Mailbox does not exist.");
+  // an SMTP domain's mail arrives at the person's own mail server, not at a provider that can forward it here
+  if (str(domain, "provider") === "smtp")
+    preconditionFailed(
+      ctx,
+      "Mail for this domain arrives at your own mail server. Connect that mailbox in Settings, Email and calendar, to bring it into Vyre.",
+    );
   const provider = providerOf(domain);
   const existing = first(
     ctx.db.all(
@@ -93,16 +117,31 @@ export async function routeSet(
   );
   const now = ctx.now();
   let routeId: string;
+  // `create` is an add, never a move: a name that is taken is refused, and nothing is repointed (mail.address.move does that on purpose)
+  if (existing && input.create === true)
+    duplicate(ctx, `${localPart}@${str(domain, "name")} is already in use. Moving it is a separate step.`);
+  if (existing && input.expectMailboxId !== undefined && str(existing, "mailboxId") !== input.expectMailboxId)
+    duplicate(
+      ctx,
+      `${localPart}@${str(domain, "name")} now goes somewhere else, not where you saw it. Look again before moving it.`,
+    );
   if (existing) {
     routeId = str(existing, "id");
     if (str(existing, "mailboxId") !== input.mailboxId) {
-      ctx.db.run(
-        `UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ?`,
+      // conditional: it changes the route only if it still goes where it went when it was read
+      const moved = ctx.db.run(
+        `UPDATE mail_route SET "mailboxId" = ?, version = ?, updated_at = ? WHERE id = ? AND "mailboxId" = ?`,
         input.mailboxId,
         num(existing, "version") + 1,
         now,
         routeId,
+        str(existing, "mailboxId"),
       );
+      if (moved.changes === 0)
+        duplicate(
+          ctx,
+          `${localPart}@${str(domain, "name")} was just changed by someone else. Look again before moving it.`,
+        );
     }
   } else {
     let providerRouteId: string | null = null;
@@ -117,17 +156,65 @@ export async function routeSet(
         throw fail("provider.bad_response", ctx.trace.traceId, { message: "Mailgun did not return the route." });
     }
     routeId = newId("rte", now);
-    ctx.db.run(
-      `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      routeId,
-      input.domainId,
-      localPart,
-      input.mailboxId,
-      provider,
-      1,
-      now,
-      null,
-    );
+    // The provider call above took time. Look again, then write: the unique index on the live address is the last word, and the loser takes its provider route back and says so.
+    // The loser's own Mailgun route must go, or every inbound message for the address would arrive twice: it is deleted now (three tries), and if it still stays it is queued, retried in the background and shown on the Email page.
+    const lost = async (): Promise<never> => {
+      if (providerRouteId) {
+        let removed = false;
+        for (let attempt = 0; attempt < 3 && !removed; attempt++) {
+          try {
+            await ctx.call("mailgun.routes.delete", {
+              idempotencyKey: `mail.routes.lost:${routeId}:${attempt}`,
+              routeId: providerRouteId,
+            });
+            removed = true;
+          } catch (e) {
+            if ((e as { error?: { code?: unknown } } | null)?.error?.code === "validation.not_found") removed = true;
+            else if (attempt < 2) await new Promise((r) => setTimeout(r, 40 * (attempt + 1)));
+          }
+        }
+        if (!removed)
+          oweProviderRouteDelete(
+            ctx,
+            providerRouteId,
+            `${localPart}@${str(domain, "name")}: a Mailgun route made by an add that lost a race could not be deleted yet. It is retried until it is gone.`,
+          );
+      }
+      return duplicate(ctx, `${localPart}@${str(domain, "name")} was just taken by someone else.`);
+    };
+    if (
+      first(
+        ctx.db.all(
+          `SELECT id FROM mail_route WHERE "domainId" = ? AND "localPart" = ? AND deleted_at IS NULL`,
+          input.domainId,
+          localPart,
+        ),
+      )
+    )
+      return lost();
+    try {
+      ctx.db.run(
+        `INSERT INTO mail_route (id, "domainId", "localPart", "mailboxId", provider, version, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        routeId,
+        input.domainId,
+        localPart,
+        input.mailboxId,
+        provider,
+        1,
+        now,
+        null,
+      );
+    } catch (e) {
+      // only the address index means "taken": any other constraint failure is a real error and is rethrown
+      const said = String(e instanceof Error ? e.message : e);
+      // the index is named in postgres messages; sqlite names the two columns
+      if (
+        /unique/i.test(said) &&
+        (/mail_route__address/.test(said) || /mail_route\.domainId, mail_route\.localPart/.test(said))
+      )
+        return lost();
+      throw e;
+    }
     if (providerRouteId)
       ctx.db.run(
         `INSERT OR IGNORE INTO mail_route_ext ("routeId", "providerRouteId") VALUES (?, ?)`,

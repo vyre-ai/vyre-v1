@@ -1,0 +1,1 @@
+A per-parent list whose parent list may have been cut short (a repeated page, nothing new, the cap) no longer counts as known: the sweep removes nothing for it, every parent is read, and the list is not kept for the next pass.

@@ -54,6 +54,7 @@ export default function Mount(): ReactNode {
           : undefined;
     return {
       on: true,
+      button: true, // the mic is drawn only where voice is set up and the shell asks for the button (r41-quiet)
       session: async () => {
         if (unset) throw Object.assign(new Error("Talk needs a key."), { details: { reason: "no_key" } });
         return SESSION;

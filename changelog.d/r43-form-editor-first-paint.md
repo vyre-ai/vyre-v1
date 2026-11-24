@@ -1,0 +1,1 @@
+- The form editor no longer draws its fields before they hold the saved form: after a reload the first thing drawn was the Form name field with an empty name (a walk, or a quick person, could read it before the name arrived); the editor now shows Loading until its fields are filled.

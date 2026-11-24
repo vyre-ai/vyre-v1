@@ -1,0 +1,1 @@
+A sealed value the Vault cannot take yet no longer shows as a failure on the Sync page of a healthy pull: it is waited for and tried again with the next group or pass, and only a value refused again with nothing left to read is listed, once per pass, with the Vault's reason.

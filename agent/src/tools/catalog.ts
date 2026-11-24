@@ -4,6 +4,9 @@ import { probeIn } from "../../../lib/probe.ts";
 import { fillsThread, forAskerField } from "./fill.ts";
 import { placeField } from "./place.ts";
 import { HIDDEN_FROM_MODEL } from "./versions.ts";
+import { shareFragments } from "./share-fragments.ts";
+import { MCP_TOOLS } from "../../../packages/contracts/src/mcp-coverage.ts";
+import { shareRepeats } from "./share.ts";
 import type { AgentToolRow, Catalog, Effects, LocalKind, McpToolRow, RegistryCapRow, ToolDef } from "./types.ts";
 
 const EFFECT_RANK: Readonly<Record<Effects, number>> = { read: 0, write: 1, outward: 2 };
@@ -61,15 +64,59 @@ export function statesLimits(v: unknown): unknown {
   return out;
 }
 
+/** The tools added for the full set (mcp-coverage.ts) show one plain line: the first sentence, cut at 72 characters. What a model is shown of its tools may only go down (scripts/tool-tokens.test.ts). */
+export function oneLine(cap: string, text: string): string {
+  if (!(cap in MCP_TOOLS)) return text;
+  const first = (text.split(/\.(?:\s|$)|; /)[0] ?? text).replace(/^(Console|System|Space admins): /, "");
+  const cut = first.length <= 72 ? first : `${first.slice(0, 69).replace(/\s+\S*$/, "")}...`;
+  return cut.charAt(0).toUpperCase() + cut.slice(1);
+}
+
+/**
+ * The tools added for the full set (MCP_TOOLS) show a model the names, types, enums and examples of their inputs, not the id patterns a validator uses (an example is what lets a first call be shaped; a format pattern stays, as the words of a refusal come from it): the server still checks every call
+ * against the full schema, and a model that writes a wrong id is told so in words. A property that is itself called "pattern" lives under "properties" and stays.
+ */
+/** The pattern of an id (^agt_[a-z0-9]+$): the examples already show its shape. A format pattern (an address, a date, a host) stays, because the words of a refusal are made from it (agent/src/tools/reject.ts). */
+const ID_PATTERN = /^\^[a-z]+_\[a-z0-9\]\+\$$/;
+
+function leanSchema(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(leanSchema);
+  if (v === null || typeof v !== "object") return v;
+  const out: Record<string, unknown> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    if (k === "pattern" && typeof x === "string" && ID_PATTERN.test(x)) continue;
+    out[k] =
+      k === "properties" && typeof x === "object" && x !== null
+        ? Object.fromEntries(Object.entries(x as Record<string, unknown>).map(([n, sch]) => [n, leanSchema(sch)]))
+        : leanSchema(x);
+  }
+  return out;
+}
+
+/** Timestamps are written as epoch milliseconds in nearly every tool: one short word for it, and no floor (a time before 1970 is refused by the server all the same). */
+function shortTimes(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(shortTimes);
+  if (v === null || typeof v !== "object") return v;
+  const o = v as Record<string, unknown>;
+  if (o["description"] === "Milliseconds since the Unix epoch" && o["type"] === "integer") {
+    const { minimum: _m, ...rest } = o;
+    return { ...rest, description: "Epoch ms" };
+  }
+  return Object.fromEntries(Object.entries(o).map(([k, x]) => [k, shortTimes(x)]));
+}
+
+/** Inputs a model is not shown though the server takes them (not version inputs: those are HIDDEN_FROM_MODEL). An agent edits a note's words, colour and link; a picture is put in by the person, and its schema is 350 characters on every call. */
+const NOT_SHOWN: Readonly<Record<string, readonly string[]>> = { "notes.update": ["image"] };
+
 export function modelSchema(schema: unknown, cap?: string): { schema: unknown; keyed: boolean; thread: boolean } {
-  const raw = statesLimits(withoutPlaceholderExamples(schema)) as Obj | null;
+  const raw = statesLimits(shortTimes(withoutPlaceholderExamples(schema))) as Obj | null;
   if (raw === null || typeof raw !== "object" || raw.properties === undefined)
     return { schema: raw, keyed: false, thread: false };
   // version inputs the tool layer fills for the model are not shown to it (agent/src/tools/versions.ts)
-  const hide = cap === undefined ? undefined : HIDDEN_FROM_MODEL[cap];
+  const hide = cap === undefined ? undefined : [...(HIDDEN_FROM_MODEL[cap] ?? []), ...(NOT_SHOWN[cap] ?? [])];
   let props: Record<string, unknown> = { ...raw.properties };
   let required = [...(raw.required ?? [])];
-  if (hide !== undefined) {
+  if (hide !== undefined && hide.length > 0) {
     props = Object.fromEntries(Object.entries(props).filter(([k]) => !hide.includes(k)));
     required = required.filter((r) => !hide.includes(r));
   }
@@ -129,8 +176,8 @@ export function buildCatalog(
       cap: cap.name,
       v: cap.v,
       toolset: t.toolset,
-      summary: t.description,
-      inputSchema: shown.schema,
+      summary: oneLine(cap.name, t.description),
+      inputSchema: cap.name in MCP_TOOLS ? leanSchema(shown.schema) : shown.schema,
       ...(shown.keyed ? { keyed: true } : {}),
       ...(shown.thread ? { thread: true } : {}),
       effects,
@@ -143,8 +190,10 @@ export function buildCatalog(
       ...(cap.resource?.id ? { resource: { type: cap.resource.type, id: cap.resource.id } } : {}),
     });
   }
-  const byName = new Map(defs.map((d) => [d.name, d] as const));
-  return { all: defs, byName: (n) => byName.get(n) };
+  // a large object several tools take (a SyncSpec) is shown in full by the first and pointed at by the rest; then any other large fragment several tools carry word for word is shown once
+  const all = shareFragments(shareRepeats(defs));
+  const byName = new Map(all.map((d) => [d.name, d] as const));
+  return { all, byName: (n) => byName.get(n) };
 }
 
 /** What a plain key request says once the connect card is on (rc.29): a service the person names goes to the card, not to a request. Added at read time, so the frozen description is the rc.27 one and a switch at 0 shows none. */

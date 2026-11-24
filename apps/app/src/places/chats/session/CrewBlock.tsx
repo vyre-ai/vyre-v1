@@ -1,8 +1,8 @@
 // The crew in a long session (prototype t-session): one compact block instead of a card per helper. A header with how many and how they stand, then one 36 px row per helper: a face, its name, what it was asked, one
 // word of status and a clock. A row opens in place to the helper's last three steps; its name opens the helper's pane. Same data and the same test ids as the crew strip (crew/strip.tsx), no rings and no boxes.
-import { createElement, useEffect, useState } from "react";
+import { createElement, useEffect, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { Avatar } from "../../../../../../ui/src/Avatar/index.tsx";
 import { Row } from "../../../../../../ui/src/Row/index.tsx";
 import { injectCss } from "../../../../../../ui/src/theme/css.ts";
@@ -12,6 +12,12 @@ import type { HelperStep } from "../crew/pane.tsx";
 import { stripTone, faceSeed } from "../crew/model.ts";
 import type { CrewMember, CrewTotals } from "../crew/model.ts";
 import { useNow } from "../crew/strip.tsx";
+import { toRunView } from "../crew/run-view.ts";
+import type { RunView } from "../crew/run-view.ts";
+import type { RunNode } from "../crew/run/model.ts";
+import { movesFor } from "../tasks/moves.ts";
+import type { MoveTask } from "../tasks/moves.ts";
+import { CrewTiles } from "./CrewTiles.tsx";
 import { durationWords } from "../../../../../../lib/duration.ts";
 import type { Call } from "../crew/status.ts";
 
@@ -104,6 +110,7 @@ export function useLastSteps(
 
 function HelperRow({
   m,
+  r,
   now,
   call,
   selected,
@@ -111,6 +118,8 @@ function HelperRow({
   onRetry,
 }: {
   m: CrewMember;
+  /** The same piece of work as the tile reads it: what the runtime knows (waiting for another, ended before it started) over the member. */
+  r: RunView;
   now: number;
   call: Call | undefined;
   selected: boolean;
@@ -123,13 +132,15 @@ function HelperRow({
   // a subagent the engine started in its own turn has no chat to read steps from: its steps come with the row
   const own = m.kind === "subagent";
   const steps = useLastSteps(call, m, open && !own);
-  const canRetry = (m.state === "failed" || m.state === "stopped") && onRetry !== undefined;
-  const last = m.state === "working" || m.state === "needs_you" ? m.step : m.found;
+  const waiting = r.dependsLine !== undefined;
+  const canRetry = (r.state === "failed" || r.state === "stopped") && r.blocked !== true && onRetry !== undefined;
+  const last = r.state === "working" || r.state === "needs_you" ? m.step : (r.lines[0] ?? m.found);
   return (
-    <View testID={id} {...(web ? { dataSet: { state: m.state } } : {})}>
+    <View testID={id} {...(web ? { dataSet: { state: r.state } } : {})}>
       <Row
         id={`${id}-toggle`}
         title={name}
+        {...(waiting ? { note: r.dependsLine } : {})}
         onPress={() => setOpen((o) => !o)}
         leading={
           <Pressable
@@ -144,16 +155,16 @@ function HelperRow({
         }
         trailing={
           <View style={st.trail}>
-            {task !== "" ? (
+            {waiting ? null : task !== "" ? (
               <Text numberOfLines={1} testID={`${id}-role`} style={st.task}>
                 {task}
               </Text>
             ) : null}
-            {m.state === "working" && web
+            {r.state === "working" && !waiting && web
               ? createElement("span", { className: "vy-cb-spin", "aria-hidden": true, title: "Working" })
               : null}
-            <Text testID={`${id}-state`} style={[st.statusText, m.state === "needs_you" && st.wait]}>
-              {statusWord(m.state)}
+            <Text testID={`${id}-state`} style={[st.statusText, r.state === "needs_you" && st.wait]}>
+              {waiting ? "Waiting" : statusWord(r.state)}
             </Text>
             {canRetry ? (
               <Pressable accessibilityRole="button" testID={`${id}-retry`} onPress={() => onRetry!(m)} style={st.retry}>
@@ -161,7 +172,9 @@ function HelperRow({
               </Pressable>
             ) : (
               <Text testID={`${id}-time`} style={st.time}>
-                {m.state === "working" ? durationWords(Math.max(m.elapsedMs, now - m.startedAt)) : ""}
+                {r.state === "working" && !waiting && r.blocked !== true
+                  ? durationWords(Math.max(r.elapsedMs, now - r.startedAt))
+                  : ""}
               </Text>
             )}
           </View>
@@ -181,9 +194,9 @@ function HelperRow({
               {last}
             </Text>
           ) : (
-            <Text style={st.step}>{m.state === "working" ? "Getting started" : "No steps kept"}</Text>
+            <Text style={st.step}>{r.state === "working" && !waiting ? "Getting started" : "No steps kept"}</Text>
           )}
-          {(steps.length > 0 || own) && m.state === "done" && m.found ? (
+          {(steps.length > 0 || own) && r.state === "done" && m.found ? (
             <Text numberOfLines={2} testID={`${id}-line`} style={[st.step, st.found]}>
               {m.found}
             </Text>
@@ -207,7 +220,25 @@ export function CrewBlock({
   onStopAll,
   onOpenPane,
   onRetry,
+  view: viewProp = "auto",
+  width,
+  meId,
+  onAnswered,
+  nodes,
+  retryMs = 3000,
 }: {
+  /** The runtime's nodes of this chat: what each helper is on, which look stuck, which wait for another. */
+  nodes?: readonly RunNode[] | undefined;
+  /** How long before a held request whose permission could not be read is read again (a test shortens it). */
+  retryMs?: number;
+  /** The person looking: who may answer a held request is read for them. */
+  meId?: string | undefined;
+  /** A held request was answered here: the crew is read again. */
+  onAnswered?: (() => void) | undefined;
+  /** The width of the column when the caller knows it (else this block measures itself). */
+  width?: number;
+  /** auto: side by side while two or more work and the column is wide, rows otherwise. */
+  view?: "auto" | "tiles" | "rows";
   members: readonly CrewMember[];
   totals: CrewTotals;
   call?: Call | undefined;
@@ -221,11 +252,67 @@ export function CrewBlock({
   const live = totals.working + totals.needsYou > 0;
   const now = useNow(live);
   const [reviewed, setReviewed] = useState(false);
+  const [picked, setPicked] = useState<"tiles" | "rows" | null>(null);
+  // Allow and Deny pressed inside a tile: what was answered for which HELD REQUEST (not which helper: the same helper can hold another request later), so a second press cannot answer twice and a failure can be tried again
+  const [decided, setDecided] = useState<Record<string, "approve" | "reject" | "failed">>({});
+  const inFlight = useRef(new Set<string>());
+  // who may answer which held request, read the way the chat card reads it (the task and the moves this person has on it). A read that fails is never kept as "no": nothing shows, and it is read again
+  const [mayByTask, setMayByTask] = useState<Record<string, { approve: boolean; reject: boolean }>>({});
+  const holds = members.flatMap((m) => {
+    const t = toRunView(m).holdTaskId;
+    return t !== undefined ? [{ id: m.id, task: t }] : [];
+  });
+  // read again whenever a request appears or goes, a helper changes state (it was answered elsewhere, it was reassigned), or the person or the way to ask changes
+  const readKey = members.map((m) => `${m.id}:${m.state}:${toRunView(m).holdTaskId ?? ""}`).join("|");
+  useEffect(() => {
+    if (!call || !meId) return undefined;
+    let dead = false;
+    const timers: Array<ReturnType<typeof setTimeout>> = [];
+    const read = (task: string): void => {
+      void Promise.resolve(call("tasks.get", { taskId: task })).then(
+        (o) => {
+          const t = (o as { task?: MoveTask } | null)?.task;
+          const keys = new Set(t ? movesFor(t, meId).map((x) => x.key) : []);
+          if (!dead)
+            setMayByTask((x) => ({ ...x, [task]: { approve: keys.has("approve"), reject: keys.has("reject") } }));
+        },
+        () => {
+          if (dead) return;
+          setMayByTask((x) => {
+            const { [task]: _gone, ...rest } = x;
+            return rest;
+          });
+          const t = setTimeout(() => read(task), retryMs);
+          (t as { unref?: () => void }).unref?.();
+          timers.push(t);
+        },
+      );
+    };
+    for (const h of holds) read(h.task);
+    return () => {
+      dead = true;
+      timers.forEach(clearTimeout);
+    };
+  }, [readKey, call, meId]); // eslint-disable-line react-hooks/exhaustive-deps
+  const mayAnswer = Object.fromEntries(holds.flatMap((h) => (mayByTask[h.task] ? [[h.id, mayByTask[h.task]!]] : [])));
+  // the width of this block's own column; the window's until it has been measured (the pane beside the chat narrows it)
+  const winW = useWindowDimensions().width;
+  const [colW, setColW] = useState<number | null>(null);
+  const wide = (width ?? colW ?? winW) >= 600;
   if (members.length === 0) return null;
+  const auto = live && members.length >= 2 && wide ? "tiles" : "rows";
+  const want = picked ?? (viewProp === "auto" ? auto : viewProp);
+  const shown: "tiles" | "rows" = want === "tiles" && wide && members.length >= 2 ? "tiles" : "rows";
   if (web) injectCss((globalThis as { document?: Parameters<typeof injectCss>[0] }).document, "vyre-crew-block", CSS);
   const tone = stripTone(totals);
   return (
-    <View testID="crew-strip" accessibilityRole="summary" {...(web ? { dataSet: { tone } } : {})} style={st.block}>
+    <View
+      testID="crew-strip"
+      accessibilityRole="summary"
+      {...(web ? { dataSet: { tone } } : {})}
+      style={st.block}
+      onLayout={(e) => setColW(e.nativeEvent.layout.width)}
+    >
       <View style={st.head}>
         <Text style={st.headLead}>Crew</Text>
         <Text numberOfLines={1} testID="crew-strip-title" style={st.headMeta}>
@@ -259,6 +346,18 @@ export function CrewBlock({
             Merged
           </Text>
         ) : null}
+        {wide && members.length >= 2 ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={shown === "tiles" ? "Show as rows" : "Show side by side"}
+            accessibilityState={{ selected: shown === "tiles" }}
+            testID="crew-strip-view"
+            onPress={() => setPicked(shown === "tiles" ? "rows" : "tiles")}
+            style={st.pane}
+          >
+            <Glyph name={shown === "tiles" ? "rows" : "tiles"} size={14} />
+          </Pressable>
+        ) : null}
         {live && onStopAll ? (
           <Pressable accessibilityRole="button" testID="crew-strip-stop-all" onPress={onStopAll}>
             <Text style={st.action}>Stop all</Text>
@@ -276,18 +375,69 @@ export function CrewBlock({
           </Pressable>
         ) : null}
       </View>
-      {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
-      {members.map((m) => (
-        <HelperRow
-          key={m.id}
-          m={m}
+      {shown === "tiles" ? (
+        <CrewTiles
+          runs={members.map((m) => toRunView(m, nodes))}
           now={now}
-          call={call}
-          selected={selectedId === m.id}
-          onPeek={onPeek}
-          onRetry={onRetry}
+          selectedId={selectedId}
+          onPress={(id) => {
+            const m = members.find((x) => x.id === id);
+            if (m) onPeek(m);
+          }}
+          onRetry={
+            onRetry
+              ? (id) => {
+                  const m = members.find((x) => x.id === id);
+                  if (m) onRetry(m);
+                }
+              : undefined
+          }
+          decided={decided}
+          may={mayAnswer}
+          onDecide={
+            call && meId
+              ? (task, verdict, note) => {
+                  // the tile names its own request: nothing is looked up again, so another helper's request can never be answered by mistake; one answer in flight per request
+                  if (inFlight.current.has(task) || decided[task] === "approve" || decided[task] === "reject") return;
+                  inFlight.current.add(task);
+                  setDecided((d) => ({ ...d, [task]: verdict }));
+                  // the held request is a task that carries Allow and Deny: answered where the chat card answers it
+                  void Promise.resolve(
+                    call("tasks.act", { taskId: task, action: verdict, ...(note ? { note } : {}) }),
+                  ).then(
+                    () => {
+                      inFlight.current.delete(task);
+                      // answered: the view of who may answer it is dropped and the crew is read again
+                      setMayByTask((x) => {
+                        const { [task]: _gone, ...rest } = x;
+                        return rest;
+                      });
+                      onAnswered?.();
+                    },
+                    () => {
+                      inFlight.current.delete(task);
+                      setDecided((d) => ({ ...d, [task]: "failed" }));
+                    },
+                  );
+                }
+              : undefined
+          }
         />
-      ))}
+      ) : null}
+      {/* ui-rows-lint: not a list (the rows of one crew block: a face, a name, what it was asked, a status and a clock, drawn together as the prototype t-session shows them) */}
+      {shown === "rows" &&
+        members.map((m) => (
+          <HelperRow
+            key={m.id}
+            m={m}
+            r={toRunView(m, nodes)}
+            now={now}
+            call={call}
+            selected={selectedId === m.id}
+            onPeek={onPeek}
+            onRetry={onRetry}
+          />
+        ))}
     </View>
   );
 }

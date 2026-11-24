@@ -1,0 +1,3 @@
+- No change for a person: the server typecheck count is back to where it was (the access warm-up and files.create_many no longer add errors; ctx.db now declares the optional batch it always had).
+- A module's database handle offers batch only where the database has transactions, so files.create_many refuses on one without them instead of writing file by file.
+- files.create_many is declared as making files in a folder (like sheets.create), so the make-emits lint passes and the gateway registers each file from file.created.

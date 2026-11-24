@@ -14,6 +14,7 @@ HTTP 422. Retryable: no.
 - computers.provision
 - contacts.address.add
 - files.create
+- files.create_many
 - files.folder.create
 - files.folder.rename
 - files.move
@@ -27,7 +28,6 @@ HTTP 422. Retryable: no.
 - invites.accept_create_account
 - journeys.create
 - journeys.start
-- mail.connect
-- mail.domain.add
-- mail.mailbox.create
-- members.accept
+- journeys.to_pipeline
+- mail.address.add
+- mail.address.move

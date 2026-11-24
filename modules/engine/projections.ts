@@ -15,6 +15,7 @@ import { LEASE_TTL_MS } from "../../agent/src/turn-engine/lease.ts";
 import type { LeaseRow, LeaseStore } from "../../agent/src/turn-engine/lease.ts";
 import type { NewItem, QueueStore } from "../../agent/src/turn-engine/queue.ts";
 import type { MessageStore, WaitRow, WaitStore } from "../../agent/src/turn-engine/stores.ts";
+import type { JournalEntry, JournalStore } from "../../agent/src/turn-engine/journal.ts";
 import type {
   Author,
   EngineSession,
@@ -52,7 +53,10 @@ export interface EngineCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold" };
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+    debug?(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 /** Throw the catalogue error for this call. */
@@ -160,6 +164,10 @@ const SCHEMA = [
   "0018_rewind_undo.sql",
   "0019_rewind_state.sql",
   "0020_own_background.sql",
+  "0021_turn_journal.sql",
+  "0022_turn_journal_key.sql",
+  "0023_journal_scrubbed.sql",
+  "0024_wait_cause.sql",
 ]
   .map((f) => readFileSync(new URL(`./migrations/${f}`, import.meta.url), "utf8"))
   .join("\n")
@@ -183,6 +191,7 @@ export function ensure(db: Db): void {
     db.all("SELECT key FROM engine_step_turns WHERE key = ?", "probe");
     db.all("SELECT task_id FROM engine_task_baton WHERE task_id = ?", "probe");
     db.all("SELECT job_id FROM engine_crew_job WHERE job_id = ?", "probe");
+    db.all("SELECT scrubbed FROM engine_turn_journal WHERE turn_id = ?", "probe");
     db.all("SELECT wait_id FROM engine_crew_wait WHERE wait_id = ?", "probe");
     db.all("SELECT touched FROM engine_thread_queue WHERE thread_id = ?", "probe");
     db.all("SELECT ref FROM engine_paid_ok WHERE thread_id = ?", "probe");
@@ -194,6 +203,7 @@ export function ensure(db: Db): void {
     db.all("SELECT undo_sha FROM engine_rewind WHERE thread_id = ?", "probe");
     db.all("SELECT state FROM engine_rewind WHERE thread_id = ?", "probe");
     db.all("SELECT background FROM engine_own_subagent WHERE thread_id = ?", "probe");
+    db.all("SELECT cause FROM engine_waits WHERE task_id = ?", "probe");
   } catch {
     // a database that has most of the tables (an older build) runs the whole list again: an ALTER that was already applied says "duplicate column" and is not a failure
     for (const stmt of SCHEMA) {
@@ -440,6 +450,7 @@ export function sqlLeases(db: Db, ttlMs: number = LEASE_TTL_MS): LeaseStore {
     renew: (threadId, holder, now) => closedAs(() => store.renew(threadId, holder, now), false),
     setTurn: (threadId, holder, turnId) => closedAs(() => store.setTurn(threadId, holder, turnId), undefined),
     release: (threadId, holder) => closedAs(() => store.release(threadId, holder), false),
+    takeOver: (threadId, holder, from, now) => closedAs(() => store.takeOver(threadId, holder, from, now), null),
     get: (threadId, now) => closedAs(() => store.get(threadId, now), null),
   };
 }
@@ -480,6 +491,18 @@ function sqlLeaseStore(db: Db, ttlMs: number): LeaseStore {
     setTurn(threadId, holder, turnId) {
       db.run("UPDATE engine_thread_lease SET turn_id = ? WHERE thread_id = ? AND holder = ?", turnId, threadId, holder);
     },
+    takeOver(threadId, holder, from, now) {
+      const took =
+        db.run(
+          "UPDATE engine_thread_lease SET holder = ?, expires_at = ?, turn_id = NULL WHERE thread_id = ? AND holder = ? AND expires_at > ?",
+          holder,
+          now + ttlMs,
+          threadId,
+          from,
+          now,
+        ).changes > 0;
+      return took ? read(threadId) : null;
+    },
     release: (threadId, holder) =>
       db.run("DELETE FROM engine_thread_lease WHERE thread_id = ? AND holder = ?", threadId, holder).changes > 0,
     get(threadId, now) {
@@ -504,6 +527,7 @@ function waitOf(r: Row): WaitRow {
     runId: orNull(r["run_id"]),
     at: num(r["at"]),
     resolution: res === null ? null : (JSON.parse(res) as WaitRow["resolution"]),
+    ...(r["cause"] === null || r["cause"] === undefined ? {} : { cause: str(r["cause"]) }),
     wakeQseq: r["wake_qseq"] === null || r["wake_qseq"] === undefined ? null : num(r["wake_qseq"]),
   };
 }
@@ -513,8 +537,8 @@ export function sqlWaits(db: Db): WaitStore {
   return {
     put(w) {
       db.run(
-        `INSERT OR REPLACE INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR REPLACE INTO engine_waits (task_id, thread_id, turn_id, agent_id, call_id, tool_name, asker, run_id, at, resolution, wake_qseq, cause)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         w.taskId,
         w.threadId,
         w.turnId,
@@ -526,6 +550,7 @@ export function sqlWaits(db: Db): WaitStore {
         w.at,
         w.resolution === null ? null : JSON.stringify(w.resolution),
         w.wakeQseq,
+        w.cause ?? null,
       );
     },
     get(taskId) {
@@ -553,5 +578,65 @@ export function sqlWaits(db: Db): WaitStore {
     },
     open: (threadId) =>
       rows(db, "SELECT * FROM engine_waits WHERE thread_id = ? ORDER BY at ASC", threadId).map(waitOf),
+  };
+}
+
+/** The journal of a turn's tool calls in SQL (agent/src/turn-engine/journal.ts). A call is written twice, at its start and at its end, under one key; a week-old row is swept as one is written. */
+export function sqlJournal(db: Db, now: () => number): JournalStore {
+  ensure(db);
+  const KEEP = 86_400_000; // a call is kept until its turn ends, and a turn a dead host left for 24 hours at most, then it goes
+  return {
+    put(e) {
+      db.run(
+        `INSERT OR REPLACE INTO engine_turn_journal (turn_id, call_id, thread_id, name, input_json, safety, state, summary, own, at, ended_at, call_key, scrubbed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        e.turnId,
+        e.callId,
+        e.threadId,
+        e.name,
+        e.input === undefined ? null : JSON.stringify(e.input),
+        e.safety,
+        e.state,
+        e.summary ?? null,
+        e.own ? 1 : 0,
+        e.at,
+        e.endedAt ?? null,
+        e.callKey ?? null,
+        e.scrubbed ? 1 : 0,
+      );
+      if (e.state === "started") db.run("DELETE FROM engine_turn_journal WHERE at < ?", now() - KEEP);
+    },
+    list(turnId) {
+      return (
+        db.all("SELECT * FROM engine_turn_journal WHERE turn_id = ? ORDER BY at ASC, call_id ASC", turnId) as Array<
+          Record<string, unknown>
+        >
+      ).map((r) => {
+        let input: unknown = null;
+        try {
+          input = r["input_json"] ? JSON.parse(String(r["input_json"])) : null;
+        } catch {
+          input = null;
+        }
+        return {
+          threadId: String(r["thread_id"]),
+          turnId: String(r["turn_id"]),
+          callId: String(r["call_id"]),
+          name: String(r["name"]),
+          input,
+          ...(r["call_key"] ? { callKey: String(r["call_key"]) } : {}),
+          ...(Number(r["scrubbed"]) === 1 ? { scrubbed: true } : {}),
+          safety: String(r["safety"]) as JournalEntry["safety"],
+          state: String(r["state"]) as JournalEntry["state"],
+          ...(r["summary"] ? { summary: String(r["summary"]) } : {}),
+          ...(Number(r["own"]) === 1 ? { own: true } : {}),
+          at: Number(r["at"]),
+          ...(r["ended_at"] === null ? {} : { endedAt: Number(r["ended_at"]) }),
+        } as JournalEntry;
+      });
+    },
+    drop(turnId) {
+      db.run("DELETE FROM engine_turn_journal WHERE turn_id = ?", turnId);
+    },
   };
 }

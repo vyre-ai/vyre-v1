@@ -11,7 +11,7 @@ import { Bar, TONE } from "./GoalRow.tsx";
 import { menuTrigger, useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { askedCall, goalMenuEntries } from "./goal-menu.ts";
 import { TextAsk } from "../menus/TextAsk.tsx";
-import { Icon } from "./GoalPage.tsx";
+import { Icon } from "./GoalIcon.tsx";
 import { delta, fmt, lineWithDue, statusOf } from "./model.ts";
 import { useZones } from "../../../../../../ui/src/Time/index.tsx";
 import type { GoalBlock, Progress, Status } from "./model.ts";

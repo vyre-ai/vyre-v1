@@ -1,6 +1,6 @@
 // The Artifacts page menu: right-click a card (or its ... button) gives Open, Share, Copy Link, Rename and Delete for the owner and Open and Copy Link for anyone else; Rename and Delete reach sites.update and
 // sites.delete, and Delete asks first.
-import test from "node:test";
+import test, { after, before } from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
 import { find, flush, installDom, mount, press, typeInto } from "../../../onboarding/test-dom.ts";
@@ -8,6 +8,12 @@ import type { Node } from "../../../onboarding/test-dom.ts";
 import { act } from "react";
 import { ArtifactsPage } from "../mounts/ArtifactsPage.tsx";
 import type { ShellRuntime } from "../../../shell/providers/runtime.tsx";
+import { armDelay, setArmDelay } from "../../../../../../ui/src/InlineConfirm/index.tsx";
+
+// the delete strip arms after a short wait (ui/InlineConfirm); this file presses Delete at once, so the wait is 0 here only
+const armWas = armDelay();
+before(() => setArmDelay(0));
+after(() => setArmDelay(armWas));
 
 const rightClick = async (root: Node, rowId: string): Promise<void> => {
   const row = find(root, rowId);

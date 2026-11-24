@@ -121,7 +121,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [skills.undo](../capabilities/skills.undo.md): Undo the latest version of a skill; the version before it comes back as a new version, and undoing again brings the undone one back
 - [skills.view](../capabilities/skills.view.md): The full text and files of one skill: your own, one shared with you (before you add it, too), a Space one or a built-in one
 
-## Events (39)
+## Events (40)
 
 - [agent.config_changed](../events/agent.config_changed.md): AGENT.md, agent.toml or the agent record changed (a new version was saved)
 - [agent.config_error](../events/agent.config_error.md): An agent.toml failed validation; the last good version keeps running
@@ -134,6 +134,7 @@ Requires: chat, engine, mcp, memory, notes, runs, terminal.
 - [agent.owner_changed](../events/agent.owner_changed.md): An agent was handed to another person
 - [agent.paused](../events/agent.paused.md): An agent was paused
 - [agent.privacy_set](../events/agent.privacy_set.md): An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else
+- [agent.renamed](../events/agent.renamed.md): An agent's name changed; access gives the agent's principal the new name, so every reader of the people directory (mentions, share sheets, rows) shows it
 - [agent.restored](../events/agent.restored.md): An agent came back from Trash
 - [agent.resumed](../events/agent.resumed.md): An agent was resumed
 - [agent.routine_changed](../events/agent.routine_changed.md): A routine was created, changed or deleted

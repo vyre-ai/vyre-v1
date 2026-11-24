@@ -127,6 +127,8 @@ export type Act =
   | { t: "pane" }
   /** Opens the agent's pane whatever it showed (the message menu's "Show what the agent knew here"). */
   | { t: "pane-open" }
+  /** Shuts the agent's pane (a chat that was left with its pane closed comes back closed). */
+  | { t: "pane-close" }
   | { t: "terminal"; terminalId: string }
   | { t: "terminal-close" }
   | { t: "layer"; layer: Layer }
@@ -243,6 +245,8 @@ export function step(s: Shown, a: Act): Shown {
       return s.terminalId !== null ? { ...s, terminalId: null } : { ...s, pane: !s.pane };
     case "pane-open":
       return { ...s, terminalId: null, pane: true };
+    case "pane-close":
+      return { ...s, pane: false };
     case "terminal":
       return {
         ...s,
@@ -342,6 +346,22 @@ export function workOf(t: { kind?: string; recordId?: string; scopeType?: string
 export function askAbout(v: string): { type: string; id: string } | null {
   const m = /^([a-z][a-z0-9_]{0,31}):(.{1,200})$/.exec(v);
   return m ? { type: m[1]!, id: m[2]! } : null;
+}
+
+/**
+ * Does the page take the address now? On a change of hash, as it always did (unless it is the one it already took). With the hash unchanged, only when an address came from outside since the page
+ * was last drawn (a link, a pasted address, a goto: HubState.links) and the address is a page, not a layer or a terminal. The page's own reports and a click inside it are never links, however many
+ * times the address moves, so the page's own state wins over them.
+ */
+export function takesAddress(o: {
+  hashChanged: boolean;
+  alreadyTook: boolean;
+  /** Addresses that came from outside since the page was last drawn. */
+  linksSince: number;
+  layerOrTerminal: boolean;
+}): boolean {
+  if (o.hashChanged) return !o.alreadyTook;
+  return o.linksSince >= 1 && !o.layerOrTerminal;
 }
 
 export const TASKS_HASH = "screen=tasks.my-work";

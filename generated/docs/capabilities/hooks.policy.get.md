@@ -17,7 +17,7 @@ Whether agents may make hooks in this Space
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/policy/get |
-| MCP tool | none |
+| MCP tool | hooks_policy_get (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 

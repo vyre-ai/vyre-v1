@@ -95,6 +95,15 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "files.copy": [],
   "files.move": [],
   "files.share": [],
+  "documents.fill": [
+    "templateFileId:Template",
+    "intoFolderId:Save in",
+    "~recordId:Record",
+    "~values:Values",
+    "~signingDate:Signing date",
+    "~name:Name",
+    "~format:Format",
+  ],
   "forms.create": ["name:Name", "kind:Kind", "recordType:Record type"],
   "forms.list": ["folderId:Folder", "section:Where"],
   "forms.publish": ["formId:Form"],
@@ -113,6 +122,7 @@ const T: Readonly<Record<string, readonly string[]>> = {
   "calendar.list_events": ["from:From", "to:To", "query:Search", "~calendarIds:Calendars"],
   start_journey: ["journeyId:Journey", "subjectRecordId:Record", "startStage:First stage"],
   "journeys.move_stage": ["journeyId:Journey", "recordId:Record", "toStage:Stage", "~reason:Why it moves"],
+  "journeys.values.set": ["recordId:Record", "key:Name", "value:Value"],
   "forms.link_create": [
     "formId:Form",
     "recordId:Record",

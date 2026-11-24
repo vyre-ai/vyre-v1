@@ -1,0 +1,1 @@
+Internal: the agent's own typing and clicks are no longer taken for the person's touch (the chrome_* tools were refused as paused), the popup fill message leaves itemKind out when it is empty, and the chrome tests follow.

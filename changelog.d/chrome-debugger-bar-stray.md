@@ -1,0 +1,1 @@
+Chrome's "started debugging this browser" bar no longer stays on a tab you are only reading: a debugger left behind when the extension slept is let go at start and every minute, and the debugger goes only on a tab in the agent's own group, only while that agent is driving it.

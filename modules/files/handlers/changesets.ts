@@ -14,7 +14,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { boundedScope } from "../../../kernel/src/seal/scope.ts";
-import { MAX_INLINE, TOO_LARGE_WORDS, inlineLimit, treeHandlers } from "./tree.ts";
+import { MAX_INLINE, TOO_LARGE_WORDS, inlineLimit, tooLargeWords, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
 
@@ -511,6 +511,25 @@ function virtualFile(ctx: Ctx, entry: Row): Record<string, unknown> {
   };
 }
 
+/** files.create_many writes straight into a folder; a folder under Review changes takes an agent's files one at a time through files.create, where each is staged. */
+async function stagedCreateMany(
+  ctx: Ctx,
+  input: unknown,
+): Promise<Awaited<ReturnType<(typeof treeHandlers)["files.create_many"]>>> {
+  if (stages(ctx)) {
+    const o = record(ctx, input);
+    const folderId = typeof o["folderId"] === "string" ? o["folderId"] : "";
+    const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
+    if (live(folder) && reviewRoot(ctx, folderId))
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "This folder keeps changes for review: add the files one at a time with files.create.",
+      );
+  }
+  return treeHandlers["files.create_many"](ctx, input);
+}
+
 async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   if (!stages(ctx)) return treeHandlers["files.create"](ctx, input);
   const o = record(ctx, input);
@@ -525,7 +544,7 @@ async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   const mime = optStr(ctx, o, "mime") ?? "application/octet-stream";
   const bytes =
     o["content"] === undefined || o["content"] === null ? new Uint8Array() : contentBytes(ctx, o["content"]);
-  if (bytes.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+  if (bytes.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
   if (many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", folderId, name).some(live))
     fail(
       ctx,
@@ -1308,6 +1327,7 @@ async function commentsAdd(ctx: Ctx, input: unknown): Promise<{ comment: Record<
 export const changesetHandlers = {
   "files.write": (ctx: Ctx, input: unknown) => stagedWrite(ctx, input),
   "files.create": (ctx: Ctx, input: unknown) => stagedCreate(ctx, input),
+  "files.create_many": (ctx: Ctx, input: unknown) => stagedCreateMany(ctx, input),
   "changesets.list": (ctx: Ctx, input: unknown) => list(ctx, input),
   "changesets.get": (ctx: Ctx, input: unknown) => get(ctx, input),
   "changesets.diff": (ctx: Ctx, input: unknown) => diff(ctx, input),

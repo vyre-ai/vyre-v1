@@ -13,6 +13,7 @@ import type { MenuEntry } from "../../../../../../ui/src/Menu/index.tsx";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { act, pick, snooze, take } from "./actions.ts";
 import { HeldMailCard } from "./HeldMail.tsx";
+import { HoldNote } from "../conversation/hold-note.tsx";
 import { heldMail, labelOf } from "./heldmail.ts";
 import type { NeedsDeps } from "./actions.ts";
 import { NeedsYouDataProvider, useNeedsData, useOnline, useOptionalNeedsData, useScreenQuery } from "./data.tsx";
@@ -31,6 +32,8 @@ import {
   hasComputer,
   originOf,
   blockView,
+  noteView,
+  madeByGate,
   holder,
   kindWord,
   matchesFilter,
@@ -266,7 +269,6 @@ function NeedsView({ window, initialSelected }: { window?: VirtualWindow; initia
           trailing={
             <RowEnd
               time={arrivedLabel(i.task.updatedAt, clock)}
-              lit={sel}
               quick={
                 quick && holder(i, data.me).kind === "free" ? (
                   <Tool
@@ -469,8 +471,12 @@ function Detail({
     );
   else
     for (const [i, b] of t.blocks.entries())
-      if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix")
+      if (b.type !== "vault_request" && b.type !== "access_request" && b.type !== "connection_fix") {
+        const fromGate = madeByGate(t);
+        const quiet = noteView(b, fromGate);
+        if (quiet) blockNodes.push(<Block key={`note-${i}`} view={quiet} />);
         blockNodes.push(<Block key={`${b.type}-${i}`} view={blockView(b)} />);
+      }
   const question = questionOf(t);
   const picks: ReactElement[] = [];
   for (const o of question?.options ?? [])
@@ -772,6 +778,7 @@ function noteLabel(a: Action): string {
 }
 
 export function TaskBlock({ view }: { view: BlockView }): ReactElement {
+  if (view.type === "note") return <HoldNote note={view.text} names={view.names} testID="block-note" />;
   if (view.type === "table") {
     const head: ReactElement[] = [];
     for (const [i, c] of view.columns.entries())
@@ -994,13 +1001,12 @@ function WithdrawnLabel({ label }: { label: string }): ReactElement {
   );
 }
 
-/** The end of a row: when it arrived and the quick action, which shows on hover and on the selected row. */
-function RowEnd({ time, lit, quick }: { time: string; lit: boolean; quick: ReactElement | null }): ReactElement {
-  const [over, setOver] = useState(false);
+/** The end of a row: when it arrived and the quick action, always visible (lead, 19 Nov 2026: a Needs you action never waits for a hover). */
+function RowEnd({ time, quick }: { time: string; quick: ReactElement | null }): ReactElement {
   return (
-    <View {...{ onMouseEnter: () => setOver(true), onMouseLeave: () => setOver(false) }} style={st.rowEnd}>
+    <View style={st.rowEnd}>
       <Text style={st.time}>{time}</Text>
-      {quick ? <View style={{ opacity: over || lit ? 1 : 0 }}>{quick}</View> : null}
+      {quick}
     </View>
   );
 }

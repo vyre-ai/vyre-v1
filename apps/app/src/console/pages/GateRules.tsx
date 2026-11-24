@@ -6,6 +6,7 @@ import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
 import { Choice } from "./ai-controls.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type Scope = "space" | "floor" | "agent";
 type Act = CapMap["gate.acts.list"]["out"]["acts"][number];
@@ -283,35 +284,37 @@ export function GateRules(): ReactElement {
             ) : null}
             {preview ? (
               <>
-                <Note>
-                  {preview.mode === "hold"
-                    ? `${selectedAct.title} will stop for ${preview.approvers} approval and ${preview.onTimeout} after ${preview.afterHours} hours.`
-                    : `${selectedAct.title} will run without approval here. Stricter parent rules still win.`}
-                </Note>
-                <Actions>
-                  <Button label="Back" onPress={() => setPreview(null)} />
-                  <Button
-                    label="Apply rule"
-                    testID="gate-rule-apply"
-                    disabled={action.busy || (scope === "floor" && !owner)}
-                    onPress={() =>
-                      void action.run("gate.rules.set", preview, async () => {
-                        const readback = (await data.call("gate.rules.list", {
-                          scope,
-                          ...(scope === "agent" ? { agentId } : {}),
-                        })) as CapMap["gate.rules.list"]["out"];
-                        if (
-                          !ruleMatches(
-                            readback.rules.find((rule) => rule.act === preview.act),
-                            preview,
-                          )
+                <InlineConfirm
+                  question={
+                    <>
+                      {preview.mode === "hold"
+                        ? `${selectedAct.title} will stop for ${preview.approvers} approval and ${preview.onTimeout} after ${preview.afterHours} hours.`
+                        : `${selectedAct.title} will run without approval here. Stricter parent rules still win.`}
+                    </>
+                  }
+                  cancelLabel="Back"
+                  confirmLabel="Apply rule"
+                  danger={false}
+                  disabled={action.busy || (scope === "floor" && !owner)}
+                  confirmTestID="gate-rule-apply"
+                  onConfirm={() =>
+                    action.run("gate.rules.set", preview, async () => {
+                      const readback = (await data.call("gate.rules.list", {
+                        scope,
+                        ...(scope === "agent" ? { agentId } : {}),
+                      })) as CapMap["gate.rules.list"]["out"];
+                      if (
+                        !ruleMatches(
+                          readback.rules.find((rule) => rule.act === preview.act),
+                          preview,
                         )
-                          throw new Error("The saved approval rule did not match the reviewed rule.");
-                        return "Approval rule saved";
-                      })
-                    }
-                  />
-                </Actions>
+                      )
+                        throw new Error("The saved approval rule did not match the reviewed rule.");
+                      return "Approval rule saved";
+                    })
+                  }
+                  onCancel={() => setPreview(null)}
+                />
               </>
             ) : (
               <Actions>

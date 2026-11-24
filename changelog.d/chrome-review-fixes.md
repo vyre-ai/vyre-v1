@@ -1,0 +1,1 @@
+Review fixes: the page reader cannot be stalled by a hostile page, a tab that moves off a listed site is no longer read, read text carries its label inside it, the Space refuses to read without a pinned connection, web reads are audited, and a few smaller hardenings.

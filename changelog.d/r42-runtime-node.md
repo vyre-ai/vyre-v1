@@ -1,0 +1,1 @@
+Every piece of agent work (a helper, a subagent, a handoff, a watcher, a terminal command) now has one record with a state, a log of what it did and what it spent, and a heartbeat, so work whose worker died goes back in the queue instead of being lost.

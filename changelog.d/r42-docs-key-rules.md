@@ -1,0 +1,1 @@
+A document made with no key of its own is keyed by what was asked (template version, values, date, format), and documents.make with no key is a new ask each call, so an old file is never handed back for a new ask.

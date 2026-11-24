@@ -6,6 +6,7 @@ import { performance } from "node:perf_hooks";
 import { authorize } from "../../../kernel/src/authorize/index.ts";
 import type { Level, Req } from "../../../kernel/src/authorize/index.ts";
 import { AccessStore, pkey } from "../projections.ts";
+import { timeCpu, wallCeiling } from "../../../testkit/src/cpu-time.ts";
 
 function world(): { store: AccessStore; reqs: Req[] } {
   const store = new AccessStore();
@@ -179,19 +180,23 @@ test("authorize sustains at least 500k decisions per second per core through acc
   }
   assert.ok(allow > 20 && deny > 20, `the mix must contain both (allow ${allow}, deny ${deny}, hold ${hold})`);
   let sink = 0;
-  const run = (n: number): number => {
-    const t0 = performance.now();
-    for (let i = 0; i < n; i++) {
-      if (authorize(snap, reqs[i % reqs.length]!).effect === "allow") sink++;
-    }
-    return performance.now() - t0;
-  };
+  const run = (n: number): { cpuMs: number; wallMs: number } =>
+    timeCpu(() => {
+      for (let i = 0; i < n; i++) {
+        if (authorize(snap, reqs[i % reqs.length]!).effect === "allow") sink++;
+      }
+    });
   run(300_000);
   const N = 1_500_000;
-  const best = Math.min(run(N), run(N), run(N));
+  // one run in CPU time (a busy runner stretches the clock, not the work); the wall ceiling is a hang guard
+  const { cpuMs: best, wallMs } = run(N);
   const perSec = N / (best / 1000);
   console.log(
-    `authorize projection bench: ${N} decisions in ${best.toFixed(0)} ms best of 3 = ${(perSec / 1000).toFixed(0)}k/s (${((best * 1000) / N).toFixed(2)} us), ${allow} allow / ${deny} deny / ${hold} hold (sink ${sink})`,
+    `authorize projection bench: ${N} decisions in ${best.toFixed(0)} ms CPU = ${(perSec / 1000).toFixed(0)}k/s (${((best * 1000) / N).toFixed(2)} us), ${allow} allow / ${deny} deny / ${hold} hold (sink ${sink})`,
+  );
+  assert.ok(
+    wallMs < wallCeiling((N / 500_000) * 1000),
+    `${Math.round(wallMs)} ms of wall time for ${N} decisions (hang guard)`,
   );
   assert.ok(perSec >= 500_000, `${(perSec / 1000).toFixed(0)}k/s is under the 500k/s budget`);
 });

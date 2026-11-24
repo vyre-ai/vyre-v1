@@ -1,0 +1,1 @@
+- vault.request: a manager who asks for a name the folder already keeps gets that item back, fulfilled, instead of a duplicate error.

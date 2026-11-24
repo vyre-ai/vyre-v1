@@ -18,6 +18,19 @@ import {
 import { domainAdd, domainCheck, domainGet, domainList, domainRemove, domainSetDefault } from "./domains.ts";
 import { routeList, routeRemove, routeSet } from "./routes.ts";
 import { health, statusUpdate } from "./status.ts";
+import { retry, trail } from "./delivery.ts";
+import { monitor } from "./inbound.ts";
+import { delivery } from "./tools.ts";
+import {
+  forDocumentClear,
+  forDocumentGet,
+  forDocumentSet,
+  get as templateGet,
+  list as templateList,
+  preview as templatePreview,
+  reset as templateReset,
+  save as templateSave,
+} from "./template.ts";
 
 export const extraHandlers: Record<string, Handler> = {
   "mail.mailbox.list": (ctx, input) => mailboxList(ctx, input),
@@ -39,6 +52,18 @@ export const extraHandlers: Record<string, Handler> = {
   "mail.thread.get": (ctx, input) => threadGet(ctx, input),
   "mail.attachment.save": (ctx, input) => attachmentSave(ctx, input),
   "mail.status_update": (ctx, input) => statusUpdate(ctx, input),
+  "mail.delivery.trail": (ctx, input) => trail(ctx, input),
+  "mail.delivery.retry": (ctx, input) => retry(ctx, input),
+  "mail.inbox.monitor": (ctx, input) => monitor(ctx, input),
+  "mail.delivery_state": (ctx, input) => delivery(ctx, input),
+  "mail.template.list": (ctx) => templateList(ctx),
+  "mail.template.get": (ctx, input) => templateGet(ctx, input),
+  "mail.template.save": (ctx, input) => templateSave(ctx, input),
+  "mail.template.reset": (ctx, input) => templateReset(ctx, input),
+  "mail.template.preview": (ctx, input) => templatePreview(ctx, input),
+  "mail.template.for_document.get": (ctx, input) => forDocumentGet(ctx, input),
+  "mail.template.for_document.set": (ctx, input) => forDocumentSet(ctx, input),
+  "mail.template.for_document.clear": (ctx, input) => forDocumentClear(ctx, input),
   "mail.domain.list": (ctx, input) => domainList(ctx, input),
   "mail.domain.get": (ctx, input) => domainGet(ctx, input),
   "mail.domain.add": (ctx, input) => domainAdd(ctx, input),

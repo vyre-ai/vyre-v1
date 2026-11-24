@@ -5,7 +5,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { MenuItem } from "../../../../../../ui/src/Menu/index.tsx";
 import { registry } from "../../../../../../generated/registry.ts";
 import { AskBeforeSending, OUTWARD_STEPS, approvalChoices, approvalNote, sendsOutward } from "./AskBeforeSending.tsx";
-import { updateStep } from "./model.ts";
+import { ASK_FIRST_STEPS, stepAsks, updateStep } from "./model.ts";
+import { ASK_FIRST_ACTS } from "../../../../../../lib/ask-first.ts";
 
 const def = { triggers: [{ key: "manual" }], nodes: [{ id: "mail", key: "send_email", input: {} }] } as never;
 
@@ -52,4 +53,23 @@ test("the note says what happens, and names a Space rule that still holds the se
   );
   const html = renderToStaticMarkup(<AskBeforeSending on={false} adminRule onSet={() => undefined} />);
   assert.ok(html.includes("Ask before sending") && html.includes("Your Space requires approval for sends"));
+});
+
+test("a signature request asks unless told not to: its Off is what is stored, and the page's list of such steps is the registry's", () => {
+  assert.deepEqual(
+    [...ASK_FIRST_STEPS].sort(),
+    (registry.steps as unknown as { key: string; effects?: string; gateAct?: string }[])
+      .filter((s) => s.effects === "outward" && s.gateAct !== undefined && ASK_FIRST_ACTS.has(s.gateAct))
+      .map((s) => s.key)
+      .sort(),
+  );
+  const d = { triggers: [{ key: "manual" }], nodes: [{ id: "sg", key: "sign", input: {} }] } as never;
+  assert.equal(stepAsks({ key: "sign" }), true, "nobody chose: it asks");
+  assert.equal(stepAsks({ key: "send_email" }), false);
+  const off = updateStep(d, "sg", { askBeforeSending: false });
+  assert.equal(off.nodes[0]!.askBeforeSending, false, "Off is kept, so the server does not ask");
+  assert.equal(stepAsks(off.nodes[0]!), false);
+  const on = updateStep(off, "sg", { askBeforeSending: true });
+  assert.equal("askBeforeSending" in on.nodes[0]!, false, "On is what a signature request does unsaid");
+  assert.equal(stepAsks(on.nodes[0]!), true);
 });

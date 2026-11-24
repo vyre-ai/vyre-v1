@@ -1,6 +1,6 @@
 # computers.chrome.fill
 
-Fill form fields; values may be #Handle.field references that the computer vault filler substitutes at the last moment
+Fill form fields; values may be #Handle.field references the vault substitutes at the last moment
 
 | | |
 |---|---|
@@ -66,7 +66,7 @@ type Out = {
     "computerId": "cmt_a1b2c3",
     "fields": [
       {
-        "ref": "e12",
+        "ref": "example",
         "value": "example"
       }
     ],

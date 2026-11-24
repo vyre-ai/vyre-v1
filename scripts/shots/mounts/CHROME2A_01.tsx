@@ -5,6 +5,7 @@
 //   held-done   the same card after Send: it says Sent
 //   gate-dm | gate-email | gate-text | gate-post | gate-long   the one held card for a message, an email, a text, a channel post, a long body cut at twelve lines with Show all
 //   gate-edit | gate-reason | gate-sent | gate-dropped | gate-edited   the same card with Edit open, Don't send asking why, after Send, after Don't send, and after a Save
+//   webread     the held card for an agent's read of a web page (lane r42-chrome): the host first, then the whole address in a wrapped block that scrolls after about six lines, with a bidi mark written out
 //   step        "Using your Chrome" with a masked picture of the tab, Watch and Take over
 //   step-saw    the same step, with "Show what Scout saw" open: the handles it was given, names only
 import { useEffect, useMemo, useState } from "react";
@@ -244,6 +245,41 @@ const GATE: Record<string, { cap: string; input: Record<string, unknown>; outwar
     outward: { channel: "message", to: [{ kind: "person", id: "usr_aliza" }], body: LONG, bodyField: "body" },
   },
 };
+const LONG_ADDRESS = `https://docs.vendor.example/guide/auth?topic=tokens&page=2&ref=${"abcdef0123456789".repeat(14)}&note=a\u202Ereversed&end=THE-END-OF-THE-ADDRESS`;
+function WebRead(): ReactNode {
+  const data = useMemo(
+    () => ({
+      call: async (cap: string) =>
+        cap === "tasks.get"
+          ? {
+              task: {
+                id: "tsk_w",
+                kind: "approve",
+                title: "Approve: read a web page",
+                state: "awaiting_approval",
+                blocks: [
+                  {
+                    type: "doc_excerpt",
+                    v: 1,
+                    data: { act: "approve", cap: "computers.chrome.read", input: { url: LONG_ADDRESS } },
+                  },
+                ],
+                updatedAt: Date.UTC(2026, 10, 19, 4, 38),
+              },
+            }
+          : {},
+      nav: { openBeside: () => undefined },
+    }),
+    [],
+  );
+  return (
+    <View style={{ flex: 1, minHeight: 420, padding: 24, backgroundColor: "var(--win)" as string }}>
+      <View style={{ maxWidth: 720, width: "100%" }}>
+        <ApprovalCard taskId="tsk_w" agent="Scout" agentId="agt_scout" data={data as never} />
+      </View>
+    </View>
+  );
+}
 function Gate({ part }: { part: string }): ReactNode {
   const kind =
     part === "gate-email"
@@ -402,6 +438,7 @@ export default function Mount(): ReactNode {
         <AiFlagged open={part === "ai-signin"} />
       </View>
     );
+  if (part === "webread") return <WebRead />;
   if (part.startsWith("gate-")) return <Gate part={part} />;
   return <Chat part={part} />;
 }

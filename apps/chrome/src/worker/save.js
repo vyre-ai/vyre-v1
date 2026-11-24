@@ -36,6 +36,9 @@ async function again(f) {
   }
 }
 const PENDING_MS = 60_000;
+/** At most this many logins from one site are compared with the Vault in a minute: a page cannot use the comparison as a way to try passwords. */
+const CHECKS_PER_SITE = 4;
+const CHECK_WINDOW_MS = 60_000;
 
 /**
  * @param {{
@@ -58,6 +61,22 @@ export function createSave({
 
   /** What the card on a tab is about, without the password: which item it would update and which agent it offered. @type {Map<number, { itemId: string | null, agentId: string | null }>} */
   const offers = new Map();
+
+  /** When this site's logins were last compared, by origin. @type {Map<string, number[]>} */
+  const checks = new Map();
+  /** @param {string} origin */
+  function overSiteLimit(origin) {
+    const t = now();
+    const recent = (checks.get(origin) ?? []).filter((x) => t - x < CHECK_WINDOW_MS);
+    if (recent.length >= CHECKS_PER_SITE) {
+      checks.set(origin, recent);
+      return true;
+    }
+    recent.push(t);
+    checks.set(origin, recent);
+    if (checks.size > 200) for (const k of checks.keys()) if (k !== origin) checks.delete(k);
+    return false;
+  }
 
   /** @param {number} tabId */
   function drop(tabId) {
@@ -109,6 +128,7 @@ export function createSave({
         return { prompt: false, why: "password" };
       const rule = await rules.forHost(page.host);
       if (rule && rule.neverSave) return { prompt: false, why: "never_save" };
+      if (overSiteLimit(page.origin)) return { prompt: false, why: "rate" };
       /** @type {any} */
       let check;
       try {

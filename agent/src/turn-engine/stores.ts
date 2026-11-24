@@ -30,6 +30,8 @@ export interface WaitRow {
   runId: string | null;
   at: number;
   resolution: WaitResolution | null;
+  /** Why the parked turn was started (its own cause, or the one it was itself resumed with): the wake that continues it carries it. */
+  cause?: string;
   /** Queue row of the wake that continues the turn, once the task was answered. */
   wakeQseq: number | null;
 }

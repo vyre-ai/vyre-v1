@@ -58,6 +58,10 @@ export interface HubState {
   epoch: number;
   place: PlaceId;
   hash: string;
+  /** Counts the addresses that came to the app from outside (a link, a pasted address, a goto), never the page's own reports: a page that was drawn for the same address twice can tell a link back to it from nothing. */
+  links: number;
+  /** Counts the addresses a place wrote itself (its report of what the person opened inside it), never a link or a press elsewhere: the shell uses it to tell a place's own address from one that came to it. */
+  reports: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -122,7 +126,7 @@ export interface ShellHub {
   /** Forward in the tab on screen, after Back. */
   forward(): boolean;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
-  move(place: PlaceId, hash?: string): void;
+  move(place: PlaceId, hash?: string, own?: boolean): void;
   /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
   fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
@@ -131,7 +135,11 @@ export interface ShellHub {
    * `to` names the tab being shown, when the change is a switch to a tab: the frame can then show that tab's own last view at once. When it does, it answers true and
    * runs `then` itself once that view has been painted: the change of place waits one frame, so the press is answered before the place is made again.
    */
-  setHolder(fn: ((to?: string, then?: () => void) => boolean | void) | null): void;
+  /**
+   * `soon`: the change is one the shell draws after the next painted frame (a place from the rail, Back, a closed tab: Shell.tsx), so the still copy can be taken after that frame too, and the
+   * frame that answers the press has nothing to copy or repaint.
+   */
+  setHolder(fn: ((to?: string, then?: () => void, soon?: boolean, place?: string) => boolean | void) | null): void;
   /** Name a tab for the item it holds (its title arrives after the tab opens). */
   retitle(key: string, title: string, empty?: boolean): void;
   /** The count on a place of the open Space, from what it counts live (the rail reads it, and only redraws when it changes). */
@@ -235,7 +243,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let refusals = 0;
   const probeLog: SwitchProbe[] = [];
   const listeners = new Set<() => void>();
-  let holder: ((to?: string, then?: () => void) => boolean | void) | null = null;
+  let holder: ((to?: string, then?: () => void, soon?: boolean, place?: string) => boolean | void) | null = null;
   /** counts presses on a tab (showTab): a press that waited a frame gives way to any press after it */
   let shows = 0;
   const waiters: (() => void)[] = [];
@@ -244,20 +252,37 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   const open = (): SpaceSession => sessions.get(openId) as SpaceSession;
 
+  let links = 0;
+  let reports = 0;
   function build(): HubState {
     const s = open();
     const tabs = s.tabs.state();
     const back = backTarget(tabs);
     const fwd = forwardTarget(tabs);
     const nav: NavState = { back: back === null ? null : back.title, forward: fwd === null ? null : fwd.title };
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh, nav };
+    return {
+      openId,
+      phase,
+      epoch,
+      place: s.place,
+      hash: s.hash,
+      links,
+      reports,
+      away,
+      online,
+      waiting,
+      status,
+      error,
+      fresh,
+      nav,
+    };
   }
   snap = build();
 
   /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
   function step(run: (tabs: TabsController) => boolean): boolean {
     const s = open();
-    holder?.();
+    holder?.(undefined, undefined, true);
     if (!run(s.tabs)) return false;
     const now = s.tabs.state();
     const t = now.tabs.find((x) => x.key === now.active);
@@ -430,6 +455,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     go(requested, hash, background = false, link = false, fresh = false) {
+      if (link) links += 1;
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
       const place = gone ? "chats" : livePlace(requested);
@@ -443,7 +469,7 @@ export function createShellHub(options: HubOptions): ShellHub {
         hub.move(place, hash);
         return;
       }
-      if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.();
+      if (!background && (place !== s.place || (hash ?? "") !== s.hash)) holder?.(undefined, undefined, true);
       // an address with no item (hash "") asks for the place's landing: its own tab shows it. A place asked for with no hash at all (the rail) goes to the tab the place has.
       if (plan.do === "land") s.tabs.land(place);
       else s.tabs.openPlace(place, hash, screenTitle(hash), plan.do === "open" && plan.background, link);
@@ -463,7 +489,8 @@ export function createShellHub(options: HubOptions): ShellHub {
     forward() {
       return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
     },
-    move(place, hash) {
+    move(place, hash, own = false) {
+      if (own) reports += 1;
       const s = open();
       if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
       s.tabs.move(livePlace(place), hash, screenTitle(hash));
@@ -477,7 +504,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     fill(place, hash, title, from) {
       const s = open();
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.fill(livePlace(place), hash, title, from);
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
@@ -510,7 +537,7 @@ export function createShellHub(options: HubOptions): ShellHub {
         s.hash = t.hash ?? "";
         emit();
       };
-      if (holder?.(tab.key, later) === true) return;
+      if (holder?.(tab.key, later, undefined, tab.place) === true) return;
       s.tabs.select(tab.key);
       s.place = tab.place;
       s.hash = tab.hash ?? "";
@@ -518,7 +545,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     },
     closeTab(key) {
       const s = open();
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.close(key ?? s.tabs.state().active);
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);
@@ -531,7 +558,7 @@ export function createShellHub(options: HubOptions): ShellHub {
     reopenTab() {
       const s = open();
       if (!s.tabs.canReopen()) return;
-      holder?.();
+      holder?.(undefined, undefined, true);
       s.tabs.reopen();
       const now = s.tabs.state();
       const t = now.tabs.find((x) => x.key === now.active);

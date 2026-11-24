@@ -19,7 +19,7 @@ Restore AGENT.md or agent.toml to an earlier version
 | HTTP | POST /v1/agents/restore_version |
 | MCP tool | agents_restore_version (agents) |
 | CLI | none |
-| Emits | agent.config_changed |
+| Emits | agent.config_changed, agent.renamed |
 
 ## Input
 

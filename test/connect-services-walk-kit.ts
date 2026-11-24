@@ -73,6 +73,7 @@ export async function servicesWalk(
       const errs: string[] = [];
       page.on("pageerror", (e) => errs.push(e.message));
       let opened = false;
+      const usedCards = new Set<string>();
       /** Ask in a fresh chat, and answer the card that comes. */
       const ask = async (title: string): Promise<string> => {
         const threadId = (
@@ -96,16 +97,80 @@ export async function servicesWalk(
             .catch(() => undefined);
           opened = true;
         }
-        const card = page.locator("[data-testid^='connect-vrq_']").first();
-        await card.waitFor({ timeout: 120_000 }).catch(async (e) => {
-          await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
-          fs.writeFileSync(
-            `${shots}/no-card-${title}-${tag}.txt`,
-            `${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
-          );
-          throw e;
-        });
-        return (await card.getAttribute("data-testid"))!.replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
+        // the card of THIS ask: the first connect card on the page whose request has not been used before. The page keeps the earlier chat's card on screen for a moment after the address changes (slower under load),
+        // and the first card of the page may still be that one (walk-b, 24 Nov 2026: the old declined Twilio card, while the new one was drawn beside it with all its fields)
+        const fresh = await page
+          .waitForFunction(
+            (used: string[]) => {
+              for (const el of document.querySelectorAll("[data-testid^='connect-vrq_']")) {
+                const id = (el.getAttribute("data-testid") ?? "").replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
+                if (id && !used.includes(id)) return id;
+              }
+              return null;
+            },
+            [...usedCards],
+            { timeout: 120_000 },
+          )
+          .catch(async (e) => {
+            await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
+            fs.writeFileSync(
+              `${shots}/no-card-${title}-${tag}.txt`,
+              `${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
+            );
+            throw e;
+          });
+        const cardId = (await fresh.jsonValue()) as string;
+        usedCards.add(cardId);
+        return cardId;
+      };
+      /** What a card showed when a wait on it failed, in the folder CI uploads: a screenshot and the card's elements, the request, the connections, the calls the stand-in app saw, the page errors and the page text. */
+      const evidenceNow = async (label: string, cardId: string, slug: string): Promise<void> => {
+        const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
+        fs.mkdirSync(dir, { recursive: true });
+        const state = await api("vault.requests.get", { requestId: cardId.replace(/^connect-/, "") }).catch(
+          (x: unknown) => ({
+            error: String(x).slice(0, 300),
+          }),
+        );
+        const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
+        const elements = await page
+          .locator(`[data-testid^='${cardId}']`)
+          .evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))
+          .catch(() => []);
+        const cards = await page
+          .locator("[data-testid^='connect-vrq_']")
+          .evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))
+          .catch(() => []);
+        await page.screenshot({ path: `${dir}/${slug}-${tag}-${label}.png` }).catch(() => undefined);
+        fs.writeFileSync(
+          `${dir}/${slug}-${tag}-${label}.txt`,
+          [
+            `waited on card ${cardId}: its elements ${elements.join(" ")}`,
+            `every connect card on the page: ${cards.join(" ")}`,
+            `address ${page.url()}`,
+            `request ${JSON.stringify(state).slice(0, 1500)}`,
+            `connections ${JSON.stringify(conns).slice(0, 1500)}`,
+            `calls the stand-in app saw since the last Connect: ${seen
+              .map((r) => `${r.host} ${r.url}`)
+              .join(" | ")
+              .slice(0, 1500)}`,
+            `page errors: ${errs.join(" | ").slice(0, 800)}`,
+            `page text:\n${(
+              await page
+                .locator("body")
+                .innerText()
+                .catch(() => "")
+            ).slice(0, 2500)}`,
+          ].join("\n"),
+        );
+      };
+      /** The capture never hides the wait's own error: when it cannot be written the failure is said on stderr and the wait's error goes on. */
+      const evidence = async (label: string, cardId: string, slug: string): Promise<void> => {
+        try {
+          await evidenceNow(label, cardId, slug);
+        } catch (e) {
+          process.stderr.write(`could not write the services-walk evidence: ${String(e).slice(0, 200)}\n`);
+        }
       };
       for (const title of titles) {
         const svc = SVCS.find((s) => s.title === title)!;
@@ -120,7 +185,13 @@ export async function servicesWalk(
         };
         const sayHosts = async () => (await q("-checks").innerText()).replace(/\s+/g, " ");
         // the card for this service: every field a person pastes, and where the key goes, before anything is typed
-        for (const f of svc.fields) await q(`-${f}-input`).waitFor({ timeout: 20_000 });
+        for (const f of svc.fields)
+          await q(`-${f}-input`)
+            .waitFor({ timeout: 20_000 })
+            .catch(async (e) => {
+              await evidence("no-input", id, slug);
+              throw e;
+            });
         assert.match(await sayHosts(), /sent only to/i, `${title}: the card says where the key goes`);
         if (title === "Mailgun") {
           assert.match(await sayHosts(), /api\.mailgun\.net/);
@@ -169,7 +240,13 @@ export async function servicesWalk(
         await fill("GOOD");
         seen.length = 0;
         await q("-connect").click();
-        await q("-row").waitFor({ timeout: 25_000 });
+        // when the connected row does not show, say what the card showed (see evidence)
+        await q("-row")
+          .waitFor({ timeout: 25_000 })
+          .catch(async (e) => {
+            await evidence("no-row", id, slug);
+            throw e;
+          });
         await shot("done");
         await page.getByText(new RegExp(`Yes, .*is connected\\.`)).first().waitFor({ timeout: 40_000 });
         const body = await page.locator("body").innerText();
@@ -208,7 +285,12 @@ export async function servicesWalk(
         );
         const again = await ask(title);
         const q2 = (s: string) => page.locator(`[data-testid='${again}${s}']`);
-        await q2(`-${svc.fields[0]}-input`).waitFor({ timeout: 20_000 });
+        await q2(`-${svc.fields[0]}-input`)
+          .waitFor({ timeout: 20_000 })
+          .catch(async (e) => {
+            await evidence("again-no-input", again, slug);
+            throw e;
+          });
         assert.equal(await q2(`-${svc.fields[0]}-input`).inputValue(), "", `${title}: asking again shows a clean card`);
         assert.equal(await q2("-have").count(), 0, "the key the first card saved is not offered back");
         // Mailgun's other region: the key goes to its one host, and to no other

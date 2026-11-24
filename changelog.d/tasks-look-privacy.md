@@ -1,0 +1,1 @@
+The daily look is off until a Space turns it on. It reads only chats that everyone on the task can read, never an encrypted or private chat, and a looks-done row on the card is drawn from a verified quote with who wrote it and when, never from text a model wrote.

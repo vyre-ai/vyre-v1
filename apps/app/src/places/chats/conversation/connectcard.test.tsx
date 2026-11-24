@@ -15,7 +15,7 @@ const card = (state: string, over: Record<string, unknown> = {}) => ({
   card: {
     requestId: "vrq_1",
     state,
-    service: { key: "fathom", title: "Fathom", site: "https://fathom.video" },
+    service: { key: "fathom", revision: "r2", title: "Fathom", site: "https://fathom.video" },
     fields: FIELDS,
     agentId: "agt_dex",
     mayFill: true,
@@ -74,6 +74,7 @@ test("Ask to Connected: the typed key goes in the submit call and in no other, a
     await new Promise((r) => setTimeout(r, 600));
     await flush();
     const submit = h.calls.find((c) => c.cap === "vault.connect_card.submit")!;
+    assert.equal(submit.input["revision"], "r2", "the card sends the service revision it showed");
     assert.deepEqual(
       submit.input["fields"],
       [{ key: "api_key", value: KEY }],

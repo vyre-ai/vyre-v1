@@ -330,3 +330,46 @@ test("boot upgrade: an assistant still called by the old name waits for its rena
   assert.equal(text, ASSISTANT_AGENT_MD("Dana’s Assistant"));
   assert.equal(hn.world.files.get(mdOf(hn, dana!))!.versions.length, 2);
 });
+
+test("instructions given at creation (a saved piece of work's brief) get their own section above Learned; with none the file is as it was", async () => {
+  const hn = harness();
+  const plain = (await h["agents.create"]!(hn.ctx, { name: "Plain", role: "Prices bids.", idempotencyKey: `md${++n}` }))
+    .agent;
+  const made = (
+    await h["agents.create"]!(hn.ctx, {
+      name: "Pricer",
+      role: "Prices bids.",
+      instructions: "Use the 2025 sheet.\nQuote the page.",
+      idempotencyKey: `md${++n}`,
+    })
+  ).agent;
+  const text = hn.world.text(mdOf(hn, made.agentId));
+  assert.equal(section(text, "Instructions"), "Use the 2025 sheet.\nQuote the page.");
+  assert.ok(text.indexOf("## Instructions") < text.indexOf("## Learned"), "above what it learns");
+  assert.ok(!hn.world.text(mdOf(hn, plain.agentId)).includes("## Instructions"));
+});
+
+test("one agents.create with instructions makes a working agent: they are in its AGENT.md, and the Space's skills reach it with no per-agent step (meier-setup finding 5)", async () => {
+  const hn = harness();
+  await h["skills.space.install"]!(hn.ctx, {
+    text: "---\nname: house-style\ndescription: Write in the house style.\n---\n\nUse the firm's style.\n",
+    idempotencyKey: `md${++n}`,
+  });
+  const made = (
+    await h["agents.create"]!(hn.ctx, {
+      name: "Intake",
+      role: "Takes new matters.",
+      instructions: "Greet the caller by name.\nAsk for the matter type first.",
+      idempotencyKey: `md${++n}`,
+    })
+  ).agent;
+  const text = hn.world.text(mdOf(hn, made.agentId));
+  assert.equal(section(text, "Instructions"), "Greet the caller by name.\nAsk for the matter type first.");
+  const names = (await h["skills.list"]!(hn.ctx, { agentId: made.agentId })).skills.map(
+    (x: { name: string }) => x.name,
+  );
+  assert.ok(
+    names.includes("house-style"),
+    "the Space skill is in the new agent's list without any step for that agent",
+  );
+});

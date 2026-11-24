@@ -11,6 +11,9 @@ import { guardCrashes } from "./crash-guard.ts";
 import { clippedText } from "./clip-kit.test.ts";
 import { claimOwner, joinMaya } from "./kinds-b-kit.test.ts";
 
+/** How long the list may take to show its rows after Back on the phone (the original fault left them hidden for about 5 s). Bounded, never a fixed sleep. */
+const LIST_BACK_MS = 3_000;
+
 test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async (t) => {
   const dist = process.env["VYRE_APP_DIST"];
   if (!dist) {
@@ -184,7 +187,20 @@ test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async
       await row.click();
       await narrow.getByTestId("sidebar-back").waitFor({ timeout: 10_000 }); // the item is shown: the way back to the list is on screen
       await narrow.getByTestId("sidebar-back").click();
-      await narrow.waitForTimeout(300);
+      // the list is back when its rows are on screen: a fixed sleep measured the box (Back takes longer than 300 ms on a loaded one), and a list hidden for LIST_BACK_MS is the fault this walk is for
+      await narrow
+        .waitForFunction(
+          () =>
+            Array.from(document.querySelectorAll('[data-testid="sidebar-outlet"] [data-testid^="row-"]')).some((r) => {
+              const b = (r as HTMLElement).getBoundingClientRect();
+              return b.width > 0 && b.height > 0;
+            }),
+          null,
+          { timeout: LIST_BACK_MS },
+        )
+        .catch((e: Error) => {
+          throw new Error(`the list did not come back within ${LIST_BACK_MS} ms after Back (${id}): ${e.message}`);
+        });
       opened++;
     }
     assert.ok(opened >= 4, `at least four rows opened something (${opened} of ${ids.length})`);

@@ -172,13 +172,14 @@
       ]
     },
     "B4": {
-      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it)",
+      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it); allowFetchIn names the sanctioned others: the service worker, and apps/chrome/src/worker/link.js, the extension's one connection (to the Space the person typed in; the guard in apps/chrome/tests/ext-core.test.ts pins it to that address and two requests)",
       "noFetchIn": [
         "ui",
         "apps"
       ],
       "allowFetchIn": [
-        "apps/app/public/"
+        "apps/app/public/",
+        "apps/chrome/src/worker/link.js"
       ]
     },
     "B5": {
@@ -330,6 +331,13 @@
       "until": "2027-01-31"
     },
     {
+      "rule": "layer",
+      "file": "host/tests/gate.module-when.test.ts",
+      "spec": "../../modules/gate/projections.ts",
+      "reason": "test-only: the Gate's module conditions are asked through the real effectiveRule, not a stub that holds everyone",
+      "until": "2027-01-31"
+    },
+    {
       "rule": "B3",
       "file": "apps/chrome/tests/e2e/rig.ts",
       "spec": "node:crypto",
@@ -404,6 +412,13 @@
       "file": "apps/desktop/tests/personal.cors.test.ts",
       "spec": "../../../host/src/daemon/desktop-cors.ts",
       "reason": "test-only: it checks the daemon's real CORS rule against the packaged app's origin. This edge was hidden from the scanner by minified import lines until the 13 Nov format.",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/sites.privacy.kit.ts",
+      "spec": "../../fixtures/seed/core/index.ts",
+      "reason": "test-only: the shared pieces of the site-privacy live tests (split out of one test file, which the scanner lets reach the seed fixtures) boot the same seeded Space the tests ask about; no product code imports it",
       "until": "2027-01-31"
     }
   ]

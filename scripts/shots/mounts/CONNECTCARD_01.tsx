@@ -1,5 +1,5 @@
 // Mount for the b-connect lane: the connect card of a chat (finding F38) in every state, over a scripted server that answers vault.connect_card.* the way the real one does. ?part=
-//   ask | menu | working | done | doneopen | wrong | have | admin | asked | later | offline
+//   ask | menu | working | done | doneopen | wrong | have | admin | asked | later | offline | untested
 // The part sets the first answer; the shoot script (connect-shoot.mjs) then types and presses the way a person does, so every picture is the real component after real presses.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -43,6 +43,12 @@ function Scene({ part }: { part: string }): ReactNode {
     admin: base("admin", { mayFill: false, admin: { id: "usr_maya" } }),
     asked: base("asked", { mayFill: false, admin: { id: "usr_maya", askedAt: Date.now() - 60_000 } }),
     later: base("later"),
+    untested: base("ask", {
+      service: { key: "acme", title: "Acme Reports", site: "https://acme.example" },
+      untested: true,
+      checks: true,
+      checksWith: "api.acme.example",
+    }),
   };
   const data = useMemo(() => {
     let cur = first[part] ?? first["ask"]!;

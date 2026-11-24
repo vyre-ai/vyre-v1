@@ -1,6 +1,6 @@
 # engine.rewind.to
 
-Put your own agent work folder back to one of your points and fold the chat's messages from that point's message on out of what the agents read. Never while that agent works. Use chat.rewind, which also leaves the line
+Put your own agent work folder back to one of your points and fold the chat's messages from that point on out of what the agents read. Never while that agent works. chat.rewind also leaves the line
 
 | | |
 |---|---|

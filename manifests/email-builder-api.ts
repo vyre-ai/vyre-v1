@@ -133,11 +133,10 @@ export default defineManifest({
       out: { fields: t.arr(t.obj({ key: t.str(), title: t.str() })) },
       tool: "inbox",
     }),
-    read(
-      "email_builder.snippets.list",
-      "List composer snippets: short reusable text for Inbox email and text replies, mine and shared with the Space",
-      { out: { snippets: t.arr(snippetRow) }, tool: "inbox" },
-    ),
+    read("email_builder.snippets.list", "List composer snippets (reusable reply text), mine and shared", {
+      out: { snippets: t.arr(snippetRow) },
+      tool: "inbox",
+    }),
     write("email_builder.snippets.save", "Create or change a composer snippet", {
       in: {
         snippetId: t.opt(snippetId),

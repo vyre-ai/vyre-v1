@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "PEEKTABS_01-session",
+      "route": "/m/PEEKTABS_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='peek-mount']",
+      "note": "A helper opened as a session in the Crew pane: tabs Transcript, Files (2) and Details; one tab shows at a time; the ask box stays under all of them."
+    }
+  ]
+}

@@ -8,3 +8,4 @@ HTTP 404. Retryable: no.
 
 - automations.packages.export
 - gate.allow.remove
+- journeys.where

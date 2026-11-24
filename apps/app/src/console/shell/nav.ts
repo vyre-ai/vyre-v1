@@ -59,9 +59,11 @@ export const PAGES: readonly PageDef[] = [
   p("memlearn", "Memory learning", "AI", "learn", "policy.manage", "access.policies"),
   // the setting engine.egress, saved with settings.set_space (policy.manage), so the page shows to whoever may set Space policy, like the Space defaults below
   p("internet", "Internet access", "AI", "internet", "policy.manage", "access.policies"),
+  p("email", "Email setup", "Comms", "mail", "comms.domains", "mail.domains"),
   p("domains", "Sending domains", "Comms", "mail", "comms.domains", "mail.domains"),
   p("numbers", "Numbers", "Comms", "phone", "comms.numbers", "telephony.numbers"),
   p("inboxes", "Shared inboxes", "Comms", "inbox", "comms.shared_send", "mail.shared-inboxes"),
+  p("templates", "Email templates", "Comms", "mail", "comms.templates", "mail.templates"),
   p("texting", "Texting registration", "Comms", "chat", "comms.numbers", "telephony.registration"),
   p("company", "Connect your company", "Integrations", "building", "connectors.manage", "company.setup"),
   p("google", "Google Workspace", "Integrations", "cloud", "connectors.manage", "google.setup"),
@@ -119,6 +121,30 @@ export function pageById(id: string): PageDef | undefined {
   return PAGES.find((x) => x.id === id);
 }
 
+/**
+ * Several pages draw one screen (a screen is the registry's unit, a page is the Console's). A link that names the screen alone opens that screen's own page, named here, whatever order the sidebar lists
+ * the pages in; a link that wants another of them names the page (args.page). Every screen two or more pages draw must be named: a test fails for one that is not.
+ */
+export const PRIMARY_PAGE: Readonly<Record<string, string>> = {
+  "access.people": "people",
+  "access.policies": "policies",
+  "console.agents-register": "agents",
+  "console.backups": "backups",
+  "console.ai-models": "models",
+  "console.ai-spend": "spend",
+  "mail.domains": "domains",
+  "console.integrations": "connectors",
+  "console.machines": "machines",
+  "console.network": "network",
+  "spaces.console": "spacedel",
+};
+
+/** The page a link to a screen alone opens: the screen's own page when several draw it, else the one page that does. */
+export function pageOfScreen(screen: string, pages: readonly PageDef[] = PAGES): PageDef | undefined {
+  const own = PRIMARY_PAGE[screen];
+  return (own ? pages.find((x) => x.id === own) : undefined) ?? pages.find((x) => x.screen === screen);
+}
+
 /** The pages this person sees, in nav order. */
 export function visiblePages(can: (perm: string) => boolean, allowed?: ReadonlySet<string>): PageDef[] {
   return PAGES.filter((x) => (allowed ? allowed.has(x.screen) : can(x.needs)));
@@ -163,6 +189,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   memlearn: "How much each person's chats may teach memory each day",
   diagnostics: "Run checks",
   domains: "Your own domain for email",
+  email: "How the Space sends email, and what is left to set up",
   erase: "Remove someone's data",
   gate: "What needs an approval",
   google: "One connection for everyone",
@@ -171,6 +198,7 @@ export const PAGE_NOTE: Readonly<Record<string, string>> = {
   holds: "Keep things past their time",
   hooks: "Checks and scripts that run around what agents do",
   inboxes: "Mailboxes a team reads",
+  templates: "The words of the emails Vyre sends",
   internet: "What AI tools can reach on the internet",
   incidents: "What went wrong",
   keys: "Access for scripts",

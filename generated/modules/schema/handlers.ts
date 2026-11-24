@@ -19,6 +19,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "schema.restore_field": Handler<"schema.restore_field", X>;
   "schema.sensitivity.scan": Handler<"schema.sensitivity.scan", X>;
   "schema.set_label": Handler<"schema.set_label", X>;
+  "schema.set_mergeable": Handler<"schema.set_mergeable", X>;
   "schema.trash.list": Handler<"schema.trash.list", X>;
   "schema.types.get": Handler<"schema.types.get", X>;
   "schema.types.list": Handler<"schema.types.list", X>;

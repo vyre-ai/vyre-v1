@@ -90,6 +90,9 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     assert.equal(
       (
         await b.attempt("vault.connect_card.submit", {
+          revision: (
+            (await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } }
+          ).card.service.revision,
           hosts: ["api.fathom.ai"],
           requestId,
           fields: [{ key: "api_key", value: SECRET }],
@@ -107,6 +110,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
 
     // a wrong key keeps nothing; the right one connects
     const wrong = await a.call("vault.connect_card.submit", {
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: "bad-key-1" }],
@@ -119,6 +124,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
       "only the hand-made key is in the Vault",
     );
     const good = await a.call("vault.connect_card.submit", {
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: SECRET }],
@@ -220,6 +227,8 @@ test("an agent asks for Aina in a channel with Bilal: Bilal sees an ask and noth
     const TYPED = "fth_scan_FAKEsecretVALUE9876543210zyxwvu"; // secret-scan: fake
     await a.attempt("connectors.check_key", { connector: "fathom", secrets: { api_key: TYPED } });
     await a.attempt("vault.connect_card.submit", {
+      revision: ((await a.call("vault.connect_card.get", { requestId })) as { card: { service: { revision: string } } })
+        .card.service.revision,
       hosts: ["api.fathom.ai"],
       requestId,
       fields: [{ key: "api_key", value: TYPED }],
@@ -265,7 +274,6 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     const def = await own.attempt("connectors.define", {
       key: "pages",
       title: "Pages",
-      scope: "person",
       domains: ["api.fathom.ai"],
       auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
       secrets: [{ name: "api_key", description: "Your Pages API key" }],
@@ -274,7 +282,7 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
           name: "list",
           method: "GET",
           url: "https://api.fathom.ai/external/v1/pages",
-          shape: { items: "/items", cursor: { kind: "link", next: "/meta/next" } },
+          paginate: { kind: "link", next: "/meta/next", items: "/items", id: "/id" },
         },
       ],
       idempotencyKey: "ch-def",
@@ -292,7 +300,6 @@ test("B: a connection's key goes only to the hosts its record lists: a listed ho
     await own.call("connectors.define", {
       key: "wide",
       title: "Wide",
-      scope: "person",
       domains: ["api.fathom.ai", "*.evil.example"],
       auth: { type: "api_key", header: "X-Api-Key", prefix: "", secret: "api_key" },
       secrets: [{ name: "api_key", description: "Your Wide API key" }],

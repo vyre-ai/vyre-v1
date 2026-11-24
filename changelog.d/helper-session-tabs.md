@@ -1,0 +1,1 @@
+- Opening a helper in the Crew pane now shows its session in tabs (Transcript, Files when it changed any, Details) with the ask box under all of them, instead of one long page.

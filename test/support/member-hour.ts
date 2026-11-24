@@ -210,6 +210,25 @@ export const model: OpenSession = async (spec) => {
         });
         return;
       }
+      // an agent reads one record, every way its tools offer, for the person who asked (a walk about what a grant hides from them)
+      const peek = /\bPEEK (rec_[A-Za-z0-9]+) (\S+)/.exec(body);
+      if (peek) {
+        await (yield* run("tool_search", { query: "records get query search history as of" }));
+        const seen: Record<string, unknown> = {};
+        const tries: Array<[string, Record<string, unknown>]> = [
+          ["records_get", { type: "contact", recordId: peek[1] }],
+          ["records_query", { type: "contact" }],
+          ["records_search", { type: "contact", q: peek[2] }],
+          ["records_history", { type: "contact", recordId: peek[1] }],
+        ];
+        for (const [name, input] of tries) {
+          const r = yield* run(name, input);
+          seen[name] = r.ok ? r.content : { refused: JSON.stringify(r.content).slice(0, 120) };
+        }
+        yield { type: "text", text: `PEEKED ${JSON.stringify(seen)}` };
+        yield { type: "done" };
+        return;
+      }
       const stopIt = /\bSTOP (agt_[A-Za-z0-9]+)/.exec(body);
       if (stopIt) {
         const found = yield* run("tool_search", { query: "engine stop" });

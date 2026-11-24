@@ -53,6 +53,7 @@ const STEPS = {
     ["wait", 900],
   ],
   have: [],
+  untested: [],
   admin: [],
   asked: [],
   later: [],

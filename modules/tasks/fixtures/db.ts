@@ -18,6 +18,14 @@ const migration = readFileSync(new URL("../migrations/0001_tasks_state.sql", imp
 const tickets = readFileSync(new URL("../migrations/0002_ticket_fields.sql", import.meta.url), "utf8");
 const clockSql = readFileSync(new URL("../migrations/0003_clock.sql", import.meta.url), "utf8");
 const createdForSql = readFileSync(new URL("../migrations/0004_created_for.sql", import.meta.url), "utf8");
+const archiveSql = readFileSync(new URL("../migrations/0005_archive.sql", import.meta.url), "utf8");
+const momentSql = readFileSync(new URL("../migrations/0006_moment.sql", import.meta.url), "utf8");
+const askSql = readFileSync(new URL("../migrations/0007_ask.sql", import.meta.url), "utf8");
+const proofSql = readFileSync(new URL("../migrations/0008_proof.sql", import.meta.url), "utf8");
+const seenSql = readFileSync(new URL("../migrations/0009_ask_seen.sql", import.meta.url), "utf8");
+const lookSql = readFileSync(new URL("../migrations/0010_look.sql", import.meta.url), "utf8");
+const cursorSql = readFileSync(new URL("../migrations/0011_cursor_putback.sql", import.meta.url), "utf8");
+const proofSql2 = readFileSync(new URL("../migrations/0012_look_proof.sql", import.meta.url), "utf8");
 export const TRACE = "0123456789abcdef0123456789abcdef";
 
 export interface Ev {
@@ -65,6 +73,14 @@ export function harness(o: HarnessOptions = {}) {
   sqlite.exec(tickets);
   sqlite.exec(clockSql);
   sqlite.exec(createdForSql);
+  sqlite.exec(archiveSql);
+  sqlite.exec(momentSql);
+  sqlite.exec(askSql);
+  sqlite.exec(proofSql);
+  sqlite.exec(seenSql);
+  sqlite.exec(lookSql);
+  sqlite.exec(cursorSql);
+  sqlite.exec(proofSql2);
   const raw: Db = {
     all: (sql, ...args) => sqlite.prepare(sql).all(...(args.map(norm) as never[])),
     run: (sql, ...args) => ({ changes: Number(sqlite.prepare(sql).run(...(args.map(norm) as never[])).changes) }),
@@ -84,10 +100,13 @@ export function harness(o: HarnessOptions = {}) {
       space: "spc_test",
       principal: { kind: who.kind ?? "person", id: who.id },
       ...(who.actingFor ? { actingFor: who.actingFor } : {}),
+      // the capability that made a nested call (the pipeline sets it): a Run's step, a gate capability
+      ...((who as { callerCap?: string }).callerCap ? { callerCap: (who as { callerCap?: string }).callerCap } : {}),
       origin: (who as { origin?: string }).origin ?? "user", // a call as from the app, as the gateway makes it
       trace: { traceId: TRACE },
       ...(who.device ? { device: who.device } : {}),
       ...(who.thread ? { thread: who.thread } : {}),
+      ...((who as { turn?: { kind: string } }).turn ? { turn: (who as { turn: { kind: string } }).turn } : {}),
       now: () => clock,
       db: scopedDb("tasks", raw, TRACE),
       emit(name, subject, payload, opts) {

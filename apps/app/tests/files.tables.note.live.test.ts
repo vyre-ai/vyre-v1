@@ -16,8 +16,8 @@ async function inNote(
   try {
     const n = await call("notes.create", { title: "Applicants", body: WIDE_MD, idempotencyKey: "tbl-note" });
     const id = n.note.noteId as string;
-    await page.goto(`${s.web.origin}/chat#screen=chats.notes`, { waitUntil: "load" });
-    // on a phone the Chats list is the first screen: Notes & artifacts is a row at its foot
+    // on a phone the Chats list is the first screen and Notes & artifacts is a row at its foot: start from the list address and press the row (a link that names the Notes page opens the page itself, with no list: sidebar/model.ts linkNamesBody)
+    await page.goto(`${s.web.origin}/chat${tag === "phone" ? "" : "#screen=chats.notes"}`, { waitUntil: "load" });
     if (tag === "phone") await page.getByText("Notes & artifacts", { exact: true }).first().click({ timeout: 30_000 });
     await s.shot(`note-${tag}-grid`);
     await page.getByTestId(`note-${id}`).click({ timeout: 30_000 });

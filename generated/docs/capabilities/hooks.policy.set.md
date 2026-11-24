@@ -11,13 +11,13 @@ Space admins: allow or turn off hooks made by agents for the whole Space. Hooks 
 | Grant level | member |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | approve when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/hooks/policy/set |
-| MCP tool | none |
+| MCP tool | hooks_policy_set (engineer, deferred) |
 | CLI | none |
 | Emits | hook.changed |
 

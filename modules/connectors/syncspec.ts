@@ -2,6 +2,7 @@
 // page, and compiles it into connector actions (the engine's list/create/update/delete, shaped by ActionDef.shape), record types (fields, choices, relations, stages) and bindings.
 // The document holds a Vault handle, never a value, and a write is compiled only where the spec cites the docs that show it.
 import { pointerGet } from "./projections.ts";
+import { hasWords, wordsOf } from "../../lib/words.ts";
 import type { ActionDef, ConnectorDef } from "./projections.ts";
 
 export const FIELD_TYPES = [
@@ -63,7 +64,7 @@ export interface SpecField {
   /** Names this field when several fields of one object share a path (the mapping's `field` is the same name). */
   key?: string;
   /** The field takes its value only when the other pointer of the same item has this value (compared without case or spaces); otherwise it is empty for that record. */
-  onlyWhen?: { path: string; equals: string | string[] };
+  onlyWhen?: { path: string; equals?: string | string[]; matches?: string | string[]; not?: boolean };
 }
 export interface SpecCursor {
   kind: (typeof CURSOR_KINDS)[number];
@@ -83,6 +84,17 @@ export interface SpecList {
   checkEveryMinutes?: number;
   /** How often the whole list is read to find what the app deleted, in days (1 to 30; default 1). A large table can be swept weekly. */
   sweepEveryDays?: number;
+  /** A list that sits under each record of another object (an app's /matters/{matter}/contacts): the sync reads this list once for every record of `object`, in order, with the record's id put where `{param}` stands in the path. Every item also carries the record's id at the pointer /_parent, so a field can relate the item to its parent. The parent object is listed and mapped itself and cannot be a per-parent list. Not with updatedSince: the app cannot say which parents changed. */
+  eachOf?: {
+    object: string;
+    param: string;
+    /** `false` says the app's ids are the same under no two parents, so a child's id is its own; otherwise each child's id gets its parent's in front. */
+    scoped?: boolean;
+    /** Only the parents whose value at `path` is one of `equals` or matches `matches` (turned round by `not`) have their children read. `path` is one of the parent object's mapped fields. */
+    where?: { path: string; equals?: string | string[]; matches?: string | string[]; not?: boolean };
+    /** A parent's children are read again at a check only when its version moved since they were last read; the sweep (sweepEveryDays) reads them all. The version is the parent's own value at `path`, or the newest `at` of the rows of another listed object whose `parentAt` names the parent (an events feed). */
+    changed?: { path: string } | { object: string; parentAt: string; at: string };
+  };
 }
 export interface SpecWrite {
   path: string;
@@ -103,6 +115,8 @@ export interface SpecObject {
   id: string;
   updatedAt?: string;
   itemsAt: string;
+  /** One row for every inner item of each item: `at` is a pointer with `*` for each array to walk (for example the assignments, then the contacts of each), `idAt` the item's own id. A row is the item plus `_key` (the id, then the inner places: `id/0/1`, the object's `id` must be /_key), `_at` (the value at each `*`) and `_i` (the index at each `*`), so /_at/0/position is the assignment's and /_i/1 the place inside it. An item with nothing inside makes no row. */
+  rows?: { at: string; idAt: string | string[] };
   openUrl?: string;
   fields: SpecField[];
   webhook?: {
@@ -189,6 +203,38 @@ const pointerOk = (v: unknown): v is string => typeof v === "string" && (v === "
 // ---- parse ----
 
 /** Read an untrusted document into a SyncSpec, or say what is wrong with its shape. Meaning (does the path exist on a real page) is the validator's job. */
+/** The words and phrases an `onlyWhen.matches` or `where.matches` names, as a list. */
+export const asWords = (m: string | string[]): string[] => (Array.isArray(m) ? m : [m]);
+export { hasWords, wordsOf };
+const okWords = (m: unknown): boolean => {
+  const list = typeof m === "string" ? [m] : m;
+  return (
+    Array.isArray(list) &&
+    list.length > 0 &&
+    list.length <= 50 &&
+    list.every((x) => typeof x === "string" && x.length <= 60 && wordsOf(x).length > 0)
+  );
+};
+const okWhen = (w: unknown): boolean => {
+  if (!isObj(w) || !pointerOk(w["path"]) || w["path"] === "") return false;
+  const eq = w["equals"];
+  const eqOk =
+    eq === undefined ||
+    typeof eq === "string" ||
+    (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
+  return (
+    eqOk &&
+    (w["matches"] === undefined || okWords(w["matches"])) &&
+    (eq === undefined) !== (w["matches"] === undefined) &&
+    (w["not"] === undefined || typeof w["not"] === "boolean")
+  );
+};
+const okChanged = (c: unknown): boolean =>
+  isObj(c) &&
+  (pointerOk(c["path"]) && c["path"] !== ""
+    ? c["object"] === undefined
+    : str(c["object"]) && pointerOk(c["parentAt"]) && c["parentAt"] !== "" && pointerOk(c["at"]) && c["at"] !== "");
+
 export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] } {
   const problems: Problem[] = [];
   const bad = (at: string, message: string): void => {
@@ -304,6 +350,50 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       )
     )
       bad(`${at}.list.sweepEveryDays`, "sweepEveryDays is a whole number of days, from 1 to 30.");
+    if (isObj(list) && list["eachOf"] !== undefined) {
+      const e = list["eachOf"];
+      if (
+        !isObj(e) ||
+        !str(e["object"]) ||
+        !str(e["param"]) ||
+        !/^[a-z][a-z0-9_]*$/.test(String(e["param"])) ||
+        (e["scoped"] !== undefined && typeof e["scoped"] !== "boolean") ||
+        (e["where"] !== undefined && !okWhen(e["where"])) ||
+        (e["changed"] !== undefined && !okChanged(e["changed"]))
+      )
+        bad(
+          `${at}.list.eachOf`,
+          "eachOf is { object: the object whose records each have this list, param: a lowercase name, scoped: false when the app's ids are unique across parents, where: { path, equals or matches, not }, changed: { path } or { object, parentAt, at } }.",
+        );
+      else {
+        if (!String(list["path"]).includes(`{${e["param"]}}`))
+          bad(`${at}.list.path`, `list.path must contain {${e["param"]}}: the parent's id goes there.`);
+        if (e["object"] === o["remote"]) bad(`${at}.list.eachOf.object`, "A list cannot be under its own object.");
+        else {
+          const parent = (objects as unknown[]).find((x) => isObj(x) && x["remote"] === e["object"]);
+          if (!isObj(parent))
+            bad(`${at}.list.eachOf.object`, `${String(e["object"])} is not one of the listed objects.`);
+          else if (isObj(parent["list"]) && parent["list"]["eachOf"] !== undefined)
+            bad(`${at}.list.eachOf.object`, "The parent is itself a per-parent list: only one level is read.");
+          const feedName = isObj(e["changed"]) ? e["changed"]["object"] : undefined;
+          if (
+            typeof feedName === "string" &&
+            !(objects as unknown[]).some(
+              (x) => isObj(x) && x["remote"] === feedName && !(isObj(x["list"]) && x["list"]["eachOf"] !== undefined),
+            )
+          )
+            bad(
+              `${at}.list.eachOf.changed.object`,
+              `${feedName} is not one of the listed objects (and cannot itself be a per-parent list).`,
+            );
+        }
+        if (list["updatedSince"] !== undefined)
+          bad(
+            `${at}.list.updatedSince`,
+            "A per-parent list cannot say what changed since: it is read whole at every check.",
+          );
+      }
+    }
     if (isObj(list) && isObj(list["updatedSince"])) {
       const u = list["updatedSince"];
       if (!str(u["param"]))
@@ -327,12 +417,41 @@ export function parseSpec(raw: unknown): { spec?: SyncSpec; problems: Problem[] 
       const ow = isObj(fd) ? fd["onlyWhen"] : undefined;
       if (ow === undefined) continue;
       const eq = isObj(ow) ? ow["equals"] : undefined;
+      const mt = isObj(ow) ? ow["matches"] : undefined;
+      const eqOk =
+        eq === undefined ||
+        typeof eq === "string" ||
+        (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string"));
+      const reOk = mt === undefined || okWords(mt);
       if (
         !isObj(ow) ||
         !pointerOk(ow["path"]) ||
-        !(typeof eq === "string" || (Array.isArray(eq) && eq.length > 0 && eq.every((x) => typeof x === "string")))
+        !eqOk ||
+        !reOk ||
+        (eq === undefined) === (mt === undefined) ||
+        (ow["not"] !== undefined && typeof ow["not"] !== "boolean")
       )
-        bad(`${at}.fields[${fi}].onlyWhen`, "onlyWhen is { path: a pointer, equals: a value or a list of values }.");
+        bad(
+          `${at}.fields[${fi}].onlyWhen`,
+          "onlyWhen is { path: a pointer, then equals: a value or a list of values, or matches: a word or phrase, or a list of them, found as whole words in the value (case does not matter), and not: true to take the field only when it does not hold }.",
+        );
+    }
+    const rw = o["rows"];
+    if (rw !== undefined) {
+      if (
+        !isObj(rw) ||
+        !pointerOk(rw["at"]) ||
+        !String(rw["at"]).split("/").includes("*") ||
+        !(Array.isArray(rw["idAt"])
+          ? rw["idAt"].length > 0 && rw["idAt"].every((x) => pointerOk(x) && x !== "")
+          : pointerOk(rw["idAt"]) && rw["idAt"] !== "")
+      )
+        bad(
+          `${at}.rows`,
+          "rows is { at: a pointer with * for each array to walk, such as /assignments/*/contacts/*, idAt: a pointer to the item's own id, or a list of pointers when the id alone repeats (a role id repeats for each client) }.",
+        );
+      else if (o["id"] !== "/_key")
+        bad(`${at}.id`, "An object with rows has the id /_key: the item's id and the places inside it.");
     }
     const wh = o["webhook"];
     if (wh !== undefined) {
@@ -486,6 +605,61 @@ export function coerceValue(
   }
 }
 
+/** At most this many rows come out of one item and out of one page. An item over the cap is left out and named (never cut short: a cut would read as records the app no longer has), and the rest of the page is read. */
+export const ROWS_PER_ITEM = 2_000;
+export const ROWS_PER_PAGE = 20_000;
+/** One row for every inner item of each item, by the object's `rows` (see SpecObject.rows). An item with no id is passed on as it is, so the shaper names it. An item that holds too many inner items is left out and its id is added to `skipped`. */
+export function expandRows(
+  items: unknown[],
+  rows: { at: string; idAt: string | string[] },
+  skipped: string[] = [],
+): unknown[] {
+  const segs = rows.at
+    .slice(1)
+    .split("/")
+    .map((k) => k.replaceAll("~1", "/").replaceAll("~0", "~"));
+  const out: unknown[] = [];
+  for (const item of items) {
+    const parts = (Array.isArray(rows.idAt) ? rows.idAt : [rows.idAt]).map((p) => pointerGet(item, p));
+    const [first] = parts;
+    const id = parts.map((v) => (typeof v === "string" || typeof v === "number" ? String(v) : "")).join(":");
+    if ((typeof first !== "string" && typeof first !== "number") || item === null || typeof item !== "object") {
+      out.push(item);
+      continue;
+    }
+    const mine: unknown[] = [];
+    let over = false;
+    const walk = (cur: unknown, k: number, at: unknown[], idx: number[]): void => {
+      if (over) return;
+      if (k === segs.length) {
+        if (mine.length >= ROWS_PER_ITEM) {
+          over = true;
+          return;
+        }
+        mine.push({ ...(item as Record<string, unknown>), _key: `${id}/${idx.join("/")}`, _at: at, _i: idx });
+        return;
+      }
+      const seg = segs[k]!;
+      if (seg === "*") {
+        if (Array.isArray(cur)) for (const [i, v] of cur.entries()) walk(v, k + 1, [...at, v], [...idx, i]);
+        return;
+      }
+      const next = Array.isArray(cur)
+        ? /^\d+$/.test(seg)
+          ? cur[Number(seg)]
+          : undefined
+        : cur !== null && typeof cur === "object"
+          ? (cur as Record<string, unknown>)[seg]
+          : undefined;
+      if (next !== undefined) walk(next, k + 1, at, idx);
+    };
+    walk(item, 0, [], []);
+    if (over || out.length + mine.length > ROWS_PER_PAGE) skipped.push(id);
+    else out.push(...mine);
+  }
+  return out;
+}
+
 /** Nest flat values keyed by pointer: { "/a/b": 1 } becomes { a: { b: 1 } }. */
 export function unflatten(flat: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
@@ -533,15 +707,37 @@ export function fieldOf(o: SpecObject | undefined, mf: { path: string; field?: s
 }
 export const WHEN_PREFIX = "=when:";
 /** The remote key of a conditional field: the value at `p`, only when `w` holds one of `e`. */
-export const whenRemote = (p: string, w: { path: string; equals: string | string[] }): string =>
-  `${WHEN_PREFIX}${JSON.stringify({ p, w: w.path, e: Array.isArray(w.equals) ? w.equals : [w.equals] })}`;
+export const whenRemote = (p: string, w: NonNullable<SpecField["onlyWhen"]>): string =>
+  `${WHEN_PREFIX}${JSON.stringify({
+    p,
+    w: w.path,
+    ...(w.equals !== undefined ? { e: Array.isArray(w.equals) ? w.equals : [w.equals] } : {}),
+    ...(w.matches !== undefined ? { m: asWords(w.matches) } : {}),
+    ...(w.not === true ? { n: true } : {}),
+  })}`;
+/** Does the value at the condition's pointer meet it? Equal to one of the values, or naming one of the words (case and surrounding spaces do not matter); `n` turns it round (a value that is not there never meets a plain condition, and always meets a turned-round one). */
+export function whenHolds(have: unknown, c: { e?: string[]; m?: string[]; n?: boolean }): boolean {
+  const present = have !== undefined && have !== null && have !== "[sealed]";
+  const text = present ? String(have).trim() : "";
+  const hit =
+    present &&
+    (c.e !== undefined
+      ? c.e.some((v) => v.trim().toLowerCase() === text.toLowerCase())
+      : c.m !== undefined && hasWords(text, c.m));
+  return c.n === true ? !hit : hit;
+}
 /** The value of a pulled row's remote key, which may be a conditional one. */
 export function valueOfRemote(data: Record<string, unknown>, remote: string): unknown {
   if (!remote.startsWith(WHEN_PREFIX)) return data[remote];
-  const c = JSON.parse(remote.slice(WHEN_PREFIX.length)) as { p: string; w: string; e: string[] };
-  const have = data[c.w];
-  const norm = (x: unknown): string => String(x).trim().toLowerCase();
-  return have !== undefined && have !== null && c.e.some((v) => norm(v) === norm(have)) ? (data[c.p] ?? null) : null;
+  const c = JSON.parse(remote.slice(WHEN_PREFIX.length)) as {
+    p: string;
+    w: string;
+    e?: string[];
+    m?: string[];
+    n?: boolean;
+  };
+  const v = data[c.p];
+  return whenHolds(data[c.w], c) && v !== "[sealed]" ? (v ?? null) : null;
 }
 
 /** The record field key for each mapped path of one mapping: the explicit one, else from the label, made unique. */
@@ -743,6 +939,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
       items: o.itemsAt,
       id: o.id,
       ...(o.updatedAt ? { updatedAt: o.updatedAt } : {}),
+      ...(o.rows ? { rows: o.rows } : {}),
       fields: shapeFields,
       types: types_,
       choices,
@@ -771,10 +968,12 @@ export function compileSpec(spec: SyncSpec): Compiled {
       delete: actionName("delete", o.remote),
     };
     const headers = { ...baseHeaders };
+    // a per-parent list: the parent's id is the call's `parent` input
+    const listPath = o.list.eachOf ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, "{input.parent}") : o.list.path;
     actions.push({
       name: names.list,
       method: "GET",
-      url: `https://${spec.app.domain}${o.list.path}`,
+      url: `https://${spec.app.domain}${listPath}`,
       headers,
       query,
       shape: listShape,
@@ -782,7 +981,7 @@ export function compileSpec(spec: SyncSpec): Compiled {
     actions.push({
       name: names.listAfter,
       method: "GET",
-      url: `https://${spec.app.domain}${o.list.path}`,
+      url: `https://${spec.app.domain}${listPath}`,
       headers,
       query,
       shape: listShape,
@@ -799,6 +998,32 @@ export function compileSpec(spec: SyncSpec): Compiled {
       list: names.list,
       listAfter: names.listAfter,
       ...(o.list.updatedSince ? { since: true } : {}),
+      ...(o.rows ? { rows: true } : {}),
+      ...(o.list.eachOf
+        ? {
+            eachOf: {
+              remote: o.list.eachOf.object,
+              ...(o.list.eachOf.scoped === false ? { scoped: false } : {}),
+              ...(o.list.eachOf.where
+                ? {
+                    where: {
+                      path: o.list.eachOf.where.path,
+                      ...(o.list.eachOf.where.equals !== undefined
+                        ? {
+                            e: Array.isArray(o.list.eachOf.where.equals)
+                              ? o.list.eachOf.where.equals
+                              : [o.list.eachOf.where.equals],
+                          }
+                        : {}),
+                      ...(o.list.eachOf.where.matches !== undefined ? { m: asWords(o.list.eachOf.where.matches) } : {}),
+                      ...(o.list.eachOf.where.not === true ? { n: true } : {}),
+                    },
+                  }
+                : {}),
+              ...(o.list.eachOf.changed ? { changed: o.list.eachOf.changed } : {}),
+            },
+          }
+        : {}),
     };
     if (o.create && (m.createAtSource ?? false)) {
       actions.push({
@@ -1030,7 +1255,11 @@ export function rateOf(spec: SyncSpec): { rps: number; burst: number } {
 }
 
 /** The request a list action makes for a sampled page, as the validator and the compiled action build it. */
-export function firstPageRequest(spec: SyncSpec, o: SpecObject): { path: string; query: Record<string, string> } {
+export function firstPageRequest(
+  spec: SyncSpec,
+  o: SpecObject,
+  parentId?: string,
+): { path: string; query: Record<string, string> } {
   const c = o.list.cursor ?? { kind: "none" as const };
   const query: Record<string, string> = {
     ...(o.list.query ?? {}),
@@ -1040,7 +1269,11 @@ export function firstPageRequest(spec: SyncSpec, o: SpecObject): { path: string;
   if (c.kind === "page" && c.param) query[c.param] = String(c.start ?? 1);
   if (c.kind === "offset" && c.param) query[c.param] = String(c.start ?? 0);
   void spec;
-  return { path: o.list.path, query };
+  const path =
+    o.list.eachOf && parentId !== undefined
+      ? o.list.path.replaceAll(`{${o.list.eachOf.param}}`, encodeURIComponent(parentId))
+      : o.list.path;
+  return { path, query };
 }
 
 /** Items and the next-page token out of one answer, by the object's own pointers. The same function the runtime uses, so validation proves what the sync will do. */

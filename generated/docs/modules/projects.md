@@ -58,7 +58,7 @@ Requires: agents, records, tasks.
 - [projects.update.draft](../capabilities/projects.update.draft.md): Draft the status update again from the project facts, on the asker's own AI account; it is kept as the draft and posted only by Post
 - [projects.update.edit](../capabilities/projects.update.edit.md): Edit the status update's draft in place
 
-## Events (26)
+## Events (27)
 
 - [project.archived](../events/project.archived.md): A project was archived: it left the lists and stays readable
 - [project.cascade_applied](../events/project.cascade_applied.md): A cascade proposal was applied
@@ -68,6 +68,7 @@ Requires: agents, records, tasks.
 - [project.dates_kept](../events/project.dates_kept.md): A cascade proposal was declined and dates were kept
 - [project.file_pinned](../events/project.file_pinned.md): A file was pinned to the Overview
 - [project.file_unpinned](../events/project.file_unpinned.md): A pinned file was removed from the Overview
+- [project.folder_unfollowed](../events/project.folder_unfollowed.md): A files folder could not follow its record; the host narrows it and tells the owner
 - [project.health_set](../events/project.health_set.md): A manager set how the project stands, or went back to the automatic reading
 - [project.item_linked](../events/project.item_linked.md): Something was linked to a project, by a person, an agent or a rule
 - [project.item_unlinked](../events/project.item_unlinked.md): A link was taken off a project

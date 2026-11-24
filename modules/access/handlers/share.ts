@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, changedGrants, isReader } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -43,8 +43,9 @@ import {
   storeOf,
   decisionSnapshot,
 } from "../projections.ts";
-import { isHostService, isSystemCall } from "../../../lib/trust.ts";
+import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { turns } from "../../../lib/yield-loop.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -157,7 +158,7 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0 };
+export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0 };
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -624,17 +625,24 @@ function computeRows(
   return next;
 }
 
-/** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
-function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
-  // the rows are worked out as a handler's own store always worked them out: without the role grants the host's decisions add to a kept snapshot (what a reader did before this call must not change them)
-  let snap = store.snapshot();
-  if (hasRoleGrants(snap)) snap = store.buildSnapshot();
-  const now = ctx.now();
-  const people = [...store.principals.values()]
-    .filter((p) => p.kind === "person" && p.status === "active")
-    .map((p) => p.id);
-  const scope = roots === "all" ? null : descendants(store, roots);
-  const next = computeRows(ss, store, snap, people, scope, now);
+/** The snapshot rows are worked out against: without the role grants the host's decisions add to a kept snapshot (what a reader did before this call must not change them). */
+function snapshotForRows(store: AccessStore): AccessSnapshot {
+  const snap = store.snapshot();
+  return hasRoleGrants(snap) ? store.buildSnapshot() : snap;
+}
+const activePeople = (store: AccessStore): string[] =>
+  [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+
+/** Put `next` (the rows worked out for `scope`) into the cache in memory, and say which rows to delete from and write to the table. Writes nothing to the table. */
+function applyRows(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+  next: Map<string, AccessRow>,
+  now: number,
+): { gone: AccessRow[]; touched: AccessRow[] } {
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
   const dropIfGone = (key: string): void => {
@@ -672,26 +680,216 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
       if (t !== undefined && t > now && t < until) until = t;
   }
   ss.until = until;
+  return { gone, touched };
+}
+
+const deleteRow = (ctx: AccessCtx, g: AccessRow): void =>
+  void ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
+const insertRow = (ctx: AccessCtx, r: AccessRow): void =>
+  void ctx.db.run(
+    "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    accessId(r.person, r.type, r.id),
+    r.person,
+    r.type,
+    r.id,
+    r.level,
+    r.via,
+    1,
+    ctx.now(),
+  );
+/** The cache could not be written: it is not trusted and the kept copy goes. */
+function writeFailed(ctx: AccessCtx, ss: ShareStore, e: unknown): never {
+  ss.fresh = -1;
+  const raw = rawDbOf(ctx.db);
+  if (raw) KEPT.delete(raw);
+  throw e;
+}
+
+/** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
+function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
+  const snap = snapshotForRows(store);
+  const now = ctx.now();
+  const scope = roots === "all" ? null : descendants(store, roots);
+  const next = computeRows(ss, store, snap, activePeople(store), scope, now);
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
   try {
-    for (const g of gone) ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
-    for (const r of touched) {
-      ctx.db.run(
-        "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-        accessId(r.person, r.type, r.id),
-        r.person,
-        r.type,
-        r.id,
-        r.level,
-        r.via,
-        1,
-        ctx.now(),
-      );
+    // the rows of one rebuild are one transaction: each statement was a commit of its own, and a change to a hundred files (an export of a connector) paid for a few hundred commits, each dearer on a bigger database
+    const write = (): void => {
+      for (const g of gone) deleteRow(ctx, g);
+      for (const r of touched) insertRow(ctx, r);
+    };
+    if (ctx.db.batch) ctx.db.batch(write);
+    else write();
+  } catch (e) {
+    writeFailed(ctx, ss, e);
+  }
+}
+
+// ---- the first build of a big view, in slices ----
+//
+// A reader that finds the cache stale for the whole Space (the first list after a start, or after a sync that moved the view on) worked every row out and wrote every row in one go: a Space of 50,000 records held
+// the server for a second (24 Nov 2026, found timing a 50,000-row export). `settleView` does the same work in slices with a turn for other requests between. Nobody sees a half-built view: the rows are worked out
+// into a map of their own, the cache the caller holds is private to the call until `publish`, and a reader that finds a build under way waits for it and then takes what it kept. A table written in slices is only ever
+// read back as the base of a diff (the cache loaded from it is never trusted as current), so a build that stops half way costs the next reader a longer diff and nothing else.
+
+/** Views smaller than this (resources times people) are built in one go: slicing them costs more than it saves. */
+const SLICE_FROM = 2000;
+/** For the tests only: the size from which a view is built in slices, so a test can exercise slicing on a few hundred records. Never set by the product. */
+export const sliceTuning = { from: SLICE_FROM };
+/** Rows written to the table per transaction when a view is written in slices. */
+const WRITE_SLICE = 1500;
+const BUILDING = new WeakMap<object, Promise<void>>();
+/** For the tests only: run once, between two slices of a build (a test that changes who may see what while the rows are being worked out). Never set by the product. */
+export const sliceHook: { run: ((store: AccessStore) => Promise<void>) | null } = { run: null };
+
+async function computeRowsAsync(
+  ss: ShareStore,
+  store: AccessStore,
+  snap: AccessSnapshot,
+  people: readonly string[],
+  scope: Set<string> | null,
+  now: number,
+  turn: () => Promise<void>,
+  overtaken: () => boolean,
+): Promise<Map<string, AccessRow> | null> {
+  const next = new Map<string, AccessRow>();
+  for (const res of store.resources.values()) {
+    if (scope && !scope.has(res.id)) continue;
+    for (const person of people) {
+      const row = rowFor(ss, store, snap, person, res, now);
+      if (row) next.set(ak(person, row.type, row.id), row);
+    }
+    await turn();
+    // the access state moved on while the rows were being worked out (a writer committed): what is worked out is old, so stop now and not after the rest of it
+    if (overtaken()) return null;
+    const hook = sliceHook.run;
+    if (hook) {
+      sliceHook.run = null;
+      await hook(store);
+    }
+  }
+  return next;
+}
+
+async function buildSliced(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+): Promise<boolean> {
+  shareKept.sliced++;
+  const turn = turns();
+  // the rows are worked out against the world as it stands now; if the store moves on while the slices run (access.sync folds a revoke, a role change, a label), what was worked out is old, and is not applied
+  const epoch0 = store.epoch;
+  // the view access.sync keeps is folded in place (the epoch moves) or replaced by a new one (this store is no longer the view): either way the world is not the one the rows were worked out against
+  const moved = (): boolean => store.epoch !== epoch0 || storeOf(ctx) !== store;
+  const snap = snapshotForRows(store);
+  const now = ctx.now();
+  const folders0 = stateOf(ctx.db)?.folders;
+  const next = await computeRowsAsync(
+    ss,
+    store,
+    snap,
+    activePeople(store),
+    scope,
+    now,
+    turn,
+    () => store.epoch !== epoch0,
+  );
+  if (!next || moved()) {
+    shareKept.discarded++;
+    return false;
+  }
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
+  ss.pending = [];
+  // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
+  let clean = true;
+  let seen = stateOf(ctx.db)?.rows;
+  const slice = (f: () => void): void => {
+    if (stateOf(ctx.db)?.rows !== seen) clean = false;
+    if (ctx.db.batch) ctx.db.batch(f);
+    else f();
+    seen = stateOf(ctx.db)?.rows;
+  };
+  try {
+    for (let i = 0; i < gone.length; i += WRITE_SLICE) {
+      slice(() => {
+        for (const g of gone.slice(i, i + WRITE_SLICE)) deleteRow(ctx, g);
+      });
+      await turn();
+    }
+    for (let i = 0; i < touched.length; i += WRITE_SLICE) {
+      slice(() => {
+        for (const r of touched.slice(i, i + WRITE_SLICE)) insertRow(ctx, r);
+      });
+      await turn();
     }
   } catch (e) {
-    ss.fresh = -1;
-    const raw = rawDbOf(ctx.db);
-    if (raw) KEPT.delete(raw);
-    throw e;
+    writeFailed(ctx, ss, e);
+  }
+  // (a write to the table that is not ours inside one slice cannot happen: a slice is one synchronous transaction)
+  if (clean && stateOf(ctx.db)?.folders === folders0 && ss.fresh === store.epoch && !moved()) publish(ctx, store, ss);
+  return true;
+}
+
+/**
+ * Called first by a writer of shares and folders. A writer that finds the view stale for a big Space would work every row out in the same step as its change (the first share after a sync held the server for a
+ * second); here the view is built first, in slices, as a reader would build it (or the build under way is waited for), and the writer then finds a kept copy to scope its own change on: its change is made after
+ * the view is published, on a whole base, and nothing it writes is lost to a build that was half way.
+ */
+export async function settleForWriter(ctx: AccessCtx): Promise<void> {
+  if (isReader(ctx)) return settleView(ctx);
+  if (SHARES.has(ctx.db)) return;
+  try {
+    await settleView(asReader(ctx));
+  } finally {
+    dropShare(ctx.db);
+  }
+}
+
+/**
+ * Called first by a reader that is about to ask for the whole view (access.lists, folders.list). When the cache is stale for the whole Space and the Space is big, build it here in slices (or wait for the build
+ * that is under way) so the sync path that follows finds it fresh. Anything else (a small Space, a cache that only needs a few resources worked out again, a writer) is left to that sync path as before.
+ */
+export async function settleView(ctx: AccessCtx): Promise<void> {
+  if (!isReader(ctx)) return;
+  const raw = rawDbOf(ctx.db);
+  if (!raw) return;
+  for (let tries = 0; tries < 2; tries++) {
+    const store = storeOf(ctx);
+    const ss = shareOf(ctx);
+    // stale for the whole Space (the first read after a start, or the world moved too far), or fresh but with many resources to work out again (a sync that added thousands of records): either way the same work, in slices
+    const fresh = isFresh(ctx, store, ss);
+    if (fresh && !ss.pending.length) return;
+    const roots: readonly string[] | "all" = fresh ? [...ss.pending] : "all";
+    const scope = roots === "all" ? null : descendants(store, roots);
+    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < sliceTuning.from)
+      return;
+    const under = BUILDING.get(raw);
+    if (under) {
+      await under.catch(() => undefined);
+      dropShare(ctx.db);
+      continue;
+    }
+    const build = buildSliced(ctx, store, ss, roots, scope);
+    BUILDING.set(
+      raw,
+      build.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    let applied = false;
+    try {
+      applied = await build;
+    } finally {
+      BUILDING.delete(raw);
+      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with
+      dropShare(ctx.db);
+    }
+    // the store moved on while it was worked out: nothing was applied, and the view is looked at again as it is now
+    if (applied) return;
   }
 }
 
@@ -945,6 +1143,7 @@ function assertDelegation(
   }
 }
 export async function updateGrant(ctx: ShareCtx, input: { grantId: string; level?: Level; conditions?: Cond }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx),
     grant = store.grants.get(input.grantId);
   if (!grant) raise(ctx.trace.traceId, "validation.not_found", "no such grant");
@@ -1020,6 +1219,7 @@ export async function joinShare(
     !isHostService(ctx.principal)
   )
     raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -1132,6 +1332,7 @@ export async function share(
     notify?: { message?: string };
   },
 ) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1358,6 +1559,7 @@ export async function unshare(
   ctx: ShareCtx,
   input: { grantId?: string; resource?: ResourceRef; subject?: SubjectRef; source?: string },
 ) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1527,8 +1729,20 @@ export async function sharesOf(ctx: ShareCtx, input: { resource: ResourceRef }) 
   }
   const mine = callerLevel(ctx, store, res) ?? undefined;
   const agentsCanCall = res.type === "agent" ? res.row?.["agentsCanCall"] !== false : undefined;
-  if (!RECORDS.has(res.type))
-    return { shares, ...(mine ? { mine } : {}), ...(agentsCanCall === undefined ? {} : { agentsCanCall }) };
+  if (!RECORDS.has(res.type)) {
+    // a Files folder that follows its record says which one (the real signal, read from the access store that audience_set follows writes; files.folder.get's parent is the Files tree's own)
+    // shown only to a caller who may view that record: a viewer of the folder alone learns nothing of the record
+    const parent = res.type === "folder" && res.parentId !== null ? store.resources.get(res.parentId) : undefined;
+    const follows = parent?.type === "record" && callerLevel(ctx, store, parent) !== null ? parent.id : undefined;
+    return {
+      shares,
+      ...(mine ? { mine } : {}),
+      ...(agentsCanCall === undefined ? {} : { agentsCanCall }),
+      ...(follows ? { inherits: follows } : {}),
+      // who a Files folder is open to (the record or the Space follows by default; "added" once it is closed to the people added)
+      ...(res.type === "folder" ? { audience: audienceOf(res) } : {}),
+    };
+  }
   const audience = audienceOf(res);
   const out: {
     shares: typeof shares;
@@ -1663,7 +1877,9 @@ function addGrant(ctx: ShareCtx, store: AccessStore, res: ResourceRec, subject: 
 export async function audienceSet(
   ctx: ShareCtx,
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
+  opts?: { hostNarrow?: boolean },
 ) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1673,10 +1889,18 @@ export async function audienceSet(
     if (res.type !== "folder") raise(trace, "validation.bad_input", "only a Files folder can follow a record");
     const rec = store.resources.get(input.follows);
     if (!rec || rec.type !== "record") raise(trace, "validation.not_found", "no such record");
-    // the host's own sweeps (kind svc) bring old folders in line; it only narrows who may open the folder
-    if (ctx.principal.kind !== "svc" && !ctx.principal.id.startsWith("svc_"))
-      must(ctx, store, res, "manage", "attaching the folder to its record");
+    // the host's own sweeps (svc_host and the host's other own services, by name) bring old folders in line; any other caller, a tenant's service included, needs Manage on the folder like everyone else
+    if (!isHostOwnService(ctx.principal)) must(ctx, store, res, "manage", "attaching the folder to its record");
+    // a person chose who this folder is open to (audience_set by someone with Manage): the host's own sweep and re-attach never undo that choice
+    if (isHostOwnService(ctx.principal) && res.row?.["audienceChosen"] === true)
+      return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
     const wasFresh = isFresh(ctx, store, ss);
+    // a manager who makes the folder follow its record has chosen to follow: an earlier choice of audience no longer stands
+    if (res.row?.["audienceChosen"] === true) {
+      const { audienceChosen: _gone, ...rest } = res.row;
+      if (Object.keys(rest).length > 0) res.row = rest;
+      else delete res.row;
+    }
     res.parentId = rec.id;
     changed(ctx, store, "assignment");
     commit(ctx, store, ss, false && wasFresh, [res.id], false);
@@ -1695,8 +1919,24 @@ export async function audienceSet(
   if (folder && isHostService(ctx.principal) && input.audience !== undefined && input.audience === audienceOf(res))
     return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
   // the host's own sweep brings a chat's own agents and their folders in line with their chats: without Manage only on those (hostMayCloseFolder), never on any other folder or agent
-  if (!(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)))
+  if (
+    !(folder && isHostService(ctx.principal) && hostMayCloseFolder(store, res)) &&
+    !(opts?.hostNarrow === true && res.type === "folder")
+  )
     must(ctx, store, res, "manage", "changing who it is open to");
+  // a person's own press on a folder's audience (not an agent's, a service's or another capability's call on their behalf) is a choice the host's self-heal never undoes: recorded before anything else, so asking
+  // again for what it already is counts too
+  if (
+    res.type === "folder" &&
+    input.audience !== undefined &&
+    isOwnPress(ctx as never) &&
+    ctx.depth === 0 &&
+    res.row?.["audienceChosen"] !== true
+  ) {
+    res.row = { ...(res.row ?? {}), audienceChosen: true };
+    changed(ctx as AccessCtx, store, "assignment");
+    commit(ctx as AccessCtx, store, ss, false, [res.id], false);
+  }
   // asking a folder or an agent to be what it already is changes nothing: answered quietly, but only after the rights check, so it tells an outsider nothing (an agent an open channel made:
   // its folder is open to the Space from the start, and the maker's own followHome asks for that)
   if (folder && input.audience !== undefined && input.audience === audienceOf(res))
@@ -1710,6 +1950,7 @@ export async function audienceSet(
       if (g.resource.id === res.id && g.source === AUDIENCE_SOURCE) dropGrant(ctx, store, g);
     if (input.audience === "space") delete row["audience"];
     else row["audience"] = input.audience;
+
     if (input.audience === "added")
       for (const role of KEEPERS)
         if (store.roles.has(role)) addGrant(ctx, store, res, { kind: "role", id: role }, "manage");
@@ -1743,6 +1984,7 @@ export async function audienceSet(
 
 /** The owner hands an item to another active person. The previous owner keeps Manage as a grant of their own, so handing it over never locks them out. */
 export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; personId: string }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1800,6 +2042,7 @@ export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }
 
 /** A person with Manage on the agent turns calls from other agents On or Off. An agent never does. */
 export async function agentsCanCallSet(ctx: ShareCtx, input: { agentId: string; on: boolean }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1926,6 +2169,7 @@ export async function foldersCreate(
   ctx: ShareCtx,
   input: { type: string; name: string; parentId?: string; scope?: "personal" | "space"; idempotencyKey?: string },
 ) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2001,6 +2245,7 @@ export async function foldersCreate(
 }
 
 export async function foldersRename(ctx: ShareCtx, input: { folderId: string; name: string }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2035,6 +2280,7 @@ function isAncestor(ss: ShareStore, ancestor: string, of: string): boolean {
 }
 
 export async function foldersMove(ctx: ShareCtx, input: { folderId: string; parentId: string | null }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2089,6 +2335,7 @@ function release(
 }
 
 export async function foldersDelete(ctx: ShareCtx, input: { folderId: string }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2144,6 +2391,7 @@ function inheritedGrants(store: AccessStore, folderId: string, now: number): Gra
 }
 
 export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef; folderId: string }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2179,6 +2427,7 @@ export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef
 }
 
 export async function foldersUnplace(ctx: ShareCtx, input: { resource: ResourceRef }) {
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -2229,6 +2478,7 @@ function countIn(ctx: AccessCtx, store: AccessStore, ss: ShareStore, folderId: s
 }
 
 export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: "personal" | "space" }) {
+  await settleView(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   ensureFresh(ctx, store, ss);
@@ -2255,6 +2505,7 @@ export async function lists(
   ctx: ShareCtx,
   input: { type: string; section?: Section; folder?: string; cursor?: string; limit?: number },
 ) {
+  await settleView(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;
@@ -2305,17 +2556,11 @@ export async function lists(
         following: following.has(r.id),
       };
       if (folderId) row.folderId = folderId;
-      return row;
+      // the lower-case title once per row, not twice per comparison (a list of 50,000 rows held the loop for about 100 ms in its sort)
+      return { row, key: row.title.toLowerCase() };
     })
-    .sort((a, b) =>
-      a.title.toLowerCase() < b.title.toLowerCase()
-        ? -1
-        : a.title.toLowerCase() > b.title.toLowerCase()
-          ? 1
-          : a.id < b.id
-            ? -1
-            : 1,
-    );
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.row.id < b.row.id ? -1 : 1))
+    .map((x) => x.row);
   const p = page(view, input.cursor, input.limit);
   return { rows: p.rows, counts, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }
@@ -2347,4 +2592,19 @@ export function accessRowsFull(ctx: AccessCtx): AccessRow[] {
   return [...computeRows(ss, store, snap, people, null, ctx.now()).values()].sort((a, b) =>
     ak(a.person, a.type, a.id) < ak(b.person, b.type, b.id) ? -1 : 1,
   );
+}
+
+/**
+ * The host's own safety step (a consumer of projects' project.folder_unfollowed): a Files folder that could not follow its record is closed to the people added. Only the host's own services call it; it
+ * only narrows (audience "added"), so it needs no Manage; every other folder rule stays as it was.
+ */
+export async function folderNarrow(ctx: ShareCtx, input: { folderId: string }) {
+  if (!isHostOwnService(ctx.principal))
+    raise(ctx.trace.traceId, "permission.no_grant", "Only the server narrows a folder this way.");
+  const r = await audienceSet(
+    ctx,
+    { resource: { type: "folder", id: input.folderId } as ResourceRef, audience: "added" },
+    { hostNarrow: true },
+  );
+  return { audience: r.audience };
 }

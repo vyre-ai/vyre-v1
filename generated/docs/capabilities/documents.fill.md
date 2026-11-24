@@ -1,6 +1,6 @@
 # documents.fill
 
-Fill a template into a new file in a folder; missing required tags stop the fill and are listed
+Fill a template into a new file in a folder
 
 | | |
 |---|---|
@@ -32,7 +32,7 @@ type In = {
   signingDate?: string;
   intoFolderId: string;
   name?: string;
-  format?: "docx" | "pdf";
+  format?: "docx" | "pdf" | "md";
   idempotencyKey: string;
 };
 ```
@@ -48,6 +48,9 @@ type Out = {
   };
   missing: Array<string>;
   unused: Array<string>;
+  signers?: Array<string>;
+  layout?: "word" | "simple";
+  converter?: "pulling" | "failed" | "none";
 };
 ```
 
@@ -60,6 +63,7 @@ type Out = {
 - validation.bad_input
 - validation.not_found
 - validation.precondition_failed
+- validation.unsupported
 
 ## Example
 
@@ -78,12 +82,17 @@ type Out = {
     "values": {}
   },
   "output": {
+    "converter": "pulling",
     "file": {
       "fileId": "fil_a1b2c3",
       "name": "example",
       "versionId": "ver_a1b2c3"
     },
+    "layout": "word",
     "missing": [
+      "example"
+    ],
+    "signers": [
       "example"
     ],
     "unused": [

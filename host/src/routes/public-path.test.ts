@@ -5,6 +5,7 @@ import type { AddressInfo } from "node:net";
 import { test } from "node:test";
 import { APP_FRAME_ANCESTORS, createPublicPathRoute, formTarget, PUBLIC_SANDBOX } from "./public-path.ts";
 import { publicPathOk } from "../seams/relay.ts";
+import { PROOF_HEADER, proofFor, takeVisitor } from "../seams/visitor-proof.ts";
 
 async function serve(
   inner: { handle(req: http.IncomingMessage, res: http.ServerResponse): boolean } | null,
@@ -12,6 +13,10 @@ async function serve(
   const fell: string[] = [];
   const route = createPublicPathRoute({ forms: () => inner, origin: () => "https://harbor.vyre.run" });
   const server = http.createServer((req, res) => {
+    // the relay vouches for the visitor it saw and the daemon reads that first (seams/visitor-proof.ts): a request that names a visitor here stands for one the relay forwarded
+    const said = req.headers["x-vyre-visitor"];
+    if (typeof said === "string") req.headers[PROOF_HEADER] = proofFor(said);
+    takeVisitor(req);
     if (route.handle(req, res)) return;
     fell.push(req.url ?? "");
     res.writeHead(200);
@@ -75,7 +80,8 @@ test("/p/forms: Cookie, Authorization and a forged address never reach the form;
     });
     assert.equal(await r.text(), "form");
     assert.equal(path, "/f/quote?t=abc");
-    for (const h of ["cookie", "authorization", "x-vyre-visitor"]) assert.equal(seen[h], undefined, h);
+    for (const h of ["cookie", "authorization", "x-vyre-visitor", PROOF_HEADER])
+      assert.equal(seen[h], undefined, `${h} never reaches the form`);
     assert.equal(seen["x-forwarded-for"], "203.0.113.7");
     assert.equal(seen["x-vyre-public-base"], "/p/forms/quote");
     assert.equal(seen["x-vyre-public-origin"], "https://harbor.vyre.run");

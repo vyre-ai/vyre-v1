@@ -60,6 +60,8 @@ export interface BackupHostSeam {
   exports: { save(name: string, bytes: Uint8Array): Promise<{ fileId: string }> };
   transport: S3Transport;
   credentials(vaultName: string): Promise<{ key: string; secret: string; endpoint?: string }>;
+  /** where backup.run writes when the admin chose no target: the host's backups folder, mounted into the server (vyre-server's own backups are in the same folder). Absent when the server was not given one. */
+  defaultTarget?: { kind: "local"; path: string };
 }
 
 /** Files that make up a Space on disk, relative to the data directory. */
@@ -96,6 +98,8 @@ export interface BackupHostDeps {
   fetch: SeamFetch;
   /** values an export must never contain (the admin token) */
   secrets?: () => string[];
+  /** the host's backups folder as the server sees it (VYRE_BACKUP_DIR); an absolute path outside the Space folder, or none */
+  backupDir?: string | undefined;
 }
 
 function walk(dir: string, rel = ""): string[] {
@@ -169,7 +173,10 @@ export function createBackupHost(deps: BackupHostDeps): BackupHostSeam {
     }
   }
 
+  const dir = deps.backupDir;
+  const inside = dir !== undefined && (dir === deps.root || dir.startsWith(deps.root.replace(/\/+$/, "") + "/"));
   return {
+    ...(dir && path.isAbsolute(dir) && !inside ? { defaultTarget: { kind: "local" as const, path: dir } } : {}),
     source: {
       head: () => deps.log.currentHead(),
       snapshot,

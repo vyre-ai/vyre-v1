@@ -47,6 +47,8 @@ export interface ErrorProps {
   onRetry?: () => void;
   /** The way out of a state that cannot be retried (a refusal): one button under the words. */
   action?: StateAction;
+  /** A second way out beside Retry or the action: where a person goes when trying again is not what they want (for a Space that will not open, Your Spaces). */
+  second?: StateAction;
 }
 
 export type StateProps = EmptyProps | OfflineProps | ErrorProps;

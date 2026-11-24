@@ -153,9 +153,19 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.precondition_failed", "That past event is not there any more. Pick another.", {
       reason: "no_event",
     });
+  const pastPayload = past === undefined ? undefined : await payloadAsSeen(ctx, me(ctx), past.payload);
+  if (past !== undefined && pastPayload === null)
+    raise(ctx, "validation.precondition_failed", "That past event is not there any more. Pick another.", {
+      reason: "no_event",
+    });
+  // a real thing that happened (a row of the event log), or a real record as it is now: the Run reads what a live Run would have read
+  const real =
+    input.sample === undefined && past === undefined
+      ? await realPayload(ctx, draft?.definition ?? a.definition, key, input)
+      : undefined;
   const runId = await startRun(ctx, a, {
-    trigger: key,
-    payload: input.sample ?? past?.payload ?? def.sample,
+    trigger: real?.trigger ?? key,
+    payload: input.sample ?? pastPayload ?? real?.payload ?? def.sample,
     test: true,
     depth: 0,
     version: input.version,
@@ -166,16 +176,77 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
   return { runId };
 }
 
+/**
+ * The payload a test starts from when the person picked something real: one event of the log (`eventId`), or one record (`recordId`), which is read as the newest thing that happened to it, or as it is
+ * now when the log holds nothing for it. The trigger is the one of this definition that listens for that event. Nothing is checked against the filter: a test shows what the steps would do with it.
+ */
+async function realPayload(
+  ctx: AutoCtx,
+  def: Definition,
+  key: string,
+  input: In,
+): Promise<{ trigger: string; payload: unknown } | undefined> {
+  if (!ctx.call || (typeof input.eventId !== "string" && typeof input.recordId !== "string")) return undefined;
+  const gone = (): never =>
+    raise(ctx, "validation.precondition_failed", "That is not there any more. Pick another.", { reason: "no_event" });
+  type Row = { id: string; type: string; at: number; payload: Record<string, unknown> };
+  let row: Row | undefined;
+  if (typeof input.eventId === "string") {
+    row = ((await ctx.call("events.get", { eventId: input.eventId }).catch(() => null)) as { event?: Row } | null)
+      ?.event;
+    if (!row) gone();
+  } else {
+    const page = (await ctx
+      .call("events.list", { subject: { type: "record", id: input.recordId }, limit: 500 })
+      .catch(() => null)) as { events?: Row[] } | null;
+    const listened = new Set(def.triggers.flatMap((t) => eventNames(t.key)));
+    row = (page?.events ?? []).filter((e) => listened.has(e.type)).sort((x, y) => y.at - x.at)[0];
+  }
+  if (row) {
+    const ev: LoggedEvent = { id: row.id, type: row.type, payload: row.payload ?? {} };
+    const ref = def.triggers.find((t) => eventNames(t.key).includes(ev.type));
+    const trigger = ref?.key ?? key;
+    return { trigger, payload: triggerPayload(trigger, ev) };
+  }
+  // nothing in the log for this record: it is read as it stands, as a change that touched nothing
+  if (typeof input.recordType !== "string") gone();
+  const got = (await ctx
+    .call("records.get", { type: input.recordType, recordId: input.recordId })
+    .catch(() => null)) as {
+    record?: { fields?: unknown; version?: number };
+  } | null;
+  if (!got?.record) gone();
+  const trigger = def.triggers.find((t) => t.key === "record_change")?.key ?? key;
+  return {
+    trigger,
+    payload: clean({
+      record: withoutSealed(got!.record!.fields),
+      recordId: input.recordId,
+      type: input.recordType,
+      op: "updated",
+      fields: [],
+      changed: {},
+      version: got!.record!.version,
+    }),
+  };
+}
+const eventNames = (key: string): string[] => {
+  const src = TRIGGERS.get(key)?.source as { event?: string; events?: string[] } | undefined;
+  return src?.events ?? (src?.event ? [src.event] : []);
+};
+
 /** Real past events a test can be tried on: this trigger's earlier starts, newest first, each with a plain line. */
 export async function testEvents(ctx: AutoCtx, input: In): Promise<unknown> {
   const a = getAutomation(ctx, input.automationId);
   onlyAsOwner(ctx, a);
   const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
   const links = pastEvents(ctx.db, key, 8, a.id);
-  return {
-    events: links.map((l) => ({ runId: l.runId, at: l.startedAt, payload: l.payload })),
-    sample: TRIGGERS.get(key)?.sample ?? {},
-  };
+  const events: Array<{ runId: string; at: number; payload: unknown }> = [];
+  for (const l of links) {
+    const payload = await payloadAsSeen(ctx, me(ctx), l.payload);
+    if (payload !== null) events.push({ runId: l.runId, at: l.startedAt, payload });
+  }
+  return { events, sample: TRIGGERS.get(key)?.sample ?? {} };
 }
 
 /** The origin of a Run an agent started by hand (runs.ts reads it as the trigger "agent_run", which is from outside). */
@@ -362,9 +433,20 @@ export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
     });
   usable(ctx, a);
   const version = input.version === "current" ? a.version : old.version;
+  // started again for the Automation's person: the record as that person may see it now (a Run made before the trigger was cut keeps what it was given)
+  const replayPayload = await payloadAsSeen(ctx, a.runsAs ?? a.ownerId, old.payload);
+  if (replayPayload === null)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "That run cannot be repeated: its record is not there for you any more.",
+      {
+        reason: "no_event",
+      },
+    );
   const runId = await startRun(ctx, a, {
     trigger: old.trigger,
-    payload: old.payload,
+    payload: replayPayload,
     test: old.test,
     depth: old.depth,
     origin: old.origin,
@@ -581,13 +663,6 @@ export interface LoggedEvent {
   outsider?: boolean;
 }
 
-const shallowMatch = (want: unknown, have: Record<string, unknown>): boolean => {
-  if (!want || typeof want !== "object" || Array.isArray(want)) return false;
-  return Object.entries(want as Record<string, unknown>).every(
-    ([k, v]) => JSON.stringify(have[k]) === JSON.stringify(v),
-  );
-};
-
 function recordOp(type: string): "created" | "updated" | "deleted" | undefined {
   return type === "record.created"
     ? "created"
@@ -621,33 +696,83 @@ export function triggerPayload(key: string, ev: LoggedEvent): unknown {
   });
 }
 
-/** Does this trigger reference match this event? The filter narrows a record change by type, operation, changed field and values. A broken filter is reported, not guessed. */
-export function matches(ref: TriggerRef, ev: LoggedEvent): boolean | "filter_error" {
+/** One thing a trigger's filter looked at on an event, and whether the event passed it. */
+export interface MatchCheck {
+  ok: boolean;
+  /** type, op and fields are the record filter's own keys; where is one of its field values; value is one key of any other trigger's filter */
+  key: "type" | "op" | "fields" | "where" | "value";
+  field?: string;
+  want?: unknown;
+  got?: unknown;
+}
+export interface MatchResult {
+  /** the trigger listens for this kind of event at all */ listens: boolean;
+  ok: boolean;
+  /** the filter itself is broken */ error?: true;
+  /** what was looked at, in the order it was looked at; the last one is the one that stopped it when `ok` is false */
+  checks: MatchCheck[];
+}
+
+/**
+ * Why a trigger reference does or does not match an event: every part of the filter that was looked at, in order, ending at the first that did not hold. `matches` below is this, as one word, so the
+ * consumer that starts Runs and the page that says why one did not start can never disagree.
+ */
+export function explainMatch(ref: TriggerRef, ev: LoggedEvent): MatchResult {
   const def = TRIGGERS.get(ref.key);
-  if (!def) return false;
+  if (!def) return { listens: false, ok: false, checks: [] };
   const src = def.source as { event?: string; events?: string[] };
   const names = src.events ?? (src.event ? [src.event] : []);
-  if (!names.includes(ev.type)) return false;
-  if (ref.filter === undefined || ref.filter === null) return true;
-  if (typeof ref.filter !== "object" || Array.isArray(ref.filter)) return "filter_error";
+  if (!names.includes(ev.type)) return { listens: false, ok: false, checks: [] };
+  if (ref.filter === undefined || ref.filter === null) return { listens: true, ok: true, checks: [] };
+  const checks: MatchCheck[] = [];
+  const broken: MatchResult = { listens: true, ok: false, error: true, checks };
+  if (typeof ref.filter !== "object" || Array.isArray(ref.filter)) return broken;
   const f = ref.filter as Record<string, unknown>;
+  const no = (c: Omit<MatchCheck, "ok">): MatchResult => {
+    checks.push({ ...c, ok: false });
+    return { listens: true, ok: false, checks };
+  };
+  const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
   if (ref.key === "record_change") {
     const p = ev.payload as { type?: string; fields?: Record<string, unknown>; prev?: Record<string, unknown> };
-    if (f.type !== undefined && f.type !== p.type) return false;
-    if (f.op !== undefined && f.op !== recordOp(ev.type)) return false;
+    if (f.type !== undefined) {
+      if (f.type !== p.type) return no({ key: "type", want: f.type, got: p.type });
+      checks.push({ ok: true, key: "type", want: f.type });
+    }
+    if (f.op !== undefined) {
+      const op = recordOp(ev.type);
+      if (f.op !== op) return no({ key: "op", want: f.op, got: op });
+      checks.push({ ok: true, key: "op", want: f.op });
+    }
     if (f.fields !== undefined) {
-      if (!Array.isArray(f.fields)) return "filter_error";
+      if (!Array.isArray(f.fields)) return broken;
       // an update must touch one of the fields; a new record must set one; a delete has no field to look at
       const touched = Object.keys(p.fields ?? {});
-      if (ev.type !== "record.deleted" && !f.fields.some((x) => touched.includes(String(x)))) return false;
+      if (ev.type !== "record.deleted" && !f.fields.some((x) => touched.includes(String(x))))
+        return no({ key: "fields", want: f.fields, got: touched });
+      checks.push({ ok: true, key: "fields", want: f.fields, got: touched });
     }
     if (f.where !== undefined) {
-      if (f.where === null || typeof f.where !== "object" || Array.isArray(f.where)) return "filter_error";
-      if (!shallowMatch(f.where, { ...(p.prev ?? {}), ...(p.fields ?? {}) })) return false;
+      if (f.where === null || typeof f.where !== "object" || Array.isArray(f.where)) return broken;
+      const have: Record<string, unknown> = { ...(p.prev ?? {}), ...(p.fields ?? {}) };
+      for (const [k, v] of Object.entries(f.where as Record<string, unknown>)) {
+        if (!same(have[k], v)) return no({ key: "where", field: k, want: v, got: have[k] });
+        checks.push({ ok: true, key: "where", field: k, want: v });
+      }
     }
-    return true;
+    return { listens: true, ok: true, checks };
   }
-  return shallowMatch(f, ev.payload);
+  for (const [k, v] of Object.entries(f)) {
+    if (!same(ev.payload[k], v)) return no({ key: "value", field: k, want: v, got: ev.payload[k] });
+    checks.push({ ok: true, key: "value", field: k, want: v });
+  }
+  return { listens: true, ok: true, checks };
+}
+
+/** Does this trigger reference match this event? The filter narrows a record change by type, operation, changed field and values. A broken filter is reported, not guessed. */
+export function matches(ref: TriggerRef, ev: LoggedEvent): boolean | "filter_error" {
+  const r = explainMatch(ref, ev);
+  return r.error ? "filter_error" : r.listens && r.ok;
 }
 
 // A bulk import or a runaway chain must not start thousands of Runs: past BURST_LIMIT event starts of one Flow in BURST_WINDOW_MS the Flow is paused, and its owner gets a Needs you note saying so and how to go on.
@@ -686,6 +811,90 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
 }
 
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
+/**
+ * A payload kept with a Run (the trigger of a past Run, shown by `test_events`, started again by a test or a replay) as a person may see it now: the record's values are cut to what their grants allow today, and a
+ * record they may not see (any longer) is not offered at all (null). Runs made before the trigger was cut keep what they were given, so this is what keeps those old values from being shown again.
+ */
+async function payloadAsSeen(ctx: AutoCtx, person: string, payload: unknown): Promise<unknown | null> {
+  const p = payload as {
+    recordId?: unknown;
+    type?: unknown;
+    record?: unknown;
+    changed?: unknown;
+    fields?: unknown;
+  } | null;
+  if (
+    !ctx.recordFieldGate ||
+    p === null ||
+    typeof p !== "object" ||
+    typeof p.recordId !== "string" ||
+    typeof p.type !== "string"
+  )
+    return payload;
+  const got = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+  const gate = got === "later" ? null : got; // shown now: when in doubt, not offered
+  if (gate === null) return null;
+  const obj = (v: unknown): unknown =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => gate(f)))
+      : v;
+  return {
+    ...(payload as Record<string, unknown>),
+    ...("record" in p ? { record: obj(p.record) } : {}),
+    ...("changed" in p ? { changed: obj(p.changed) } : {}),
+    ...(Array.isArray(p.fields) ? { fields: p.fields.filter((f) => typeof f === "string" && gate(f)) } : {}),
+  };
+}
+
+/** The access snapshot does not know this record yet: the event is tried again by the consumer (a record is in the store a moment before its access entry is folded), never skipped as "not visible". */
+class RecordNotKnownYet extends Error {
+  constructor() {
+    super("The access to a record is not known yet; the event is tried again.");
+  }
+}
+
+/**
+ * What a record's event is to one Automation: the event as its owner may see it. An Automation runs for a person (its owner, or whom it runs as) and receives the record in its trigger; that person
+ * sees only the fields their grants let them see, so the filter, the trigger payload and every step read only those (a step could otherwise write a hidden value where the person can read it, and a filter on
+ * a hidden field would tell them its value). A record the person may not see at all starts nothing, and nothing says that it exists: a deletion too (it is judged on the kept row of the trashed record, so a
+ * person never learns of the deletion of something they could not see). A record the access snapshot does not know yet is not "not visible": the host waits a bounded while for it and then answers "later",
+ * and the event is tried again by the consumer. An Automation made by an agent or a service runs as the person it acts for (a Space Automation as its owner). The host's field rule answers
+ * (ctx.recordFieldGate); a hand-built ctx without it keeps the event whole.
+ */
+async function eventForOwner(
+  ctx: AutoCtx,
+  a: Automation,
+  ev: LoggedEvent,
+  gates: Map<string, ((field: string) => boolean) | null | "later">,
+): Promise<LoggedEvent | null> {
+  const op = recordOp(ev.type);
+  const p = ev.payload as { recordId?: unknown; type?: unknown; fields?: unknown; prev?: unknown };
+  if (op === undefined || !ctx.recordFieldGate || typeof p.recordId !== "string" || typeof p.type !== "string")
+    return ev;
+  const person = a.runsAs ?? a.ownerId;
+  const key = `${person}\u0000${p.type}\u0000${p.recordId}`;
+  let gate = gates.get(key);
+  if (gate === undefined) {
+    gate = await ctx.recordFieldGate(person, p.type, p.recordId, { deleted: op === "deleted" }).catch(() => null);
+    gates.set(key, gate);
+  }
+  if (gate === "later") throw new RecordNotKnownYet();
+  if (gate === null) return null;
+  const keep = gate;
+  const cut = (v: unknown): unknown =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => keep(f)))
+      : v;
+  return {
+    ...ev,
+    payload: {
+      ...ev.payload,
+      ...("fields" in p ? { fields: cut(p.fields) } : {}),
+      ...("prev" in p ? { prev: cut(p.prev) } : {}),
+    },
+  };
+}
+
 export async function consumeEvent(
   ctx: AutoCtx,
   ev: LoggedEvent,
@@ -693,10 +902,24 @@ export async function consumeEvent(
   const policy = readPolicy(ctx.db);
   const out: { automationId: string; result: { runId: string } | { dropped: DropReason } }[] = [];
   if (ev.imported && !policy.runOnImport) return out;
+  // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
+  if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
-  for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
+  const gates = new Map<string, ((field: string) => boolean) | null | "later">();
+  const listening = allAutomations(ctx.db, "status IN ('on', 'paused')");
+  // The event as each Automation's person may see it is worked out for ALL of them before any Run starts: it is the one step that can ask for a retry (a record the access does not know yet), and a retry
+  // must find nothing half done. A record they may not see starts nothing (and is not reported: that would say it exists).
+  const views = new Map<string, LoggedEvent | null>();
+  for (const a of listening)
+    views.set(
+      a.id,
+      a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev,
+    );
+  for (const a of listening) {
+    const seen = views.get(a.id) ?? null;
+    if (seen === null) continue;
     for (const ref of a.definition.triggers) {
-      const m = matches(ref, ev);
+      const m = matches(ref, ref.key === "record_change" ? seen : ev);
       if (m === false) continue;
       if (m === "filter_error") {
         out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
@@ -716,7 +939,7 @@ export async function consumeEvent(
       const f: Firing = {
         trigger: ref.key,
         eventId: ev.id,
-        payload: triggerPayload(ref.key, ev),
+        payload: triggerPayload(ref.key, ref.key === "record_change" ? seen : ev),
         origin: ev.origin,
         depth: ev.depth ?? 0,
         key: `fire:${a.id}:${ev.id}:${ref.key}`,

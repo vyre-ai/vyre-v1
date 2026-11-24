@@ -1,6 +1,6 @@
 # mail.draft
 
-Create or update a draft (an agent draft waits for Send, Edit or Discard with a Gate line)
+Create or update a draft (an agent's waits for a person)
 
 | | |
 |---|---|

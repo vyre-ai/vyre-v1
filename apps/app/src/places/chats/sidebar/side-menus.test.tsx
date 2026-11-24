@@ -154,6 +154,21 @@ KINDS.forEach((c, n) =>
   }),
 );
 
+test("a waiting task's menu is headed by what it asks, in the same words as its mark's tip", () => {
+  const want: Record<string, string> = {
+    Allow: "Needs your approval",
+    Review: "Needs your review",
+    Answer: "Waiting for your answer",
+    Sign: "Needs your signature",
+    Blocked: "Blocked",
+  };
+  for (const [label, words] of Object.entries(want)) {
+    const m = rowMenu(item("task", { verb: { label, tone: "accent" } }), false, ALL);
+    assert.deepEqual(m[0], { head: words }, label);
+    assert.deepEqual(labels(m), ["Open", "Open in New Tab", "Copy link"], "the items stay what they were");
+  }
+});
+
 test("every kind of row has a menu (the 8 of 16 entries that had none now do)", () => {
   const kinds: ItemKind[] = ["chat", "channel", "project", "goal", "person", "agent", "task"];
   for (const k of kinds) assert.ok(rowMenu(item(k), false, ALL).length > 0, k);
@@ -300,4 +315,11 @@ test("a head's plus menu holds the section's own makes and nothing dead", () => 
   assert.deepEqual(plusMenu("team", {}), [], "nothing built, no menu");
   assert.deepEqual(plusMenu("pinned", { unpinAll: f }), []);
   assert.equal(plusWords("team", "Agents"), "New agent");
+  assert.deepEqual(labelsOf(plusMenu("goals", { newGoal: f })), ["New goal"]);
+  assert.deepEqual(plusMenu("goals", {}), [], "no New goal built, no +");
+  assert.deepEqual(
+    (["goals", "chats", "channels", "team"] as const).map((s) => plusWords(s, s === "team" ? "Team" : "")),
+    ["New goal", "New chat", "New channel", "Add teammate"],
+    "the + says what it makes",
+  );
 });

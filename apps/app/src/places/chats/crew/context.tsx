@@ -4,6 +4,11 @@ import type { ReactElement, ReactNode } from "react";
 import { withLive } from "./model.ts";
 import type { CrewMember, CrewStatusOut } from "./model.ts";
 import { useCrewStatus } from "./status.ts";
+import { useRunData } from "./run/useRun.ts";
+import type { RunData } from "./run/useRun.ts";
+import { nameStandIns } from "./run/model.ts";
+import { ABSENT_CODE } from "./run/reads.ts";
+import type { RunNode } from "./run/model.ts";
 import type { Call } from "./status.ts";
 
 export interface CrewCtx {
@@ -21,13 +26,25 @@ export interface CrewCtx {
   /** The Crew pane (the shared side pane with its own Crew tab) is showing. */
   open: boolean;
   close(): void;
+  /** The Crew pane is on screen, however it was opened (the pane tab by hand, a press on a helper): the runtime is read while it is. */
+  reveal(on: boolean): void;
   call: Call | undefined;
   threadId: string;
+  /** The nodes of this chat's newest tree of work (the runtime's step, stuck and dependsOn per helper); empty when there is none or this person only watches. */
+  nodes: readonly RunNode[];
+  /** The runtime's reads for this chat (board, messages, nodes): one reader shared by the strips and the pane. */
+  run: RunData;
+  /** The server said this person may not start this chat's failed helpers again; nothing when it did not say (then the press is the server's to answer). */
+  mayRetry?: boolean;
 }
 
 const Ctx = createContext<CrewCtx | null>(null);
 export const useCrew = (): CrewCtx | null => useContext(Ctx);
+/** Whether the Crew pane has something to draw: the one gate, read by the pane itself and by the light wrapper that decides to load it (an open pane with helpers in it). */
+export const crewPaneShows = (crew: CrewCtx | null): crew is CrewCtx & { status: CrewStatusOut; call: Call } =>
+  crew !== null && crew.open && crew.status !== null && crew.status.members.length > 0 && crew.call !== undefined;
 
+const NO_NODES: readonly RunNode[] = [];
 const same = (a: readonly CrewMember[], b: readonly CrewMember[]): boolean =>
   a.length === b.length && a.every((x, i) => JSON.stringify(x) === JSON.stringify(b[i]));
 
@@ -35,11 +52,14 @@ export function CrewProvider({
   call,
   threadId,
   onShow,
+  shown = true,
   children,
 }: {
   call: Call | undefined;
   threadId: string;
   onShow?: () => void;
+  /** False while the place is kept mounted but not on screen (or the window is hidden): the runtime is not read then, and is read at once when it shows again. */
+  shown?: boolean;
   children: ReactNode;
 }): ReactElement {
   const [signal, setSignal] = useState(0);
@@ -52,6 +72,32 @@ export function CrewProvider({
   const [selected, setSelected] = useState<string | null>(null);
   const [seq, setSeq] = useState(0);
   const [open, setOpen] = useState(false);
+  // the runtime's view of the same helpers, read once for the chat and shared by every strip and the pane (a server without it gives nothing). Only a chat that has helpers, or whose pane is open, asks:
+  // a chat that never had one costs no request, and a chat with no tree of work is asked about rarely
+  const absent = useMemo<Call>(
+    () => async () =>
+      Promise.reject(Object.assign(new Error("This server cannot do that yet."), { code: ABSENT_CODE })),
+    [],
+  );
+  const run = useRunData(call ?? absent, threadId, {
+    enabled: shown && call !== undefined && ((status?.members.length ?? 0) > 0 || open),
+  });
+  // a helper that has not had its first turn is a queued stand-in with no name: it takes the name the strip shows for that chat, so "Starts when Numbers is done" says who
+  const titles = useMemo(
+    () => new Map((status?.members ?? []).map((m) => [m.id, (m.name ?? m.title).trim()] as const)),
+    [status],
+  );
+  const runNamed = useMemo(
+    () =>
+      run.status !== "ready"
+        ? run
+        : {
+            ...run,
+            nodes: nameStandIns(run.nodes, titles),
+          },
+    [run, titles],
+  );
+  const nodes = runNamed.status === "ready" ? runNamed.nodes : NO_NODES;
   const value = useMemo<CrewCtx>(
     () => ({
       status,
@@ -61,11 +107,15 @@ export function CrewProvider({
       seq,
       call,
       threadId,
+      nodes,
+      run: runNamed,
+      ...(runNamed.status === "ready" && runNamed.mayManage !== undefined ? { mayRetry: runNamed.mayManage } : {}),
       open,
       close: () => {
         setOpen(false);
         setSelected(null);
       },
+      reveal: (on) => setOpen(on),
       show: (id) => {
         setSelected(id);
         setSeq((n) => n + 1);
@@ -73,7 +123,7 @@ export function CrewProvider({
         onShow?.();
       },
     }),
-    [status, selected, seq, call, threadId, onShow, open, refresh, setLive],
+    [status, selected, seq, call, threadId, nodes, runNamed, onShow, open, refresh, setLive],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

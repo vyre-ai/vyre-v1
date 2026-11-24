@@ -253,3 +253,113 @@ test("a Start rule starts the Journey when the record is made, and the record ha
     await d.stop();
   }
 });
+
+test("after an upgrade the old Journeys move onto their subject type by themselves, nothing is lost, and the old records stay", async () => {
+  const d = await boot(seededDir());
+  try {
+    const j = await journey(d, "Legacy intake", [
+      stage("start", 0),
+      stage("review", 1),
+      stage("done", 2, { final: true }),
+    ]);
+    const a = await started(d, j.id, "Acme Legacy");
+    const b = await started(d, j.id, "Bolt Legacy");
+    const subjects = [((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { id: string }).id];
+    assert.ok(subjects.length === 1);
+    await ok(d, "/v1/journeys/move_stage", {
+      journeyId: j.id,
+      recordId: b,
+      toStage: "review",
+      reason: "Ready",
+      idempotencyKey: "legacy-move",
+    });
+    // the next minute's job
+    await d.hooks!.runPeriodic("journeys.auto_pipeline");
+    const after = (await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as {
+      mode: string;
+      recordType: string;
+      legacyType: string;
+      migrateNote?: string;
+    };
+    assert.equal(after.migrateNote, undefined);
+    assert.equal(after.mode, "pipeline");
+    assert.equal(after.recordType, "company");
+    assert.equal(after.legacyType, j.recordType);
+    // the stage lives on the company record itself now, and the old Journey records are still there with their channels
+    const counts = (await ok(d, "/v1/journeys/stage_counts", { journeyId: j.id }))["stages"] as {
+      stage: string;
+      count: number;
+    }[];
+    assert.deepEqual(
+      counts
+        .filter((c) => c.count > 0)
+        .map((c) => [c.stage, c.count])
+        .sort(),
+      [
+        ["review", 1],
+        ["start", 1],
+      ],
+    );
+    const old = (await ok(d, "/v1/records/get", { type: j.recordType, recordId: a }))["record"] as { id: string };
+    assert.equal(old.id, a, "the old record can still be opened");
+    // a second tick has nothing to do and changes nothing
+    await d.hooks!.runPeriodic("journeys.auto_pipeline");
+    assert.equal(
+      ((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode,
+      "pipeline",
+    );
+  } finally {
+    await d.stop();
+  }
+});
+
+test("the move onto the new form starts no Automation, though one listens for every change of the record's type", async () => {
+  const d = await boot(seededDir());
+  try {
+    const made = await ok(d, "/v1/automations/create", {
+      idempotencyKey: "listen-company",
+      name: "On any company change",
+      definition: {
+        triggers: [{ key: "record_change", filter: { type: "company" } }],
+        nodes: [
+          { id: "note", key: "records.create", input: { type: "note_board", fields: { title: "A company changed" } } },
+        ],
+      },
+    });
+    const autoId = String((made["automation"] as { id?: string } | undefined)?.id ?? made["automationId"]);
+    await ok(d, "/v1/automations/set_enabled", { automationId: autoId, enabled: true });
+    const runs = async (): Promise<number> =>
+      (
+        (await ok(d, "/v1/runs/list", { scope: "subject", subject: { type: "automation", id: autoId }, limit: 50 }))[
+          "runs"
+        ] as unknown[]
+      ).length;
+    const j = await journey(d, "Quiet intake", [stage("start", 0), stage("done", 1, { final: true })]);
+    await started(d, j.id, "Acme Quiet");
+    await started(d, j.id, "Bolt Quiet");
+    // a plain edit of a company is a change: the Automation runs for it (the control, so a silent Automation cannot pass this test)
+    const subjectId = await subject(d, "Control Co");
+    // every ordinary change starts one run: the two subjects of the journey and the control. On a busy box they arrive one after the other, so the baseline is taken when all of them are in, not at the first
+    // (a run still on its way would be counted as one the migration started)
+    await until("the Automation to run for each ordinary change", 8000, async () =>
+      (await runs()) >= 3 ? true : undefined,
+    );
+    const before = await runs();
+    assert.ok(before >= 3);
+    await d.hooks!.runPeriodic("journeys.auto_pipeline");
+    assert.equal(
+      ((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode,
+      "pipeline",
+    );
+    // a later ordinary change is the marker: its run is behind anything the migration had queued, so once it has run, a run the migration started would be counted too (the control is never silent, above)
+    await subject(d, "Marker Co");
+    await until("the Automation to run for the change after the migration", 8000, async () =>
+      (await runs()) > before ? true : undefined,
+    );
+    await new Promise((r) => setTimeout(r, 1500));
+    assert.equal(await runs(), before + 1, "the migration's writes started nothing (only the marker's own run is new)");
+    void subjectId;
+  } finally {
+    await d.stop();
+  }
+});

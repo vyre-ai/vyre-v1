@@ -1,6 +1,6 @@
 # chat.helper.note
 
-Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer
+Note between a helper and the agent that started it: a follow-up down, or progress, a result or a question up. Set needsPerson only when no one but the person can answer
 
 | | |
 |---|---|

@@ -7,7 +7,28 @@ import { canonical } from "../../../lib/canonical.ts";
 import type { Filter, Sort } from "../../../kernel/src/store/types.ts";
 
 type ReadSeed = CtxSeed & { readCap?: string; readInput?: unknown; labels?: Readonly<Record<string, number>> };
-const READS = new Set(["records.get", "records.query", "records.search", "records.history", "records.activity"]);
+/** The writes whose answer is the record: a member who may edit a record but not see one of its fields is not handed that field back (a write is projected as a read of the record is). */
+export const WRITES_ANSWERING_WITH_THE_RECORD: ReadonlySet<string> = new Set([
+  "records.update",
+  "records.restore_version",
+  "records.relate",
+  "records.values.review",
+  "records.merge",
+  "records.restore",
+]);
+/** Every capability whose answer is projected through the reader's grant (host/src/invoke.ts SCOPED_RECORD_READS is the same set; test/access.hidden-scrub-guard.test.ts walks the manifest against it). */
+export const SCRUBBED: ReadonlySet<string> = new Set([
+  "records.get",
+  "records.as_of",
+  "records.query",
+  "records.search",
+  "records.history",
+  "records.activity",
+  "records.view",
+  "records.update_many",
+  ...WRITES_ANSWERING_WITH_THE_RECORD,
+]);
+const READS = SCRUBBED;
 // How long a read waits, at most, for the access snapshot to learn of records it has just read (a record shows in the store a moment before its access entry is folded, and a busy Space folds slowly). The
 // waits add up to about 3 s and cost nothing when the snapshot already knows every row.
 const SETTLE_MS: readonly number[] = [0, 40, 120, 250, 500, 1000, 1000];
@@ -224,29 +245,69 @@ export function createRecordAccess(ports: {
       );
     });
   }
-  function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
+  /** The rule for which fields of a record a reader sees: not hidden by the grant, labelled, and within the label ceiling of the grant, the reader's provider and the type. Null when the reader may not see the record. */
+  function gateOf(seed: ReadSeed, row: StoredRecord): ((key: string) => boolean) | null {
     const result = decision(seed, row);
-    if (!result) throw fail("permission.no_grant", trace);
+    if (!result) return null;
     const snapshot = ports.snapshot(),
       hidden = new Set(result.scope?.hiddenFields ?? []);
     let ceiling = result.scope?.labelCeiling ?? -1;
     if (seed.provider)
       for (const policy of snapshot.policies())
         if (policy.kind === "provider_label") ceiling = Math.min(ceiling, providerMax(policy, seed.provider));
+    return (key) =>
+      !hidden.has(key) &&
+      seed.labels?.[key] !== undefined &&
+      seed.labels[key] <= ceiling &&
+      snapshot.fieldLabel(row.type, key) <= ceiling &&
+      snapshot.fieldLabel("record", key) <= ceiling;
+  }
+  function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
+    const gate = gateOf(seed, row);
+    if (!gate) throw fail("permission.no_grant", trace);
     return Object.fromEntries(
       Object.entries(original)
-        .filter(
-          ([key]) =>
-            !hidden.has(key) &&
-            seed.labels?.[key] !== undefined &&
-            seed.labels[key] <= ceiling &&
-            snapshot.fieldLabel(row.type, key) <= ceiling &&
-            snapshot.fieldLabel("record", key) <= ceiling,
-        )
+        .filter(([key]) => gate(key))
         .map(([key, value]) => [key, seeable(seed, value)]),
     );
   }
   return {
+    /**
+     * Which fields of one record a reader may see, as a test on a field name (the rule `records.get` applies, kept in one place: gateOf). Null when the reader may not see the record, or it is gone. For the readers
+     * that show what a record's events carried (the event log, a run, a notification): the values a grant hides are not in what they show.
+     */
+    async fieldGate(
+      reader: { principal: string; actingFor?: string | undefined; provider?: string | undefined },
+      type: string,
+      recordId: string,
+      trace: string,
+      /** the labels of a type's fields, kept by the caller for the length of one read (a page of events over thousands of records asks the schema once per type, not once per record) */
+      labels?: Map<string, Readonly<Record<string, number>>>,
+      o: {
+        /** the record is trashed (a deletion's event): judged on the kept row and its access entry */
+        deleted?: boolean;
+        /** wait, a bounded while, for the access snapshot to know a record the store already has (default); a reader that cannot wait passes false and gets "later" */
+        settle?: boolean;
+      } = {},
+    ): Promise<((key: string) => boolean) | null | "later"> {
+      const row = await ports.store().get(type, recordId, o.deleted === true ? { include_deleted: true } : undefined);
+      if (!row) return null;
+      // a record is in the store a moment before its access entry is folded: that is "not known yet", never "not visible". The caller decides what waiting for it means (an event shown now is cut; a trigger is retried).
+      if (o.settle === false ? !ports.fresh() || !ports.snapshot().resource(row.id) : !(await settle([row.id])))
+        return "later";
+      let known = labels?.get(type);
+      if (known === undefined) {
+        known = await recordSensitivity(ports.store(), type, trace);
+        labels?.set(type, known);
+      }
+      const seed = {
+        principal: { id: reader.principal },
+        actingFor: reader.actingFor,
+        provider: reader.provider,
+        labels: known,
+      } as unknown as ReadSeed;
+      return gateOf(seed, row);
+    },
     async collection(
       cap: string,
       input: unknown,
@@ -477,7 +538,7 @@ export function createRecordAccess(ports: {
         }
         return req;
       }
-      if (!["records.get", "records.history", "records.activity"].includes(cap)) return req;
+      if (!["records.get", "records.as_of", "records.history", "records.activity"].includes(cap)) return req;
       const value = object(input);
       if (typeof value["type"] !== "string" || typeof value["recordId"] !== "string") return req;
       const row = await ports.store().get(value["type"], value["recordId"]);
@@ -509,8 +570,41 @@ export function createRecordAccess(ports: {
           };
         };
       }
+      if (cap === "records.update_many") {
+        const items = Array.isArray(result["results"]) ? result["results"].map(object) : [];
+        const stored = await Promise.all(
+          items.map((item) => {
+            const id = object(item["record"])["id"];
+            return typeof id === "string" ? ports.store().get(type, id) : Promise.resolve(null);
+          }),
+        );
+        return async () => {
+          seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
+          return {
+            ...result,
+            results: items.map((item, index) => {
+              if (item["record"] === undefined) return item;
+              const row = stored[index];
+              const record = object(item["record"]);
+              // a record the caller can no longer see, or one the store does not have, comes back with no fields at all
+              const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
+              return { ...item, record: { ...record, fields: visible } };
+            }),
+          };
+        };
+      }
+      if (WRITES_ANSWERING_WITH_THE_RECORD.has(cap)) {
+        const record = object(result["record"]);
+        const id = record["id"] ?? value["recordId"];
+        const row = typeof id === "string" ? await ports.store().get(type, id) : null;
+        return async () => {
+          seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
+          const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
+          return { ...result, record: { ...record, fields: visible } };
+        };
+      }
       const originals =
-        cap === "records.get"
+        cap === "records.get" || cap === "records.as_of"
           ? [object(result["record"])]
           : Array.isArray(result["rows"])
             ? result["rows"].map(object)
@@ -593,7 +687,7 @@ export function createRecordAccess(ports: {
               .slice(0, 20),
           });
         }
-        if (cap === "records.get") {
+        if (cap === "records.get" || cap === "records.as_of") {
           if (!rows[0]) throw fail("permission.no_grant", trace);
           return { ...result, record: rows[0] };
         }

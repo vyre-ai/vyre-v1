@@ -88,6 +88,7 @@ export const handlers: Record<string, Handler> = {
   "vault.policy.get": (ctx) => g.policyGet(ctx),
   "vault.policy.set": (ctx, i) => g.policySet(ctx, i),
   "vault.items.match": (ctx, i) => g.itemsMatch(ctx, i),
+  "vault.login.check": (ctx, i) => g.loginCheck(ctx, i),
   "vault.site_rules.list": (ctx) => g.siteRulesList(ctx),
   "vault.site_rules.set": (ctx, i) => g.siteRulesSet(ctx, i),
   "vault.items.export_mine": (ctx, i) => g.exportMine(ctx, i),

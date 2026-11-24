@@ -29,6 +29,7 @@ type In = {
   recordId: string;
   patch: Record<string, unknown>;
   baseVersion?: number;
+  quiet?: boolean;
 };
 ```
 
@@ -70,6 +71,7 @@ type Out = {
   "input": {
     "baseVersion": 1,
     "patch": {},
+    "quiet": true,
     "recordId": "rec_a1b2c3",
     "type": "contact"
   },

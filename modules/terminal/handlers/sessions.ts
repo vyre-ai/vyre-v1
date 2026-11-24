@@ -4,6 +4,7 @@
 //   run                                                            the terminal_run tool: one command, run in a session, output scrubbed of every Vault value filled into it
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
+import { DEFAULT_TAIL, keepCmdLog, listCmdLogs, readCmdLog } from "../cmdlog.ts";
 import { randomHex } from "../../../kernel/src/log/hash.ts";
 import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
@@ -1211,7 +1212,10 @@ export async function giveBack(ctx: TermCtx, input: { terminalId: string }) {
   await needOwnPlace(ctx, x);
   const h = holderOf(ctx.db, x.terminalId, ctx.now());
   if (h === null) return { terminal: terminalRow(x) };
-  const me = ctx.principal.kind === "agent" ? undefined : actorOf(ctx);
+  // a person has the keyboard and keeps it until they hand it back: an agent never does it for them, not even one acting for the holder
+  if (ctx.principal.kind === "agent")
+    raise(ctx, "permission.role_lacks_permission", KEYBOARD_HELD, { reason: "keyboard_held" });
+  const me = actorOf(ctx);
   if (h !== me && !mayTakeFromOther(ctx, x))
     raise(
       ctx,
@@ -1950,6 +1954,8 @@ export async function run(ctx: TermCtx, a: RunInput) {
   // The command is recorded when the machine is actually asked to run it: a command refused before that (a handle the person may not use) is not a step.
   let started: { at: number; rowId: number } | null = null;
   let result: { exitCode: number | null; truncated: boolean; durationMs: number } | null = null;
+  // the whole output the host read past what the answer holds (the pane's history, when the host read it): kept for later reads, after the same scrubbing as the answer
+  let fullText: string | undefined;
   let timedOut = false;
   let waitedOut = false;
   // only an agent's command, from its turn, is marked: a command a person runs or types is never interrupted by an agent's Stop. The mark is made before the command waits for its tab, so a
@@ -2017,6 +2023,7 @@ export async function run(ctx: TermCtx, a: RunInput) {
         ...(mark ? { signal: mark.ac.signal } : {}),
       });
       result = { exitCode: r.exitCode, truncated: r.truncated, durationMs: r.durationMs };
+      fullText = r.full;
       return r.output;
     } catch (e) {
       if (e && typeof e === "object" && (e as { code?: unknown }).code === "timeout") timedOut = true;
@@ -2130,7 +2137,106 @@ export async function run(ctx: TermCtx, a: RunInput) {
     if (notes.length > 0)
       output = `${output}${output === "" || output.endsWith("\n") ? "" : "\n"}[Tell the person, once, in one plain line: ${notes.join(" ")}]`;
   }
-  return { terminalId: s.terminalId, exitCode: r.exitCode, output, truncated: r.truncated, durationMs: r.durationMs };
+  // the output is kept for later reads (tail, grep, a range): the text this call answers, already scrubbed, for this command alone (cmdlog.ts); a failure to keep it never fails the command
+  if (begun !== null && s.agentId !== undefined) {
+    try {
+      await keepCmdLog(ctx.db, {
+        seq: begun.rowId,
+        terminalId: s.terminalId,
+        agentId: s.agentId,
+        personId: owner,
+        endedAt: ctx.now(),
+        // the whole output when the host read it, else what the answer holds; either way scrubbed here, and again on every read
+        output: fullText !== undefined ? clean(scope, fullText) : output,
+      });
+    } catch (e) {
+      ctx.log.warn("terminal: a command's output was not kept", {
+        reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+      });
+    }
+  }
+  return {
+    terminalId: s.terminalId,
+    exitCode: r.exitCode,
+    output,
+    commandId: begun?.rowId,
+    truncated: r.truncated,
+    durationMs: r.durationMs,
+  };
+}
+
+/** The commands of a terminal, newest first, and whether the output of each is still kept (terminal.log.list). Whoever may read the terminal may ask. */
+export async function logList(ctx: TermCtx, input: { terminalId: string; limit?: number }) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, kept(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
+  return {
+    commands: listCmdLogs(ctx.db, input.terminalId, input.limit ?? 20, ctx.now()).map((c) => ({
+      commandId: c.seq,
+      command: clean(scopeOf(x), c.command).slice(0, 300),
+      exitCode: c.exitCode,
+      startedAt: c.startedAt,
+      ...(c.durationMs === null ? {} : { durationMs: c.durationMs }),
+      kept: c.kept,
+      bytes: c.bytes,
+      ...(c.cutBytes > 0 ? { cutBytes: c.cutBytes } : {}),
+    })),
+  };
+}
+
+/**
+ * Part of one command's kept output (terminal.log.read): the last lines, the lines that contain words, or a range; never the whole. The same access as reading the terminal; the text is scrubbed again on the
+ * way out. A command whose output is not kept (never, expired, erased) is said so in words.
+ */
+export async function logRead(
+  ctx: TermCtx,
+  input: {
+    terminalId: string;
+    commandId: number;
+    tail?: number;
+    match?: string[];
+    context?: number;
+    from?: number;
+    to?: number;
+  },
+) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, kept(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
+  const scope = scopeOf(x);
+  const a = readCmdLog(
+    ctx.db,
+    input.terminalId,
+    input.commandId,
+    {
+      ...(input.tail === undefined ? {} : { tail: input.tail }),
+      ...(input.match === undefined ? {} : { match: input.match }),
+      ...(input.context === undefined ? {} : { context: input.context }),
+      ...(input.from === undefined ? {} : { from: input.from }),
+      ...(input.to === undefined ? {} : { to: input.to }),
+    },
+    (text) => clean(scope, text),
+    ctx.now(),
+  );
+  if (a === null)
+    return raise(
+      ctx,
+      "validation.not_found",
+      "The output of that command is not kept (it is older than a week, was erased, or never printed).",
+      {
+        commandId: input.commandId,
+      },
+    );
+  return a;
+}
+
+/** A terminal for the log's reads: open or closed (a closed tab's commands stay readable for their week), never one that does not exist. */
+function kept(ctx: TermCtx, id: string): SessionRow {
+  const x = sessionBy(ctx.db, id);
+  if (!x) raise(ctx, "validation.not_found", "There is no such terminal.", { terminalId: id });
+  return fresh(ctx, x);
 }
 
 // ---- rules and health ---------------------------------------------------------------------------------------------------------------------------------------

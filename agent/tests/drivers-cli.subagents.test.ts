@@ -15,18 +15,23 @@ const asst = (parent: string | null, content: unknown[], usage = { input_tokens:
   message: { id: `m${Math.random()}`, model: "claude-x", content, usage },
 });
 
-test("a subagent's words and usage are not the agent's; its tool calls are told with the call that started it", () => {
+test("a subagent's words and usage are not the agent's: they are told on their own, with the call that started it, and its tool calls are told as before", () => {
   const out = feed([
     asst(null, [{ type: "tool_use", id: "toolu_a", name: "Agent", input: { description: "Test the terminal" } }]),
-    asst(
-      "toolu_a",
-      [
-        { type: "text", text: "chatter nobody reads" },
-        { type: "thinking", thinking: "private thoughts" },
-        { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "echo hi" } },
-      ],
-      { input_tokens: 99_000, output_tokens: 1 },
-    ),
+    {
+      type: "assistant",
+      parent_tool_use_id: "toolu_a",
+      message: {
+        id: "sub_m1",
+        model: "claude-x",
+        content: [
+          { type: "text", text: "Pine is 3,820" },
+          { type: "thinking", thinking: "private thoughts" },
+          { type: "tool_use", id: "tu_1", name: "Bash", input: { command: "echo hi" } },
+        ],
+        usage: { input_tokens: 99_000, output_tokens: 1, cache_read_input_tokens: 90_000 },
+      },
+    },
     {
       type: "user",
       parent_tool_use_id: "toolu_a",
@@ -37,9 +42,64 @@ test("a subagent's words and usage are not the agent's; its tool calls are told 
   assert.deepEqual(out, [
     { type: "tool", phase: "call", id: "toolu_a", name: "Agent" },
     { type: "tool", phase: "input", id: "toolu_a", detail: "Test the terminal" },
+    {
+      type: "tool",
+      phase: "usage",
+      id: "sub_m1",
+      parent: "toolu_a",
+      inputTokens: 189_000,
+      outputTokens: 1,
+      cacheReadTokens: 90_000,
+      model: "claude-x",
+    },
+    { type: "tool", phase: "said", id: "sub_m1", parent: "toolu_a", text: "Pine is 3,820" },
     { type: "tool", phase: "call", id: "tu_1", name: "Bash", parent: "toolu_a" },
     { type: "tool", phase: "result", id: "tu_1", ok: true, parent: "toolu_a" },
   ]);
+  assert.equal(JSON.stringify(out).includes("private thoughts"), false, "its thinking is never kept");
+});
+
+test("a subagent's message that arrives again (the stream repeats a message as it grows) is told once, and a nested subagent names the one that started it", () => {
+  const msg = (id: string, parent: string, text: string) => ({
+    type: "assistant",
+    parent_tool_use_id: parent,
+    message: {
+      id,
+      model: "claude-x",
+      content: [{ type: "text", text }],
+      usage: { input_tokens: 10, output_tokens: 3 },
+    },
+  });
+  const out = feed([
+    asst(null, [{ type: "tool_use", id: "toolu_a", name: "Agent", input: { description: "outer" } }]),
+    asst("toolu_a", [{ type: "tool_use", id: "toolu_b", name: "Task", input: { description: "inner" } }]),
+    msg("m1", "toolu_a", "outer says"),
+    msg("m1", "toolu_a", "outer says"),
+    msg("m2", "toolu_b", "inner says"),
+  ]);
+  const said = out.filter((e) => e.type === "tool" && e.phase === "said") as Array<{
+    id: string;
+    parent: string;
+    text: string;
+  }>;
+  assert.deepEqual(
+    said.map((e) => [e.parent, e.text]),
+    [
+      ["toolu_a", "outer says"],
+      ["toolu_b", "inner says"],
+    ],
+  );
+  const used = out.filter((e) => e.type === "tool" && e.phase === "usage") as Array<{ id: string }>;
+  assert.deepEqual(
+    used.filter((e) => e.id === "m1").length,
+    1,
+    "one message, one record of its use, however often the stream repeats it",
+  );
+  assert.equal(new Set(used.map((e) => e.id)).size, used.length);
+  assert.deepEqual(
+    out.find((e) => e.type === "tool" && e.phase === "call" && e.id === "toolu_b"),
+    { type: "tool", phase: "call", id: "toolu_b", name: "Task", parent: "toolu_a" },
+  );
 });
 
 test("the Agent call's result carries what the subagent returned, redacted and cut; other results do not", () => {

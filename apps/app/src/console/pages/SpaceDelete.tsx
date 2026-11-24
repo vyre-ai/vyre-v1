@@ -9,6 +9,7 @@ import { Group, Lead, Section } from "../shell/ui.tsx";
 import { Glyph } from "../shell/glyphs.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, TextBox, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 /** The name a person types to delete the Space: its legal name when it has one. */
 export const deleteName = (space: { name: string; legalName?: string }): string =>
@@ -69,23 +70,19 @@ function Transfer({ onDone }: { onDone: () => void }): ReactElement {
       </Group>
       {to ? (
         <>
-          <Note>Make {data.name(to)} the Owner? You become an Admin and cannot undo this yourself.</Note>
-          <Actions>
-            <Button label="Cancel" testID="transfer-cancel" onPress={() => setTo("")} />
-            <Button
-              label="Make Owner"
-              testID="transfer-confirm"
-              danger
-              disabled={action.busy}
-              onPress={() =>
-                void action
-                  .run("spaces.transfer_ownership", { to }, `${data.name(to)} is the Owner now.`)
-                  .then((out) => {
-                    if (out) setTo("");
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={<>Make {data.name(to)} the Owner? You become an Admin and cannot undo this yourself.</>}
+            confirmLabel="Make Owner"
+            disabled={action.busy}
+            confirmTestID="transfer-confirm"
+            cancelTestID="transfer-cancel"
+            onConfirm={() =>
+              action.run("spaces.transfer_ownership", { to }, `${data.name(to)} is the Owner now.`).then((out) => {
+                if (out) setTo("");
+              })
+            }
+            onCancel={() => setTo("")}
+          />
         </>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
@@ -235,40 +232,39 @@ function Delete({ space, onDone }: { space: CapMap["spaces.get"]["out"]["space"]
               />
             )}
           </Group>
-          <TextBox label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
-          <Note>
-            Deletion happens after 14 days and you can cancel until then. Everyone keeps working until the date.
-          </Note>
-          <Actions>
-            <Button label="Cancel" testID="delete-cancel" onPress={() => setOpen(false)} />
-            <Button
-              label="Delete the Space"
-              testID="delete-confirm"
-              danger
-              disabled={!ready || action.busy}
-              why={
-                !exported && !skip
-                  ? "Take an export first, or choose to delete without one"
-                  : typed.trim() !== name
-                    ? "Type the Space's name exactly"
-                    : undefined
-              }
-              onPress={() =>
-                void action
-                  .run(
-                    "spaces.delete",
-                    { confirmName: typed.trim(), ...(!exported && skip ? { withoutExport: true } : {}) },
-                    "Scheduled. Everything is removed in 14 days unless you cancel.",
-                  )
-                  .then((out) => {
-                    if (out) {
-                      setOpen(false);
-                      onDone();
-                    }
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>Deletion happens after 14 days and you can cancel until then. Everyone keeps working until the date.</>
+            }
+            confirmLabel="Delete the Space"
+            disabled={!ready || action.busy}
+            why={
+              !exported && !skip
+                ? "Take an export first, or choose to delete without one"
+                : typed.trim() !== name
+                  ? "Type the Space's name exactly"
+                  : undefined
+            }
+            confirmTestID="delete-confirm"
+            cancelTestID="delete-cancel"
+            onConfirm={() =>
+              action
+                .run(
+                  "spaces.delete",
+                  { confirmName: typed.trim(), ...(!exported && skip ? { withoutExport: true } : {}) },
+                  "Scheduled. Everything is removed in 14 days unless you cancel.",
+                )
+                .then((out) => {
+                  if (out) {
+                    setOpen(false);
+                    onDone();
+                  }
+                })
+            }
+            onCancel={() => setOpen(false)}
+          >
+            <TextBox label={`Type ${name} to confirm`} testID="delete-name" value={typed} onChange={setTyped} />
+          </InlineConfirm>
         </View>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}
@@ -291,17 +287,15 @@ function Leave(): ReactElement {
       </Group>
       {open ? (
         <>
-          <Note>Leave this Space? Your local copy is wiped and your access ends.</Note>
-          <Actions>
-            <Button label="Cancel" testID="leave-cancel" onPress={() => setOpen(false)} />
-            <Button
-              label="Leave"
-              testID="leave-confirm"
-              danger
-              disabled={action.busy}
-              onPress={() => void action.run("spaces.leave", { confirm: true }, "You left the Space.")}
-            />
-          </Actions>
+          <InlineConfirm
+            question={<>Leave this Space? Your local copy is wiped and your access ends.</>}
+            confirmLabel="Leave"
+            disabled={action.busy}
+            confirmTestID="leave-confirm"
+            cancelTestID="leave-cancel"
+            onConfirm={() => action.run("spaces.leave", { confirm: true }, "You left the Space.")}
+            onCancel={() => setOpen(false)}
+          />
         </>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

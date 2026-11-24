@@ -12,7 +12,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INSTALL = path.join(HERE, "install.sh");
 const SERVER = path.join(HERE, "vyre-server");
 const read = (f: string): string => fs.readFileSync(f, "utf8");
-const tmp = (): string => fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-"));
+// the real path: on a Mac os.tmpdir() is /var/folders/..., a link to /private/var/folders/..., and the script judges a folder by its real path, so a mount table written with the link never matched (round4 test 19 failed there and only there)
+const tmp = (): string => fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "vyre-install-test-")));
 
 // These tests model a Linux server whose Docker runs on its own kernel. vyre-server decides that by the boot id read here and inside Docker; the model gives both sides
 // the same one (VYRE_TEST_ENGINE for Docker's answers, VYRE_TEST_BOOT_ID_FILE for this computer's, test mode only), so the tests do not depend on this computer's /proc:

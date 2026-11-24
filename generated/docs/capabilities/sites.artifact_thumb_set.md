@@ -1,6 +1,6 @@
 # sites.artifact_thumb_set
 
-Keep a small picture of an artifact, taken when someone opened it (the Vyre for Chrome extension sends it). It is set only when there is none yet or the artifact changed since the last one
+Keep an artifact's small picture (from the Vyre for Chrome extension) only if none or changed
 
 | | |
 |---|---|

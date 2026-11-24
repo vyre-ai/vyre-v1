@@ -26,8 +26,8 @@ HTTP 500. Retryable: yes.
 - access.exceptions.list
 - access.exceptions.remove
 - access.exceptions.set
+- access.folder_narrow
 - access.grants.list
 - access.grants.update
 - access.groups.add_member
 - access.groups.create
-- access.groups.defaults_get

@@ -1,6 +1,6 @@
 # inbox.threads
 
-One contact's email threads, each whole: every thread they are on (From, To or Cc), newest first, with everyone's messages, quoted history and signatures apart, reactions, what is new and your role
+A contact's email threads, newest first, each whole, with what is new and your role
 
 | | |
 |---|---|

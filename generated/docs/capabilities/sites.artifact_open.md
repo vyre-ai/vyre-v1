@@ -1,6 +1,6 @@
 # sites.artifact_open
 
-A short-lived address that opens an artifact for the person asking, in a tab or the browser
+A short-lived address that opens an artifact for the asker
 
 | | |
 |---|---|

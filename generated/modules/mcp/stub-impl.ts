@@ -4,9 +4,9 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
-  "mcp.activity.list": async () => ({"next":"example","rows":[{"at":1760000000000,"cap":"example","id":"mca_a1b2c3","outcome":"ok","taskId":"tsk_a1b2c3","threadId":"thr_a1b2c3","tool":"records_query"}],"total":1} as unknown) as never,
+  "mcp.activity.list": async () => ({"next":"example","rows":[{"at":1760000000000,"cap":"example","did":"example","id":"mca_a1b2c3","outcome":"ok","taskId":"tsk_a1b2c3","threadId":"thr_a1b2c3","tool":"records_query"}],"total":1} as unknown) as never,
   "mcp.connected.link": async () => ({"claudeCode":"claude mcp add --transport http vyre https://northwind.vyre.run/mcp","url":"https://northwind.vyre.run/mcp"} as unknown) as never,
-  "mcp.connected.list": async () => ({"agents":[{"agentId":"agt_a1b2c3","calls":1,"clientName":"example","connectedAt":1760000000000,"lastSeenAt":1760000000000,"person":"example","redirectHost":"example","setup":true}]} as unknown) as never,
+  "mcp.connected.list": async () => ({"agents":[{"agentId":"agt_a1b2c3","calls":1,"clientName":"example","connectedAt":1760000000000,"lastDid":"example","lastSeenAt":1760000000000,"person":"example","redirectHost":"example","setup":true}]} as unknown) as never,
   "mcp.connected.remove": async () => ({"removed":true} as unknown) as never,
   "mcp.health": async () => ({"detail":"example","latencyMs":1,"registryHash":"example","sessions":1,"state":"healthy"} as unknown) as never,
   "mcp.oauth.allow": async () => ({"agentId":"agt_a1b2c3","name":"example","setup":true} as unknown) as never,

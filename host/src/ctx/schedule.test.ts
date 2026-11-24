@@ -318,3 +318,49 @@ test("ctx.schedule `as`: only the server's own jobs may schedule as a person, th
   assert.deepEqual(ran[0]!.principal, { kind: "person", id: "usr_dana" });
   assert.equal(ran[0]!.actingFor, undefined);
 });
+
+test("system: the mail module's own follow-up runs as the host service, never as the person who made the call; no other module or capability may ask", async () => {
+  const r = rig();
+  const agent: ScheduleSeed = { ...seed, principal: { kind: "agent", id: "agt_scout" }, actingFor: "usr_dana" };
+  await r.q.forCtx(agent, "mail")("+1m", "mail.delivery.retry", { n: 1 }, { system: true });
+  assert.equal(r.q.forCtx(seed, "mail") !== undefined, true);
+  r.clock.t += 61_000;
+  await r.q.tick();
+  assert.deepEqual(
+    r.ran.map((c) => [c.cap, c.principal.kind, c.principal.id, c.actingFor]),
+    [["mail.delivery.retry", "service", "svc_host", undefined]],
+  );
+  // another module, a capability of another module, and a call from no module are refused
+  await assert.rejects(
+    r.q.forCtx(seed, "tasks")("+1m", "tasks.escalate", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
+  await assert.rejects(
+    r.q.forCtx(seed, "mail")("+1m", "gate.expire", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
+  await assert.rejects(
+    r.q.forCtx(seed)("+1m", "mail.delivery.retry", {}, { system: true }),
+    bad("permission.no_grant"),
+  );
+  // an ordinary schedule still runs as the person
+  await r.q.forCtx(seed, "mail")("+1m", "mail.sync_now", {});
+  r.clock.t += 61_000;
+  await r.q.tick();
+  assert.deepEqual(r.ran.at(-1)!.principal, { kind: "person", id: "usr_dana" });
+});
+
+test("jobs due at the same millisecond run in the order they were scheduled (a first pull of a type others relate to goes first)", async () => {
+  const r = rig();
+  const put = r.q.forCtx(seed);
+  const order: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await put(T0, "connectors.sync_run", { n: i });
+    order.push(String(i));
+  }
+  assert.equal(await r.q.tick(), 40);
+  assert.deepEqual(
+    r.ran.map((c) => String((c.input as { n: number }).n)),
+    order,
+  );
+});

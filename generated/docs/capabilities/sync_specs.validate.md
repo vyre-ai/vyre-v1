@@ -11,7 +11,7 @@ Check a SyncSpec against a real sampled page of the app (read-only GET with the 
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -66,6 +66,7 @@ type In = {
           };
           checkEveryMinutes?: number;
           sweepEveryDays?: number;
+          eachOf?: unknown;
         };
         get?: {
           path: string;
@@ -94,6 +95,7 @@ type In = {
         id: string;
         updatedAt?: string;
         itemsAt: string;
+        rows?: unknown;
         openUrl?: string;
         fields: Array<{
             path: string;
@@ -108,10 +110,7 @@ type In = {
             inverseTitle?: string;
             readOnly?: boolean;
             key?: string;
-            onlyWhen?: {
-              path: string;
-              equals: string | Array<string>;
-            };
+            onlyWhen?: unknown;
           }>;
         webhook?: {
           events: Array<string>;
@@ -253,10 +252,7 @@ type Out = {
               "inverseTitle": "example",
               "key": "email",
               "label": "example",
-              "onlyWhen": {
-                "equals": "example",
-                "path": "example"
-              },
+              "onlyWhen": {},
               "path": "example",
               "readOnly": true,
               "relationTo": "example",
@@ -279,6 +275,7 @@ type Out = {
               "sizeParam": "example",
               "start": 1
             },
+            "eachOf": {},
             "filter": {
               "param": "example",
               "value": "example"
@@ -293,6 +290,7 @@ type Out = {
           },
           "openUrl": "example",
           "remote": "example",
+          "rows": {},
           "update": {
             "bodyAt": "example",
             "evidence": "example",

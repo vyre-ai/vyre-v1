@@ -3,6 +3,7 @@
 // @reads /modules/computers/migrations/0003_claims.sql
 // @reads /modules/computers/migrations/0004_migration.sql
 // @reads /modules/computers/migrations/0005_browser_hold.sql
+// @reads /modules/computers/migrations/0006_browser_pause.sql
 // Durable rows of the computers module (agent computers, recordings, tickets, timeline steps, signed-in sessions), the port to the machine that runs the containers, and the helpers
 // every computers handler shares. Every statement names a computers_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -23,6 +24,8 @@ export interface CompCtx {
   actingFor?: string | undefined;
   run?: string | undefined;
   thread?: string | undefined;
+  /** why the engine started the turn this call is made in, and the message that started it (set only by the engine's own record) */
+  turn?: { kind: string; messageId?: string; authorKind?: string; authorId?: string } | undefined;
   trace: { traceId: string };
   now(): number;
   db: Db;
@@ -32,7 +35,11 @@ export interface CompCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold" };
-  log: { warn(msg: string, attrs?: Record<string, unknown>): void };
+  log: {
+    debug(msg: string, attrs?: Record<string, unknown>): void;
+    info(msg: string, attrs?: Record<string, unknown>): void;
+    warn(msg: string, attrs?: Record<string, unknown>): void;
+  };
 }
 
 export function raise(
@@ -234,6 +241,7 @@ const SCHEMA = statements(["0001_init.sql", "0002_nodes.sql"]);
 const CLAIMS = statements(["0003_claims.sql"]);
 const MIGRATION = statements(["0004_migration.sql"]);
 const HOLD = statements(["0005_browser_hold.sql"]);
+const PAUSE = statements(["0006_browser_pause.sql"]);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -257,6 +265,11 @@ export function ensure(db: Db): void {
     db.all("SELECT profile_id FROM computers_browser_gone WHERE profile_id = ?", "probe");
   } catch {
     for (const stmt of HOLD) db.run(stmt);
+  }
+  try {
+    db.all("SELECT profile_id FROM computers_browser_pause WHERE profile_id = ?", "probe");
+  } catch {
+    for (const stmt of PAUSE) db.run(stmt);
   }
   ready.add(db);
 }
@@ -630,6 +643,18 @@ export function rememberSecrets(computerId: string, secrets: readonly Secret[], 
     h.push(...keep.map((x) => x.value));
     handedOut.set(computerId, h);
   }
+}
+/** Does this text hold a value the Vault handed to any agent computer (a key, a password) as written or URL-decoded? For a reader that sends text outward: a path or query must never carry one. Values under 8 characters (a PIN) are not matched, since they would refuse ordinary addresses; other encodings (base64, hex, split values) are not matched either: this is a net, not a guarantee. */
+export function holdsHandedOutSecret(text: string): boolean {
+  let decoded = text;
+  try {
+    decoded = decodeURIComponent(text);
+  } catch {
+    /* read it as written */
+  }
+  for (const list of secretsByComputer.values())
+    for (const x of list) if (x.value.length >= 8 && (text.includes(x.value) || decoded.includes(x.value))) return true;
+  return false;
 }
 export function forgetSecrets(computerId: string): void {
   secretsByComputer.delete(computerId);

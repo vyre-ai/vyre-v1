@@ -70,6 +70,7 @@ test("it says whether the caller already has the service connected, and whose co
   await k.hs["connections.test"](k.ctx, { connectionId: made.connection.connectionId });
   const r = await k.hs["connectors.for_service"](k.ctx, { service: "fathom" });
   assert.deepEqual(r.connection, { connectionId: made.connection.connectionId, owner: "mine", state: "active" });
+  assert.equal(typeof r.connector?.revision, "string", "the card is told the revision it shows");
   const other = await k.hs["connectors.for_service"](k.mk("usr_other"), { service: "fathom" });
   assert.equal(other.connection, undefined, "someone else's own connection is not theirs");
 });
@@ -340,6 +341,12 @@ test("B: a connection made before the host record existed (a data folder shaped 
   // rc.28 had no host table rows: drop this connection's, as a data folder from before would have it
   k.tx.run("DELETE FROM cn_connection_hosts WHERE connection_id = ?", id);
   assert.equal(k.tx.all("SELECT * FROM cn_connection_hosts WHERE connection_id = ?", id).length, 0);
+  k.tx.run("DELETE FROM cn_host_backfill"); // a server that never ran the pass: the table is new to it
+  // the version that was live when the connection was made
+  k.tx.run(
+    "INSERT INTO cn_versions (key, version, def, at, by, note, tests) VALUES ('fathom', '1.0.0', ?, 0, 'x', '', '[]')",
+    JSON.stringify(FATHOM),
+  );
   backfillHosts(k.tx);
   backfillHosts(k.tx); // idempotent
   assert.deepEqual(
@@ -448,6 +455,218 @@ test("B: a connector that gains a host does not send the key there on its own: t
   // a connector that lost a host: the old host is simply not called; nothing is refused for it
   k.install(linkApp({ domains: ["api.fathom.test"], actions: [{ name: "list", url: "https://api.fathom.test/p" }] }));
   await k.hs["connectors.run"](k.ctx, { key: "wide2", action: "list", connectionId: id, input: {} } as never);
+});
+
+const msg = (e: unknown): string => JSON.stringify(e);
+test("the revision the card pins is the server's: a republish that keeps the same version text still changes it, and connections.create refuses a stale pin", async () => {
+  const k = kit();
+  k.vault["#PinKey"] = "pin-key-value-1";
+  const def = (path: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "pinapp",
+      domains: ["api.pin.test"],
+      auth: { type: "bearer", secret: "Pin_Key" },
+      secrets: [{ name: "Pin_Key", description: "k" }],
+      actions: [{ name: "ping", url: `https://api.pin.test/${path}` }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "pinapp", title: "Pin", mode: "api", source: false } as never);
+  await def("a");
+  await k.hs["connectors.publish"](k.ctx, { key: "pinapp" });
+  const shown = (await k.hs["connectors.for_service"](k.ctx, { service: "pinapp" })).connector!;
+  const pin = [shown.revision, ...shown.hosts];
+  await def("b");
+  await k.hs["connectors.publish"](k.ctx, { key: "pinapp" });
+  // the author's version text is put back to what the card saw: the server's revision does not depend on it
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'pinapp' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  const live = JSON.parse(k.tx.get<{ def: string }>("SELECT def FROM cn_connectors WHERE key = 'pinapp'")!.def) as {
+    version: string;
+  };
+  k.tx.run(
+    "UPDATE cn_connectors SET version = ?, def = ? WHERE key = 'pinapp'",
+    first,
+    JSON.stringify({ ...live, version: first }),
+  );
+  const after = (await k.hs["connectors.for_service"](k.ctx, { service: "pinapp" })).connector!;
+  assert.notEqual(after.revision, shown.revision, "a republish changes the revision");
+  await assert.rejects(
+    k.hs["connections.create"](k.ctx, {
+      connector: "pinapp",
+      title: "P",
+      ownerKind: "space",
+      secrets: { Pin_Key: "#PinKey" },
+      pin,
+    } as never),
+    (e) => /validation\.precondition_failed/.test(msg(e)) && /changed since you looked/.test(msg(e)),
+  );
+  const fresh = await k.hs["connections.create"](k.ctx, {
+    connector: "pinapp",
+    title: "P",
+    ownerKind: "space",
+    secrets: { Pin_Key: "#PinKey" },
+    pin: [after.revision, ...after.hosts],
+  } as never);
+  assert.ok(fresh.connection.connectionId);
+});
+
+test("a roll back changes the revision, so a card shown before it is refused (the secret slots can change under the same hosts)", async () => {
+  const k = kit();
+  k.vault["#RbKey"] = "rb-key-value-1";
+  const def = (secret: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "rbapp",
+      domains: ["api.rb.test"],
+      auth: { type: "bearer", secret },
+      secrets: [{ name: secret, description: "k" }],
+      actions: [{ name: "ping", url: "https://api.rb.test/ping" }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "rbapp", title: "Rb", mode: "api", source: false } as never);
+  await def("Old_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "rbapp" });
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'rbapp' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  await def("New_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "rbapp" });
+  const shown = (await k.hs["connectors.for_service"](k.ctx, { service: "rbapp" })).connector!;
+  const pin = [shown.revision, ...shown.hosts];
+  await k.hs["connectors.rollback"](k.ctx, { key: "rbapp", version: first });
+  const back = (await k.hs["connectors.for_service"](k.ctx, { service: "rbapp" })).connector!;
+  assert.notEqual(back.revision, shown.revision, "a roll back changes the revision");
+  assert.deepEqual(back.hosts, shown.hosts, "the hosts alone would not have caught it");
+  await assert.rejects(
+    k.hs["connections.create"](k.ctx, {
+      connector: "rbapp",
+      title: "R",
+      ownerKind: "space",
+      secrets: { Old_Key: "#RbKey" },
+      pin,
+    } as never),
+    /changed since you looked/,
+  );
+});
+
+test("a connector that exists before the revision table gets its own revision at the upgrade, and a state change moves it", async () => {
+  const k = kit();
+  const { ensureTables } = await import("../projections.ts");
+  // rows as an old server left them: connectors and no revision rows, a sequence that never ran
+  k.tx.run("DELETE FROM cn_revisions");
+  k.tx.run("UPDATE cn_revision_seq SET n = 0");
+  const before = k.tx.all<{ key: string }>("SELECT key FROM cn_connectors");
+  assert.ok(before.length > 0, "there are connectors to upgrade");
+  // the migration runs again at the next start
+  const { readFileSync } = await import("node:fs");
+  k.tx.exec(readFileSync(new URL("../migrations/0007_revisions.sql", import.meta.url), "utf8"));
+  void ensureTables;
+  const revs = k.tx.all<{ key: string; rev: number }>("SELECT key, rev FROM cn_revisions");
+  assert.equal(revs.length, before.length, "every connector has a revision");
+  assert.equal(new Set(revs.map((r) => r.rev)).size, revs.length, "each its own");
+  assert.ok(revs.every((r) => r.rev > 0));
+  const top = Math.max(...revs.map((r) => r.rev));
+  assert.equal(
+    k.tx.get<{ n: number }>("SELECT n FROM cn_revision_seq WHERE id = 1")!.n,
+    top,
+    "the sequence is past them all",
+  );
+  // draft to live is a change to what the connector is, even when its definition text is the same
+  const key = before[0]!.key;
+  const was = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", key)!.rev;
+  k.tx.run("UPDATE cn_connectors SET state = 'draft' WHERE key = ?", key);
+  const now = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = ?", key)!.rev;
+  assert.ok(now > was, "a state change moves the revision");
+});
+
+test("an old database with the first 0006 trigger and no revision rows is upgraded at the restart: the new trigger and the seed are in place, and a roll back after that moves the revision", async () => {
+  const k = kit();
+  const { readFileSync } = await import("node:fs");
+  const def = (secret: string) =>
+    k.hs["connectors.define"](k.ctx, {
+      key: "upg",
+      domains: ["api.upg.test"],
+      auth: { type: "bearer", secret },
+      secrets: [{ name: secret, description: "k" }],
+      actions: [{ name: "ping", url: "https://api.upg.test/ping" }],
+    } as never);
+  await k.hs["connectors.init"](k.ctx, { key: "upg", title: "Upg", mode: "api", source: false } as never);
+  await def("Old_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "upg" });
+  const first = k.tx.get<{ version: string }>(
+    "SELECT version FROM cn_versions WHERE key = 'upg' ORDER BY at, rowid LIMIT 1",
+  )!.version;
+  await def("New_Key");
+  await k.hs["connectors.publish"](k.ctx, { key: "upg" });
+  // the database as the first 0006 left it: only the definition trigger, no per-connector rows, a sequence at zero
+  k.tx.exec("DROP TRIGGER IF EXISTS cn_revision_changed");
+  k.tx.exec(
+    "CREATE TRIGGER cn_revision_update AFTER UPDATE OF def ON cn_connectors WHEN OLD.def IS NOT NEW.def BEGIN UPDATE cn_revision_seq SET n = n + 1 WHERE id = 1; INSERT OR REPLACE INTO cn_revisions (key, rev) SELECT NEW.key, n FROM cn_revision_seq WHERE id = 1; END;",
+  );
+  k.tx.run("DELETE FROM cn_revisions");
+  k.tx.run("UPDATE cn_revision_seq SET n = 0");
+  // the restart runs the migration again
+  k.tx.exec(readFileSync(new URL("../migrations/0007_revisions.sql", import.meta.url), "utf8"));
+  const names = k.tx
+    .all<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'cn_connectors'")
+    .map((r) => r.name);
+  assert.ok(names.includes("cn_revision_changed"), "the new trigger is in place");
+  assert.ok(!names.includes("cn_revision_update"), "the old one is gone");
+  const seeded = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'");
+  assert.ok(seeded && seeded.rev > 0, "the connector has its seeded revision");
+  const before = (await k.hs["connectors.for_service"](k.ctx, { service: "upg" })).connector!.revision;
+  await k.hs["connectors.rollback"](k.ctx, { key: "upg", version: first });
+  const after = (await k.hs["connectors.for_service"](k.ctx, { service: "upg" })).connector!.revision;
+  assert.notEqual(after, before, "a roll back after the upgrade moves the revision");
+  // and a state change moves it too, which the old trigger would not have seen
+  assert.match(String(after), /^n\d+$/, "the revision after the roll back is a server counter");
+  k.tx.run("UPDATE cn_connectors SET state = 'draft' WHERE key = 'upg'");
+  const moved = k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'upg'")!.rev;
+  assert.ok(moved > Number(String(after).slice(1)), `a state change moves the revision (${moved} after ${after})`);
+});
+
+test("a connector deleted and made again never repeats an earlier revision, even when the clock and the definition are the same", async () => {
+  const k = kit();
+  const make = async () => {
+    await k.hs["connectors.init"](k.ctx, { key: "again", title: "Again", mode: "api", source: false } as never);
+    await k.hs["connectors.define"](k.ctx, {
+      key: "again",
+      domains: ["api.again.test"],
+      auth: { type: "bearer", secret: "A_Key" },
+      secrets: [{ name: "A_Key", description: "k" }],
+      actions: [{ name: "ping", url: "https://api.again.test/ping" }],
+    } as never);
+    await k.hs["connectors.publish"](k.ctx, { key: "again" });
+    return (await k.hs["connectors.for_service"](k.ctx, { service: "again" })).connector!.revision;
+  };
+  const seen = new Set<string>([await make()]);
+  for (let i = 0; i < 3; i++) {
+    await k.hs["connectors.remove"](k.ctx, { key: "again" } as never);
+    const r = await make();
+    assert.ok(!seen.has(r), `revision ${r} was used before`);
+    seen.add(r);
+  }
+});
+
+test("approve_hosts takes a list with a repeated address as the same list, and records each address once", async () => {
+  const k = kit();
+  k.install(linkApp({ domains: ["api.fathom.test", "api2.fathom.test"] }));
+  const id = await connect(k);
+  k.install(
+    linkApp({
+      domains: ["api.fathom.test", "api2.fathom.test"],
+      actions: [
+        { name: "list", url: "https://api.fathom.test/p" },
+        { name: "more", url: "https://api2.fathom.test/p" },
+      ],
+    }),
+  );
+  await k.hs["connections.approve_hosts"](k.ctx, {
+    connectionId: id,
+    hosts: ["api.fathom.test:443", "api2.fathom.test:443", "api.fathom.test:443", "API2.fathom.test:443"],
+  });
+  const rec = JSON.parse(
+    k.tx.get<{ hosts: string }>("SELECT hosts FROM cn_connection_hosts WHERE connection_id = ?", id)!.hosts,
+  ) as string[];
+  assert.deepEqual([...rec].sort(), ["api.fathom.test:443", "api2.fathom.test:443"]);
 });
 
 test("a built-in connector wins over an agent-published namesake; two of equal standing answer none, and the agent is told why", async () => {

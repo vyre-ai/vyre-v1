@@ -1,0 +1,1 @@
+- A finished helper's result can now be turned into a task for you with one press in the helper's pane: you confirm the title and it is made once.

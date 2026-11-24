@@ -11,7 +11,7 @@ Make a signed or one-use form link for one record that asks only for the missing
 | Grant level | edit |
 | Risk | medium |
 | Resource | form (/formId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | none |

@@ -1,0 +1,1 @@
+The walk of a Space that moves to its own address no longer fails when the retiring relay worker sends the page to the address again while the walk's reload is still loading; what the page ends on is still checked.

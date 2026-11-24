@@ -445,6 +445,7 @@ export const ALL_PERMS = [
   "server.backups",
   "server.update",
   "server.services",
+  "agents.manage",
 ];
 
 export function harness(answers: Record<string, Answer> = {}, allow: string[] = ALL_PERMS, now = NOW): Harness {

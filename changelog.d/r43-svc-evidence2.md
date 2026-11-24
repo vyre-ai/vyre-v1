@@ -1,0 +1,1 @@
+- connect.services walks write a screenshot, the page text, the connect request and the connections to the CI evidence folder when the connected row, a card's first input or the ask-again card's input does not show (test only).

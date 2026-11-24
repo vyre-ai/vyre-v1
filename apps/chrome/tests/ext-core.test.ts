@@ -698,12 +698,17 @@ test("the manifest asks for the smallest set of powers and one content script gr
     "src/content/badge.js",
     "src/content/prompt.js",
     "src/content/select.js",
+    "src/content/link-page.js",
   ]);
   assert.equal(m.commands._execute_action.suggested_key.mac, "Command+Shift+L");
   const csp: string = m.content_security_policy.extension_pages;
-  assert.ok(
-    !/connect-src/.test(csp) && /default-src 'none'/.test(csp) && /script-src 'self'/.test(csp),
-    "extension pages can reach no network",
+  // the one network the extension has is the link to a Space (src/worker/link.js, asserted below to be the only file that opens a connection): secure addresses, or this computer's own
+  assert.ok(/default-src 'none'/.test(csp) && /script-src 'self'/.test(csp), "nothing is allowed by default");
+  const connect = /connect-src ([^;]*)/.exec(csp)?.[1].split(" ") ?? [];
+  assert.deepEqual(
+    connect,
+    ["https:", "wss:", "http://localhost:*", "http://127.0.0.1:*", "ws://localhost:*", "ws://127.0.0.1:*"],
+    "connections only over TLS, or to this computer's own loopback",
   );
   assert.ok(!/unsafe-eval|unsafe-inline/.test(csp));
   for (const f of [
@@ -729,10 +734,12 @@ test("no passkey interception and no network of its own anywhere in the extensio
       !/navigator\.credentials|PublicKeyCredential|webauthn\.|\.get\(\s*\{\s*publicKey/i.test(bare),
       `${f} touches WebAuthn`,
     );
-    assert.ok(
-      !/\bfetch\s*\(|XMLHttpRequest|new WebSocket|sendBeacon|EventSource/.test(bare),
-      `${f} opens a connection of its own`,
-    );
+    // the one place that may open a connection: the link to a Space the person typed in, which asks that Space's own address for a session and then holds its socket
+    if (!f.endsWith("worker/link.js"))
+      assert.ok(
+        !/\bfetch\s*\(|XMLHttpRequest|new WebSocket|sendBeacon|EventSource/.test(bare),
+        `${f} opens a connection of its own`,
+      );
     assert.ok(
       !/\beval\s*\(|new Function\(|innerHTML\s*=|document\.write/.test(bare),
       `${f} runs or injects text as code`,
@@ -748,9 +755,15 @@ test("no passkey interception and no network of its own anywhere in the extensio
 test("only the guarded store writes to chrome.storage", () => {
   for (const f of sources("src").filter((x) => x.endsWith(".js"))) {
     const bare = read(f).replace(/\/\/.*$/gm, "");
-    if (f.endsWith("store.js")) continue;
+    if (f.endsWith("store.js") || f.endsWith("worker/link.js")) continue;
     assert.ok(!/storage\.(local|session|sync)\.(set|get|remove)/.test(bare), `${f} reaches storage directly`);
   }
+  // the one other writer keeps one thing, under one key with one shape: the session of a Space this Chrome is connected to directly
+  const link = read("src/worker/link.js");
+  assert.deepEqual(
+    [...link.matchAll(/const (KEY|PENDING_KEY) = "([A-Za-z]+)"/g)].map((m) => m[2]),
+    ["vyreLinks", "vyrePendingLink"],
+  );
   const index = read("src/worker/index.js");
   assert.match(index, /createStore\(ext\.storage\.local\)/);
   assert.ok(!/storage\.session|storage\.sync/.test(index), "no value-capable area is touched");
@@ -1007,4 +1020,29 @@ test("operations the bridge does not own go to the host's handlers; without them
   } finally {
     await bare.close();
   }
+});
+
+test("link.js talks to nothing but the linked Space's own address and writes only its two keys", () => {
+  const src = read("src/worker/link.js")
+    .replace(/\/\/.*$/gm, "")
+    .replace(/\/\*[\s\S]*?\*\//g, "");
+  const fetches = [...src.matchAll(/\bdoFetch\(\s*([^,]+),/g)].map((m) => m[1].trim());
+  assert.deepEqual(
+    fetches,
+    ["`${p.origin}/v1/identity/pair_redeem`", "`${mine.address}/v1/identity/sign_out`"],
+    "two requests, both to the Space's own address: redeem the code, and sign out",
+  );
+  const sockets = [...src.matchAll(/new WS\((`[^`]*`)\)/g)].map((m) => m[1].trim());
+  assert.deepEqual(
+    sockets,
+    ['`${link.address.replace(/^http/, "ws")}${SOCKET_PATH}`'],
+    "one socket, to the linked Space",
+  );
+  assert.ok(!/XMLHttpRequest|sendBeacon|EventSource|importScripts|chrome\.runtime\.sendNativeMessage/.test(src));
+  // every write to storage names one of the two keys
+  const writes = [...src.matchAll(/\.(set|remove)\(\s*(\[?\{?\s*\[?)([A-Za-z_]+)/g)].map((m) => m[3]);
+  assert.ok(writes.length > 0);
+  for (const w of writes) assert.ok(["KEY", "PENDING_KEY", "list"].includes(w), `storage written under ${w}`);
+  // the address it will use is vetted: https, or this computer's own http
+  assert.match(src, /u\.protocol !== "https:" && !\(u\.protocol === "http:" && local\)/);
 });

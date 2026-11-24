@@ -9,6 +9,7 @@ import { Empty, Group, Section } from "../../shell/ui.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "../shared.tsx";
 import { useCommsRows, CommsList, CommsObject } from "./common.tsx";
 import { PRIVACY_OPTIONS } from "./model.ts";
+import { InlineConfirm } from "../../../../../../ui/src/InlineConfirm/index.tsx";
 type Mailbox = CapMap["mail.mailbox.get"]["out"]["mailbox"];
 const providerName = (provider: string): string =>
   ({ google: "Google", microsoft: "Microsoft", imap: "IMAP", inbound_only: "Inbound routes" })[provider] ??
@@ -84,7 +85,7 @@ function NewInbox({ onBack, onCreated }: { onBack(): void; onCreated(id: string)
             label="Create inbox"
             testID="inbox-create"
             disabled={!valid || action.busy}
-            why={!valid ? "Fill in the name and address" : undefined}
+            {...(!valid ? { why: "Fill in the name and address" } : {})}
             onPress={() =>
               void action
                 .run<
@@ -105,6 +106,7 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
   const query = useRead<CapMap["mail.mailbox.get"]["out"]>("mail.mailbox.get", { mailboxId: id });
   const routes = useRead<CapMap["mail.route.list"]["out"]>("mail.route.list", { limit: 100 });
   const domains = useRead<CapMap["mail.domain.list"]["out"]>("mail.domain.list", { limit: 100 });
+  const watch = useRead<CapMap["mail.inbox.monitor"]["out"]>("mail.inbox.monitor", { mailboxId: id });
   const [sheet, setSheet] = useState(false),
     [removeRoute, setRemoveRoute] = useState("");
   const action = useAction(() => {
@@ -173,6 +175,13 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
           </Group>
           <Help>Privacy applies to new mail. Existing messages keep theirs.</Help>
         </ObjectSection>
+        <ObjectSection title="Watching">
+          {watch.data?.inboxes[0] ? (
+            <InboxHealth row={watch.data.inboxes[0]} />
+          ) : (
+            <ReadState error={watch.error} retry={watch.refresh} />
+          )}
+        </ObjectSection>
         <ObjectSection title="Inbound routes">
           {routes.data ? (
             <Group>
@@ -182,7 +191,7 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
                     key={route.id}
                     id={`mail-route-${route.id}`}
                     title={routeAddress(route)}
-                    note={route.provider === "resend" ? "Resend" : "Mailgun"}
+                    note={providerName(route.provider)}
                     trailing={<Button label="Remove route" danger onPress={() => setRemoveRoute(route.id)} />}
                   />
                 ))
@@ -196,33 +205,32 @@ function InboxObject({ id, onBack }: { id: string; onBack(): void }): ReactEleme
           <RouteEditor mailboxId={id} refresh={routes.refresh} />
           {removeRoute ? (
             <>
-              <Note>
-                Remove this route? New mail to that address will no longer be delivered to this inbox. Existing mail
-                remains.
-              </Note>
-              <Actions>
-                <Button label="Cancel" onPress={() => setRemoveRoute("")} />
-                <Button
-                  label="Confirm route removal"
-                  testID="inbox-route-confirm-remove"
-                  danger
-                  disabled={action.busy}
-                  onPress={() =>
-                    void action
-                      .run(
-                        "mail.route.remove",
-                        {
-                          routeId: removeRoute,
-                          domainId: routeRows.find((route) => route.id === removeRoute)?.domainId ?? "",
-                        },
-                        "Route removed",
-                      )
-                      .then((out) => {
-                        if (out) setRemoveRoute("");
-                      })
-                  }
-                />
-              </Actions>
+              <InlineConfirm
+                question={
+                  <>
+                    Remove this route? New mail to that address will no longer be delivered to this inbox. Existing mail
+                    remains.
+                  </>
+                }
+                confirmLabel="Confirm route removal"
+                disabled={action.busy}
+                confirmTestID="inbox-route-confirm-remove"
+                onConfirm={() =>
+                  action
+                    .run(
+                      "mail.route.remove",
+                      {
+                        routeId: removeRoute,
+                        domainId: routeRows.find((route) => route.id === removeRoute)?.domainId ?? "",
+                      },
+                      "Route removed",
+                    )
+                    .then((out) => {
+                      if (out) setRemoveRoute("");
+                    })
+                }
+                onCancel={() => setRemoveRoute("")}
+              />
             </>
           ) : null}
         </ObjectSection>
@@ -310,6 +318,29 @@ function RouteEditor({ mailboxId, refresh }: { mailboxId: string; refresh(): voi
         <ReadState error={domains.error} retry={domains.refresh} />
       )}{" "}
       {action.note ? <Note>{action.note}</Note> : null}
+    </View>
+  );
+}
+
+const HOW: Record<string, string> = {
+  imap: "Reads the mailbox over IMAP",
+  google: "Reads the Google mailbox",
+  microsoft: "Reads the Microsoft mailbox",
+  provider_webhook: "Mail arrives from the sending provider",
+};
+const STATE: Record<string, string> = { ok: "Working", late: "Running late", failing: "Not working", paused: "Paused" };
+const when = (ms?: number): string => (ms ? new Date(ms).toLocaleString() : "Nothing yet");
+/** One inbox, as a person needs it: how it is fed, whether it works, when mail last came, and if not, what failed and the one thing to do. */
+function InboxHealth({ row }: { row: CapMap["mail.inbox.monitor"]["out"]["inboxes"][number] }): ReactElement {
+  return (
+    <View testID="inbox-health">
+      <Group>
+        <Row title="Status" note={STATE[row.state] ?? row.state} />
+        <Row title="How mail arrives" note={HOW[row.how] ?? row.how} />
+        <Row title="Last mail received" note={when(row.lastReceivedAt)} />
+        <Row title="Received today" note={String(row.receivedToday)} />
+      </Group>
+      {row.problem ? <Note testID="inbox-problem">{`${row.problem.reason} ${row.problem.fix}`}</Note> : null}
     </View>
   );
 }

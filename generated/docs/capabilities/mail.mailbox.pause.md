@@ -11,7 +11,7 @@ Pause a mailbox connection; filing and sync stop
 | Grant level | manage |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | none |
+| Gate | send when mail.non_sync_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

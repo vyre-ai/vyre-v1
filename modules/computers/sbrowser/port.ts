@@ -34,6 +34,17 @@ export interface DownloadRow {
   at: number;
 }
 
+/** Where the agent last acted on its page, in the page's own pixels (agentd/chrome.ts Pointer); `seq` counts its actions. */
+export interface BrowserPointer {
+  seq: number;
+  tool: string;
+  x: number;
+  y: number;
+  box?: { x: number; y: number; w: number; h: number };
+  label?: string;
+  at: number;
+}
+
 export interface BrowserToolCall {
   profileId: string;
   /** The capability's mcpName: chrome_open, chrome_click ... */
@@ -59,6 +70,13 @@ export interface BrowserToolCall {
 }
 
 export interface SpaceBrowser {
+  /**
+   * Start the profile's browser now, with no page asked of it, so the first call of the agent's turn finds it up (lead, 19 Nov: warm before asked). Best effort for the caller to throw away: it can fail
+   * (no room in the service, the service not up) and nothing depends on it. A service without it is simply not warmed.
+   */
+  warm?(a: { profileId: string; space?: string; agentName?: string }): Promise<void>;
+  /** Where the agent last acted on its page, for the desk's cursor. A look: it starts nothing and is not use. `asleep` when the browser is not running. */
+  pointer?(profileId: string): Promise<{ pointer: BrowserPointer | null } | { asleep: true }>;
   /** Can this host run it at all (the container runtime answers)? When not, an agent keeps browsing where it did before (its own computer, or the person's Chrome). Cheap: the router asks at most every 15 seconds. */
   available(): Promise<boolean>;
   /** One browser tool for one profile. Starts the service and the profile's browser when they are not running. Throws an error with a `code` (timeout, paused, not_found, bad_input, held, unavailable). */

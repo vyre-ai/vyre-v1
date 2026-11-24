@@ -1,4 +1,5 @@
 // Builder DSL for manifests. Everything here returns plain data (section 3 types); manifests stay pure data.
+import { MCP_HELD, MCP_TOOLS } from "./mcp-coverage.ts";
 import type {
   AgentToolDef,
   BlockTypeDef,
@@ -214,13 +215,24 @@ function makeCap(kind: CapabilityDef["effects"], name: string, summary: string, 
     errs.add("provider.network");
   }
   for (const c of o.errors ?? []) errs.add(c);
-  const gate = o.gate === undefined ? undefined : typeof o.gate === "string" ? { act: o.gate } : o.gate;
+  // a capability that became a tool without a gate of its own is held for a person's yes when an agent calls it (mcp-coverage.ts)
+  const heldAct = MCP_HELD[name];
+  const gate =
+    o.gate === undefined && heldAct !== undefined
+      ? { act: heldAct, when: "actor.kind == 'agent'" }
+      : o.gate === undefined
+        ? undefined
+        : typeof o.gate === "string"
+          ? { act: o.gate }
+          : o.gate;
   const surfaces: CapabilityDef["surfaces"] = { http: o.http ?? "auto" };
-  if (o.tool)
+  // the capabilities that became tools afterwards (mcp-coverage.ts) are found with tool_search, never in the short default list
+  const listed = o.tool ?? MCP_TOOLS[name];
+  if (listed)
     surfaces.mcp = {
-      toolset: o.tool,
+      toolset: listed,
       ...(o.mcpName ? { name: o.mcpName } : {}),
-      ...(o.deferred ? { deferred: true } : {}),
+      ...(o.deferred || (o.tool === undefined && MCP_TOOLS[name] !== undefined) ? { deferred: true } : {}),
     };
   if (o.agent !== undefined) surfaces.agent = o.agent;
   if (o.cli) surfaces.cli = o.cli;

@@ -52,7 +52,8 @@
         "src/content/artifact.js",
         "src/content/badge.js",
         "src/content/prompt.js",
-        "src/content/select.js"
+        "src/content/select.js",
+        "src/content/link-page.js"
       ],
       "run_at": "document_idle",
       "all_frames": true
@@ -62,7 +63,7 @@
     { "resources": ["_favicon/*"], "matches": ["<all_urls>"] }
   ],
   "content_security_policy": {
-    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: chrome-extension:; object-src 'none'; base-uri 'none'; form-action 'none'"
+    "extension_pages": "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: chrome-extension:; connect-src https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'"
   },
   "commands": {
     "_execute_action": {

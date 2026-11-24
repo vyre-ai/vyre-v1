@@ -1,0 +1,1 @@
+- Pressing a step in the desk's step list shows the screen the agent saw after it, with a way back to the live page.

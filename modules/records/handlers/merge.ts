@@ -21,7 +21,15 @@ import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
-import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
+import { recordWriter } from "../../../kernel/src/store/records.ts";
+import type {
+  CreateManyResult,
+  FieldDef,
+  Filter,
+  Store,
+  StoredRecord,
+  TypeDef,
+} from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { MAX_LIMIT, ensureMatchIndex, findRows, warmSearch } from "./query.ts";
@@ -30,6 +38,16 @@ import type { ViewSpec } from "./query.ts";
 export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_MERGED = 50;
 export const MAX_UPSERT_ROWS = 10_000;
+/** New rows made in one commit at most: a run this long holds the loop for about 50 ms. */
+const CREATE_RUN = 200;
+/** The depth and origin of the call, so a replayed announcement goes on counting an Automation chain's depth as the call would have. */
+export const callerStamp = (ctx: object): { depth?: number; origin?: string } => {
+  const c = ctx as { depth?: unknown; origin?: unknown };
+  return {
+    ...(Number.isInteger(c.depth) ? { depth: c.depth as number } : {}),
+    ...(typeof c.origin === "string" ? { origin: c.origin } : {}),
+  };
+};
 /** Excel's own row limit, header included. */
 export const XLSX_MAX_ROWS = 1_048_576;
 
@@ -55,7 +73,7 @@ export type ExportCtx = Pick<WriteCtx, "trace"> & {
   now?: () => number;
   /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
   authorize?: (
-    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; fields?: readonly string[] },
     resource: { type: string; id: string | null },
   ) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
@@ -663,6 +681,9 @@ async function upsert(
   if (input.rows.length > MAX_UPSERT_ROWS)
     bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
+  // each record made below is announced by a record.created module event after the call: its own event says how, so a stop between the two writes can be repaired at the next start
+  const writer = recordWriter.getStore();
+  if (writer) writer.announce = { ...(quiet ? { quiet: true } : {}), ...callerStamp(ctx) };
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
   interface Plan {
@@ -753,6 +774,33 @@ async function upsert(
   // so a store that goes away (or a record that changes under the batch) stops the loop and the call still answers: what was written is committed with its events, and the rows not tried are listed.
   const all = [...plans.values()];
   let stopped: UpsertStopped | undefined;
+  // New records are made a run at a time (one commit for the run, the store's group commit) instead of one commit each: a run is the consecutive new rows from here, and each row still gets its own result, so a
+  // refused row is refused alone and the order of the events is the order of the rows. When the run cannot be made as a whole the rows are made one by one, as before.
+  const madeBy = new Map<Plan, CreateManyResult>();
+  const tried = new Set<Plan>(); // rows of a run that failed as a whole: one attempt per window, then the rows go one at a time
+  const makeRun = async (from: number): Promise<void> => {
+    if (!store.createMany) return;
+    const run: Plan[] = [];
+    for (let j = from; j < all.length && run.length < CREATE_RUN; j++) {
+      const p = all[j]!;
+      if (p.skip || p.blocked || p.existing) break;
+      run.push(p);
+    }
+    if (run.length < 2) return;
+    for (const p of run) tried.add(p);
+    try {
+      const res = await store.createMany(
+        input.type,
+        run.map((p) => ({ id: mintRecordId(), data: p.values })),
+      );
+      // a commit that failed as a whole rolled the run back and answers every row "unavailable" (one poison row does this to its 199 neighbours): nothing was made, so the rows are made one at a time below and
+      // only the row that fails is stopped on, as before
+      if (res.every((r) => !r.ok && r.error instanceof StoreError && r.error.code === "unavailable")) return;
+      run.forEach((p, k) => madeBy.set(p, res[k]!));
+    } catch {
+      /* the run could not be tried at all (the type is gone): the rows are made one at a time below and meet the same refusal one by one. A commit that fails comes back as a refusal of every row of the run, nothing made. */
+    }
+  };
   for (let at = 0; at < all.length && !stopped; at++) {
     await turn();
     const plan = all[at]!;
@@ -790,8 +838,10 @@ async function upsert(
         continue;
       }
       if (!plan.existing) {
-        const id = mintRecordId();
-        const rec = await store.create(input.type, id, plan.values);
+        if (!madeBy.has(plan) && !tried.has(plan)) await makeRun(at);
+        const pre = madeBy.get(plan);
+        if (pre && !pre.ok) throw pre.error;
+        const rec = pre ? pre.record : await store.create(input.type, mintRecordId(), plan.values);
         created++;
         skipped += plan.folded.length;
         ctx.emit("record.created", `record/${rec.id}`, {
@@ -902,10 +952,40 @@ const csvCell = (c: { text: string; number?: number }, plainText: boolean): stri
   return /[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
-export function toCsv(columns: readonly FieldDef[], rows: readonly Record<string, unknown>[]): string {
-  const lines = [columns.map((c) => csvCell({ text: c.label ?? c.name }, true)).join(",")];
-  for (const r of rows) lines.push(columns.map((c) => csvCell(cellText(c, r[c.name]), true)).join(","));
-  return `\ufeff${lines.join("\r\n")}\r\n`;
+/** Rows between two checks of the clock when a big file is built: a check costs little, a turn is only taken when the budget is spent. */
+const BUILD_STEP = 200;
+
+/** Joins parts into one array (a copy of memory, not of text). */
+function concat(parts: readonly Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** The csv bytes. The text is built and encoded a few hundred rows at a time with a turn between, so a file of tens of thousands of rows never holds the event loop. */
+export async function toCsv(
+  columns: readonly FieldDef[],
+  rows: readonly Record<string, unknown>[],
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  let lines = [`\ufeff${columns.map((c) => csvCell({ text: c.label ?? c.name }, true)).join(",")}`];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    lines.push(columns.map((c) => csvCell(cellText(c, r[c.name]), true)).join(","));
+    if (lines.length >= BUILD_STEP) {
+      parts.push(enc.encode(`${lines.join("\r\n")}\r\n`));
+      lines = [];
+      await turn();
+    }
+  }
+  if (lines.length) parts.push(enc.encode(`${lines.join("\r\n")}\r\n`));
+  return concat(parts);
 }
 
 const xmlEsc = (s: string): string =>
@@ -930,21 +1010,29 @@ const CRC = (() => {
   }
   return t;
 })();
-const crc32 = (b: Uint8Array): number => {
+/** The crc of a big array, a slice at a time with a turn between. */
+const crc32 = async (b: Uint8Array, turn: () => Promise<void>): Promise<number> => {
   let c = 0xffffffff;
-  for (const x of b) c = CRC[(c ^ x) & 0xff]! ^ (c >>> 8);
+  for (let from = 0; from < b.length; from += 262_144) {
+    const to = Math.min(b.length, from + 262_144);
+    for (let i = from; i < to; i++) c = CRC[(c ^ b[i]!) & 0xff]! ^ (c >>> 8);
+    await turn();
+  }
   return (c ^ 0xffffffff) >>> 0;
 };
 
 /** A zip with stored (uncompressed) entries. */
-export function zipStore(files: readonly { name: string; data: Uint8Array }[]): Uint8Array {
+export async function zipStore(
+  files: readonly { name: string; data: Uint8Array }[],
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
   const enc = new TextEncoder();
   const locals: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
   for (const f of files) {
     const name = enc.encode(f.name);
-    const crc = crc32(f.data);
+    const crc = await crc32(f.data, turn);
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true);
     lh.setUint16(4, 20, true);
@@ -981,21 +1069,15 @@ export function zipStore(files: readonly { name: string; data: Uint8Array }[]): 
   end.setUint16(10, files.length, true);
   end.setUint32(12, size, true);
   end.setUint32(16, offset, true);
-  const parts = [...locals, ...central, new Uint8Array(end.buffer)];
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let at = 0;
-  for (const p of parts) {
-    out.set(p, at);
-    at += p.length;
-  }
-  return out;
+  return concat([...locals, ...central, new Uint8Array(end.buffer)]);
 }
 
-export function toXlsx(
+export async function toXlsx(
   sheet: string,
   columns: readonly FieldDef[],
   rows: readonly Record<string, unknown>[],
-): Uint8Array {
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
   const enc = new TextEncoder();
   const cell = (ref: string, c: { text: string; number?: number }): string => {
     if (c.number !== undefined) return `<c r="${ref}"><v>${c.number}</v></c>`;
@@ -1003,47 +1085,60 @@ export function toXlsx(
     const text = c.text.length > 32767 ? c.text.slice(0, 32767) : c.text;
     return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(text)}</t></is></c>`;
   };
-  const body: string[] = [];
-  body.push(`<row r="1">${columns.map((c, i) => cell(`${colName(i)}1`, { text: c.label ?? c.name })).join("")}</row>`);
-  rows.forEach((r, n) =>
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  // the sheet is built and encoded a few hundred rows at a time with a turn between (see toCsv), then joined as bytes
+  const sheetParts: Uint8Array[] = [
+    enc.encode(`${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`),
+  ];
+  let body: string[] = [
+    `<row r="1">${columns.map((c, i) => cell(`${colName(i)}1`, { text: c.label ?? c.name })).join("")}</row>`,
+  ];
+  for (let n = 0; n < rows.length; n++) {
+    const r = rows[n]!;
     body.push(
       `<row r="${n + 2}">${columns.map((c, i) => cell(`${colName(i)}${n + 2}`, cellText(c, r[c.name]))).join("")}</row>`,
-    ),
-  );
+    );
+    if (body.length >= BUILD_STEP) {
+      sheetParts.push(enc.encode(body.join("")));
+      body = [];
+      await turn();
+    }
+  }
+  sheetParts.push(enc.encode(`${body.join("")}</sheetData></worksheet>`));
   const name = xmlEsc(sheet.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1");
-  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-  return zipStore([
-    {
-      name: "[Content_Types].xml",
-      data: enc.encode(
-        `${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
-      ),
-    },
-    {
-      name: "_rels/.rels",
-      data: enc.encode(
-        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-      ),
-    },
-    {
-      name: "xl/workbook.xml",
-      data: enc.encode(
-        `${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
-      ),
-    },
-    {
-      name: "xl/_rels/workbook.xml.rels",
-      data: enc.encode(
-        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
-      ),
-    },
-    {
-      name: "xl/worksheets/sheet1.xml",
-      data: enc.encode(
-        `${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body.join("")}</sheetData></worksheet>`,
-      ),
-    },
-  ]);
+  return zipStore(
+    [
+      {
+        name: "[Content_Types].xml",
+        data: enc.encode(
+          `${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+        ),
+      },
+      {
+        name: "_rels/.rels",
+        data: enc.encode(
+          `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+        ),
+      },
+      {
+        name: "xl/workbook.xml",
+        data: enc.encode(
+          `${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        ),
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        data: enc.encode(
+          `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+        ),
+      },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data: concat(sheetParts),
+      },
+    ],
+    turn,
+  );
 }
 
 /** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
@@ -1115,6 +1210,8 @@ async function exportRows(
   // a hand-picked selection: only these ids, taken from what the view returns, so an id the caller may not read (or that is gone) simply is not there
   const picked = input.recordIds === undefined ? null : new Set(input.recordIds);
   const rows: Record<string, unknown>[] = [];
+  // the loop gives the event loop a turn every few milliseconds: a big export (tens of thousands of rows, a column asked for each when a grant hides one) never holds it
+  const turn = turns();
   const first: ViewSpec = {
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
@@ -1125,12 +1222,25 @@ async function exportRows(
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
+      await turn();
       if (picked !== null && !picked.has(r.id)) continue;
       // only what the caller may read goes into the file, picked or not
       if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
-      rows.push(r.fields);
+      // and only the columns the caller may read: a grant can hide a field (and a label can lift it out of reach), and a file cannot be filtered after it is written. Asked for every column at once (the common case: nothing
+      // is hidden), then column by column for a row where something is
+      const names = columns.map((c) => c.name);
+      const at = { type: "record", id: r.id };
+      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow") rows.push(r.fields);
+      else
+        rows.push(
+          Object.fromEntries(
+            columns
+              .filter((c) => ctx.authorize!({ perm: null, level: "view", fields: [c.name] }, at).effect === "allow")
+              .map((c) => [c.name, r.fields[c.name]]),
+          ),
+        );
     }
     if (!res.next || rows.length >= want || (picked !== null && picked.size === 0)) break;
     cursor = res.next;
@@ -1142,12 +1252,12 @@ async function exportRows(
       ? await putFile({
           name: `${base}.csv`,
           mime: "text/csv; charset=utf-8",
-          bytes: new TextEncoder().encode(toCsv(columns, rows)),
+          bytes: await toCsv(columns, rows, turn),
         })
       : await putFile({
           name: `${base}.xlsx`,
           mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          bytes: toXlsx(def.label ?? def.name, columns, rows),
+          bytes: await toXlsx(def.label ?? def.name, columns, rows, turn),
         });
   return { fileId };
 }

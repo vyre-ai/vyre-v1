@@ -1,6 +1,6 @@
 # engine.accounts.list
 
-Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says whether it can run there and why not
+Accounts the caller can run on: API keys by handle and subscription sign-ins (Mine), with status. With a place (chat, automation, agent, space) each says if it can run there and why not
 
 | | |
 |---|---|

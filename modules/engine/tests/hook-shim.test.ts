@@ -12,6 +12,7 @@ import { shimCommand } from "../../../agent/src/drivers/cli/hooks-config.ts";
 async function run(
   answer: (body: { method: string; params: { event: string; payload: Record<string, unknown> } }) => unknown | null,
   event = "PreToolUse",
+  delayMs = 0,
 ) {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-hookshim-"));
   const seen: unknown[] = [];
@@ -23,6 +24,7 @@ async function run(
         const body = JSON.parse(String(i?.body));
         seen.push(body);
         const a = answer(body);
+        if (delayMs > 0) await new Promise((r) => setTimeout(r, delayMs));
         if (a === null) throw new Error("down");
         return new Response(JSON.stringify({ jsonrpc: "2.0", id: body.id, result: a }), {
           headers: { "content-type": "application/json" },
@@ -60,8 +62,23 @@ test("a note goes out as additional context and the call goes on", async () => {
   assert.equal(JSON.parse(r.out).hookSpecificOutput.additionalContext, "Use the staging folder");
 });
 
-test("nothing to say, an endpoint that is down, or a bad answer: the call goes on", async () => {
+test("nothing to say: the call goes on; an endpoint that is down or a bad answer refuses a call about to be made (the hook that holds a spending limit fails closed), and lets the events after a call go on", async () => {
   assert.equal((await run(() => ({ block: null, notes: [] }))).code, 0);
-  assert.equal((await run(() => null)).code, 0);
-  assert.equal((await run(() => "nonsense")).code, 0);
+  for (const bad of [() => null, () => "nonsense"] as const) {
+    const r = await run(bad);
+    assert.equal(r.code, 2, "refused");
+    assert.match(r.err, /spending limit/);
+    assert.equal((await run(bad, "PostToolUse")).code, 0, "after a call it goes on");
+  }
+});
+
+test("no answer in time refuses a call about to be made: the shim does not wait for ever", async () => {
+  process.env["VYRE_HOOK_TIMEOUT_MS"] = "400";
+  try {
+    const slow = await run(() => ({ block: null, notes: [] }), "PreToolUse", 2_000);
+    assert.equal(slow.code, 2);
+    assert.match(slow.err, /spending limit/);
+  } finally {
+    delete process.env["VYRE_HOOK_TIMEOUT_MS"];
+  }
 });

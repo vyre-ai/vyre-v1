@@ -1,15 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  browserLink,
   claimAppLink,
   consumeBrowserInvite,
-  desktopEntryRefusal,
   forgetAddressChecks,
   inviteAppLink,
   entryTarget,
   isPhoneAddress,
   isRelayAddress,
-  PHONE_ADDRESS_IN_BROWSER,
   underRelayShell,
 } from "./entry.ts";
 import { probeDirectSpace } from "../../../../../client/src/gateway/space-probe.ts";
@@ -67,6 +66,8 @@ test("A phone address invite keeps its code in the fragment and opens the same j
     address: "https://acme.vyre.run",
     code: "ABCD-EFGH",
     fingerprint: "ab12cd34",
+    // the link as given is kept: its fragment holds the invite's key, which a browser needs to open it
+    link: `https://acme.vyre.run/join#c=ABCD-EFGH&k=${key}&fp=ab12cd34`,
   });
   for (const bad of [
     "https://acme.vyre.run/join#c=ABCD-EFGH",
@@ -106,8 +107,8 @@ test("A direct Space on a vyre.run name (northwind-style) joins and signs in fro
     return true;
   };
   assert.equal(await isRelayAddress(Northwind, { probe, page: null as never }), false);
-  assert.equal(await desktopEntryRefusal(joinAt(Northwind), { probe }), null, "join");
-  assert.equal(await desktopEntryRefusal({ kind: "signin", address: Northwind }, { probe }), null, "sign in");
+  assert.equal(await isRelayAddress(joinAt(Northwind).address, { probe }), false, "join");
+  assert.equal(await isRelayAddress(Northwind, { probe }), false, "sign in");
   assert.equal(asked, 1, "a direct answer is kept for the session");
   const link = new URL(inviteAppLink(joinAt(Northwind), false)!);
   assert.equal(link.protocol, "vyre:");
@@ -130,19 +131,29 @@ test("A direct Space on a vyre.run name (northwind-style) joins and signs in fro
     false,
   );
 });
-test("A relay phone address still gets the browser message, and its pages never offer the app", async () => {
+test("A relay phone address is opened in the browser by the app (never a line telling the person to), and its pages never offer the app", async () => {
   forgetAddressChecks();
   let asked = 0;
   const probe = async () => {
     asked++;
     return false;
   };
-  assert.equal(await desktopEntryRefusal(joinAt("https://imran.vyre.run"), { probe }), PHONE_ADDRESS_IN_BROWSER);
-  assert.equal(
-    await desktopEntryRefusal({ kind: "signin", address: "https://imran.vyre.run" }, { probe }),
-    PHONE_ADDRESS_IN_BROWSER,
-  );
+  assert.equal(await isRelayAddress(joinAt("https://imran.vyre.run").address, { probe }), true);
+  assert.equal(await isRelayAddress("https://imran.vyre.run", { probe }), true);
   assert.equal(asked, 2, "a relay answer is not kept: the next try asks again");
+  // what the app hands the browser: the Space's own page for a sign-in, the invite for a join, the link as it was given when it carries the Space's key
+  assert.equal(browserLink({ kind: "signin", address: "https://imran.vyre.run" }), "https://imran.vyre.run/chat");
+  assert.equal(browserLink(joinAt("https://imran.vyre.run")), "https://imran.vyre.run/join/ABCD-EFGH#fp=ab12cd34");
+  const spaceLink = `https://imran.vyre.run/#box=${"b".repeat(43)}`;
+  assert.deepEqual(entryTarget(spaceLink), { kind: "signin", address: "https://imran.vyre.run", link: spaceLink });
+  assert.equal(browserLink(entryTarget(spaceLink)!), spaceLink);
+  const invite = `https://imran.vyre.run/join#c=ABCD-EFGH&k=${"k".repeat(43)}&fp=ab12cd34`;
+  assert.equal(browserLink(entryTarget(invite)!), invite, "the invite's key goes with it");
+  // a link that claims to be for one address and carries another's is never followed
+  assert.equal(
+    browserLink({ kind: "signin", address: "https://imran.vyre.run", link: "https://evil.example/#box=x" }),
+    "https://imran.vyre.run/chat",
+  );
   assert.equal(inviteAppLink(joinAt("https://imran.vyre.run"), true), null);
   assert.equal(claimAppLink("https://imran.vyre.run", "clm_abcdefgh", "#s=spc_northwind", true), null);
   // the relay's real answers: the shell page for /healthz and 405 for the sign-in options
@@ -197,7 +208,7 @@ test("A probe that times out or fails falls back to the name rule, safely", asyn
     })) as typeof fetch;
   const t0 = Date.now();
   assert.equal(
-    await desktopEntryRefusal(joinAt("https://slow.vyre.run"), {
+    await isRelayAddress(joinAt("https://slow.vyre.run").address, {
       probe: (o) =>
         probeDirectSpace(o, {
           fetch: hang,
@@ -207,7 +218,7 @@ test("A probe that times out or fails falls back to the name rule, safely", asyn
           ],
         }),
     }),
-    PHONE_ADDRESS_IN_BROWSER,
+    true,
   );
   assert.ok(Date.now() - t0 < 2000);
   assert.equal(
@@ -232,15 +243,32 @@ test("An own domain is unchanged and never probed, including vyre.example.com", 
     "https://a.b.vyre.run",
   ]) {
     assert.equal(await isRelayAddress(address, { probe }), false, address);
-    assert.equal(await desktopEntryRefusal(joinAt(address), { probe }), null, address);
+    assert.equal(browserLink(joinAt(address)), `${address}/join/ABCD-EFGH#fp=ab12cd34`, address);
     assert.ok(inviteAppLink(joinAt(address)), address);
   }
   assert.equal(
-    await desktopEntryRefusal(
-      { kind: "claim", address: "https://imran.vyre.run", url: "https://imran.vyre.run/claim/x" },
-      { probe },
-    ),
-    null,
-    "a claim is the app's own flow",
+    browserLink({ kind: "claim", address: "https://imran.vyre.run", url: "https://imran.vyre.run/claim/x" }),
+    "https://imran.vyre.run/claim/x",
+    "an owner link goes to a browser as it is",
   );
+});
+
+test("One address box: a bare name is that name under vyre.run, and an address copied from the browser while in the Space names the Space", () => {
+  assert.deepEqual(entryTarget("northwind"), { kind: "signin", address: "https://northwind.vyre.run" });
+  assert.deepEqual(entryTarget("  Northwind "), { kind: "signin", address: "https://northwind.vyre.run" });
+  assert.deepEqual(entryTarget("northwind.vyre.run"), { kind: "signin", address: "https://northwind.vyre.run" });
+  assert.deepEqual(entryTarget("https://northwind.vyre.run/"), {
+    kind: "signin",
+    address: "https://northwind.vyre.run",
+  });
+  for (const copied of [
+    "https://northwind.vyre.run/chat",
+    "https://northwind.vyre.run/records?skin=vyre-light#rec_1",
+    "northwind.vyre.run/files",
+  ])
+    assert.deepEqual(entryTarget(copied), { kind: "signin", address: "https://northwind.vyre.run" }, copied);
+  // localhost is this computer, never a name under vyre.run; a page that is not the app's stays no Space
+  assert.deepEqual(entryTarget("localhost"), { kind: "signin", address: "https://localhost" });
+  assert.equal(entryTarget("https://northwind.vyre.run/unknown"), null);
+  assert.equal(entryTarget("https://northwind.vyre.run/join/ABCD-EFGH"), null, "a broken invite is not a sign-in");
 });

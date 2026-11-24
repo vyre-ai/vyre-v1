@@ -3,7 +3,8 @@
 // gate.park is called by the invoke pipeline with the payload hash it computed; the Gate stores it with the decision id, writes both onto the task as reserved working notes
 // (tasks.working_notes.set decision_id and payload_hash, once each) and sets two timers: gate.expire at the timeout and one approval.backstop notification at the backstop hour.
 import { isOutsideTrigger, readAutomationMark, triggerWords } from "../../../lib/automation-content.ts";
-import { holdSentence, holdTitle } from "../../../lib/hold-words.ts";
+import { holdSentence, holdShort, holdTitle } from "../../../lib/hold-words.ts";
+import { visibleText } from "../../../lib/visible-text.ts";
 import type { HoldNames } from "../../../lib/hold-words.ts";
 import { outwardOf } from "../../../lib/outward.ts";
 import { handleOf } from "../../../lib/person-handle.ts";
@@ -146,6 +147,51 @@ export async function holdNamesOf(ctx: GateCtx, cap: string, input: unknown): Pr
       /* the plain word stands */
     }
   }
+  // a Vault key handed to someone: the key by its name (never a value) and the one who gets it
+  if (cap === "vault.share" || cap === "access.share") {
+    const i = (input ?? {}) as { resource?: { type?: string; id?: string }; subject?: { kind?: string; id?: string } };
+    if (i.resource?.type === "vault_item" && typeof i.resource.id === "string") {
+      try {
+        const r = (await ctx.call?.("vault.item.get", { itemId: i.resource.id })) as {
+          item?: { name?: string };
+        } | null;
+        if (r?.item?.name) out.key = cut(r.item.name, 60);
+      } catch {
+        /* the plain word stands */
+      }
+    }
+    if ((i.subject?.kind === "person" || i.subject?.kind === "agent") && typeof i.subject.id === "string") {
+      const n = await nameOf(ctx, { kind: i.subject.kind, id: i.subject.id }, "");
+      if (n) out.recipient = n;
+    }
+  }
+  // a production deploy: the site's name, the branch it builds and the names of the keys it holds (never values)
+  const siteId = (input as { siteId?: unknown } | null)?.siteId;
+  if ((cap === "sites.deploy" || cap === "sites.webhook_set") && typeof siteId === "string") {
+    try {
+      const g = (await ctx.call?.("sites.get", { siteId })) as {
+        site?: { name?: string; source?: { branch?: string; folderId?: string; fileId?: string } };
+      } | null;
+      const e = (await ctx.call?.("sites.env_list", { siteId })) as {
+        entries?: { name?: string; vaultName?: string; kind?: string; scope?: string }[];
+      } | null;
+      // the Vault key's own name (never a value); a plain value is no key, and a previews-only key does not reach production
+      const keys = (e?.entries ?? [])
+        .filter(
+          (x) => x.kind === "secret" && typeof x.vaultName === "string" && x.vaultName !== "" && x.scope !== "previews",
+        )
+        .map((x) => visibleText(String(x.vaultName).replace(/^#/, "").replace(/\..*$/, ""), 40));
+      if (g?.site?.name)
+        out.site = {
+          name: visibleText(g.site.name, 60),
+          ...(g.site.source?.branch ? { branch: visibleText(g.site.source.branch, 60) } : {}),
+          keys: [...new Set(keys)],
+          upload: !!(g.site.source?.folderId || g.site.source?.fileId),
+        };
+    } catch {
+      /* the plain word stands */
+    }
+  }
   const fileId =
     typeof (input as { fileId?: unknown } | null)?.fileId === "string" ? (input as { fileId: string }).fileId : "";
   if (cap.startsWith("files.") && fileId) {
@@ -204,7 +250,10 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
       );
     }
   }
-  const effective = effectiveRule(ctx.db, principal, a.key, policy);
+  // a deploy a push asked for runs as a person but is not their act: its rule, and the reason on its card, are those of anything that is not a person
+  const ruleFor: PrincipalRef =
+    input.origin === "sites-push" && principal.kind === "person" ? { kind: "service", id: principal.id } : principal;
+  const effective = effectiveRule(ctx.db, ruleFor, a.key, policy);
   const rule = ask ? { ...effective, approvers: "asker", peopleOnly: true, onTimeout: "drop" as const } : effective;
   const now = ctx.now();
   const asker = await askerOf(ctx, principal, input.actingFor);
@@ -215,8 +264,15 @@ export async function park(ctx: GateCtx, input: In): Promise<unknown> {
   const agentName = ask ? await nameOf(ctx, ask.by) : "";
   // an agent's own hold says who wants what, from the real input; an automation's keeps the act's own words
   const agentSays = !ask && principal.kind === "agent" ? await nameOf(ctx, principal, "") : "";
-  const names = agentSays ? await holdNamesOf(ctx, input.capName, input.input) : {};
-  const sentence = agentSays ? cut(holdSentence(agentSays, input.capName, input.input, names), 120) : "";
+  const names =
+    agentSays || input.capName === "sites.deploy" || input.capName === "sites.webhook_set"
+      ? await holdNamesOf(ctx, input.capName, input.input)
+      : {};
+  const sentence = agentSays
+    ? cut(holdSentence(agentSays, input.capName, input.input, names), 120)
+    : names.site
+      ? cut(`Approve: ${holdShort(input.capName, input.input, names)}`, 160)
+      : "";
   const summary = ask
     ? cut(`${agentName} asks you to: ${ask.what}`, 120)
     : sentence || summaryLine(a, input.capName, input.input);

@@ -1,0 +1,1 @@
+- A link to a page the person just left (a link to an agent's page right after Move to Trash on it) reaches the Chats page: the shell counts addresses that came from outside (links, pasted addresses), and the page takes a same-address link only when one came since it was last drawn; the page's own moves and clicks are never links, so nothing a person just pressed is overwritten.

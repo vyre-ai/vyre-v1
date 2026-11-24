@@ -5,12 +5,15 @@
 // An interrupt (stop and send) cancels every running turn now and runs the new message first. runTurn catches everything: a failed thread accepts the next message as a fresh turn.
 // A tool call held at the Gate parks the turn (turn.waiting { task }, state waiting); resume() queues the wake that continues it once the task is answered.
 // Messages and waits sit behind MessageStore and WaitStore, so a second host that takes the thread over (recover) replays the same bodies.
+import { invalidateReads } from "../tools/reads-epoch.ts";
 import { plainToolWords } from "../../../lib/plain-words.ts";
 import { nextDepth, route } from "../../../lib/route.ts";
 import { payLine } from "../accounts/paid.ts";
 import { createMemoryQueue } from "./queue.ts";
 import type { QueueStore } from "./queue.ts";
 import { HEARTBEAT_MS, createMemoryLeases } from "./lease.ts";
+import { createMemoryJournal, planResume, resumeNote, scrubInput, summaryOf } from "./journal.ts";
+import type { JournalStore, ResumePlan, Safety } from "./journal.ts";
 import type { LeaseStore } from "./lease.ts";
 import { createMemoryMessages, createMemoryWaits } from "./stores.ts";
 import type { MessageStore, WaitStore } from "./stores.ts";
@@ -51,6 +54,11 @@ export interface ToolContext {
   startedAt?: number;
   /** What the people in the chat said since this agent last spoke: a value a person typed themselves is theirs to ask for, however much it looks like a placeholder (lib/probe.ts). */
   said?: string;
+  /**
+   * What names this call to the server inside the turn (it becomes the call's idempotency key). Made by the engine and kept in the journal, so a call asked again after a restart carries the key it had and the server
+   * answers it once; an engine without a journal leaves it out and the tool layer names the call itself.
+   */
+  callKey?: string;
 }
 /** A tool call parked at the Gate: the task that decides it, and the Run when the call belongs to one. */
 /** Most reads run together in one step. */
@@ -71,7 +79,7 @@ export type ToolRunner = (
 ) => Promise<ToolRunResult>;
 
 import type { HooksPort } from "../tools/hooks.ts";
-import { noteTurnStart } from "../tools/turn-start.ts";
+import { clearTurnCause, noteTurnStart } from "../tools/turn-start.ts";
 import { reportWindow } from "../transcript/windows.ts";
 
 const CLI_DRIVERS: ReadonlySet<string> = new Set(["claude_code", "codex", "grok"]);
@@ -109,8 +117,10 @@ export interface EngineOptions {
     /** What the thread is: only a chat a person has with an agent can be gone back to, so only that takes a point. */
     threadKind: string;
   }) => Promise<void>;
-  /** 'host:<space>' or 'device:<id>'. */
+  /** 'host:<space>:<boot id>' or 'device:<id>'. A host's holder names its boot, so a lease of an earlier run of the same host is never mistaken for this run's own. */
   holder: string;
+  /** 'host:<space>': what every boot of this host has in common. A lease whose holder starts with it and is not this boot's is the leftover of an earlier run, taken over only once it has gone a full heartbeat without a renewal (recover). */
+  family?: string;
   openSession: OpenSession;
   /**
    * Which account pays for a turn (engine.account.resolve). Asked before every turn; its answer replaces the engine's own starter/steerer choice for the payer and goes into the
@@ -176,6 +186,24 @@ export interface EngineOptions {
    * asks the person). Without it every call runs alone, as before. Only used for a session that says parallelTools.
    */
   toolClass?: (name: string) => "read" | "other";
+  /**
+   * How safe a tool call is to ask again after a restart: a read (harmless), a call that carries an idempotency key (the server answers it once), or unsafe (it may have changed the world). With it, a turn
+   * that had called tools when its host died is resumed from its journal instead of ending host_lost; without it every such turn ends host_lost, as before.
+   */
+  toolSafety?: (name: string) => Safety;
+  /**
+   * What other nodes of the work have said to this turn since it last asked (messages between helpers of one job): read after each tool call and handed to the model at the step boundary, like a person's steering.
+   * Each is the sender's name and the words. A failure is no news: the turn goes on.
+   */
+  takeNotes?: (c: {
+    threadId: string;
+    turnId: string;
+    agentId: string;
+  }) => Promise<ReadonlyArray<{ from: string; body: string }>>;
+  /** A model call of a turn reported what it used (the turn's totals so far are on the row): told as it happens, so a limit on a job can act at the next safe point and not only when the turn is over. */
+  onUsage?: (turn: Readonly<TurnRow>) => void;
+  /** Where the tool calls of a turn are written as they happen. Memory by default; the engine module keeps them in SQL. */
+  journal?: JournalStore;
   /** Most reads run at the same time. Default 6. */
   maxParallel?: number;
   /** Repeating timer, returns its canceller. Default setInterval (unref'd). */
@@ -243,9 +271,11 @@ interface Running {
   lostLease: boolean;
   /** why it was cancelled, said in the chat */ why?: string;
   /** who stopped it, said in the chat */ by?: StoppedBy;
+  /** a pause was asked for: the turn stops at its next safe point (after the tool call it is on) and keeps its place */ pausing?: string;
+  /** the turn runs on an engine that runs its own tools (a command-line engine) */ cli?: boolean;
 }
 /** Why a turn ends that nobody pressed: the engine's own doing, said as the system. */
-const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved"]);
+const SYSTEM_WHY: ReadonlySet<string> = new Set(["lease", "closing", "limit", "update", "left", "moved", "paused"]);
 /** Agent-to-agent hand-offs that may follow one person's message, and how many times one pair may pass it between them. */
 const MENTION_HOPS = 3;
 const MAX_PAIR_PASSES = 2;
@@ -322,7 +352,8 @@ export interface TurnEngine {
   wakeHeld(threadId: string, messageId: string): ReceiveResult | null;
   /** A background wait fired for an agent: queue a wake on the starter's account. */
   /** `routine`: the turn is a routine's (its reply is labelled "on a routine <person> set"); `from`: the person it runs for (default the thread's starter). */
-  wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string }): number;
+  /** `answers` is the task of a held call this wake continues: the turn it starts carries the cause of the turn that held the call (the same as resume()). */
+  wake(threadId: string, agentId: string, o?: { routine?: boolean; from?: string; answers?: string }): number;
   /**
    * Stop button: cancel the running turn. `agentId` limits it to one agent (its running turn, its queued rows, its parked turns).
    * `clearQueue` stops everything in the thread: running, queued and parked (stop all).
@@ -363,6 +394,8 @@ export interface TurnEngine {
   /** A question the turn parked on was answered or withdrawn: the wait is over. The answer itself wakes the agent as a message (chat tellAgent), so nothing is queued here. False when no turn waits on it. */
   release(blockId: string): boolean;
   /** Turns parked on a held tool call in this thread. */
+  /** How many wake causes wait for their turn to start (a test hook: a dropped wake leaves none). */
+  pendingWakeCauses(): number;
   waiting(threadId: string): Array<{ turnId: string; agentId: string; taskId: string }>;
   setMode(threadId: string, agentId: string, mode: AgentMode): void;
   /** An agent joined a thread that is already open here (a task's reviewer, an agent added to a chat): it can be woken and mentioned from now on. Nothing changes when it is in already. */
@@ -392,6 +425,22 @@ export interface TurnEngine {
    * a person decides (hole 12).
    */
   recover(threadId: string): boolean;
+  /**
+   * Ask the turn an agent is working on to pause: it finishes the call it is on, then stops at that safe point with everything it did kept (the journal), and its queue row waits as paused. Not a Stop: nothing is
+   * lost and it can go on. Returns the turns asked. A turn that is not working, or whose engine runs its own tools (see cliRunning), is not counted.
+   */
+  pause(threadId: string, o: { agentId?: string; reason: string }): number;
+  /** Go on with turns that were paused: each is started again as a turn of its own, told what it had done. A turn whose journal is gone (kept a day) cannot go on and is ended host_lost. */
+  resumePaused(threadId: string, o?: { agentId?: string }): { resumed: number; lost: number };
+  /** The turns waiting paused in a thread. */
+  paused(threadId: string): QueueItem[];
+  /**
+   * End the turn of an agent on an engine that runs its own tools, as a pause: the session is cancelled and the queue row waits as paused, so raising the limit (resumePaused) starts it again as a turn of its own.
+   * Used when a limit has held its calls and the model goes on asking: each refused call is a model step that spends. Returns the turns ended.
+   */
+  pauseCli(threadId: string, o: { agentId: string; reason: string }): number;
+  /** The agents whose turn runs now on an engine that runs its own tools: such a turn cannot be paused between calls, so a limit holds its next call at the hook (modules/engine/spend-hold.ts). */
+  cliRunning(threadId: string, o?: { agentId?: string }): string[];
   /** Run what is queued in a thread that is open here (a retry queued by a capability). */
   kick(threadId: string): void;
   idle(threadId: string): Promise<void>;
@@ -409,7 +458,16 @@ export interface TurnEngine {
 
 export function createTurnEngine(opts: EngineOptions): TurnEngine {
   const queue = opts.queue ?? createMemoryQueue();
+  // the tool calls of each turn as they happen, and the plan of a turn a dead host left that is to be resumed, by queue row (journal.ts)
+  const toolLog = opts.journal ?? createMemoryJournal();
+  const resumes = new Map<string, ResumePlan & { turnId: string; paused?: string }>();
+  const keySeq = new Map<string, number>();
+  const noted = new Map<string, Array<{ from: string; body: string }>>();
+  let noteSeq = 0;
+  const rowKey = (threadId: string, qseq: number): string => `${threadId}:${qseq}`;
   const leases = opts.leases ?? createMemoryLeases();
+  /** What recover() last saw of an earlier boot's lease on a thread: when it expires and since when it has not moved. */
+  const unmoved = new Map<string, { holder: string; expiresAt: number; since: number }>();
   const messages = opts.messages ?? createMemoryMessages();
   const waits = opts.waits ?? createMemoryWaits();
   const now = opts.now ?? Date.now;
@@ -457,6 +515,19 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   // what is kept here is for reads of recent turns; a server that runs for months must not hold every event it ever saw
   const emit = (e: EngineEvent): void => {
+    // a turn that ended for good has no more use for its calls; one a dead host left (host_lost) keeps them until its resume has read them
+    if (
+      (e.type === "turn.completed" ||
+        (e.type === "turn.cancelled" && e.reason !== "paused") ||
+        (e.type === "turn.failed" && e.code !== "host_lost" && e.code !== "host_resumed")) &&
+      "turnId" in e
+    )
+      try {
+        toolLog.drop(e.turnId);
+        noted.delete(e.turnId);
+      } catch {
+        /* the journal never fails an event */
+      }
     journal.push(e);
     if (journal.length > KEEP_EVENTS) journal.splice(0, journal.length - KEEP_EVENTS);
     for (const l of listeners) l(e);
@@ -532,6 +603,18 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
   }
 
   /** What a held message needs to be routed later (who it replies to, whose job it is, who pays). */
+  /** The cause of a wake that continues a held call whose wait was not recorded, by `${threadId}|${qseq}`; read once when the turn starts. */
+  const pendingCause = new Map<string, string>();
+  /** An entry lives only while its queue row can still start: a wake that was dropped (Stop, a closed thread, a lost lease) or already ran leaves none after the next sweep. */
+  const sweepPendingCause = (threadId: string): void => {
+    const live = new Set(
+      queue
+        .list(threadId)
+        .filter((r) => r.state === "queued" || r.state === "paused" || r.state === "running")
+        .map((r) => `${threadId}|${r.qseq}`),
+    );
+    for (const k of pendingCause.keys()) if (k.startsWith(`${threadId}|`) && !live.has(k)) pendingCause.delete(k);
+  };
   const heldArgs = new Map<
     string,
     {
@@ -984,6 +1067,25 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
 
   function steerBoundary(st: ThreadState, run: Running, turn: TurnRow): void {
     if (!run.session) return;
+    // a pause was asked for: this is the safe point (the call is done and its answer is on its way back); the turn stops here and keeps its place
+    if (run.pausing !== undefined && !run.cancelled) {
+      void cancelRunning(st, run, "paused");
+      return;
+    }
+    const said = noted.get(turn.id);
+    if (said && said.length > 0) {
+      noted.delete(turn.id);
+      for (const [k, n] of said.entries())
+        run.session.inject({
+          id: `note:${turn.id}:${++noteSeq}:${k}`,
+          threadId: st.thread.id,
+          threadSeq: 0,
+          author: { kind: "agent", id: n.from },
+          mentions: [],
+          depth: 0,
+          body: n.body,
+        });
+    }
     for (const row of queue.steerable(st.thread.id, run.agentId)) {
       const msg = findMessage(st, row.messageId);
       if (!msg) continue;
@@ -1060,12 +1162,42 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     // who the turn is for (whose folder and user it works in) is the person the engine found, never the account that pays: the account the Space or another person provides may be anyone's (F75)
     const asker = orphan ? "" : (wait?.asker ?? payer.asker);
     const reason = wait ? ("starter" as const) : payer.reason;
+    // a turn a dead host left that had called tools (journal.ts): what it did is told to this one, and the calls that were in flight, if safe to ask again, are asked again under their old key (a read, or a call that
+    // carries an idempotency key, which the server answers once), so nothing goes out twice
+    let resumeText: string | undefined;
+    const resumePlan = resumes.get(rowKey(st.thread.id, item.qseq));
+    if (resumePlan) {
+      resumes.delete(rowKey(st.thread.id, item.qseq));
+      const replayed: Array<{ entry: (typeof resumePlan.replay)[number]; ok: boolean; summary: string }> = [];
+      invalidateReads(resumePlan.turnId); // the resumed turn starts from a note, not from what it read before
+      for (const e of resumePlan.replay) {
+        const r = await runTool(
+          opts.callTool,
+          { id: e.callId, name: e.name, input: e.input },
+          {
+            threadId: st.thread.id,
+            turnId: resumePlan.turnId,
+            agentId: item.agentId,
+            asker,
+            ...(e.callKey === undefined ? {} : { callKey: e.callKey }),
+          },
+        );
+        replayed.push({ entry: e, ok: r.ok, summary: summaryOf(r.content) });
+      }
+      resumeText = resumeNote(resumePlan.done, replayed, resumePlan.paused);
+      try {
+        toolLog.drop(resumePlan.turnId);
+      } catch {
+        /* nothing to keep */
+      }
+    }
     // the wake continues a parked turn: that turn is over now, with the usage it had at the hold (the wake is its own row with its own)
     if (wait) {
       const was = turnRows.find((t) => t.id === wait.turnId);
       if (was && was.state === "waiting") {
         was.state = "completed";
         was.endedAt = now();
+        invalidateReads(was.id); // a wake may rebuild the model's view: nothing read before the hold is pointed at
         emit({ type: "turn.resumed", threadId: st.thread.id, turnId: was.id, agentId: was.agentId });
       }
     }
@@ -1097,7 +1229,22 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       injected: 0,
       info: { ...(agent?.effort ? { effort: agent.effort } : {}), tools: [], switches: [] },
     };
-    noteTurnStart(st.thread.id, item.agentId, turn.startedAt);
+    // why this turn was started: a turn that continues a held call carries the cause of the turn it continues (a resumed wake is a wake, a resumed message turn is a message turn); the wake of a call whose wait was not
+    // recorded (a command-line engine's) is "resume", which no capability guards
+    const pendingKey = `${st.thread.id}|${item.qseq}`;
+    const parkedCause = pendingCause.get(pendingKey);
+    pendingCause.delete(pendingKey);
+    sweepPendingCause(st.thread.id);
+    const cause = wait ? (wait.cause ?? "resume") : (parkedCause ?? item.kind);
+    // the message that started a plain message or interrupt turn, from the queue row and the stored message (never from words)
+    const startedBy =
+      !wait && !parkedCause && (item.kind === "message" || item.kind === "interrupt") && item.messageId
+        ? (() => {
+            const m = findMessage(st, item.messageId);
+            return m ? { messageId: item.messageId!, authorKind: m.author.kind, authorId: m.author.id } : undefined;
+          })()
+        : undefined;
+    noteTurnStart(st.thread.id, item.agentId, turn.startedAt, cause, startedBy);
     const info = turn.info!;
     // the provider's dollar figure stands only when every call of the turn reported one
     let usages = 0,
@@ -1114,6 +1261,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       session: null,
       cancelled: false,
       lostLease: false,
+      // an engine that runs its own tools cannot be held between calls from here: a limit holds its next call at the hook instead
+      cli: CLI_DRIVERS.has(account?.driver ?? ""),
     };
     st.running.set(item.agentId, run);
     // a Stop that came while this turn was starting: it ends cancelled before anything runs (the session opens and is cancelled at once; the reply loop breaks on its first event)
@@ -1177,6 +1326,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         runId: p.held.runId ?? null,
         at: now(),
         resolution: null,
+        cause,
         wakeQseq: null,
       });
       return p.held.taskId;
@@ -1313,6 +1463,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             const notes = [
               ...(stopped ? [stopNote(stopped.why, stopped.ask)] : []),
               ...(inRound ? [ROUND_NOTE] : []),
+              ...(resumeText ? [resumeText] : []),
               ...hookNotes,
             ];
             return notes.length > 0 ? { notice: notes.join("\n") } : {};
@@ -1480,6 +1631,25 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
               // an engine that runs its own tools reports them as blocks: the same line is crossed
               noteBlock(info, ev.kind, ev.payload, now());
               queue.touch(st.thread.id, item.qseq);
+              if (opts.toolSafety && ev.kind === "tool_call") {
+                // an engine that runs its own tools: the call is on record, and it can never be asked again by us, so a turn that made one is not resumed
+                const p = (ev.payload ?? {}) as { id?: unknown; name?: unknown };
+                try {
+                  toolLog.put({
+                    threadId: st.thread.id,
+                    turnId: turn.id,
+                    callId: typeof p.id === "string" ? p.id : `own:${turn.id}:${now()}`,
+                    name: typeof p.name === "string" ? p.name : "a tool",
+                    input: null,
+                    safety: "unsafe",
+                    state: "started",
+                    own: true,
+                    at: now(),
+                  });
+                } catch {
+                  /* never fails the turn */
+                }
+              }
               flush("text");
               flush(ev.kind);
               steerBoundary(st, run, turn);
@@ -1487,6 +1657,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
             case "usage":
               turn.tokensIn += ev.inputTokens;
               turn.tokensOut += ev.outputTokens;
+              try {
+                opts.onUsage?.(turn);
+              } catch {
+                /* metering the run tree never touches the turn */
+              }
               // the driver says which model ran: an agent that picked none runs on the engine's own default, and a turn moved to a Space account's model ran on that one. That is the turn's model, never "unknown"
               if (ev.model) turn.model = ev.model;
               if (ev.contextTokens !== undefined) info.contextTokens = ev.contextTokens;
@@ -1647,6 +1822,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       } catch {
         /* a session that will not close is dropped */
       }
+      // the turn is over: a call that comes now (a command-line engine's session lives across turns) has no cause, so no guard that reads it applies
+      clearTurnCause(st.thread.id, item.agentId);
     }
 
     const mineStill = leases.renew(st.thread.id, opts.holder, now());
@@ -1686,6 +1863,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         agentId: turn.agentId,
         taskId: parked.held.taskId,
         ...(parked.held.runId === undefined ? {} : { runId: parked.held.runId }),
+        ...(parked.name ? { tool: parked.name } : {}),
       });
       return;
     }
@@ -1715,7 +1893,11 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       st.active = false;
       return;
     }
-    queue.setState(st.thread.id, item.qseq, turn.state === "cancelled" ? "cancelled" : "done");
+    queue.setState(
+      st.thread.id,
+      item.qseq,
+      turn.state === "cancelled" ? (run.why === "paused" ? "paused" : "cancelled") : "done",
+    );
     recordSpend(turn);
     if (opts.hooks && hooksAsked) {
       const base = {
@@ -1832,9 +2014,67 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     ctx: ToolContext,
   ): Promise<ToolRunResult> {
     if (!fn) return { ok: false, content: { code: "no_tools", message: "this engine has no tool runner" } };
+    const kept = scrubInput(call.input);
+    const entry = (
+      state: "started" | "done" | "failed" | "held",
+      more: { summary?: string; endedAt?: number } = {},
+    ): boolean => {
+      if (!opts.toolSafety) return true;
+      try {
+        toolLog.put({
+          threadId: ctx.threadId,
+          turnId: ctx.turnId,
+          callId: call.id,
+          name: call.name,
+          input: kept.value,
+          ...(kept.changed ? { scrubbed: true } : {}),
+          ...(callKey === undefined ? {} : { callKey }),
+          safety: opts.toolSafety(call.name),
+          state,
+          at: begun,
+          ...more,
+        });
+        return true;
+      } catch (e) {
+        opts.log?.("a tool call could not be written to the journal", {
+          turnId: ctx.turnId,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        return false;
+      }
+    };
+    const begun = now();
+    // the call's name for the server: the one it had before a restart when it is being asked again, else the next in this turn
+    const callKey = ctx.callKey ?? (opts.toolSafety ? `j${keySeq.get(ctx.turnId) ?? 0}:${call.id}` : undefined);
+    if (callKey !== undefined && ctx.callKey === undefined) keySeq.set(ctx.turnId, (keySeq.get(ctx.turnId) ?? 0) + 1);
+    if (keySeq.size > 500) keySeq.delete(keySeq.keys().next().value as string);
+    ctx = callKey === undefined ? ctx : { ...ctx, callKey };
+    // journal first, then act: a call that may change something is not made unless it is on record as started, or a resumed turn could not know it went out and might send it again
+    if (!entry("started") && opts.toolSafety!(call.name) !== "read")
+      return {
+        ok: false,
+        content: {
+          code: "journal_failed",
+          message: "That could not be started just now: nothing was done. Try it again.",
+        },
+      };
     try {
-      return await fn(call, ctx);
+      const r = await fn(call, ctx);
+      entry(r.held ? "held" : r.ok ? "done" : "failed", {
+        summary: summaryOf(scrubInput(r.content).value),
+        endedAt: now(),
+      });
+      if (opts.takeNotes && !r.held) {
+        try {
+          const got = await opts.takeNotes({ threadId: ctx.threadId, turnId: ctx.turnId, agentId: ctx.agentId });
+          if (got.length > 0) noted.set(ctx.turnId, [...(noted.get(ctx.turnId) ?? []), ...got]);
+        } catch {
+          /* no news is not a failure */
+        }
+      }
+      return r;
     } catch (e) {
+      entry("failed", { summary: "the tool failed", endedAt: now() });
       return {
         ok: false,
         content: { code: "tool_error", message: e instanceof Error ? e.message : "the tool failed" },
@@ -1878,6 +2118,8 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
         priority: 0,
         routine: o?.routine === true,
       });
+      sweepPendingCause(threadId);
+      if (o?.answers) pendingCause.set(`${threadId}|${item.qseq}`, waits.get(o.answers)?.cause ?? "resume");
       kick(st);
       return item.qseq;
     },
@@ -2023,6 +2265,7 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       if (!w || w.resolution) return false;
       return waits.resolve(blockId, { approved: true, result: { ok: true, content: { answered: true } } }, -1);
     },
+    pendingWakeCauses: () => pendingCause.size,
     waiting: (threadId) =>
       waits
         .open(threadId)
@@ -2089,7 +2332,35 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
     },
     recover(threadId) {
       const st = need(threadId);
-      if (leases.get(threadId, now())) return false; // someone still holds it and is beating
+      // Someone still holds it and is beating: any live lease, with one exception. A lease of an EARLIER BOOT of this same host (holder = family + another boot id) is the leftover of the run that died under the
+      // turn, but a process that is slow to exit, paused, or still draining may be alive and beating it, and two processes would then answer the same message. So it is taken over only after it has gone two
+      // heartbeats with no renewal: the first look records when it expires, a later look sees it unmoved for 2 * HEARTBEAT_MS and a margin (a live holder renews every HEARTBEAT_MS, moving it; a busy one may be
+      // 3.6 s late, as the CI box was on 20 Nov, and still misses at most one beat), and the takeover is a
+      // compare-and-set, so the old holder's next renew answers false and its turn ends lease_lost instead of carrying on beside ours. Another holder's lease, and a thread this engine runs, still hold recovery off.
+      // This assumes one live process per boot id; two processes on one Space are told apart by their boot ids, never by the family.
+      const held = leases.get(threadId, now());
+      if (!held) unmoved.delete(threadId); // expired, released or never held: nothing to remember
+      if (held) {
+        const earlierBoot =
+          opts.family !== undefined &&
+          held.holder !== opts.holder &&
+          held.holder.startsWith(`${opts.family}:`) &&
+          !st.active &&
+          st.inflight.size === 0 &&
+          st.running.size === 0;
+        if (!earlierBoot) {
+          unmoved.delete(threadId);
+          return false;
+        }
+        const seen = unmoved.get(threadId);
+        if (!seen || seen.holder !== held.holder || seen.expiresAt !== held.expiresAt) {
+          unmoved.set(threadId, { holder: held.holder, expiresAt: held.expiresAt, since: now() });
+          return false;
+        }
+        if (now() - seen.since < 2 * HEARTBEAT_MS + 1_000) return false;
+        if (!leases.takeOver(threadId, opts.holder, held.holder, now())) return false;
+        unmoved.delete(threadId);
+      }
       // A turn the person stopped whose host died before it ended: closed as cancelled, and the chat says so once. It never runs again.
       for (const row of queue.list(threadId).filter((r) => r.state === "stopping")) {
         queue.setState(threadId, row.qseq, "cancelled");
@@ -2123,13 +2394,20 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
           queue.setState(threadId, row.qseq, "queued");
           continue;
         }
-        queue.setState(threadId, row.qseq, "done");
+        // It had called tools. Its journal says whether every call is accounted for (finished, or safe to ask again): then it is resumed as a turn of its own, told what was done. Otherwise a call may have gone out and
+        // nobody can say, and the turn ends host_lost for a person to decide.
+        const lostId = opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`;
+        const plan = opts.toolSafety && row.kind === "message" ? planResume(toolLog.list(lostId)) : undefined;
+        if (plan?.resumable) {
+          resumes.set(rowKey(threadId, row.qseq), { ...plan, turnId: lostId });
+          queue.setState(threadId, row.qseq, "queued");
+        } else queue.setState(threadId, row.qseq, "done");
         emit({
           type: "turn.failed",
           threadId,
-          turnId: opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`,
+          turnId: lostId,
           agentId: row.agentId,
-          code: "host_lost",
+          code: plan?.resumable ? "host_resumed" : "host_lost",
           qseq: row.qseq,
           asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
         });
@@ -2137,6 +2415,66 @@ export function createTurnEngine(opts: EngineOptions): TurnEngine {
       kick(st);
       return true;
     },
+    pause(threadId, o) {
+      const st = need(threadId);
+      let n = 0;
+      for (const run of st.running.values()) {
+        if (run.cancelled || run.pausing !== undefined || run.cli === true) continue; // a command-line engine's turn is not paused here: see cliRunning
+        if (o.agentId !== undefined && run.agentId !== o.agentId) continue;
+        run.pausing = o.reason;
+        n += 1;
+      }
+      return n;
+    },
+    resumePaused(threadId, o) {
+      const st = need(threadId);
+      let resumed = 0;
+      let lost = 0;
+      for (const row of queue.list(threadId).filter((r) => r.state === "paused")) {
+        if (o?.agentId !== undefined && row.agentId !== o.agentId) continue;
+        const turnId = opts.lostTurn?.(row) ?? `lost:${threadId}:${row.qseq}`;
+        const plan = opts.toolSafety ? planResume(toolLog.list(turnId)) : undefined;
+        if (plan?.resumable || (opts.toolSafety && toolLog.list(turnId).length === 0 && row.touched !== true)) {
+          resumes.set(rowKey(threadId, row.qseq), {
+            ...(plan ?? { resumable: true, done: [], replay: [] }),
+            turnId,
+            paused: "a limit was reached",
+          });
+          queue.setState(threadId, row.qseq, "queued");
+          resumed += 1;
+        } else {
+          queue.setState(threadId, row.qseq, "done");
+          lost += 1;
+          emit({
+            type: "turn.failed",
+            threadId,
+            turnId,
+            agentId: row.agentId,
+            code: "host_lost",
+            qseq: row.qseq,
+            asker: row.from.startsWith("usr_") ? row.from : st.thread.starter,
+          });
+        }
+      }
+      if (resumed > 0) kick(st);
+      return { resumed, lost };
+    },
+    paused: (threadId) => queue.list(threadId).filter((r) => r.state === "paused"),
+    pauseCli(threadId, o) {
+      const st = need(threadId);
+      let n = 0;
+      for (const run of st.running.values()) {
+        if (run.cli !== true || run.cancelled || run.agentId !== o.agentId) continue;
+        run.pausing = o.reason;
+        void cancelRunning(st, run, "paused");
+        n += 1;
+      }
+      return n;
+    },
+    cliRunning: (threadId, o) =>
+      [...need(threadId).running.values()]
+        .filter((r) => r.cli === true && !r.cancelled && (o?.agentId === undefined || r.agentId === o.agentId))
+        .map((r) => r.agentId),
     kick(threadId) {
       kick(need(threadId));
     },

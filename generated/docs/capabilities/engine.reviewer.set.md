@@ -1,6 +1,6 @@
 # engine.reviewer.set
 
-Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent reviewer is asked in the chat after each lead turn ("Asking Reviewer to check this"), a person gets a Review task
+Give a chat a reviewer, an agent or a person, who checks the lead agent's work before it counts; none clears the seat. An agent is asked in the chat after each lead turn, a person gets a Review task
 
 | | |
 |---|---|

@@ -1,0 +1,6 @@
+{
+  "targets": [
+    { "id": "R41_02-board", "route": "/m/R41_02?part=board", "waitFor": "[data-testid=records-board]", "note": "The Kanban board", "proto": "records,at:kanban,{skin}" },
+    { "id": "R41_02-big", "route": "/m/R41_02?part=big", "waitFor": "[data-testid=records-board]", "note": "A board with three thousand cards in one column", "proto": "records,at:kanban.big,{skin}" }
+  ]
+}

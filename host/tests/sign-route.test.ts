@@ -1,6 +1,7 @@
 // /p/sign/<token>/: the public door of built-in signing. A real HTTP server with the real public-path route in front of the signing route and a scripted module behind it.
 // What is proved: the page is the same for every token and reads nothing; every bad token is one byte-identical answer; a change of state is only a JSON POST; limits per token and per address;
 // no cookie in, none out; no framing; nothing cached; an internal failure never leaks a word.
+import { PROOF_HEADER, proofFor, takeVisitor } from "../src/seams/visitor-proof.ts";
 import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
@@ -26,6 +27,10 @@ const sign = createSignRoute({
 });
 const route = createPublicPathRoute({ forms: () => null, origin: () => null, sign: () => sign });
 const server = http.createServer((req, res) => {
+  // the relay vouches for the visitor it saw and the daemon reads that first (seams/visitor-proof.ts): a request that names a visitor here stands for one the relay forwarded
+  const said = req.headers["x-vyre-visitor"];
+  if (typeof said === "string") req.headers[PROOF_HEADER] = proofFor(said);
+  takeVisitor(req);
   if (!route.handle(req, res)) {
     res.writeHead(404);
     res.end("outside /p");

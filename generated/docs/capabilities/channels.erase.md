@@ -11,13 +11,13 @@ Erase one channel for good with all its messages (governance erase)
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/channels/erase |
-| MCP tool | none |
+| MCP tool | channels_erase (chats, deferred) |
 | CLI | none |
 | Emits | channel.erased, thread.erased |
 

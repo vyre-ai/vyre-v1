@@ -10,7 +10,16 @@ import { openRecordStore, recordWriter } from "../../kernel/src/store/records.ts
 import type { RecordWriter } from "../../kernel/src/store/records.ts";
 import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
-import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
+import type {
+  CreateManyResult,
+  UpdateManyResult,
+  FieldDef,
+  FieldValue,
+  RecordId,
+  Store,
+  StoredRecord,
+  TypeDef,
+} from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { perSpaceStore } from "../../host/src/daemon/store.ts";
@@ -29,6 +38,7 @@ import { createHistoryHandlers } from "./handlers/history.ts";
 import { createCommentsHandlers, settleTurn } from "./handlers/comments.ts";
 import type { CommentsHandlers } from "./handlers/comments.ts";
 import type { HistoryHandlers } from "./handlers/history.ts";
+import { createUpdateManyHandler } from "./handlers/update-many.ts";
 import { createMergeHandlers } from "./handlers/merge.ts";
 import type { MergeHandlers } from "./handlers/merge.ts";
 import { createReviewHandlers, propose } from "./handlers/review.ts";
@@ -44,8 +54,12 @@ import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.t
 export interface RecordsVault {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   reveal(ref: string, person: string): Promise<string>;
+  /** Take back a value put for a record that was then not made (best effort: the value is overwritten). Absent: nothing is taken back. */
+  discard?(ref: string): Promise<void>;
 }
 let vault: RecordsVault | null = null;
+/** The Vault the host handed, for a test that checks what the real one does with a call Records makes. */
+export const recordsVaultInUse = (): RecordsVault | null => vault;
 /** The host hands the Vault (a seam like the others). */
 export function setRecordsVault(v: RecordsVault | null): void {
   vault = v;
@@ -61,6 +75,10 @@ async function sealIn(
   recordId: string,
   data: Record<string, unknown>,
   current?: Record<string, unknown>,
+  /** Dry: nothing goes to the Vault; a value that would be sealed shows as a reference to nothing, so the record can be checked before any value is written. */
+  dry = false,
+  /** Told of each reference this call minted, as its put returns: a failure on a later field still lets the caller take back the earlier ones. */
+  onPut?: (ref: string) => void,
 ): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
@@ -88,6 +106,10 @@ async function sealIn(
         "unavailable",
         `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`,
       );
+    if (dry) {
+      out[f.name] = { sealed: f.name, ref: "pending", present: true, set_at: 0 };
+      continue;
+    }
     const have = current?.[f.name];
     const ref = await vault.put({
       type: def.name,
@@ -96,6 +118,7 @@ async function sealIn(
       value: text,
       ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
     });
+    if (!isSealedRef(have)) onPut?.(ref);
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
   }
   return out;
@@ -315,6 +338,77 @@ export function openRecords(
       const def = await needType(type);
       return inner.create(def.name, id, scrub(def, await sealIn(def, id, { ...data })));
     },
+    async createMany(type, items) {
+      const def = await needType(type);
+      const out: CreateManyResult[] = new Array(items.length);
+      // 1. check every item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
+      let refused: unknown[] = [];
+      if (inner.checkNew) {
+        const dry: { id: RecordId; data: Record<string, FieldValue> }[] = [];
+        for (const it of items) {
+          try {
+            dry.push({
+              id: it.id,
+              data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue>,
+            });
+          } catch (e) {
+            dry.push({ id: it.id, data: {} });
+            refused[dry.length - 1] = e;
+          }
+        }
+        const checked = await inner.checkNew(def.name, dry);
+        refused = items.map((_, i) => refused[i] ?? checked[i] ?? null);
+      }
+      // 2. seal and store the items that passed
+      const ready: { at: number; id: RecordId; data: Record<string, FieldValue> }[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]!;
+        if (refused[i]) {
+          out[i] = { ok: false, error: refused[i] };
+          continue;
+        }
+        try {
+          ready.push({
+            at: i,
+            id: it.id,
+            data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue>,
+          });
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      }
+      let made: CreateManyResult[];
+      if (inner.createMany)
+        made = await inner.createMany(
+          def.name,
+          ready.map((r) => ({ id: r.id, data: r.data })),
+        );
+      else {
+        made = [];
+        for (const r of ready) {
+          try {
+            made.push({ ok: true, record: await inner.create(def.name, r.id, r.data) });
+          } catch (e) {
+            made.push({ ok: false, error: e });
+          }
+        }
+      }
+      made.forEach((m, k) => {
+        out[ready[k]!.at] = m;
+      });
+      // 3. a value sealed for a record that was then not made is taken back
+      if (vault?.discard) {
+        for (const [k, m] of made.entries()) {
+          if (m.ok) continue;
+          for (const f of def.fields) {
+            const v = ready[k]!.data[f.name];
+            if (f.kind === "sealed" && isSealedRef(v))
+              await vault.discard((v as { ref: string }).ref).catch(() => undefined);
+          }
+        }
+      }
+      return out;
+    },
     async update(type, id, patch, base) {
       const def = await needType(type);
       const row = await inner.get(def.name, id);
@@ -322,6 +416,75 @@ export function openRecords(
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
       if (row) assertStageGates(def, row.data, clean);
       return inner.update(def.name, id, clean, base);
+    },
+    async updateMany(type, items) {
+      const def = await needType(type);
+      const out: UpdateManyResult[] = new Array(items.length);
+      const ready: {
+        at: number;
+        id: RecordId;
+        patch: Record<string, FieldValue | null>;
+        base_version: number;
+        /** The references this call minted in the Vault for the item (a value that went under a reference the record already held was overwritten in place and is not new). */
+        fresh: string[];
+      }[] = [];
+      const takeBack = async (refs: string[]): Promise<void> => {
+        if (vault?.discard) for (const ref of refs) await vault.discard(ref).catch(() => undefined);
+      };
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]!;
+        const fresh: string[] = [];
+        try {
+          const row = await inner.get(def.name, it.id);
+          // 1. check the item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
+          const dry = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data, true));
+          if (row && row.version === it.base_version) assertWriteOnce(def, row.data, dry);
+          if (row) assertStageGates(def, row.data, dry);
+          // 2. seal it
+          const clean = scrub(
+            def,
+            await sealIn(def, it.id, { ...it.patch }, row?.data, false, (ref) => fresh.push(ref)),
+          );
+          ready.push({
+            at: i,
+            id: it.id,
+            patch: clean as Record<string, FieldValue | null>,
+            base_version: it.base_version,
+            fresh,
+          });
+        } catch (e) {
+          await takeBack(fresh);
+          out[i] = { ok: false, error: e };
+        }
+      }
+      let made: UpdateManyResult[];
+      try {
+        if (inner.updateMany)
+          made = await inner.updateMany(
+            def.name,
+            ready.map((r) => ({ id: r.id, patch: r.patch, base_version: r.base_version })),
+          );
+        else {
+          made = [];
+          for (const r of ready) {
+            try {
+              made.push({ ok: true, record: await inner.update(def.name, r.id, r.patch, r.base_version) });
+            } catch (e) {
+              made.push({ ok: false, error: e });
+            }
+          }
+        }
+      } catch (e) {
+        // the group could not be committed: nothing was updated, so every value this call put is taken back before the caller tries again (a second put would leave these behind)
+        for (const r of ready) await takeBack(r.fresh);
+        throw e;
+      }
+      made.forEach((m, k) => {
+        out[ready[k]!.at] = m;
+      });
+      // 3. a value put for an item that was then not updated is taken back
+      for (const [k, m] of made.entries()) if (!m.ok) await takeBack(ready[k]!.fresh);
+      return out;
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);
@@ -510,6 +673,7 @@ type Extra = {
   review: ReviewHandlers;
   views: ViewHandlers;
   purge: PurgeHandlers;
+  updateMany: ReturnType<typeof createUpdateManyHandler>;
 };
 function more(c?: { db?: unknown }): Extra {
   const h = live(c);
@@ -533,13 +697,30 @@ function more(c?: { db?: unknown }): Extra {
       review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       views: createViewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       purge: createPurgeHandlers({ store: h.store, tx: h.host.tx }),
+      updateMany: createUpdateManyHandler({
+        store: h.store,
+        meta: (type, id) => {
+          const row = h.host.tx.get<{ label: number; holds: number }>(
+            "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+            type,
+            id,
+          );
+          return { label: row?.label ?? 0, holds: row?.holds ?? 0 };
+        },
+      }),
     };
     extras.set(h, extra);
   }
   return extra;
 }
 
+/** records.update_many (the sealed write-back's batch): its handler is built in handlers/update-many.ts, typed by the generated registry at the loader. */
+export interface UpdateManyHandlers {
+  "records.update_many"(ctx: { db?: unknown }, input: unknown): Promise<unknown>;
+}
+
 export type LiveRecordsHandlers = RecordsHandlers &
+  UpdateManyHandlers &
   LiveHistory &
   CommentsHandlers &
   MergeHandlers &
@@ -572,6 +753,7 @@ const table: LiveRecordsHandlers = {
   "records.reveal": (ctx, input) => more(ctx).history["records.reveal"](ctx, input),
   "records.merge": (ctx, input) => more(ctx).merge["records.merge"](ctx, input),
   "records.bulk_upsert": (ctx, input) => more(ctx).merge["records.bulk_upsert"](ctx, input),
+  "records.update_many": (ctx, input) => more(ctx).updateMany(ctx as never, input as never) as never,
   "records.export": (ctx, input) => more(ctx).merge["records.export"](ctx, input),
   "records.changes": (ctx, input) => more(ctx).review["records.changes"](ctx, input),
   "records.completeness": (ctx, input) => more(ctx).review["records.completeness"](ctx, input),

@@ -5,7 +5,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
 import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { Row } from "../../../../ui/src/Row/index.tsx";
+import { Row, RowActions } from "../../../../ui/src/Row/index.tsx";
+import { StateMark } from "../../../../ui/src/Status/StateMark.tsx";
 import { Segmented } from "../../../../ui/src/Segmented/index.tsx";
 import { TextField } from "../../../../ui/src/TextField/index.tsx";
 import { menuTrigger, useMenu } from "../../../../ui/src/Menu/index.tsx";
@@ -37,6 +38,7 @@ import {
 } from "./model.ts";
 import type { MachineOut, MachineRow, MachinesOut, Range } from "./model.ts";
 import { fixMachine, loadMachine, loadMachines, pinMachine, setMachine } from "./api.ts";
+import { InlineConfirm } from "../../../../ui/src/InlineConfirm/index.tsx";
 
 export type Call = (cap: string, input: Record<string, unknown>) => Promise<unknown>;
 export interface MachinesViewProps {
@@ -375,27 +377,30 @@ export function MachineList({
                 .filter(Boolean)
                 .join(" \u00b7 ")}
               tall
+              leading={<StateMark state="allow" />}
               trailing={
-                <View style={s.inline}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Deny ${w.name}`}
-                    testID={`waiting-decline-${w.serverId}`}
-                    onPress={() => onDecline?.(w.serverId)}
-                    style={[s.small, pointer]}
-                  >
-                    <Text style={s.smallText}>Deny</Text>
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Allow ${w.name}`}
-                    testID={`waiting-approve-${w.serverId}`}
-                    onPress={() => onApprove?.(w.serverId)}
-                    style={[s.primary, pointer]}
-                  >
-                    <Text style={s.primaryText}>Allow</Text>
-                  </Pressable>
-                </View>
+                <RowActions>
+                  <View style={s.inline}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Deny ${w.name}`}
+                      testID={`waiting-decline-${w.serverId}`}
+                      onPress={() => onDecline?.(w.serverId)}
+                      style={[s.small, pointer]}
+                    >
+                      <Text style={s.smallText}>Deny</Text>
+                    </Pressable>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Allow ${w.name}`}
+                      testID={`waiting-approve-${w.serverId}`}
+                      onPress={() => onApprove?.(w.serverId)}
+                      style={[s.primary, pointer]}
+                    >
+                      <Text style={s.primaryText}>Allow</Text>
+                    </Pressable>
+                  </View>
+                </RowActions>
               }
             />
           ))}
@@ -997,18 +1002,16 @@ function RemoveServer({
   return (
     <View testID="machine-remove">
       {asking ? (
-        <View testID="machine-remove-confirm" accessibilityRole="alert" style={s.removeCard}>
-          <Text style={[s.cellMain, { flex: 1, minWidth: 220 }]}>{removeMessage(displayName(m), removal.pcs)}</Text>
-          <Button label="Cancel" small testID="machine-remove-cancel" onPress={() => setAsking(false)} />
-          <Button
-            label={busy ? "Removing" : "Remove"}
-            small
-            danger
-            disabled={busy}
-            testID="machine-remove-go"
-            onPress={go}
-          />
-        </View>
+        <InlineConfirm
+          testID="machine-remove-confirm"
+          question={removeMessage(displayName(m), removal.pcs)}
+          confirmLabel={busy ? "Removing" : "Remove"}
+          busy={busy}
+          confirmTestID="machine-remove-go"
+          cancelTestID="machine-remove-cancel"
+          onConfirm={go}
+          onCancel={() => setAsking(false)}
+        />
       ) : null}
       {err ? (
         <Text style={s.error} testID="machine-remove-error">
@@ -1366,30 +1369,19 @@ export function Placement({
           }
         />
         {confirm ? (
-          <View style={s.confirm} testID="drain-confirm" accessibilityRole="alert">
-            <Text
-              style={s.confirmText}
-            >{`Drain ${displayName(m)}? ${plural(m.runs.turns, "turn")} ${m.runs.agentComputers ? `and ${plural(m.runs.agentComputers, "agent computer")} ` : ""}keep running until they finish. New work goes to the next computer with room.`}</Text>
-            <Pressable
-              accessibilityRole="button"
-              testID="drain-cancel"
-              onPress={() => setConfirm(false)}
-              style={[s.small, pointer]}
-            >
-              <Text style={s.smallText}>Cancel</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              testID="drain-yes"
-              onPress={() => {
-                setConfirm(false);
-                void set({ drain: true });
-              }}
-              style={[s.primary, pointer]}
-            >
-              <Text style={s.primaryText}>Drain</Text>
-            </Pressable>
-          </View>
+          <InlineConfirm
+            testID="drain-confirm"
+            danger={false}
+            question={`Drain ${displayName(m)}? ${plural(m.runs.turns, "turn")} ${m.runs.agentComputers ? `and ${plural(m.runs.agentComputers, "agent computer")} ` : ""}keep running until they finish. New work goes to the next computer with room.`}
+            confirmLabel="Drain"
+            confirmTestID="drain-yes"
+            cancelTestID="drain-cancel"
+            onConfirm={() => {
+              setConfirm(false);
+              void set({ drain: true });
+            }}
+            onCancel={() => setConfirm(false)}
+          />
         ) : null}
       </Block>
       {error ? (

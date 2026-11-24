@@ -3,7 +3,7 @@
 // Until the server holds a draft next to what is live, an On Automation's edits are saved by an explicit Save, and the page says so.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { renameDuplicate } from "../../chats/menus/kinds-b.ts";
@@ -33,7 +33,7 @@ import {
   withPreset,
 } from "../canvas/model.ts";
 import { applyAccount, connectedOption } from "../connect/accounts.ts";
-import { useOpenConnect } from "../../../shell/connect/context.ts";
+import { useConnectVersion, useOpenConnect } from "../../../shell/connect/context.ts";
 import { connectLabel, connectThen, stepNeed } from "../../../shell/connect/model.ts";
 import type { Definition, Issue } from "../canvas/model.ts";
 import { AnalyticsPanel } from "../operations/StudioViews.tsx";
@@ -46,7 +46,12 @@ import { StepPicker } from "../picker/StepPicker.tsx";
 import { appOfStep, stepId } from "../picker/model.ts";
 import { fromDefinition } from "../story/adapt.ts";
 import { needsFromIssues } from "../story/issues.ts";
-import { story as buildStory } from "../story/model.ts";
+import { needOf, ordered, story as buildStory } from "../story/model.ts";
+import { connectNeedOf } from "../clear/model.ts";
+import type { Blocked, TraceStep, WouldRun } from "../clear/model.ts";
+import { TestPane } from "../clear/TestPane.tsx";
+import type { TestTarget } from "../clear/TestPane.tsx";
+import { WhySheet } from "../clear/WhySheet.tsx";
 import { givenBy } from "../builder/insert-data.ts";
 import { inputValues } from "../builder/step-values.ts";
 import type { TestResult } from "../story/model.ts";
@@ -193,6 +198,15 @@ function Body({
     done?: boolean;
   } | null>(null);
   const [confirmTheirs, setConfirmTheirs] = useState(false);
+  // Test (rc.41): the pane beside the steps, what the test on the page is tried on, last week, and the Why sheet a record that did not start it opens
+  const [testOpen, setTestOpen] = useState<false | "pick" | "week">(false);
+  const [target, setTarget] = useState<TestTarget | null>(null);
+  const [would, setWould] = useState<WouldRun | null>(null);
+  const [why, setWhy] = useState<{ recordId: string; type: string; eventId?: string } | null>(null);
+  // what this Automation is missing before it can be turned on, and its one sentence: read again after every save and whenever something is connected
+  const [ready, setReady] = useState<{ blocked: Blocked | null; sentence?: string }>({ blocked: null });
+  const [readyTick, setReadyTick] = useState(0);
+  const connected = useConnectVersion();
   // a proposal is what the page shows until a person accepts or discards it; their own draft and the live steps are untouched underneath
   const def: Definition = proposal ? proposal.definition : (draft ?? a.definition);
   const [sel, setSel] = useState<string | null>(initialSelected);
@@ -252,6 +266,25 @@ function Body({
     };
   }, [data, a.id, a.version, a.status]);
   const sendsFrom = sendsFromLine(senders);
+  useEffect(() => {
+    let live = true;
+    void data
+      .call("automations.readiness", {
+        automationId: a.id,
+        ...(a.status === "on" && serverDraft ? { draft: true } : {}),
+      })
+      .then(
+        (o) => {
+          const got = o as { blocked?: Blocked[]; sentence?: string } | null;
+          if (live)
+            setReady({ blocked: got?.blocked?.[0] ?? null, ...(got?.sentence ? { sentence: got.sentence } : {}) });
+        },
+        () => undefined,
+      );
+    return () => {
+      live = false;
+    };
+  }, [data, a.id, a.version, a.status, a.updatedAt, serverDraft?.rev, readyTick, connected]);
   const list = useScreenQuery<{ automations: readonly { id: string; failedRuns?: number }[] }>(
     SIDEBAR,
     "automations",
@@ -376,7 +409,10 @@ function Body({
   useEffect(() => {
     if (!draft || draft === savedDraft || locked || conflict) return undefined;
     const t = setTimeout(() => {
-      void save().then(() => setSavedDraft(draft));
+      void save().then(() => {
+        setSavedDraft(draft);
+        setReadyTick((n) => n + 1);
+      });
     }, 700);
     return () => clearTimeout(t);
   }, [draft, savedDraft, locked, conflict, save]);
@@ -521,8 +557,15 @@ function Body({
         dirty: proposal === null && draft !== null && a.status === "on",
         saveMode: "draft",
         test: testRun ? { caseName: testRun.caseName, results: testRun.results } : null,
+        sentence: ready.sentence,
+        // a step that already asks for it on its own row says it there: what is missing is said once
+        blocked:
+          ready.blocked &&
+          !ordered(view.steps).some(({ step }) => step.id === ready.blocked!.nodeId && needOf(step) !== null)
+            ? { line: ready.blocked.line, button: ready.blocked.button }
+            : null,
       }),
-    [a, view, draft, def, triggerRows, testRun, proposal],
+    [a, view, draft, def, triggerRows, testRun, proposal, ready],
   );
 
   const makeLive = useCallback(async (): Promise<void> => {
@@ -633,27 +676,41 @@ function Body({
       flash(e instanceof Error ? e.message : "That did not change.");
     }
   };
-  // Test tries the draft on a real past event, step by step (AUTOMATIONS-BUILD-RC29 1f)
-  const test = async (): Promise<void> => {
+  // Test is a dry run on something real (rc.41): a thing that happened, a record as it stands, or made-up values when nothing has happened yet. Reads run; what sends or writes is held.
+  const test = async (t: TestTarget): Promise<void> => {
+    // the pane shows what was picked at once; the last test's trace leaves the page before the new one starts
+    setTarget(t);
+    setTestRun(null);
     try {
       if (draft && draft !== savedDraft) await save();
-      const past = (await data.call("automations.test_events", { automationId: a.id })) as {
-        events: { runId: string; at: number; payload: Record<string, unknown> }[];
-      };
-      const event = past.events[0];
       const started = (await data.call("automations.test", {
         automationId: a.id,
         ...(a.status === "on" && draft ? { draft: true } : {}),
-        ...(event ? { eventRunId: event.runId } : {}),
+        ...(t.eventId
+          ? { eventId: t.eventId }
+          : t.recordId
+            ? { recordId: t.recordId, ...(t.recordType ? { recordType: t.recordType } : {}) }
+            : {}),
       })) as { runId: string };
-      setTestRun({
-        runId: started.runId,
-        caseName: event ? caseOf(event.payload, whenText(event.at, Date.now())) : "an example event",
-        results: {},
-      });
+      setTestRun({ runId: started.runId, caseName: t.name, results: {} });
     } catch (e) {
       flash(e instanceof Error ? e.message : "The test did not start.");
     }
+  };
+  const openTest = (stage: "pick" | "week" = "pick"): void => {
+    setSel(null);
+    setTestOpen(stage);
+    void data
+      .call("automations.would_run", { automationId: a.id, ...(a.status === "on" && draft ? { draft: true } : {}) })
+      .then(
+        (o) => setWould(o as WouldRun),
+        () => setWould({ supported: false, days: 7, n: 0, of: 0, capped: false, starts: [] }),
+      );
+  };
+  const closeTest = (): void => {
+    setTestOpen(false);
+    setTestRun(null);
+    setTarget(null);
   };
   useEffect(() => {
     if (!testRun || testRun.done) return undefined;
@@ -665,6 +722,12 @@ function Body({
         const got = (await data.call("runs.steps", { runId: testRun.runId })) as {
           steps: { step: string; state: string; error?: { message: string } }[];
         };
+        // the Run's own word for whether it is over: a path that ends early finishes with fewer steps than the page has
+        const status = (
+          (await data.call("runs.get", { runId: testRun.runId }).catch(() => null)) as {
+            run?: { status?: string };
+          } | null
+        )?.run?.status;
         const results: Record<string, TestResult> = {};
         for (const st of got.steps) {
           if (st.state === "succeeded") {
@@ -682,7 +745,10 @@ function Body({
           } else if (st.state === "failed" || st.state === "stopped")
             results[st.step] = { status: "stop", line: st.error?.message ?? "Stopped here", values: [] };
         }
-        const finished = got.steps.length >= def.nodes.length || got.steps.some((x) => x.state === "failed");
+        const finished =
+          (status !== undefined && ["succeeded", "failed", "stopped", "cancelled", "canceled"].includes(status)) ||
+          got.steps.length >= def.nodes.length ||
+          got.steps.some((x) => x.state === "failed");
         if (live)
           setTestRun((t) => (t && t.runId === testRun.runId ? { ...t, results, done: finished || tries > 25 } : t));
         if (live && !finished && tries <= 25) setTimeout(() => void tick(), 900);
@@ -740,8 +806,23 @@ function Body({
         p.y,
         "other",
       );
-    } else if (action === "test") void test();
-    else if (action === "primary") {
+    } else if (action === "test") openTest();
+    else if (action === "blocked") {
+      const b = ready.blocked;
+      if (!b) return;
+      const need = connectNeedOf(b);
+      // the step's own connect puts the new account on the step; a thing with no step to hold it is connected and read again
+      if (b.nodeId && connectNeeds.get(b.nodeId) && openConnect) onAction("need", b.nodeId);
+      else if (need && openConnect)
+        void openConnect(need).then(
+          () => setReadyTick((n) => n + 1),
+          () => undefined,
+        );
+      else if (b.nodeId) {
+        setFocusNeed(b.nodeId);
+        setSel(b.nodeId);
+      }
+    } else if (action === "primary") {
       const label = model.head.primary?.label;
       if (label === "Turn on") void setEnabled(true);
       else if (label === "Run now") void runNow();
@@ -749,9 +830,11 @@ function Body({
     } else if (action === "secondary") void setEnabled(false);
     else if (action === "bar") {
       if (id === "Make live") void makeLive();
-      else if (id === "Done") setTestRun(null);
-      else if (id === "Run again") void test();
-      else if (id === "Accept") void acceptProposal();
+      else if (id === "Done") closeTest();
+      else if (id === "Run again") {
+        if (target) void test(target);
+        else openTest();
+      } else if (id === "Accept") void acceptProposal();
       else if (id === "Change") data.nav.ask(a.id);
       else if (id === "Discard") {
         if (proposal) void discardProposal();
@@ -765,7 +848,10 @@ function Body({
         catalog?.checked === true &&
         !catalog.all.some((st) => st.key === node.key) &&
         kindOfKey(node.key) === "plain";
-      if (!foreign) setSel(id === sel ? null : id);
+      if (!foreign) {
+        setTestOpen(false);
+        setSel(id === sel ? null : id);
+      }
     } else if (action === "need" && id) {
       const step = model.rows.find((r) => r.kind === "step" && r.id === id);
       if (step && step.kind === "step" && step.need?.kind === "no_access") askAdmin();
@@ -920,6 +1006,75 @@ function Body({
     show(items, p.x - 160, p.y, "context");
   };
 
+  // the test on the page as the pane reads it: each step in order, where the run is, what was held, and what each held step was given
+  const traceSteps = useMemo((): TraceStep[] | null => {
+    if (!testRun) return null;
+    const writes = new Map(ordered(view.steps).map(({ step }) => [step.id, step.writes === true] as const));
+    let running = false;
+    return model.rows.flatMap((r): TraceStep[] => {
+      if (r.kind !== "step") return [];
+      const res = testRun.results[r.id];
+      const shown = model.tests[r.id];
+      let state: TraceStep["state"];
+      if (res?.status === "ok") state = "done";
+      else if (res?.status === "stop" || shown?.mark === "stopped") state = "stopped";
+      else if (testRun.done) state = "skipped";
+      else if (!running) {
+        state = "running";
+        running = true;
+      } else state = "pending";
+      return [
+        {
+          id: r.id,
+          number: r.number,
+          text: r.sentence.text,
+          state,
+          held: writes.get(r.id) === true,
+          ...(res?.status === "stop" ? { error: res.line } : {}),
+          values: res?.values ?? [],
+        },
+      ];
+    });
+  }, [testRun, model, view]);
+  const searchRecords = useMemo(() => {
+    const type = would?.recordType;
+    const titleField = would?.titleField ?? "name";
+    if (!type) return undefined;
+    return async (text: string): Promise<{ recordId: string; recordType: string; name: string }[]> => {
+      const out = (await data.call("records.search", { type, q: text, limit: 8 })) as {
+        rows?: { id: string; fields?: Record<string, unknown> }[];
+      } | null;
+      return (out?.rows ?? []).map((r) => ({
+        recordId: r.id,
+        recordType: type,
+        name:
+          typeof r.fields?.[titleField] === "string" && r.fields[titleField] !== ""
+            ? (r.fields[titleField] as string)
+            : "Unnamed",
+      }));
+    };
+  }, [would, data]);
+  const testPane =
+    testOpen && !locked ? (
+      <TestPane
+        key={testOpen}
+        name={a.name}
+        would={would}
+        steps={traceSteps}
+        finished={testRun?.done === true}
+        target={target}
+        initialStage={testOpen}
+        whenText={(at) => whenText(at, Date.now())}
+        onStart={(t) => void test(t)}
+        {...(searchRecords ? { search: searchRecords } : {})}
+        onWhy={(t) => {
+          if (t.recordId && t.recordType)
+            setWhy({ recordId: t.recordId, type: t.recordType, ...(t.eventId ? { eventId: t.eventId } : {}) });
+        }}
+        onClose={closeTest}
+      />
+    ) : null;
+
   const selNode = sel && sel !== "trigger" ? (def.nodes.find((n) => n.id === sel) ?? null) : null;
   const trigIndex = sel === "trigger" ? 0 : sel?.startsWith("trigger:") ? Number(sel.slice(8)) : null;
   const trigSel = trigIndex !== null;
@@ -1052,41 +1207,59 @@ function Body({
       ) : null}
       {phone && phoneFix ? <View style={s.fill}>{inspector}</View> : null}
       {phone && !phoneFix ? (
-        <>
+        <ScrollView style={s.paneScroll} testID="phone-runs-scroll">
           <Text style={[look.quiet, s.note]} testID="phone-build-line">
             Building opens on a computer. Runs and their fixes work here.
           </Text>
           {runsBody}
-        </>
+        </ScrollView>
       ) : null}
       {!phone && tab === "steps" ? (
         <View style={s.split}>
           <View style={s.main}>
             <StoryView story={model} headless readOnly={locked} on={onAction} />
           </View>
-          {inspector ? <View style={phone ? s.fill : s.side}>{inspector}</View> : null}
+          {testPane ? (
+            <View style={s.side}>{testPane}</View>
+          ) : inspector ? (
+            <View style={phone ? s.fill : s.side}>{inspector}</View>
+          ) : null}
         </View>
       ) : null}
       {!phone && tab === "runs" ? (
-        <View style={s.pane}>
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane}>
           <AnalyticsPanel automationId={a.id} />
           {runsBody}
+          {/* a run someone expected and did not get: last week's list says, for each thing that happened, whether it would have started this and what stopped it */}
+          {locked ? null : (
+            <Pressable
+              testID="runs-why"
+              accessibilityRole="button"
+              onPress={() => {
+                setTab("steps");
+                openTest("week");
+              }}
+              style={[look.btn, look.outlined, s.whyBtn]}
+            >
+              <Text style={look.btnText}>Why didn’t it run?</Text>
+            </Pressable>
+          )}
           <More head="Event log" testID="runs-event-log">
             <LiveEvents />
           </More>
-        </View>
+        </ScrollView>
       ) : null}
       {!phone && tab === "settings" ? (
-        <View style={s.pane}>
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane}>
           <AutomationConfig automationId={a.id} embedded readOnly={locked} />
           <Dependencies automationId={a.id} />
           <Pressable testID="settings-copies" accessibilityRole="button" onPress={() => setPackagesOpen(true)}>
             <Text style={look.btnText}>Make a copy to share, or import one</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       ) : null}
       {tab === "history" ? (
-        <View style={s.pane} testID="versions-list">
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane} testID="versions-list">
           <CohortMigration automationId={a.id} currentVersion={a.version} />
           {versions.length === 0 ? (
             <Text style={look.quiet}>This is the first version.</Text>
@@ -1117,7 +1290,7 @@ function Body({
               />
             ))
           )}
-        </View>
+        </ScrollView>
       ) : null}
       {picker && pickIn ? (
         <StepPicker
@@ -1175,6 +1348,25 @@ function Body({
         <Overlay label="Promote to Space" onClose={() => setPromoteOpen(false)} testID="promote-overlay">
           <PromoteSheet automation={a} onClose={() => setPromoteOpen(false)} />
         </Overlay>
+      ) : null}
+      {why ? (
+        <WhySheet
+          type={why.type}
+          recordId={why.recordId}
+          {...(why.eventId ? { eventId: why.eventId } : {})}
+          call={data.call}
+          nameOf={data.name}
+          whenText={(at) => whenText(at, Date.now())}
+          onOpenAutomation={(id) => {
+            setWhy(null);
+            if (id !== a.id) data.nav.openAutomation(id);
+          }}
+          onOpenRun={(runId) => {
+            setWhy(null);
+            data.nav.openRun(runId);
+          }}
+          onClose={() => setWhy(null)}
+        />
       ) : null}
       {element}
       {renaming ? (
@@ -1237,20 +1429,13 @@ const s = StyleSheet.create({
   },
   conflictRow: { flexDirection: "row", gap: 16, alignItems: "center" },
   split: { flex: 1, flexDirection: "row", minHeight: 0 },
-  main: { flex: 1, minWidth: 0 },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   side: { width: 400, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   fill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "var(--win)" as string },
-  pane: { flex: 1, padding: 16 },
+  // a tab taller than the window scrolls inside its own frame (a plain View here clipped it and nothing scrolled)
+  paneScroll: { flex: 1, minHeight: 0 },
+  // flexGrow keeps a short page filling the frame (no gap under it)
+  pane: { flexGrow: 1, padding: 16 },
+  whyBtn: { alignSelf: "flex-start", marginTop: 12 },
   note: { paddingHorizontal: 16, paddingBottom: 4 },
 });
-
-/** Who a past event was about, in its own words, and when: "Sam Reyes, Tue 9:00 AM". */
-function caseOf(whole: Record<string, unknown>, when: string): string {
-  const inner = whole?.["input"];
-  const payload = inner && typeof inner === "object" ? (inner as Record<string, unknown>) : whole;
-  for (const k of ["name", "fullName", "title", "subject", "from", "email", "summary"]) {
-    const v = payload?.[k];
-    if (typeof v === "string" && v.trim()) return `${v.trim().slice(0, 40)}, ${when}`;
-  }
-  return `an earlier event, ${when}`;
-}

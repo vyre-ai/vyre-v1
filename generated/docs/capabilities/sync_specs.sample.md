@@ -11,7 +11,7 @@ Read one page of an app, read-only (GET only), with a Vault handle as the key: w
 | Grant level | view |
 | Risk | low |
 | Resource | space |
-| Gate | none |
+| Gate | send when vault.key_host_unapproved(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

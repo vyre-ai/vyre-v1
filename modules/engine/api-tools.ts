@@ -3,6 +3,7 @@
 // @reads /generated/registry.json
 // @reads /generated/mcp-tools.json
 // @reads /docs/frozen/agent-tools.md
+import { createBackgroundPort } from "./background-jobs.ts";
 import { readFileSync } from "node:fs";
 import { createApiTools } from "../../agent/src/drivers/open/api-tools.ts";
 import type { ApiTools } from "../../agent/src/drivers/open/api-tools.ts";
@@ -75,16 +76,26 @@ export const SEQUENTIAL_READS: ReadonlySet<string> = new Set([
   "vault_request",
 ]);
 
+/**
+ * What the tool sets are built from: the generated registry and tool list, read and parsed once per process. The first agent turn used to pay for it (176 ms in one stretch, in a profile of a busy server);
+ * the engine module asks for it in the first idle tick after it loads, so a turn finds it warm.
+ */
+export function warmApiToolCatalog(): void {
+  if (catalog && defaults) return;
+  const reg = JSON.parse(read("generated/registry.json")) as {
+    capabilities: RegistryCapRow[];
+    agentTools: AgentToolRow[];
+  };
+  const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
+  catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
+  defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
+}
+/** Has the catalog been built (a turn would not pay for it)? */
+export const apiToolCatalogWarm = (): boolean => catalog !== null && defaults !== null;
+
 export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
-  if (!catalog || !defaults) {
-    const reg = JSON.parse(read("generated/registry.json")) as {
-      capabilities: RegistryCapRow[];
-      agentTools: AgentToolRow[];
-    };
-    const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
-    catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
-    defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
-  }
+  warmApiToolCatalog();
+  if (!catalog || !defaults) throw new Error("the tool catalog is not built");
   // What decides a turn's tool set is read as the asker before the set is built (the tool session asks synchronously): the agent's allow and deny lists, what the thread is (an Ask pane about an object,
   // plan mode), and the asker's level on that object. An Ask pane never offers more than the asker holds on what it is about.
   const rules = new Map<string, AgentRules>();
@@ -96,6 +107,10 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
   const levelKey = (asker: string, scope: { type: string; id: string }): string => `${asker}|${scope.type}|${scope.id}`;
   const session = createToolSession({
     nextHints: true,
+    // a long command the model left running is a node of the Run tree (background-jobs.ts); it needs the server's own door to the runs module
+    ...(d.call
+      ? { background: createBackgroundPort({ call: (cap, input) => d.call!(cap, input) }, `host:${d.space}`) }
+      : {}),
     invoke: d.invoke,
     catalog,
     defaults,
@@ -211,6 +226,13 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       ? "read"
       : "other";
   };
+  // how safe a call is to ask again after a restart (agent/src/turn-engine/journal.ts): a plain read, or a call that carries an idempotency key the server answers once; the rest may have changed something
+  const toolSafety = (name: string): "read" | "keyed" | "unsafe" => {
+    const t = catalog!.byName(name);
+    if (t === undefined || t.local !== "none") return "unsafe";
+    if (t.effects === "read" && !t.gated) return "read";
+    return t.keyed === true ? "keyed" : "unsafe";
+  };
   const tools = createApiTools({
     session,
     space: d.space,
@@ -228,5 +250,5 @@ export function createEngineApiTools(d: EngineApiToolsDeps): ApiTools {
       : {}),
     ...(d.plugins ? { extra: d.plugins.extra } : {}),
   });
-  return { ...tools, toolClass };
+  return { ...tools, toolClass, toolSafety };
 }

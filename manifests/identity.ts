@@ -172,7 +172,7 @@ export default defineManifest({
     write("identity.github_sign_in", "Sign in with GitHub once the Space is named", {
       ...V,
       caller: "anonymous",
-      in: { code: t.str(), ...deviceIn },
+      in: { code: t.str(), verifier: t.opt(t.str({ minLength: 16, maxLength: 200 })), ...deviceIn },
       out: signInOut,
       emits: ["signin.succeeded", "signin.failed"],
       audit: "sensitive",
@@ -291,7 +291,15 @@ export default defineManifest({
       {
         ...V,
         idem: "key",
-        in: { purpose: t.enm("app", "phone", "extension", "daemon") },
+        in: {
+          purpose: t.enm("app", "phone", "extension", "daemon"),
+          challenge: t.opt(
+            t.str({
+              pattern: "^[0-9a-fA-F]{64}$",
+              examples: ["9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"],
+            }),
+          ),
+        },
         out: { code: t.str({ examples: ["K7P2-9QXA"] }), expiresAt: t.ts() },
         offline: "online",
         audit: "sensitive",
@@ -573,6 +581,7 @@ export default defineManifest({
       ...V,
       in: { code: t.str() },
       out: { login: t.str() },
+      gate: { act: "signin_change", when: "actor.kind != 'person'" },
       emits: ["github.linked"],
       offline: "online",
       audit: "sensitive",
@@ -582,6 +591,7 @@ export default defineManifest({
       ...V,
       in: {},
       out: ok,
+      gate: { act: "signin_change", when: "actor.kind != 'person'" },
       emits: ["github.unlinked"],
       offline: "online",
       audit: "sensitive",

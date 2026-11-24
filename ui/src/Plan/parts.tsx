@@ -29,6 +29,8 @@ export interface EventLike {
   altKey?: boolean;
   key?: string;
   isComposing?: boolean;
+  /** When the browser made the event (ms): a busy page delays the handler, not this. */
+  timeStamp?: number;
   target: ElLike;
   currentTarget: ElLike;
   preventDefault(): void;
@@ -152,14 +154,43 @@ export function FaceButton({
   size,
   ctx,
   slot = "who",
+  display = false,
 }: {
   it: Item;
   size: number;
   ctx: PlanCtx;
   slot?: WhoSlot;
+  /** Only a picture: no button, no pointer handler. A bar too short to hold a button and a finger, or any bar on a touch screen, shows its avatar this way; assigning stays in the task's pane and the List row. */
+  display?: boolean;
 }): ReactElement {
   const w = slot === "who" ? it.who : slot === "reviewer" ? it.reviewer : it.approver;
   const ring = slot === "who" && (it.status === "review" || it.status === "approval");
+  if (display)
+    return h(
+      "span",
+      {
+        "data-testid": `plan-who-${it.id}`,
+        style: {
+          display: "inline-flex",
+          flex: "none",
+          borderRadius: 99,
+          pointerEvents: "none",
+          boxShadow: ring ? "0 0 0 2px var(--accent)" : "none",
+        },
+      },
+      w
+        ? h(Face, { who: w, size })
+        : h("span", {
+            style: {
+              width: size,
+              height: size,
+              borderRadius: 99,
+              border: "1.5px dashed var(--ink-4)",
+              boxSizing: "border-box",
+              display: "inline-block",
+            },
+          }),
+    );
   return h(
     "span",
     {
@@ -261,6 +292,8 @@ export function NameField({ it, ctx, style }: { it: Item; ctx: PlanCtx; style?: 
 
 /** Everything a view reads and every action it can start; the component in index.tsx builds it. */
 export interface PlanCtx {
+  /** A touch screen (a phone width or a coarse pointer): there, a bar's or a chip's avatar is only a picture, so a tap anywhere on it opens the task. */
+  coarse: boolean;
   today: number;
   width: number;
   filter: PlanFilter;
@@ -295,4 +328,19 @@ export interface PlanCtx {
   setBody(el: ElLike | null): void;
   /** Right-click on a dependency arrow: Remove Link. */
   linkMenu(a: string, b: string, x: number, y: number): void;
+}
+
+/**
+ * The menu trigger's props with a pointer-down of the element's own added to it. menuTrigger has an onPointerDown of its own (a finger held still opens the menu), and spreading it over an
+ * element's own onPointerDown replaced it: a bar or a calendar chip then never began a drag, with the mouse either. Both run, the menu's first.
+ */
+export function withDown(menu: Record<string, unknown>, onDown: (e: EventLike) => void): Record<string, unknown> {
+  const theirs = menu["onPointerDown"] as ((e: EventLike) => void) | undefined;
+  return {
+    ...menu,
+    onPointerDown: (e: EventLike): void => {
+      theirs?.(e);
+      onDown(e);
+    },
+  };
 }

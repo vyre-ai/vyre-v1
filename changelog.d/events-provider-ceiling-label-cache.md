@@ -1,0 +1,1 @@
+The event log, an Automation's trigger and a webhook apply the same provider label ceiling as records.get, and a page of record events reads each type's field labels once (events.since of 1,000 events: about 110 ms, was about 200 to 290).

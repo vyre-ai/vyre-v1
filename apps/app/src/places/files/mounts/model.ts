@@ -143,6 +143,14 @@ export function pathKey(d: Draft): string {
   return key;
 }
 export const pick = (d: Draft, item: BrowseItem | null): Draft => ({ ...d, picked: item });
+/** "Choose this folder": the folder walked into is the one to connect, and the sheet goes on to its options. Nothing while at the root of the source. */
+export function chooseHere(d: Draft): Draft {
+  const here = d.path[d.path.length - 1];
+  if (d.step !== 2 || d.source === null || d.source === "github" || !here) return d;
+  // OneDrive opens its one drive for you (path [drive]): the bare drive root is not offered, only a folder inside it
+  if (d.source === "onedrive" && d.path.length < 2) return d;
+  return { ...d, picked: { ref: here.ref, name: here.name, isFolder: true, kind: here.kind }, step: 3 };
+}
 export const setQuery = (d: Draft, q: string): Draft => ({ ...d, q, picked: null });
 
 export function canNext(d: Draft): boolean {
@@ -284,3 +292,7 @@ export function unmountWords(row: Pick<MountRow, "name" | "kind" | "provider">):
     row.kind === "local" ? "their folder on your computer" : row.kind === "github" ? "GitHub" : row.provider;
   return { title: "Unmount " + `“${row.name}”` + "?", body: `The files stay in ${where}.` };
 }
+
+/** A double click is two presses; the second lands on a row of the folder the first just entered. A walk is allowed at most once in this long, whatever row is pressed. */
+export const WALK_GUARD_MS = 300;
+export const walkAllowed = (lastAt: number, now: number): boolean => now - lastAt >= WALK_GUARD_MS;

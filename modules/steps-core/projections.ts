@@ -10,7 +10,15 @@ export interface StepsCtx {
   actingFor?: string;
   trace: { traceId: string };
   now(): number;
-  call?(cap: string, input: unknown): Promise<unknown>;
+  /** `opts` goes along to the Gate: `gate: "admin_only"` holds only on a rule an admin wrote, `step` names the Automation step the call is (and whether it asks first). */
+  call?(
+    cap: string,
+    input: unknown,
+    opts?: {
+      gate?: "admin_only";
+      step?: { automationId: string; nodeId: string; defHash: string; ask?: boolean };
+    },
+  ): Promise<unknown>;
 }
 
 /** What `{{ }}` and conditions can read: the trigger payload, the results of earlier steps, the loop item and a few Run facts. */
@@ -20,6 +28,8 @@ export interface Scope {
   item?: unknown;
   index?: number;
   vars?: Record<string, unknown>;
+  /** The values the Journey carries for the record the Run is about. */
+  journey?: Record<string, unknown>;
   run?: { id: string };
   now?: number;
 }
@@ -317,6 +327,7 @@ function ev(a: Ast, scope: Scope): unknown {
         item: scope.item,
         index: scope.index,
         vars: scope.vars ?? {},
+        journey: scope.journey ?? {},
         run: scope.run,
         input: scope.trigger,
       };

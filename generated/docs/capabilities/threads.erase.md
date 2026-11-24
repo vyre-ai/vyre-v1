@@ -11,13 +11,13 @@ Erase one chat thread for good: messages, blocks, pins, reactions, attachment li
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | delete when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/threads/erase |
-| MCP tool | none |
+| MCP tool | threads_erase (chats, deferred) |
 | CLI | none |
 | Emits | thread.erased |
 

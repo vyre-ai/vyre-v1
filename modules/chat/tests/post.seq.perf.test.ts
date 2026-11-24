@@ -7,6 +7,7 @@ import { handlers } from "../impl.ts";
 import { lastMessages } from "../projections.ts";
 import { INTAKE, MAYA, failure, harness } from "../fixtures/harness.ts";
 import type { Harness } from "../fixtures/harness.ts";
+import { assertWithinCpu } from "../../../testkit/src/cpu-time.ts";
 
 const h = handlers as unknown as Record<string, (ctx: Harness["ctx"], input: any) => Promise<any>>;
 
@@ -31,11 +32,8 @@ test("opening a chat with 20,000 messages reads the last 50 in well under 50 ms"
   }
   hn.raw.run("INSERT INTO chat_thread_seq (thread, last) VALUES (?, 20000)", t);
   lastMessages(hn.db, t); // warm
-  const t0 = performance.now();
-  const tail = lastMessages(hn.db, t);
-  const ms = performance.now() - t0;
+  const tail = assertWithinCpu("last 50 of 20,000", 50, () => lastMessages(hn.db, t));
   assert.equal(tail.length, 50);
   assert.equal(tail[49]!.seq, 20_000);
-  assert.ok(ms < 50, `last 50 of 20,000 took ${ms.toFixed(1)} ms`);
   assert.equal((await say(hn, t, "next")).message.threadSeq, 20_001);
 });

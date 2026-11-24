@@ -1,0 +1,1 @@
+- The Inbox keeps its last known "can send" answer per Space for the session, so the pencil and plus paint their final state on a return visit; on a first visit they stay out until the mailboxes have answered, and a Space with nothing connected never draws the + and then drops it.

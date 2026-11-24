@@ -1,10 +1,12 @@
-// The 35 tool capabilities of the computers module: 22 Chrome, 8 Screen, 5 Files (P-L2_16b). Keys are the capability names in manifests/computers.ts.
+// The 37 tool capabilities of the computers module: 24 Chrome, 8 Screen, 5 Files (P-L2_16b). Keys are the capability names in manifests/computers.ts.
 import * as chrome from "./chrome.ts";
 import * as files from "./files.ts";
 import * as screen from "./screen.ts";
 
 export const toolHandlers = {
   "computers.chrome.snapshot": chrome.snapshot,
+  "computers.chrome.read": chrome.readWeb,
+  "computers.chrome.search": chrome.searchWebTool,
   "computers.chrome.act": chrome.act,
   "computers.chrome.click": chrome.click,
   "computers.chrome.type": chrome.type,

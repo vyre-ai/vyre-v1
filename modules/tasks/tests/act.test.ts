@@ -8,7 +8,7 @@ import { findStuck, mintApprovalToken, readApprovalToken, TOKEN_MINUTES } from "
 import { findTask } from "../projections.ts";
 
 const HOUR = 3_600_000;
-const svc = { id: "svc_gate", kind: "service" as const };
+const svc = { id: "svc_host", kind: "service" as const };
 const asAlice = { id: alice.id, device: "dev_1" };
 
 async function create(
@@ -314,11 +314,11 @@ test("the decision id and payload hash are written once, only on a held act, and
 test("answering a run's request resumes the run; a failed resume is reported, not undone", async () => {
   const h = harness();
   h.callee("runs.resume", () => ({ run: {} }));
-  const id = await create(h, { kind: "answer", assigned: alice, source: { kind: "run", id: "run_1" } });
+  const id = await create(h, { kind: "answer", assigned: alice, source: { kind: "run", id: "run_1" } }, svc);
   const r = await h.call("tasks.act", { taskId: id, action: "answer", answer: "yes" }, { id: alice.id });
   assert.equal(r.result.resumed, true);
   assert.deepEqual(h.calls[0], { cap: "runs.resume", input: { runId: "run_1", reason: "approval" } });
-  const u = await create(h, { kind: "unblock", assigned: alice, source: { kind: "run", id: "run_2" } });
+  const u = await create(h, { kind: "unblock", assigned: alice, source: { kind: "run", id: "run_2" } }, svc);
   h.callee("runs.resume", () => {
     throw Object.assign(new Error("run is gone"), { error: { code: "validation.precondition_failed" } });
   });

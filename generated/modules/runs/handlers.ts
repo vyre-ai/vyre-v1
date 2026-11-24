@@ -5,12 +5,36 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "runs.activity.list": Handler<"runs.activity.list", X>;
+  "runs.board.answer": Handler<"runs.board.answer", X>;
+  "runs.board.list": Handler<"runs.board.list", X>;
+  "runs.board.put": Handler<"runs.board.put", X>;
+  "runs.budget.set": Handler<"runs.budget.set", X>;
   "runs.count": Handler<"runs.count", X>;
   "runs.erase": Handler<"runs.erase", X>;
+  "runs.events.list": Handler<"runs.events.list", X>;
   "runs.finish": Handler<"runs.finish", X>;
   "runs.get": Handler<"runs.get", X>;
   "runs.list": Handler<"runs.list", X>;
   "runs.mark_waiting": Handler<"runs.mark_waiting", X>;
+  "runs.message.list": Handler<"runs.message.list", X>;
+  "runs.message.seen": Handler<"runs.message.seen", X>;
+  "runs.message.send": Handler<"runs.message.send", X>;
+  "runs.message.take": Handler<"runs.message.take", X>;
+  "runs.node.beat": Handler<"runs.node.beat", X>;
+  "runs.node.claim": Handler<"runs.node.claim", X>;
+  "runs.node.compare": Handler<"runs.node.compare", X>;
+  "runs.node.control": Handler<"runs.node.control", X>;
+  "runs.node.event": Handler<"runs.node.event", X>;
+  "runs.node.find": Handler<"runs.node.find", X>;
+  "runs.node.get": Handler<"runs.node.get", X>;
+  "runs.node.label": Handler<"runs.node.label", X>;
+  "runs.node.move": Handler<"runs.node.move", X>;
+  "runs.node.reclaim": Handler<"runs.node.reclaim", X>;
+  "runs.node.rerun": Handler<"runs.node.rerun", X>;
+  "runs.node.save_as_agent": Handler<"runs.node.save_as_agent", X>;
+  "runs.node.start": Handler<"runs.node.start", X>;
+  "runs.ops": Handler<"runs.ops", X>;
   "runs.people_counts": Handler<"runs.people_counts", X>;
   "runs.pin_version": Handler<"runs.pin_version", X>;
   "runs.preview_undo": Handler<"runs.preview_undo", X>;
@@ -26,6 +50,8 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "runs.step_io": Handler<"runs.step_io", X>;
   "runs.steps": Handler<"runs.steps", X>;
   "runs.stop": Handler<"runs.stop", X>;
+  "runs.tree.find": Handler<"runs.tree.find", X>;
+  "runs.tree.get": Handler<"runs.tree.get", X>;
   "runs.undo": Handler<"runs.undo", X>;
   "runs.wait_for": Handler<"runs.wait_for", X>;
 }

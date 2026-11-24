@@ -13,6 +13,7 @@ import { mergeStateOf, subagentIdsOf, totalsOf, withTeammates } from "../crew/mo
 import { FROM_THREAD_LINE } from "../crew/also.tsx";
 import { barShows, citable, citeBody, citeRender } from "../crew/cite.tsx";
 import type { CrewMember, CrewStatusOut } from "../crew/model.ts";
+import type { RunNode } from "../crew/run/model.ts";
 import { useLinkState } from "../../../../../../ui/src/reach/index.tsx";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
@@ -227,6 +228,12 @@ export interface MessageActions {
     openPane(): void;
     retry(helperThreadId: string): void;
     merge(jobIds: readonly string[]): void;
+    /** Read the crew again (a held request was answered on a tile). */
+    refresh(): void;
+    /** The runtime's nodes of this chat: the step, stuck and what each waits for, per helper. */
+    nodes?: readonly RunNode[];
+    /** False when the server said this person may not start failed helpers again: no Retry is drawn. */
+    mayRetry?: boolean;
   };
   /** A hook line's Edit or Details: the Hooks tab of the right pane at that hook. */
   openHooks?(hookId: string | undefined): void;
@@ -765,6 +772,11 @@ const SHEET_GROUPS: readonly (readonly string[])[] = [
 const FOOT: ReadonlySet<string> = new Set(["Edit", "Retry", "Delete"]);
 const FREQUENT = ["\u{1F44D}", "\u2764\uFE0F", "\u{1F602}", "\u{1F389}", "\u{1F440}"];
 
+/** Takes focus the moment the element appears (web only): the safe row of an ask, so a stray Enter or Space on a keyboard never confirms it. */
+const focusOnMount = (el: { focus?: () => void } | null): void => {
+  if (el && Platform.OS === "web") el.focus?.();
+};
+
 /** The message's actions as a bottom sheet (a long press on a phone): what it acts on in one line, the frequent reactions, then the same entries as the menu in groups, Delete last and alone. */
 function ActionSheet({
   open,
@@ -798,9 +810,10 @@ function ActionSheet({
     take(SHEET_GROUPS[2]!),
     items.filter((e) => e.label === "Delete"),
   ].filter((g) => g.length > 0);
-  const row = (e: (typeof items)[number], danger = false, onPress?: () => void): ReactElement => (
+  const row = (e: (typeof items)[number], danger = false, onPress?: () => void, focus = false): ReactElement => (
     <Pressable
       key={e.label}
+      {...(focus ? { ref: focusOnMount as never } : {})}
       accessibilityRole="button"
       accessibilityLabel={e.label}
       testID={`sheet-act-${e.label.toLowerCase().replace(/\s+/g, "-")}`}
@@ -827,7 +840,7 @@ function ActionSheet({
               onClose();
               items.find((e) => e.label === "Delete")?.onSelect?.();
             })}
-            {row({ label: "Cancel" }, false, () => setAsking(false))}
+            {row({ label: "Cancel" }, false, () => setAsking(false), true)}
           </View>
         ) : (
           <>
@@ -1637,8 +1650,15 @@ function Theirs({
                 {...(coderMerge ? { merge: coderMerge } : {})}
                 selectedId={c?.selected ?? null}
                 onPeek={(x) => (c ? c.peek(x.id) : actions.openMessage?.(x.id, ""))}
+                meId={meId}
+                {...(c ? { onAnswered: c.refresh } : {})}
+                {...(c?.nodes ? { nodes: c.nodes } : {})}
                 {...(c
-                  ? { onStopAll: c.stopAll, onOpenPane: c.openPane, onRetry: (x: { id: string }) => c.retry(x.id) }
+                  ? {
+                      onStopAll: c.stopAll,
+                      onOpenPane: c.openPane,
+                      ...(c.mayRetry === false ? {} : { onRetry: (x: { id: string }) => c.retry(x.id) }),
+                    }
                   : {})}
               />
               {typeof (b.data as { after?: unknown } | null)?.after === "string" ? (

@@ -123,7 +123,9 @@ test("a person writing in the very instant the engine ends an interim reply to a
     const { driver, woken } = rig();
     const session = await driver.open(specOf());
     try {
-      await collect(session.send(turnOf("bg 250 900")));
+      // The second helper ends far after the first (4 s, not 0.65 s): what the stand-in engine says when the LAST helper ends ("All 2 helpers are back.") must not be able to land inside the person's turn however slowly
+      // a loaded machine answers it. The assertion is the same; the test no longer depends on how fast the box is (it failed under load on 17 and 19 Nov with that extra line).
+      await collect(session.send(turnOf("bg 250 4000")));
       // write at (about) the moment the first helper ends and the engine answers it by itself
       await sleep(250 - lead);
       const mine = await collect(session.send(turnOf("how many are done")));
@@ -132,5 +134,40 @@ test("a person writing in the very instant the engine ends an interim reply to a
     } finally {
       await session.close();
     }
+  }
+});
+
+test("a person writing after the last helper ended and before the engine has said anything about it gets their own answer, never the engine's reply to the helper", async () => {
+  // the engine takes 400 ms (a model call) to answer the helper that just ended, and is busy with that turn: the message written meanwhile is answered after it. Nothing of that reply is the person's.
+  for (const wait of [200, 300]) {
+    const { driver, woken } = rig();
+    const session = await driver.open(specOf());
+    try {
+      await collect(session.send(turnOf("bg 100 lag 400")));
+      await until(() => session.background === 0, 2000);
+      await sleep(wait - 100);
+      const mine = await collect(session.send(turnOf("how many are done")));
+      assert.deepEqual(texts(mine), ["how many are done"], `written ${wait} ms after the helper started`);
+      assert.equal(kinds(mine).at(-1), "done");
+      assert.equal(woken(), 1, "the host was told the helpers had all ended");
+    } finally {
+      await session.close();
+    }
+  }
+});
+
+test("a person writing while the engine is part way through its reply to one helper gets their own answer: that reply's end is skipped once, not twice", async () => {
+  // helper 1 ends at 100 ms and the engine says its words at once but ends that reply 400 ms later; helper 2 ends at 1500 ms and its reply ("All 2 helpers are back.") is not the person's either
+  const { driver, woken } = rig();
+  const session = await driver.open(specOf());
+  try {
+    await collect(session.send(turnOf("bg 100 1500 tail 400")));
+    await sleep(250); // the words of the first reply are said, its end has not come
+    const mine = await collect(session.send(turnOf("how many are done")));
+    assert.deepEqual(texts(mine), ["how many are done"]);
+    assert.equal(kinds(mine).at(-1), "done");
+    assert.equal(woken(), 0, "one helper still works");
+  } finally {
+    await session.close();
   }
 });

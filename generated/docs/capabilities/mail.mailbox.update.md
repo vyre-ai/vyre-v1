@@ -11,7 +11,7 @@ Rename a mailbox or change its agent
 | Grant level | manage |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

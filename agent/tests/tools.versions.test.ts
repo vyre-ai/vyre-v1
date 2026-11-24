@@ -541,7 +541,7 @@ test("a file with no version from before the turn began (older ones purged, or m
   assert.equal(r.sent.filter((x) => x.cap === "files.write").length, 0, "nothing was written");
 });
 
-test("no agent tool can change a note's text, title, pin, labels or links today (only notes_create reads or writes one); the tool layer already carries the version for the day one does", async () => {
+test("an agent edits a note through the tool layer's version check: only these note tools exist, and notes_update carries expectedVersion", async () => {
   const { catalog } = loadGenerated();
   const tools = catalog.all
     .filter((t) => t.cap.startsWith("notes."))
@@ -549,20 +549,20 @@ test("no agent tool can change a note's text, title, pin, labels or links today 
     .sort();
   assert.deepEqual(
     tools,
-    ["notes_create", "notes_get", "notes_search"],
+    ["notes_create", "notes_get", "notes_list", "notes_pin", "notes_search", "notes_update"],
     "a new note tool must be added to the kinds in agent/src/tools/versions.ts",
   );
   const { kindOfWrite } = await import("../src/tools/versions.ts");
   assert.equal(kindOfWrite("notes.update")?.field, "expectedVersion");
 });
 
-test("the version inputs of the seven tools are not in the model's schema (it did not grow), stay in the contract, and a value a model sends anyway is dropped for the layer's", async () => {
+test("the version inputs of the seven tools, and the quiet switch of records.update, are not in the model's schema (it did not grow), stay in the contract, and a value a model sends anyway is dropped for the layer's", async () => {
   const { catalog } = loadGenerated();
   const { HIDDEN_FROM_MODEL } = await import("../src/tools/versions.ts");
   const reg = JSON.parse(readFileSync(new URL("../../generated/mcp-tools.json", import.meta.url), "utf8")) as {
     tools: Array<{ cap: string | null; inputSchema: { properties?: Record<string, unknown> } }>;
   };
-  assert.equal(Object.keys(HIDDEN_FROM_MODEL).length, 7);
+  assert.equal(Object.keys(HIDDEN_FROM_MODEL).length, 8);
   for (const [cap, fields] of Object.entries(HIDDEN_FROM_MODEL)) {
     const tool = catalog.all.find((t) => t.cap === cap)!;
     const shown = (tool.inputSchema as { properties: Record<string, unknown> }).properties;

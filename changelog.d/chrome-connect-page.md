@@ -1,0 +1,1 @@
+The Space has a Connect Chrome page at /chrome/connect: signed in as usual, one press makes a one-time code bound to the extension's own value and hands it to Vyre for Chrome in the same window; Chrome then appears under Settings, Sign-in and devices.

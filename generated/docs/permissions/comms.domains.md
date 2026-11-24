@@ -14,12 +14,20 @@ Area: comms. Risk: medium. Applies to: domain.
 
 ## Capabilities that need it
 
+- mail.address.add
+- mail.address.list
+- mail.address.move
 - mail.domain.add
 - mail.domain.check
 - mail.domain.remove
 - mail.domain.set_default
 - mail.route.remove
 - mail.route.set
+- mail.setup.status
+- mail.setup.test_send
+- mail.smtp.get
+- mail.smtp.set
+- mail.smtp.verify
 - mailgun.domains.create
 - mailgun.domains.delete
 - mailgun.domains.get

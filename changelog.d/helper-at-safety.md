@@ -1,0 +1,1 @@
+- A message you @name to a helper is never lost: if the helper cannot take it, the words stay in the box; a name that is both a helper and someone else in the chat is not sent until you pick one; a helper's pane no longer carries a draft, a made task or a saved file from one helper to the next.

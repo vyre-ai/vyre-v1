@@ -1,0 +1,1 @@
+Apps and agents connected to Vyre can now do far more of what a person can: Console set-up, erasing and purging, Notes edits, hooks and admin policy. Anything that deletes, or changes access, a connection or a key, waits for a person's yes when an agent asks.

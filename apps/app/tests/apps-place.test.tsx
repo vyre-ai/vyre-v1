@@ -95,7 +95,7 @@ test("Forms list opens with a row for each form, its kind and state, and how man
 test("Templates and Sites lists open; Templates offers Build a Kit", () => {
   const t = html(createSampleApps(), { group: "templates" });
   assert.ok(
-    has(t, "Law firm intake") && has(t, "Journey · v1.2") && has(t, 'data-testid="apps-kit"') && has(t, "Adds 3"),
+    has(t, "Client intake") && has(t, "Journey · v1.2") && has(t, 'data-testid="apps-kit"') && has(t, "Adds 3"),
   );
   const s = html(createSampleApps({ deferred: [] }), { group: "sites" });
   assert.ok(
@@ -214,7 +214,7 @@ test("install a template, check a sending domain, build a Kit: one call each", a
     "install",
     templateRow({
       templateId: "tp_intake",
-      title: "Law firm intake",
+      title: "Client intake",
       kind: "journey",
       summary: "",
       version: "1.2",
@@ -222,7 +222,7 @@ test("install a template, check a sending domain, build a Kit: one call each", a
     }),
   );
   assert.deepEqual(callsTo(s, "templates.install")[0]!.input, { templateId: "tp_intake" });
-  assert.equal(inst.text, "Installed Law firm intake. It added 2.");
+  assert.equal(inst.text, "Installed Client intake. It added 2.");
   const list = (await s.data.call("mail.domain.list", {})) as { domains: Parameters<typeof domainRow>[0][] };
   const fresh = domainRow(list.domains.find((d) => !d.verified)!);
   assert.match(fresh.note, /Mailgun · Checking/);

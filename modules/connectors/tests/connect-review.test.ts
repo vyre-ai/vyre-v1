@@ -174,11 +174,14 @@ test("2: the seed upgrade reaches an unchanged shipped row and never a row a Spa
   const { shipped: _h, ...body } = older;
   const withHash = { ...body, shipped: (await import("../projections.ts")).shippedHash(body as ConnectorDef) };
   k.tx.run("UPDATE cn_connectors SET def = ?, version = '0.9.0' WHERE key = 'stripe'", JSON.stringify(withHash));
+  const revOf = () => k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'stripe'")!.rev;
+  const revBefore = revOf();
   seedBuiltins({ ...k.deps, tx: Object.create(k.tx) });
   assert.ok(
     JSON.parse(fresh("stripe")).actions.some((a: { name: string }) => a.name === "list_products"),
     "the fix reached it",
   );
+  assert.ok(revOf() > revBefore, "a refresh of a shipped definition moves its revision");
   // a Space changed it (its own host added): never overwritten, even though its version is older
   const mine = { ...withHash, domains: [...withHash.domains, "my-own-proxy.example.org"] };
   k.tx.run("UPDATE cn_connectors SET def = ?, version = '0.9.0' WHERE key = 'stripe'", JSON.stringify(mine));

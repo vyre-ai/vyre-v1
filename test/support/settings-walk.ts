@@ -32,6 +32,8 @@ const PAGES: { id: string; title: string; sub: string }[] = [
   { id: "appearance", title: "Appearance", sub: "How Vyre looks for you." },
   { id: "computer", title: "This device", sub: "This computer and what Vyre can do on it." },
   { id: "signin", title: "Privacy and security", sub: "Your password, two-step sign-in and where you are signed in." },
+  // its own page since rc.42 (Apps that work in this Space as you); the walk below does not open it, the list only has to name it
+  { id: "outside", title: "Connected apps", sub: "Apps that work in this Space as you." },
 ];
 /** GitHub answers as a connected account: the daemon's GitHub egress cannot be faked from a test, so these five reads are answered at the browser's edge; every other call is the real daemon's. */
 const gh = { reconnect: false, connected: true };
@@ -148,7 +150,9 @@ export async function walkSettings(t: TestContext, only: "owner" | "member", gro
       await me.page.getByTestId("settings-place").waitFor({ timeout: 30_000 });
       const nav = (await me.page.getByTestId("settings-nav").innerText()).replace(/\s+/g, " ");
       for (const p of PAGES) assert.ok(nav.includes(p.title), `${who}: the page list has ${p.title}`);
-      for (const gone of ["Connected", "Email and calendar", "Memory and privacy", "Skills", "About Vyre"])
+      // the old "Connected" page is gone ("Connected apps" is a different page and is named above)
+      assert.ok(!/Connected(?! apps)/.test(nav), `${who}: Connected left the page list`);
+      for (const gone of ["Email and calendar", "Memory and privacy", "Skills", "About Vyre"])
         assert.ok(!nav.includes(gone), `${who}: ${gone} left the page list`);
       for (const p of mine) {
         await me.page.getByTestId(`row-page-${p.id}`).click();

@@ -1,0 +1,1 @@
+- A device's live sync no longer re-reads every row of a big Space in one stretch each time what a person may read changes: the access rescan keeps its place and works in slices of 20 ms across pulls, and a long live answer is given in slices.

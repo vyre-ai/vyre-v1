@@ -1,0 +1,1 @@
+- The agent computer's step list is walked with a message of three tool lines, waits for at least two steps, and is shot in dark and light at 1440 and 390 (test only).

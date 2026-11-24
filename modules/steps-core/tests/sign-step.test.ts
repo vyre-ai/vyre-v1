@@ -40,3 +40,54 @@ test("the sign step sends the file with the signers, the record and the note, an
   ]);
   assert.match(String(sent.idempotencyKey), /^run_t1:sg/);
 });
+
+test("a sign step never carries plainOk: even when the step's settings name it, esign.send gets no such field, so a preview copy in an Automation is held back whoever approves the step", async () => {
+  const h = harness();
+  h.callee("esign.send", () => ({ envelopeId: "env_1", links: [] }));
+  const run = await new MiniRun(
+    h,
+    [
+      node("sg", "sign", {
+        fileId: "fil_agreement",
+        signers: [{ name: "Andrea Lindahl", email: "a@northwind.example" }],
+        plainOk: true,
+      }),
+      node("after", "stop", {}),
+    ],
+    {},
+  ).run();
+  assert.equal(run.state, "succeeded");
+  const sent = h.only("esign.send")[0]!.input;
+  assert.equal("plainOk" in sent, false);
+  assert.equal(sent.fileId, "fil_agreement");
+});
+
+test("a sign step on a file that is not the exact copy stops in the step's own words, not the person's \"send this one anyway\"", async () => {
+  const h = harness();
+  h.callee("esign.send", () => {
+    throw Object.assign(new Error("held"), {
+      error: {
+        code: "validation.precondition_failed",
+        message: "Letterhead and pictures are missing in this copy. Wait for the exact copy, or send this one anyway.",
+        details: { plain: true, checked: false, field: "plainOk" },
+      },
+    });
+  });
+  const run = await new MiniRun(
+    h,
+    [
+      node("sg", "sign", {
+        fileId: "fil_agreement",
+        signers: [{ name: "Andrea Lindahl", email: "a@northwind.example" }],
+      }),
+      node("after", "stop", {}),
+    ],
+    {},
+  ).run();
+  assert.equal(run.state, "failed");
+  assert.equal(
+    run.error?.message,
+    "This file isn't the exact Word copy, so the step stopped. Send it by hand or fix the template.",
+  );
+  assert.doesNotMatch(String(run.error?.message), /send this one anyway/);
+});

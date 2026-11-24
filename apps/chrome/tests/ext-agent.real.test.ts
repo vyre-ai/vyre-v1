@@ -12,6 +12,7 @@ import { createAgentControl } from "../src/agent/index.js";
 import { createDecoder, encode } from "../src/worker/framing.js";
 import { runHost } from "../src/worker/native/host.js";
 import { HOST_NAME } from "../src/worker/protocol.js";
+import { boxOf } from "./e2e/pierce.ts";
 import { createChromeBridge } from "../../../lib/chrome-bridge.ts";
 
 const OUT = process.env["VYRE_SHOT_DIR"] ?? path.join(os.tmpdir(), "vyre-chrome-agent-shots");
@@ -129,6 +130,17 @@ const EVENTS = [
 ];
 
 /** A browser the extension code believes is Chrome with the debugger permission: one real tab, a DevTools session standing in for chrome.debugger, scripting run in the page. */
+/** The person gives the tab back from the bar (its Give back button); the agent's chrome_resume cannot lift a take-over. */
+/** A person's keyboard press on a bar button: the button gets the focus and Enter makes the browser's own (trusted) click. A click a script makes is refused by the bar. */
+const keyPress = async (r: any, name: string) => {
+  await r.page.evaluate((n: string) => (globalThis as any)[Symbol.for("vyre.agent.overlay")][n].focus(), name);
+  await r.page.keyboard.press("Enter");
+};
+const giveBack = async (r: any) => {
+  await keyPress(r, "give");
+  await new Promise((res) => setTimeout(res, 300));
+};
+
 async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?: number } = {}) {
   const context = await browser.newContext({
     viewport: { width: 1100, height: 720 },
@@ -143,7 +155,21 @@ async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?:
   let nextId = 1;
   let fillCalls = 0;
 
+  // current Chrome gives a web page its own window.chrome (loadTimes, csi, app; no runtime) after the init script has run, and the page then has no runtime: put the stand-in on once the page has loaded
+  const putRuntime = `(() => {
+    const w = window;
+    if (!w.chrome) w.chrome = {};
+    w.chrome.runtime = {
+      connect: () => ({ postMessage: (m) => void w.__vyreOverlay(JSON.stringify(m)), disconnect: () => {} }),
+    };
+  })()`;
   async function register(page: any) {
+    const goto = page.goto.bind(page);
+    page.goto = async (...a: any[]) => {
+      const res = await goto(...a);
+      await page.evaluate(putRuntime);
+      return res;
+    };
     const id = nextId++;
     const cdp = await context.newCDPSession(page);
     for (const ev of EVENTS)
@@ -165,7 +191,9 @@ async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?:
       },
     };
   });
+  const barMessages: any[] = [];
   await context.exposeBinding("__vyreOverlay", (source: any, json: string) => {
+    barMessages.push(JSON.parse(json));
     const entry = [...regs.entries()].find(([, r]) => r.page === source.page);
     if (!entry) return;
     const [tabId, r] = entry;
@@ -286,6 +314,7 @@ async function rig(browser: any, colorScheme: "light" | "dark", opts: { idleMs?:
     call,
     overlayState,
     sentEvents,
+    barMessages,
     results,
     fillCalls: () => fillCalls,
     tabId,
@@ -530,12 +559,13 @@ test(
           assert.deepEqual([p!.paused, p!.text, p!.stop], [true, "Intake is paused", false]);
           await r.page.screenshot({ path: path.join(OUT, `agent-frame-paused-${scheme}.png`) });
           await assert.rejects(r.call("chrome_snapshot"), (e: any) => e.code === "paused");
-          await r.call("chrome_resume");
+          await assert.rejects(r.call("chrome_resume"), (e: any) => e.code === "person_stopped");
+          await r.call("chrome_resume", { turnMessageAgeMs: 10 }); // the person wrote to the agent just now
           assert.equal(await r.overlayState(), null, "answered: the frame is gone");
 
           // Stop, from the bar itself
           await r.call("chrome_snapshot");
-          await r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].stop.click());
+          await keyPress(r, "stop");
           await new Promise((res) => setTimeout(res, 200));
           const stoppedBar = await r.overlayState();
           assert.ok(stoppedBar, "Stop leaves the Stopped bar, with Resume and End task");
@@ -565,6 +595,226 @@ test(
         await idle.close();
       }
     } finally {
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "a press on Take over or Stop takes effect even when the bar is redrawn and moves before the button is let go",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    try {
+      for (const [label, expectPaused] of [
+        ["Take over", true],
+        ["Stop", true],
+      ] as const) {
+        const r = await rig(browser, "light");
+        try {
+          await r.page.goto(`${srv.url}/`);
+          await r.call("chrome_plan", { goal: "Sign in" });
+          await r.call("chrome_snapshot");
+          const at = await boxOf(r.page, "button", label);
+          const width = () =>
+            r.page.evaluate(
+              () => (globalThis as any)[Symbol.for("vyre.agent.overlay")].bar.getBoundingClientRect().width,
+            );
+          await r.page.mouse.move(at.x, at.y);
+          await r.page.mouse.down();
+          await new Promise((res) => setTimeout(res, 250)); // let any redraw the press itself causes settle
+          const before = await width();
+          // while the button is held down, the bar is drawn again with a longer line (what the next chrome_plan or snapshot does): it grows and its buttons move
+          await r.page.evaluate(() => {
+            const o = (globalThis as any)[Symbol.for("vyre.agent.overlay")];
+            o.goal.textContent = "Sign in to the portal, read the latest invoices and send the signed deed to Dana";
+            o.goal.style.display = "";
+            o.text.textContent = "Intake is using this tab, and a longer line moves the bar's buttons";
+          });
+          assert.ok((await width()) > before + 40, "the redraw made the bar wider, so it moved under the pointer");
+          await r.page.mouse.up();
+          await new Promise((res) => setTimeout(res, 300));
+          assert.equal((await r.call("chrome_status")).paused, expectPaused, `${label} took effect`);
+        } finally {
+          await r.close();
+        }
+      }
+    } finally {
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "the agent's click on the bar is refused; a long press acts once; a press let go elsewhere does not swallow a keyboard click",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light");
+    try {
+      await r.page.goto(`${srv.url}/`);
+      await r.call("chrome_plan", { goal: "Sign in" });
+      await r.call("chrome_snapshot");
+      const take = await boxOf(r.page, "button", "Take over");
+      await assert.rejects(
+        r.call("chrome_click", { x: Math.round(take.x), y: Math.round(take.y) }),
+        (e: any) => e.code === "bar" && /control bar/.test(e.message),
+        "the agent may not click where the bar is",
+      );
+      assert.equal((await r.call("chrome_status")).paused, false, "and the bar did not obey it");
+      // a real press on a bar button tells the worker where it was (the worker ignores a press that is the agent's own click), and a keyboard click has no place
+      const mark = r.barMessages.length;
+      await r.page.mouse.click(take.x, take.y);
+      await new Promise((res) => setTimeout(res, 300));
+      const press = r.barMessages.slice(mark).find((m: any) => m.type === "takeover");
+      assert.ok(
+        press && Math.abs(press.x - take.x) <= 1 && Math.abs(press.y - take.y) <= 1,
+        "the press carried its place",
+      );
+      await giveBack(r);
+      await r.call("chrome_snapshot");
+      // a click a script makes on a bar button (element.click(), dispatchEvent) is refused: it sends nothing and takes nothing over
+      const scripted = r.barMessages.length;
+      await r.page.evaluate(() => {
+        const o = (globalThis as any)[Symbol.for("vyre.agent.overlay")];
+        o.take.click();
+        o.give.click();
+        o.end.click();
+        o.take.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 0 }));
+      });
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(r.barMessages.length, scripted, "a script's clicks sent nothing");
+      assert.equal((await r.call("chrome_status")).paused, false, "and took nothing over");
+      const mark2 = r.barMessages.length;
+      await keyPress(r, "take");
+      await new Promise((res) => setTimeout(res, 300));
+      const key = r.barMessages.slice(mark2).find((m: any) => m.type === "takeover");
+      assert.ok(key && key.x === undefined, "a keyboard click carries no place");
+      await giveBack(r);
+      await r.call("chrome_snapshot");
+      // a press held for two seconds acts once
+      const held = await boxOf(r.page, "button", "Take over");
+      await r.page.mouse.move(held.x, held.y);
+      await r.page.mouse.down();
+      await new Promise((res) => setTimeout(res, 1500));
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal((await r.call("chrome_status")).paused, true, "the long press took the tab over");
+      await giveBack(r);
+      await r.call("chrome_snapshot");
+      // pressed on Take over and let go elsewhere, then the keyboard: the press is over, so the keyboard click acts
+      const again = await boxOf(r.page, "button", "Take over");
+      await r.page.mouse.move(again.x, again.y);
+      await r.page.mouse.down();
+      await r.page.mouse.move(again.x, again.y - 300);
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      await giveBack(r);
+      await r.call("chrome_snapshot");
+      await keyPress(r, "take");
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(
+        (await r.call("chrome_status")).paused,
+        true,
+        "a keyboard click after a press let go elsewhere acts",
+      );
+    } finally {
+      await r.close();
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "the agent's Tab and Enter cannot press Stop, a person's can; the bar's window listeners are gone when the bar is",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light");
+    try {
+      await r.page.goto(`${srv.url}/`);
+      // count the page window's capture listeners the overlay adds and takes off
+      await r.page.evaluate(`(() => {
+        const w = window; w.__net = 0;
+        const add = w.addEventListener.bind(w), rem = w.removeEventListener.bind(w);
+        w.addEventListener = (t, f, o) => { if (o === true) w.__net++; return add(t, f, o); };
+        w.removeEventListener = (t, f, o) => { if (o === true) w.__net--; return rem(t, f, o); };
+      })()`);
+      await r.call("chrome_plan", { goal: "Sign in" });
+      await r.call("chrome_snapshot");
+      assert.ok(((await r.page.evaluate("window.__net")) as number) > 0, "the bar added its listeners");
+      const focusStop = () => r.page.evaluate(() => (globalThis as any)[Symbol.for("vyre.agent.overlay")].stop.focus());
+      // the agent gets focus onto Stop (a Tab would do it) and presses Enter: Stop does not obey
+      await focusStop();
+      await r.call("chrome_act", { action: "press", value: "Enter" });
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal((await r.call("chrome_status")).paused, false, "the agent's Enter did not press Stop");
+      // a person's Enter on the same button does
+      await focusStop();
+      await r.page.keyboard.press("Enter");
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal((await r.call("chrome_status")).paused, true, "a person's Enter pressed Stop");
+      await r.call("chrome_resume", { turnMessageAgeMs: 10 });
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(await r.page.evaluate("window.__net"), 0, "no listener of the bar is left on the window");
+    } finally {
+      await r.close();
+      await browser.close();
+      await srv.close();
+    }
+  },
+);
+
+test(
+  "End acts when the button is let go on it: pressing it and sliding off cancels, a plain click ends the task",
+  { skip: !found && !mustRun && "no Chromium on this machine" },
+  async () => {
+    const srv = await serve();
+    const browser = await found!.chromium.launch({
+      executablePath: found!.exe,
+      args: ["--no-sandbox", "--disable-gpu"],
+    });
+    const r = await rig(browser, "light");
+    try {
+      await r.page.goto(`${srv.url}/`);
+      await r.call("chrome_plan", { goal: "Sign in" });
+      await r.call("chrome_snapshot");
+      const stop = await boxOf(r.page, "button", "Stop");
+      await r.page.mouse.click(stop.x, stop.y);
+      const end = await boxOf(r.page, "button", "End task");
+      await r.page.mouse.move(end.x, end.y);
+      await r.page.mouse.down();
+      await r.page.mouse.move(end.x, end.y - 200);
+      await r.page.mouse.up();
+      await new Promise((res) => setTimeout(res, 300));
+      assert.equal(
+        r.sentEvents.some((e: any) => e.event === "ended"),
+        false,
+        "pressing End and sliding off does not end the task",
+      );
+      await r.page.mouse.click(end.x, end.y);
+      await new Promise((res) => setTimeout(res, 300));
+      assert.ok(
+        r.sentEvents.some((e: any) => e.event === "ended"),
+        "a click on End ends it",
+      );
+    } finally {
+      await r.close();
       await browser.close();
       await srv.close();
     }

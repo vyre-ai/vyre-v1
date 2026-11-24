@@ -71,6 +71,7 @@ export const ACCESS_EVENTS = [
   "member.removed",
   "space.ownership_transferred",
   "agent.privacy_set",
+  "agent.renamed",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> =>
@@ -198,6 +199,15 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
         ...(str(p["owner"]) ? { owner: str(p["owner"])! } : {}),
       };
       store.principals.set(id, next);
+      return true;
+    }
+    case "agent.renamed": {
+      // an agent's principal carries the agent's current name (the principal is made once, at agent.created)
+      const id = str(p["agentId"]);
+      const name = str(p["name"])?.trim();
+      const have = id ? store.principals.get(id) : undefined;
+      if (!id || !name || !have || have.kind !== "agent" || have.name === name) return false;
+      store.principals.set(id, { ...have, name });
       return true;
     }
     case "agent.privacy_set": {
@@ -474,6 +484,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         writes += r.changes;
         return r;
       },
+      batch: <T>(fn: () => T): T => (ctx.db.batch ? ctx.db.batch(fn) : fn()),
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);

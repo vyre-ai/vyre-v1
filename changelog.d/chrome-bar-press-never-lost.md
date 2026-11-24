@@ -1,0 +1,1 @@
+Chrome: a person's Stop or Take over on the agent bar is no longer lost when the agent has already let go of the tab or the bar's connection to the worker has closed. The bar connects again and resends the press, and the worker pauses the agent the bar names and redraws the bar; the agent's next call is refused as paused. Hardens the lost-press paths.

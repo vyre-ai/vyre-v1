@@ -11,7 +11,7 @@ Make a verified domain the default sender for Space sending
 | Grant level | edit |
 | Risk | medium |
 | Resource | domain (/domainId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
@@ -36,7 +36,7 @@ type Out = {
   domain: {
     id: string;
     name: string;
-    provider: "resend" | "mailgun";
+    provider: "resend" | "mailgun" | "smtp";
     spf: "pass" | "fail" | "pending";
     dkim: "pass" | "fail" | "pending";
     dmarc: "pass" | "fail" | "pending";

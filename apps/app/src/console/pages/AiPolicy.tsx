@@ -4,6 +4,7 @@ import type { CapMap } from "../../../../../generated/types.ts";
 import { Group, Section } from "../shell/ui.tsx";
 import { useConsoleData } from "../shell/data.tsx";
 import { Actions, Button, Note, ReadState, useAction, useRead } from "./shared.tsx";
+import { WebSearchSetting } from "./WebSearch.tsx";
 
 type Policy = CapMap["engine.policy.get"]["out"];
 
@@ -54,6 +55,7 @@ export function AiPolicy(): ReactElement {
           ))}
         </Group>
       </Section>
+      <WebSearchSetting />
       <Actions>
         <Button label="Export policy" testID="ai-policy-export" disabled={action.busy} onPress={exportPolicy} />
         <Button label="Edit models and providers" onPress={() => data.nav.openPage("models")} />

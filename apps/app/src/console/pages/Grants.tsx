@@ -13,6 +13,7 @@ import { useConsoleData } from "../shell/data.tsx";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Help, Actions, Button, TextBox, Note, ReadState, Select, attempt, useAction, useRead } from "./shared.tsx";
 import { GrantConditions, conditionDraft, grantConditions } from "./GrantConditions.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 type Grant = AccessGrantsListOut["grants"][number];
 const LEVELS = [
   { key: "view", title: "View" },
@@ -182,30 +183,27 @@ export function Grants({ initialResource }: { initialResource?: { type: string; 
       ) : null}
       {revoke ? (
         <Section title="Review revocation">
-          <Note>
-            Revoke {revoke.length} direct grants now? Access inherited from another grant or group may remain.
-          </Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setRevoke(null)} />
-            <Button
-              label="Confirm revoke"
-              danger
-              testID="grant-revoke-confirm"
-              disabled={action.busy || !revoke.length}
-              onPress={() =>
-                void (async () => {
-                  setNotice("");
-                  for (const row of revoke) {
-                    if (!(await action.run("access.unshare", { grantId: row.id }, "Grant revoked"))) return;
-                    setRevoke((current) => current?.filter((item) => item.id !== row.id) ?? null);
-                  }
-                  setRevoke(null);
-                  setPicked(new Set());
-                  refresh();
-                })()
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>Revoke {revoke.length} direct grants now? Access inherited from another grant or group may remain.</>
+            }
+            confirmLabel="Confirm revoke"
+            disabled={action.busy || !revoke.length}
+            confirmTestID="grant-revoke-confirm"
+            onConfirm={() =>
+              (async () => {
+                setNotice("");
+                for (const row of revoke) {
+                  if (!(await action.run("access.unshare", { grantId: row.id }, "Grant revoked"))) return;
+                  setRevoke((current) => current?.filter((item) => item.id !== row.id) ?? null);
+                }
+                setRevoke(null);
+                setPicked(new Set());
+                refresh();
+              })()
+            }
+            onCancel={() => setRevoke(null)}
+          />
         </Section>
       ) : null}
       {notice || action.note ? <Note>{notice || action.note}</Note> : null}
@@ -451,20 +449,22 @@ function GrantEditor({
       <Help>The server refuses changes beyond your own access.</Help>
       {review ? (
         <>
-          <Note>
-            Apply this {level} grant with the selected row, field, sensitivity, time-window and expiry conditions? This
-            changes direct access immediately. An expiring delegation cannot create access that lasts longer than its
-            parent.
-          </Note>
-          <Actions>
-            <Button label="Cancel review" onPress={() => setReview(false)} />
-            <Button
-              label="Confirm access change"
-              testID="grant-save-confirm"
-              disabled={action.busy}
-              onPress={() => void save()}
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>
+                Apply this {level} grant with the selected row, field, sensitivity, time-window and expiry conditions?
+                This changes direct access immediately. An expiring delegation cannot create access that lasts longer
+                than its parent.
+              </>
+            }
+            cancelLabel="Cancel review"
+            confirmLabel="Confirm access change"
+            danger={false}
+            disabled={action.busy}
+            confirmTestID="grant-save-confirm"
+            onConfirm={() => save()}
+            onCancel={() => setReview(false)}
+          />
         </>
       ) : (
         <Button

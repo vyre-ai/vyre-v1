@@ -1,6 +1,6 @@
 # sites.domains_get
 
-Site domains with the DNS check and the Caddy certificate state
+A site's domains with DNS check and certificate state
 
 | | |
 |---|---|

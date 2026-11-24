@@ -69,6 +69,7 @@ async function signedIn(
         folderId,
         name: providerKey === "codex" ? "Codex" : "Claude Code",
         kind: "ai_subscription",
+        refreshed: true,
         fields: [{ ...field, secret: true }],
         idempotencyKey: key(),
       } as Parameters<typeof v.itemPut>[1]),
@@ -136,6 +137,8 @@ test("a refreshed Codex sign-in is saved over its item, with a history line and 
       itemId: s.itemId,
       fieldsChanged: ["credentials"],
       settingsChanged: [],
+      kind: "ai_subscription",
+      refreshed: true,
     });
     // the next turn's fill gets the refreshed file, and the same handle and row still lead to it
     assert.equal(JSON.parse(await held(h, s.handle))[".codex/auth.json"], back[".codex/auth.json"]);

@@ -3,7 +3,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Text } from "react-native";
-import { Dialog } from "./index.tsx";
+import { Dialog, focusedAction, pickFocus } from "./index.tsx";
+import type { DialogAction } from "./index.tsx";
 
 const noop = (): void => {};
 
@@ -158,4 +159,57 @@ test("an anchored dialog closes itself when a sheet or menu opens above it, and 
   } finally {
     restore();
   }
+});
+
+const act = (label: string, o: Partial<DialogAction> = {}): DialogAction => ({ label, onPress: () => undefined, ...o });
+
+test("a dialog that destroys something opens with focus on its quiet action, never on the destructive one (a stray Enter cancels)", () => {
+  const cancel = act("Cancel");
+  const del = act("Delete", { danger: true });
+  assert.equal(focusedAction([del, cancel]), cancel, "whatever the order the caller wrote them in");
+  assert.equal(focusedAction([cancel, del]), cancel);
+  const later = act("Later");
+  assert.equal(focusedAction([later, cancel, del]), later, "the first quiet action");
+  const marked = act("Keep", { initial: true });
+  assert.equal(focusedAction([cancel, marked, del]), marked, "an explicit initial wins");
+  assert.equal(
+    focusedAction([act("Close"), act("Save", { primary: true })]),
+    undefined,
+    "a dialog that destroys nothing keeps its field focus",
+  );
+  assert.equal(focusedAction([act("Delete", { danger: true })]), undefined, "no quiet action: nothing to put focus on");
+  assert.equal(
+    focusedAction([act("Cancel", { disabled: true }), del]),
+    undefined,
+    "a disabled Cancel cannot hold focus",
+  );
+});
+
+test("a dialog with a field puts focus in the field, even when it also has a destructive action; with no field it goes to the safe action", () => {
+  const field = { id: "field" };
+  const cancel = { id: "cancel" };
+  assert.equal(pickFocus(field, cancel), field, "type the name to delete: the person types at once");
+  assert.equal(pickFocus(null, cancel), cancel, "no field: Cancel");
+  assert.equal(pickFocus(undefined, undefined), null, "nothing to focus: nothing is");
+});
+
+test("the field is a text-like input: a checkbox, radio, hidden or file input does not take focus from the safe action", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  const q = /const FIELD =\s*"([^"]+)"/.exec(src)?.[1] ?? "";
+  for (const t of ["checkbox", "radio", "hidden", "file", "button", "submit"])
+    assert.ok(q.includes(`:not([type=${t}])`), t);
+  assert.ok(q.includes("textarea") && q.includes("select"));
+});
+
+test("every Dialog that has a destructive action and a field in its card: the field wins (the code that decides is pickFocus, used once, in the open effect)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const src = readFileSync(new URL("./index.tsx", import.meta.url), "utf8");
+  assert.equal(src.match(/pickFocus<Focusable>\(/g)?.length, 1, "one place decides");
+  assert.match(src, /pickFocus<Focusable>\(el\?\.querySelector\?\.\(FIELD\), safe\.current/);
+  assert.match(
+    src,
+    /if \(hold\) hold\.current = self\.current;\s*else/,
+    "the button only offers itself while the dialog chooses",
+  );
 });

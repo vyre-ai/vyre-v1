@@ -1,0 +1,1 @@
+A Space can make any address on its domains in one step (mail.address.add): a new shared inbox behind it, or an alias that delivers to an inbox that already exists. mail.address.list shows them all, and mail.setup.status and the new Email page in Console, Messaging show what is left to set up.

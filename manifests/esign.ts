@@ -21,22 +21,29 @@ export default defineManifest({
       trigger: { title: "A document is sent for signature" },
     }),
     ev("signature.viewed", "A signer opened the envelope", {
-      p: { envelopeId, signer: t.str() },
+      p: { envelopeId, signer: t.str(), recordId: t.opt(id.record) },
       subject: ["entity", "/envelopeId"],
+      trigger: { title: "A signer opens a document" },
     }),
     ev("signature.signed", "All signers signed; the signed PDF and audit certificate were saved as a new version", {
-      p: { envelopeId, fileId: id.file },
+      p: { envelopeId, fileId: id.file, recordId: t.opt(id.record) },
       subject: ["entity", "/envelopeId"],
       trigger: { title: "A document is signed" },
     }),
     ev("signature.cancelled", "The sender cancelled an envelope; every link stopped working", {
-      p: { envelopeId },
+      p: { envelopeId, recordId: t.opt(id.record) },
       subject: ["entity", "/envelopeId"],
+      trigger: { title: "A signature request is cancelled" },
     }),
     ev("signature.declined", "A signer declined", {
-      p: { envelopeId, signer: t.str(), reason: t.opt(t.str()) },
+      p: { envelopeId, signer: t.str(), reason: t.opt(t.str()), recordId: t.opt(id.record) },
       subject: ["entity", "/envelopeId"],
       trigger: { title: "A signature is declined" },
+    }),
+    ev("signature.expired", "An envelope was not signed in time; every link stopped working", {
+      p: { envelopeId, recordId: t.opt(id.record) },
+      subject: ["entity", "/envelopeId"],
+      trigger: { title: "A document is not signed in time" },
     }),
   ],
   recordTypes: [
@@ -67,34 +74,31 @@ export default defineManifest({
     ),
   ],
   capabilities: [
-    outward(
-      "esign.send",
-      "Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can",
-      {
-        in: {
-          fileId: id.file,
-          recordId: t.opt(id.record),
-          signers: t.arr(signer),
-          provider: t.opt(provider),
-          message: t.opt(t.str()),
-          places: t.opt(t.arr(t.json())),
-          expiresInDays: t.opt(t.int()),
-        },
-        out: {
-          envelopeId,
-          links: t.opt(t.arr(link)),
-          emailed: t.opt(t.arr(t.str())),
-          notice: t.opt(t.str()),
-        },
-        on: ["file", "/fileId"],
-        perm: "comms.shared_send",
-        gate: "signature_send",
-        emits: ["signature.sent"],
-        tool: "files",
-        team: true,
-        run: { kind: "signature", stoppable: true },
+    outward("esign.send", "Send a PDF for signature", {
+      in: {
+        fileId: id.file,
+        recordId: t.opt(id.record),
+        signers: t.arr(signer),
+        provider: t.opt(provider),
+        message: t.opt(t.str()),
+        places: t.opt(t.arr(t.json())),
+        plainOk: t.opt(t.bool()),
+        expiresInDays: t.opt(t.int()),
       },
-    ),
+      out: {
+        envelopeId,
+        links: t.opt(t.arr(link)),
+        emailed: t.opt(t.arr(t.str())),
+        notice: t.opt(t.str()),
+      },
+      on: ["file", "/fileId"],
+      perm: "comms.shared_send",
+      gate: "signature_send",
+      emits: ["signature.sent"],
+      tool: "files",
+      team: true,
+      run: { kind: "signature", stoppable: true },
+    }),
     read("esign.status", "Envelope status and signers", {
       in: { envelopeId },
       out: {

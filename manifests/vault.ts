@@ -247,7 +247,13 @@ export default defineManifest({
       vis: "participants",
     }),
     ev("vault.item_updated", "Fields or settings of an item changed (field keys only)", {
-      p: { itemId: id.vaultItem, fieldsChanged: t.arr(fieldKey), settingsChanged: t.arr(t.str()) },
+      p: {
+        itemId: id.vaultItem,
+        fieldsChanged: t.arr(fieldKey),
+        settingsChanged: t.arr(t.str()),
+        kind: t.opt(itemKind),
+        refreshed: t.opt(t.bool()),
+      },
       subject: ["vault_item", "/itemId"],
       vis: "participants",
     }),
@@ -375,6 +381,18 @@ export default defineManifest({
       out: { items: t.arr(t.obj({ item: itemMeta, usernameField: t.opt(fieldKey), username: t.opt(t.str()) })) },
       tool: "vault",
       label: "filter",
+    }),
+    read("vault.login.check", "Is a submitted login already saved? Compared inside the Vault: known, changed or new", {
+      ...V,
+      in: { url, username: t.opt(t.str({ maxLength: 320 })), password: t.str({ minLength: 1, maxLength: 1024 }) },
+      out: {
+        state: t.enm("known", "changed", "new"),
+        itemId: t.opt(id.vaultItem),
+        name: t.opt(t.str()),
+      },
+      tool: "vault",
+      label: "check",
+      rate: { n: 30, perSeconds: 60, scope: "principal" },
     }),
     read("vault.item.get", "One item: metadata and field keys, never values", {
       in: { itemId: id.vaultItem },
@@ -563,6 +581,7 @@ export default defineManifest({
           notify: t.opt(t.obj({ message: t.opt(t.str()) })),
         },
         out: { granted: t.bool() },
+        gate: { act: "access", when: "gate.vault_share_by_actor(input)" },
         emits: ["grant.created", "access.changed", "folder.shared"],
         audit: "always",
         tool: "vault",

@@ -5,10 +5,11 @@
 // Colours are skin tokens (CSS variables on web), so a skin switch repaints with no re-render.
 
 import { createContext, createElement, memo, useContext, useState } from "react";
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { RowProps } from "./props.ts";
 import { injectCss } from "../theme/css.ts";
+import { keepEvent, pressTransition, useArmed, useNavRows } from "../theme/pending.ts";
 
 export type { RowProps } from "./props.ts";
 
@@ -33,7 +34,7 @@ function ensureRowCss(): void {
   injectCss(
     d,
     "vyre-ui-row",
-    ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}",
+    ".vyre-row:hover{background-color:var(--hover)}.vyre-row{outline-offset:-2px;cursor:pointer}.vyre-row .vyre-lock{opacity:0;margin-left:6px;font-size:11px}.vyre-row:hover .vyre-lock{opacity:.6}.vyre-row .vyre-hover-act{opacity:0}.vyre-row:hover .vyre-hover-act,.vyre-row:focus-within .vyre-hover-act{opacity:1}@media (hover:none){.vyre-row .vyre-hover-act{opacity:1}}",
   );
   cssDone = true;
 }
@@ -117,6 +118,7 @@ const TITLE_WRAP_S = {
 } as const;
 const TITLE_IN_LINE_WRAP_S = { ...TITLE_WRAP_S, flex: "0 1 auto", minWidth: 0 } as const;
 /** On a phone a title may run to two lines instead of one clipped one (the Console turns it on below 900 wide). The row grows with it, as it does for a taller trailing slot. */
+const MONO_TITLE = { fontFamily: "var(--mono, ui-monospace, Menlo, monospace)", fontSize: 13 };
 export const RowWrapContext = createContext(false);
 
 const h = createElement;
@@ -146,30 +148,44 @@ export function useCutTip(full: string): {
   return { title: cut ? full : undefined, onMouseEnter: check, onFocus: check };
 }
 
-function WebRow({
-  inert = false,
-  hint,
-  locked = false,
-  id,
-  title,
-  titleSuffix,
-  titleMarks,
-  noteLead,
-  noteLeadTone = "accent",
-  noteAction,
-  tall = false,
-  emphasis = false,
-  quiet = false,
-  note,
-  selected = false,
-  hovered = false,
-  accentLit = false,
-  leading,
-  trailing,
-  onPress,
-  domProps,
-}: RowProps): ReactElement {
+function WebRow(props: RowProps): ReactElement {
+  const {
+    inert = false,
+    hint,
+    locked = false,
+    id,
+    title,
+    titleSuffix,
+    titleMarks,
+    noteLead,
+    noteLeadTone = "accent",
+    noteAction,
+    tall = false,
+    emphasis = false,
+    mono = false,
+    quiet = false,
+    note,
+    hovered = false,
+    accentLit = false,
+    leading,
+    trailing,
+    onPress: pressed,
+    domProps,
+  } = props;
   ensureRowCss();
+  // A row that leads somewhere (a list inside ui NavRows: a place's sidebar, a list of files) answers its press at once (r41, ui/theme/pending.ts): it is lit as selected in the frame of the
+  // press, the row that was selected gives way, and what the press opens is made after that frame. Any other row (a toggle, a menu line, a picker) is pressed as it always was.
+  const nav = useNavRows();
+  const selectable = nav && props.selected !== undefined && id !== undefined;
+  const arm = useArmed(selectable ? id : undefined, props.selected === true);
+  const selected = arm === 1 || (props.selected === true && arm !== -1);
+  const onPress =
+    pressed && selectable
+      ? (e?: unknown): void => {
+          const ev = keepEvent(e);
+          pressTransition(() => pressed(ev), id);
+        }
+      : pressed;
   const filled = accentLit && hovered && !selected;
   const inkOn = filled ? { color: "var(--accent-ink)" } : null;
   const inkQuiet = quiet && !emphasis && !filled ? { color: "var(--ink-2)" } : null;
@@ -191,7 +207,14 @@ function WebRow({
       : null;
   const titleEl = h(
     "span",
-    { style: { ...(emphasis ? { ...titleBase, ...BOLD } : titleBase), ...inkQuiet, ...inkOn } },
+    {
+      style: {
+        ...(emphasis ? { ...titleBase, ...BOLD } : titleBase),
+        ...(mono ? MONO_TITLE : null),
+        ...inkQuiet,
+        ...inkOn,
+      },
+    },
     title,
   );
   return h(
@@ -446,3 +469,14 @@ const styles = StyleSheet.create({
   marks: { flexShrink: 0, flexDirection: "row", alignItems: "center", gap: 4 },
   note: { color: "var(--ink-3)" as string, fontSize: 11.5, lineHeight: 16 },
 });
+
+/** The quick actions of a row, drawn only while the pointer is over the row or focus is inside it (always on a touch screen): the row at rest shows its mark, not a row of buttons. Put it in `trailing`.
+ *  Off the web there is no hover, so the children draw as they are. */
+export function RowActions({ children }: { children: ReactNode }): ReactElement {
+  if (Platform.OS !== "web") return <>{children}</>;
+  return createElement(
+    "span",
+    { className: "vyre-hover-act", style: { display: "inline-flex", alignItems: "center" } },
+    children,
+  );
+}

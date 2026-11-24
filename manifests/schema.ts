@@ -21,6 +21,12 @@ const fieldDef = t.obj({
   options: t.opt(t.rec()),
 });
 
+const cardFace = t.obj({
+  preset: t.enm("simple", "detail", "visual"),
+  fields: t.arr(fieldKey, { maxItems: 6 }),
+  mark: t.opt(t.bool()),
+});
+
 const typeDef = t.obj({
   key: id.recordType,
   title: t.str(),
@@ -34,6 +40,7 @@ const typeDef = t.obj({
   group: t.opt(t.str()),
   retention: t.opt(t.str()),
   attribution: t.opt(t.bool()),
+  card: t.opt(cardFace),
   fields: t.arr(fieldDef),
 });
 
@@ -55,6 +62,7 @@ const typeDetail = t.obj({
   syncedFrom: t.opt(t.str({ description: "Connector key when the type is a synced type" })),
   attribution: t.opt(t.bool()),
   retention: t.opt(t.str()),
+  card: t.opt(cardFace),
   fields: t.arr(fieldDef),
   version: t.int(),
 });
@@ -80,6 +88,7 @@ const schemaOp = t.obj({
     "type.drop",
     "field.add",
     "field.update",
+    "field.mergeable",
     "field.retype",
     "field.rename",
     "field.drop",
@@ -295,6 +304,17 @@ export default defineManifest({
       audit: "always",
       emits: ["schema.label_changed", "schema.changed"],
       tool: "engineer",
+    }),
+    write("schema.set_mergeable", 'Switch a field\'s "Can go in emails"; private and secret fields never can', {
+      in: { type: id.recordType, field: fieldKey, mergeable: t.bool() },
+      out: { ok: t.bool() },
+      on: ["record_type", "/type"],
+      perm: "schema.manage",
+      audit: "always",
+      emits: ["schema.changed"],
+      // (no MCP tool of its own: schema_apply takes the same change as a field.update op with options.mergeable)
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found", "validation.precondition_failed"],
     }),
     read(
       "schema.infer",

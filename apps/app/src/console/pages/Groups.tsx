@@ -3,6 +3,7 @@ import { capPhrase } from "../shell/format.ts";
 import type { ReactElement } from "react";
 import { View } from "react-native";
 import type {
+  CapMap,
   AccessGroupsGetOut,
   AccessGroupsListOut,
   AccessPrincipalsListOut,
@@ -19,6 +20,7 @@ import { TextAsk } from "../../places/chats/menus/TextAsk.tsx";
 import { count } from "../shell/format.ts";
 import { Empty, Group, Section } from "../shell/ui.tsx";
 import { Actions, Button, TextBox, Note, ReadState, attempt, useAction, useRead } from "./shared.tsx";
+import { InlineConfirm } from "../../../../../ui/src/InlineConfirm/index.tsx";
 
 type GroupRow = AccessGroupsListOut["groups"][number];
 type Person = AccessPrincipalsListOut["principals"][number];
@@ -182,29 +184,26 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
       />
       {bulk ? (
         <Section title="Confirm team deletion">
-          <Note>{bulk.map((item) => groupDeleteImpact(item.group, item.grants.length)).join(" ")}</Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setBulk(null)} />
-            <Button
-              label="Delete selected teams"
-              danger
-              disabled={action.busy}
-              onPress={() => {
-                void (async () => {
-                  for (const item of bulk) {
-                    const out = await action.run("access.groups.delete", { groupId: item.group.id }, "Team deleted");
-                    if (!out) {
-                      setPageError("Deletion stopped. Earlier successful deletions remain; reload before retrying.");
-                      setBulk(null);
-                      return;
-                    }
+          <InlineConfirm
+            question={<>{bulk.map((item) => groupDeleteImpact(item.group, item.grants.length)).join(" ")}</>}
+            confirmLabel="Delete selected teams"
+            disabled={action.busy}
+            onConfirm={() =>
+              (async () => {
+                for (const item of bulk) {
+                  const out = await action.run("access.groups.delete", { groupId: item.group.id }, "Team deleted");
+                  if (!out) {
+                    setPageError("Deletion stopped. Earlier successful deletions remain; reload before retrying.");
+                    setBulk(null);
+                    return;
                   }
-                  setBulk(null);
-                  setPicked(new Set());
-                })();
-              }}
-            />
-          </Actions>
+                }
+                setBulk(null);
+                setPicked(new Set());
+              })()
+            }
+            onCancel={() => setBulk(null)}
+          />
         </Section>
       ) : null}
       {pageError ? <Note>{pageError}</Note> : null}
@@ -240,10 +239,53 @@ export function Groups({ initialId }: { initialId?: string }): ReactElement {
   );
 }
 
+type GroupInvite = CapMap["members.invites.list"]["out"]["invites"][number];
+/** Invites still open that put the person in this team: they show in its member list as Invited until they accept. */
+export function invitedIn(invites: readonly GroupInvite[], groupId: string): GroupInvite[] {
+  return invites.filter((invite) => invite.state === "open" && invite.groups.includes(groupId));
+}
+
+type InviteCall = (cap: "members.invites.list", input: Record<string, unknown>) => Promise<unknown>;
+/** The open invites after the first page, read page by page until there are no more. */
+export async function readLaterInvites(call: InviteCall, firstCursor: string): Promise<GroupInvite[]> {
+  const got: GroupInvite[] = [];
+  let cursor: string | undefined = firstCursor;
+  for (let page = 0; cursor && page < 200; page++) {
+    const out = (await call("members.invites.list", {
+      state: "open",
+      limit: 100,
+      cursor,
+    })) as CapMap["members.invites.list"]["out"];
+    got.push(...out.invites);
+    cursor = out.next;
+  }
+  return got;
+}
+
 function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void }): ReactElement {
   const data = useConsoleData();
   const detail = useRead<AccessGroupsGetOut>("access.groups.get", { groupId });
   const roles = useRead<AccessRolesListOut>("access.roles.list", { limit: 500 });
+  // who may invite sees who was pre-staged; anyone else gets no read and no rows
+  const invites = useRead<CapMap["members.invites.list"]["out"]>("members.invites.list", { state: "open", limit: 100 });
+  // every open invite, not just the first page: later pages are read one after another until there are none
+  const [moreInvites, setMoreInvites] = useState<GroupInvite[]>([]);
+  const firstNext = invites.data?.next;
+  useEffect(() => {
+    let live = true;
+    if (!firstNext) {
+      setMoreInvites([]);
+      return;
+    }
+    void readLaterInvites(data.call as InviteCall, firstNext)
+      .then((got) => {
+        if (live) setMoreInvites(got);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, [firstNext, data]);
   const [tab, setTab] = useState("overview");
   const [pendingRole, setPendingRole] = useState<AccessRolesListOut["roles"][number] | null>(null);
   const [sheet, setSheet] = useState<"edit" | "members" | "managers" | null>(null);
@@ -376,7 +418,14 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
           </ObjectSection>
         </>
       ) : null}
-      {tab === "members" ? <MemberRows members={group.members} groupId={groupId} refresh={detail.refresh} /> : null}
+      {tab === "members" ? (
+        <MemberRows
+          members={group.members}
+          invited={invites.data ? invitedIn([...invites.data.invites, ...moreInvites], groupId) : []}
+          groupId={groupId}
+          refresh={detail.refresh}
+        />
+      ) : null}
       {tab === "managers" ? (
         <Group>
           {group.managers.length ? (
@@ -426,29 +475,30 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
                 ))}
                 {pendingRole ? (
                   <>
-                    <Note>
-                      {current.roles.includes(pendingRole.id) ? "Remove" : "Assign"} {pendingRole.name} for every team
-                      member? The server checks agent eligibility before changing access.
-                    </Note>
-                    <Actions>
-                      <Button label="Cancel" onPress={() => setPendingRole(null)} />
-                      <Button
-                        label="Confirm role change"
-                        disabled={action.busy}
-                        testID={`group-role-confirm-${pendingRole.id}`}
-                        onPress={() =>
-                          void action
-                            .run(
-                              current.roles.includes(pendingRole.id) ? "access.roles.unassign" : "access.roles.assign",
-                              { roleId: pendingRole.id, subject: { kind: "group", id: groupId } },
-                              "Team role updated",
-                            )
-                            .then((out) => {
-                              if (out) setPendingRole(null);
-                            })
-                        }
-                      />
-                    </Actions>
+                    <InlineConfirm
+                      question={
+                        <>
+                          {current.roles.includes(pendingRole.id) ? "Remove" : "Assign"} {pendingRole.name} for every
+                          team member? The server checks agent eligibility before changing access.
+                        </>
+                      }
+                      confirmLabel="Confirm role change"
+                      danger={false}
+                      disabled={action.busy}
+                      confirmTestID={`group-role-confirm-${pendingRole.id}`}
+                      onConfirm={() =>
+                        action
+                          .run(
+                            current.roles.includes(pendingRole.id) ? "access.roles.unassign" : "access.roles.assign",
+                            { roleId: pendingRole.id, subject: { kind: "group", id: groupId } },
+                            "Team role updated",
+                          )
+                          .then((out) => {
+                            if (out) setPendingRole(null);
+                          })
+                      }
+                      onCancel={() => setPendingRole(null)}
+                    />
                   </>
                 ) : null}
               </Group>
@@ -483,12 +533,14 @@ function GroupObject({ groupId, onBack }: { groupId: string; onBack: () => void 
   );
 }
 
-function MemberRows({
+export function MemberRows({
   members,
+  invited = [],
   groupId,
   refresh,
 }: {
   members: Ref[];
+  invited?: GroupInvite[];
   groupId: string;
   refresh: () => void;
 }): ReactElement {
@@ -507,25 +559,33 @@ function MemberRows({
           onPress={() => setPending(member)}
         />
       ))}
-      {!members.length ? <Empty icon="doc">No members yet</Empty> : null}
+      {invited.map((invite) => (
+        <Row
+          key={invite.id}
+          id={`invited-${invite.id}`}
+          title={invite.email ?? "Invited person"}
+          note={`Invited · joins when they accept · until ${new Date(invite.expiresAt).toLocaleDateString()}`}
+          onPress={() => data.nav.openPage("requests")}
+        />
+      ))}
+      {!members.length && !invited.length ? <Empty icon="doc">No members yet</Empty> : null}
       {pending ? (
         <>
-          <Note>Remove {data.name(pending.id)}? Access inherited through this team ends. Other access remains.</Note>
-          <Actions>
-            <Button label="Cancel" onPress={() => setPending(null)} />
-            <Button
-              label="Confirm remove member"
-              disabled={action.busy}
-              testID="group-member-remove-confirm"
-              onPress={() =>
-                void action
-                  .run("access.groups.remove_member", { groupId, member: pending }, "Member removed")
-                  .then((out) => {
-                    if (out) setPending(null);
-                  })
-              }
-            />
-          </Actions>
+          <InlineConfirm
+            question={
+              <>Remove {data.name(pending.id)}? Access inherited through this team ends. Other access remains.</>
+            }
+            confirmLabel="Confirm remove member"
+            danger={false}
+            disabled={action.busy}
+            confirmTestID="group-member-remove-confirm"
+            onConfirm={() =>
+              action.run("access.groups.remove_member", { groupId, member: pending }, "Member removed").then((out) => {
+                if (out) setPending(null);
+              })
+            }
+            onCancel={() => setPending(null)}
+          />
         </>
       ) : null}
       {action.note ? <Note>{action.note}</Note> : null}

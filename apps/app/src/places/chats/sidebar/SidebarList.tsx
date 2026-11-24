@@ -10,7 +10,7 @@ import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { useContextMenu } from "../../../../../../ui/src/Menu/context.tsx";
 import type { MenuEntry } from "../../../../../../ui/src/Menu/props.ts";
 import { detectPlatform } from "../../../shell/keyboard/useShellKeys.ts";
-import { ErrorView, HeadView, HintView, ItemRow, LessView, MoreView, NoneView, TasksRow } from "./SideEntries.tsx";
+import { ErrorView, HeadView, ItemRow, LessView, MoreView, NoneView, TasksRow } from "./SideEntries.tsx";
 import { LANDS_ON, headOf, listKey, moveKey } from "./side-keys.ts";
 import { headMenu, plusMenu, plusWords, rowMenu, tasksMenu } from "./side-menus.ts";
 import type { FixedDo, HeadDo, RowCan, RowDo } from "./side-menus.ts";
@@ -38,8 +38,6 @@ export interface SidebarListProps {
   /** Option-Shift-Down and Up: the next or previous unread row. */
   nextUnread(dir: 1 | -1): void;
   openFilter(): void;
-  /** "New goal" on the quiet "No goals yet" line. */
-  newGoal(): void;
   copyLink(x: Item): void;
   /** A letter typed on the list: the command bar opens with it. */
   search(text: string): void;
@@ -132,16 +130,35 @@ export function SidebarList(p: SidebarListProps): ReactElement {
       case "tasks":
         return p.openTasks();
       case "head":
-        return p.fold(e.section);
+        // a bare head has nothing to fold: a press on it does what its "+" does
+        return e.bare === true ? plus(e) : p.fold(e.section);
       case "more":
         return e.opens === "tasks" ? p.openTasks() : p.toggleMore(e.section);
       case "less":
         return p.toggleMore(e.section);
-      case "hint":
-        return p.newGoal();
       case "error":
         return p.retry(e.section);
     }
+  };
+  /** A head's "+": one thing to make is made at once (New goal, New chat); more than one opens the short menu under the plus. */
+  const plus = (e: Extract<LayoutEntry, { type: "head" }>, x?: number, y?: number): void => {
+    const items = plusMenu(e.section, p.headDo(e.section));
+    const only = items.length === 1 ? items[0] : undefined;
+    if (only && "onSelect" in only && typeof only.onSelect === "function") return only.onSelect();
+    if (items.length === 0) return;
+    let at = { x: x ?? 0, y: y ?? 0 };
+    if (x === undefined) {
+      const el = (
+        globalThis as {
+          document?: {
+            querySelector(s: string): { getBoundingClientRect(): { left: number; bottom: number } } | null;
+          };
+        }
+      ).document?.querySelector(`[data-testid="head-plus-${e.section}"]`);
+      const b = el?.getBoundingClientRect();
+      if (b) at = { x: b.left, y: b.bottom + 4 };
+    }
+    ctx.open(() => plusMenu(e.section, p.headDo(e.section)), at.x, at.y, { label: plusWords(e.section, e.label) });
   };
   const handlersOf = (e: LayoutEntry) => {
     const hasMenu = menuFor(e) !== null;
@@ -149,10 +166,7 @@ export function SidebarList(p: SidebarListProps): ReactElement {
       press: () => press(e),
       ...(hasMenu ? { more: (x: number, y: number) => ctx.open(() => menuFor(e), x, y, { label: labelOf(e) }) } : {}),
       ...(e.type === "head" && plusMenu(e.section, p.headDo(e.section)).length > 0
-        ? {
-            plus: (x: number, y: number) =>
-              ctx.open(() => plusMenu(e.section, p.headDo(e.section)), x, y, { label: plusWords(e.section, e.label) }),
-          }
+        ? { plus: (x: number, y: number) => plus(e, x, y) }
         : {}),
       ...(hasMenu ? { dom: ctx.on(() => menuFor(e), { label: labelOf(e) }) } : {}),
     };
@@ -219,8 +233,6 @@ export function SidebarList(p: SidebarListProps): ReactElement {
     switch (e.type) {
       case "tasks":
         return <TasksRow entry={e} state={state} on={{ ...on, fold: () => p.fold("needs") }} />;
-      case "hint":
-        return <HintView entry={e} onPress={p.newGoal} />;
       case "row":
         return <ItemRow entry={e} state={state} on={on} />;
       case "head":

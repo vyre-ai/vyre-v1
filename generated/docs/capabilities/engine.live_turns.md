@@ -1,6 +1,6 @@
 # engine.live_turns
 
-The turns being written in a thread right now, with the text so far: what a chat opened or reconnected mid-turn shows before it follows the live stream
+The turns being written in a thread now, with the text so far: what a chat opened mid-turn shows before it follows the live stream
 
 | | |
 |---|---|

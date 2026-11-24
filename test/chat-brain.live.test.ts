@@ -177,7 +177,11 @@ test("screen context: what the person had open reaches the agent with the focus 
       actions: ["records.update"],
     };
     const reply = await post(d, first.threadId, id, "who is this?", "scr1", { screen });
-    assert.match(reply, /On the person's screen:\nThe person is in records, on "Contacts"\./);
+    // the screen is words from the client and from whoever wrote the records, so it sits in a framed block (labelFrame): the title, the frame's begin line with its code, then what the person had open
+    assert.match(
+      reply,
+      /On the person's screen:\n[^\n]*\n\[screen words (\w+) begin\]\nThe person is in records, on "Contacts"\.[\s\S]*?\[screen words \1 end\]/,
+    );
     assert.match(reply, /Open: record rec_demo1 "Maya Chen"\./);
     assert.match(reply, /Rows on screen: 25 of 137\./);
     assert.match(reply, /Focus for this place:\nfocus-records\n/);

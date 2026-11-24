@@ -26,6 +26,7 @@ export type {
   StepResult,
 } from "./handlers/engine.ts";
 export { planUndo, ruleFor, RULES } from "./handlers/undo.ts";
+export { budgetRaise } from "./budget.ts";
 export * from "./handlers/alerts.ts";
 
 // The executor (P-L6_24): a Run that was started is driven, and driven again when a wait ends.
@@ -41,7 +42,9 @@ export const consumers = {
       driveFromEvent(ctx, event),
   },
 };
+import { NODE_SWEEP_MS, nodeSweep } from "./handlers/node.ts";
 export const periodic = {
+  "runs.sweep_nodes": { everyMs: NODE_SWEEP_MS, run: (ctx: Parameters<typeof nodeSweep>[0]) => nodeSweep(ctx) },
   "runs.sweep_waits": { everyMs: SWEEP_EVERY_MS, run: (ctx: Parameters<typeof sweep>[0]) => sweep(ctx) },
 };
 export const hostCalls = {
