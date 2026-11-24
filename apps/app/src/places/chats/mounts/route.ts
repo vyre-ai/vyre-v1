@@ -353,6 +353,21 @@ export function wentAndCame(was: number, now: number): boolean {
   return now - was >= 2;
 }
 
+/**
+ * Does the page take the address now? On a change of hash, as it always did (unless it is the one it already took). With the hash unchanged, only when the address went away and came back
+ * (wentAndCame) and the address is a page, not a layer or a terminal: one move with the same hash is the page's own report or a click inside it, and the page's own state wins.
+ */
+export function takesAddress(o: {
+  hashChanged: boolean;
+  alreadyTook: boolean;
+  was: number;
+  now: number;
+  layerOrTerminal: boolean;
+}): boolean {
+  if (o.hashChanged) return !o.alreadyTook;
+  return wentAndCame(o.was, o.now) && !o.layerOrTerminal;
+}
+
 export const TASKS_HASH = "screen=tasks.my-work";
 
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */

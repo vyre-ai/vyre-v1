@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, wentAndCame } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress, wentAndCame } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -290,4 +290,19 @@ test("only a move away and back to the same address is a link back; one move wit
     "one move (the page reported where it already is, or a click changed it): the page's own state wins",
   );
   assert.equal(wentAndCame(4, 6), true, "away and back: the page takes the address again");
+});
+
+test("the page takes a changed address, and a same address only after an away-and-back: a click inside the page is never overwritten by the address it already shows", () => {
+  const base = { hashChanged: false, alreadyTook: true, was: 7, now: 7, layerOrTerminal: false };
+  // a click inside Chats: the page acts, its report moves the count by one and the hash stays the one the page followed
+  assert.equal(takesAddress({ ...base, now: 8 }), false, "one move, same hash, after the page's own act");
+  // a count that moves with nothing else changing (a place switch elsewhere, a title)
+  assert.equal(takesAddress(base), false);
+  // the lost link of Move to Trash: left and came back to the same address
+  assert.equal(takesAddress({ ...base, now: 9 }), true, "away and back");
+  // never for a layer or a terminal (their address is spent once taken)
+  assert.equal(takesAddress({ ...base, now: 9, layerOrTerminal: true }), false);
+  // a changed hash is a link, unless the page already took that very one
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false, now: 8 }), true);
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true, now: 8 }), false);
 });
