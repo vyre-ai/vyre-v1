@@ -191,6 +191,7 @@ async function ready(v) {
   const consent = h("input", {
     type: "checkbox",
     id: "consent",
+    autocomplete: "off",
     onchange: (e) => {
       state.consent = e.target.checked;
       sync();
@@ -461,6 +462,27 @@ async function ready(v) {
     why.focus();
   }
 
+  // The name is whatever is in the box (autofill or a restored page put it there and the signer sees it). Consent is never taken from the control: it is a click in this view, so a tick a browser restored
+  // is cleared (on load and whenever the page is shown again) and the button waits for the person's own tick.
+  const readControls = (e) => {
+    state.name = nameIn.value;
+    // only a page the browser brought back (back, forward, a restored tab) has a tick that is not the person's; the pageshow of a first load is not one, and a tick made since is theirs
+    if (e && e.persisted === true) {
+      consent.checked = false;
+      state.consent = false;
+    }
+    sync();
+    updateMarks();
+  };
+  nameIn.addEventListener("change", () => {
+    state.name = nameIn.value;
+    sync();
+    updateMarks();
+  });
+  window.addEventListener("pageshow", readControls);
+  state.name = nameIn.value;
+  consent.checked = false;
+  state.consent = false;
   setMode("type");
   sync();
 
