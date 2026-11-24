@@ -58,6 +58,8 @@ export interface HubState {
   epoch: number;
   place: PlaceId;
   hash: string;
+  /** Counts every move of the place or the address (a link, a press, a Back), so a page can tell a move away and back to the same address from no move at all. */
+  moves: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -248,13 +250,29 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   const open = (): SpaceSession => sessions.get(openId) as SpaceSession;
 
+  let moves = 0;
   function build(): HubState {
     const s = open();
+    if (snap !== undefined && (snap.place !== s.place || snap.hash !== s.hash || snap.epoch !== epoch)) moves += 1;
     const tabs = s.tabs.state();
     const back = backTarget(tabs);
     const fwd = forwardTarget(tabs);
     const nav: NavState = { back: back === null ? null : back.title, forward: fwd === null ? null : fwd.title };
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh, nav };
+    return {
+      openId,
+      phase,
+      epoch,
+      place: s.place,
+      hash: s.hash,
+      moves,
+      away,
+      online,
+      waiting,
+      status,
+      error,
+      fresh,
+      nav,
+    };
   }
   snap = build();
 

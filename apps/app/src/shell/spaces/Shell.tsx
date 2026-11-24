@@ -537,7 +537,7 @@ export function ShellStage({
   const place = state.phase !== "skeleton" && state.error === null && !newTab && blocked === null;
   const placeKey = `${state.epoch}:${ctx.spaceId}:${state.place}`;
   const placeBody = place ? (
-    <ShownLocationProvider place={state.place} hash={state.hash}>
+    <ShownLocationProvider place={state.place} hash={state.hash} moves={state.moves}>
       {renderPlace(ctx)}
     </ShownLocationProvider>
   ) : null;
