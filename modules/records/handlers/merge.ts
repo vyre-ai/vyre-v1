@@ -21,7 +21,14 @@ import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
-import type { CreateManyResult, FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
+import type {
+  CreateManyResult,
+  FieldDef,
+  Filter,
+  Store,
+  StoredRecord,
+  TypeDef,
+} from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { MAX_LIMIT, ensureMatchIndex, findRows, warmSearch } from "./query.ts";

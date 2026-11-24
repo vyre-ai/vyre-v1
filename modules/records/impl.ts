@@ -330,13 +330,21 @@ export function openRecords(
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
         try {
-          ready.push({ at: i, id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue> });
+          ready.push({
+            at: i,
+            id: it.id,
+            data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue>,
+          });
         } catch (e) {
           out[i] = { ok: false, error: e };
         }
       }
       let made: CreateManyResult[];
-      if (inner.createMany) made = await inner.createMany(def.name, ready.map((r) => ({ id: r.id, data: r.data })));
+      if (inner.createMany)
+        made = await inner.createMany(
+          def.name,
+          ready.map((r) => ({ id: r.id, data: r.data })),
+        );
       else {
         made = [];
         for (const r of ready) {
