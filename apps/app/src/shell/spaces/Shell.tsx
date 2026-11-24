@@ -518,7 +518,7 @@ export function ShellStage({
   /** How many places stay made, the one on screen among them (kept-places.tsx). 1: none is kept, a place is made and unmade as it is opened and left. */
   keep?: number;
   hub: Pick<ShellHub, "placeDrawn" | "retry">;
-  state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string };
+  state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string; links: number };
   spaceName: string;
   kind: string;
   ctx: PlaceContext;
