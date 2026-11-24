@@ -1165,6 +1165,8 @@ async function exportRows(
   // a hand-picked selection: only these ids, taken from what the view returns, so an id the caller may not read (or that is gone) simply is not there
   const picked = input.recordIds === undefined ? null : new Set(input.recordIds);
   const rows: Record<string, unknown>[] = [];
+  // the loop gives the event loop a turn every few milliseconds: a big export (tens of thousands of rows, a column asked for each when a grant hides one) never holds it
+  const turn = turns();
   const first: ViewSpec = {
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
@@ -1175,6 +1177,7 @@ async function exportRows(
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
     for (const r of res.rows) {
+      await turn();
       if (picked !== null && !picked.has(r.id)) continue;
       // only what the caller may read goes into the file, picked or not
       if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
