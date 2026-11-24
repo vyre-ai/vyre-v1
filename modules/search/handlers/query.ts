@@ -221,6 +221,24 @@ function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
   return { ...d, title: a.title, path: a.path, body: a.body };
 }
 
+/** The field keys of a record type, asked of the schema once per type for a call (the memo is the call's). Empty when the schema cannot be read: the record is then read and rebuilt, never shown whole. */
+const typeKeys = new WeakMap<object, Map<string, string[]>>();
+async function fieldKeys(ctx: SearchCtx, type: string, memo: Map<string, DocRow | null>): Promise<string[]> {
+  let per = typeKeys.get(memo);
+  if (!per) typeKeys.set(memo, (per = new Map()));
+  const had = per.get(type);
+  if (had) return had;
+  let keys: string[] = [];
+  try {
+    const t = (await ctx.call("schema.types.get", { type })) as { type?: { fields?: Array<{ key?: unknown }> } };
+    keys = (t.type?.fields ?? []).map((f) => (typeof f.key === "string" ? f.key : "")).filter((k) => k !== "");
+  } catch {
+    keys = [];
+  }
+  per.set(type, keys);
+  return keys;
+}
+
 /**
  * A record as this caller may read it. The index holds the words of every field, but a grant can hide fields from a person (conditions.hiddenFields): the record itself comes back to them without those
  * fields (records.get, asked as the caller), and so must its search hit. The text of the document is rebuilt from the fields the caller gets, so a hidden value neither finds the record nor shows in its
@@ -231,6 +249,16 @@ async function fieldsSeen(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | 
   const key = `record:${d.id}`;
   const had = memo.get(key);
   if (had !== undefined) return had;
+  // The common case costs nothing per hit: the kernel is asked once, in process, whether this caller may see every field of this type on this record (a hidden field or a label above their ceiling says no).
+  // Only a record with something hidden for this caller is read and rebuilt.
+  const keys = d.recordType ? await fieldKeys(ctx, d.recordType, memo) : [];
+  if (
+    keys.length > 0 &&
+    ctx.authorize({ perm: null, level: "view", fields: keys }, { type: d.resType, id: d.resId }).effect === "allow"
+  ) {
+    memo.set(key, d);
+    return d;
+  }
   let out: DocRow | null = null;
   try {
     const got = (await ctx.call("records.get", {
