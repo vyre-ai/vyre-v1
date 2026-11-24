@@ -348,6 +348,11 @@ export function askAbout(v: string): { type: string; id: string } | null {
   return m ? { type: m[1]!, id: m[2]! } : null;
 }
 
+/** The address left and came back to the same one (two moves or more with the hash unchanged): a link to the page the person just left. One move with the same hash is the page's own report, never a link. */
+export function wentAndCame(was: number, now: number): boolean {
+  return now - was >= 2;
+}
+
 export const TASKS_HASH = "screen=tasks.my-work";
 
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */

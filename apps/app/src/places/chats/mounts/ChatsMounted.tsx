@@ -60,7 +60,7 @@ import {
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, wentAndCame, workOf } from "./route.ts";
 import { PendingChat } from "../landing/PendingChat.tsx";
 import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
@@ -278,12 +278,21 @@ export function ChatsMounted({
   const hashNow = useRef(hash);
   hashNow.current = hash;
   const movesSeen = useRef(moves);
+  const hashSeen = useRef(hash);
   useEffect(() => {
     // A move of the address the page did not see as a change (it left the address and came back to the same one before the page was drawn for the gap: Move to Trash on an agent's page, then a link
     // to that agent's page) still takes the page: the hub counts every move (agent-delete.keyboard, 24 Nov 2026). The page was left on "new" and the link was lost, with no effect to run.
-    const moved = moves !== movesSeen.current;
+    const moved = wentAndCame(movesSeen.current, moves);
     movesSeen.current = moves;
-    if (hash === linked.current && !(moved && fromHash(hash).layer === null && fromHash(hash).terminalId === null))
+    // a change of hash is a link as it always was; with the hash unchanged only an away-and-back move is one (a count that moved for any other reason must not run this body again: `linked` is
+    // cleared on purpose after a layer link, and running with it cleared would apply the address over what the person has since done)
+    const hashChanged = hash !== hashSeen.current;
+    hashSeen.current = hash;
+    if (
+      hashChanged
+        ? hash === linked.current
+        : !(moved && fromHash(hash).layer === null && fromHash(hash).terminalId === null)
+    )
       return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
