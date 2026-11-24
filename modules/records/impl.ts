@@ -77,6 +77,8 @@ async function sealIn(
   current?: Record<string, unknown>,
   /** Dry: nothing goes to the Vault; a value that would be sealed shows as a reference to nothing, so the record can be checked before any value is written. */
   dry = false,
+  /** Told of each reference this call minted, as its put returns: a failure on a later field still lets the caller take back the earlier ones. */
+  onPut?: (ref: string) => void,
 ): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
@@ -116,6 +118,7 @@ async function sealIn(
       value: text,
       ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
     });
+    if (!isSealedRef(have)) onPut?.(ref);
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
   }
   return out;
@@ -438,17 +441,10 @@ export function openRecords(
           if (row && row.version === it.base_version) assertWriteOnce(def, row.data, dry);
           if (row) assertStageGates(def, row.data, dry);
           // 2. seal it
-          const clean = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data));
-          for (const f of def.fields) {
-            const v = clean[f.name];
-            const had = row?.data[f.name];
-            if (
-              f.kind === "sealed" &&
-              isSealedRef(v) &&
-              !(isSealedRef(had) && (had as { ref: string }).ref === (v as { ref: string }).ref)
-            )
-              fresh.push((v as { ref: string }).ref);
-          }
+          const clean = scrub(
+            def,
+            await sealIn(def, it.id, { ...it.patch }, row?.data, false, (ref) => fresh.push(ref)),
+          );
           ready.push({
             at: i,
             id: it.id,

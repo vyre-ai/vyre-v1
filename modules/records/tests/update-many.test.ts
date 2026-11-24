@@ -132,3 +132,50 @@ test("a group whose commit fails leaves no value in the Vault, and the one-at-a-
     setRecordsVault(null as never);
   }
 });
+
+test("a put that fails on the second sealed field of an item takes back the first one", async () => {
+  const kept = new Map<string, string>();
+  let puts = 0;
+  setRecordsVault({
+    put: async (o) => {
+      if (o.value === "boom") throw new Error("the Vault refused");
+      const ref = o.ref ?? `vit_${o.recordId}_${o.field}_${++puts}`;
+      kept.set(ref, o.value);
+      return ref;
+    },
+    reveal: async (ref) => kept.get(ref) ?? "",
+    discard: async (ref) => void kept.delete(ref),
+  });
+  try {
+    const rec = openRecords({ space: "sp_um_two", path: ":memory:" });
+    const TWO = { ...PERSON, name: "pair", fields: [...PERSON.fields, { name: "dob", kind: "sealed", label: "Born" }] };
+    await rec.store.define({ add_types: [TWO] as never });
+    const a = mintRecordId();
+    const b = mintRecordId();
+    await rec.store.create("pair", a, { name: "A" });
+    await rec.store.create("pair", b, { name: "B" });
+    const out = await rec.store.updateMany!("pair", [
+      {
+        id: a,
+        patch: { ssn: { sealed: true, value: "one" }, dob: { sealed: true, value: "boom" } } as never,
+        base_version: 1,
+      },
+      {
+        id: b,
+        patch: { ssn: { sealed: true, value: "two" }, dob: { sealed: true, value: "ok" } } as never,
+        base_version: 1,
+      },
+    ]);
+    assert.deepEqual(
+      out.map((r) => r.ok),
+      [false, true],
+    );
+    assert.equal(
+      kept.size,
+      2,
+      "only the record that was updated holds values (its two); the first field of the failed item was taken back",
+    );
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
