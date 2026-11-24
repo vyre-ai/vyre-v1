@@ -1128,7 +1128,7 @@ function assertDelegation(
   }
 }
 export async function updateGrant(ctx: ShareCtx, input: { grantId: string; level?: Level; conditions?: Cond }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx),
     grant = store.grants.get(input.grantId);
   if (!grant) raise(ctx.trace.traceId, "validation.not_found", "no such grant");
@@ -1204,7 +1204,7 @@ export async function joinShare(
     !isHostService(ctx.principal)
   )
     raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -1317,7 +1317,7 @@ export async function share(
     notify?: { message?: string };
   },
 ) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1544,7 +1544,7 @@ export async function unshare(
   ctx: ShareCtx,
   input: { grantId?: string; resource?: ResourceRef; subject?: SubjectRef; source?: string },
 ) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1864,7 +1864,7 @@ export async function audienceSet(
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
   opts?: { hostNarrow?: boolean },
 ) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1969,7 +1969,7 @@ export async function audienceSet(
 
 /** The owner hands an item to another active person. The previous owner keeps Manage as a grant of their own, so handing it over never locks them out. */
 export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; personId: string }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2027,7 +2027,7 @@ export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }
 
 /** A person with Manage on the agent turns calls from other agents On or Off. An agent never does. */
 export async function agentsCanCallSet(ctx: ShareCtx, input: { agentId: string; on: boolean }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2154,7 +2154,7 @@ export async function foldersCreate(
   ctx: ShareCtx,
   input: { type: string; name: string; parentId?: string; scope?: "personal" | "space"; idempotencyKey?: string },
 ) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2230,7 +2230,7 @@ export async function foldersCreate(
 }
 
 export async function foldersRename(ctx: ShareCtx, input: { folderId: string; name: string }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2265,7 +2265,7 @@ function isAncestor(ss: ShareStore, ancestor: string, of: string): boolean {
 }
 
 export async function foldersMove(ctx: ShareCtx, input: { folderId: string; parentId: string | null }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2320,7 +2320,7 @@ function release(
 }
 
 export async function foldersDelete(ctx: ShareCtx, input: { folderId: string }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2376,7 +2376,7 @@ function inheritedGrants(store: AccessStore, folderId: string, now: number): Gra
 }
 
 export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef; folderId: string }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2412,7 +2412,7 @@ export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef
 }
 
 export async function foldersUnplace(ctx: ShareCtx, input: { resource: ResourceRef }) {
-  await settleForWriter(ctx);
+  await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -2463,7 +2463,7 @@ function countIn(ctx: AccessCtx, store: AccessStore, ss: ShareStore, folderId: s
 }
 
 export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: "personal" | "space" }) {
-  await settleView(ctx);
+  await settleView(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   ensureFresh(ctx, store, ss);
@@ -2490,7 +2490,7 @@ export async function lists(
   ctx: ShareCtx,
   input: { type: string; section?: Section; folder?: string; cursor?: string; limit?: number },
 ) {
-  await settleView(ctx);
+  await settleView(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;
