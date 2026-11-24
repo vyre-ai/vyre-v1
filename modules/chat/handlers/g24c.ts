@@ -7,6 +7,7 @@
 // Private chats and Ask panes (enc=2) hold what the device gave the server: edit stores the new text as given, reads return it as stored, and Recent shows no preview of it.
 import { forgetMentions, mentionsOf } from "./pace.ts";
 import { attachReach } from "./reach-attach.ts";
+import { attachCards } from "./record-cards.ts";
 import { readFloor } from "./floor.ts";
 import {
   agentsOf,
@@ -94,12 +95,15 @@ export async function messagesList(
     page.map((m) => m.id),
   );
   return {
-    messages: await attachReach(
+    messages: await attachCards(
       ctx,
-      page.map((m) => ({
-        ...messageOut(m, enc, askerOf(ctx)),
-        ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}),
-      })),
+      await attachReach(
+        ctx,
+        page.map((m) => ({
+          ...messageOut(m, enc, askerOf(ctx)),
+          ...(chips.has(m.id) ? { mentions: chips.get(m.id)! } : {}),
+        })),
+      ),
     ),
     hasMore,
   };
@@ -109,7 +113,8 @@ export async function messageGet(ctx: ChatCtx, input: { threadId: string; messag
   const t = openThread(ctx, input.threadId);
   const m = messageIn(ctx, t, input.messageId);
   if (m.createdAt < readFloor(ctx, t)) raise(ctx, "validation.not_found", "That message is not in this chat.");
-  return { message: (await attachReach(ctx, [messageOut(m, encOf(ctx.db, t), askerOf(ctx))]))[0]! };
+  const reached = await attachReach(ctx, [messageOut(m, encOf(ctx.db, t), askerOf(ctx))]);
+  return { message: (await attachCards(ctx, reached))[0]! };
 }
 
 export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
@@ -122,9 +127,12 @@ export async function pinsList(ctx: ChatCtx, input: { threadId: string }) {
   ) as Row[];
   const enc = encOf(ctx.db, t);
   return {
-    messages: await attachReach(
+    messages: await attachCards(
       ctx,
-      rows.map((r) => messageOut(messageOf(r), enc, askerOf(ctx))),
+      await attachReach(
+        ctx,
+        rows.map((r) => messageOut(messageOf(r), enc, askerOf(ctx))),
+      ),
     ),
   };
 }

@@ -64,7 +64,7 @@ export interface SearchCtx {
   emit(name: EventName, subject: string, payload: unknown): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
-    action: { perm: string | null; level: Level },
+    action: { perm: string | null; level: Level; fields?: readonly string[] },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold" };
   log: { warn(msg: string, attrs?: Record<string, unknown>): void };

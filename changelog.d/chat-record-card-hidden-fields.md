@@ -1,0 +1,2 @@
+A record card in a chat shows each person only the fields they may see, and a card someone posts never holds fields they could not see themselves.
+A card for a record you cannot read, or one beyond the first 200 on a page, shows no fields, no summary and no status, and takes a plain name in place of its title. Words someone types into a card's summary by hand are their own text, as in any message.

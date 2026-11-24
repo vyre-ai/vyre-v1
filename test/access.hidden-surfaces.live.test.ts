@@ -119,6 +119,58 @@ test("no surface shows a member the fields a grant hides from them", async () =>
     );
   await probe("sources.list", "sources.list", {});
   process.stderr.write(`\nSURFACE PROBE\n${rows.join("\n")}\n`);
+  // a record card in a chat: it shows each reader only what that reader may see, and what is stored never holds more than the poster could see
+  const card = (fields: string[], extra: Record<string, unknown> = {}) => ({
+    type: "record_card",
+    v: 1,
+    data: {
+      recordId: rid,
+      type: "contact",
+      title: "Surface Hana",
+      ...extra,
+      fields: fields.map((k) => ({
+        key: k,
+        title: k,
+        value: k === "name" ? "Surface Hana" : k === "email" ? EMAIL : PHONE,
+      })),
+    },
+  });
+  await h.owner.call("chat.post", {
+    threadId: ch.channel.mainThreadId,
+    body: "the card",
+    blocks: [card(["name", "email", "phone"], { summary: `Reach her at ${EMAIL} or ${PHONE}`, status: "active" })],
+    idempotencyKey: "hs-card-owner",
+  });
+  await n.call("chat.post", {
+    threadId: ch.channel.mainThreadId,
+    body: "my card",
+    blocks: [card(["name", "email", "phone"], { summary: `Reach her at ${EMAIL}` })],
+    idempotencyKey: "hs-card-member",
+  });
+  const asMember = (await n.call("chat.messages.list", { threadId: ch.channel.mainThreadId })) as {
+    messages: Array<{ body?: string; blocks?: unknown }>;
+  };
+  const asOwner = (await h.owner.call("chat.messages.list", { threadId: ch.channel.mainThreadId })) as {
+    messages: Array<{ body?: string; blocks?: unknown }>;
+  };
+  const cardsOf = (r: { messages: Array<{ body?: string; blocks?: unknown }> }, body: string) =>
+    JSON.stringify(r.messages.filter((m) => m.body === body).map((m) => m.blocks));
+  const ownerCardAsMember = cardsOf(asMember, "the card");
+  const ownerCardAsOwner = cardsOf(asOwner, "the card");
+  const memberCardAsOwner = cardsOf(asOwner, "my card");
+  const memberCardAsMember = cardsOf(asMember, "my card");
+  rows.push(
+    `chat record card, the owner's card read by the member: ${leaked(ownerCardAsMember).length ? `LEAK ${JSON.stringify(leaked(ownerCardAsMember))}` : "clean"}${ownerCardAsMember.includes("Surface Hana") ? " (the probe is not empty)" : " (EMPTY probe)"}`,
+  );
+  rows.push(
+    `chat record card, the owner's card read by the owner (control): ${ownerCardAsOwner.includes(EMAIL) && ownerCardAsOwner.includes(PHONE) ? "shows its fields, as it must" : "LEAK-CONTROL the owner no longer sees the fields they posted"}`,
+  );
+  rows.push(
+    `chat record card, the member's card (typed email and phone she cannot see) read by the owner: ${leaked(memberCardAsOwner).length ? `LEAK ${JSON.stringify(leaked(memberCardAsOwner))}` : "clean"}${memberCardAsOwner.includes("Surface Hana") ? " (the probe is not empty)" : " (EMPTY probe)"}`,
+  );
+  rows.push(
+    `chat record card, the member's card read by the member: ${leaked(memberCardAsMember).length ? `LEAK ${JSON.stringify(leaked(memberCardAsMember))}` : "clean"}`,
+  );
   // the agent's own reads for the member: she asks Spark in a chat, and Spark reads the record every way its tools offer
   // the agent may read this record in its own right (no hidden fields for the agent): what it hands the member back must still be the member's view
   await h.owner.call("access.share", {
@@ -141,7 +193,9 @@ test("no surface shows a member the fields a grant hides from them", async () =>
   );
   if (peeked !== "" && l.length) rows.push(`   data: ${peeked.slice(0, 700)}`);
   if (peeked !== "") rows.push(`   (answer: ${peeked.replace(/\s+/g, " ").slice(0, 900)})`);
-  process.stderr.write(`${rows.filter((r) => r.startsWith("agent") || r.startsWith("   ")).join("\n")}\n`);
+  process.stderr.write(
+    `${rows.filter((r) => r.startsWith("agent") || r.startsWith("chat record card") || r.startsWith("   ")).join("\n")}\n`,
+  );
   // the probes are not empty: the visible name finds the record, and the owner finds it by the hidden email (so the index does hold it)
   const empty = rows.filter((r) => r.includes("EMPTY probe") && !r.startsWith("search.recent.list"));
   assert.deepEqual(empty, [], `a probe came back empty, so it proves nothing:\n${empty.join("\n")}`);
@@ -151,5 +205,7 @@ test("no surface shows a member the fields a grant hides from them", async () =>
     "the owner finds the contact by its email, and sees it",
   );
   const bad = rows.filter((r) => r.includes("LEAK") || r.includes("NO ANSWER"));
+  const emptyCards = rows.filter((r) => r.startsWith("chat record card") && r.includes("EMPTY probe"));
+  assert.deepEqual(emptyCards, [], `a card probe came back empty:\n${emptyCards.join("\n")}`);
   assert.deepEqual(bad, [], `surfaces that leak a hidden field:\n${bad.join("\n")}`);
 });
