@@ -272,6 +272,11 @@ export class ProjectionHost {
     return r.event;
   }
 
+  /** Append events as ONE transaction (one commit), projections included, and answer each event's own result: a refused event is refused alone and the rest commit. */
+  appendGroup(evs: readonly NewEvent[]): ReturnType<LogStore["appendBatch"]> {
+    return this.store.appendBatch([...evs]);
+  }
+
   /** Append many events, projections included, as groups of one transaction each (one commit per group, not per event). Throws LogError at the first event the log or a reducer refuses. */
   appendMany(evs: readonly NewEvent[], group = 1000): void {
     for (let from = 0; from < evs.length; from += group) {

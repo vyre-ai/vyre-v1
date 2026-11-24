@@ -22,6 +22,9 @@ export interface TypeDef {
   [k: string]: unknown;
 }
 
+/** One item of Store.createMany: the record made, or why this item was not. */
+export type CreateManyResult = { ok: true; record: StoredRecord } | { ok: false; error: unknown };
+
 export interface StoredRecord {
   readonly type: string;
   readonly id: RecordId;
@@ -154,6 +157,11 @@ export interface Store {
   query(type: string, spec: QuerySpec): Promise<Page<StoredRecord>>;
   aggregate(type: string, spec: AggregateSpec): Promise<AggregateRow[]>;
   create(type: string, id: RecordId, data: Readonly<Record<string, FieldValue>>): Promise<StoredRecord>;
+  /** Create several records in one commit. Each item gets its own result: one refused item (a bad value, an id taken) is refused alone and the rest are made. The records are made in the order given. */
+  createMany?(
+    type: string,
+    items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[],
+  ): Promise<CreateManyResult[]>;
   update(
     type: string,
     id: RecordId,

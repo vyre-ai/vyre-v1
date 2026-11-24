@@ -10,7 +10,15 @@ import { openRecordStore, recordWriter } from "../../kernel/src/store/records.ts
 import type { RecordWriter } from "../../kernel/src/store/records.ts";
 import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
-import type { FieldDef, Store, StoredRecord, TypeDef } from "../../kernel/src/store/types.ts";
+import type {
+  CreateManyResult,
+  FieldDef,
+  FieldValue,
+  RecordId,
+  Store,
+  StoredRecord,
+  TypeDef,
+} from "../../kernel/src/store/types.ts";
 import type { ProjectionHost } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
 import { perSpaceStore } from "../../host/src/daemon/store.ts";
@@ -314,6 +322,35 @@ export function openRecords(
     async create(type, id, data) {
       const def = await needType(type);
       return inner.create(def.name, id, scrub(def, await sealIn(def, id, { ...data })));
+    },
+    async createMany(type, items) {
+      const def = await needType(type);
+      const out: CreateManyResult[] = new Array(items.length);
+      const ready: { at: number; id: RecordId; data: Record<string, FieldValue> }[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]!;
+        try {
+          ready.push({ at: i, id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue> });
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      }
+      let made: CreateManyResult[];
+      if (inner.createMany) made = await inner.createMany(def.name, ready.map((r) => ({ id: r.id, data: r.data })));
+      else {
+        made = [];
+        for (const r of ready) {
+          try {
+            made.push({ ok: true, record: await inner.create(def.name, r.id, r.data) });
+          } catch (e) {
+            made.push({ ok: false, error: e });
+          }
+        }
+      }
+      made.forEach((m, k) => {
+        out[ready[k]!.at] = m;
+      });
+      return out;
     },
     async update(type, id, patch, base) {
       const def = await needType(type);

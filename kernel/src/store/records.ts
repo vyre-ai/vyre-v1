@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { canonical } from "../../../lib/canonical.ts";
 import { isRecordId } from "../../../lib/ids.ts";
 import { sha256Hex } from "../log/hash.ts";
-import type { StoredEvent } from "../log/types.ts";
+import type { NewEvent, StoredEvent } from "../log/types.ts";
 import { aggregate as agg, encodeCursor, fieldOf, page } from "./query.ts";
 import { ProjectionHost, payloadOf } from "./projection.ts";
 import type { InlineProjection, Tx } from "./projection.ts";
@@ -17,6 +17,7 @@ import type {
   AggregateRow,
   AggregateSpec,
   ChangeEntry,
+  CreateManyResult,
   DefineDiff,
   DefineResult,
   ExportChunk,
@@ -235,7 +236,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const clock = o.clock ?? Date.now;
   const tx = host.tx;
 
-  const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
+  const eventOf = (type: string, entity: string, entityId: string | undefined, payload: object): NewEvent => {
     // whoever made the call this write is part of (recordWriter.run): the person or agent, the person an agent acts for, the trace and the run; the store's own actor only when nobody is
     const w = recordWriter.getStore();
     const who = w
@@ -246,17 +247,20 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         }
       : { actor };
     const trace = w?.traceId !== undefined && /^[0-9a-f]{32}$/.test(w.traceId) ? w.traceId : TRACE();
+    return {
+      type,
+      sv: 1,
+      trace_id: trace,
+      ...who,
+      vis: "space",
+      entity,
+      ...(entityId ? { entity_id: entityId } : {}),
+      payload,
+    };
+  };
+  const emit = (type: string, entity: string, entityId: string | undefined, payload: object): void => {
     try {
-      host.append({
-        type,
-        sv: 1,
-        trace_id: trace,
-        ...who,
-        vis: "space",
-        entity,
-        ...(entityId ? { entity_id: entityId } : {}),
-        payload,
-      });
+      host.append(eventOf(type, entity, entityId, payload));
     } catch (e) {
       throw fail("unavailable", e instanceof Error ? e.message : String(e));
     }
@@ -482,6 +486,50 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       const at = clock();
       emit("record.created", type, id, { type, id, data: clone(data), at });
       return record(type, rowOf(type, id)!);
+    },
+    async createMany(type, items) {
+      const def = needType(type);
+      const out: CreateManyResult[] = new Array(items.length);
+      // a unique field is checked against the records already stored, and a batch is not stored yet: one record at a time keeps that check exact
+      if (uniques(def).length) {
+        for (let i = 0; i < items.length; i++) {
+          try {
+            out[i] = { ok: true, record: await store.create(type, items[i]!.id, items[i]!.data) };
+          } catch (e) {
+            out[i] = { ok: false, error: e };
+          }
+        }
+        return out;
+      }
+      const evs: NewEvent[] = [];
+      const at: number[] = [];
+      const seen = new Set<string>();
+      items.forEach((it, i) => {
+        try {
+          if (!isRecordId(it.id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
+          if (seen.has(it.id) || rowOf(type, it.id)) throw fail("invalid", `${type} ${it.id} already exists`);
+          validate(def, it.data as Record<string, unknown>);
+          seen.add(it.id);
+          evs.push(eventOf("record.created", type, it.id, { type, id: it.id, data: clone(it.data), at: clock() }));
+          at.push(i);
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      });
+      // one transaction and one commit for the whole group (the log's group commit); a record's own projections still run for each event, in order
+      let results: ReturnType<ProjectionHost["appendGroup"]>;
+      try {
+        results = host.appendGroup(evs);
+      } catch (e) {
+        throw fail("unavailable", e instanceof Error ? e.message : String(e));
+      }
+      results.forEach((r, k) => {
+        const i = at[k]!;
+        out[i] = r.ok
+          ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
+          : { ok: false, error: fail("unavailable", r.message) };
+      });
+      return out;
     },
     async update(type, id, patch, base) {
       const def = needType(type);
