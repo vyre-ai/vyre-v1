@@ -73,6 +73,7 @@ export async function servicesWalk(
       const errs: string[] = [];
       page.on("pageerror", (e) => errs.push(e.message));
       let opened = false;
+      const usedCards = new Set<string>();
       /** Ask in a fresh chat, and answer the card that comes. */
       const ask = async (title: string): Promise<string> => {
         const threadId = (
@@ -96,16 +97,31 @@ export async function servicesWalk(
             .catch(() => undefined);
           opened = true;
         }
-        const card = page.locator("[data-testid^='connect-vrq_']").first();
-        await card.waitFor({ timeout: 120_000 }).catch(async (e) => {
-          await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
-          fs.writeFileSync(
-            `${shots}/no-card-${title}-${tag}.txt`,
-            `${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
-          );
-          throw e;
-        });
-        return (await card.getAttribute("data-testid"))!.replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
+        // the card of THIS ask: the first connect card on the page whose request has not been used before. The page keeps the earlier chat's card on screen for a moment after the address changes (slower under load),
+        // and the first card of the page may still be that one (walk-b, 24 Nov 2026: the old declined Twilio card, while the new one was drawn beside it with all its fields)
+        const fresh = await page
+          .waitForFunction(
+            (used: string[]) => {
+              for (const el of document.querySelectorAll("[data-testid^='connect-vrq_']")) {
+                const id = (el.getAttribute("data-testid") ?? "").replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
+                if (id && !used.includes(id)) return id;
+              }
+              return null;
+            },
+            [...usedCards],
+            { timeout: 120_000 },
+          )
+          .catch(async (e) => {
+            await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
+            fs.writeFileSync(
+              `${shots}/no-card-${title}-${tag}.txt`,
+              `${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
+            );
+            throw e;
+          });
+        const cardId = (await fresh.jsonValue()) as string;
+        usedCards.add(cardId);
+        return cardId;
       };
       /** What a card showed when a wait on it failed, in the folder CI uploads: a screenshot and the card's elements, the request, the connections, the calls the stand-in app saw, the page errors and the page text. */
       const evidenceNow = async (label: string, cardId: string, slug: string): Promise<void> => {

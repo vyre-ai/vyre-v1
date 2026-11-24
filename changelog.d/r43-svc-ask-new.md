@@ -1,0 +1,1 @@
+- The connect services walk takes the card of each ask as the first connect card whose request it has not used yet, so the earlier chat's card still on the page for a moment cannot be taken for the new one (test only).
