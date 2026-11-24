@@ -35,22 +35,40 @@ const cap = (o: Record<string, unknown> & { name: string }): CapabilityDef =>
 function rig() {
   const snap = new AccessSnapshot();
   snap.putRole({ id: "member", clearance: 2, perms: ["records.create", "records.edit"], name: "Member" });
-  for (const id of ["usr_dana", "agt_scout"]) snap.putPrincipal({ id, kind: id.startsWith("agt_") ? "agent" : "person", status: "active", name: id });
+  for (const id of ["usr_dana", "agt_scout"])
+    snap.putPrincipal({ id, kind: id.startsWith("agt_") ? "agent" : "person", status: "active", name: id });
   snap.addPrincipalRole({ holder: "usr_dana", role: "member" });
   snap.addPrincipalRole({ holder: "agt_scout", role: "member" });
   snap.putResource({ id: "spc_1", type: "space", parent_id: null, label: 0, owner_id: null, holds: 0 });
   snap.putResource({ id: "rt_item", type: "record_type", parent_id: "spc_1", label: 0, owner_id: null, holds: 0 });
   for (const who of ["usr_dana", "agt_scout"])
-    snap.putGrant({ id: `g_${who}`, subject_kind: "actor", subject_id: who, resource_type: "record_type", resource_id: "rt_item", level: "edit" });
+    snap.putGrant({
+      id: `g_${who}`,
+      subject_kind: "actor",
+      subject_id: who,
+      resource_type: "record_type",
+      resource_id: "rt_item",
+      level: "edit",
+    });
   const commits: CommitBatch[] = [];
   const invoke = createInvoke({
     caps: indexCapabilities([
-      cap({ name: "records.bulk_upsert", resource: { type: "record", create: true, parent: "/type" }, permission: "records.create", emits: ["record.created"] }),
+      cap({
+        name: "records.bulk_upsert",
+        resource: { type: "record", create: true, parent: "/type" },
+        permission: "records.create",
+        emits: ["record.created"],
+      }),
     ]),
     validateInput: () => [],
     authorize: (r) => authorize(snap, r),
     handler: () => (ctx, i: { type: string; id: string }) => {
-      ctx.emit("record.created" as never, `record/${i.id}`, { recordId: i.id, type: i.type, fields: { name: "A" }, quiet: true });
+      ctx.emit("record.created" as never, `record/${i.id}`, {
+        recordId: i.id,
+        type: i.type,
+        fields: { name: "A" },
+        quiet: true,
+      });
       return { created: 1 };
     },
     commit: async (b) => {
@@ -77,7 +95,11 @@ const shape = (b: CommitBatch) =>
   }));
 
 const seeds: Record<string, CtxSeed> = {
-  "a person": { space: "spc_1", principal: { kind: "person", id: "usr_dana" }, trace: { traceId: "a".repeat(32), spanId: "b".repeat(16) } },
+  "a person": {
+    space: "spc_1",
+    principal: { kind: "person", id: "usr_dana" },
+    trace: { traceId: "a".repeat(32), spanId: "b".repeat(16) },
+  },
   "an agent working for a person, in a Run": {
     space: "spc_1",
     principal: { kind: "agent", id: "agt_scout" },
@@ -92,18 +114,29 @@ for (const [who, seed] of Object.entries(seeds)) {
     const control = rig();
     await control.invoke("records.bulk_upsert", { type: "rt_item", id: REC }, seed);
     const replay = rig();
-    const stored = await replay.invoke.commitEvents!(
-      "records.bulk_upsert",
-      { type: "rt_item" },
-      seed,
-      [{ name: "record.created" as never, subject: `record/${REC}`, payload: { recordId: REC, type: "rt_item", fields: { name: "A" }, quiet: true }, id: "evt_a0123456789abcdef0123456789abcdef" }],
-    );
+    const stored = await replay.invoke.commitEvents!("records.bulk_upsert", { type: "rt_item" }, seed, [
+      {
+        name: "record.created" as never,
+        subject: `record/${REC}`,
+        payload: { recordId: REC, type: "rt_item", fields: { name: "A" }, quiet: true },
+        id: "evt_a0123456789abcdef0123456789abcdef",
+      },
+    ]);
     assert.equal(replay.commits.length, 1, "one commit");
-    assert.deepEqual(shape(replay.commits[0]!), shape(control.commits[0]!), "row for row the same events, owners and grants as the uninterrupted call");
+    assert.deepEqual(
+      shape(replay.commits[0]!),
+      shape(control.commits[0]!),
+      "row for row the same events, owners and grants as the uninterrupted call",
+    );
     assert.equal(stored[0]!.id, "evt_a0123456789abcdef0123456789abcdef", "the announcement keeps its fixed id");
-    const owner = replay.commits[0]!.events.find((e) => e.type === ("resource.created" as never))!.payload as ResourceRow;
+    const owner = replay.commits[0]!.events.find((e) => e.type === ("resource.created" as never))!
+      .payload as ResourceRow;
     assert.equal(owner.owner_id, seed.actingFor ?? seed.principal.id, "owned as the call would have owned it");
-    assert.equal(replay.commits[0]!.events.filter((e) => e.type === ("grant.created" as never)).length, control.commits[0]!.events.filter((e) => e.type === ("grant.created" as never)).length, "no grant the call would not have made");
+    assert.equal(
+      replay.commits[0]!.events.filter((e) => e.type === ("grant.created" as never)).length,
+      control.commits[0]!.events.filter((e) => e.type === ("grant.created" as never)).length,
+      "no grant the call would not have made",
+    );
     assert.equal(replay.commits[0]!.audit, null, "no audit row: the call is not made again");
   });
 }

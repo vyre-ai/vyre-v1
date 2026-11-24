@@ -4250,7 +4250,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             invoke.commitEvents!(
               "records.bulk_upsert",
               { type: p.type },
-              announcementSeed(p, spaceId, Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join(""), who) as never,
+              announcementSeed(
+                p,
+                spaceId,
+                Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) =>
+                  b.toString(16).padStart(2, "0"),
+                ).join(""),
+                who,
+              ) as never,
               [announcementSpec(p) as never],
               { depth: p.depth ?? 0 },
             ),

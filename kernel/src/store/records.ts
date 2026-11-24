@@ -539,7 +539,15 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         try {
           checkNewItem(def, type, it, seen);
           seen.add(it.id);
-          evs.push(eventOf("record.created", type, it.id, { type, id: it.id, data: clone(it.data), at: clock(), ...announceOf() }));
+          evs.push(
+            eventOf("record.created", type, it.id, {
+              type,
+              id: it.id,
+              data: clone(it.data),
+              at: clock(),
+              ...announceOf(),
+            }),
+          );
           at.push(i);
         } catch (e) {
           out[i] = { ok: false, error: e };

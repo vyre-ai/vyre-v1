@@ -69,7 +69,10 @@ export async function pendingAnnouncements(a: {
       ) as { seq: number; event: string; payload: Uint8Array }[];
       if (!rows.length) {
         // nothing more to read: everything up to the last record event made before the start has been looked at
-        const head = space.all("SELECT max(seq) AS m FROM events WHERE type = 'record.created' AND at < ?", a.before)[0] as { m: number | null };
+        const head = space.all(
+          "SELECT max(seq) AS m FROM events WHERE type = 'record.created' AND at < ?",
+          a.before,
+        )[0] as { m: number | null };
         scannedTo = Math.max(scannedTo, head?.m ?? scannedTo);
         break;
       }
@@ -78,7 +81,12 @@ export async function pendingAnnouncements(a: {
         after = r.seq;
         scannedTo = r.seq;
         let env: { actor?: string; on_behalf?: string; run_id?: string; trace_id?: string };
-        let p: { type?: string; id?: string; data?: Record<string, unknown>; announce?: { quiet?: boolean; depth?: number; origin?: string } };
+        let p: {
+          type?: string;
+          id?: string;
+          data?: Record<string, unknown>;
+          announce?: { quiet?: boolean; depth?: number; origin?: string };
+        };
         try {
           env = JSON.parse(r.event);
           p = JSON.parse(dec.decode(r.payload));
@@ -88,12 +96,18 @@ export async function pendingAnnouncements(a: {
         if (!p.announce || typeof p.id !== "string" || typeof p.type !== "string") continue;
         if (!TYPE_NAME.test(p.type) || typeof env.actor !== "string" || typeof env.trace_id !== "string") continue;
         // by the entity index (the type index would walk every announcement for each candidate), and the type is checked here
-        const announced = (log.all("SELECT type FROM events INDEXED BY ev_entity WHERE entity = 'record' AND entity_id = ?", p.id) as { type: string }[]).some((e) => e.type === "record.created");
+        const announced = (
+          log.all("SELECT type FROM events INDEXED BY ev_entity WHERE entity = 'record' AND entity_id = ?", p.id) as {
+            type: string;
+          }[]
+        ).some((e) => e.type === "record.created");
         if (announced) continue;
         // gone since (removed or its type dropped): nothing to announce
         let live = false;
         try {
-          live = (space.all(`SELECT 1 AS x FROM "rt_${p.type}" WHERE id = ? AND deleted_at IS NULL`, p.id) as unknown[]).length > 0;
+          live =
+            (space.all(`SELECT 1 AS x FROM "rt_${p.type}" WHERE id = ? AND deleted_at IS NULL`, p.id) as unknown[])
+              .length > 0;
         } catch {
           live = false;
         }
@@ -121,7 +135,12 @@ export async function pendingAnnouncements(a: {
 }
 
 /** The event the call would have committed: the same type, subject and payload records.bulk_upsert and records.create give it. The id is fixed by the record, so making it twice writes it once. */
-export function announcementSpec(p: PendingAnnouncement): { name: "record.created"; subject: string; payload: unknown; id: string } {
+export function announcementSpec(p: PendingAnnouncement): {
+  name: "record.created";
+  subject: string;
+  payload: unknown;
+  id: string;
+} {
   return {
     name: "record.created",
     subject: `record/${p.id}`,
@@ -165,7 +184,12 @@ export function replayActors(
 ): { actor: string; actingFor?: string; changed: boolean } | null {
   const actorOk = exists(p.actor);
   const forOk = p.onBehalf !== undefined && exists(p.onBehalf);
-  if (actorOk) return { actor: p.actor, ...(forOk ? { actingFor: p.onBehalf! } : {}), changed: p.onBehalf !== undefined && !forOk };
+  if (actorOk)
+    return {
+      actor: p.actor,
+      ...(forOk ? { actingFor: p.onBehalf! } : {}),
+      changed: p.onBehalf !== undefined && !forOk,
+    };
   const owner = forOk ? p.onBehalf! : spaceOwner && exists(spaceOwner) ? spaceOwner : null;
   return owner ? { actor: owner, changed: true } : null;
 }
@@ -189,21 +213,30 @@ export async function replayAnnouncements(a: {
     if (!fs.existsSync(a.spaceDb)) return 0;
     const db = openDb(a.spaceDb, fs.existsSync(`${a.spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
     try {
-      const m = (db.all("SELECT max(seq) AS m FROM events WHERE at < ?", a.startedAt)[0] as { m: number | null }).m ?? 0;
+      const m =
+        (db.all("SELECT max(seq) AS m FROM events WHERE at < ?", a.startedAt)[0] as { m: number | null }).m ?? 0;
       writeMark(a.markFile, m);
     } finally {
       db.close();
     }
     return 0;
   }
-  const { pending, scannedTo } = await pendingAnnouncements({ spaceDb: a.spaceDb, eventsDb: a.eventsDb, mark, before: a.startedAt });
+  const { pending, scannedTo } = await pendingAnnouncements({
+    spaceDb: a.spaceDb,
+    eventsDb: a.eventsDb,
+    mark,
+    before: a.startedAt,
+  });
   let made = 0;
   let failed = 0;
   for (const p of pending) {
     const who = replayActors(p, a.exists, a.spaceOwner());
     if (!who) {
       failed++;
-      a.say?.("records.announce_skipped", { id: p.id, why: "neither the actor nor the person it acted for nor the Space owner exists" });
+      a.say?.("records.announce_skipped", {
+        id: p.id,
+        why: "neither the actor nor the person it acted for nor the Space owner exists",
+      });
       continue;
     }
     if (who.changed) a.say?.("records.announce_owner_changed", { id: p.id, actor: p.actor, as: who.actor });

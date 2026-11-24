@@ -299,14 +299,40 @@ test("every record a call makes carries the announcement marker in its own event
     actor: "usr_dana",
     authorize: () => ({ effect: "allow" }),
   };
-  const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
-  const rows = (n: number, from = 0) => Array.from({ length: n }, (_, i) => ({ name: `P ${from + i}`, email: `p${from + i}@x.test`, age: i }));
-  const writer = { actor: "usr_dana", onBehalf: "usr_mira", traceId: "0123456789abcdef0123456789abcdef", runId: "run_0123456789abcdef" };
-  await recordWriter.run({ ...writer }, () => h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows: rows(30), createOnly: true }));
-  await recordWriter.run({ ...writer }, () => h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows: rows(1, 100), createOnly: true, runAutomations: true }));
-  const made = rec.host.tx.all<Record<string, unknown>>("SELECT event, payload FROM events WHERE json_extract(event, '$.type') = 'record.created' ORDER BY seq");
+  const h = createMergeHandlers({
+    store: rec.store,
+    tx: rec.host.tx,
+    now: () => 1_800_000_000_000,
+    putFile: async () => "file_1",
+  });
+  const rows = (n: number, from = 0) =>
+    Array.from({ length: n }, (_, i) => ({ name: `P ${from + i}`, email: `p${from + i}@x.test`, age: i }));
+  const writer = {
+    actor: "usr_dana",
+    onBehalf: "usr_mira",
+    traceId: "0123456789abcdef0123456789abcdef",
+    runId: "run_0123456789abcdef",
+  };
+  await recordWriter.run({ ...writer }, () =>
+    h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows: rows(30), createOnly: true }),
+  );
+  await recordWriter.run({ ...writer }, () =>
+    h["records.bulk_upsert"](ctx as never, {
+      type: "party",
+      match: ["email"],
+      rows: rows(1, 100),
+      createOnly: true,
+      runAutomations: true,
+    }),
+  );
+  const made = rec.host.tx.all<Record<string, unknown>>(
+    "SELECT event, payload FROM events WHERE json_extract(event, '$.type') = 'record.created' ORDER BY seq",
+  );
   assert.equal(made.length, 31);
-  const marks = made.map((r) => (JSON.parse(new TextDecoder().decode(r["payload"] as Uint8Array)) as { announce?: { quiet?: boolean } }).announce);
+  const marks = made.map(
+    (r) =>
+      (JSON.parse(new TextDecoder().decode(r["payload"] as Uint8Array)) as { announce?: { quiet?: boolean } }).announce,
+  );
   assert.deepEqual(marks.slice(0, 30), Array(30).fill({ quiet: true }), "a quiet import is marked quiet");
   assert.deepEqual(marks[30], {}, "a call that runs automations is marked, not quiet");
   const env = JSON.parse(String(made[0]!["event"])) as Record<string, string>;

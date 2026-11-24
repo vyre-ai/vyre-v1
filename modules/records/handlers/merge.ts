@@ -43,7 +43,10 @@ const CREATE_RUN = 200;
 /** The depth and origin of the call, so a replayed announcement goes on counting an Automation chain's depth as the call would have. */
 export const callerStamp = (ctx: object): { depth?: number; origin?: string } => {
   const c = ctx as { depth?: unknown; origin?: unknown };
-  return { ...(Number.isInteger(c.depth) ? { depth: c.depth as number } : {}), ...(typeof c.origin === "string" ? { origin: c.origin } : {}) };
+  return {
+    ...(Number.isInteger(c.depth) ? { depth: c.depth as number } : {}),
+    ...(typeof c.origin === "string" ? { origin: c.origin } : {}),
+  };
 };
 /** Excel's own row limit, header included. */
 export const XLSX_MAX_ROWS = 1_048_576;
