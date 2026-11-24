@@ -1,0 +1,1 @@
+The connection-stale walk now keeps its bulk writers writing until every type's pass has finished and checks that a writer batch was in flight during each pass, so it proves the overlap on a fast or a slow runner.
