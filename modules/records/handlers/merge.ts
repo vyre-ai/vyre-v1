@@ -772,6 +772,9 @@ async function upsert(
         input.type,
         run.map((p) => ({ id: mintRecordId(), data: p.values })),
       );
+      // a commit that failed as a whole rolled the run back and answers every row "unavailable" (one poison row does this to its 199 neighbours): nothing was made, so the rows are made one at a time below and
+      // only the row that fails is stopped on, as before
+      if (res.every((r) => !r.ok && r.error instanceof StoreError && r.error.code === "unavailable")) return;
       run.forEach((p, k) => madeBy.set(p, res[k]!));
     } catch {
       /* the run could not be tried at all (the type is gone): the rows are made one at a time below and meet the same refusal one by one. A commit that fails comes back as a refusal of every row of the run, nothing made. */

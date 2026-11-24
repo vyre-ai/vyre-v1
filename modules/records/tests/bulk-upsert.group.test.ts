@@ -195,3 +195,31 @@ test("a value to be sealed is written to the Vault only for a row that will be m
     setRecordsVault(null);
   }
 });
+
+test("one poison row in a run rolls the run back and the rows are made one at a time: the rows ahead of it are made, the call stops at the poison row as it always did", async () => {
+  const rec = openRecords({ space: "spc_aaaaaaaaaaaa", path: ":memory:" });
+  await rec.store.define({ add_types: [PARTY] as never });
+  const log = rec.host.store as unknown as { appendBatch: (b: { payload: { data?: { name?: string } } }[]) => unknown };
+  const was = log.appendBatch.bind(log);
+  log.appendBatch = (b) => {
+    // a payload the log cannot write (not a refusal it can name: the whole transaction fails)
+    for (const e of b) if (e.payload?.data?.name === "POISON") (e.payload as Record<string, unknown>)["x"] = 1n;
+    return was(b);
+  };
+  const emitted: string[] = [];
+  const ctx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: (type: string) => void emitted.push(type),
+    actor: "usr_dana",
+    authorize: () => ({ effect: "allow" }),
+  };
+  const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
+  const rows = Array.from({ length: 60 }, (_, i) => ({ name: i === 30 ? "POISON" : `P ${i}`, email: `p${i}@x.test`, age: i }));
+  const out = await h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows, createOnly: true });
+  const stored = Number(rec.host.tx.all<Record<string, unknown>>("SELECT count(*) AS n FROM rt_party")[0]!["n"]);
+  assert.equal(out.created, 30, "the 30 rows ahead of the poison row are made");
+  assert.equal(stored, 30);
+  assert.equal(out.stopped?.row, 30, "the call stops at the poison row");
+  assert.equal(out.stopped?.notDone.length, 30, "the poison row and the 29 after it are not done, and none of them exists");
+  assert.equal(emitted.length, 30);
+});
