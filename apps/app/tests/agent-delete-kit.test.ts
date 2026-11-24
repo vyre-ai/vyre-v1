@@ -400,7 +400,7 @@ export async function agentDeleteWalk(
           // what the page shows when the thread does not open: kept with the walk's evidence (walks-evidence/agent-delete), so a failed run says whether the thread pane, the reply or neither was drawn.
           // Every step of it is guarded: a failure to write evidence never hides the wait's own error, and nothing that looks like a key, a token or an address is saved.
           try {
-            const dir = path.join("walks-evidence", "agent-delete");
+            const dir = path.join(process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join("walks-evidence"), "agent-delete");
             fs.mkdirSync(dir, { recursive: true });
             const mask = (t: string): string =>
               t
