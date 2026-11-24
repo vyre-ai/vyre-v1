@@ -169,7 +169,29 @@ export async function servicesWalk(
         await fill("GOOD");
         seen.length = 0;
         await q("-connect").click();
-        await q("-row").waitFor({ timeout: 25_000 });
+        // when the connected row does not show, say what the card showed and what the request and the connection were, in the folder CI uploads (a failure here once carried only the locator)
+        await q("-row")
+          .waitFor({ timeout: 25_000 })
+          .catch(async (e) => {
+            const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
+            fs.mkdirSync(dir, { recursive: true });
+            const reqId = id.replace(/^connect-/, "");
+            const state = await api("vault.requests.get", { requestId: reqId }).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
+            const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
+            await page.screenshot({ path: `${dir}/${slug}-${tag}-no-row.png` }).catch(() => undefined);
+            fs.writeFileSync(
+              `${dir}/${slug}-${tag}-no-row.txt`,
+              [
+                `card ${id}: elements ${(await page.locator(`[data-testid^='${id}']`).evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))).join(" ")}`,
+                `request ${JSON.stringify(state).slice(0, 1500)}`,
+                `connections ${JSON.stringify(conns).slice(0, 1500)}`,
+                `calls the stand-in app saw since Connect: ${seen.map((r) => `${r.host} ${r.url}`).join(" | ").slice(0, 1500)}`,
+                `page errors: ${errs.join(" | ").slice(0, 800)}`,
+                `page text:\n${(await page.locator("body").innerText().catch(() => "")).slice(0, 2500)}`,
+              ].join("\n"),
+            );
+            throw e;
+          });
         await shot("done");
         await page.getByText(new RegExp(`Yes, .*is connected\\.`)).first().waitFor({ timeout: 40_000 });
         const body = await page.locator("body").innerText();
