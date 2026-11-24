@@ -10,7 +10,7 @@ Up to 200 files in one folder in one call, all or none; each as files.create tak
 | Permission | files.write |
 | Grant level | edit |
 | Risk | medium |
-| Resource | folder (create under /folderId) |
+| Resource | file (create under /folderId) |
 | Gate | none |
 | Idempotency | key |
 | Offline | online |

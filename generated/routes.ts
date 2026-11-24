@@ -13873,7 +13873,7 @@ const routes2: Route[] = [
     "permission": "files.write",
     "level": "edit",
     "resource": {
-      "type": "folder",
+      "type": "file",
       "create": true,
       "parent": "/folderId"
     },

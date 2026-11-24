@@ -922,7 +922,7 @@ export default defineManifest({
           files: t.arr(t.obj({ name: t.str(), content: t.opt(content) }), { minItems: 1, maxItems: 200 }),
         },
         out: { files: t.arr(fileRow) },
-        make: ["folder", "/folderId"],
+        make: ["file", "/folderId"],
         perm: "files.write",
         emits: ["file.created", "file.version_added"],
         tool: "files",
