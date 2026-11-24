@@ -10,6 +10,10 @@ test("five types of one connection start together: no read is refused for the co
   assert.equal(r.pull.refused + r.due.refused, 0, "no read was refused for the connection's own budget");
   assert.ok(r.pull.reads >= 10, "the pulls read");
   assert.ok(
+    r.pull.fills < r.pull.reads && r.due.fills <= r.due.reads,
+    `the Vault is read once per pass, never once per read (the pulls share reads, a due wave never has more fills than reads): ${r.pull.fills} fills for ${r.pull.reads} reads, ${r.due.fills} for ${r.due.reads}`,
+  );
+  assert.ok(
     r.pull.fills <= 20 && r.due.fills <= 4,
     `the Vault was read ${r.pull.fills} / ${r.due.fills} times for ${r.pull.reads} / ${r.due.reads} reads`,
   );
