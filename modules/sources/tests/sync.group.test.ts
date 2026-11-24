@@ -76,7 +76,7 @@ async function pull(grouped: boolean, rows: number, fail: Fail = {}) {
     commits++;
     return was(b);
   };
-  const base: Store = grouped ? localOpen.store : ({ ...localOpen.store, createMany: undefined } as Store);
+  const base: Store = grouped ? localOpen.store : ({ ...localOpen.store, createMany: undefined } as unknown as Store);
   const POISON = "Person 5";
   const local: Store = fail.poison
     ? ({

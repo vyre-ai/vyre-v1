@@ -30,7 +30,7 @@ async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean) {
           return opened.store.createMany!(...a);
         },
       } as Store)
-    : ({ ...opened.store, createMany: undefined } as Store);
+    : ({ ...opened.store, createMany: undefined } as unknown as Store);
   await store.define({
     add_types: [
       {
