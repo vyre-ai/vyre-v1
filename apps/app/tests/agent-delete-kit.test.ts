@@ -393,8 +393,22 @@ export async function agentDeleteWalk(
         // the agent answered the mention in a thread of the message: open it
         const replies = page.getByText(/1 reply/).first();
         await replies.waitFor({ timeout: 30_000 });
-        await replies.click(); // opening a thread is not part of delete for good: by pointer in every mode
-        await page.getByText(`${name} says the list is ready.`, { exact: true }).first().waitFor({ timeout: 30_000 });
+        // opening a thread is not part of delete for good: by pointer in every mode. A press that lands while the feed is still settling (the deleted mark arrives) is lost, so press again until the thread is open.
+        const reply = page
+          .getByText(`${name} says the list is ready.`, { exact: true })
+          .locator("visible=true")
+          .first();
+        for (let tries = 0; tries < 5; tries++) {
+          await replies.click();
+          if (
+            await reply.waitFor({ state: "visible", timeout: 6_000 }).then(
+              () => true,
+              () => false,
+            )
+          )
+            break;
+        }
+        await reply.waitFor({ timeout: 30_000 });
         await page.locator('[data-testid^="deleted-"]').first().waitFor({ timeout: 20_000 });
         assert.equal((await page.locator('[data-testid^="deleted-"]').first().innerText()).trim(), "deleted");
         assert.equal(await page.getByRole("link", { name: `Open ${name}` }).count(), 0, "its name is not pressable");
