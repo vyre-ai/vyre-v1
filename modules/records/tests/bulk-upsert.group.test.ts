@@ -193,23 +193,48 @@ test("a value to be sealed is written to the Vault only for a row that will be m
       actor: "usr_dana",
       authorize: () => ({ effect: "allow" }),
     };
-    const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
-    const rows = Array.from({ length: 10 }, (_, i) => ({ name: `P ${i}`, age: i, ssn: `123-45-67${String(i).padStart(2, "0")}` }));
+    const h = createMergeHandlers({
+      store: rec.store,
+      tx: rec.host.tx,
+      now: () => 1_800_000_000_000,
+      putFile: async () => "file_1",
+    });
+    const rows = Array.from({ length: 10 }, (_, i) => ({
+      name: `P ${i}`,
+      age: i,
+      ssn: `123-45-67${String(i).padStart(2, "0")}`,
+    }));
     (rows[2] as Record<string, unknown>)["age"] = "two"; // refused before anything is written
     breakNth = 5; // the log refuses the sixth made row alone
-    const out = await h["records.bulk_upsert"](ctx as never, { type: "person", match: ["name"], rows, createOnly: true });
+    const out = await h["records.bulk_upsert"](ctx as never, {
+      type: "person",
+      match: ["name"],
+      rows,
+      createOnly: true,
+    });
     assert.equal(out.stopped, undefined);
     assert.deepEqual(out.refused?.map((r) => r.row).sort(), [2, 6]);
     assert.equal(out.created, 8);
     assert.equal(puts.length, 9, "nine values were sealed: one for each row except the one refused up front");
     assert.equal(discarded.length, 1, "the value of the row the log refused is taken back");
-    assert.match(String(out.refused![0]!.message), /^(?!.*bad_event)/, "the reason is a plain sentence, not the log's own words");
+    assert.match(
+      String(out.refused![0]!.message),
+      /^(?!.*bad_event)/,
+      "the reason is a plain sentence, not the log's own words",
+    );
     // the retry of the reported failures (rows 2 and 6, fixed) makes those two and nothing else
     breakNth = -1;
     const retry = [{ ...rows[2]!, age: 2 }, rows[6]!];
-    const again = await h["records.bulk_upsert"](ctx as never, { type: "person", match: ["name"], rows: retry, createOnly: true });
+    const again = await h["records.bulk_upsert"](ctx as never, {
+      type: "person",
+      match: ["name"],
+      rows: retry,
+      createOnly: true,
+    });
     assert.equal(again.created, 2);
-    const names = rec.host.tx.all<Record<string, unknown>>("SELECT json_extract(data, '$.name') AS n FROM rt_person").map((r) => String(r["n"]));
+    const names = rec.host.tx
+      .all<Record<string, unknown>>("SELECT json_extract(data, '$.name') AS n FROM rt_person")
+      .map((r) => String(r["n"]));
     assert.equal(names.length, 10);
     assert.equal(new Set(names).size, 10, "no duplicates");
   } finally {
@@ -235,15 +260,31 @@ test("one poison row in a run rolls the run back and the rows are made one at a 
     authorize: () => ({ effect: "allow" }),
   };
   let runs = 0;
-  const store = { ...rec.store, createMany: (...a: Parameters<NonNullable<typeof rec.store.createMany>>) => (runs++, rec.store.createMany!(...a)) } as typeof rec.store;
-  const h = createMergeHandlers({ store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
-  const rows = Array.from({ length: 60 }, (_, i) => ({ name: i === 30 ? "POISON" : `P ${i}`, email: `p${i}@x.test`, age: i }));
+  const store = {
+    ...rec.store,
+    createMany: (...a: Parameters<NonNullable<typeof rec.store.createMany>>) => (runs++, rec.store.createMany!(...a)),
+  } as typeof rec.store;
+  const h = createMergeHandlers({
+    store,
+    tx: rec.host.tx,
+    now: () => 1_800_000_000_000,
+    putFile: async () => "file_1",
+  });
+  const rows = Array.from({ length: 60 }, (_, i) => ({
+    name: i === 30 ? "POISON" : `P ${i}`,
+    email: `p${i}@x.test`,
+    age: i,
+  }));
   const out = await h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows, createOnly: true });
   const stored = Number(rec.host.tx.all<Record<string, unknown>>("SELECT count(*) AS n FROM rt_party")[0]!["n"]);
   assert.equal(out.created, 30, "the 30 rows ahead of the poison row are made");
   assert.equal(stored, 30);
   assert.equal(out.stopped?.row, 30, "the call stops at the poison row");
-  assert.equal(out.stopped?.notDone.length, 30, "the poison row and the 29 after it are not done, and none of them exists");
+  assert.equal(
+    out.stopped?.notDone.length,
+    30,
+    "the poison row and the 29 after it are not done, and none of them exists",
+  );
   assert.equal(emitted.length, 30);
   assert.equal(runs, 1, "one failed attempt for the window, then the rows one at a time");
 });

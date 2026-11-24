@@ -340,7 +340,12 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     }
   }
   /** What create asks of one new record before it writes: a contract id that is not taken (nor repeated in the batch), and values the type accepts. Throws the refusal. */
-  function checkNewItem(def: TypeDef, type: string, it: { id: string; data: Readonly<Record<string, unknown>> }, seen: ReadonlySet<string>): void {
+  function checkNewItem(
+    def: TypeDef,
+    type: string,
+    it: { id: string; data: Readonly<Record<string, unknown>> },
+    seen: ReadonlySet<string>,
+  ): void {
     if (!isRecordId(it.id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
     if (seen.has(it.id) || rowOf(type, it.id)) throw fail("invalid", `${type} ${it.id} already exists`);
     validate(def, it.data as Record<string, unknown>);

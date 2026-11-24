@@ -342,7 +342,10 @@ export function openRecords(
         const dry: { id: RecordId; data: Record<string, FieldValue> }[] = [];
         for (const it of items) {
           try {
-            dry.push({ id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue> });
+            dry.push({
+              id: it.id,
+              data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue>,
+            });
           } catch (e) {
             dry.push({ id: it.id, data: {} });
             refused[dry.length - 1] = e;
@@ -394,7 +397,8 @@ export function openRecords(
           if (m.ok) continue;
           for (const f of def.fields) {
             const v = ready[k]!.data[f.name];
-            if (f.kind === "sealed" && isSealedRef(v)) await vault.discard((v as { ref: string }).ref).catch(() => undefined);
+            if (f.kind === "sealed" && isSealedRef(v))
+              await vault.discard((v as { ref: string }).ref).catch(() => undefined);
           }
         }
       }

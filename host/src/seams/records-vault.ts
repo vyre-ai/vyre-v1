@@ -72,7 +72,10 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
     // vault.item.delete is gated for a service (a held "Move this item to Trash?" request, with the secret still in the Vault until someone answers), so the host takes the value back the way it put it: through
     // vault.item.update, which is not gated for the host. The item stays, named for a record that was never made, holding a note and not the value.
     async discard(ref) {
-      await d.system("vault.item.update", { itemId: ref, fieldsSet: [{ key: SEALED_KEY, value: "(taken back: the record was not made)", secret: true }] });
+      await d.system("vault.item.update", {
+        itemId: ref,
+        fieldsSet: [{ key: SEALED_KEY, value: "(taken back: the record was not made)", secret: true }],
+      });
     },
     scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {

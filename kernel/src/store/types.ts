@@ -159,7 +159,10 @@ export interface Store {
   create(type: string, id: RecordId, data: Readonly<Record<string, FieldValue>>): Promise<StoredRecord>;
   /** Create several records in one commit. Each item gets its own result: one refused item (a bad value, an id taken) is refused alone and the rest are made. The records are made in the order given. */
   /** What createMany would refuse before writing anything: for each item null, or the refusal. Cheap checks only (id and values), so a caller can hold back side effects for items that would be refused. */
-  checkNew?(type: string, items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[]): Promise<unknown[]>;
+  checkNew?(
+    type: string,
+    items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[],
+  ): Promise<unknown[]>;
   createMany?(
     type: string,
     items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[],
