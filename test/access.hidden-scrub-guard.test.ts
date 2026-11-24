@@ -115,3 +115,49 @@ test("the set the host scrubs and the set the pipeline routes are the same", () 
   const routed = [...block.matchAll(/"(records\.[a-z_.]+)"/g)].map((m) => m[1]!).sort();
   assert.deepEqual(routed, [...SCRUBBED].sort());
 });
+
+/** Whether a schema has a property of this name somewhere (events carry their values in `payload`). */
+function hasProperty(schema: unknown, name: string, seen: ReadonlySet<string> = new Set()): boolean {
+  if (schema === null || typeof schema !== "object") return false;
+  if (Array.isArray(schema)) return schema.some((s) => hasProperty(s, name, seen));
+  const o = schema as Record<string, unknown>;
+  if (typeof o["$ref"] === "string") {
+    const key = o["$ref"].split("/").pop()!;
+    return seen.has(key) ? false : hasProperty(reg.$defs[key], name, new Set([...seen, key]));
+  }
+  const p = o["properties"] as Record<string, unknown> | undefined;
+  if (p && name in p) return true;
+  return Object.values(o).some((v) => hasProperty(v, name, seen));
+}
+
+/** The events module's answers that carry an event: the row a reader is shown is cut to the fields they may see (host/src/seams/events-ports.ts forReader, through the same gate records.get uses: gateOf). */
+const EVENT_READERS = new Set(["events.get", "events.list", "events.since"]);
+/** Answers with a `payload` property that carry no event values, and why. */
+const EVENT_ALLOWED: Record<string, string> = {
+  "events.types": "the event types and the shape of their payloads, not any event",
+};
+
+test("every capability that answers with an event row is cut to the reader's fields (events.get, list, since), through the shared gate", () => {
+  const withPayload = reg.capabilities
+    .filter((c) => c.module === "events" && c.output !== undefined && hasProperty(c.output, "payload"))
+    .map((c) => c.name);
+  assert.ok(withPayload.length >= 3, `the walk finds the event answers (${withPayload.join(", ")})`);
+  const loose = withPayload.filter((n) => !EVENT_READERS.has(n) && !(n in EVENT_ALLOWED));
+  assert.deepEqual(
+    loose,
+    [],
+    `an events capability that answers with a payload is neither an event reader nor allowed: ${loose.join(", ")}`,
+  );
+  const ports = readFileSync(new URL("../host/src/seams/events-ports.ts", import.meta.url), "utf8");
+  assert.ok(
+    ports.includes("forReader") && ports.includes("fieldGate") && ports.includes("RECORD_VALUE_EVENTS"),
+    "the events port cuts a record event's fields to the reader's (forReader, through fieldGate)",
+  );
+  for (const name of EVENT_READERS)
+    assert.ok(
+      reg.capabilities.some((c) => c.name === name),
+      `${name} is a capability`,
+    );
+  const access = readFileSync(new URL("../host/src/daemon/record-access.ts", import.meta.url), "utf8");
+  assert.ok(access.includes("function gateOf"), "the one field rule (gateOf) lives in record-access.ts");
+});

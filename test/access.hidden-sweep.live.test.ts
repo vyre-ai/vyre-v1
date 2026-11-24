@@ -158,14 +158,41 @@ test("the probe table is clean: no capability returned a hidden value to the mem
 test("export: a person whose role may export, and whose grant hides a field, gets a file without the hidden values", async () => {
   const f = await hiddenMember(h, { extraPermissions: ["records.export"] });
   const asked = await f.member.attempt("records.export", { type: "contact", format: "csv", recordIds: [f.rid] });
-  assert.equal(asked.ok, true, `the exporter role may export: ${asked.ok ? "" : JSON.stringify(asked.error).slice(0, 200)}`);
+  assert.equal(
+    asked.ok,
+    true,
+    `the exporter role may export: ${asked.ok ? "" : JSON.stringify(asked.error).slice(0, 200)}`,
+  );
   const fileId = (asked.data as { fileId: string }).fileId;
   const read = (await f.member.call("files.read", { fileId, as: "text" })) as { text?: string; base64?: string };
   const bytes = read.text ?? Buffer.from(read.base64 ?? "", "base64").toString("utf8");
-  assert.ok(bytes.includes(`Probe Hana ${f.values.oldPhone.split(" ")[2]!.slice(0, 4)}`) || bytes.length > 10, `the file has the exported row (${bytes.length} bytes)`);
-  assert.deepEqual(f.leaks(bytes), [], `the exported file carries a hidden value (${f.leaks(bytes).join(", ")}): ${bytes.split("\n").slice(0, 3).join(" // ").slice(0, 500)}`);
+  assert.ok(
+    bytes.includes(`Probe Hana ${f.values.oldPhone.split(" ")[2]!.slice(0, 4)}`) || bytes.length > 10,
+    `the file has the exported row (${bytes.length} bytes)`,
+  );
+  assert.deepEqual(
+    f.leaks(bytes),
+    [],
+    `the exported file carries a hidden value (${f.leaks(bytes).join(", ")}): ${bytes.split("\n").slice(0, 3).join(" // ").slice(0, 500)}`,
+  );
+  // the Excel shape too: the file's text (files.read extracts it) carries no hidden value either
+  const asXlsx = await f.member.attempt("records.export", { type: "contact", format: "xlsx", recordIds: [f.rid] });
+  assert.equal(asXlsx.ok, true, "the exporter role may export Excel");
+  const xlsxText =
+    (
+      (await f.member.call("files.read", { fileId: (asXlsx.data as { fileId: string }).fileId, as: "text" })) as {
+        text?: string;
+      }
+    ).text ?? "";
+  assert.ok(xlsxText.includes("Probe Hana"), `the Excel file has the exported row (${xlsxText.length} chars)`);
+  assert.deepEqual(f.leaks(xlsxText), [], `the exported Excel file carries a hidden value: ${xlsxText.slice(0, 300)}`);
   // the owner's own export of the same row does carry them (the probe is not empty)
   const own = await f.owner.call("records.export", { type: "contact", format: "csv", recordIds: [f.rid] });
-  const ownBytes = ((await f.owner.call("files.read", { fileId: (own as { fileId: string }).fileId, as: "text" })) as { text?: string }).text ?? "";
+  const ownBytes =
+    (
+      (await f.owner.call("files.read", { fileId: (own as { fileId: string }).fileId, as: "text" })) as {
+        text?: string;
+      }
+    ).text ?? "";
   assert.ok(f.leaks(ownBytes).length >= 2, `the owner's export carries the hidden values: ${ownBytes.slice(0, 200)}`);
 });
