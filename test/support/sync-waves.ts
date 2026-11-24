@@ -66,7 +66,7 @@ const makeDue = (dir: string): void => {
         "DELETE FROM cn_sync_running",
         `UPDATE cn_synced_types SET polling = '{"activeSec":1,"idleSec":1,"dormantSec":1}'`,
         "DELETE FROM host_schedule WHERE cap = 'connectors.sync_poll'",
-        // every type has waited out its one-second interval: its last pass, its guard and its creation are 5 s older (the incremental read still starts before the rows' own stamps, so the passes read the same)
+        // every type has waited out its one-second interval: its last pass, its guard and its creation are 5 s older (no row lies between the old and the new stamp: the mock rows are stamped 1000, so the passes read the same rows)
         "UPDATE sy_state SET last_run_at = last_run_at - 5000 WHERE last_run_at IS NOT NULL",
         "UPDATE cn_sync_guard SET last_at = last_at - 5000 WHERE last_at IS NOT NULL",
         "UPDATE cn_synced_types SET created_at = created_at - 5000",
@@ -139,12 +139,18 @@ export async function waves(big: number): Promise<WaveResult> {
     const second = lastLogId(w.d);
     const watch2 = watchLoop();
     const t1 = performance.now();
-    // a tick starts at most two passes (one per connection): tick until every type has had its pass, each after the last one ended (the wait is on the connection's running mark, not on a clock)
-    for (let tick = 0; tick < 40; tick++) {
+    // a tick starts at most two passes (one per connection): tick until five reads of the due wave are in (one per type at least, as the five types are due together), each tick after the last pass ended (the
+    // wait is on the connection's running mark, not on a clock). One deadline for the wave, so a pass that never finishes is named. Every type having its OWN pass here would make five full passes (8 to 9
+    // Vault reads, 25 s wall): the Vault bound below is for a wave that is cut at five reads.
+    const deadline = performance.now() + 25_000;
+    while (counts(w.d, second).reads < Object.keys(TYPES).length) {
+      assert.ok(
+        performance.now() < deadline,
+        `a pass never finished: ${counts(w.d, second).reads} reads after 25 s, ${running(w.dir)} still running`,
+      );
       await w.d.hooks!.runPeriodic("connectors.cadence");
       await pump(w.d);
       for (let i = 0; i < 500 && running(w.dir) > 0; i++) await new Promise((r) => setTimeout(r, 20));
-      if (counts(w.d, second).reads >= Object.keys(TYPES).length) break;
     }
     await pump(w.d);
     const due = { ...counts(w.d, second), ...watch2.stop(), seconds: Math.round((performance.now() - t1) / 100) / 10 };
