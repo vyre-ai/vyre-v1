@@ -39,6 +39,7 @@ Area: records. Risk: low. Applies to: record_type, record.
 - records.relate
 - records.restore_version
 - records.update
+- records.update_many
 - records.values.review
 - sources.link.resolve
 - sync_types.resolve_conflict

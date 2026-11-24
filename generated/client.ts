@@ -2437,6 +2437,7 @@ export function createClient(transport: Transport) {
       reveal: call("records.reveal", 1),
       search: call("records.search", 1),
       update: call("records.update", 1),
+      update_many: call("records.update_many", 1),
       value_source: call("records.value_source", 1),
       values: {
         pending: call("records.values.pending", 1),

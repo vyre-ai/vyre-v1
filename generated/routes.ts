@@ -32063,6 +32063,25 @@ const routes5: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/records/update_many",
+    "cap": "records.update_many",
+    "v": 1,
+    "module": "records",
+    "effects": "write",
+    "permission": "records.edit",
+    "level": "edit",
+    "resource": {
+      "type": "record_type",
+      "id": "/type"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/records/value_source",
     "cap": "records.value_source",
     "v": 1,
@@ -33165,7 +33184,10 @@ const routes5: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes6: Route[] = [
   {
     "method": "POST",
     "path": "/v1/runs/ops",
@@ -33183,10 +33205,7 @@ const routes5: Route[] = [
     "offline": "online",
     "teamOnly": false,
     "gate": "approve"
-  }
-];
-
-const routes6: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/runs/people_counts",
@@ -38669,7 +38688,10 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  },
+  }
+];
+
+const routes7: Route[] = [
   {
     "method": "POST",
     "path": "/v1/sync_types/make_native",
@@ -38688,10 +38710,7 @@ const routes6: Route[] = [
     "offline": null,
     "teamOnly": false,
     "gate": null
-  }
-];
-
-const routes7: Route[] = [
+  },
   {
     "method": "POST",
     "path": "/v1/sync_types/pause",

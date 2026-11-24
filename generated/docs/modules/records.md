@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (37)
+## Capabilities (38)
 
 - [records.activity](../capabilities/records.activity.md): What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes
 - [records.as_of](../capabilities/records.as_of.md): Read a record as it was at a time
@@ -38,6 +38,7 @@ Requires: nothing.
 - [records.reveal](../capabilities/records.reveal.md): Reveal a sealed field to the caller (asked once, logged per actor)
 - [records.search](../capabilities/records.search.md): Search rows by text across a record type
 - [records.update](../capabilities/records.update.md): Update fields of a record (per-field merge for sync, base version for API callers)
+- [records.update_many](../capabilities/records.update_many.md): Update a group of records of one type in one commit (the sync engine's sealed write-back)
 - [records.value_source](../capabilities/records.value_source.md): Source popover of one value: who or what filled it, from where, when, and whether it counts yet
 - [records.values.pending](../capabilities/records.values.pending.md): Needs review: agent-filled values waiting for a reviewer, each with its source and time (counts into My work for the field reviewer role)
 - [records.values.review](../capabilities/records.values.review.md): Accept or reject an agent-filled value; an accepted value counts, a rejected one is dropped and stays in history

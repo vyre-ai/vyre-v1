@@ -18,6 +18,7 @@ import type {
   AggregateSpec,
   ChangeEntry,
   CreateManyResult,
+  UpdateManyResult,
   DefineDiff,
   DefineResult,
   ExportChunk,
@@ -558,6 +559,74 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
                   : // a row the log refused alone: the caller gets a plain sentence; the log's own words stay on the error as `detail` for the host log
                     Object.assign(fail("invalid", "This record could not be saved."), { detail: r.message }),
             };
+      });
+      return out;
+    },
+    async updateMany(type, items) {
+      const def = needType(type);
+      const out: UpdateManyResult[] = new Array(items.length);
+      // a unique field is checked against the records already stored, and an id that repeats must see its earlier update: one at a time keeps both exact
+      if (uniques(def).length || new Set(items.map((x) => x.id)).size !== items.length) {
+        for (let i = 0; i < items.length; i++) {
+          try {
+            out[i] = {
+              ok: true,
+              record: await store.update(type, items[i]!.id, items[i]!.patch, items[i]!.base_version),
+            };
+          } catch (e) {
+            out[i] = { ok: false, error: e };
+          }
+        }
+        return out;
+      }
+      const evs: NewEvent[] = [];
+      const at: number[] = [];
+      items.forEach((it, i) => {
+        try {
+          const r = rowOf(type, it.id);
+          if (!r || r.deleted_at !== null) throw fail("not_found", `no ${type} ${it.id}`);
+          if (r.version !== it.base_version)
+            throw fail("version_conflict", `${type} ${it.id} is at version ${r.version}, not ${it.base_version}`);
+          const before = JSON.parse(r.data) as Record<string, unknown>,
+            merged = { ...before };
+          for (const [k, v] of Object.entries(it.patch)) {
+            if (v === null) delete merged[k];
+            else merged[k] = clone(v);
+          }
+          validate(def, merged);
+          // an update that changes nothing is not a write: no event, no new version
+          if (sameValue(before, merged)) {
+            out[i] = { ok: true, record: record(type, r) };
+            return;
+          }
+          evs.push(
+            eventOf("record.updated", type, it.id, {
+              type,
+              id: it.id,
+              data: merged,
+              before,
+              version: r.version + 1,
+              at: clock(),
+            }),
+          );
+          at.push(i);
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      });
+      if (!evs.length) return out;
+      // one transaction and one commit for the whole group; a record's own projections still run for each event, in order
+      let results: ReturnType<ProjectionHost["appendGroup"]>;
+      try {
+        results = host.appendGroup(evs);
+      } catch (e) {
+        throw fail("unavailable", e instanceof Error ? e.message : String(e));
+      }
+      results.forEach((r, k) => {
+        const i = at[k]!;
+        out[i] = r.ok
+          ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
+          : { ok: false, error: r.code === "internal" ? fail("unavailable", r.message) : fail("invalid", r.message) };
       });
       return out;
     },

@@ -25,6 +25,9 @@ export interface TypeDef {
 /** One item of Store.createMany: the record made, or why this item was not. */
 export type CreateManyResult = { ok: true; record: StoredRecord } | { ok: false; error: unknown };
 
+/** One item of Store.updateMany: the record as it is now (the same version when the patch changed nothing), or why this item was not updated. */
+export type UpdateManyResult = { ok: true; record: StoredRecord } | { ok: false; error: unknown };
+
 export interface StoredRecord {
   readonly type: string;
   readonly id: RecordId;
@@ -167,6 +170,11 @@ export interface Store {
     type: string,
     items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[],
   ): Promise<CreateManyResult[]>;
+  /** Update several records of one type in one commit. Each item has its own result and base version: one refused item (not found, a version that moved, a bad value) is refused alone and the rest are updated. Items are applied in the order given. */
+  updateMany?(
+    type: string,
+    items: readonly { id: RecordId; patch: Readonly<Record<string, FieldValue | null>>; base_version: number }[],
+  ): Promise<UpdateManyResult[]>;
   update(
     type: string,
     id: RecordId,
