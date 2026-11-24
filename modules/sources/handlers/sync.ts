@@ -236,7 +236,7 @@ function relinkFar(
 const FAR_CHUNK = 200;
 /** New records made in one commit (it holds the loop about 50 ms per 200). */
 const CREATE_GROUP = 200;
-/** Open a transaction on the sync's own tables when none is open; true when this call opened it (and must commit it). */
+/** Open a transaction on the sync's own tables when none is open (or when the database is busy: then the writes are made as before); true when this call opened it (and must commit it). */
 function beginIfFree(tx: Tx): boolean {
   try {
     tx.exec("BEGIN IMMEDIATE");
@@ -885,7 +885,18 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         }
       }
     } finally {
-      if (own) d.tx.exec("COMMIT");
+      if (own)
+        try {
+          d.tx.exec("COMMIT");
+        } catch (e) {
+          // a commit that failed (busy, disk) must not leave the transaction open on the shared connection: the log's next BEGIN would fail with it
+          try {
+            d.tx.exec("ROLLBACK");
+          } catch {
+            /* already closed */
+          }
+          throw e;
+        }
     }
   }
   for (const a of localActions) {
