@@ -1,0 +1,1 @@
+- On a phone, pressing Back right after opening an item no longer lets the item come back over the list when the address the press wrote arrives late: the shell tells a place's own address from one that came to it (a link, Cmd-K, a notification, a tab switch), and only the latter opens the item.

@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { iconMarkup } from "../rail/icons.tsx";
-import { collapseKey, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
+import { collapseKey, hashOpensBody, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
@@ -68,6 +68,10 @@ export interface SidebarSlotProviderProps {
   epoch: number;
   /** The item the place has open (its address). A link that opens an item while the phone shows the list takes the phone to the body, as pressing a row does. */
   hash?: string;
+  /** Addresses that came from outside so far (HubState.links). */
+  links?: number;
+  /** Addresses the place wrote itself so far (HubState.reports). */
+  reports?: number;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -105,13 +109,23 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   // a link to a goal, a chat or any item (an address, a notification, Cmd-K) shows that item at once, also where only one panel fits (K9, 13 Nov 2026)
   // A place switch resets to the list even when the new place carries an address: the switch is the epoch, so a change of epoch is not a link to an item.
   const epochSeen = useRef(p.epoch);
+  const hashSeen = useRef(p.hash);
+  const linksSeen = useRef(p.links ?? 0);
+  const reportsSeen = useRef(p.reports ?? 0);
   useEffect(() => {
+    const hashChanged = p.hash !== hashSeen.current;
+    const linked = (p.links ?? 0) !== linksSeen.current;
+    const reported = (p.reports ?? 0) !== reportsSeen.current;
+    hashSeen.current = p.hash;
+    linksSeen.current = p.links ?? 0;
+    reportsSeen.current = p.reports ?? 0;
     if (epochSeen.current !== p.epoch) {
       epochSeen.current = p.epoch;
       return;
     }
-    if (linkNamesBody(p.compact, p.hash)) setBodyOpen(true);
-  }, [p.compact, p.hash, p.epoch]);
+    if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: reported && !linked }))
+      setBodyOpen(true);
+  }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
     (v: boolean) => {
       setCollapsedState(v);

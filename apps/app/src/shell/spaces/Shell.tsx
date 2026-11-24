@@ -868,6 +868,8 @@ export function Shell(props: ShellProps): ReactElement {
           place={shown.state.place}
           epoch={shown.state.epoch}
           hash={shown.state.hash}
+          links={shown.state.links}
+          reports={shown.state.reports}
           initialHold={!compact && (PLACES_WITH_LIST.has(state.place) || tabNew)}
           compact={compact}
           storage={props.sidebar?.storage ?? null}

@@ -60,6 +60,8 @@ export interface HubState {
   hash: string;
   /** Counts the addresses that came to the app from outside (a link, a pasted address, a goto), never the page's own reports: a page that was drawn for the same address twice can tell a link back to it from nothing. */
   links: number;
+  /** Counts the addresses a place wrote itself (its report of what the person opened inside it), never a link or a press elsewhere: the shell uses it to tell a place's own address from one that came to it. */
+  reports: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -124,7 +126,7 @@ export interface ShellHub {
   /** Forward in the tab on screen, after Back. */
   forward(): boolean;
   /** The person went somewhere inside the place on screen: the selected tab follows, no tab opens (tabs/store.ts moveTab). */
-  move(place: PlaceId, hash?: string): void;
+  move(place: PlaceId, hash?: string, own?: boolean): void;
   /** The "+" tab on screen becomes this place and item (a chat started from its search): the same tab, named, no second tab (tabs/store.ts fillTab). */
   fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
@@ -251,6 +253,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   const open = (): SpaceSession => sessions.get(openId) as SpaceSession;
 
   let links = 0;
+  let reports = 0;
   function build(): HubState {
     const s = open();
     const tabs = s.tabs.state();
@@ -264,6 +267,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       place: s.place,
       hash: s.hash,
       links,
+      reports,
       away,
       online,
       waiting,
@@ -485,7 +489,8 @@ export function createShellHub(options: HubOptions): ShellHub {
     forward() {
       return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
     },
-    move(place, hash) {
+    move(place, hash, own = false) {
+      if (own) reports += 1;
       const s = open();
       if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
       s.tabs.move(livePlace(place), hash, screenTitle(hash));

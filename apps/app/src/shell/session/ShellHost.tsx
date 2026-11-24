@@ -784,7 +784,7 @@ export function ShellHost({
         hash={ctx.hash}
         opened={(t) => {
           const next = formatHash(t);
-          if (next !== ctx.hash) hub.move(ctx.place, next);
+          if (next !== ctx.hash) hub.move(ctx.place, next, true);
         }}
       />
     );

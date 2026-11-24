@@ -9,6 +9,7 @@ import {
   SidebarSlot,
   SidebarSlotProvider,
   collapseKey,
+  hashOpensBody,
   linkNamesBody,
   matchRows,
   phoneView,
@@ -193,7 +194,7 @@ function Probe(): ReturnType<typeof Text> {
 
 async function drawn(
   r: ReturnType<typeof createRoot>,
-  o: { hash: string; epoch: number; compact?: boolean },
+  o: { hash: string; epoch: number; compact?: boolean; links?: number; reports?: number },
 ): Promise<string> {
   await act(async () => {
     r.render(
@@ -202,6 +203,8 @@ async function drawn(
         epoch={o.epoch}
         compact={o.compact ?? true}
         hash={o.hash}
+        links={o.links ?? 0}
+        reports={o.reports ?? 0}
         initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
       >
         <Probe />
@@ -266,6 +269,41 @@ test("a place switch to a place that already has an address shows the list, not 
       await drawn(r, { hash: "", epoch: 2 }),
       "body",
       "an address that clears is not a link and does not change the view",
+    );
+  } finally {
+    restore();
+  }
+});
+
+test("hashOpensBody: the place's own report after a row press never reopens the body; a link, Cmd-K or a tab switch does", () => {
+  const at = { compact: true, hash: "subject=thread:t1", hashChanged: true };
+  assert.equal(hashOpensBody({ ...at, ownReport: false }), true, "an address that came to the place opens the body");
+  assert.equal(hashOpensBody({ ...at, ownReport: true }), false, "the place's own report does not");
+  assert.equal(hashOpensBody({ ...at, hashChanged: false, ownReport: true }), true, "no change of address: as before");
+  assert.equal(hashOpensBody({ ...at, hash: "", ownReport: false }), false);
+});
+
+test("a row press, Back before the place's own report is drawn, then the late report: the list stays; a later link opens the item", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    assert.equal(await drawn(r, { hash: "", epoch: 1 }), "list");
+    await act(async () => {
+      slotNow!.openBody(); // the row press
+    });
+    await act(async () => {
+      slotNow!.back(); // Back, before the report lands
+    });
+    await flush();
+    assert.equal(
+      await drawn(r, { hash: "subject=thread:t1", epoch: 1, reports: 1 }),
+      "list",
+      "the late own report keeps the list",
+    );
+    assert.equal(
+      await drawn(r, { hash: "subject=thread:t2", epoch: 1, reports: 1, links: 1 }),
+      "body",
+      "a link opens it",
     );
   } finally {
     restore();

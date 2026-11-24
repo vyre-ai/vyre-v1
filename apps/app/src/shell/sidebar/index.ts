@@ -17,5 +17,14 @@ export {
   SIDEBAR_HOLD_MS,
 } from "./SidebarSlot.tsx";
 export type { SidebarEntry, SidebarSlotApi, SidebarSlotProviderProps } from "./SidebarSlot.tsx";
-export { collapseKey, each, linkNamesBody, matchRows, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
+export {
+  collapseKey,
+  each,
+  hashOpensBody,
+  linkNamesBody,
+  matchRows,
+  phoneView,
+  readCollapsed,
+  writeCollapsed,
+} from "./model.ts";
 export type { PhoneView, SidebarStorage } from "./model.ts";
