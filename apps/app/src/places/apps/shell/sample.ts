@@ -66,7 +66,7 @@ const FORMS: FormRow[] = [
 const TEMPLATES: TemplateRow[] = [
   {
     templateId: "tp_intake",
-    title: "Law firm intake",
+    title: "Client intake",
     kind: "journey",
     summary: "Intake, conflict check and engagement letter",
     version: "1.2",

@@ -20,7 +20,9 @@ const requestRow = t.obj({
   itemId: t.opt(id.vaultItem),
   note: t.opt(t.str()),
   service: t.opt(id.connector),
-  taskId: id.task,
+  taskId: t.opt(id.task),
+  /** true when the caller manages the folder: no one was asked, the item was made now with its fields empty (itemId) */
+  placeholder: t.opt(t.bool()),
   at: t.ts(),
   decidedAt: t.opt(t.ts()),
   /** true when the caller is the person the agent asked and may add the key into their own keys (vault.requests.get only) */
@@ -34,12 +36,14 @@ const connectField = t.obj({ name: t.str(), label: t.str(), optional: t.bool() }
 const connectChoice = t.obj({
   name: t.str(),
   label: t.str(),
-  options: t.arr(t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()) })),
+  options: t.arr(
+    t.obj({ value: t.str(), label: t.str(), connector: id.connector, hosts: t.arr(t.str()), revision: t.str() }),
+  ),
 });
 const connectCard = t.obj({
   requestId: reqId,
   state: connectState,
-  service: t.obj({ key: id.connector, title: t.str(), site: t.opt(t.str()) }),
+  service: t.obj({ key: id.connector, revision: t.str(), title: t.str(), site: t.opt(t.str()) }),
   fields: t.arr(connectField),
   choice: t.opt(connectChoice),
   /** a wrong try: the key itself, or a key that works but may not read what the check needs */
@@ -55,6 +59,8 @@ const connectCard = t.obj({
   /** one line when a typed key was kept but the service could not be connected */
   notice: t.opt(t.str()),
   checks: t.bool(),
+  /** the connector is published but no call to the app has ever succeeded */
+  untested: t.opt(t.bool()),
   /** the host a typed key is tried against, said on Ask when the connector is not built in */
   checksWith: t.opt(t.str()),
   connectedBy: t.opt(id.user),
@@ -129,7 +135,7 @@ export default defineManifest({
     // handleOnly: fulfilled, the requester gets the key's name only, never Use on it. The MCP door sets it for an outside agent (docs/ask-the-person.md).
     write(
       "vault.request",
-      "Ask for a missing key: creates a request task for the managers of the folder (or the Space vault managers) and tells the requester its status",
+      "Ask for a missing key: a task for the folder's managers and the status; a manager gets an empty item at once",
       {
         ...V,
         idem: "key",
@@ -259,6 +265,7 @@ export default defineManifest({
             description:
               "The addresses the card showed the key would be sent to; refused when the service's addresses are no longer exactly these",
           }),
+          revision: t.opt(t.str()),
         },
         out: { result: t.enm("connected", "wrong", "offline"), card: connectCard },
         emits: ["vault.request_fulfilled"],

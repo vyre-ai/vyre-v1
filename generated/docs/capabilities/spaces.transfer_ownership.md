@@ -11,7 +11,7 @@ Owner only: hand the Space to another person
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | transfer when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

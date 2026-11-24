@@ -1,11 +1,13 @@
 // Tasks state machine and the capabilities that change or read a task (ARCH 4.7, spec 2.8, 4.1, 4.2).
 // `tasks.transition` is the only writer of the status field; `tasks.act` (handlers/act.ts) and the Gate reach the same applyMove. The table of 4.7 lives in planMove.
 // Group and role slots: the pipeline authorizes the call at level use on the task, so holders pass; the first Take locks the task to one person (tasks.take).
-import { isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
+import { isHostOwnService, isOwnPress, isSystemCall, isTrustedService } from "../../../lib/trust.ts";
 import {
   actionableByMe,
   allTasks,
   clean,
+  clearArchived,
+  clearMoment,
   emitTask,
   ensurePrefix,
   findTask,
@@ -29,8 +31,11 @@ import {
   visibleTo,
   whoIs,
   whoOn,
+  MOMENT_GRACE_MS,
 } from "../projections.ts";
+import { checkProof } from "./proof.ts";
 import { ensureThread, syncThread, unseat } from "./thread.ts";
+import type { DoneWhenKind } from "../projections.ts";
 import type {
   ActionDef,
   Assignee,
@@ -300,6 +305,15 @@ export function commitMove(ctx: TasksCtx, t: Task, to: TaskState, c: Checked): A
     t.takenAt = ctx.now();
     took = true;
   }
+  // a task that moves is not put away any more: the archive mark comes off with the move (a closed task is under Done, an open one is back on its lists)
+  // a moved task matters, so it is not asked about or put away for the moment it already passed a minute later (Put back does the same)
+  if (
+    t.archived !== undefined &&
+    (t.archived.code === "passed" || t.archived.code === "quiet" || t.archived.code === "asked")
+  )
+    clearMoment(ctx.db, t);
+  clearArchived(ctx.db, t);
+  ctx.db.run("DELETE FROM tasks_ask WHERE task_id = ? AND kept_until IS NULL", t.id); // a kept task keeps its 90 days
   let handled = false;
   if (!isOpen(to)) {
     delete t.snoozedUntil;
@@ -548,9 +562,41 @@ export async function create(ctx: TasksCtx, input: In): Promise<unknown> {
   if (input.start !== undefined) t.start = input.start;
   if (input.recur !== undefined) t.recur = input.recur;
   if (input.recordId !== undefined) t.recordId = input.recordId;
+  // fields.project names the project record a task belongs to: it links the task exactly as tasks.links.add does (the project's plan reads the link, never the field). Before, the value was only stored and the task sat outside the project.
+  const inProject = t.fields["project"];
+  if (typeof inProject === "string" && inProject !== "") {
+    if (t.recordId === undefined) t.recordId = inProject;
+    else if (t.recordId !== inProject)
+      raise(
+        ctx,
+        "validation.precondition_failed",
+        "A task belongs to one record: recordId and fields.project name different ones.",
+        {
+          reason: "project_conflict",
+        },
+      );
+  }
+  // a task that says it is the Gate's is the Gate's: made by the Gate (a nested call from a gate capability, which the pipeline sets and a caller cannot) or by the server. Anyone else naming a gate source would
+  // dress their own task in the Gate's card, so it is refused.
+  if ((input.source as { kind?: string } | undefined)?.kind === "gate" && !mayMakeGateTask(ctx))
+    raise(ctx, "validation.field_locked", "Only the Gate makes a held act.", { field: "source" });
   if (input.source) t.source = input.source as TaskSource;
   if (input.parentTaskId !== undefined) t.parentTaskId = input.parentTaskId;
   if (input.expiresAt !== undefined) t.expiresAt = input.expiresAt;
+  // the moment it stops mattering: what the caller said; an agent that said nothing gets one (due plus a day, else 14 days), so nothing an agent opens lives forever
+  if (typeof input.doneWhen === "string" && input.doneWhen !== "") {
+    // "kind:name", for example "vault_item:Hosting key"
+    const at = input.doneWhen.indexOf(":");
+    const kind = input.doneWhen.slice(0, at),
+      key = input.doneWhen.slice(at + 1);
+    await checkProof(ctx, t, kind, key);
+    t.doneWhen = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+  }
+  if (input.relevantUntil !== undefined) t.relevantUntil = input.relevantUntil;
+  else if (ctx.principal.kind === "agent") {
+    t.momentStated = false;
+    t.relevantUntil = t.due !== undefined ? t.due + MOMENT_GRACE_MS : now + 14 * 86_400_000;
+  }
   if (input.notes && typeof input.notes === "object") {
     // notes the task starts with: a brief, a checklist, a schema. The two reserved keys belong to a held act and are never taken from here.
     const notes: Record<string, string> = {};
@@ -797,6 +843,31 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
   if ("labels" in input && input.labels !== undefined) set("labels", [...new Set<string>(input.labels)]);
   if ("start" in input && input.start !== undefined) set("start", input.start ?? undefined);
   if ("recur" in input && input.recur !== undefined) set("recur", input.recur ?? undefined);
+  if ("doneWhen" in input && input.doneWhen !== undefined) {
+    // what proves the task done, "kind:name"; empty clears it. The same permission as tasks.done_when (someone who may let the task go), not the wider right to edit, and the same refusals as at creation
+    if (!isTrustedService(whoIs(ctx)) && !mayLetGo(ctx, t))
+      raise(ctx, "validation.precondition_failed", "Only someone on this task can say what proves it done.", {
+        reason: "wrong_actor",
+      });
+    const text = String(input.doneWhen);
+    if (text === "") {
+      if (t.doneWhen !== undefined) {
+        ctx.db.run("DELETE FROM tasks_proof WHERE task_id = ?", t.id);
+        delete t.doneWhen;
+        changed.push("doneWhen");
+      }
+    } else {
+      const at = text.indexOf(":");
+      const kind = text.slice(0, at),
+        key = text.slice(at + 1);
+      await checkProof(ctx, t, kind, key);
+      const next = { kind: kind as DoneWhenKind, key: key.trim().toLowerCase() };
+      if (JSON.stringify(t.doneWhen) !== JSON.stringify(next)) {
+        t.doneWhen = next;
+        changed.push("doneWhen");
+      }
+    }
+  }
   if ("fields" in input && input.fields !== undefined) {
     const next: Record<string, unknown> = { ...t.fields };
     for (const [k, v] of Object.entries(input.fields as Record<string, unknown>)) {
@@ -804,6 +875,13 @@ export async function update(ctx: TasksCtx, input: In): Promise<unknown> {
       else next[k] = v;
     }
     set("fields", next);
+    // the same rule as on create, but only when this patch itself names a project: a link moved or removed since stays moved when any other field is edited. A project set to null clears the field and leaves the link as it is (take the link off with tasks.links.remove).
+    const patch = input.fields as Record<string, unknown>;
+    const proj = patch["project"];
+    if (typeof proj === "string" && proj !== "" && t.recordId !== proj) {
+      t.recordId = proj;
+      changed.push("recordId");
+    }
   }
   if ("parentTaskId" in input && input.parentTaskId !== undefined) {
     const to: string | null = input.parentTaskId;
@@ -1059,6 +1137,10 @@ export async function followersRemove(ctx: TasksCtx, input: In): Promise<unknown
 }
 
 /** Reserved working-note keys. A Gate hold writes its decision id and payload hash once; they land in columns, never in the notes, and are never edited. */
+/** The Gate, or the server: a call made by a gate capability (callerCap is set by the pipeline) or by a service the host itself runs (HOST_OWN_SERVICES, an allow-list). */
+export const mayMakeGateTask = (ctx: TasksCtx): boolean =>
+  isHostOwnService(ctx.principal) || (typeof ctx.callerCap === "string" && ctx.callerCap.startsWith("gate."));
+
 export const RESERVED_NOTES = { decision_id: "decisionId", payload_hash: "payloadHash" } as const;
 
 /** The working note that names the person an agent's turns on a task act for (the engine's task baton reads it). */
@@ -1163,7 +1245,7 @@ export async function notesSet(ctx: TasksCtx, input: In): Promise<unknown> {
   }
   const reserved = (RESERVED_NOTES as Record<string, "decisionId" | "payloadHash">)[key];
   if (reserved) {
-    if (t.source?.kind !== "gate")
+    if (t.source?.kind !== "gate" || !mayMakeGateTask(ctx))
       raise(ctx, "validation.field_locked", "Only a held act carries that.", { field: key });
     if (t[reserved] !== undefined && t[reserved] !== value)
       raise(ctx, "validation.field_locked", "That value is set once.", { field: key });

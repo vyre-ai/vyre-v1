@@ -28,6 +28,13 @@ export function foldEvent(snap: AccessSnapshot, e: FoldableEvent): void {
     case "principal.created":
       snap.putPrincipal(body<PrincipalRow>(e));
       return;
+    case "agent.renamed": {
+      const b = body<{ agentId: string; name?: string }>(e);
+      const have = snap.principal(b.agentId);
+      if (have && have.kind === "agent" && typeof b.name === "string" && b.name.trim() !== "")
+        snap.putPrincipal({ ...have, name: b.name.trim() });
+      return;
+    }
     case "agent.privacy_set": {
       const b = body<{ agentId: string; private?: boolean; assistant?: boolean }>(e);
       snap.setAssistant(b.agentId, b.private === true && b.assistant === true);
@@ -97,6 +104,7 @@ const MODULE_EVENTS = new Set([
   "member.removed",
   "space.ownership_transferred",
   "agent.privacy_set",
+  "agent.renamed",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 /** Events after which the module's tables may differ from the snapshot the daemon holds: the ones it folds, plus what its own capabilities emit when a role, share, revoke or policy changes. */

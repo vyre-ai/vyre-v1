@@ -39,6 +39,7 @@ type Out = {
     state: "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
     service: {
       key: string;
+      revision: string;
       title: string;
       site?: string;
     };
@@ -55,6 +56,7 @@ type Out = {
           label: string;
           connector: string;
           hosts: Array<string>;
+          revision: string;
         }>;
     };
     problem?: "permission";
@@ -73,6 +75,7 @@ type Out = {
     tested?: string;
     notice?: string;
     checks: boolean;
+    untested?: boolean;
     checksWith?: string;
     connectedBy?: string;
     connectionId?: string;
@@ -121,6 +124,7 @@ type Out = {
               "example"
             ],
             "label": "example",
+            "revision": "example",
             "value": "example"
           }
         ]
@@ -146,11 +150,13 @@ type Out = {
       "requestId": "vrq_a1b2c3",
       "service": {
         "key": "hubspot",
+        "revision": "example",
         "site": "example",
         "title": "example"
       },
       "state": "ask",
       "tested": "example",
+      "untested": true,
       "usedBy": [
         {
           "id": "usr_a1b2c3",

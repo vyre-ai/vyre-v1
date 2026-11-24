@@ -1,0 +1,1 @@
+Internal: the connect sheet lists its apps as ui rows, the settings section table lists GitHub, the pairing check uses the kernel's constant-time compare, and the extension's link takes fetch from its seam.

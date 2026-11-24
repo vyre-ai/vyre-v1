@@ -474,6 +474,372 @@ test("a held test read of a Vault key names the key the server resolved, and Alw
   });
 });
 
+test("a held set_secret names a domain pattern in plain words, and Allow also approves the connection's hosts (connections.approve_hosts) before the hold is answered", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const held = {
+    task: {
+      id: "tsk_n8n",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      if (cap === "connections.get") return { connection: { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_n8n" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  assert.match(textOf(root), /Scout wants to use #N8n with any address ending in \.app\.n8n\.cloud/);
+  assert.ok(!/\*\./.test(textOf(find(root, "approval-tsk_n8n"))), "no raw pattern on the card");
+  await press(find(root, "approval-allow-tsk_n8n"));
+  await flush();
+  const order = calls.map((c) => c.cap);
+  assert.deepEqual(calls.find((c) => c.cap === "connections.approve_hosts")?.input, {
+    connectionId: "con_n8n",
+    hosts: ["domain:*.app.n8n.cloud:443"],
+  });
+  assert.ok(
+    order.indexOf("connections.approve_hosts") < order.indexOf("tasks.act"),
+    "recorded before the hold is answered",
+  );
+});
+
+test("Allow on a held set_secret submits the addresses the card showed, not a later read; when the server says it changed, the card shows that, reloads the list and Allow works on the new one", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  let gets = 0;
+  const held = {
+    task: {
+      id: "tsk_late",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const shown = ["domain:*.app.n8n.cloud:443"];
+  const later = [...shown, "collect.attacker.example:443"];
+  const d = {
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input });
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      if (cap === "connections.get") {
+        gets++;
+        // the agent republishes with its own host after the card loaded
+        return { connection: { pendingHosts: gets === 1 ? shown : later } };
+      }
+      // the server's rule: what is submitted must be exactly the connector's addresses now
+      if (cap === "connections.approve_hosts" && (input as { hosts: string[] }).hosts.length !== 2)
+        throw new Error("Tenant changed since you looked. Open the connection again.");
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_late" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  assert.ok(!/attacker/.test(textOf(root)), "the card never named the later host");
+  await press(find(root, "approval-allow-tsk_late"));
+  await flush();
+  const approves = calls.filter((c) => c.cap === "connections.approve_hosts");
+  assert.deepEqual(approves[0]?.input, { connectionId: "con_n8n", hosts: shown });
+  assert.ok(!calls.some((c) => c.cap === "tasks.act"), "the hold is not answered when the record was refused");
+  assert.ok(
+    !calls.some((c) => c.cap === "automations.key_hosts.allow"),
+    "nothing is saved on the key while the record was refused",
+  );
+  assert.match(textOf(root), /changed since you looked/, "the server's wording is shown");
+  assert.match(textOf(root), /attacker\.example/, "the new list is shown, so the person sees what changed");
+  await press(find(root, "approval-allow-tsk_late"));
+  await flush();
+  assert.deepEqual(calls.filter((c) => c.cap === "connections.approve_hosts")[1]?.input, {
+    connectionId: "con_n8n",
+    hosts: later,
+  });
+  assert.ok(
+    calls.some((c) => c.cap === "tasks.act"),
+    "pressing Allow on the new list answers the hold",
+  );
+});
+
+test("a held set_secret whose connection cannot be read is not answered: the card says it could not load where the key may go and stays waiting", async () => {
+  const calls: { cap: string; input: unknown }[] = [];
+  const held = {
+    task: {
+      id: "tsk_nl",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  for (const failing of ["throws", "empty"] as const) {
+    calls.length = 0;
+    const d = {
+      call: async (cap: string, input: unknown) => {
+        calls.push({ cap, input });
+        if (cap === "tasks.get") return held;
+        if (cap === "automations.key_hosts.pending_bind")
+          return {
+            found: true,
+            items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+            hosts: ["*.app.n8n.cloud"],
+          };
+        if (cap === "connections.get") {
+          if (failing === "throws") throw new Error("offline");
+          return {};
+        }
+        return {};
+      },
+      nav: { openBeside: () => undefined },
+    } as never;
+    const root = await mount(createRoot, <ApprovalCard taskId="tsk_nl" agent="Scout" agentId="agt_1" data={d} />);
+    await flush();
+    assert.match(textOf(root), /Couldn't load where the key may go/, failing);
+    await press(find(root, "approval-allow-tsk_nl"));
+    await flush();
+    assert.ok(
+      !calls.some((c) => c.cap === "tasks.act" || c.cap === "connections.approve_hosts"),
+      `${failing}: nothing was answered or approved`,
+    );
+  }
+});
+
+test("a connection the person cannot see gets its own words and no retry; and while a failed read is read again, Allow stays off", async () => {
+  const held = {
+    task: {
+      id: "tsk_dn",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const make = (getBehaviour: (n: number) => unknown, calls: string[]) => {
+    let gets = 0;
+    return {
+      call: async (cap: string) => {
+        calls.push(cap);
+        if (cap === "tasks.get") return held;
+        if (cap === "automations.key_hosts.pending_bind")
+          return {
+            found: true,
+            items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+            hosts: ["*.app.n8n.cloud"],
+          };
+        if (cap === "connections.get") return getBehaviour(++gets);
+        return {};
+      },
+      nav: { openBeside: () => undefined },
+    } as never;
+  };
+  // denied: its own words, and pressing Allow does not read again, save or answer
+  const calls1: string[] = [];
+  const denied = make(() => Promise.reject({ code: "permission.no_grant", message: "no" }), calls1);
+  const root1 = await mount(createRoot, <ApprovalCard taskId="tsk_dn" agent="Scout" agentId="agt_1" data={denied} />);
+  await flush();
+  assert.match(textOf(root1), /You can't see this connection\. Ask its owner to allow it\./);
+  const allow1 = find(root1, "approval-allow-tsk_dn")!;
+  assert.ok(
+    allow1.props["aria-disabled"] === true || allow1.props["disabled"] === true,
+    "Allow is off, not just explained",
+  );
+  assert.ok(find(root1, "approval-deny-tsk_dn"), "Deny is still there");
+  await press(allow1);
+  await flush();
+  assert.equal(calls1.filter((c) => c === "connections.get").length, 1, "no retry of a refused read");
+  assert.ok(!calls1.some((c) => ["tasks.act", "automations.key_hosts.allow"].includes(c)));
+  // failed read: the reload on Allow is slow, and a second press while it runs does nothing
+  const calls2: string[] = [];
+  const slow = make((n) => (n === 1 ? Promise.reject(new Error("offline")) : new Promise(() => undefined)), calls2);
+  const root2 = await mount(createRoot, <ApprovalCard taskId="tsk_dn" agent="Scout" agentId="agt_1" data={slow} />);
+  await flush();
+  await press(find(root2, "approval-allow-tsk_dn"));
+  await flush();
+  await press(find(root2, "approval-allow-tsk_dn"));
+  await flush();
+  assert.equal(
+    calls2.filter((c) => c === "connections.get").length,
+    2,
+    "one reload, not one per press: Allow is off while it runs",
+  );
+});
+
+test("when the connection took the list but the Vault's save failed, the card says exactly that and the hold stays open", async () => {
+  const calls: string[] = [];
+  const held = {
+    task: {
+      id: "tsk_sf",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      if (cap === "connections.get") return { connection: { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      if (cap === "automations.key_hosts.allow") throw new Error("vault down");
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_sf" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  await press(find(root, "approval-allow-tsk_sf"));
+  await flush();
+  assert.match(textOf(root), /Where the key may go is saved\. Saving the key's approval failed\. Try again\./);
+  assert.ok(calls.includes("connections.approve_hosts"), "the connection's record took the list");
+  assert.ok(!calls.includes("tasks.act"), "the hold is still open");
+});
+
+test("after the half-saved line, the second press records the list again, finishes the Vault save and answers the hold", async () => {
+  const calls: string[] = [];
+  let vaultDown = true;
+  let recorded = false;
+  const held = {
+    task: {
+      id: "tsk_s2",
+      kind: "approve",
+      title: "Approve",
+      state: "awaiting_approval",
+      blocks: [
+        {
+          type: "doc_excerpt",
+          v: 1,
+          data: {
+            act: "approve",
+            cap: "connections.set_secret",
+            input: { connectionId: "con_n8n", slot: "api_key", handle: "#N8n" },
+          },
+        },
+      ],
+      actions: [{ key: "approve", label: "Approve" }],
+    },
+  };
+  const d = {
+    call: async (cap: string) => {
+      calls.push(cap);
+      if (cap === "tasks.get") return held;
+      if (cap === "automations.key_hosts.pending_bind")
+        return {
+          found: true,
+          items: [{ itemId: "vit_n8n", handle: "#N8n", name: "n8n key" }],
+          hosts: ["*.app.n8n.cloud"],
+        };
+      // once the connection's record took the list nothing is pending any more
+      if (cap === "connections.get")
+        return { connection: recorded ? {} : { pendingHosts: ["domain:*.app.n8n.cloud:443"] } };
+      if (cap === "connections.approve_hosts") {
+        recorded = true;
+        return {};
+      }
+      if (cap === "automations.key_hosts.allow" && vaultDown) throw new Error("vault down");
+      return {};
+    },
+    nav: { openBeside: () => undefined },
+  } as never;
+  const root = await mount(createRoot, <ApprovalCard taskId="tsk_s2" agent="Scout" agentId="agt_1" data={d} />);
+  await flush();
+  await press(find(root, "approval-allow-tsk_s2"));
+  await flush();
+  assert.match(textOf(root), /Where the key may go is saved\. Saving the key's approval failed\. Try again\./);
+  assert.ok(!calls.includes("tasks.act"));
+  vaultDown = false;
+  await press(find(root, "approval-allow-tsk_s2"));
+  await flush();
+  assert.equal(
+    calls.filter((c) => c === "connections.approve_hosts").length,
+    2,
+    "the list is recorded again (the server takes the same list twice)",
+  );
+  assert.equal(calls.filter((c) => c === "tasks.act").length, 1, "the hold is answered once");
+  assert.ok(
+    calls.indexOf("tasks.act") > calls.lastIndexOf("automations.key_hosts.allow"),
+    "after the Vault save finished",
+  );
+});
+
 test("a card with no capability, no ask and no question is drawn as its plain words: no Allow, no Deny; a plain question reads as the question", async () => {
   const make = (blockData: Record<string, unknown>) => ({
     call: async (cap: string) =>
@@ -553,4 +919,111 @@ test("a teammate's plain question is answered with Yes or No, and the line after
     ["approve"],
   );
   assert.match(textOf(root), /You said yes · Send the notes to Mia/);
+});
+
+test("a held send of a preview copy shows the server's sentence quietly under the title, and the names to apart from it; an ordinary hold shows no note", async () => {
+  const held = (extra: Record<string, unknown>) => ({
+    task: {
+      id: "tsk_9",
+      kind: "approve",
+      title: "Approve: Send a document for signature",
+      state: "awaiting_approval",
+      source: { kind: "gate", id: "gh_1" },
+      payloadHash: "a".repeat(64),
+      blocks: [
+        {
+          type: "file",
+          v: 1,
+          data: {
+            act: "signature_send",
+            cap: "esign.send",
+            input: { fileId: "fil_1", signers: [{ name: "Andrea Lindahl" }], plainOk: true },
+            ...extra,
+          },
+        },
+      ],
+      actions: [
+        { key: "approve", label: "Approve" },
+        { key: "reject", label: "Send back", note: "required" },
+      ],
+    },
+  });
+  const make = (t: unknown) =>
+    ({
+      call: async (cap: string) =>
+        cap === "tasks.get" ? t : cap === "files.get" ? { file: { name: "Agreement.pdf" } } : {},
+      nav: { openBeside: () => undefined },
+    }) as never;
+  const root = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_9"
+      agent="Intake"
+      agentId="agt_1"
+      data={make(
+        held({
+          note: "This sends a preview copy of the file for signature. It's in the plain page look, not the Word template's layout. Allow sends it as it is.",
+          noteSigners: ["Andrea Lindahl"],
+        }),
+      )}
+    />,
+  );
+  assert.match(
+    textOf(find(root, "approval-note-tsk_9")),
+    /preview copy of the file for signature\. It's in the plain page look, not the Word template's layout\. Allow sends it as it is\./,
+  );
+  assert.equal(textOf(find(root, "approval-note-tsk_9-signers")), "To: Andrea Lindahl");
+  const plain = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_9" agent="Intake" agentId="agt_1" data={make(held({}))} />,
+  );
+  assert.equal(find(plain, "approval-note-tsk_9"), null);
+});
+
+test("a held read of a web page: the host on the first line, the whole address in a block of its own, escaped, never cut", async () => {
+  const long = `https://docs.vendor.example/a/${"x".repeat(1990)}?d=THE-END-OF-THE-ADDRESS`;
+  const held = (url: string) =>
+    ({
+      call: async (cap: string) =>
+        cap === "tasks.get"
+          ? {
+              task: {
+                id: "tsk_w",
+                kind: "approve",
+                title: "Approve: read a web page",
+                state: "awaiting_approval",
+                blocks: [
+                  { type: "doc_excerpt", v: 1, data: { act: "approve", cap: "computers.chrome.read", input: { url } } },
+                ],
+                actions: [
+                  { key: "approve", label: "Approve" },
+                  { key: "reject", label: "Send back", note: "required" },
+                ],
+              },
+            }
+          : {},
+      nav: { openBeside: () => undefined },
+    }) as never;
+  const root = await mount(
+    createRoot,
+    <ApprovalCard taskId="tsk_w" agent="Intake" agentId="agt_1" data={held(long)} />,
+  );
+  assert.match(textOf(root), /Intake wants to read a web page on docs\.vendor\.example/);
+  const block = textOf(find(root, "approval-address-tsk_w"));
+  assert.ok(block.includes("THE-END-OF-THE-ADDRESS"), "the whole address, to its last character");
+  assert.ok(block.includes(long), "exactly as written");
+  assert.match(block, /2\d{3} characters/, "its length is said");
+  const odd = await mount(
+    createRoot,
+    <ApprovalCard
+      taskId="tsk_w"
+      agent="Intake"
+      agentId="agt_1"
+      data={held("https://a.example/\u202Egpj.exe?x=1\nfoo")}
+    />,
+  );
+  const shown = textOf(find(odd, "approval-address-tsk_w"));
+  assert.ok(!/[\u202E\n]/.test(shown), "no bidi override or newline reaches the card");
+  assert.ok(shown.includes("[U+202E]") && shown.includes("[U+000A]"), shown);
+  assert.ok(find(root, "approval-allow-tsk_w") && find(root, "approval-deny-tsk_w"), "still answerable");
 });

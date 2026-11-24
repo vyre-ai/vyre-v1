@@ -10,6 +10,16 @@
   ],
   "deps": [
     {
+      "name": "tldts",
+      "reason": "the registrable domain of an address (modules/mcp/client-doc.ts: which sites an outside app may name in its client document); MIT, a few small dependencies of its own (tldts-core)",
+      "dev": false
+    },
+    {
+      "name": "tldts-core",
+      "reason": "the part of tldts that does the matching (a dependency of tldts, used only through it by modules/mcp/client-doc.ts); MIT, no dependencies",
+      "dev": false
+    },
+    {
       "name": "@sinclair/typebox",
       "reason": "schemas",
       "dev": false

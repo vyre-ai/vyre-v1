@@ -4,20 +4,24 @@
 //   status        {}                                                -> { profiles: [{ profileId, running, tabs, busy, takeover, viewers, lastActiveAt, held, paused }], maxRunning }
 //   configure     { profileId, agentId?, spaceId?, tabLimit?, fillUrl?, fillToken? }   (the Vault channel is held in memory for that profile only)
 //   tool          { profileId, tool, args, timeoutMs, by? }         -> the tool's answer (the chrome_* tools of agentd/chrome.ts)
+//   warm          { profileId, spaceId?, agentName? }               -> { browserStart }   starts the profile's browser with no page asked of it (the module warms an agent's browser when its turn starts)
+//   pointer       { profileId }                                     -> { pointer } | { asleep }   where the agent last acted on its page (a look; never starts a browser)
 //   takeover      { profileId, personId }                           give_back { profileId }
 //   screenshot    { profileId }                                     -> { png, width, height }
 //   stream        { profileId }                                     -> { transport: "mjpeg", url, ws }
 //   downloads     { profileId } -> { downloads: [{ name, size, at }] }     download_read { profileId, name } -> { base64 }      download_ack { profileId, name }
 //   stop          { profileId }  (the browser stops, the folder stays)      forget { profileId }  (the folder goes too)
 //   sessions      { profileId }                                     -> { sessions: [{ site, since, lastSeen }] }      sign_out { profileId, site } -> { ok }
+//   channel       {}                                                -> { key, address, port }   the open line: every action above, posted to http://<address>:<port>/control with the key (control.ts)
 import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createNetServer } from "node:net";
 import type { Socket } from "node:net";
 import { networkInterfaces } from "node:os";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
-import { AgentError, badInput, unavailable } from "../../agent-computer/agentd/errors.ts";
+import { badInput } from "../../agent-computer/agentd/errors.ts";
 import { createRecentSites, startStartServer } from "./start.ts";
 import type { StartServer } from "./start.ts";
+import { createControl, refusalOf } from "./control.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
 import { createProfileManager, checkProfileId, memoryLimitMb, pidsLimit, slotsFor } from "./profiles.ts";
@@ -138,9 +142,18 @@ async function pageOf(id: string): Promise<Cdp> {
   return p.chrome!.page();
 }
 
+// the open line (control.ts): the same actions as the control socket, posted to the view port by a server that holds a key from `ctl channel`
+const control = createControl({
+  dispatch: (action, args) => dispatch(action, args),
+  asked: () => {
+    lastAsked = Date.now();
+  },
+});
+
 const views = startViewServer({
   port: PORT,
   address,
+  control: (req, res) => control.handle(req, res),
   seen: (id, personId) => manager.personSaw(id, personId),
   viewOf: (id): ViewOf | null => {
     const p = manager.get(id);
@@ -223,6 +236,8 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         maxRunning: MAX_RUNNING,
         viewers: views.viewers(),
       };
+    case "channel":
+      return { key: control.mint(), address: address(), port: PORT };
     case "configure": {
       const p = manager.get(checkProfileId(a["profileId"]));
       const n = a["tabLimit"];
@@ -233,6 +248,22 @@ async function dispatch(action: string, a: Args): Promise<Args> {
       if (typeof a["fillUrl"] === "string" && typeof a["fillToken"] === "string")
         p.vault.setFiller(a["fillUrl"], a["fillToken"], p.id);
       return {};
+    }
+    case "warm": {
+      // the browser starts before anyone asked it for a page: no tool runs, no Vault value is asked for, no refs exist. It is a start like any other (room, one at a time, the same start page), and every answer
+      // after it carries the same `browserStart`, so a call that follows is never taken for a reopened browser
+      const pid = checkProfileId(a["profileId"]);
+      if (typeof a["agentName"] === "string") manager.get(pid).agentName = a["agentName"].slice(0, 80);
+      if (typeof a["spaceId"] === "string") manager.setSpace(pid, a["spaceId"]);
+      const w = await manager.ensure(pid);
+      return { browserStart: w.startId };
+    }
+    case "pointer": {
+      // the agent's last action on its page, for the desk's cursor. A look: it never starts a browser and does not count as use (a desk left open keeps nothing awake)
+      const pid = checkProfileId(a["profileId"]);
+      const c = manager.get(pid).chrome;
+      if (!c?.alive()) return { asleep: true };
+      return { pointer: c.pointer?.() ?? null };
     }
     case "tool": {
       // The Vault channel of this profile's agent rides the call that may type a handle, held in memory for this profile only.
@@ -404,18 +435,7 @@ function serve(c: Socket): void {
     const args = (typeof req.args === "object" && req.args !== null ? req.args : {}) as Args;
     dispatch(String(req.action ?? ""), args).then(
       (result) => c.end(JSON.stringify({ ok: true, result }) + "\n"),
-      (e: unknown) => {
-        const err = e instanceof AgentError ? e : unavailable(e instanceof Error ? e.message : "the browser failed");
-        c.end(
-          JSON.stringify({
-            ok: false,
-            code: err.code,
-            message: err.message,
-            ...(err.reason ? { reason: err.reason } : {}),
-            ...(err.start !== undefined ? { start: err.start } : {}),
-          }) + "\n",
-        );
-      },
+      (e: unknown) => c.end(JSON.stringify(refusalOf(e)) + "\n"),
     );
   });
 }

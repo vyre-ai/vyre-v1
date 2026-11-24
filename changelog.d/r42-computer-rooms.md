@@ -1,0 +1,1 @@
+- The desk has three rooms in one surface: Browser, Terminal and Files. Switching between them keeps the desk's shape and the browser's live session.

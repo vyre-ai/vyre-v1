@@ -11,7 +11,7 @@ Approve a plan, optionally with edits; clears plan mode for those steps and the 
 | Grant level | use |
 | Risk | medium |
 | Resource | thread (/threadId) |
-| Gate | none |
+| Gate | access when gate.by_actor(input) |
 | Idempotency | natural |
 | Offline | queue |
 | Audit | none |

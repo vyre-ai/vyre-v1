@@ -17,7 +17,7 @@ Find the connector for a service named in words (Fathom, Slack), the fields it n
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/connectors/for_service |
-| MCP tool | none |
+| MCP tool | connectors_for_service (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 
@@ -36,6 +36,7 @@ type Out = {
   found: boolean;
   connector?: {
     key: string;
+    revision: string;
     title: string;
     scope: "person" | "space";
     mode: "api" | "mcp" | "dwd" | "oauth_app" | "webhook_only";
@@ -52,6 +53,7 @@ type Out = {
           label: string;
           connector: string;
           hosts: Array<string>;
+          revision: string;
         }>;
     };
     site?: string;
@@ -59,6 +61,7 @@ type Out = {
     host?: string;
     hosts: Array<string>;
     checks: boolean;
+    untested?: boolean;
   };
   connection?: {
     connectionId: string;
@@ -105,6 +108,7 @@ type Out = {
               "example"
             ],
             "label": "example",
+            "revision": "example",
             "value": "example"
           }
         ]
@@ -122,9 +126,11 @@ type Out = {
       ],
       "key": "hubspot",
       "mode": "api",
+      "revision": "example",
       "scope": "person",
       "site": "example",
-      "title": "example"
+      "title": "example",
+      "untested": true
     },
     "found": true,
     "near": [

@@ -54,7 +54,6 @@ DATA_DIR=$(cat "$DIR/data-dir" 2>/dev/null || printf '%s/data' "$DIR")
 # where backups are written: with the data (so a data folder on an encrypted volume holds its backups too); an install made before this was recorded keeps $VYRE_DIR/backups
 BACKUP_DIR=$(cat "$DIR/backup-dir" 2>/dev/null || printf '%s/backups' "$DIR")
 UNIT_DIR=${VYRE_SYSTEMD_DIR:-/etc/systemd/system}
-KEEP_BACKUPS=3
 KEEP_RELEASES=3
 
 say() { printf '%s\n' "$*"; }
@@ -236,7 +235,70 @@ cur_version() { cat "$DIR/current/VERSION" 2>/dev/null || printf unknown; }
 # dc ARGS...: docker compose for this install, project folder = the current release.
 dc() {
   c=$(cur_dir)
-  docker compose --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" "$@"
+  if ensure_backups_compose; then
+    docker compose --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" -f "$DIR/compose.backups.yml" "$@"
+  else
+    docker compose --project-directory "$c" --env-file "$DIR/compose.env" -f "$c/compose.server.yml" -f "$DIR/compose.override.yml" "$@"
+  fi
+}
+
+# own_backup_dir: mode 0700 and the server's owner are set only on a folder this command made itself: the default folder under $DIR, or one it has just made. A folder that already existed (an admin pointed
+# backup-dir at a shared folder) is left exactly as it is; when the server user (uid 1000) could not write it, one warning says so. $1 is 1 when the folder was just made.
+own_backup_dir() {
+  if [ "$1" = 1 ] || [ "$BACKUP_DIR" = "$DIR/backups" ]; then
+    chmod 0700 "$BACKUP_DIR" 2>/dev/null || true
+    # only on Linux: on a Mac the VM mounts the folder under the person's own account, and a chown to 1000 would be wrong (and is refused for anyone but root)
+    [ "$(spacedb_os)" = Darwin ] || [ "$(id -u)" != 0 ] || chown 1000:1000 "$BACKUP_DIR" 2>/dev/null || true
+    return 0
+  fi
+  if [ ! -w "$BACKUP_DIR" ] || { [ "$(id -u)" = 0 ] && [ -z "$(find "$BACKUP_DIR" -maxdepth 0 \( -user 1000 -o -perm -0002 \) 2>/dev/null)" ]; }; then
+    [ -n "${BACKUPS_OWN_NOTED:-}" ] || { BACKUPS_OWN_NOTED=1; printf 'vyre-server: the backups folder %s already exists and is left as it is; the server user (uid 1000) may not be able to write to it. Give it write access, or choose another folder.\n' "$BACKUP_DIR" >&2; }
+  fi
+  return 0
+}
+
+# ensure_backups_compose: the backups folder is one folder, this command's and the server's: it is mounted into vyred at /backups (VYRE_BACKUP_DIR), and backup.run with no target chosen writes there, so a
+# backup taken from either side is in the other's list. Written to its own file (compose.backups.yml) so an install made before this, whose compose.override.yml may carry edits, gets it on its next
+# start or update with nothing else changed. vyred runs as uid 1000: the folder (and each backup this command writes) is given to it when this runs as root; on a Mac the VM's mount does it.
+# Returns 0 when compose.backups.yml is in place and may be passed. When the folder cannot be made or the file cannot be written it returns 1 and removes a stale file, so the server still starts, without
+# the mount, and the command says why once.
+ensure_backups_compose() {
+  _bc="$DIR/compose.backups.yml"
+  if [ -z "$BACKUP_DIR" ]; then rm -f "$_bc"; return 1; fi
+  _made=
+  if [ ! -d "$BACKUP_DIR" ] && mkdir -p "$BACKUP_DIR" 2>/dev/null; then _made=1; fi
+  if [ ! -d "$BACKUP_DIR" ]; then
+    rm -f "$_bc"
+    [ -n "${BACKUPS_NOTED:-}" ] || { BACKUPS_NOTED=1; printf 'vyre-server: the backups folder %s does not exist and could not be made, so the server starts without it mounted.\n' "$BACKUP_DIR" >&2; }
+    return 1
+  fi
+  own_backup_dir "$_made"
+  # the path goes in as a double-quoted YAML string: a backslash and a double quote are escaped, and a space, comma, colon, hash or brace is then plain text
+  _q=$(printf '%s' "$BACKUP_DIR" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g')
+  # the volume is named after the folder: Docker keeps a named volume's bind source from the day it was made, so a folder that changed (the backup-dir file) needs a volume of its own to be mounted
+  _vn="vyre-backups-$(printf '%s' "$BACKUP_DIR" | cksum | cut -d' ' -f1)"
+  _want="# Written by vyre-server: the backups folder, mounted into the server.
+volumes:
+  $_vn:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: \"$_q\"
+services:
+  vyred:
+    environment:
+      VYRE_BACKUP_DIR: /backups
+    volumes:
+      - $_vn:/backups"
+  if [ "$(cat "$_bc" 2>/dev/null)" != "$_want" ]; then
+    if ! { printf '%s\n' "$_want" >"$_bc.new" && mv -f "$_bc.new" "$_bc"; } 2>/dev/null; then
+      rm -f "$_bc.new" "$_bc" 2>/dev/null
+      [ -n "${BACKUPS_NOTED:-}" ] || { BACKUPS_NOTED=1; printf 'vyre-server: could not write %s, so the server starts without the backups folder mounted.\n' "$_bc" >&2; }
+      return 1
+    fi
+  fi
+  return 0
 }
 
 lock_get() { sed -n "s/^$1=\\(.*\\)\$/\\1/p" "$(cur_dir)/images.lock" 2>/dev/null | head -n 1; }
@@ -765,8 +827,9 @@ backup_fail() {
 backup_data() {
   BACKUP_MODE=${2:-stopped}
   [ -s "$DATA_DIR/space/events.db" ] || die "there is no Space in $DATA_DIR (no space/events.db): is the data volume mounted? No backup was written, and the earlier backups were left as they are."
+  _bmade=; [ -d "$BACKUP_DIR" ] || _bmade=1
   mkdir -p "$BACKUP_DIR" "$DIR/state"
-  chmod 0700 "$BACKUP_DIR"
+  own_backup_dir "$_bmade"
   # a name no backup has yet: two backups in the same second get -2, -3 (before, the second silently replaced the first)
   stamp=$(date -u +%Y%m%dT%H%M%SZ); out="$BACKUP_DIR/vyre-$1-$stamp.tar.gz"; bn=1
   while [ -e "$out" ] || [ -e "$out.part" ]; do bn=$((bn + 1)); out="$BACKUP_DIR/vyre-$1-$stamp-$bn.tar.gz"; done
@@ -786,25 +849,33 @@ backup_data() {
   tar -tzf "$out.part" | grep -q '^space/events.db$' || backup_fail "the backup holds no Space (space/events.db is missing); nothing was changed and the earlier backups were kept."
   rm -rf "$STAGE"; STAGE=""
   mv "$out.part" "$out" || backup_fail "the backup could not be put in place; nothing was changed."
+  chmod 0600 "$out" 2>/dev/null || true
+  [ "$(spacedb_os)" = Darwin ] || [ "$(id -u)" != 0 ] || chown 1000:1000 "$out" 2>/dev/null || true # (not on a Mac) the server's user reads it to list, check and delete it
   [ -s "$out" ] || backup_fail "the backup is empty after it was written; nothing was changed."
   BACKUP_FILE=$out
   prune_backups
 }
 
-# prune_backups: old backups go by kind, never across kinds, so many manual backups never push out the one taken before an update or a restore (12 Nov: twelve manual backups
-# evicted the only good copy from before a failed update). Kept: the newest 3 manual (and other) backups, the newest 2 taken before an update (vyre-pre-<version>-...), the newest 2
-# taken before a restore. What goes is named.
+# prune_backups: old backups go by kind, never across kinds, and only the kinds nobody chose to take are pruned. A manual backup (vyre-manual-...: `vyre-server backup`) is a person's own and is
+# never removed here; a name this script does not know is left alone too (19 Nov, a Mac mini: the CLI deleted a manual backup nobody asked it to). Pruned: the newest 2 taken before an update
+# (vyre-pre-<version>-...) stay, the newest 2 taken before a restore stay (12 Nov: twelve manual backups once evicted the only good copy from before a failed update). What goes is named; when manual
+# backups pile up, the one line below says how much room they take.
 prune_backups() {
-  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk -v k="$KEEP_BACKUPS" '
+  ls -1t "$BACKUP_DIR"/vyre-*.tar.gz 2>/dev/null | awk '
     { n = $0; sub(/.*\//, "", n)
       if (n ~ /^vyre-pre-restore-/) { kind = "pre-restore"; keep = 2 }
       else if (n ~ /^vyre-pre-[0-9]/) { kind = "pre-update"; keep = 2 }
-      else { kind = "other"; keep = k }
+      else next
       if (++seen[kind] > keep) print $0 }' | while IFS= read -r old; do
     [ "$old" != "$out" ] || continue
     [ "$old" != "$(cat "$DIR/state/keep-backup" 2>/dev/null)" ] || continue
     rm -f "$old" && say "  Removed an older backup: $(basename "$old")"
   done
+  m_n=$(ls -1 "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | wc -l | tr -d ' ')
+  if [ "${m_n:-0}" -gt 3 ]; then
+    m_kb=$(du -sk "$BACKUP_DIR"/vyre-manual-*.tar.gz 2>/dev/null | awk '{ s += $1 } END { print s + 0 }')
+    say "  Manual backups are never removed by this command: $m_n of them take $((m_kb / 1024)) MB in $BACKUP_DIR. Delete the ones you no longer need yourself."
+  fi
   return 0
 }
 
@@ -1132,8 +1203,10 @@ sync_image() {
   # the Space browser image of this release, by digest (compose.server.yml VYRE_SPACE_BROWSER_IMAGE), the same way
   bimg=$(sed -n 's/^VYRE_BROWSER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   wimg=$(sed -n 's/^VYRE_WORKSPACE_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
+  # the Word to PDF converter image, by digest: fetched by the server on first use
+  cimg=$(sed -n 's/^VYRE_CONVERTER_IMAGE=//p' "$DIR/current/images.lock" | head -n 1)
   cp -p "$DIR/compose.env" "$DIR/compose.env.new" || return 1
-  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
+  { grep -v -e '^VYRE_IMAGE=' -e '^VYRE_AGENT_COMPUTER_IMAGE=' -e '^VYRE_SPACE_BROWSER_IMAGE=' -e '^VYRE_WORKSPACE_IMAGE=' -e '^VYRE_DOC_CONVERTER_IMAGE=' "$DIR/compose.env" || true; printf 'VYRE_IMAGE=%s\n' "$img"; [ -z "$aimg" ] || printf 'VYRE_AGENT_COMPUTER_IMAGE=%s\n' "$aimg"; [ -z "$bimg" ] || printf 'VYRE_SPACE_BROWSER_IMAGE=%s\n' "$bimg"; [ -z "$wimg" ] || printf 'VYRE_WORKSPACE_IMAGE=%s\n' "$wimg"; [ -z "$cimg" ] || printf 'VYRE_DOC_CONVERTER_IMAGE=%s\n' "$cimg"; } >"$DIR/compose.env.new" || { rm -f "$DIR/compose.env.new"; return 1; }
   mv -f "$DIR/compose.env.new" "$DIR/compose.env"
   # a server with no domain (the relay) opens no port to the internet: 80 and 443 stay on this machine, unless the Space serves its own domain (set in the Console). In relay mode a site cannot have a custom domain, so nothing else is lost.
   if ! grep -q '^VYRE_ADDRESS=' "$DIR/compose.env"; then
@@ -1195,7 +1268,7 @@ prune_releases() {
 # untagged image whose command is the agent computer's agentd), no kept release or compose.env names it, and no container, running or stopped, was made from it. A kept release is one prune_releases
 # left: the current one and the one a rollback goes to. Images built or tagged by hand (no digest) are never touched. Docker itself refuses to remove an image a container uses, a second guard.
 # A failure never fails the update: it prints what was removed, if anything, and returns 0.
-PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'vyred|agent-computer|agent-workspace|workspace|space-browser|vyre-browser'}
+PRUNE_IMAGE_NAMES=${VYRE_PRUNE_IMAGE_NAMES:-'vyred|agent-computer|agent-workspace|workspace|space-browser|vyre-browser|doc-converter'}
 prune_images() {
   command -v docker >/dev/null 2>&1 || return 0
   docker info >/dev/null 2>&1 || return 0

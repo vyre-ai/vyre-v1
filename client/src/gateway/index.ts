@@ -118,6 +118,16 @@ export function withKey(route: RouteRow, input: unknown, supplied?: string): unk
   return { ...input, idempotencyKey: supplied ?? mint() };
 }
 
+/** A connection that was reset or hung up before an answer came (Node: ECONNRESET, "socket hang up", on the error or its cause). A browser's own "Failed to fetch" does not say why and is not this. */
+export function isConnectionReset(e: unknown): boolean {
+  for (let x: unknown = e, i = 0; x && typeof x === "object" && i < 3; x = (x as { cause?: unknown }).cause, i++) {
+    const code = (x as { code?: unknown }).code;
+    const message = String((x as { message?: unknown }).message ?? "");
+    if (code === "ECONNRESET" || code === "UND_ERR_SOCKET" || /ECONNRESET|socket hang up/i.test(message)) return true;
+  }
+  return false;
+}
+
 export function createCapCaller(o: CapCallerOptions): CapCall {
   const base = o.baseUrl.replace(/\/+$/, "");
   const doFetch = o.fetch ?? ((...a: Parameters<typeof fetch>) => fetch(...a));
@@ -201,12 +211,30 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
       headers["idempotency-key"] = opts.idempotencyKey;
     const get = route.method.toUpperCase() === "GET";
     if (!get) headers["content-type"] = "application/json";
-    const res = await doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
-      method: route.method.toUpperCase(),
-      headers,
-      ...(get ? {} : { body: JSON.stringify(withKey(route, input, opts.idempotencyKey)) }),
-      ...(opts.signal ? { signal: opts.signal } : {}),
-    });
+    // The body is made once, so a repeat of the call carries the same key (a key minted for it is part of it).
+    const payload = get ? undefined : withKey(route, input, opts.idempotencyKey);
+    // only a route whose contract is idempotency "key" is repeated: the server stores the call under (person, capability, key, input) and answers the stored result to a repeat. For "none" and "natural" it never reads the key,
+    // and a reset can come after the server ran the call (the connection dies on the way back), so a repeat would do it twice.
+    const keyed =
+      !get &&
+      route.idempotency === "key" &&
+      ((isObj(payload) && typeof payload["idempotencyKey"] === "string") || headers["idempotency-key"] !== undefined);
+    const go = (): Promise<Response> =>
+      doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
+        method: route.method.toUpperCase(),
+        headers,
+        ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
+        ...(opts.signal ? { signal: opts.signal } : {}),
+      });
+    // A connection the server closed as the call went out (a reused connection reset, a socket hang-up) never reached the handler: a call that carries an idempotency key is sent once more, so a person's save does not
+    // fail at random. A call without a key is never repeated (it could be done twice), and a call the caller stopped (an abort) is not either.
+    let res: Response;
+    try {
+      res = await go();
+    } catch (e) {
+      if (!keyed || opts.signal?.aborted || !isConnectionReset(e)) throw e;
+      res = await go();
+    }
     let body: unknown = null;
     let parsed = true;
     try {

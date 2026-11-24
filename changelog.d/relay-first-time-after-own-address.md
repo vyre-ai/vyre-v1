@@ -1,0 +1,1 @@
+A browser that used a Space at an address of its own and meets it again on the relay no longer ends on "This browser did not let Vyre take over the page" after the person pastes the Space link: the app's old worker is removed first, so the relay's worker takes the page and the sign-in opens.

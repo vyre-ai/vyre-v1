@@ -5,6 +5,7 @@
 // fill.js and save.js.
 
 import { createBridge } from "./bridge.js";
+import { linkFor, withLink } from "./link.js";
 import { createFill } from "./fill.js";
 import { badgeText, pageOf } from "./match.js";
 import { BridgeFailure, wordsFor } from "./protocol.js";
@@ -55,7 +56,9 @@ function inOwnFrame(sender) {
  * @param {any} ext
  */
 export function createWorker(ext) {
-  const bridge = createBridge(ext);
+  // Connected straight to a Space (no Vyre app on this computer): the bridge gets a port over the Space's socket; otherwise the native host, as before.
+  const link = linkFor(ext);
+  const bridge = createBridge(withLink(ext, link, link.current));
   const store = createStore(ext.storage.local);
   const rules = createRules({ bridge, store });
   const fill = createFill({ bridge, scripting: ext.scripting, rules });
@@ -66,7 +69,7 @@ export function createWorker(ext) {
   const views = new Map();
   const artifacts = createArtifacts({ ext, bridge, store });
   artifacts.watchTabs();
-  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts });
+  const panel = createPanel({ ext, bridge, store, privacy, context, views, artifacts, link });
   const notes = createNotes({ ext, bridge, privacy, context });
   const menus = createMenus({ ext, notes, panel, views, privacy });
   const recorder = createRecorder({ ext, bridge, privacy });
@@ -179,6 +182,7 @@ export function createWorker(ext) {
           itemId: String(msg.itemId),
           usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
           kind: msg.kind === "otp" ? "otp" : msg.kind === "card" ? "card" : "login",
+          ...(msg.itemKind === "totp" ? { itemKind: "totp" } : {}),
           signIn: Boolean(msg.signIn),
         });
         return { data: r };
@@ -337,6 +341,7 @@ export function createWorker(ext) {
             itemId: String(msg.itemId || ""),
             usernameField: msg.usernameField ? String(msg.usernameField) : undefined,
             kind,
+            ...(msg.itemKind === "totp" ? { itemKind: "totp" } : {}),
             signIn: false,
           }),
         };
@@ -456,6 +461,34 @@ export function createWorker(ext) {
       // The side panel is an extension page: its sender has our own address (a content script's sender has the page's). Opened as its own window it also has a tab.
       const ownPage =
         typeof sender.url === "string" && sender.url.startsWith(`chrome-extension://${ext.runtime.id}/src/panel/`);
+      // Connect to a Space directly: the panel gives the Space's address, a tab opens on the Space's own page; the page hands back a one-time code bound to a value kept here
+      if (msg.type === "panel.link.begin" && ownPage) {
+        const began = await link.begin(String(msg.address ?? ""));
+        if ("error" in began) return failure(new BridgeFailure("bad_input", "That is not a Space address."));
+        await ext.tabs.create({ url: began.url });
+        return { data: { origin: began.origin } };
+      }
+      if (msg.type === "panel.link.list" && ownPage)
+        return { data: { links: (await link.links()).map((l) => ({ address: l.address, name: l.name })) } };
+      if (msg.type === "panel.link.signout" && ownPage) {
+        await link.signOut(String(msg.address ?? ""));
+        return { data: true };
+      }
+      if (msg.type === "vyre.link.code" && sender.tab && typeof sender.url === "string") {
+        let origin = "";
+        try {
+          origin = new URL(sender.url).origin;
+        } catch {
+          origin = "";
+        }
+        const done = await link.redeem({ origin, code: String(msg.code ?? "") });
+        if (done.ok && sender.tab.id !== undefined && typeof ext.tabs.remove === "function") {
+          // the Space's page has shown "Connected" for a moment; the panel is ready, so the tab closes itself
+          const closing = sender.tab.id;
+          setTimeout(() => void Promise.resolve(ext.tabs.remove(closing)).catch(() => {}), 1500);
+        }
+        return done.ok ? { data: { linked: true } } : failure(new BridgeFailure("link_" + done.why, ""));
+      }
       if (msg.type === "panel.clip" && ownPage) {
         const [tab] = await ext.tabs.query(
           typeof msg.windowId === "number"
@@ -482,6 +515,7 @@ export function createWorker(ext) {
   }
 
   return {
+    link,
     bridge,
     store,
     rules,

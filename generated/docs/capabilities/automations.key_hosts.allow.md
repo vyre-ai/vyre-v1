@@ -11,13 +11,13 @@ A person who may use a Vault key approves one host it may be sent to. A person o
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/automations/key_hosts/allow |
-| MCP tool | none |
+| MCP tool | automations_key_hosts_allow (automations, deferred) |
 | CLI | none |
 | Emits | none |
 

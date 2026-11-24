@@ -1,6 +1,6 @@
 # sites.staging_password_set
 
-Choose the sealed Vault key that protects staging (shared across a site previews)
+Choose the sealed Vault key protecting staging (shared by its previews)
 
 | | |
 |---|---|

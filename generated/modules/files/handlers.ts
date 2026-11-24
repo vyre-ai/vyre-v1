@@ -26,6 +26,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.comments.resolve": Handler<"files.comments.resolve", X>;
   "files.copy": Handler<"files.copy", X>;
   "files.create": Handler<"files.create", X>;
+  "files.create_many": Handler<"files.create_many", X>;
   "files.delete": Handler<"files.delete", X>;
   "files.diff": Handler<"files.diff", X>;
   "files.external_links": Handler<"files.external_links", X>;

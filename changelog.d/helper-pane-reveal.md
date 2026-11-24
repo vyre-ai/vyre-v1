@@ -1,0 +1,1 @@
+- Opening the Crew pane any way you like turns the board and tokens on, and a helper that has not started shows "waiting" with no clock and no tokens.

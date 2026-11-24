@@ -145,6 +145,19 @@ export type StreamEvent =
       asker?: string;
       privately?: boolean;
     }
+  /**
+   * What a subagent said or used, for its record in the Run tree (crew-watch only; never sent to the live view). `parent` is the call that started the subagent; `id` is the message's.
+   */
+  | {
+      kind: "sub";
+      threadId: string;
+      turnId: string;
+      agentId: string;
+      id: string;
+      parent: string;
+      said?: string;
+      usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number; model?: string };
+    }
   /** A step of the turn (a tool call or its result): what the agent is doing, for the line under its reply. Names only; no input. */
   | {
       kind: "step";
@@ -830,9 +843,32 @@ export function createBridge(o: BridgeOptions): Bridge {
             typeof (ev.payload as { parent?: unknown } | null)?.parent === "string" &&
             (ev.payload as { parent: string }).parent !== ""
           ) {
-            const p = ev.payload as { id?: unknown; name?: unknown; detail?: unknown; ok?: unknown; parent: string };
+            const p = ev.payload as {
+              id?: unknown;
+              name?: unknown;
+              detail?: unknown;
+              ok?: unknown;
+              parent: string;
+              said?: unknown;
+              usage?: unknown;
+            };
             const id = typeof p.id === "string" ? p.id : "";
-            if (id !== "") {
+            if (
+              id !== "" &&
+              ev.kind === "tool_input" &&
+              (typeof p.said === "string" || (p.usage && typeof p.usage === "object"))
+            ) {
+              emit({
+                kind: "sub",
+                threadId: input.threadId,
+                turnId: input.turnId,
+                agentId: input.agent.id,
+                id,
+                parent: p.parent,
+                ...(typeof p.said === "string" ? { said: p.said } : {}),
+                ...(p.usage && typeof p.usage === "object" ? { usage: p.usage as never } : {}),
+              });
+            } else if (id !== "") {
               if (ev.kind === "tool_call" && typeof p.name === "string") {
                 subCalls.set(id, p.name);
                 if (NATIVE_OUTSIDE.has(p.name)) {
@@ -1161,7 +1197,14 @@ export function createBridge(o: BridgeOptions): Bridge {
 
   /** Threads whose last open failed because the thread could not be read (not because it has no agents): the skip says so, so a log never calls an unreadable chat an empty one. */
   const unreadable = new Set<string>();
-  async function open(ctx: EngineCtx, threadId: string, skipId: string, authorId: string): Promise<boolean> {
+  async function open(
+    ctx: EngineCtx,
+    threadId: string,
+    skipId: string,
+    authorId: string,
+    /** the reader is not the one who wrote (an agent speaking for a person): that person not seeing the chat is no fault, so it is not warned about */
+    forAnother = false,
+  ): Promise<boolean> {
     unreadable.delete(threadId);
     const read = reader(ctx, authorId, threadId);
     if (!engine) return false;
@@ -1172,6 +1215,7 @@ export function createBridge(o: BridgeOptions): Bridge {
     } catch (e) {
       // not "no agents": the thread could not be read at all (a private chat the calling principal is not in, a thread that is gone). Say so, with the trace, instead of skipping in silence.
       unreadable.add(threadId);
+      if (forAnother) return false;
       ctx.log.warn("the bridge could not read the thread, so no turn runs for its message", {
         traceId: ctx.trace.traceId,
         threadId,
@@ -1302,8 +1346,23 @@ export function createBridge(o: BridgeOptions): Bridge {
         /* not readable: route it as any message */
       }
     }
-    if (!(await open(ctx, threadId, messageId, readAs)))
-      return { skipped: unreadable.delete(threadId) ? "thread_unreadable" : "no_agents" };
+    // an agent that speaks for a person writes in chats that person may not be in (an agent's message to someone else, sent for its person): reading as that person is refused there, and that is not a fault. Nothing routes it,
+    // as before, and it is not logged as a problem.
+    const forAnother = a.kind === "agent" && readAs !== str(a.id);
+    if (!(await open(ctx, threadId, messageId, readAs, forAnother))) {
+      const left = unreadable.delete(threadId);
+      // not a problem, but not silent either: an agent's mention of another agent in a chat its person is not in is dropped here, and this is the trace of it (no words of the message)
+      if (left && forAnother)
+        ctx.log.debug?.("the bridge left an agent's message alone: the person it speaks for is not in the chat", {
+          traceId: ctx.trace.traceId,
+          threadId,
+          messageId,
+          author: str(a.id),
+          speaksFor: readAs,
+          reason: "speaker_not_in_thread",
+        });
+      return { skipped: left ? (forAnother ? "speaker_not_in_thread" : "thread_unreadable") : "no_agents" };
+    }
     if (store.get(messageId)) return { skipped: "known" };
     const got = (await reader(ctx, readAs, threadId)("chat.message.get", { threadId: home, messageId })) as {
       message: Row;
@@ -1499,15 +1558,19 @@ export function createBridge(o: BridgeOptions): Bridge {
     // an agent's post speaks for the person it acted for (chat.post's actingFor): a turn it sets off runs for that person, never for the chat's starter; with nobody behind it, it runs for no one
     const speaksFor = a.kind === "agent" && str(p["actingFor"]).startsWith("usr_") ? str(p["actingFor"]) : undefined;
     // a helper's or teammate's result while others of the crew still work: it is kept in the chat, and nobody is woken. The lead answers once, when the last one is back (owner, 4 Nov 2026).
+    // a helper told to wait for others (chat.helper.start dependsOn) is not woken until each of them is done: its brief is kept, its node stands queued meanwhile
+    const waitState = await helperWaiting(ctx, threadId, readAs);
+    // one whose dependency did not finish is kept too, and never woken
     const hold =
-      a.kind === "agent"
+      waitState !== "free" ||
+      (a.kind === "agent"
         ? await othersStillWorking(
             ctx,
             readAs,
             threadId,
             (got.message as { blocks?: Array<{ type?: string; data?: unknown }> }).blocks,
           )
-        : false;
+        : false);
     const res = withMessageId(messageId, () =>
       eng.receive({
         ...(hold ? { hold: true } : {}),
@@ -1525,7 +1588,9 @@ export function createBridge(o: BridgeOptions): Bridge {
       }),
     );
     // held: look again shortly, because the last two helpers can end together and each sees the other still working; the lead is woken once, for the latest held result, when nobody works any more
-    if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
+    // kept in the chat; one that waited for work that did not finish is looked at slowly (a Retry of that work puts it back to waiting, and it then starts when that is done)
+    if (waitState !== "free") scheduleWaitRelease(ctx, threadId, readAs, res.messageId, 0, waitState === "dead");
+    else if (hold) scheduleRelease(ctx, threadId, readAs, res.messageId);
     else if (res.responders.length > 0) heldNow.delete(threadId); // this message wakes the lead itself, with the held results already in the chat
     // the person said go in the thread of a task assigned to them, and an agent answers: the task is theirs to do through it, so it moves to Doing and says who is on it for them
     if (a.kind === "person" && res.responders.length > 0) {
@@ -1565,12 +1630,14 @@ export function createBridge(o: BridgeOptions): Bridge {
     return { receivedAs: res.responders };
   }
 
+  let closed = false;
   const heldNow = new Map<string, string[]>();
   function scheduleRelease(ctx: EngineCtx, threadId: string, readAs: string, messageId: string, tries = 0): void {
     const list = heldNow.get(threadId) ?? [];
     if (tries === 0) heldNow.set(threadId, [...list, messageId]);
     const t = setTimeout(() => {
       void (async () => {
+        if (closed) return;
         const mine = heldNow.get(threadId) ?? [];
         if (!mine.includes(messageId) || mine[mine.length - 1] !== messageId) {
           return;
@@ -1590,6 +1657,100 @@ export function createBridge(o: BridgeOptions): Bridge {
         }
       })();
     }, 1500);
+    (t as { unref?: () => void }).unref?.();
+  }
+
+  /** "waiting": this thread is a helper whose node is queued behind others that are not done; "dead": one of them did not finish, so it never starts; "free": anything else. */
+  const helperChecked = new Set<string>();
+  /** The first time a helper thread is heard from: if the helper was told to wait for others (the helper block in the chat that started it names them), its node is made now, queued behind theirs. */
+  async function ensureHelperNode(ctx: EngineCtx, threadId: string, readAs: string): Promise<void> {
+    if (helperChecked.has(threadId)) return;
+    if (helperChecked.size > 2000) helperChecked.delete(helperChecked.values().next().value as string);
+    const g = (await reader(ctx, readAs, threadId)("threads.get", { threadId })) as {
+      thread?: { kind?: string; starter?: string; title?: string; parentThreadId?: string; parentMessageId?: string };
+    };
+    const t = g.thread;
+    if (!t || t.kind !== "helper" || !t.parentThreadId || !t.parentMessageId) {
+      helperChecked.add(threadId);
+      return;
+    }
+    const line = (await reader(
+      ctx,
+      readAs,
+      t.parentThreadId,
+    )("chat.message.get", {
+      threadId: t.parentThreadId,
+      messageId: t.parentMessageId,
+    })) as { message?: { blocks?: Array<{ type?: string; data?: Record<string, unknown> }> } };
+    const block = line.message?.blocks?.find((b) => b.type === "helper" && b.data?.["helperThreadId"] === threadId);
+    const deps = Array.isArray(block?.data?.["dependsOn"]) ? (block!.data!["dependsOn"] as unknown[]).map(String) : [];
+    helperChecked.add(threadId);
+    const retryOf = typeof block?.data?.["retryOf"] === "string" ? (block.data["retryOf"] as string) : undefined;
+    if ((deps.length === 0 && retryOf === undefined) || !t.starter) return;
+    await ctx.call("runs.node.start", {
+      kind: "helper",
+      owner: t.starter,
+      threadId,
+      parentThread: t.parentThreadId,
+      ...(t.title ? { name: t.title } : {}),
+      whoKind: "agent",
+      whoId: str(block?.data?.["agentId"]),
+      ...(deps.length > 0 ? { dependsOnThreads: deps } : {}),
+      ...(retryOf !== undefined ? { retriesThread: retryOf } : {}),
+      idemKey: `helper:${threadId}`,
+    });
+  }
+
+  async function helperWaiting(ctx: EngineCtx, threadId: string, readAs = ""): Promise<"waiting" | "dead" | "free"> {
+    try {
+      await ensureHelperNode(ctx, threadId, readAs);
+      const f = (await ctx.call("runs.node.find", { keys: [`helper:${threadId}`] })) as {
+        byKey?: Record<string, string>;
+      };
+      const id = f.byKey?.[`helper:${threadId}`];
+      if (!id) return "free";
+      const n = (
+        (await ctx.call("runs.node.get", { runId: id })) as { node?: { status: string; dependsOn?: string[] } }
+      ).node;
+      if (!n || n.status !== "queued") return n && (n.status === "failed" || n.status === "stopped") ? "dead" : "free";
+      for (const d of n.dependsOn ?? []) {
+        const on = ((await ctx.call("runs.node.get", { runId: d })) as { node?: { status: string } }).node;
+        if (on && (on.status === "failed" || on.status === "stopped")) return "dead";
+        if (!on || on.status !== "succeeded") return "waiting";
+      }
+      return "free";
+    } catch {
+      return "free"; // a node that cannot be read holds nobody back
+    }
+  }
+
+  /** Look again until what it waits for is done, then wake it once. While one of them has not finished well it is not woken, and is looked at every 10 seconds (up to eight hours) in case a Retry brings it back to waiting. */
+  function scheduleWaitRelease(
+    ctx: EngineCtx,
+    threadId: string,
+    readAs: string,
+    messageId: string,
+    tries = 0,
+    slow = false,
+  ): void {
+    const t = setTimeout(
+      () => {
+        void (async () => {
+          if (closed) return;
+          const st = await helperWaiting(ctx, threadId, readAs);
+          if (st === "waiting" || st === "dead") {
+            if (tries < 3000) scheduleWaitRelease(ctx, threadId, readAs, messageId, tries + 1, st === "dead");
+            return;
+          }
+          try {
+            if (engine) engine.wakeHeld(threadId, messageId);
+          } catch {
+            /* the thread is closed: nothing to wake */
+          }
+        })();
+      },
+      slow ? 10_000 : 1500,
+    );
     (t as { unref?: () => void }).unref?.();
   }
 
@@ -1637,7 +1798,13 @@ export function createBridge(o: BridgeOptions): Bridge {
   return {
     attach(e) {
       engine = e;
-      return e.subscribe(onEngine);
+      closed = false;
+      const off = e.subscribe(onEngine);
+      // the engine is let go (the daemon is stopping): the looks-again timers of held results stop with it, so none reads a status after the database has closed
+      return () => {
+        closed = true;
+        return off();
+      };
     },
     tap: (openSession) => async (spec) => {
       const key = `${spec.threadId}|${spec.agent.id}`;
@@ -1743,7 +1910,12 @@ export const bridgeConsumers = {
     run: async (ctx: EngineCtx, event: BridgeEvent): Promise<{ skipped?: string; receivedAs?: string[] }> => {
       const res = bound ? await bound.onEvent(ctx, event) : { skipped: "engine_not_running" };
       // a message that did not reach the engine says why, with the trace and the ids (one trace id, clear logs); the ones that did are not logged here
-      if (res.skipped && res.skipped !== "known" && res.skipped !== "own_post") {
+      if (
+        res.skipped &&
+        res.skipped !== "known" &&
+        res.skipped !== "own_post" &&
+        res.skipped !== "speaker_not_in_thread"
+      ) {
         ctx.log.warn("the engine bridge did not run a turn for a message", {
           traceId: ctx.trace.traceId,
           reason: res.skipped,

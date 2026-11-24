@@ -31,6 +31,7 @@ export function TerminalSheet({
   nameOf,
   onClose,
   onDrawn,
+  embedded = false,
 }: {
   data: TerminalData;
   agentName: string;
@@ -43,6 +44,8 @@ export function TerminalSheet({
   onClose(): void;
   /** The screen drew (the computer is awake): the pane reads the computer's words again now. */
   onDrawn?(): void;
+  /** Drawn inside the desk's terminal room: no window of its own, no title and no Close (the desk has them), no Esc layer; a keyboard you hold is given back when the room goes away. */
+  embedded?: boolean;
 }): ReactElement {
   const win = useWindowDimensions();
   const [sel, setSel] = useState(start);
@@ -108,7 +111,18 @@ export function TerminalSheet({
     if (mineRef.current && sel) void data.call("terminal.give_back", { terminalId: sel }).catch(() => undefined);
     onClose();
   };
-  useEscapeLayer(!mine, close);
+  useEscapeLayer(!mine && !embedded, close);
+  // the desk's terminal room goes away (another room, or the desk closes): the keyboard you hold goes back to the agent, so nothing is left waiting
+  const selRef2 = useRef(sel);
+  selRef2.current = sel;
+  useEffect(
+    () => () => {
+      if (embedded && mineRef.current && selRef2.current)
+        void data.call("terminal.give_back", { terminalId: selRef2.current }).catch(() => undefined);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [embedded],
+  );
   // taking the keyboard puts it straight on the screen: the screen itself takes the focus when it is drawn with the keyboard on it (TmuxScreen, `keys`), so nothing here waits on a timer
   // the lease of the take-over and the number of the next batch of keys, per terminal: set by the take_over answer, advanced as batches are answered, asked again when the count is unknown
   const seat = useMemo(
@@ -266,6 +280,138 @@ export function TerminalSheet({
     said,
     startedMs: Date.now() - openedAt.current,
   });
+  const content = (
+    <>
+      <View style={[st.head, narrow && st.headNarrow]}>
+        {embedded ? null : <Icon name="terminal" size={16} color="var(--ink-2)" />}
+        {embedded ? null : (
+          <Text style={st.title} numberOfLines={1}>
+            {current ? sessionTitle(current) : "Terminal"}
+          </Text>
+        )}
+        {embedded ? null : (
+          <Text style={st.sub} numberOfLines={1}>
+            {owner}
+          </Text>
+        )}
+        <View style={{ flex: 1 }} />
+        {narrow && !embedded ? <TextButton label="Close" onPress={close} testID="terminal-popup-close" /> : null}
+        {watchOnly && !bar.title && !bar.action ? null : (
+          <View
+            testID="terminal-popup-bar"
+            style={[
+              st.bar,
+              narrow && st.barFull,
+              bar.tone === "wait" && st.barWait,
+              bar.tone === "bad" && st.barBad,
+              bar.tone === "mine" && st.barMine,
+            ]}
+          >
+            {bar.title ? (
+              <Text style={st.barBold} numberOfLines={1}>
+                {bar.title}
+              </Text>
+            ) : null}
+            {bar.note && (!narrow || bar.action === null) ? (
+              <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
+                {nudge ? "Press Take over to type." : bar.note}
+              </Text>
+            ) : null}
+            {bar.action === "take" ? (
+              <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
+            ) : null}
+            {bar.action === "ask" ? (
+              <TextButton
+                label="Take over"
+                primary
+                disabled={busy}
+                onPress={() => setAsking(true)}
+                testID="terminal-take"
+              />
+            ) : null}
+            {bar.action === "confirm" ? (
+              <>
+                <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
+                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
+              </>
+            ) : null}
+            {bar.action === "newtab" ? (
+              <TextButton label="New tab" primary disabled={busy} onPress={newTab} testID="terminal-newtab" />
+            ) : null}
+            {bar.action === "give" ? (
+              <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
+            ) : null}
+          </View>
+        )}
+        {mine && !narrow ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
+        {narrow || embedded ? null : <TextButton label="Close" onPress={close} testID="terminal-popup-close" />}
+      </View>
+      <View style={[st.body, narrow && { flexDirection: "column" }]}>
+        {sessions.length > 1 ? (
+          <View testID="terminal-rail" accessibilityRole="tablist" style={[st.rail, narrow && st.railTop]}>
+            {/* ui-rows-lint: not a list (the rail groups terminal tabs under an agent or person name; the groups are containers) */}
+            {groups.map((g) => (
+              <View key={g.key}>
+                <GroupHead name={g.name} tag={g.tag} agent={g.kind !== "person"} />
+                {/* ui-rows-lint: not a list (the terminal sessions are tabs of a tablist, not list rows) */}
+                {g.rows.map((s) => {
+                  const x = sessionWords(s, asleep);
+                  const on = s.terminalId === sel;
+                  return (
+                    <Pressable
+                      key={s.terminalId ?? s.name}
+                      accessibilityRole="tab"
+                      accessibilityLabel={`${s.name}, ${x.word}`}
+                      accessibilityState={{ selected: on }}
+                      testID={`rail-${s.name}`}
+                      onPress={() => (s.terminalId ? setSel(s.terminalId) : undefined)}
+                      style={[st.tab, on && st.tabOn]}
+                    >
+                      <Dot tone={x.dot} />
+                      <Text style={st.tabText} numberOfLines={1}>
+                        {sessionTitle(s)}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        ) : null}
+        <View testID="terminal-popup-screen" style={st.screen}>
+          {lines[sel] ? (
+            <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
+          ) : (
+            <TmuxScreen
+              key={sel}
+              call={data.call}
+              terminalId={sel}
+              keys={mine && !ended}
+              taking={takingRef}
+              seat={seat}
+              newKey={data.newKey}
+              onSaid={setSaid}
+              onHidden={(h) => {
+                setHiddenPrompt(h);
+                setReady(true);
+              }}
+              onUnsupported={() => {
+                // the line terminal draws what the host has at once: the start is over, whatever the workspace read still says
+                setReady(true);
+                setLines((m) => ({ ...m, [sel]: true }));
+              }}
+            />
+          )}
+        </View>
+      </View>
+    </>
+  );
+  if (embedded)
+    return (
+      <View testID="terminal-popup" accessibilityLabel={owner} style={st.fill}>
+        {content}
+      </View>
+    );
   return (
     <Overlay>
       <SheetScrim windowWidth={win.width} />
@@ -276,130 +422,14 @@ export function TerminalSheet({
         accessibilityLabel={owner}
         style={[st.veil, sheetFrame(win.width) as never]}
       >
-        <View style={[st.head, narrow && st.headNarrow]}>
-          <Icon name="terminal" size={16} color="var(--ink-2)" />
-          <Text style={st.title} numberOfLines={1}>
-            {current ? sessionTitle(current) : "Terminal"}
-          </Text>
-          <Text style={st.sub} numberOfLines={1}>
-            {owner}
-          </Text>
-          <View style={{ flex: 1 }} />
-          {narrow ? <TextButton label="Close" onPress={close} testID="terminal-popup-close" /> : null}
-          {watchOnly && !bar.title && !bar.action ? null : (
-            <View
-              testID="terminal-popup-bar"
-              style={[
-                st.bar,
-                narrow && st.barFull,
-                bar.tone === "wait" && st.barWait,
-                bar.tone === "bad" && st.barBad,
-                bar.tone === "mine" && st.barMine,
-              ]}
-            >
-              {bar.title ? (
-                <Text style={st.barBold} numberOfLines={1}>
-                  {bar.title}
-                </Text>
-              ) : null}
-              {bar.note && (!narrow || bar.action === null) ? (
-                <Text style={[st.barNote, nudge && st.barNudge]} numberOfLines={1}>
-                  {nudge ? "Press Take over to type." : bar.note}
-                </Text>
-              ) : null}
-              {bar.action === "take" ? (
-                <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take" />
-              ) : null}
-              {bar.action === "ask" ? (
-                <TextButton
-                  label="Take over"
-                  primary
-                  disabled={busy}
-                  onPress={() => setAsking(true)}
-                  testID="terminal-take"
-                />
-              ) : null}
-              {bar.action === "confirm" ? (
-                <>
-                  <TextButton label="Cancel" onPress={() => setAsking(false)} testID="terminal-take-cancel" />
-                  <TextButton label="Take over" primary disabled={busy} onPress={take} testID="terminal-take-confirm" />
-                </>
-              ) : null}
-              {bar.action === "newtab" ? (
-                <TextButton label="New tab" primary disabled={busy} onPress={newTab} testID="terminal-newtab" />
-              ) : null}
-              {bar.action === "give" ? (
-                <TextButton label="Give back" primary disabled={busy} onPress={give} testID="terminal-give" />
-              ) : null}
-            </View>
-          )}
-          {mine && !narrow ? <Text style={st.chord}>{"\u2318\u21E7. closes"}</Text> : null}
-          {narrow ? null : <TextButton label="Close" onPress={close} testID="terminal-popup-close" />}
-        </View>
-        <View style={[st.body, narrow && { flexDirection: "column" }]}>
-          {sessions.length > 1 ? (
-            <View testID="terminal-rail" accessibilityRole="tablist" style={[st.rail, narrow && st.railTop]}>
-              {/* ui-rows-lint: not a list (the rail groups terminal tabs under an agent or person name; the groups are containers) */}
-              {groups.map((g) => (
-                <View key={g.key}>
-                  <GroupHead name={g.name} tag={g.tag} agent={g.kind !== "person"} />
-                  {/* ui-rows-lint: not a list (the terminal sessions are tabs of a tablist, not list rows) */}
-                  {g.rows.map((s) => {
-                    const x = sessionWords(s, asleep);
-                    const on = s.terminalId === sel;
-                    return (
-                      <Pressable
-                        key={s.terminalId ?? s.name}
-                        accessibilityRole="tab"
-                        accessibilityLabel={`${s.name}, ${x.word}`}
-                        accessibilityState={{ selected: on }}
-                        testID={`rail-${s.name}`}
-                        onPress={() => (s.terminalId ? setSel(s.terminalId) : undefined)}
-                        style={[st.tab, on && st.tabOn]}
-                      >
-                        <Dot tone={x.dot} />
-                        <Text style={st.tabText} numberOfLines={1}>
-                          {sessionTitle(s)}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              ))}
-            </View>
-          ) : null}
-          <View testID="terminal-popup-screen" style={st.screen}>
-            {lines[sel] ? (
-              <TerminalTab key={sel} data={inner} terminalId={sel} readonly={!mine} />
-            ) : (
-              <TmuxScreen
-                key={sel}
-                call={data.call}
-                terminalId={sel}
-                keys={mine && !ended}
-                taking={takingRef}
-                seat={seat}
-                newKey={data.newKey}
-                onSaid={setSaid}
-                onHidden={(h) => {
-                  setHiddenPrompt(h);
-                  setReady(true);
-                }}
-                onUnsupported={() => {
-                  // the line terminal draws what the host has at once: the start is over, whatever the workspace read still says
-                  setReady(true);
-                  setLines((m) => ({ ...m, [sel]: true }));
-                }}
-              />
-            )}
-          </View>
-        </View>
+        {content}
       </View>
     </Overlay>
   );
 }
 
 const st = StyleSheet.create({
+  fill: { flex: 1, minHeight: 0 },
   veil: {
     position: "fixed" as never,
     top: 0,

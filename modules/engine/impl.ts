@@ -198,6 +198,7 @@ export const consumers = keptWhileStopping({
         "engine_thread_queue",
         "engine_thread_lease",
         "engine_waits",
+        "engine_turn_journal",
         "engine_agent_state",
         "engine_unblock",
         "engine_typed_message",
@@ -595,7 +596,7 @@ export const consumers = keptWhileStopping({
       }
       try {
         await openAs(ctx, p.threadId, person);
-        engine.wake(p.threadId, agentId);
+        engine.wake(p.threadId, agentId, { answers: p.taskId });
       } catch (e) {
         host.log?.("the agent was not woken after its held call was answered", {
           taskId: p.taskId,
@@ -760,6 +761,7 @@ const ENGINE_BY_THREAD = [
   "engine_thread_queue",
   "engine_thread_lease",
   "engine_waits",
+  "engine_turn_journal",
   "engine_agent_state",
   "engine_unblock",
   "engine_typed_message",

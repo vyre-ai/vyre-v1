@@ -25,6 +25,7 @@ import {
 } from "../projections.ts";
 import type { MailCtx, Party, Row } from "../projections.ts";
 import { htmlToText } from "../../../lib/mail-parse.ts";
+import { autoReason, noteAuto } from "./extra/inbound.ts";
 
 const SOURCES = new Set(["google", "microsoft", "imap", "resend", "mailgun"]);
 const PULL_SOURCES = new Set(["google", "microsoft", "imap"]);
@@ -210,13 +211,26 @@ export async function ingest(ctx: MailCtx, input: IngestIn): Promise<IngestOut> 
   notePull(ctx, box, parsed);
   const link = await settleLink(ctx, messageId, parsed, box);
   if (parsed.direction === "in") {
-    const payload: { messageId: string; mailboxId: string; from: string; subject: string; contactId?: string } = {
+    const payload: {
+      messageId: string;
+      mailboxId: string;
+      from: string;
+      subject: string;
+      contactId?: string;
+      auto?: boolean;
+    } = {
       messageId,
       mailboxId,
       from: parsed.from.address,
       subject: parsed.subject,
     };
     if (link?.contactId) payload.contactId = link.contactId;
+    // machine-made mail (an auto-reply, a delivery report, a list, a no-reply sender) is marked, so no Flow or agent answers it by itself and starts a loop
+    const machine = autoReason(parsed.headers, parsed.from.address);
+    if (machine) {
+      noteAuto(ctx, messageId, machine, parsed.from.address);
+      payload.auto = true;
+    }
     // Mail kept in the mailbox view is announced to the mailbox owner only.
     if (filingBlocked(box) || str(box, "privacy") === "private")
       ctx.emit("mail.received", `mailbox/${mailboxId}`, payload, { vis: "owner" });

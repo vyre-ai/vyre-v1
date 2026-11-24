@@ -1,6 +1,6 @@
 # connectors.define
 
-Say what a draft connector is in one call: the hosts it may reach, how it signs in (a secret slot the connection fills from a Vault handle), and its actions. A GET is a read; anything else must be marked write. Replaces the draft; nothing goes live until publish.
+Define a draft connector in one call: hosts, sign-in (key, bearer, basic, or a header template) and actions (paginate, health). A GET is a read, else write. Templates: {input.x}, {secret.X}, {input.x?}. Replaces the draft.
 
 | | |
 |---|---|
@@ -29,21 +29,44 @@ type In = {
   title?: string;
   domains: Array<string>;
   auth: {
-    type: "none" | "api_key" | "bearer";
+    type: "none" | "api_key" | "bearer" | "basic" | "header";
     secret?: string;
     header?: string;
     prefix?: string;
+    user?: string;
+    password?: string;
+    template?: string;
   };
   secrets?: Array<{
       name: string;
       description: string;
     }>;
+  health?: string;
+  rate?: {
+    rps: number;
+    burst: number;
+  };
   actions: Array<{
       name: string;
       method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
       url: string;
       headers?: Record<string, string>;
       query?: Record<string, string>;
+      body?: unknown;
+      form?: Record<string, string>;
+      basic?: {
+        user: string;
+        pass?: string;
+      };
+      paginate?: {
+        kind: "page" | "cursor" | "offset" | "link";
+        param?: string;
+        next?: string;
+        items: string;
+        id: string;
+        size?: number;
+        start?: number;
+      };
       output?: string;
       write?: boolean;
     }>;
@@ -78,10 +101,25 @@ type Out = {
   "input": {
     "actions": [
       {
+        "basic": {
+          "pass": "example",
+          "user": "example"
+        },
+        "body": {},
+        "form": {},
         "headers": {},
         "method": "GET",
         "name": "example",
         "output": "example",
+        "paginate": {
+          "id": "example",
+          "items": "example",
+          "kind": "page",
+          "next": "example",
+          "param": "example",
+          "size": 1,
+          "start": 1
+        },
         "query": {},
         "url": "example",
         "write": true
@@ -89,14 +127,22 @@ type Out = {
     ],
     "auth": {
       "header": "example",
+      "password": "example",
       "prefix": "example",
       "secret": "example",
-      "type": "none"
+      "template": "example",
+      "type": "none",
+      "user": "example"
     },
     "domains": [
       "example"
     ],
+    "health": "example",
     "key": "hubspot",
+    "rate": {
+      "burst": 1,
+      "rps": 1
+    },
     "secrets": [
       {
         "description": "example",

@@ -1,0 +1,1 @@
+A one-time-code field is filled with the current RFC 6238 code, computed in the Vault from the seed (SHA1, SHA256 or SHA512, any digits and period the otpauth address names), waiting for the next window when under 5 seconds remain; the seed never reaches the page, the agent, a tool answer or a log.

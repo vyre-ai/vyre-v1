@@ -25,8 +25,10 @@ Area: agents. Risk: medium. Applies to: computer.
 - computers.chrome.net
 - computers.chrome.open
 - computers.chrome.plan
+- computers.chrome.read
 - computers.chrome.resume
 - computers.chrome.screenshot
+- computers.chrome.search
 - computers.chrome.send
 - computers.chrome.snapshot
 - computers.chrome.sources

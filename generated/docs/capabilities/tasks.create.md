@@ -1,6 +1,6 @@
 # tasks.create
 
-Create a task of any kind (Work by default); Approve, Review, Answer and Unblock requests come from the Gate, agents and Journeys
+Create a task
 
 | | |
 |---|---|
@@ -65,6 +65,8 @@ type In = {
   parentTaskId?: string;
   dependsOn?: Array<string>;
   expiresAt?: number;
+  relevantUntil?: number;
+  doneWhen?: string;
   actions?: Array<{
       key: string;
       label: string;
@@ -129,6 +131,7 @@ type Out = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -143,6 +146,16 @@ type Out = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
+    archived?: {
+      at: number;
+      by: string;
+      code: "hand" | "asked" | "passed" | "gone" | "quiet";
+      why: string;
+    };
   };
 };
 ```
@@ -187,6 +200,7 @@ type Out = {
     "dependsOn": [
       "tsk_a1b2c3"
     ],
+    "doneWhen": "vault_item:Hosting key",
     "due": 1760000000000,
     "effort": 1,
     "expiresAt": 1760000000000,
@@ -208,6 +222,7 @@ type Out = {
       "every": "day",
       "n": 1
     },
+    "relevantUntil": 1760000000000,
     "reviewer": {
       "id": "usr_a1b2c3",
       "kind": "person"
@@ -234,6 +249,12 @@ type Out = {
         "id": "usr_a1b2c3",
         "kind": "person"
       },
+      "archived": {
+        "at": 1760000000000,
+        "by": "usr_a1b2c3",
+        "code": "hand",
+        "why": "example"
+      },
       "assigned": {
         "id": "usr_a1b2c3",
         "kind": "person"
@@ -251,6 +272,10 @@ type Out = {
       "dependsOn": [
         "tsk_a1b2c3"
       ],
+      "doneWhen": {
+        "key": "example",
+        "kind": "vault_item"
+      },
       "due": 1760000000000,
       "effort": 1,
       "expiresAt": 1760000000000,
@@ -274,6 +299,7 @@ type Out = {
         "every": "day",
         "n": 1
       },
+      "relevantUntil": 1760000000000,
       "reviewLoops": 1,
       "reviewer": {
         "id": "usr_a1b2c3",

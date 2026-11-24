@@ -4,7 +4,7 @@
 //   Vyre publishes to. It never falls back to a bare `vyre/...` name: with no registry host Docker would look for that on Docker Hub, where the namespace is not Vyre's.
 //   A caller that gives no version (a unit test of a seam) gets the local build name, which is used only when it is already on the computer and is never fetched
 //   (sandbox/src/docker.ts fetchableImage; the runner refuses the same fetch in sites-runner/policy.ts).
-export type ReleaseImage = "agent-workspace" | "vyre-browser" | "agent-computer";
+export type ReleaseImage = "agent-workspace" | "vyre-browser" | "agent-computer" | "doc-converter";
 
 export const OWN_REGISTRY = "ghcr.io/vyre-ai";
 /** The names a local build has (images/*: `docker build -t ...`). Never fetched. */
@@ -12,6 +12,7 @@ export const LOCAL_IMAGE: Record<ReleaseImage, string> = {
   "agent-workspace": "vyre/agent-workspace:1",
   "vyre-browser": "vyre/space-browser:1",
   "agent-computer": "vyre/agent-computer:1",
+  "doc-converter": "vyre/doc-converter:1",
 };
 
 // a Docker tag: letters, digits, underscore, dot and dash, at most 128, not starting with a dot or dash. A version with build metadata (`+...`) is not one.

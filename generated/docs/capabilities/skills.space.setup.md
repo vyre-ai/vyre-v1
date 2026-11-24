@@ -11,13 +11,13 @@ Console: give the tool servers of a Space skill their Vault keys
 | Grant level | manage |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |
 | Team Space only | no |
 | HTTP | POST /v1/skills/space/setup |
-| MCP tool | none |
+| MCP tool | skills_space_setup (engineer, deferred) |
 | CLI | none |
 | Emits | skill.changed |
 

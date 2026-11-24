@@ -23,6 +23,9 @@ registerShellPlaces();
 /** /claim/<token>: the first screen on a fresh install (ruling 71). Loaded only when that address is opened. */
 const OAuthRoute = lazyPart(() => import("../oauth/OAuthRoute.tsx").then((m) => ({ default: m.OAuthRoute })));
 const AllowRoute = lazyPart(() => import("../oauth/AllowRoute.tsx").then((m) => ({ default: m.AllowRoute })));
+const ConnectChromeRoute = lazyPart(() =>
+  import("../chrome-connect/ConnectChromeRoute.tsx").then((m) => ({ default: m.ConnectChromeRoute })),
+);
 const ClaimRoute = lazyPart(() => import("../claim/ClaimRoute.tsx").then((m) => ({ default: m.ClaimRoute })));
 
 const currentPath = (): string => (globalThis as { location?: { pathname?: string } }).location?.pathname ?? "/";
@@ -99,6 +102,13 @@ function AppRoute(): ReactElement {
     return (
       <Suspense fallback={<Opening />}>
         <AllowRoute />
+      </Suspense>
+    );
+  // /chrome/connect: Vyre for Chrome sent the person here to connect straight to this Space; the normal sign-in, then the one press
+  if (path === "/chrome/connect")
+    return (
+      <Suspense fallback={<Opening />}>
+        <ConnectChromeRoute />
       </Suspense>
     );
   if (token) {

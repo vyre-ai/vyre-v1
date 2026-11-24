@@ -1,0 +1,1 @@
+The subagents a Claude Code agent starts now keep what they said and what they used on their own record in the run tree, nested ones under the one that started them, without any of it appearing in the chat.

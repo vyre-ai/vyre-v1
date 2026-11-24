@@ -17,7 +17,7 @@ Continue a waiting Run
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/runs/resume |
-| MCP tool | none |
+| MCP tool | runs_resume (automations, deferred) |
 | CLI | none |
 | Emits | run.resumed |
 

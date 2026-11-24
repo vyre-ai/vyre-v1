@@ -1,0 +1,1 @@
+- The agent computer's step list: the dot before each step now has the same 8 px gap from the title that a Row puts before a trailing mark.

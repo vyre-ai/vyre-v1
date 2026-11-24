@@ -6,6 +6,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import {
   OWNER_LEFT,
+  announceNames,
   announcePrivacy,
   onFileVersion,
   onDisplayNameChanged,
@@ -65,6 +66,12 @@ export const periodic = {
     everyMs: 60 * 60_000,
     immediate: true,
     run: (ctx: AgentsCtx): Promise<string[]> => announcePrivacy(ctx),
+  },
+  /** At boot and every 15 minutes: an agent whose access principal carries an older name is told its current one (agent.renamed). */
+  "agents.names_to_access": {
+    everyMs: 15 * 60_000,
+    immediate: true,
+    run: (ctx: AgentsCtx): Promise<string[]> => announceNames(ctx),
   },
   "agents.agent_md_upgrade": {
     everyMs: 15 * 60_000,

@@ -11,6 +11,7 @@ HTTP 422. Retryable: no.
 - dropbox.files.download
 - dropbox.files.upload
 - files.create
+- files.create_many
 - files.read
 - files.upload_url
 - files.write

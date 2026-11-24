@@ -11,7 +11,7 @@ Mark a mailbox private, shared with the Space or shared with chosen people
 | Grant level | manage |
 | Risk | medium |
 | Resource | mailbox (/mailboxId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

@@ -1,6 +1,6 @@
 # esign.send
 
-Send a PDF for signature; built-in signing returns a link per signer and emails it when the Space can
+Send a PDF for signature
 
 | | |
 |---|---|
@@ -35,6 +35,7 @@ type In = {
   provider?: "vyre" | "documenso" | "dropbox_sign" | "docusign";
   message?: string;
   places?: Array<unknown>;
+  plainOk?: boolean;
   expiresInDays?: number;
   idempotencyKey: string;
 };
@@ -82,6 +83,7 @@ type Out = {
     "places": [
       {}
     ],
+    "plainOk": true,
     "provider": "vyre",
     "recordId": "rec_a1b2c3",
     "signers": [

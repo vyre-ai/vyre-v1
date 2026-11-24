@@ -111,6 +111,8 @@ export async function launch(
     incognito?: boolean;
     agent?: boolean;
     daemon?: { url: string; token: string };
+    /** No native messaging host in the profile: a Chrome on a computer with no Vyre app. */
+    noHost?: boolean;
   } = {},
 ) {
   const why = extensionChromeProblem(found);
@@ -180,7 +182,7 @@ export async function launch(
     .readFileSync(path.join(ROOT, "src/worker/native/run.vyre.bridge.json"), "utf8")
     .replace("__HOST_PATH__", launcher)
     .replace("__EXTENSION_ID__", EXT_ID);
-  fs.writeFileSync(path.join(profile, "NativeMessagingHosts", "run.vyre.bridge.json"), hostManifest);
+  if (!o.noHost) fs.writeFileSync(path.join(profile, "NativeMessagingHosts", "run.vyre.bridge.json"), hostManifest);
 
   // "Allow in Incognito", as a person turns it on at chrome://extensions, seeded in the profile before Chromium starts.
   if (o.incognito) {

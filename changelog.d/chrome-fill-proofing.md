@@ -1,0 +1,1 @@
+A Vault fill goes only into a frame of the page's own site (never an embedded page of another site), and a fill whose page changed or whose Space went away puts nothing anywhere and leaves no handle behind.

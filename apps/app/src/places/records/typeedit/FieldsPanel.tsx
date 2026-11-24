@@ -27,6 +27,9 @@ import {
   moveFieldOps,
   renameFieldOps,
   requiredOps,
+  isMergeable,
+  mergeableBlocked,
+  mergeableOps,
   retypeBlocked,
   retypeFieldOps,
   retypeTarget,
@@ -927,6 +930,12 @@ function FieldEdit({
             testID={`panel-required-${f.key}`}
             off={type.system ? "Built in fields keep this setting" : change.busy ? true : undefined}
             onPress={() => run(requiredOps(type.key, f.key, f.required !== true))}
+          />
+          <TextButton
+            label={isMergeable(f) ? "Can go in emails: on" : "Can go in emails: off"}
+            testID={`panel-mergeable-${f.key}`}
+            off={mergeableBlocked(f) ?? (change.busy ? true : undefined)}
+            onPress={() => run(mergeableOps(type.key, f, !isMergeable(f)))}
           />
           <TextButton
             label="Move up"

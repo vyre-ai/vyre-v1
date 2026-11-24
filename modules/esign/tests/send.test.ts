@@ -23,6 +23,7 @@ import {
   dana,
   fromBase64,
   harness,
+  toBase64,
   refused,
 } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
@@ -165,6 +166,80 @@ test("send: the PDF goes to the provider with normalised signers, an envelope an
       ],
     ],
   );
+});
+
+test("send: a version uploaded between the exact-copy check and the read of the bytes never reaches the hosted provider", async () => {
+  const h = harness();
+  let version = 1;
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: PDF.length,
+      version,
+    },
+  }));
+  // the check passes on version 1, and a new version lands while it runs
+  h.callee("documents.signing", () => {
+    version = 2;
+    return { checkedVersion: "1", signers: [], places: [] };
+  });
+  const e = await send(h).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.provider.created.length, 0, "the provider was never called");
+  assert.equal(h.rows("esign_envelope").length, 0, "no envelope was kept");
+  // the head holds still: the same send reaches the provider with the bytes that were checked
+  h.callee("documents.signing", () => ({ checkedVersion: String(version), signers: [], places: [] }));
+  await send(h, { idempotencyKey: "k2" });
+  assert.equal(h.provider.created.length, 1);
+  assert.deepEqual([...h.provider.created[0]!.pdf], [...PDF]);
+});
+
+test("send: the bytes the check read are the bytes that go: others in place when the send reads never reach the hosted provider, and an answer that names nothing pins nothing", async () => {
+  const h = harness();
+  const later = new Uint8Array([...PDF, 10, 32]);
+  let bytes: Uint8Array = PDF;
+  const sha = async (b: Uint8Array) =>
+    Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", b as Uint8Array<ArrayBuffer>)), (x) =>
+      x.toString(16).padStart(2, "0"),
+    ).join("");
+  h.callee("files.get", (i: { fileId: string }) => ({
+    file: {
+      fileId: i.fileId,
+      folderId: FOLDER,
+      name: "Retainer.pdf",
+      kind: "pdf",
+      mime: "application/pdf",
+      size: PDF.length,
+    },
+  }));
+  h.callee("files.read", () => ({
+    base64: toBase64(bytes),
+    mime: "application/pdf",
+    size: bytes.length,
+    truncated: false,
+  }));
+  h.callee("documents.signing", async () => {
+    const seen = await sha(bytes);
+    bytes = later;
+    return { checkedSha256: seen, signers: [], places: [] };
+  });
+  const e = await send(h).catch((x) => x);
+  assert.equal(e.error.code, "validation.version_conflict");
+  assert.equal(h.provider.created.length, 0, "the provider was never called");
+  assert.equal(h.rows("esign_envelope").length, 0);
+  // a check that ran and named nothing pins nothing: refused
+  h.callee("documents.signing", () => ({ unchecked: true, signers: [], places: [] }));
+  const e2 = await send(h, { idempotencyKey: "k2", plainOk: true }).catch((x) => x);
+  assert.equal(e2.error.code, "validation.precondition_failed");
+  assert.equal(h.provider.created.length, 0, "nothing was pinned, so the provider was never called");
+  // an exact answer that names nothing means no check had anything to compare: the send goes out
+  h.callee("documents.signing", () => ({ signers: [], places: [] }));
+  await send(h, { idempotencyKey: "k3" });
+  assert.equal(h.provider.created.length, 1);
 });
 
 test("send: an agent sends for the person it works for; a service sender gets no task; the record id is optional", async () => {
@@ -358,7 +433,7 @@ test("fetch_signed: refuses until everyone signed, then saves the signed PDF as 
   assert.equal(h.created.length, 0, "Documenso embeds its certificate, so there is no second file");
   assert.deepEqual(
     h.events.map((e) => [e.name, e.payload]),
-    [["signature.signed", { envelopeId, fileId: FILE }]],
+    [["signature.signed", { envelopeId, fileId: FILE, recordId: RECORD }]],
   );
   assert.deepEqual(
     h.callsTo("tasks.transition").map((c) => [c.input.taskId, c.input.to]),

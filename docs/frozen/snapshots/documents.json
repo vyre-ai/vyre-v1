@@ -1,14 +1,17 @@
 {
   "module": "documents",
   "capabilities": {
-    "documents.fields@1": "c0b8bc3bd02030e8fa9bb4e88a826711219f9368d398b312209a13bab656f7a7",
-    "documents.fill@1": "7876e57b8c41ce86b670215219f81b93054b1c14e90136f872c2608c6cf5bf76",
-    "documents.mark_template@1": "5119bcd0698f0fef784edacb5d5a87cd54ac655b85ac0b6214fa89788e5141cf",
-    "documents.preview_fill@1": "64d17d00db438f7794fad07c3365318b7779936e274eddb51fb6a7650a97f305",
-    "documents.templates.list@1": "9314b1620358b699bd60ca26995c58c44f21c122cf44bf5b917b4bc0df88860c"
+    "documents.fields@1": "c9aa97dc410bf34b70b70c2f35ce61bda98217e680ffd4c50d17a8fef80fd04a",
+    "documents.fill@1": "650652ee88ad4441eed360d1596c2f1b8b7bf57d114276a8a5b75666c267f281",
+    "documents.make@1": "81467f005dbe7bf99fa36c40c92a76ae670c163bb0c3d2df3ab17d6e63e3ae32",
+    "documents.make_pdf@1": "2ef1ebd7a2d5515e44083086822790a3f79e9b8041b6c01e829eca7d135a6804",
+    "documents.mark_template@1": "a2e083036a5009d3174f1b771f174c808d028d9cc04eba411beddf864a78ff60",
+    "documents.preview_fill@1": "e110a3f2a2340fb331850102881bca29b016f3b7b431c56eca3e4576f3db36c8",
+    "documents.signing@1": "b90c59e31a4145c6f139826fd8e0559e1d4a401e718c11daabab000acc570b8d",
+    "documents.templates.list@1": "9ed45d48c69c3d980b7ebd7e82ef0e04f4adf2c7eee4b71a29396d6c449697e0"
   },
   "events": {
     "document.filled": "e61945f4acf1690b0f5ebfb8b433478d2ca70568a48e57c5688d73078d5e008a",
-    "document.template_marked": "e8e435dcdbeebfb8fc08e03e06dd216205c4bf18b4fc2cc0dc7812cd6f0e004b"
+    "document.template_marked": "a4782469f2a506ab702b6de42e9a5940369ecaab21a8326d93d07757d01a7523"
   }
 }

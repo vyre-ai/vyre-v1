@@ -6,7 +6,7 @@
 // Each is answered {t:"ack",seq,x,y,ms} once the browser has the input, or {t:"refused",seq,reason}.
 import { randomBytes } from "node:crypto";
 import { createServer } from "node:http";
-import type { Server } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Cdp } from "../../agent-computer/agentd/cdp.ts";
 import { sleep } from "../../agent-computer/agentd/errors.ts";
 import { acceptWebSocket } from "../../agent-computer/agentd/ws.ts";
@@ -275,6 +275,8 @@ export interface ViewDeps {
   viewOf(profileId: string): ViewOf | null;
   /** A person's view of a profile opened or closed: what they saw (a takeover later says whether the page was reloaded since). */
   seen?(profileId: string, personId: string): void;
+  /** The control line on the same port (control.ts): true when the request was its own and has been answered. */
+  control?(req: IncomingMessage, res: ServerResponse): boolean;
 }
 
 export function startViewServer(d: ViewDeps): ViewServer {
@@ -306,6 +308,7 @@ export function startViewServer(d: ViewDeps): ViewServer {
       res.writeHead(400, { "content-type": "text/plain", connection: "close" }).end("Bad request.\n");
       return;
     }
+    if (d.control?.(req, res)) return;
     const url = safeUrl(req.url, "http://browserd");
     if (url.pathname === "/stream") {
       const got = open(url.searchParams.get("t"));

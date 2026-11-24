@@ -1,0 +1,1 @@
+A press on a button of the agent's bar (Take over, Stop, Give back, Resume, End, Open Vyre) acts when it goes down, not when it is let go, so a bar that is redrawn and moves under the pointer no longer loses it.

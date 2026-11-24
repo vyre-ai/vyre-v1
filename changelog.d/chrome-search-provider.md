@@ -1,0 +1,1 @@
+A Space can choose its web search for agents in Console, Settings: the key-less default, or Brave Search or Bing with a key kept in the Vault. When the default is refused, search says it is not answering and points to Console.

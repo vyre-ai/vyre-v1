@@ -1,0 +1,1 @@
+- The desk says "Offline" with a plain line while the window has no network, instead of "Watching" over a stopped picture. A paste into the terminal screen reaches the terminal once, only for whoever holds the keyboard, and the terminal screen takes its colours from the page's own light or dark theme.

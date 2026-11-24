@@ -1,6 +1,6 @@
 # mail.thread.get
 
-Read one email thread whole: every message you may see, oldest first, with quoted history and signatures apart, Gmail reactions on the message they answer, and your role (you started it, To, Cc, or added later)
+Read one email thread whole, oldest first, with your role in it
 
 | | |
 |---|---|

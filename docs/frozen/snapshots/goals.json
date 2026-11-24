@@ -3,8 +3,8 @@
   "capabilities": {
     "goals.activity@1": "ebc37924f1b9009bb08e242d2b46b869cb707a5155c98e0eea9e2c178ebad7ee",
     "goals.ask@1": "1bfda0f0d03a7c61f7074bd89be5f8aa71ed9d86507b9bcdbf64bb5cf9e09a18",
-    "goals.brief@1": "277cb78316c9c57bbe77b8d34007b3078231ea70f4aad66d11811b98a4cef104",
-    "goals.checklist.tick@1": "1f701c0a78afe3ae6a0d1995beae13e7823cba94c005d2a98e9eb35f415d77d5",
+    "goals.brief@1": "02ddd0ead8ec46966b8ebbe631c953a5d5770cf56724c46812b386ea864d91fc",
+    "goals.checklist.tick@1": "40d0d1d29192aecf98a22d97549fed7f3237b3f310c141989f6c602f13fb6cbf",
     "goals.complete@1": "a74cadd099d2ea62d6c40a12f6ea4ed47e910b33ec85e4878a515f9d85e8fcbb",
     "goals.confirm@1": "432acbe73deb57b803aea45632cca6a34cd98cf4c6d5b1ba06fd1c97534f331a",
     "goals.count@1": "a5d410e405c14a20148eb39e82344a49e1ee185a420b10e1c37c18d7a39b1c34",

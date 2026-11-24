@@ -1,3 +1,6 @@
+import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { protectionHolds } from "../../../lib/key-target.ts";
+import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
 import { activeCodeBuiltins } from "../../../lib/builtin-connectors.ts";
 import { threadHome, threadMoveInto, underChannelOf } from "../gateway/resources.ts";
@@ -58,7 +61,9 @@ import {
 } from "../routes/site-host.ts";
 import { createArtifactHostRoute, HOST_CHECK_PATH } from "../routes/artifact-host.ts";
 import type { SiteHostDeps } from "../routes/site-host.ts";
-import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf } from "../caddy/index.ts";
+import { CaddyAdmin, CaddyError, CaddyRouter, ingressHostOf, startAccessSink } from "../caddy/index.ts";
+import type { AccessSink } from "../caddy/index.ts";
+import { blobReadCheck } from "../routes/blobs.ts";
 import type { PublicFormView } from "../routes/forms-page.ts";
 import { deferredCaps, deferredModules } from "../routes/deferred.ts";
 import { hostServices, invokeRunner } from "../ctx/services.ts";
@@ -193,7 +198,15 @@ import { endOfDeadJob } from "./dead-jobs.ts";
 import { loopLag } from "../scheduler/looplag.ts";
 import { Supervisor } from "../supervisor/index.ts";
 import type { RunningUnit, ServiceSpec, UnitExit } from "../supervisor/index.ts";
-import { createGateHook, moduleFetches, moduleOutward, moduleWhens, ownAddress, payloadHash } from "./gate-hook.ts";
+import {
+  createGateHook,
+  pinnedDeploy,
+  moduleFetches,
+  moduleOutward,
+  moduleWhens,
+  ownAddress,
+  payloadHash,
+} from "./gate-hook.ts";
 import { SIGN_IN_FOLDER } from "../../../lib/company-keys.ts";
 import { bindPayloadHash } from "../../../lib/payload-hasher.ts";
 import { withGateNesting } from "./gate-nesting.ts";
@@ -263,6 +276,7 @@ import { relayVersionWatch, storeInfo } from "./relay-version.ts";
 import { runDoctor } from "./doctor.ts";
 import { createLocalWork, createLocalWorkRoute } from "../routes/local-work.ts";
 import { createChromeAgentsRoute } from "../routes/chrome-agents.ts";
+import { createChromeDirectRoute } from "../routes/chrome-direct.ts";
 import { bindPersonalChrome } from "../../../lib/personal-chrome.ts";
 import { createBridgePort } from "../../../lib/personal-chrome-bridge.ts";
 import { composePorts, createRemotePort } from "../../../lib/personal-chrome-remote.ts";
@@ -274,6 +288,9 @@ import type { WebhookAccept } from "../routes/webhooks.ts";
 import { sha256b64 } from "../../../kernel/src/seal/index.ts";
 import { createLocalKeyRoute } from "../routes/local-key.ts";
 import { createMcpRoute } from "../routes/mcp.ts";
+import { takeVisitor } from "../seams/visitor-proof.ts";
+import { errorLine, guardRequest, guardUpgrade, installRejectionBackstop } from "./safe-request.ts";
+import type { OnError } from "./safe-request.ts";
 import type { McpRuntime } from "../routes/mcp.ts";
 import { createKeyring } from "../seams/keyring.ts";
 import { privateKeyOf, publicKeyOf } from "../seams/person-keys.ts";
@@ -301,7 +318,7 @@ import { createGitProxy } from "../seams/git-proxy.ts";
 import type { GitProxyPort } from "../seams/git-proxy.ts";
 import { createProviderProbe, createVaultService, refuseModelAddress, resolveVaultItem } from "../seams/vault.ts";
 import type { PostFetch } from "../seams/events-ports.ts";
-import { createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
+import { createDocumentsHost, createPushPort, defaultFetch, wireSeams } from "../seams/index.ts";
 import { createPortalHost } from "../seams/comms.ts";
 import { createUpdatesHost } from "../seams/updates.ts";
 import type { PushTransportDeps, SeamDeps, SeamDriver, SeamSetters, VaultPort, WiredSeams } from "../seams/index.ts";
@@ -336,6 +353,7 @@ import {
   ownPlaceGrant,
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
+import { announcementSeed, announcementSpec, replayAnnouncements } from "./record-announce.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -659,6 +677,7 @@ export interface DaemonOptions {
     hooks?: number;
     sweep?: number;
     sitesPush?: number;
+    sitesOps?: number;
   };
 }
 
@@ -1105,6 +1124,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const ingressContainer = (): string | undefined =>
     process.env["VYRE_INGRESS_CONTAINER"] ?? (fs.existsSync("/.dockerenv") ? process.env["HOSTNAME"] : undefined);
   let sitesTick: () => Promise<void> = () => Promise.resolve();
+  /** site logs, CPU and memory, jobs and workers (modules/sites/ops): a short tick of its own, since a log is followed live */
+  let sitesOps: () => Promise<void> = () => Promise.resolve();
+  let sitesTickRunning = false;
+  let sitesTickAgain = false;
+  /** Run the sites tick now. One at a time: a call while one runs asks for one more run after it, however many calls came. */
+  const nudgeSites = (): void => {
+    if (sitesTickRunning) {
+      sitesTickAgain = true;
+      return;
+    }
+    sitesTickRunning = true;
+    void (async () => {
+      try {
+        do {
+          sitesTickAgain = false;
+          await sitesTick().catch(() => undefined);
+        } while (sitesTickAgain);
+      } finally {
+        sitesTickRunning = false;
+      }
+    })();
+  };
   const siteHostRoute = createSiteHostRoute({
     own: (h) => siteHosts?.own(h) ?? true,
     site: (h) => siteHosts?.site(h) ?? null,
@@ -1462,6 +1503,26 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   const composedChrome = composePorts(chromePort.port, remoteChrome.port);
   bindPersonalChrome(composedChrome);
   closers.push(() => bindPersonalChrome(null));
+  // Vyre for Chrome connected straight to this Space, with no Vyre app on the person's computer (routes/chrome-direct.ts): a socket per signed-in extension, every call made as
+  // that person through this daemon's own gateway. The admin token is never a session here.
+  let chromeSession: (t: string) => import("../../../lib/chrome-socket.ts").DirectSession | null = () => null;
+  let chromeSpaceName: () => Promise<string> = () => Promise.resolve(cfg.spaceName ?? "Space");
+  const chromeDirect = createChromeDirectRoute({
+    resolve: (t) => chromeSession(t),
+    spaceName: () => chromeSpaceName(),
+    address: () => spaceBase(),
+    gateway: () => `http://${/^(0\.0\.0\.0|::|\[::\])$/.test(cfg.host) ? "127.0.0.1" : cfg.host}:${boundPort}`,
+    appVersion: cfg.version,
+    onEvent: (s, e) =>
+      sink.log({
+        space: s.space,
+        level: 20,
+        msg: "chrome.agent_event",
+        place: "chrome-direct",
+        attrs: { event: e.event, agent: typeof e["agent"] === "string" ? e["agent"] : "" },
+      }),
+  });
+  closers.push(() => chromeDirect.close());
   const chromeAgentsRoute = createChromeAgentsRoute({
     token,
     optIn: (spaces) => chromeBridge.optIn(spaces, "personal"),
@@ -1665,6 +1726,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
   /** Starts the pass that gives everyone who has none their Personal calendar; set with ensurePersonalCalendar, run once the daemon serves (never holds the start up). */
   let startPersonalCalendars: () => void = () => {};
+  /** After a stop between a record and its announcement (host/src/daemon/record-announce.ts): the missing record.created events are made once the daemon serves. */
+  let startRecordAnnouncements: (startedAtMs: number) => void = () => {};
+  let announceSweep: Promise<void> = Promise.resolve();
   let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
@@ -2511,7 +2575,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       );
       webhooks = {
         has: (c) => acceptors.has(c),
-        accept: (c, a) => hookRunner.call(`${c}.accept_webhook`, a),
+        accept: async (c, a) => {
+          const out = await hookRunner.call(`${c}.accept_webhook`, a);
+          // a delivery that asks for work is run now, not at the next minute (one tick at a time: one that is running is not stacked)
+          if (c === "sites" && (out as { nudge?: boolean } | null)?.nudge === true) nudgeSites();
+          return out;
+        },
         automation: (a) => hookRunner.call("automations.accept_hook", a),
       };
       computePoll = (credential, report) =>
@@ -3202,6 +3271,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 },
                 unseal: (s) => seal.unseal(s),
                 now,
+                // a held deploy that names no commit is pinned to the branch's head at hold time
+                pin: pinnedDeploy(() => keyHostCallAs),
                 evaluators: moduleWhens(
                   loaded.moduleExports,
                   () => db,
@@ -4166,7 +4237,48 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         personalSweep = Promise.all([worker(), worker(), worker(), worker()]).then(() => undefined);
       };
-      startupWork = () => personalSweep;
+      startRecordAnnouncements = (startedAtMs: number) => {
+        if (loaded.serving.get("records") !== "live") return;
+        announceSweep = replayAnnouncements({
+          spaceDb: spaceStorePath(paths.root),
+          eventsDb: paths.events,
+          markFile: path.join(paths.root, "records-announced.seq"),
+          startedAt: startedAtMs,
+          exists: (id) => access.snap.info(id) !== null,
+          spaceOwner: () => access.owner() ?? null,
+          commit: (p, who) =>
+            invoke.commitEvents!(
+              "records.bulk_upsert",
+              { type: p.type },
+              announcementSeed(
+                p,
+                spaceId,
+                Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) =>
+                  b.toString(16).padStart(2, "0"),
+                ).join(""),
+                who,
+              ) as never,
+              [announcementSpec(p) as never],
+              { depth: p.depth ?? 0 },
+            ),
+          say: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "boot", attrs }),
+        })
+          .then((made) => {
+            if (!made) return;
+            void hookRunner.pump().catch(() => undefined);
+            void projectionRunner.pump().catch(() => undefined);
+          })
+          .catch((e: unknown) =>
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "records.announce_sweep_failed",
+              place: "boot",
+              attrs: { error: e instanceof Error ? e.message : String(e) },
+            }),
+          );
+      };
+      startupWork = () => Promise.all([personalSweep, announceSweep]).then(() => undefined);
       closers.push(() => {
         personalStopped = true;
         return personalSweep;
@@ -5038,6 +5150,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sink.log({ space: spaceId, level: 30, msg, place: "notifications", ...(attrs ? { attrs } : {}) }),
       });
       const hostDrivers: Record<string, SeamDriver> = {
+        // Word to PDF: LibreOffice where this machine has it, else the converter image through the machine's Docker engine, or on a Team server through the sites runner (which alone holds the socket and lets
+        // only the converter image run); nothing where neither answers, and the module then sets the words in its plain look
+        configureDocuments: () =>
+          createDocumentsHost(
+            cfg.spaceKind !== "personal" && computersRunnerSocket()
+              ? { runner: { socket: computersRunnerSocket() as string, token: computersRunnerToken } }
+              : {},
+          ),
         // sealed fields in Records: values live in the Vault, in a Space owned folder; the folder belongs to the Space owner so the owner can reveal what is in it
         // (schema seals an existing field through the same Vault, so both setters get one driver)
         setRecordsVault: () => sealedVault(),
@@ -5235,6 +5355,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             fetch: d.fetch,
             blobs: { put: async (bytes, type) => (await blobs.forModule("backup").put(bytes, type)).id },
             secrets: () => [token],
+            backupDir: process.env["VYRE_BACKUP_DIR"],
           }),
         // the Run executor: the plan and the step runner for a Run come from the Automation and steps-core through their host calls (P-L6_24)
         setRunsHost: () => runsHost,
@@ -5482,6 +5603,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           void checkWildcard().catch(() => undefined);
           sitesTick = async () => {
             await checkWildcard();
+            await ensureAccessLog().catch((e: unknown) =>
+              sink.log({
+                space: spaceId,
+                level: 40,
+                msg: "sites.access_log_pending",
+                place: "sites",
+                attrs: { why: e instanceof Error ? e.message.slice(0, 160) : "" },
+              }),
+            );
             if (sitesCaddy)
               for (const x of hostsOf()) {
                 try {
@@ -5496,31 +5626,172 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                   });
                 }
               }
-            const autos =
+            // what a verified GitHub delivery left (a preview to build or remove), run as whoever deployed the site last so the Vault checks their access
+            const pushes =
               (
-                sitesExports?.["autoDeploySites"] as
-                  | ((c: { db: unknown }) => { siteId: string; as: string }[])
+                sitesExports?.["pendingPushes"] as
+                  | ((c: {
+                      db: unknown;
+                    }) => { id: string; siteId: string; branch: string; action: string; as: string }[])
                   | undefined
               )?.({ db: db! }) ?? [];
-            for (const a of autos) {
+            for (const a of pushes) {
               const r = await invoke(
-                "sites.deploy",
-                { siteId: a.siteId, onlyIfChanged: true },
+                a.action === "remove" ? "sites.preview_remove" : "sites.preview_rebuild",
+                { siteId: a.siteId, branch: a.branch },
                 {
                   space: spaceId,
                   principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
                   origin: "sites-push",
                 },
               ).catch((e: unknown) => ({ status: "error", e }));
-              if ((r as { status?: string }).status !== "ok")
+              const ok = (r as { status?: string }).status === "ok";
+              // a push that ran is done; one that could not is recorded as failed, which gives its delivery id back so GitHub's redelivery takes it again
+              if (ok)
+                (sitesExports?.["markPushDone"] as ((c: { db: unknown }, id: string) => void) | undefined)?.(
+                  { db: db! },
+                  a.id,
+                );
+              else
+                (
+                  sitesExports?.["markPushFailed"] as
+                    | ((c: { db: unknown }, id: string, why: string) => void)
+                    | undefined
+                )?.({ db: db! }, a.id, String((r as { e?: { message?: string } }).e?.message ?? "It could not run."));
+              if (!ok)
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.push_preview_skipped",
+                  place: "sites",
+                  attrs: { site: a.siteId, branch: a.branch },
+                });
+            }
+            // only a commit that was not deployed, and not already waiting for a person, is asked for (checked here, before the Gate)
+            const autos =
+              (await (
+                sitesExports?.["autoDeployTargets"] as
+                  | ((
+                      c: { db: unknown },
+                      headOf: (x: { siteId: string; as: string; repo: string; branch: string }) => Promise<{
+                        head: string | null;
+                        changed: boolean;
+                      }>,
+                    ) => Promise<{ siteId: string; as: string; branch: string; head: string | null }[]>)
+                  | undefined
+              )?.({ db: db! }, async (x) => {
+                // the branch head, read with the site's own token as the person who deployed it last
+                const r = (await invoke(
+                  "sites.head_check",
+                  { siteId: x.siteId },
+                  {
+                    space: spaceId,
+                    principal: { kind: x.as.startsWith("agt_") ? "agent" : "person", id: x.as },
+                    origin: "sites-push",
+                  },
+                ).catch(() => null)) as { status?: string; output?: { head?: string; changed?: boolean } } | null;
+                return r?.status === "ok"
+                  ? { head: r.output?.head ?? null, changed: r.output?.changed !== false }
+                  : { head: null, changed: true };
+              })) ?? [];
+            for (const a of autos) {
+              const r = await invoke(
+                "sites.deploy",
+                { siteId: a.siteId, onlyIfChanged: true, ...(a.head ? { commit: a.head } : {}) },
+                {
+                  space: spaceId,
+                  principal: { kind: a.as.startsWith("agt_") ? "agent" : "person", id: a.as },
+                  origin: "sites-push",
+                },
+              ).catch((e: unknown) => ({ status: "error", e }));
+              if ((r as { status?: string }).status !== "ok") {
+                // the site's card says why a push's deploy did not run, not only the log: in plain words, never an exception's text
+                const e =
+                  (
+                    r as {
+                      e?: { error?: { code?: string; message?: string } };
+                      error?: { code?: string; message?: string };
+                    }
+                  ).e?.error ?? (r as { error?: { code?: string; message?: string } }).error;
+                const facts = (
+                  sitesExports?.["siteFacts"] as ((c: { db: unknown }, id: string) => SiteFacts | null) | undefined
+                )?.({ db: db! }, a.siteId);
+                const reason =
+                  (r as { status?: string }).status === "held"
+                    ? facts && protectionHolds(facts)
+                      ? "Waiting for a person: the site holds keys and its branch is not protected on GitHub."
+                      : "Waiting for a person to approve it."
+                    : typeof e?.code === "string" && /^(validation|permission|conflict)\./.test(e.code) && e.message
+                      ? e.message
+                      : "The deploy could not run. The log says more.";
+                (
+                  sitesExports?.["recordDeployFailure"] as
+                    | ((
+                        c: { db: unknown },
+                        siteId: string,
+                        branch: string,
+                        why: string,
+                        sha: string | null,
+                        taskId: string | null,
+                      ) => void)
+                    | undefined
+                )?.({ db: db! }, a.siteId, a.branch, reason, a.head, (r as { taskId?: string }).taskId ?? null);
                 sink.log({
                   space: spaceId,
                   level: 30,
                   msg: "sites.push_check_skipped",
                   place: "sites",
-                  attrs: { site: a.siteId },
+                  attrs: { site: a.siteId, why: reason },
                 });
+              }
             }
+            // a database with no backup for a day gets one, as the site's owner (kept seven days, a Keep never goes)
+            const owed =
+              (
+                sitesExports?.["dueBackupSites"] as
+                  | ((c: { db: unknown }, now: number) => { siteId: string; as: string }[])
+                  | undefined
+              )?.({ db: db! }, Date.now()) ?? [];
+            for (const o2 of owed)
+              await invoke(
+                "sites.backup_create",
+                { siteId: o2.siteId, scheduled: true },
+                { space: spaceId, principal: { kind: "person", id: o2.as }, origin: "sites-backup" },
+              ).catch((e: unknown) => {
+                (
+                  sitesExports?.["recordSkippedBackup"] as
+                    | ((c: { db: unknown }, id: string, now: number, why: string) => void)
+                    | undefined
+                )?.(
+                  { db: db! },
+                  o2.siteId,
+                  Date.now(),
+                  e instanceof Error ? e.message : "the site's owner can no longer make backups",
+                );
+                sink.log({
+                  space: spaceId,
+                  level: 30,
+                  msg: "sites.backup_skipped",
+                  place: "sites",
+                  attrs: { site: o2.siteId },
+                });
+              });
+          };
+          // Caddy writes a line for each finished request of a deployed site to a loopback port here; the sites module counts them (CPU is read from Docker, requests only from here)
+          let accessSink: AccessSink | null = null;
+          closers.push(() => accessSink?.close());
+          const ensureAccessLog = async (): Promise<void> => {
+            if (!sitesCaddy) return;
+            accessSink ??= await startAccessSink((line) =>
+              (sitesExports?.["accessLine"] as ((c: { db: unknown }, l: string) => void) | undefined)?.(
+                { db: db! },
+                line,
+              ),
+            );
+            await sitesCaddy.ensureAccessLog(accessSink.port);
+          };
+          sitesOps = async () => {
+            await (sitesExports?.["opsTick"] as ((c: { db: unknown }) => Promise<void>) | undefined)?.({ db: db! });
           };
           const made = createSitesHost({
             containerAddress: (c) =>
@@ -5529,6 +5800,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             deploy: {
               ...(runnerLink ? { runnerLink } : {}),
               take: takeSiteSecret,
+              // what a site's own action needs and the caller's hold would only stop (the webhook secret's Vault folder, item, shares and the owner's task) is done as the host, and only that (seams/sites-as-host.ts)
+              asHost: sitesAsHost((cap, input) =>
+                invoke(cap, input, {
+                  space: spaceId,
+                  principal: { ...SYSTEM_PRINCIPAL },
+                  preAuth: true,
+                  origin: "seam",
+                }),
+              ),
               tmp: path.join(paths.root, "site-builds"),
               sitesDomain,
               domainOf: (id) =>
@@ -6131,6 +6411,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           }),
         }),
         // the import module reads an Airtable or Notion key from the Vault by handle, for one call
+        // the computers module reads the key of the search service an admin chose, from the Vault by handle, for one call
+        // only a Shared Vault item of the kind API key is read for the search service, found by the id the setting saved (a handle is accepted only as the same item's own handle), never by a name that could now mean another item
+        setSearchHost: (d) => ({
+          secret: (saved: string) => {
+            const ref = resolveKeyRef(db!, saved.trim());
+            const row = ref
+              ? (db!.all(`SELECT "kind", "scope" FROM vault_meta WHERE "id" = ?`, ref.id)[0] as
+                  | { kind?: unknown; scope?: unknown }
+                  | undefined)
+              : undefined;
+            if (!ref || row?.kind !== "api_key" || row?.scope !== "shared")
+              return Promise.reject(new Error("The search key must be a Shared Vault item of the kind API key."));
+            return d.vault.secret(`${ref.handle}${ref.field ? `.${ref.field}` : ""}`, d.space);
+          },
+        }),
         setImportHost: (d) => ({
           secret: (_ctx: unknown, handle: string) =>
             d.vault.secret(handle.startsWith("#") ? handle : `#${handle}`, d.space),
@@ -6316,6 +6611,24 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           sinks: {
             container_env: (f: { value: string; ref: string }) => {
               siteSecrets.set(f.ref, { value: f.value, at: Date.now() });
+            },
+            // a field of a page in the person's own Chrome, connected straight to this Space: the value goes down that person's socket to the ref their extension minted for this
+            // call, and to nobody else (lib/chrome-socket.ts fill). A fill nobody waits for is an error, never a silent success.
+            browser: (
+              f: { value: string; ref: string },
+              execution?: { principal: { kind: string; id: string }; actingFor?: string; traceId: string },
+            ) => {
+              if (
+                !execution ||
+                !chromeDirect.socket.fill(f.ref, f.value, {
+                  kind: execution.principal.kind,
+                  id: execution.principal.id,
+                  actingFor: execution.actingFor,
+                })
+              )
+                throw fail("internal.unavailable", execution?.traceId ?? ZERO_TRACE, {
+                  message: "No page in your Chrome is waiting for that login. Open Vyre for Chrome and try again.",
+                });
             },
             ...o.seams?.vaultSinks,
             http_header: (
@@ -6734,6 +7047,16 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
       };
       knownToken = (t) => identify(t) !== null;
+      // the extension's own device session and nothing else: the admin token would act as the owner, which Vyre for Chrome never does
+      chromeSession = (t) => {
+        if (sameToken(t, token)) return null;
+        const s = sessions.resolve(t);
+        return s && access.snap.principal(s.person)?.status === "active" ? s : null;
+      };
+      chromeSpaceName = async () =>
+        ((await dispatchSystem?.("spaces.get", {})) as { space?: { name?: string } } | undefined)?.space?.name ??
+        cfg.spaceName ??
+        "Space";
       const session: GatewayDeps["session"] =
         o.session ??
         ((headers) => {
@@ -6877,8 +7200,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           authorize(access.snap, {
             principal: c.principal.id,
             ...(c.actingFor ? { actingFor: c.actingFor } : {}),
-            action: { perm: null, level: "view" },
-            resource: { type: r.type, id: r.id },
+            ...blobReadCheck(r),
+            now: Date.now(),
           }).effect === "allow",
         // the bytes of an upload slot (files.upload_url): the Files module seals them; the slot's one-time token is the authority
         put: async (a) =>
@@ -7082,7 +7405,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub =>
         createLiveHub({
-          claims: (req) => computeStream.claims(req) || browserStream.claims(req),
+          claims: (req) => computeStream.claims(req) || browserStream.claims(req) || chromeDirect.claims(req),
           // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
           session: (h, url) => {
             const ticket = url.searchParams.get("ticket");
@@ -7519,6 +7842,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       },
     });
     scheduler.add({
+      name: "sites.ops",
+      schedule: { everyMs: o.intervals?.sitesOps ?? 2_000 },
+      run: async () => {
+        await sitesOps();
+      },
+    });
+    scheduler.add({
       name: "sites.deployed",
       schedule: { everyMs: o.intervals?.sitesPush ?? 60_000 },
       run: async () => {
@@ -7598,21 +7928,27 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     syncLive.setHost(h);
     const server = h.server;
     if (hubFactory)
-      server.on("upgrade", (req, socket, head) => {
-        // r40: nothing a client sends may end this process; a bad address or a route that throws closes that one socket
-        socket.on("error", () => socket.destroy());
-        try {
-          if (!requestTargetOk(req.url)) {
-            socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
-            return;
-          }
-          if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
-          else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
-        } catch (e) {
-          httpLog.error("http.upgrade_failed", { error: e instanceof Error ? e.message : String(e) });
-          socket.destroy();
-        }
-      });
+      server.on(
+        "upgrade",
+        guardUpgrade(
+          (req, socket, head) => {
+            // r40: a bad address closes that one socket with a 400
+            socket.on("error", () => socket.destroy());
+            if (!requestTargetOk(req.url)) {
+              socket.end("HTTP/1.1 400 Bad Request\r\nconnection: close\r\n\r\n");
+              return;
+            }
+            takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
+            if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
+            else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+            else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
+          },
+          (where, error) =>
+            sink
+              .logger({ space: space ?? "-", place: "http" })
+              .error("http.handler_threw", { where, ...errorLine(error) }),
+        ),
+      );
     server.removeAllListeners("request");
     // a site's container reaches this machine only through its own network; a connection on that network's address is a site trying the Space's API, and is closed at once
     server.on("connection", (sock) => {
@@ -7654,104 +7990,106 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     // the app itself, last of all: a browser at the Space's address, or at a join link, gets the web export this image carries (routes/app-files.ts)
     const relayWorkerRoute = createRelayWorkerRoute();
     const appFiles = createAppFilesRoute({ dir: () => (o.appDir !== undefined ? o.appDir : defaultAppDir()) });
-    const onRequest = (req: http.IncomingMessage, res: http.ServerResponse): void => {
-      // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
-      // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
-      const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
-      if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) {
-        res.writeHead(403, { "content-type": "application/json" });
-        res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." }));
-        return;
-      }
-      if (carryDoor.handle(req, res)) return;
-      if (relayWorkerRoute.handle(req, res)) return;
-      if (desktopCors(req, res)) return;
-      if (bearer(req.headers.authorization)?.startsWith("vas_")) {
-        // Do not hand a preview to public share/forms, MCP, sync, uploads,
-        // exports or local credential routes, including one-time upload slots.
-        if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
-        else {
-          res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" });
-          res.end(
-            JSON.stringify({
-              error: { code: "auth.unauthenticated", message: "This route is unavailable in a shared record preview." },
-            }),
-          );
-        }
-        return;
-      }
-      const stop = req.method === "POST" && req.url === "/local/daemon/stop";
-      if (stop) {
-        if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
-          res.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-          res.end(JSON.stringify({ error: { code: "auth.unauthenticated", message: "Authentication is required." } }));
-          return;
-        }
-        res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
-        res.end(JSON.stringify({ data: { stopping: true } }));
-        res.once("finish", () => {
-          setImmediate(requestStop);
-        });
-        return;
-      }
-      if (artifactHostRoute.handle(req, res)) return;
-      if (siteHostRoute.handle(req, res)) return;
-      if (peerService?.handle(req, res)) return;
-      if (
-        liveTicketRoute.handle(req, res) ||
-        browserStream.handle(req, res) ||
-        publicPath.handle(req, res) ||
-        siteSigninPage.handle(req, res) ||
-        mcpRoute.handle(req, res) ||
-        (gitProxy?.handle(req, res) ?? false) ||
-        chromeBridge.handle(req, res) ||
-        chromeAgentsRoute.handle(req, res) ||
-        githubSignInRoute.handle(req, res) ||
-        githubConnectRoute.handle(req, res) ||
-        ssoSignInRoute.handle(req, res) ||
-        blobRoute?.handle(req, res) ||
-        formsPageRoute?.handle(req, res) ||
-        unsubscribeRoute.handle(req, res) ||
-        shareRoute?.handle(req, res) ||
-        portalLinkRoute?.handle(req, res) ||
-        exportRoute.handle(req, res) ||
-        webhookRoute.handle(req, res) ||
-        computeRoute.handle(req, res) ||
-        computeStream.handle(req, res) ||
-        localWorkRoute.handle(req, res) ||
-        teamLinks.handle(req, res) ||
-        fillRoute.handle(req, res) ||
-        localKeyRoute.handle(req, res) ||
-        appFiles.handle(req, res)
-      )
-        return;
-      listener(req, res);
-    };
-    // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it, and a route that throws is answered 500 and logged once; nothing a client sends reaches the process
-    server.on("request", (req, res) => {
-      const fail = (status: number, code: string, message: string): void => {
-        if (res.headersSent || res.writableEnded) {
-          res.destroy();
-          return;
-        }
-        res.writeHead(status, {
-          "content-type": "application/json; charset=utf-8",
-          "cache-control": "no-store",
-          connection: "close",
-        });
-        res.end(JSON.stringify({ error: { code, message } }));
-      };
-      try {
+    const onHttpError: OnError = (where, error) => httpLog.error("http.handler_threw", { where, ...errorLine(error) });
+    const detachBackstop = installRejectionBackstop((error) =>
+      httpLog.error("process.unhandled_rejection", errorLine(error)),
+    );
+    server.once("close", detachBackstop);
+    server.on(
+      "request",
+      guardRequest((req, res) => {
+        // the visitor the relay vouched for is read once, here, and the two headers that carried it are removed: they exist only on the relay-to-daemon hop (seams/visitor-proof.ts)
+        takeVisitor(req);
+        // r40 (a scanner's `//` ended a client's daemon): a request address that is not an origin-form path is answered 400 before any route reads it
         if (!requestTargetOk(req.url)) {
-          fail(400, "validation.bad_input", "That request address is not valid.");
+          res.writeHead(400, {
+            "content-type": "application/json; charset=utf-8",
+            "cache-control": "no-store",
+            connection: "close",
+          });
+          res.end(
+            JSON.stringify({ error: { code: "validation.bad_input", message: "That request address is not valid." } }),
+          );
           return;
         }
-        onRequest(req, res);
-      } catch (e) {
-        httpLog.error("http.request_failed", { error: e instanceof Error ? e.message : String(e) });
-        fail(500, "internal.unexpected", "Something went wrong on our side.");
-      }
-    });
+        // an agent computer reaches this daemon only on its own network, and there only the Vault channel agentd posts to: nothing else of the Space's API
+        // decided by where the request comes from (review 12 Nov): a page in an agent's browser may call any address of this host, so the address it arrived on proves nothing
+        const onComputerNet = agentCaller(req.socket.localAddress, req.socket.remoteAddress, computerSubnetsOf());
+        if (onComputerNet && !(req.method === "POST" && (req.url ?? "").split("?")[0] === FILL_PATH)) {
+          res.writeHead(403, { "content-type": "application/json" });
+          res.end(JSON.stringify({ code: "refused", message: "A computer reaches only the Vault channel." }));
+          return;
+        }
+        if (carryDoor.handle(req, res)) return;
+        if (relayWorkerRoute.handle(req, res)) return;
+        if (desktopCors(req, res)) return;
+        if (bearer(req.headers.authorization)?.startsWith("vas_")) {
+          // Do not hand a preview to public share/forms, MCP, sync, uploads,
+          // exports or local credential routes, including one-time upload slots.
+          if ((req.url ?? "").startsWith("/v1/")) listener(req, res);
+          else {
+            res.writeHead(401, { "content-type": "application/json", "cache-control": "no-store" });
+            res.end(
+              JSON.stringify({
+                error: {
+                  code: "auth.unauthenticated",
+                  message: "This route is unavailable in a shared record preview.",
+                },
+              }),
+            );
+          }
+          return;
+        }
+        const stop = req.method === "POST" && req.url === "/local/daemon/stop";
+        if (stop) {
+          if (!loopback(req.socket.remoteAddress) || !sameToken(bearer(req.headers.authorization) ?? "", token)) {
+            res.writeHead(401, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+            res.end(
+              JSON.stringify({ error: { code: "auth.unauthenticated", message: "Authentication is required." } }),
+            );
+            return;
+          }
+          res.writeHead(202, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" });
+          res.end(JSON.stringify({ data: { stopping: true } }));
+          res.once("finish", () => {
+            setImmediate(requestStop);
+          });
+          return;
+        }
+        if (artifactHostRoute.handle(req, res)) return;
+        if (siteHostRoute.handle(req, res)) return;
+        if (peerService?.handle(req, res)) return;
+        if (
+          liveTicketRoute.handle(req, res) ||
+          browserStream.handle(req, res) ||
+          publicPath.handle(req, res) ||
+          siteSigninPage.handle(req, res) ||
+          mcpRoute.handle(req, res) ||
+          (gitProxy?.handle(req, res) ?? false) ||
+          chromeBridge.handle(req, res) ||
+          chromeAgentsRoute.handle(req, res) ||
+          githubSignInRoute.handle(req, res) ||
+          githubConnectRoute.handle(req, res) ||
+          ssoSignInRoute.handle(req, res) ||
+          blobRoute?.handle(req, res) ||
+          formsPageRoute?.handle(req, res) ||
+          unsubscribeRoute.handle(req, res) ||
+          shareRoute?.handle(req, res) ||
+          portalLinkRoute?.handle(req, res) ||
+          exportRoute.handle(req, res) ||
+          webhookRoute.handle(req, res) ||
+          computeRoute.handle(req, res) ||
+          computeStream.handle(req, res) ||
+          localWorkRoute.handle(req, res) ||
+          teamLinks.handle(req, res) ||
+          fillRoute.handle(req, res) ||
+          localKeyRoute.handle(req, res) ||
+          appFiles.handle(req, res)
+        )
+          return;
+        return listener(req, res);
+      }, onHttpError),
+    );
     // the agent workspaces' subnets are read before the first call, so the guard refuses one left running by the process before this one at once (third look T5); a Docker that does not answer
     // within 5 s does not hold the start, and they are read again at the first sweep
     await Promise.race([
@@ -7921,6 +8259,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       attrs: { roles: cfg.roles, port: boundPort, version: cfg.version },
     });
     startPersonalCalendars();
+    startRecordAnnouncements(startedAt);
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);

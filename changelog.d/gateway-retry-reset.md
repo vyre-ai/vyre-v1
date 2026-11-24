@@ -1,0 +1,1 @@
+A call to a route that takes an idempotency key (and carries one) is sent once more when the connection was reset or hung up before an answer came, with the same key, so a save does not fail at random on a reused connection; a call to any other route, or without a key, is never repeated.

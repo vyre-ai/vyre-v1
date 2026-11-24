@@ -208,6 +208,7 @@ export function TextBox({
   secure = false,
   multiline = false,
   hint,
+  rows,
 }: {
   label: string;
   value: string;
@@ -216,6 +217,8 @@ export function TextBox({
   secure?: boolean;
   multiline?: boolean;
   hint?: string;
+  /** A multi-line box this many lines tall (it can be longer than its text asks for, and the page lets it grow). */
+  rows?: number;
 }): ReactElement {
   const [focused, setFocused] = useState(false);
   return (
@@ -232,7 +235,12 @@ export function TextBox({
         secureTextEntry={secure}
         autoCapitalize="none"
         autoCorrect={false}
-        style={[s.input, { outlineStyle: "none" } as never, focused && (FOCUS_RING as never)]}
+        style={[
+          s.input,
+          { outlineStyle: "none" } as never,
+          multiline && rows ? { minHeight: rows * 21 + 16, textAlignVertical: "top" } : null,
+          focused && (FOCUS_RING as never),
+        ]}
       />
       {hint ? (
         <Text style={{ fontSize: 11.5, lineHeight: 16, color: "var(--ink-3)" as string, marginTop: 4 }}>{hint}</Text>

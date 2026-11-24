@@ -11,7 +11,7 @@ export type ChatMode = "ask" | "auto" | "plan";
 export type Effort = "low" | "medium" | "high" | "max";
 export type QueueKind = "message" | "interrupt" | "wake" | "handoff";
 /** stopping: the person (or an interrupt) stopped this running or starting turn; written before the Stop answers, so a restart before the turn has ended closes it as cancelled instead of running it again */
-export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled";
+export type QueueState = "queued" | "running" | "stopping" | "done" | "consumed" | "cancelled" | "paused";
 export type TurnState = "running" | "waiting" | "completed" | "failed" | "cancelled";
 export type AccountReason = "starter" | "steerer";
 export type Placement = "host" | "device";
@@ -236,6 +236,8 @@ export type EngineEvent =
       agentId: string;
       taskId: string;
       runId?: string;
+      /** the tool the held call was for */
+      tool?: string;
     }
   /** A parked turn is over: its wake started as a turn of its own. */
   | { type: "turn.resumed"; threadId: string; turnId: string; agentId: string }
@@ -425,6 +427,8 @@ export interface AccountQuery {
   kind?: "chat" | "wake" | "agent_work";
   /** Why the last account was left: "overloaded" is the vendor being busy, not a limit, so it is not set aside to rest and the chat says it was busy. */
   why?: "overloaded";
+  /** A look for another account while the first is set aside (a locked key): finding none is expected and is not said in the log. Only a turn that really has no account says so. */
+  probe?: true;
 }
 /** A turn whose model the engine said is not available: who asked, on which account, and the engine's own words (Details only). */
 export interface ModelQuery {

@@ -11,7 +11,7 @@ Assign a number to a person, an agent or a shared inbox
 | Grant level | manage |
 | Risk | medium |
 | Resource | number (/numberId) |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

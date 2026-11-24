@@ -11,13 +11,13 @@ A person who may use a Vault key removes a host it was approved for. The next us
 | Grant level | edit |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | connection_change when actor.kind == 'agent' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/automations/key_hosts/remove |
-| MCP tool | none |
+| MCP tool | automations_key_hosts_remove (automations, deferred) |
 | CLI | none |
 | Emits | none |
 

@@ -1,6 +1,6 @@
 # engine.drop_queued
 
-Take a message that is waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
+Take a message waiting behind a running turn out of the queue so it can be edited and sent again; it stays in the chat and the agent will not answer it
 
 | | |
 |---|---|

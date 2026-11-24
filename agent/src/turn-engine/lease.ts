@@ -17,6 +17,8 @@ export interface LeaseStore {
   renew(threadId: string, holder: string, now: number): boolean;
   setTurn(threadId: string, holder: string, turnId: string | null): void;
   release(threadId: string, holder: string): boolean;
+  /** Take the lease from `from` and give it to `holder`, only if `from` still holds it (compare-and-set). The old holder's next renew then answers false, so it stops. Null when it changed hands meanwhile. */
+  takeOver(threadId: string, holder: string, from: string, now: number): LeaseRow | null;
   get(threadId: string, now: number): LeaseRow | null;
 }
 
@@ -45,6 +47,13 @@ export function createMemoryLeases(ttlMs: number = LEASE_TTL_MS): LeaseStore {
     setTurn(threadId, holder, turnId) {
       const cur = rows.get(threadId);
       if (cur && cur.holder === holder) cur.turnId = turnId;
+    },
+    takeOver(threadId, holder, from, now) {
+      const cur = rows.get(threadId);
+      if (!live(cur, now) || cur.holder !== from) return null;
+      const next: LeaseRow = { threadId, holder, expiresAt: now + ttlMs, turnId: null };
+      rows.set(threadId, next);
+      return { ...next };
     },
     release(threadId, holder) {
       const cur = rows.get(threadId);

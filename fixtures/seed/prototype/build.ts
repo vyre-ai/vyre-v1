@@ -359,6 +359,12 @@ async function fill(store: LogStore, spec: SeedSpace): Promise<void> {
       },
     }),
     rate: createRateLimiter(),
+    // the seed is the owner's own bootstrap: every call is a person's press, so no Gate ever holds one; it is here so a capability that declares a Gate can be called (invoke refuses a declared Gate it cannot ask)
+    gate: {
+      applies: () => null,
+      park: () => Promise.reject(new Error("the seed never parks a call")),
+      verify: () => false,
+    },
     now: () => NOW,
   });
 

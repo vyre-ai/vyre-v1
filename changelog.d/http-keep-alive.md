@@ -1,0 +1,1 @@
+The daemon's and the relay's HTTP servers keep an idle connection open for 125 s instead of Node's 5 s (the relay, which faces the internet, keeps its 60 s header time), longer than a reverse proxy (Caddy: 2 minutes) or a browser leaves one idle, so a save sent on a reused connection is no longer reset at random.

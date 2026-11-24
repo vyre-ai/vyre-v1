@@ -1182,3 +1182,13 @@ test("accessView lists the agent that made this among the people with access, on
   assert.equal(v.agents.specific.length, 1, "the other agent keeps its own section");
   assert.equal(v.count, 1 + 1 + 1, "the owner, the made row, the other agent: no row twice");
 });
+
+test("records the newcomer will see whose name could not be read are still named in general words, never left out; a name wins", () => {
+  const picks = [sara("member")];
+  const bare = { kind: "chat" as const, name: "Upload contract", filesFolder: "Portal uploads" };
+  const text = (target: Parameters<typeof addLines>[0]["target"]): string | undefined =>
+    addLines({ target, picks, earlier: true, ownerName: "Imran" })[0]?.text;
+  assert.match(String(text({ ...bare, recordsUnnamed: true })), /and the records linked to this chat\.$/);
+  assert.match(String(text({ ...bare, recordsFolder: "Clients", recordsUnnamed: true })), /records in Clients\.$/);
+  assert.doesNotMatch(String(text(bare)), /record/);
+});

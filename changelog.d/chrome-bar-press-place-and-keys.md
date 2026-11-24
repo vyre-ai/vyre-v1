@@ -1,0 +1,1 @@
+The agent's control bar: Stop, Take over, Give back and Resume now tell the worker where the press was (so the agent's own click there is ignored), a keyboard click on the bar is ignored when it came from an Enter or Space the agent sent, and the bar's window listeners are removed when the bar goes.

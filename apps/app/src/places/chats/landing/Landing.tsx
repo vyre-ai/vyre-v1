@@ -44,6 +44,7 @@ import { PendingChat } from "./PendingChat.tsx";
 import { firstWords, holdPending } from "./pending.ts";
 import type { NeedItem, NeedsOut, RecentOut, WithEntry } from "./model.ts";
 import { belowPhone } from "../../../../../../ui/src/SidePane/layout.ts";
+import { AliveLine } from "../tasks/Living.tsx";
 
 export interface LandingProps {
   rt: ShellRuntime;
@@ -447,6 +448,13 @@ export function Landing(p: LandingProps): ReactElement {
             />
           ) : belowPhone(width) ? null : ( // the phone's list under this screen has a Tasks section that says the same things: one place, not two
             <>
+              <AliveLine
+                call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+                now={rt.clock().now}
+                rev={String(total)}
+                openTask={() => p.openTasks()}
+                onChanged={() => undefined}
+              />
               {each(items, (n) => (
                 <NeedRow key={n.task.id} item={n} {...p} />
               ))}

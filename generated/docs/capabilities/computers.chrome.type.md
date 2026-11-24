@@ -70,7 +70,7 @@ type Out = {
   "input": {
     "computerId": "cmt_a1b2c3",
     "inMyChrome": true,
-    "ref": "e12",
+    "ref": "example",
     "submit": true,
     "tabId": "example",
     "text": "example"

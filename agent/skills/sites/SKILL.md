@@ -10,12 +10,14 @@ You build and run the site. Vyre gives it an address. A site is a route: a name,
 
 ## Deploy it here, like Railway (the usual way)
 When `sites_host` says `deploy: true`, Vyre builds and runs the app itself on the Space's server. Use this for anything a team opens: dashboards, APIs, internal tools.
+One call does it all: `sites_ship` with `{ name, source }`, and `env` (`{ name, vaultHandle }` pairs) and `addons` (`postgres`, `redis`) when the app needs them. It creates the site, sets the env, adds the databases, deploys and waits. The answer has `say` (hand it to the person), `address` when it is live, and on a failure `failedStep` (setup, fetch, build, start or check), `problem` and `fix`. Fix that and call `sites_ship` again with the returned `siteId`: it goes on with the same site. Use `sites_plan` first only when you want to see what it will do. The steps below are what `sites_ship` does, for when you need one of them alone.
 1. `sites_plan` with the source shows how it will build and start, its port, and the env names and databases it looks for. Sources: `{ repo: "owner/name", branch, tokenHandle }` (a Vault key with a GitHub token for a private repo), `{ folderId }` or `{ fileId }` (a folder or .zip in Files), or `{ path }` (a folder on this computer, only where Vyre runs on the person's own computer). `root` picks a subfolder.
 2. `sites_create` with a name and `source`. It starts as Space only (`access: "space"`): people in the Space sign in with Vyre to open it.
 3. Env vars: `sites_env_set` with `{ name, vaultHandle }` pairs. Values stay in the Vault; never put one in code, a file or a message. If the person gives you a secret, ask them to put it in the Vault first.
 4. A database: `sites_addon_add` with `postgres` or `redis` gives `DATABASE_URL` or `REDIS_URL`. `sites_db_import` copies an old database in (a Vault key with its connection string, or a pg_dump in Files).
 5. `sites_deploy` with `wait: true`. On `failed`, read `problem` and `fix`, and `sites_logs` with `build: true`; fix the project and deploy again. The last good build keeps serving meanwhile.
 6. Give the person the `url`. Public is `access: "public"` and then `sites_promote`, which waits for their yes.
+Previews: `sites_preview_rebuild` with a `branch` builds that branch of the repo at its own address behind sign-in (never public, never the site's databases); `sites_previews` lists them; `sites_preview_promote` serves a preview's build as production with no new build; `sites_preview_remove` takes one away. Variables with scope `previews` apply only to previews.
 Roll back with `sites_rollback`. A repo deploys again on each push. The app must listen on `PORT` on 0.0.0.0.
 
 ## Or run it on a computer
@@ -47,3 +49,11 @@ Roll back with `sites_rollback`. A repo deploys again on each push. The app must
 - Update with git: commit, restart, then `sites_status`. The address stays.
 - Roll back with git: check out the last good commit and restart. Tag what you publish so you can.
 - `sites_stop` takes the address down. The process keeps running until you stop it.
+
+## Run it: logs, metrics, jobs, workers, backups
+One call, `sites_ops`: `{ siteId, action, id?, args? }`. `id` is the job, run, worker or backup the action is about; `args` holds the other fields. The answer is in `result`.
+- `logs`: args `q` (words; `-word` leaves one out), `source` (app, requests, build, jobs), `level` (error, warn, info), `scope` (a deploy, worker or run id from an earlier read), `from` (time), `after` (the `lastSeq` of the read before, to follow it), `limit`. A key the app printed is hidden.
+- `metrics`: args `window` (1h, 6h, 24h). CPU, memory, requests and response time, and right now against the limits.
+- `jobs` lists jobs and workers. "job_create" args `name`, `schedule` (cron: `0 2 * * *`, or @hourly, @daily), `command`, optional `zone`, `timeoutSec`. "job_update" (id, any of those and `enabled`), "job_delete" (waits for a person's yes), "job_run", "job_cancel" (id is a run), "job_runs". A job runs in the site's image with its variables, so on a site that stores Vault keys "job_create", "job_update" (when the command changes) and "worker_add" wait for a person's yes: say what is waiting; a run that comes while the last one goes is skipped. Read a run's output with `logs`, `source: "jobs"`, `scope: <run id>`.
+- "worker_add" args `name`, `command`: stays up, restarts itself when it crashes (waiting longer each time, and stopping after eight crashes in ten minutes), moves to the newest deploy. "worker_restart", "worker_stop", "worker_remove" (waits for a person's yes).
+- `backups` lists with the database size. "backup_create" runs in the background. "backup_pin". "backup_delete" (a restore point is lost) waits for a person's yes. "backup_download" gives the whole database dump and waits for a person's yes. "backup_restore" makes a backup of what is there first, loads the dump into a new database and swaps it in; it waits for a person's yes.

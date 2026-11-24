@@ -276,6 +276,11 @@ const STATUS_WORDS: Record<
     cause: "A paid key could answer. It is in your Tasks for you to say yes.",
     retryable: false,
   },
+  host_resumed: {
+    message: say("host_resumed"),
+    cause: "It carried on by itself from the last step it had finished, in a new reply below.",
+    retryable: false,
+  },
   host_lost: {
     message: say("host_lost"),
     cause: "It may have done part of the work. Check before running it again.",
@@ -374,6 +379,8 @@ export function stoppedWords(
       return "Stopped. The steps so far are kept.";
     case "limit":
       return "Stopped because it reached a spending or turn limit.";
+    case "paused":
+      return "Paused at a safe point: it reached a limit you set. Raise the limit to let it go on, or stop it.";
     case "left":
       return "Stopped because the person it was working for left.";
     case "moved":

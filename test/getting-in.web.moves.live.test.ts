@@ -118,7 +118,7 @@ test("a Space that moves between the relay and its own address is found where it
   try {
     await t.test(
       "1 on the relay, opened from the Space link: the Space's sign-in, carried by the relay's worker",
-      async () => {
+      async (t1) => {
         const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
         const page = await ctx.newPage();
         await page.goto(`${origin}/#box=${SPACE_KEY}`);
@@ -130,7 +130,8 @@ test("a Space that moves between the relay and its own address is found where it
           .getByText(/Sign in to Fresh Co/)
           .waitFor({ timeout: 15_000 });
 
-        await t.test(
+        // a test inside this one runs on this one's own context: on the outer one it would queue behind this test, which is waiting for it (the walk ran into its 120 s cap)
+        await t1.test(
           "2 the Space moves to its own address: the next load ends on the sign-in, direct, with no relay worker",
           async () => {
             mode = "own";
@@ -159,6 +160,17 @@ test("a Space that moves between the relay and its own address is found where it
             console.log(`getting-in: moved to its own address, sign-in ready ${Date.now() - t0} ms after the load`);
             assert.equal(await page.getByTestId("step-not-answering").count(), 0);
             assert.deepEqual(seen, [], "the person never saw a line saying the Space could not be reached");
+            // the stale app worker retires itself and moves the page once: let that finish before the second visit, or the reload below is cut off by it (net::ERR_ABORTED). The page is moved only after the
+            // worker is unregistered, and until then it still boots through the unregistered worker (two public /v1 reads, answered 503 by the address in front, nothing of the Space), so the wait ends
+            // when no worker is registered AND none controls the page: from there a request through the relay's worker would be a fault
+            await page.waitForFunction(
+              async () =>
+                (await navigator.serviceWorker.getRegistrations()).length === 0 && !navigator.serviceWorker.controller,
+              null,
+              {
+                timeout: 20_000,
+              },
+            );
             const before = carried.length;
             await page.reload();
             await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
@@ -186,10 +198,9 @@ test("a Space that moves between the relay and its own address is found where it
         );
         mode = "relay";
         await page.reload();
-        // the relay answers the app's old worker address with one that removes itself and loads the page again; wait for that page, so it is not loaded again under the person's hands
-        await page.waitForFunction(() => !navigator.serviceWorker.controller && !!document.querySelector("#k"), null, {
-          timeout: 30_000,
-        });
+        // the relay's first-time page is what the person sees; the app's old worker may still be in charge of the page (the browser asks for its replacement on its own schedule, up to a day), and the page
+        // removes it when the Space link is used, so the walk waits for what a person waits for: the box
+        await page.locator("#k").waitFor({ timeout: 15_000 });
         assert.equal(await page.locator("#s").innerText(), "Open this Space from its link");
         await page.setViewportSize({ width: 1440, height: 900 });
         await page.emulateMedia({ colorScheme: "dark" });

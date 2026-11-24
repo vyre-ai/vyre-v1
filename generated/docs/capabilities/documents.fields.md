@@ -1,6 +1,6 @@
 # documents.fields
 
-List the tags a template needs: text, date, money, list, conditions and loops
+List the fields a template needs (its {blanks})
 
 | | |
 |---|---|
@@ -44,6 +44,7 @@ type Out = {
       message: string;
       tag?: string;
     }>;
+  signers?: Array<string>;
 };
 ```
 
@@ -80,6 +81,9 @@ type Out = {
         "message": "example",
         "tag": "example"
       }
+    ],
+    "signers": [
+      "example"
     ]
   }
 }

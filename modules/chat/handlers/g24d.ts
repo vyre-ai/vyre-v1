@@ -6,6 +6,8 @@
 // model refresh; search is lexical, because the module holds no embedding index.
 import { stepWords } from "../../../lib/plain-words.ts";
 import { modelName } from "../../../lib/model-names.ts";
+import { briefJob, tierOf } from "../../../lib/model-tiers.ts";
+import { questionBody } from "../../../lib/helper-result.ts";
 import { readFloor } from "./floor.ts";
 import { createTranscript, redact, refreshSummary, transcriptPath } from "../../../agent/src/transcript/index.ts";
 import type { Part, Turn } from "../../../agent/src/transcript/index.ts";
@@ -829,6 +831,7 @@ async function chooseHelperModel(
   parentId: string,
   askingAgent: string,
   input: { model?: string; provider?: string; account?: string; why?: string },
+  brief?: string,
 ): Promise<Picked | null> {
   if (!ctx.call) return null;
   type Cat = {
@@ -838,8 +841,9 @@ async function chooseHelperModel(
       label: string;
       models: Array<{ model: string; tier: string; available: boolean }>;
     }>;
-    parent: { provider?: string };
+    parent: { provider?: string; model?: string };
     policy: "same_provider" | "any" | "ask";
+    suggest?: { read?: { account: string; model: string } | null };
   };
   let cat: Cat | null = null;
   try {
@@ -855,6 +859,23 @@ async function chooseHelperModel(
       "Ask the person which model this helper should use, with the choices, before you start it.",
       { reason: "ask_first" },
     );
+  // a plain read, search or extraction goes to the fast model of the parent's own account by itself (r42-runtime-tokens): shown on the helper's row as the pick, and changed with Change model like any other.
+  // Only a brief that is plainly reading (lib/model-tiers.ts briefJob), only when the agent did not choose, never above the parent's own tier, and never when the agent must ask first.
+  let auto = false;
+  if (
+    input.model === undefined &&
+    input.account === undefined &&
+    input.provider === undefined &&
+    input.why === undefined &&
+    brief !== undefined &&
+    briefJob(brief) === "read"
+  ) {
+    const read = cat.suggest?.read;
+    if (read && tierOf(read.model) === "cheap" && !(cat.parent.model && tierOf(cat.parent.model) === "cheap")) {
+      input = { ...input, model: read.model, account: read.account };
+      auto = true;
+    }
+  }
   if (input.model === undefined && input.account === undefined) return null;
   const account =
     input.account !== undefined
@@ -902,7 +923,7 @@ async function chooseHelperModel(
       accountLabel: account.label,
       provider: account.provider,
       model,
-      ...(input.why ? { why: input.why } : {}),
+      ...(auto ? { why: "plain lookup, so the faster model" } : input.why ? { why: input.why } : {}),
       ...(fellBackFrom ? { fellBackFrom } : {}),
     },
   };
@@ -922,6 +943,8 @@ export async function helperStart(
     why?: string;
     crew?: boolean;
     taskId?: string;
+    dependsOn?: string[];
+    retryOf?: string;
     idempotencyKey?: string;
   },
 ) {
@@ -937,12 +960,68 @@ export async function helperStart(
   const agentId = workerFor(ctx, parent, input.agentId);
   const asker = askerOf(ctx);
   const by = author(ctx);
+  // helpers of this same chat it starts after, named by title or thread id: each must be there now
+  const waitsFor: string[] = [];
+  for (const w of new Set((input.dependsOn ?? []).map((x) => x.trim()).filter((x) => x !== ""))) {
+    const rows = ctx.db.all(
+      "SELECT id FROM chat_thread WHERE parentThreadId = ? AND kind = 'helper' AND deleted_at IS NULL AND (id = ? OR title = ?) ORDER BY createdAt DESC",
+      parent.id,
+      w,
+      w,
+    ) as Array<{ id: string }>;
+    if (!rows[0])
+      raise(ctx, "validation.bad_input", `This chat has no helper called "${w.slice(0, 60)}" to wait for.`, {
+        reason: "no_such_helper",
+      });
+    if (!waitsFor.includes(rows[0]!.id)) waitsFor.push(rows[0]!.id);
+  }
+  // a retry names the helper of this chat it starts again: the helpers that waited for it and failed with it go back to waiting
+  if (input.retryOf !== undefined) {
+    const was = ctx.db.all(
+      "SELECT id FROM chat_thread WHERE id = ? AND parentThreadId = ? AND kind = 'helper' AND deleted_at IS NULL",
+      input.retryOf,
+      parent.id,
+    ) as Array<{ id: string }>;
+    if (!was[0]) raise(ctx, "validation.bad_input", "That is not a helper of this chat.", { reason: "no_such_helper" });
+  }
+  // a helper can only wait for work of the same job (the live turn the parent works in): one of an earlier job is refused here, so the agent that asked knows, not started at once as if it had waited
+  if (waitsFor.length > 0 && ctx.call) {
+    let outside: string | undefined;
+    try {
+      const f = (await ctx.call("runs.node.find", { threadIds: [parent.id, ...waitsFor] })) as {
+        byThread?: Record<string, string>;
+      };
+      const rootOf = async (t: string): Promise<string | undefined> => {
+        const id = f.byThread?.[t];
+        return id
+          ? ((await ctx.call!("runs.node.get", { runId: id })) as { node?: { rootRun?: string } }).node?.rootRun
+          : undefined;
+      };
+      const mine = await rootOf(parent.id);
+      for (const dep of waitsFor) {
+        const r = await rootOf(dep);
+        if (mine !== undefined && r !== undefined && r !== mine) outside = dep;
+      }
+    } catch {
+      /* runs cannot be asked here: the engine checks again when the helper's node is made */
+    }
+    if (outside !== undefined)
+      raise(
+        ctx,
+        "validation.bad_input",
+        "A helper can only wait for helpers of this same job. That one belongs to earlier work.",
+        {
+          reason: "no_such_helper",
+        },
+      );
+  }
   // which model the helper runs on: the agent's pick, checked against the accounts the person may use and the agent's own rule (owner, 4 Nov 2026)
   const chosen = await chooseHelperModel(
     ctx,
     parent.id,
     ctx.principal.kind === "agent" ? ctx.principal.id : agentId,
     input,
+    input.crew === true ? undefined : instruction,
   );
   if (chosen) {
     input = { ...input, model: chosen.model, provider: chosen.provider, account: chosen.account };
@@ -983,6 +1062,8 @@ export async function helperStart(
           ...(input.model !== undefined ? { model: input.model } : {}),
           ...(chosen ? { pick: chosen.pick } : {}),
           ...(input.crew === true ? { crew: true } : {}),
+          ...(waitsFor.length > 0 ? { dependsOn: waitsFor } : {}),
+          ...(input.retryOf !== undefined ? { retryOf: input.retryOf } : {}),
         },
         state: "live",
         traceId: ctx.trace.traceId,
@@ -1220,7 +1301,7 @@ export async function helperNote(
       const pm = insertMessage(ctx, parent.id, {
         author: by.id,
         kind: "agent",
-        body: `Helper "${title}" asks: ${body}`,
+        body: questionBody(title, body),
         depth,
         blocks: [
           {

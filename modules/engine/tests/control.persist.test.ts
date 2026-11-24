@@ -239,6 +239,12 @@ test("the SQL waits and messages keep what the memory stores keep", () => {
   assert.equal(waits.forWake(THREAD, 5), null);
   waits.remove("tsk_a");
   assert.equal(waits.get("tsk_a"), null);
+  // the cause of the parked turn is kept: the turn that continues it carries it (a resumed wake is guarded like a wake)
+  waits.put({ ...w, taskId: "tsk_b", cause: "wake" });
+  assert.equal(waits.get("tsk_b")?.cause, "wake");
+  waits.resolve("tsk_b", { approved: true, result: { ok: true, content: {} } }, 9);
+  assert.equal(waits.forWake(THREAD, 9)?.cause, "wake");
+  waits.remove("tsk_b");
 
   const messages = sqlMessages(db);
   const one = messages.append({

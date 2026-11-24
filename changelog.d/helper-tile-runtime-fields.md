@@ -1,0 +1,1 @@
+- A helper tile now shows the kind of step it is on, says when it looks stuck, and says what it starts after, from the runtime's view of the helper.

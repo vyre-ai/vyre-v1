@@ -1,6 +1,6 @@
 # sites.publish
 
-Serve a site that is not public: space or private access, or a password on its own domain
+Serve a non-public site: space or private access, or a password on its domain
 
 | | |
 |---|---|
@@ -74,6 +74,7 @@ type Out = {
       url?: string;
       branch?: string;
       commit?: string;
+      message?: string;
       at: number;
       by?: string;
       note?: string;
@@ -81,6 +82,12 @@ type Out = {
       fix?: "set_env" | "add_postgres" | "add_redis" | "retry" | "set_start" | "set_port" | "open_logs" | "connect_repo" | "free_space" | "more_memory";
       current?: boolean;
       finishedAt?: number;
+      steps?: Array<{
+          key: "fetch" | "build" | "start" | "check";
+          state: "waiting" | "running" | "ok" | "failed" | "skipped";
+          ms?: number;
+          startedAt?: number;
+        }>;
     };
     limits?: {
       cpus: number;
@@ -145,16 +152,25 @@ type Out = {
         "env": "staging",
         "finishedAt": 1760000000000,
         "fix": "set_env",
+        "message": "example",
         "note": "example",
         "problem": "example",
         "siteId": "sit_a1b2c3",
         "state": "queued",
+        "steps": [
+          {
+            "key": "fetch",
+            "ms": 1,
+            "startedAt": 1760000000000,
+            "state": "waiting"
+          }
+        ],
         "url": "example"
       },
       "limits": {
         "cpus": 1,
-        "diskMb": 256,
-        "memoryMb": 128
+        "diskMb": 1,
+        "memoryMb": 1
       },
       "live": true,
       "name": "example",
@@ -172,12 +188,12 @@ type Out = {
       "siteId": "sit_a1b2c3",
       "slug": "example",
       "source": {
-        "branch": "main",
+        "branch": "example",
         "fileId": "fil_a1b2c3",
         "folderId": "fld_a1b2c3",
         "path": "example",
-        "repo": "https://github.com/acme/cx-dashboard",
-        "root": "apps/web",
+        "repo": "example",
+        "root": "example",
         "tokenHandle": "#Dana_Lawmatics"
       },
       "stagingUrl": "example",

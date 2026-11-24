@@ -22,12 +22,16 @@ const DOES: Record<Rule["act"], string> = {
   push_protected: "push to",
   secret_export: "export a secret to",
   site_promote: "publish",
+  deploy: "run code with the keys of",
   signature_send: "send for signature to",
   spend_raise: "raise the spend limit of",
   signin_change: "change the sign-in of",
+  admit: "let in",
+  access: "change the access of",
   approve: "approve",
   github_approval: "use GitHub for",
   agent_erase: "delete for good",
+  install: "install from",
 };
 
 /** "Dex can message Aliza Rizvi without asking". */

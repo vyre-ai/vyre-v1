@@ -913,6 +913,22 @@ export default defineManifest({
         errors: ["validation.duplicate", "validation.too_large"],
       },
     ),
+    create(
+      "files.create_many",
+      "Up to 200 files in one folder in one call, all or none; each as files.create takes it",
+      {
+        in: {
+          folderId: id.folder,
+          files: t.arr(t.obj({ name: t.str(), content: t.opt(content) }), { minItems: 1, maxItems: 200 }),
+        },
+        out: { files: t.arr(fileRow) },
+        make: ["file", "/folderId"],
+        perm: "files.write",
+        emits: ["file.created", "file.version_added"],
+        tool: "files",
+        errors: ["validation.duplicate", "validation.too_large", "validation.precondition_failed"],
+      },
+    ),
     write(
       "files.write",
       "Replace the content of a file, at most 256 KB at once. In a Review changes folder an agent write lands in a changeset and syncs only on Approve",
@@ -1489,7 +1505,7 @@ export default defineManifest({
         out: { approved: t.bool(), versionIds: t.arr(id.version), commit: t.opt(t.str()), conflicts: t.arr(t.str()) },
         idem: "key",
         audit: "always",
-        gate: { act: "push_protected", when: "input.push == true" },
+        gate: { act: "push_protected", when: "changesets.agent_or_push(input)" },
         emits: ["changeset.approved", "file.version_added"],
         tool: "files",
         errors: ["validation.precondition_failed", "permission.needs_approval"],

@@ -1,0 +1,1 @@
+A held read of a web page shows the host and the whole address in a wrapped, scrolling block; control and format characters are written out; a search or address carrying a secret is refused using the shared scanner.

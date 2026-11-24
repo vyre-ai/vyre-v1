@@ -382,6 +382,18 @@ export default defineManifest({
       tool: "vault",
       label: "filter",
     }),
+    read("vault.login.check", "Is a submitted login already saved? Compared inside the Vault: known, changed or new", {
+      ...V,
+      in: { url, username: t.opt(t.str({ maxLength: 320 })), password: t.str({ minLength: 1, maxLength: 1024 }) },
+      out: {
+        state: t.enm("known", "changed", "new"),
+        itemId: t.opt(id.vaultItem),
+        name: t.opt(t.str()),
+      },
+      tool: "vault",
+      label: "check",
+      rate: { n: 30, perSeconds: 60, scope: "principal" },
+    }),
     read("vault.item.get", "One item: metadata and field keys, never values", {
       in: { itemId: id.vaultItem },
       out: { item: itemMeta, fields: t.arr(t.obj({ key: fieldKey, secret: t.bool(), hasValue: t.bool() })) },
@@ -569,6 +581,7 @@ export default defineManifest({
           notify: t.opt(t.obj({ message: t.opt(t.str()) })),
         },
         out: { granted: t.bool() },
+        gate: { act: "access", when: "gate.vault_share_by_actor(input)" },
         emits: ["grant.created", "access.changed", "folder.shared"],
         audit: "always",
         tool: "vault",

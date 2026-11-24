@@ -1,6 +1,6 @@
 # sites.chat_viewing
 
-The app says a chat is open for the person right now (every half minute while it stays open). An artifact an agent publishes in a turn that person asked opens in their app only while this holds
+The app says a chat is open (every 30 s). An artifact an agent publishes opens in the person's app only while it does
 
 | | |
 |---|---|

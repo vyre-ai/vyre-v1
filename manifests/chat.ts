@@ -945,6 +945,7 @@ export default defineManifest({
         in: { ...threadT, email: t.str({ examples: ["sam@example.com"] }), level: t.opt(t.enm("view", "reply")) },
         out: { inviteId: id.invite, link: t.str() },
         on: ["thread", "/threadId"],
+        gate: { act: "admit", when: "gate.by_actor(input)" },
         level: "use",
         idem: "key",
         audit: "always",
@@ -975,7 +976,7 @@ export default defineManifest({
           ),
           mentionedIn: t.opt(id.message),
         },
-        out: { thread: threadRow },
+        out: { thread: threadRow, note: t.opt(t.str()) },
         on: ["thread", "/threadId"],
         emits: ["channel.member_added", "message.mentioned"],
         tool: "chats",
@@ -1853,6 +1854,7 @@ export default defineManifest({
         },
         out: { plan: t.obj({ planId: id.plan, state: t.str(), steps: t.arr(planStep) }) },
         on: ["thread", "/threadId"],
+        gate: { act: "access", when: "gate.by_actor(input)" },
         level: "use",
         emits: ["plan.approved", "block.answered", "thread.plan_mode_changed"],
         tool: "chats",
@@ -1929,6 +1931,13 @@ export default defineManifest({
           ),
           crew: t.opt(t.bool()),
           taskId: t.opt(id.task),
+          retryOf: t.opt(id.thread),
+          dependsOn: t.opt(
+            t.arr(t.str({ maxLength: 120 }), {
+              maxItems: 8,
+              description: "Helpers of this chat (titles or thread ids) to start after; it fails if one of them fails",
+            }),
+          ),
         },
         out: { helper: threadRow, blockId: id.block },
         on: ["thread", "/threadId"],
@@ -1962,7 +1971,7 @@ export default defineManifest({
     ),
     write(
       "chat.helper.note",
-      "Note between a helper and the agent that started it: a follow-up down, progress, a result or a question up. Set needsPerson only when no one but the person can answer",
+      "Note between a helper and the agent that started it: a follow-up down, or progress, a result or a question up. Set needsPerson only when no one but the person can answer",
       {
         in: {
           ...threadT,
@@ -2697,7 +2706,12 @@ export default defineManifest({
       vis: "participants",
     }),
     ev("helper.started", "A helper sub-task thread started under a chat", {
-      p: { helperThreadId: id.thread, parentThreadId: id.thread, agentId: id.agent, model: t.opt(t.str()) },
+      p: {
+        helperThreadId: id.thread,
+        parentThreadId: id.thread,
+        agentId: id.agent,
+        model: t.opt(t.str()),
+      },
       subject: ["thread", "/helperThreadId"],
       vis: "participants",
     }),

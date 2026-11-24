@@ -1,0 +1,1 @@
+A per-parent list keeps a parent's version only when its rows all went in, releases the children of a parent the app deleted, keeps versions after every sweep step, and validate refuses a version field that is empty on every sampled parent.

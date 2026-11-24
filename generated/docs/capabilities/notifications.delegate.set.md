@@ -11,7 +11,7 @@ Set my standing approvals delegate chain; a delegate never gains access
 | Grant level | use |
 | Risk | medium |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | none |

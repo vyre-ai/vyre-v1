@@ -32,8 +32,48 @@ async function childFolder(ctx: ConnectorsCtx, parentId: string, name: string): 
   return listed.folders.find((folder) => folder.name === name)?.folderId;
 }
 
-/** The files of a connector, written into an existing folder through the original caller's normal Files capabilities. */
-async function writeFiles(ctx: ConnectorsCtx, folderId: string, files: SourceFile[], tag: string): Promise<void> {
+/** The files of a connector, written into an existing folder through the original caller's normal Files capabilities: one call for each folder (files.create_many: one commit and one update of access for all of its files, not one for each file). */
+async function writeFilesBatched(
+  ctx: ConnectorsCtx,
+  folderId: string,
+  files: SourceFile[],
+  tag: string,
+): Promise<void> {
+  const groups = new Map<string, SourceFile[]>();
+  for (const file of files) {
+    const parts = file.path.split("/");
+    const dir = parts.length === 2 ? parts[0]! : "";
+    groups.set(dir, [...(groups.get(dir) ?? []), file]);
+  }
+  for (const [dir, list] of groups) {
+    let target = folderId;
+    if (dir !== "") {
+      const out = (await ctx.call("files.folder.create", {
+        parentId: folderId,
+        name: dir,
+        idempotencyKey: `connector-dir:${tag}:${dir}`,
+      })) as { folder: { folderId: string } };
+      target = out.folder.folderId;
+    }
+    // a connector is under 5 MB in all (checkFiles), far below the 25 MB files.create_many takes in one call
+    for (let at = 0; at < list.length; at += 200) {
+      const part = list.slice(at, at + 200);
+      await ctx.call("files.create_many", {
+        folderId: target,
+        files: part.map((file) => ({ name: file.path.split("/").at(-1)!, content: { text: file.content } })),
+        idempotencyKey: `connector-source:${tag}:${dir}:${at}`,
+      });
+    }
+  }
+}
+
+/** One call for each file, as a folder under Review changes needs (an agent's file there is staged by files.create). */
+async function writeFilesOneByOne(
+  ctx: ConnectorsCtx,
+  folderId: string,
+  files: SourceFile[],
+  tag: string,
+): Promise<void> {
   const dirs = new Map<string, string>();
   for (const file of files) {
     const parts = file.path.split("/");
@@ -73,7 +113,7 @@ export async function writeConnectorFolder(ctx: ConnectorsCtx, key: string, file
     name: `${key} connector ${ctx.trace.traceId.slice(0, 8)}`,
     idempotencyKey: `connector-folder:${ctx.trace.traceId}:${key}`,
   })) as { folder: { folderId: string } };
-  await writeFiles(ctx, made.folder.folderId, files, ctx.trace.traceId);
+  await writeFilesBatched(ctx, made.folder.folderId, files, ctx.trace.traceId);
   return made.folder.folderId;
 }
 
@@ -111,6 +151,6 @@ export async function writeSourceFolder(
     idempotencyKey: `connector-source-folder:${ctx.trace.traceId}:${key}`,
   })) as { folder: { folderId: string } };
   register(made.folder.folderId);
-  await writeFiles(ctx, made.folder.folderId, files, ctx.trace.traceId);
+  await writeFilesOneByOne(ctx, made.folder.folderId, files, ctx.trace.traceId);
   return made.folder.folderId;
 }

@@ -1,0 +1,2 @@
+- A Space owner or admin who asks for a key in a folder they cannot add to now asks that folder's managers, as before; the item is made at once only when their own put would succeed.
+- A team's Members tab lists every open invite naming the team, reading all pages, not only the first 100.

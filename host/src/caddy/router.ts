@@ -3,6 +3,7 @@
 // Staging and preview routes carry basic auth whose password is a sealed Vault key: the password is read at call time, hashed to bcrypt by the injected hasher, and only the
 // hash reaches Caddy.
 import { CaddyAdmin, CaddyError } from "./admin.ts";
+import { ensureAccessLog } from "./accesslog.ts";
 import {
   baseConfig,
   BASIC_USER,
@@ -59,6 +60,11 @@ export class CaddyRouter {
     if (!changed) return { created: false };
     await this.o.admin.load(config);
     return { created: true };
+  }
+
+  /** Make Caddy write its access lines for deployed sites to this machine's port (accesslog.ts). Cheap to call again: it reads, and writes only what differs. */
+  ensureAccessLog(port: number): Promise<"set" | "same"> {
+    return ensureAccessLog(this.o.admin, port);
   }
 
   async setRoute(spec: RouteSpec): Promise<void> {

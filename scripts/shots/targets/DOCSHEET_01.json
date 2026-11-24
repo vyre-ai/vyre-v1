@@ -1,0 +1,46 @@
+{
+  "targets": [
+    {
+      "id": "DOCSHEET_01-templates",
+      "route": "/m/DOCSHEET_01?part=templates",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-templates']",
+      "note": "Templates for this kind of record, and for any: name and how many fields."
+    },
+    {
+      "id": "DOCSHEET_01-fill",
+      "route": "/m/DOCSHEET_01?part=fill",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-page']",
+      "note": "The page filled from the record, the fields the record did not hold in amber, Make waiting and saying why."
+    },
+    {
+      "id": "DOCSHEET_01-filled",
+      "route": "/m/DOCSHEET_01?part=filled",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-make']",
+      "note": "Everything typed: Make PDF is ready; the format switch offers PDF or a document."
+    },
+    {
+      "id": "DOCSHEET_01-made",
+      "route": "/m/DOCSHEET_01?part=made",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-sheet-made']",
+      "note": "The PDF is made: in the record's files, who signs, Send for signature."
+    },
+    {
+      "id": "DOCSHEET_01-none",
+      "route": "/m/DOCSHEET_01?part=none",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-none']",
+      "note": "No templates yet: one plain line says how to make one."
+    },
+    {
+      "id": "DOCSHEET_01-failed",
+      "route": "/m/DOCSHEET_01?part=failed",
+      "proto": "files,{skin},at:docs",
+      "waitFor": "[data-testid='doc-retry']",
+      "note": "The list could not be read: the server's own sentence and Try again."
+    }
+  ]
+}

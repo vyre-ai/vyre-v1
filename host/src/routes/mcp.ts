@@ -2,14 +2,16 @@
 // address, so the answer can never come from the Host header alone (see `origin` in the daemon).
 import type http from "node:http";
 import { safeUrl } from "../safe-url.ts";
+import { visitorOfRequest } from "../seams/visitor-proof.ts";
 
 export interface McpRuntime {
-  handle(req: {
-    method: string;
-    headers: Record<string, string | undefined>;
+  handle(req: { method: string; headers: Record<string, string | undefined>; body: string; origin?: string }): Promise<{
+    status: number;
+    headers: Record<string, string>;
     body: string;
-    origin?: string;
-  }): Promise<{ status: number; headers: Record<string, string>; body: string }>;
+    /** A response that stays open: sent after the status and headers; ends when the promise settles. */
+    stream?: (out: { write(chunk: string): void; closed: Promise<void> }) => Promise<void>;
+  }>;
   /** The sign-in addresses (/oauth/*, /.well-known/oauth-*): null for any other path. */
   oauth(req: {
     method: string;
@@ -23,6 +25,8 @@ export interface McpRuntime {
 }
 
 const MAX_BODY = 1024 * 1024;
+/** The most a stream may have written and not yet delivered before it is cut. */
+const MAX_BUFFERED = 256 * 1024;
 const SIGN_IN = /^\/(oauth\/|\.well-known\/oauth-)/;
 
 export interface McpRouteDeps {
@@ -64,10 +68,7 @@ export function createMcpRoute(deps: McpRouteDeps): {
         const body = Buffer.concat(chunks).toString("utf8");
         const origin = deps.origin(req);
         if (signIn) {
-          const visitor =
-            typeof headers["x-vyre-visitor"] === "string" && headers["x-vyre-visitor"] !== ""
-              ? headers["x-vyre-visitor"]
-              : (req.socket.remoteAddress ?? "");
+          const visitor = visitorOfRequest(req); // the daemon read what the relay vouched for before any route ran (seams/visitor-proof.ts)
           const out = await live.oauth({
             method: req.method ?? "GET",
             path: url.pathname,
@@ -93,6 +94,33 @@ export function createMcpRoute(deps: McpRouteDeps): {
           ...(origin === null ? {} : { origin }),
         });
         res.writeHead(out.status, { ...out.headers, "cache-control": "no-store" });
+        if (out.stream) {
+          // an open stream: every write goes out at once; it ends when the app goes away or the server ends it
+          const closed = new Promise<void>((resolve) => {
+            // the response's own close: a request's close fires once its body is read, which is not the app going away.
+            // An app that went away while the runtime was answering has already closed it: that settles at once.
+            if (res.destroyed || res.writableEnded) resolve();
+            else res.once("close", resolve);
+          });
+          res.flushHeaders();
+          try {
+            await out.stream({
+              write: (chunk) => {
+                if (res.writableEnded || res.destroyed) return;
+                // a client that stops reading does not make the server hold what it was never sent: past this much waiting the stream is cut
+                if (res.writableLength > MAX_BUFFERED) {
+                  res.destroy();
+                  return;
+                }
+                res.write(chunk);
+              },
+              closed,
+            });
+          } finally {
+            res.end();
+          }
+          return;
+        }
         res.end(out.body);
       })().catch(() => {
         if (!res.headersSent) res.writeHead(500, { "content-type": "application/json", "cache-control": "no-store" });

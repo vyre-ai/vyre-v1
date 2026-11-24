@@ -1,0 +1,1 @@
+One-time codes: the long bare token rule is for outgoing text only; only a seed becomes a code (a recovery code is filled as stored); a code is its own audited use, six per item per ten minutes per actor; the code is never returned to an agent; one clock; a one-time-code input is filled from a totp item only.

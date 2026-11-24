@@ -26,6 +26,8 @@ import { createComposerFill } from "../conversation/data.tsx";
 import type { ComposerFill, ConversationNav } from "../conversation/data.tsx";
 import { HelperChat, HelperChatLoading } from "../helper/HelperChat.tsx";
 import { AgentPane } from "../AgentPane.tsx";
+import { useShown } from "../crew/run/useShown.ts";
+import { DeskHost } from "../rightpane/Desk.tsx";
 import { CrewProvider } from "../crew/context.tsx";
 import { SessionProvider } from "../session/context.tsx";
 import { useAddSheet } from "../addsheet/index.ts";
@@ -428,6 +430,8 @@ export function ChatsMounted({
   const [paneTab, setPaneTab] = useState<TabKey | undefined>(undefined);
   // "Back to Chats" on a refusal (ui/States) shows the start, where the list is
   const placeRef = useRef<{ getBoundingClientRect?: () => { width: number; height: number } } | null>(null);
+  // a copy kept mounted behind another place reads nothing of the runtime until it shows again
+  const placeShown = useShown(placeRef);
   // only the Chats place that is on screen hears it: a copy kept mounted behind another place has no size
   useEffect(
     () =>
@@ -1506,7 +1510,11 @@ export function ChatsMounted({
     );
   const showMain = !(narrow && right !== null);
   return (
-    <CrewProvider call={rt.call as (cap: string, input: unknown) => Promise<unknown>} threadId={threadId ?? ""}>
+    <CrewProvider
+      call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+      threadId={threadId ?? ""}
+      shown={placeShown}
+    >
       <SessionProvider threadId={threadId ?? ""}>
         <View testID="chats-place" ref={placeRef as never} style={st.row}>
           <ChatsSidebarSlot data={side} open={openKey} {...(window ? { window } : {})} />
@@ -1561,6 +1569,8 @@ export function ChatsMounted({
               ) : null}
             </View>
           ) : null}
+          {/* the agent's desk (rightpane/Desk.tsx): a full view or a small live picture over the chat, opened from the Computer tab */}
+          <DeskHost />
         </View>
       </SessionProvider>
     </CrewProvider>

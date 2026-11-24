@@ -19,7 +19,7 @@ What the clock moves, once a minute: the day a task is due begins for its holder
 | HTTP | POST /v1/tasks/clock |
 | MCP tool | none |
 | CLI | none |
-| Emits | task.due, task.snoozed, task.nudged |
+| Emits | task.due, task.snoozed, task.nudged, task.archived |
 
 ## Input
 
@@ -34,6 +34,8 @@ type Out = {
   due: number;
   woke: number;
   nudged: number;
+  passed: number;
+  asked: number;
 };
 ```
 
@@ -51,8 +53,10 @@ type Out = {
   "name": "example",
   "input": {},
   "output": {
+    "asked": 1,
     "due": 1,
     "nudged": 1,
+    "passed": 1,
     "woke": 1
   }
 }

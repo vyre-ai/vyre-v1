@@ -7,6 +7,8 @@ HTTP 429. Retryable: yes.
 ## Raised by
 
 - access.request
+- computers.chrome.read
+- computers.chrome.search
 - forms.submit
 - notifications.send
 - portal.sign_in

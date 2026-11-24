@@ -389,6 +389,86 @@ test("plan propose refusals", async () => {
   );
 });
 
+test("a helper told to wait for others of its chat: they are named by title or thread id, the block carries their threads, and an unknown name is refused", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const base = { threadId, agentId: DRAFTER, model: "claude-haiku-4-5", provider: "anthropic", effort: "low" as const };
+  const a = await g["chat.helper.start"](hn.agent(), { ...base, title: "Numbers", instruction: "Add the figures." });
+  const b = await g["chat.helper.start"](hn.agent(), {
+    ...base,
+    title: "Docs",
+    instruction: "Write it up.",
+    dependsOn: ["Numbers", a.helper["threadId"] as string],
+  });
+  const line = hn.raw.all(
+    "SELECT blocks FROM chat_message WHERE thread = ? AND body LIKE 'Started a helper: Docs%'",
+    threadId,
+  ) as Array<{ blocks: string }>;
+  const block = (JSON.parse(line[0]!.blocks) as Array<{ type: string; data: { dependsOn?: string[] } }>).find(
+    (x) => x.type === "helper",
+  );
+  assert.deepEqual(block?.data.dependsOn, [a.helper["threadId"]], "both ways of naming it are the one helper, once");
+  assert.ok(b.helper["threadId"]);
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), { ...base, title: "Late", instruction: "x", dependsOn: ["Nobody"] }),
+  );
+});
+
+test("a helper cannot wait for one of earlier work: refused at the start, so the agent that asked knows; one of the same job is accepted", async () => {
+  const roots: Record<string, string> = {};
+  const nodeOf = (t: string) => `run_${t}`;
+  const hn = harness({
+    calls: {
+      "runs.node.find": (i) => ({
+        byThread: Object.fromEntries((i["threadIds"] as string[]).filter((t) => roots[t]).map((t) => [t, nodeOf(t)])),
+      }),
+      "runs.node.get": (i) => ({ node: { rootRun: roots[String(i["runId"]).slice(4)] } }),
+    },
+  });
+  const threadId = await chatOf(hn);
+  const base = { threadId, agentId: DRAFTER, model: "claude-haiku-4-5", provider: "anthropic", effort: "low" as const };
+  const a = await g["chat.helper.start"](hn.agent(), { ...base, title: "Numbers", instruction: "Add the figures." });
+  const aThread = a.helper["threadId"] as string;
+  roots[threadId] = "run_job1";
+  roots[aThread] = "run_job1";
+  const same = await g["chat.helper.start"](hn.agent(), {
+    ...base,
+    title: "Docs",
+    instruction: "Write.",
+    dependsOn: ["Numbers"],
+  });
+  assert.ok(same.helper["threadId"], "the same job: started");
+  roots[aThread] = "run_job0";
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), { ...base, title: "Late", instruction: "x", dependsOn: ["Numbers"] }),
+  );
+});
+
+test("a retry names the helper of this chat it starts again; another thread is refused; the block carries it", async () => {
+  const hn = harness();
+  const threadId = await chatOf(hn);
+  const base = { threadId, agentId: DRAFTER, model: "claude-haiku-4-5", provider: "anthropic", effort: "low" as const };
+  const a = await g["chat.helper.start"](hn.agent(), { ...base, title: "Numbers", instruction: "Add the figures." });
+  const retry = await g["chat.helper.start"](hn.agent(), {
+    ...base,
+    title: "Numbers",
+    instruction: "Add the figures.",
+    retryOf: a.helper["threadId"] as string,
+  });
+  const line = hn.raw.all(
+    "SELECT blocks FROM chat_message WHERE thread = ? AND body LIKE 'Started a helper: Numbers%' ORDER BY rowid DESC",
+    threadId,
+  ) as Array<{ blocks: string }>;
+  const block = (JSON.parse(line[0]!.blocks) as Array<{ type: string; data: { retryOf?: string } }>).find(
+    (x) => x.type === "helper",
+  );
+  assert.equal(block?.data.retryOf, a.helper["threadId"]);
+  assert.ok(retry.helper["threadId"]);
+  await refuses(hn, "chat.helper.start", "validation.bad_input", () =>
+    g["chat.helper.start"](hn.agent(), { ...base, title: "x", instruction: "y", retryOf: threadId }),
+  );
+});
+
 test("helpers: start, list, refusals", async () => {
   const hn = harness();
   const threadId = await chatOf(hn);

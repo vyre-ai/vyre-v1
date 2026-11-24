@@ -39,6 +39,7 @@ export async function managersFor(
   ctx: VaultReqCtx,
   folderId: string | undefined,
   requester: string,
+  seen?: { requesterManages: boolean },
 ): Promise<string[]> {
   const ask = async (resource: { type: string; id: string }, why: string): Promise<string[]> => {
     try {
@@ -52,9 +53,14 @@ export async function managersFor(
   const out = new Set<string>(
     folderId ? await ask({ type: "vault_folder", id: folderId }, "the folder's managers") : [],
   );
+  if (seen && out.has(requester)) seen.requesterManages = true;
   out.delete(requester);
   // ruling 74: when no folder claims the key, or only the requester manages it, the Space's owners decide
-  if (out.size === 0) for (const p of await ask({ type: "space", id: ctx.space }, "the Space managers")) out.add(p);
+  if (out.size === 0 || (seen && !seen.requesterManages)) {
+    const space = await ask({ type: "space", id: ctx.space }, "the Space managers");
+    if (seen && space.includes(requester)) seen.requesterManages = true;
+    if (out.size === 0) for (const p of space) out.add(p);
+  }
   out.delete(requester);
   return [...out].sort();
 }
@@ -224,7 +230,17 @@ export async function requestCreate(
   const self = ctx.actingFor ?? requester.id;
   if (input.to !== undefined && (!input.to.startsWith("usr_") || input.to === self || input.to === requester.id))
     raise(trace, "validation.bad_input", "Address the request to a teammate, not to yourself.");
-  const managers = input.to !== undefined ? [input.to] : await managersFor(ctx, input.folderId, requester.id);
+  const seen = { requesterManages: false };
+  const managers =
+    input.to !== undefined
+      ? [input.to]
+      : await managersFor(ctx, input.folderId, requester.id, requester.kind === "person" ? seen : undefined);
+  // someone who can manage the folder needs to ask nobody: the item is made now, with the fields empty, for them to fill in
+  if (input.to === undefined && requester.kind === "person" && seen.requesterManages && input.handleOnly !== true) {
+    const made = await placeholderFor(ctx, { requester, name, fields, input });
+    // a Space owner or admin who cannot put into that folder asks its managers as before
+    if (made) return made;
+  }
   if (managers.length === 0) raise(trace, "validation.precondition_failed", "Nobody can decide this request.");
   const id = nid("vrq");
   const block = {
@@ -307,6 +323,76 @@ export async function requestCreate(
     }
   }
   return { request: requestOut(row) };
+}
+
+/** A manager's own request: no card, no task. The item is made in the folder (a company key in its Restricted folder, else their Mine) with every field empty, and the request is recorded as fulfilled so a second ask finds it. */
+async function placeholderFor(
+  ctx: VaultReqCtx,
+  a: {
+    requester: { kind: string; id: string };
+    name: string;
+    fields: string[];
+    input: { reason: string; forRun?: string; folderId?: string; idempotencyKey: string };
+  },
+) {
+  const trace = ctx.trace.traceId;
+  const id = nid("vrq");
+  const folderId =
+    a.input.folderId ??
+    (isCompanyKey(`#${a.name}`) ? await companyFolder(ctx) : await ownMine(ctx, { id } as RequestRow, undefined));
+  if (!folderId) raise(trace, "validation.precondition_failed", "Choose the folder the new item goes in.");
+  let made: Record<string, unknown> | null;
+  let existing: string | undefined;
+  try {
+    made = asRow(
+      await ctx.call("vault.item.put", {
+        folderId,
+        name: a.name,
+        kind: "api_key",
+        fields: a.fields.map((key) => ({ key, value: "", secret: true })),
+        idempotencyKey: `${id}:placeholder`,
+      }),
+    );
+  } catch (e) {
+    const code = (e as { error?: { code?: string } })?.error?.code ?? "";
+    if (code.startsWith("permission.") || code === "validation.not_found") return null;
+    if (code !== "validation.duplicate") throw e;
+    // the folder already keeps an item with that name: the request is fulfilled with that item, nothing is overwritten
+    const list =
+      (asRow(await ctx.call("vault.items.list", { folder: folderId, q: a.name }))?.["items"] as {
+        id?: string;
+        name?: string;
+      }[]) ?? [];
+    const have = list.find((x) => String(x.name ?? "").toLowerCase() === a.name.toLowerCase());
+    if (!have?.id) throw e;
+    existing = have.id;
+    made = null;
+  }
+  const itemId = existing ?? strOf(asRow(made?.["item"])?.["id"]);
+  if (!itemId) raise(trace, "internal.unexpected", "The item was not saved.");
+  ctx.db.run(
+    `INSERT INTO ${TABLE} (id, name, fields_json, reason, requester_kind, requester_id, for_run, folder_id, state, item_id, idem_key, managers_json, task_ids_json, at, decided_by, decided_at, handle_only, asker_id, thread_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    id,
+    a.name,
+    JSON.stringify(a.fields),
+    a.input.reason.trim(),
+    a.requester.kind,
+    a.requester.id,
+    a.input.forRun ?? null,
+    folderId,
+    "fulfilled",
+    itemId,
+    a.input.idempotencyKey,
+    "[]",
+    "[]",
+    ctx.now(),
+    a.requester.id,
+    ctx.now(),
+    0,
+    null,
+    ctx.thread ?? null,
+  );
+  return { request: { ...requestOut(requestById(ctx, id)!), ...(existing ? {} : { placeholder: true }) } };
 }
 
 /** The person an agent asked for may add a key that names no folder into their own Mine (owner ruling 3 Nov). Never a company key, never an outside agent's name-only ask. */
@@ -523,6 +609,8 @@ export async function storeKey(
     shared?: boolean;
     /** one per try: a retry after a refused connect must not replay the earlier try's key */
     attempt?: string;
+    /** what the connect card showed: the service is read again, and nothing is kept when its revision or addresses are no longer these */
+    pin?: { connector: string; revision: string; hosts: string[] };
   },
 ): Promise<Stored> {
   const trace = ctx.trace.traceId;
@@ -535,6 +623,21 @@ export async function storeKey(
   const hasFields = !!input.fields && input.fields.length > 0;
   if (!input.itemId === !hasFields)
     raise(trace, "validation.bad_input", "Attach an item, or give the fields for a new one, not both and not neither.");
+  if (input.pin) {
+    const got = asRow(await ctx.call("connectors.for_service", { service: input.pin.connector }));
+    const now = asRow(got?.["connector"]);
+    const nowHosts = Array.isArray(now?.["hosts"])
+      ? (now["hosts"] as unknown[]).map((h) => String(h).toLowerCase())
+      : [];
+    if (
+      !now ||
+      !input.pin.revision ||
+      strOf(now["revision"]) !== input.pin.revision ||
+      [...new Set(nowHosts)].sort().join("\n") !==
+        [...new Set(input.pin.hosts.map((h) => h.toLowerCase()))].sort().join("\n")
+    )
+      raise(trace, "validation.precondition_failed", "This service changed since the card was shown. Open it again.");
+  }
   const wanted = idsOf(row.fields_json);
   // a company key is kept from every agent on purpose, and a name-only ask gets no Use: neither is a key the requester is to use
   const forAgent = row.handle_only !== 1 && !isCompanyKey(`#${row.name}`);

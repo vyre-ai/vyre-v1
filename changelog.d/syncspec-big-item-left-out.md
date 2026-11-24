@@ -1,0 +1,1 @@
+A SyncSpec item that opens into more than 2,000 inner rows (or a page into more than 20,000) is left out and named in the pass summary while the rest of the list syncs, a sweep keeps the records already held for it, validate warns, and the whole-word matcher is one shared function.

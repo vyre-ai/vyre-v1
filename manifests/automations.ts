@@ -832,7 +832,8 @@ export default defineManifest({
         level: "view",
         risk: "medium",
         idem: "key",
-        gate: { act: "post" },
+        // only a step of an automation asks here (the Gate sees a step as a service): a call from anyone else is not held, so no member or agent can raise a card with words of its choosing
+        gate: { act: "post", when: "actor.kind == 'service'" },
       },
     ),
     write("automations.schedule_choose", "Apply one recovery choice to a schedule whose backlog is over its cap", {

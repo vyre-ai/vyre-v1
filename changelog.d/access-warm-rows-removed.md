@@ -1,0 +1,1 @@
+The access warm-up (the rows people are served built ten seconds after a start) is taken out: it published a read view before later joiners existed and made a sign-up or invite join fail at its next step under load. The first list builds the rows, as before.

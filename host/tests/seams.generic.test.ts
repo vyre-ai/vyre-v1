@@ -111,11 +111,13 @@ test("seams.generic: a driver that throws is reported as missing with its reason
 
 test("seams.generic: the built-in registry covers the connector and mail-driver seams, and a push port without a transport refuses to send", async () => {
   assert.deepEqual(Object.keys(BUILTIN_DRIVERS).sort(), [
+    "configureDocuments",
     "setCiHost",
     "setDropboxHost",
     "setGithubHost",
     "setGoogleHost",
     "setImapSecretResolver",
+    "setMailFileBytes",
     "setMailgunHost",
     "setMsHost",
     "setPluginsHost",

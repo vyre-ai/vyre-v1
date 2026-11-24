@@ -5,6 +5,8 @@
 // It only reads and emits; notifications turn task.due and task.nudged into a line for the person, and automations can start on task.due.
 import { isTrustedService } from "../../../lib/trust.ts";
 import {
+  NOT_ARCHIVED,
+  readPolicy,
   actionableSlot,
   allTasks,
   emitTask,
@@ -17,6 +19,8 @@ import {
 } from "../projections.ts";
 import type { Assignee, Task, TasksCtx } from "../projections.ts";
 import { findStuck } from "./act.ts";
+import { cannotArchive, putAway } from "./archive.ts";
+import { NOT_ASKED, archiveUnanswered, askUntouched, momentWords, putOnCard, rotate } from "./still.ts";
 
 type In = Record<string, unknown>;
 const DAY = 86_400_000;
@@ -41,7 +45,8 @@ export function sayDue(ctx: TasksCtx): number {
   // the widest zone is 14 hours ahead, so a task due within a day and a half may already be due "today" somewhere
   for (const t of allTasks(
     ctx.db,
-    "c.state NOT IN ('done', 'canceled') AND m.due IS NOT NULL AND m.due <= ? AND m.due > ?",
+    // an archived task is put away: its due date reminds nobody
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND m.due IS NOT NULL AND m.due <= ? AND m.due > ?`,
     now + DAY + 14 * 3_600_000,
     now - DAY,
   ).slice(0, MAX)) {
@@ -134,9 +139,46 @@ export function nudgeStuck(ctx: TasksCtx, o: { idleMs?: number } = {}): number {
 }
 
 /** One pass of the clock. */
-export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number } {
+/**
+ * Moments pass. A moment someone STATED (a person, or an agent that named one) puts the task away a grace period after it: "It was for Thu 5 Nov." A moment the Space only guessed (the default an agent gets)
+ * never does that: the task goes on the weekly "Still need these?" card (tasks_ask), and archives itself only when nobody answers for a week (code quiet). A due date alone does neither. Nothing is deleted,
+ * Put back undoes it, a task a held act, a Run or other work waits on is skipped, and an archived or asked task is out of the next pass, so each sentence is said once. Returns how many were put away.
+ */
+export function archivePassed(ctx: TasksCtx): number {
+  const policy = readPolicy(ctx.db);
+  if (!policy.tidy) return 0;
+  const now = ctx.now();
+  let n = 0;
+  rotate(
+    ctx,
+    "archive_passed",
+    `c.state NOT IN ('done', 'canceled') AND ${NOT_ARCHIVED} AND mo.until IS NOT NULL AND mo.until <= ? ${NOT_ASKED}`,
+    [now - policy.momentGraceDays * DAY, now],
+    "mo.until",
+    (t) => t.relevantUntil ?? 0,
+    (t) => {
+      if (t.relevantUntil === undefined || cannotArchive(ctx, t) !== null) return;
+      if (t.momentStated === false) {
+        putOnCard(ctx, t, "Its expected date has passed.");
+        return;
+      }
+      const holder = stepHolder(t);
+      const tz = holder.kind === "person" ? tzOf(ctx.db, holder.id) : "UTC";
+      putAway(ctx, t, {
+        code: "passed",
+        why: `It was for ${momentWords(t.relevantUntil, tz)}.`,
+        proof: { relevantUntil: t.relevantUntil },
+      });
+      n += 1;
+    },
+    MAX,
+  );
+  return n + archiveUnanswered(ctx);
+}
+
+export function tick(ctx: TasksCtx): { due: number; woke: number; nudged: number; passed: number; asked: number } {
   const woke = wakeSnoozed(ctx);
-  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx) };
+  return { due: sayDue(ctx), woke, nudged: nudgeStuck(ctx), passed: archivePassed(ctx), asked: askUntouched(ctx) };
 }
 
 /** tasks.clock: the same pass, for the server only (the periodic job runs it every minute). */

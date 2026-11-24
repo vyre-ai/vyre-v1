@@ -81,7 +81,7 @@ withOutsideSpace(
     }
     if (process.env["VYRE_MATRIX_OUT"])
       fs.writeFileSync(process.env["VYRE_MATRIX_OUT"], JSON.stringify(table, null, 1) + "\n");
-    // rc.26's own answers (search is not an MCP tool here, so it errors the same way before and after)
+    // rc.26's answers, except search: chat_history_search became a tool (r42-mcp), so it finds in the channels the agent is in and finds nothing in the one it is not in
     assert.deepEqual(
       table,
       JSON.parse(fs.readFileSync(new URL("./guest.channel.matrix.agent.rc26.json", import.meta.url), "utf8")),

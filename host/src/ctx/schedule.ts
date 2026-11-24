@@ -6,7 +6,10 @@ import { mintUuid } from "../../../lib/ids.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { CapName } from "../../../packages/contracts/src/types.ts";
 import { fail } from "../routes/errors.ts";
-import { isTrustedService } from "../../../lib/trust.ts";
+import { HOST_SERVICE, isTrustedService } from "../../../lib/trust.ts";
+
+/** The modules whose own follow-up calls may run as the host service (ctx.schedule `system`). */
+export const SYSTEM_SCHEDULERS: ReadonlySet<string> = new Set(["mail"]);
 import type { RawDb } from "./db.ts";
 
 export interface ScheduledCall {
@@ -120,8 +123,9 @@ export class ScheduleQueue {
   }
 
   /** The ctx.schedule of one call. */
-  forCtx(seed: ScheduleSeed): Ctx["schedule"] {
-    return (at, cap, input, opts) => this.add(seed, at, cap, input, opts);
+  /** `module` is the module whose capability is making this call; only it may ask for `system` jobs, and only for its own capabilities. */
+  forCtx(seed: ScheduleSeed, module?: string): Ctx["schedule"] {
+    return (at, cap, input, opts) => this.add(seed, at, cap, input, opts, module);
   }
 
   async add(
@@ -129,11 +133,21 @@ export class ScheduleQueue {
     at: number | string,
     cap: CapName | string,
     input: unknown,
-    opts?: { as?: string },
+    opts?: { as?: string; system?: boolean },
+    module?: string,
   ): Promise<string> {
     const traceId = seed.trace?.traceId ?? NO_TRACE;
     let principal = seed.principal;
     let actingFor = seed.actingFor;
+    if (opts?.system === true) {
+      // a follow-up the module owns (a mail retry): it runs as the host service, so a person's or agent's identity is never replayed later. Only a listed module, only its own capabilities.
+      if (!module || !SYSTEM_SCHEDULERS.has(module) || typeof cap !== "string" || !cap.startsWith(`${module}.`))
+        throw fail("permission.no_grant", traceId, {
+          message: "Only a module's own follow-up calls run as the system.",
+        });
+      principal = { kind: "service", id: HOST_SERVICE };
+      actingFor = undefined;
+    }
     if (opts?.as !== undefined) {
       // only the server's own jobs may schedule work as a person (a sync pass runs as the person who set the sync up); that person must be able to run it now
       if (!isTrustedService(seed.principal))
@@ -201,7 +215,7 @@ export class ScheduleQueue {
   waiting(): WaitingJob[] {
     const now = this.now();
     const rows = this.db.all(
-      "SELECT id, cap, run_at, tries, state, claimed_at, last_error FROM host_schedule WHERE state IN ('pending', 'running') ORDER BY run_at, id",
+      "SELECT id, cap, run_at, tries, state, claimed_at, last_error FROM host_schedule WHERE state IN ('pending', 'running') ORDER BY run_at, rowid",
     ) as {
       id: string;
       cap: string;
@@ -258,7 +272,7 @@ export class ScheduleQueue {
     const now = this.now();
     const lease = this.o.leaseMs ?? 120_000;
     const due = this.db.all(
-      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, id LIMIT ?",
+      "SELECT id, space, cap, input, principal_kind, principal_id, acting_for, trace_id, tries FROM host_schedule WHERE (state = 'pending' AND run_at <= ?) OR (state = 'running' AND claimed_at <= ?) ORDER BY run_at, rowid LIMIT ?",
       now,
       now - lease,
       this.o.batch ?? 50,

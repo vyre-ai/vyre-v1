@@ -41,7 +41,7 @@ export function RunView({ view, onFix }: { view: ReturnType<typeof runView>; onF
       ) : null}
       {/* ui-rows-lint: not a list (run rows with a sentence, a result line and openable values) */}
       {view.rows.map((r) => (
-        <View key={r.id} style={{ marginLeft: r.depth * 20 }}>
+        <View key={r.id} testID={`rv-row-${r.id}`} style={{ marginLeft: r.depth * 20 }}>
           <View style={[s.row, r.mark === "failed" ? s.rowFailed : null]}>
             <Text
               style={[

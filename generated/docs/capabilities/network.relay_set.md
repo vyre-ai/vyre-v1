@@ -11,7 +11,7 @@ Switch the Space to the relay or back, with no re-invite (devices pin the Space 
 | Grant level | manage |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | natural |
 | Offline | online |
 | Audit | always |

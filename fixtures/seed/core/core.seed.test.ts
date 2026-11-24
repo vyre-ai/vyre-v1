@@ -27,7 +27,8 @@ import { smallRecipe, SMALL_TARGET } from "../small/recipe.ts";
 import { perfRecipe, PERF_TARGET } from "../perf/recipe.ts";
 
 /** The frozen shape: sha-256 of the recipe's events (type, entity, id, payload). Only the lead changes it, together with the recipe. */
-const CORE_SHAPE_HASH = "d2605a1c7c0f522a63ee37dbbd651059bb23b221db5fbe2f7f4c91fa75d5d302";
+// re-frozen by the lead, 19 Nov 2026: the owner role gains comms.templates (email templates)
+const CORE_SHAPE_HASH = "148bc9dac7f0057a1319b485577ab05e333f8203c4c26c58304839f93def0daf";
 const shapeHash = (): string =>
   crypto
     .createHash("sha256")

@@ -1,6 +1,6 @@
 # computers.chrome.net
 
-Read network requests of the tab with timing; bodies are masked by the vault scrubber
+Read the tab's network requests with timing; bodies are masked
 
 | | |
 |---|---|

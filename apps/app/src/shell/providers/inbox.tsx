@@ -4,7 +4,8 @@
 // tiles of Settings > Email and calendar instead of an empty Inbox.
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { useOnLink, useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { inboxViewsLinked } from "./inbox-links.ts";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement, ReactNode } from "react";
@@ -325,6 +326,12 @@ function useInboxLinks(): void {
   useEffect(() => {
     if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
   }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
+  // a link back to the same meeting, Replies, Unmatched list or event the person moved off (the address is the same words as before, so the effects above do not run) moves the view again
+  useOnLink(() => {
+    for (const main of inboxViewsLinked({ meetingHash, repliesHash, unmatchedLink, eventHash })) {
+      if (state.main !== main) dispatch({ type: main });
+    }
+  });
 }
 
 /** The sidebar and the middle side by side; on a phone one at a time: the list of inboxes first, then what a row opened, with a way back. */
@@ -431,6 +438,8 @@ function InboxView({ rt }: { rt: ShellRuntime }): ReactElement {
   const hashed = useOpenedId(["conversation", "call"], ["conversationId"]);
   const [picked, setOpenId] = useState<string | null>(null);
   const openId = picked ?? hashed;
+  // a link to a conversation takes the screen even when a row the person pressed earlier is still open ("picked" wins over the address only until an address comes from outside)
+  useOnLink(() => setOpenId(null));
   const data = useMemo(
     () =>
       inboxData(rt, (id) => {

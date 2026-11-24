@@ -22,6 +22,10 @@ const SPACE_DEFAULTS: Readonly<Record<string, unknown>> = {
   "gate.email_backstop_hours": 4,
   "engine.agent_hops": 8,
   "tasks.review_loop_limit": 2,
+  "tasks.tidy": true,
+  "tasks.ask_after_days": 14,
+  "tasks.moment_grace_days": 1,
+  "tasks.assistant_look": false,
   "access.review_every_days": 90,
   "git.protected_branches": ["main", "master"],
   "files.review_changes": { git: true, cloud_mount: true, plain: false },
@@ -911,6 +915,68 @@ export function createSampleSettings(space: SampleSpace = northwind): SampleSett
     return r;
   };
   const writes: Record<string, (input: any) => unknown> = {
+    // Connected apps: three apps in the three states the page words (working now, a day ago, joined and has not acted)
+    "mcp.connected.list": () => ({
+      agents: [
+        {
+          agentId: "agt_claude",
+          clientName: "Claude",
+          connectedAt: SAMPLE_NOW - 3 * 86_400_000,
+          lastSeenAt: SAMPLE_NOW - 120_000,
+          calls: 41,
+          lastDid: "Added a task",
+          setup: false,
+        },
+        {
+          agentId: "agt_cursor",
+          clientName: "Cursor",
+          connectedAt: SAMPLE_NOW - 5 * 86_400_000,
+          lastSeenAt: SAMPLE_NOW - 26 * 3_600_000,
+          calls: 12,
+          lastDid: "Read 3 files",
+          setup: false,
+        },
+        {
+          agentId: "agt_chatgpt",
+          clientName: "ChatGPT",
+          connectedAt: SAMPLE_NOW - 30 * 3_600_000,
+          calls: 0,
+          setup: false,
+        },
+      ],
+    }),
+    "mcp.connected.link": () => ({
+      url: "https://northwind.vyre.run/mcp",
+      claudeCode: "claude mcp add --transport http vyre https://northwind.vyre.run/mcp",
+    }),
+    "mcp.activity.list": () => ({
+      rows: [
+        {
+          id: "mca_1",
+          tool: "tasks_create",
+          cap: "tasks.create",
+          outcome: "ok",
+          did: "Added a task",
+          at: SAMPLE_NOW - 120_000,
+        },
+        {
+          id: "mca_2",
+          tool: "records_query",
+          cap: "records.query",
+          outcome: "ok",
+          did: "Read records",
+          at: SAMPLE_NOW - 900_000,
+        },
+        {
+          id: "mca_3",
+          tool: "mail_send",
+          cap: "mail.send_as",
+          outcome: "held",
+          did: "Wants to send an email",
+          at: SAMPLE_NOW - 3_600_000,
+        },
+      ],
+    }),
     "settings.set_space": (i: { key: string; value: unknown }) => {
       if (space.id !== "northwind") throw new Error("Only a Space admin can change this");
       if (i.key === "memory.upkeep_monthly_cap") {

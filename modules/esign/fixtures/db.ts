@@ -24,7 +24,7 @@ import { configureSigning } from "../handlers/vyre.ts";
 
 // Boundary B2 keeps the node:sqlite import out of modules; a test still needs a real SQL engine behind the host's table guard.
 const { DatabaseSync } = process.getBuiltinModule("node:sqlite");
-const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql"].map((f) =>
+const migrations = ["0001_esign.sql", "0002_esign_vyre.sql", "0003_esign_seal.sql", "0004_esign_expired.sql"].map((f) =>
   readFileSync(new URL(`../migrations/${f}`, import.meta.url), "utf8"),
 );
 
@@ -55,6 +55,10 @@ export interface Caller {
   run?: string;
   thread?: string;
   actingFor?: string;
+  /** how deep in calls this one is: 0 at the top (a person's own call), 1 or more from inside another capability (an Automation's step) */
+  depth?: number;
+  /** the capability that made this call, from inside another (gate.release when the Gate resumes a held call) */
+  callerCap?: string;
 }
 type Callee = (input: any) => unknown; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -169,7 +173,8 @@ export function harness(o: HarnessOptions = {}) {
       ...(who.run ? { run: who.run } : {}),
       ...(who.thread ? { thread: who.thread } : {}),
       origin: "user",
-      depth: 0,
+      depth: who.depth ?? 0,
+      ...(who.callerCap ? { callerCap: who.callerCap } : {}),
       now: () => clock,
       db: scopedDb("esign", raw, TRACE),
       emit<T>(name: EventName, subj: string, payload: T): EventEnvelope<T> {
@@ -183,6 +188,11 @@ export function harness(o: HarnessOptions = {}) {
       async call(c, input) {
         calls.push({ cap: c, input: input as CallLog["input"] });
         const f = callees[c];
+        // a module that is not in this Space answers as the host does: not implemented, in the error's own shape
+        if (!f && c.startsWith("documents."))
+          throw Object.assign(new Error("not implemented"), {
+            error: { code: "internal.not_implemented", message: "not implemented" },
+          });
         if (!f) throw new Error(`unexpected call to ${c}`);
         return f(input);
       },

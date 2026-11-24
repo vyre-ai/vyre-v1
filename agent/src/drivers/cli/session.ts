@@ -521,6 +521,27 @@ export function createCliSession(deps: CliSessionDeps, spec: SessionSpec): CliSe
           case "tool":
             said = true;
             if (item.phase === "result" && item.launched === true && !open.has(item.id)) open.set(item.id, "");
+            if (item.phase === "said" || item.phase === "usage") {
+              // a subagent's own words and use, on the existing tool-input block with the id of the call that started it: the host keeps them in the Run tree and never in the chat
+              yield {
+                type: "block",
+                kind: "tool_input",
+                payload:
+                  item.phase === "said"
+                    ? { id: item.id, parent: item.parent, said: item.text }
+                    : {
+                        id: item.id,
+                        parent: item.parent,
+                        usage: {
+                          inputTokens: item.inputTokens,
+                          outputTokens: item.outputTokens,
+                          ...(item.cacheReadTokens !== undefined ? { cacheReadTokens: item.cacheReadTokens } : {}),
+                          ...(item.model ? { model: item.model } : {}),
+                        },
+                      },
+              };
+              break;
+            }
             yield item.phase === "call"
               ? {
                   type: "block",

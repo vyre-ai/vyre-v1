@@ -441,6 +441,8 @@ test("running helpers: a held request, Change model, a person messaging a helper
       await shot(`crew-peek1-${mode}-${size}`);
       if (mode === "light") {
         // Change model on the running helper
+        // Change model sits under the pane's Details tab
+        await page.getByTestId("crew-peek-tab-details").click({ timeout: 10_000 });
         await page.getByTestId("crew-peek-change-model").click({ timeout: 10_000 });
         await page.locator('[data-testid^="row-crew-change-"]').first().waitFor({ timeout: 20_000 });
         await shot(`crewmodels-choices-${mode}-${size}`);

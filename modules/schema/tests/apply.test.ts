@@ -931,6 +931,124 @@ test("views: a link outside the Space is refused when the type does not say it i
   assert.ok((await k.h["views.share_external"](k.ctx, { viewId: v.viewId })).url);
 });
 
+test("Can go in emails: a switch per field, for fields that are fine to read out loud; private and secret fields can never be switched on", async () => {
+  const k = kit();
+  await base(k);
+  const mergeable = async (field: string) =>
+    (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.[
+      "mergeable"
+    ];
+  await k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "name", mergeable: true });
+  assert.equal(await mergeable("name"), true);
+  await k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "name", mergeable: false });
+  assert.equal(await mergeable("name"), undefined);
+  // through schema.apply too, which is what an agent or MCP client may call
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.update", type: "acme_person", field: "name", def: { options: { mergeable: true } } }],
+  });
+  assert.equal(await mergeable("name"), true);
+  // a field that is not a field, and a switch that is not yes or no
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "nope", mergeable: true }),
+    code("validation.not_found"),
+  );
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "name", mergeable: "yes" as never }),
+    code("validation.bad_input"),
+  );
+  // a restricted field is private: refused, and an already-on field that is later made restricted cannot stay on
+  await k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "email", label: "restricted" });
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "email", mergeable: true }),
+    code("validation.precondition_failed"),
+  );
+  await k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "age", mergeable: true });
+  await assert.rejects(
+    k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "age", label: "confidential" }),
+    code("validation.precondition_failed"),
+  );
+  // a person field holds an id, so it is not a thing to read out either
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.add", type: "acme_person", def: { key: "boss", type: "person", title: "Boss" } }],
+  });
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "boss", mergeable: true }),
+    code("validation.precondition_failed"),
+  );
+  // a computed field can read a private one and still carry a public label: never mergeable
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.add", type: "acme_person", def: { key: "made_at", type: "created_time", title: "Made at" } }],
+  });
+  await assert.rejects(
+    k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "made_at", mergeable: true }),
+    code("validation.precondition_failed"),
+  );
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [{ op: "field.update", type: "acme_person", field: "made_at", def: { options: { mergeable: true } } }],
+    }),
+    code("validation.precondition_failed"),
+  );
+  // a sealed (secret) field kind can never be switched on
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.add", type: "acme_person", def: { key: "secret_note", type: "text", title: "Secret note" } }],
+  });
+  await k.h["schema.apply"](k.ctx, {
+    ops: [{ op: "field.retype", type: "acme_person", field: "secret_note", toType: "sealed" }],
+    confirm: ["field.retype:acme_person.secret_note"],
+  }).catch(() => undefined);
+  const sealed = (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find(
+    (f) => f.key === "secret_note",
+  );
+  if (sealed?.type === "sealed")
+    await assert.rejects(
+      k.h["schema.set_mergeable"](k.ctx, { type: "acme_person", field: "secret_note", mergeable: true }),
+      code("validation.precondition_failed"),
+    );
+});
+
+import { onlyMergeableDiffers } from "../handlers/apply.ts";
+test("a system field's options accept the Can go in emails switch and nothing else: a nested change is refused", () => {
+  const choices = (v: string) => ({ choices: [{ key: "good", title: v }], mergeable: false });
+  assert.equal(
+    onlyMergeableDiffers(
+      { choices: [{ key: "good", title: "Good" }] },
+      { choices: [{ key: "good", title: "Good" }], mergeable: true },
+    ),
+    true,
+  );
+  assert.equal(onlyMergeableDiffers(choices("a"), { ...choices("a"), mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(undefined, { mergeable: true }), true);
+  assert.equal(onlyMergeableDiffers(choices("a"), choices("b")), false, "a changed nested choice is not the switch");
+  assert.equal(onlyMergeableDiffers({ min: 1, nested: { x: 1 } }, { min: 1, nested: { x: 999, y: 2 } }), false);
+  assert.equal(
+    onlyMergeableDiffers({ a: 1, b: 2 }, { b: 2, a: 1, mergeable: true }),
+    true,
+    "key order does not matter",
+  );
+  assert.equal(onlyMergeableDiffers({ choices: [1, 2] }, { choices: [2, 1] }), false, "list order does");
+});
+
+test("schema.apply takes a field.mergeable op: the same switch, through the one schema tool, with every rule of a field update", async () => {
+  const k = kit();
+  await base(k);
+  const mergeable = async (field: string) =>
+    (await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type.fields.find((f) => f.key === field)!.options?.[
+      "mergeable"
+    ];
+  const op = (field: string, on: unknown) => ({
+    ops: [{ op: "field.mergeable" as const, type: "acme_person", field, def: { mergeable: on } }],
+  });
+  await k.h["schema.apply"](k.ctx, op("name", true));
+  assert.equal(await mergeable("name"), true);
+  await k.h["schema.apply"](k.ctx, op("name", false));
+  assert.equal(await mergeable("name"), undefined);
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("name", "yes")), code("validation.precondition_failed"));
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("nope", true)), code("validation.precondition_failed"));
+  await k.h["schema.set_label"](k.ctx, { type: "acme_person", field: "email", label: "restricted" });
+  await assert.rejects(k.h["schema.apply"](k.ctx, op("email", true)), code("validation.precondition_failed"));
+});
+
 test("a type has one card face, set by type.update, checked against its own fields, allowed on a system type and read back by describe", async () => {
   const k = kit();
   await base(k);

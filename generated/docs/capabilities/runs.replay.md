@@ -1,6 +1,6 @@
 # runs.replay
 
-Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer holds clearance
+Replay a past Run in the sandbox: outward steps are recorded, never executed; sealed and Restricted values are synthetic unless the replayer is cleared
 
 | | |
 |---|---|

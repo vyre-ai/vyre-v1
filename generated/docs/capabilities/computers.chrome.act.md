@@ -1,6 +1,6 @@
 # computers.chrome.act
 
-Act on an element or key: click, hover, press, select, scroll, check; a send, post or payment is held and returns an id
+Click, hover, press, select, scroll or check an element; a send, post or payment is held and returns an id
 
 | | |
 |---|---|
@@ -72,7 +72,7 @@ type Out = {
     "action": "click",
     "computerId": "cmt_a1b2c3",
     "inMyChrome": true,
-    "ref": "e12",
+    "ref": "example",
     "tabId": "example",
     "value": "example"
   },

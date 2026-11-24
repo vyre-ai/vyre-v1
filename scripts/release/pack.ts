@@ -32,6 +32,7 @@ const IMAGE_KEYS = [
   "VYRE_AGENT_IMAGE",
   "VYRE_BROWSER_IMAGE",
   "VYRE_WORKSPACE_IMAGE",
+  "VYRE_CONVERTER_IMAGE",
   "VYRE_SANDBOX_IMAGE",
 ] as const;
 export type ImageKey = (typeof IMAGE_KEYS)[number];

@@ -22,6 +22,8 @@ interface Field {
 }
 interface Service {
   key: string;
+  /** the server's count of the connector's publishes (connectors.for_service); the card pins it */
+  revision: string;
   title: string;
   scope: "person" | "space";
   fields: Field[];
@@ -32,10 +34,12 @@ interface Service {
   choice?: {
     name: string;
     label: string;
-    options: { value: string; label: string; connector: string; hosts: string[] }[];
+    options: { value: string; label: string; connector: string; hosts: string[]; revision: string }[];
   };
   builtin: boolean;
   checks: boolean;
+  /** published, but no call to the app has ever succeeded */
+  untested?: boolean;
   connection?: { connectionId: string; owner: "mine" | "space"; state: string };
 }
 export type CardState = "ask" | "have" | "admin" | "asked" | "connected" | "wrong" | "offline" | "later" | "gone";
@@ -58,6 +62,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
   const conn = asRow(got["connection"]);
   return {
     key: String(c["key"]),
+    revision: String(c["revision"] ?? ""),
     title: String(c["title"]),
     scope: c["scope"] === "space" ? "space" : "person",
     fields: (Array.isArray(c["fields"]) ? (c["fields"] as unknown[]) : []).map((f) => {
@@ -82,6 +87,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
                 label: String(o["label"]),
                 connector: String(o["connector"]),
                 hosts: Array.isArray(o["hosts"]) ? (o["hosts"] as unknown[]).map(String) : [],
+                revision: String(o["revision"] ?? ""),
               };
             }),
           },
@@ -89,6 +95,7 @@ async function serviceOf(ctx: VaultReqCtx, said: string): Promise<Service | null
       : {}),
     builtin: c["builtin"] === true,
     checks: c["checks"] === true,
+    ...(c["untested"] === true ? { untested: true } : {}),
     ...(conn
       ? {
           connection: {
@@ -180,6 +187,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   if (!row.service) raise(ctx.trace.traceId, "validation.not_found", "No such request.");
   const svc = (await serviceOf(ctx, row.service)) ?? {
     key: row.service,
+    revision: "",
     title: row.service,
     scope: "person" as const,
     fields: [],
@@ -242,7 +250,7 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
   return {
     requestId: row.id,
     state,
-    service: { key: svc.key, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
+    service: { key: svc.key, revision: svc.revision, title: svc.title, ...(svc.site ? { site: svc.site } : {}) },
     fields: svc.fields,
     ...(row.requester_kind === "agent" ? { agentId: row.requester_id } : {}),
     mayFill,
@@ -257,6 +265,8 @@ export async function cardOf(ctx: VaultReqCtx, requestId: string) {
       ? { notice: `Your key is saved${svc.scope === "space" ? "" : " in Mine"}. Couldn't connect.` }
       : {}),
     checks: svc.checks,
+    // said before a key is typed or after a try went wrong: a connector no call has ever answered may need a fix, and the person is told so
+    ...(svc.untested && ["ask", "wrong", "offline"].includes(state) ? { untested: true } : {}),
     ...(svc.hosts.length > 0 && mayFill && ["ask", "wrong", "offline", "have"].includes(state)
       ? { checksWith: svc.hosts.join(", ") }
       : {}),
@@ -475,6 +485,8 @@ export async function connectSubmit(
     folderId?: string;
     audience?: KeyAudience;
     hosts: string[];
+    /** the service revision the card showed; a call without it is refused in the same words as a stale one (the schema leaves it optional so an old bundle hears those words, not "not right") */
+    revision?: string;
     /** the option the person picked for the service's choice (a region); the first one when left out */
     choice?: string;
   },
@@ -510,6 +522,9 @@ export async function connectSubmit(
       svc.hosts.map((h) => h.toLowerCase()),
     )
   )
+    raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
+  // an empty revision is a missing one, on both sides: a service that reports none cannot be pinned, so nothing is tried
+  if (!input.revision || !svc.revision || input.revision !== svc.revision)
     raise(trace, "validation.precondition_failed", `${svc.title} changed since this card was shown. Open it again.`);
   const card = await cardOf(ctx, row.id);
   if (!card.mayFill)
@@ -583,12 +598,15 @@ export async function connectSubmit(
   }
 
   // 2 keep the key where it goes (a new item, or the saved one attached)
+  // the card's pin travels with the key: kept and connected only if the service is still what the card showed
+  const pin = { connector: svc.key, revision: svc.revision, hosts: svc.hosts };
   const stored = await storeKey(
     ctx,
     decided,
     saved
-      ? { itemId: saved.itemId }
+      ? { itemId: saved.itemId, pin }
       : {
+          pin,
           fields: [...given].map(([key, value]) => ({ key, value })),
           ...(folderId ? { folderId } : {}),
           ...(input.audience ? { audience: input.audience } : {}),
@@ -659,6 +677,7 @@ export async function connectSubmit(
         title: svc.title,
         ownerKind: svc.scope === "space" ? "space" : "person",
         secrets: slots,
+        pin: [svc.revision, ...svc.hosts],
       }),
     );
     // no id back means the next call refuses, which takes the key back below
@@ -678,6 +697,16 @@ export async function connectSubmit(
     } else await ctx.call("connections.mark_working", { connectionId, idempotencyKey: `${row.id}:working:${attempt}` });
   } catch (e) {
     const erased = await takeBack(connectionId);
+    // the service changed between the card and the connecting (connections.create checks the card's pin): the key just stored is taken back above, and the person is told so in these words
+    if (
+      erased &&
+      (e as { error?: { details?: { reason?: unknown } } } | null)?.error?.details?.reason === "service_changed"
+    )
+      raise(
+        trace,
+        "validation.precondition_failed",
+        "The service changed while you were connecting. Nothing was saved. Open it again.",
+      );
     if (saved) throw e;
     // the key passed its check but the service could not be connected: it is erased; if that failed too, the card says it is saved
     stay(erased ? "offline" : "kept");

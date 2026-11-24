@@ -1,0 +1,1 @@
+- Internal: an agent's baton call in a task's chat that names another task is refused only in a turn the engine started on its own; a held call that was answered carries the cause of the turn it continues, and a call between turns has none.

@@ -1,0 +1,2 @@
+- The terminal screen is drawn by xterm.js, a real terminal renderer, so colours, wide characters and selection look and behave as in any terminal. It is loaded only when you open a terminal, never with the first page, and the earlier plain screen stays on screen until it is ready and whenever it cannot start. The keys, pastes and take-over work as before.
+- Pressing F, T or Esc over the desk now works with the Chats list showing: the list in the sidebar was counted as an open menu and blocked the keys.

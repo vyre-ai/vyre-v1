@@ -1,6 +1,6 @@
 # documents.preview_fill
 
-Show the filled document as an excerpt with every filled value marked, and what is missing or unused
+Preview a filled template: what is missing or unused
 
 | | |
 |---|---|
@@ -47,6 +47,7 @@ type Out = {
     }>;
   missing: Array<string>;
   unused: Array<string>;
+  digest: string;
 };
 ```
 
@@ -71,6 +72,7 @@ type Out = {
     "values": {}
   },
   "output": {
+    "digest": "example",
     "excerpt": [
       {
         "filled": [

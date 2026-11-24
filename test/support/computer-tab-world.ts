@@ -4,7 +4,7 @@ import test from "node:test";
 import http from "node:http";
 import { bootScreens, browserOrSkip, open, seat } from "./mail-browser.ts";
 import { guardCrashes } from "../../apps/app/tests/crash-guard.ts";
-import { agentFor, fakeSpaceBrowser, scriptedTerminal } from "./computers-journey.ts";
+import { agentFor, fakeSpaceBrowser, modelWithCommand, scriptedTerminal } from "./computers-journey.ts";
 import { bindHost as bindTerminal } from "../../modules/terminal/impl.ts";
 import { bindWorkspaceStatus, bindWorkspaces } from "../../modules/terminal/projections.ts";
 import { bindSpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
@@ -17,7 +17,7 @@ import { realTmuxHost, stopRealTmux } from "./real-tmux.ts";
 /** `noTerminal`: nothing is opened for the person (the pane must open the agent's terminal by itself). `realBrowser`: an image name; the Space browser is then the real one in Docker (the profile of the agent is started with a page open) instead of the stand-in. */
 export async function world(
   t: test.TestContext,
-  o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean; realWorkspace?: boolean } = {},
+  o: { realBrowser?: string; noTerminal?: boolean; tmux?: boolean; realWorkspace?: boolean; model?: boolean } = {},
 ) {
   const env = await browserOrSkip();
   if (typeof env === "string") {
@@ -27,7 +27,10 @@ export async function world(
   // the image is read when the daemon starts
   const savedImage = process.env["VYRE_WORKSPACE_IMAGE"];
   if (o.realWorkspace === true) process.env["VYRE_WORKSPACE_IMAGE"] = process.env["VYRE_WORKSPACE_TEST_IMAGE"];
-  const s = await bootScreens({ kind: "team" }, env);
+  const s = await bootScreens(
+    { kind: "team", ...(o.model === true ? { engineOpenSession: modelWithCommand } : {}) },
+    env,
+  );
   const w = s.world;
   const { unlockVault } = await import("./mail-world.ts");
   await unlockVault(w);
@@ -103,15 +106,23 @@ export async function world(
     await w.owner.ok("terminal.open", { host: "agent_computer", agentId, idempotencyKey: "walk-term-1" });
   const me = await seat(s, w.owner, "Owner");
   const guard = guardCrashes(me.page);
-  const computerTab = async (): Promise<void> => {
-    await open(me, s, "/chat");
-    await me.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
-    await me.page.getByText("Desk work", { exact: true }).first().click();
-    await me.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
+  const computerTabOf = async (who: typeof me): Promise<void> => {
+    await open(who, s, "/chat");
+    await who.page.getByTestId("chats-place").waitFor({ timeout: 20_000 });
+    await who.page.getByText("Desk work", { exact: true }).first().click();
+    await who.page.getByTestId("composer-field").waitFor({ timeout: 20_000 });
     // the chat frame of 15 Nov: the chat's right pane has no agent header and may already be on its Computer tab
-    if ((await me.page.getByTestId("chats-right-pane").count()) === 0) await me.page.getByTestId("pane-button").click();
-    await me.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
-    await me.page.getByTestId("tab-computer").or(me.page.getByTestId("tab-computer-selected")).first().click();
+    if ((await who.page.getByTestId("chats-right-pane").count()) === 0)
+      await who.page.getByTestId("pane-button").click();
+    await who.page.getByTestId("chats-right-pane").waitFor({ timeout: 20_000 });
+    await who.page.getByTestId("tab-computer").or(who.page.getByTestId("tab-computer-selected")).first().click();
+  };
+  const computerTab = (): Promise<void> => computerTabOf(me);
+  /** The same person on a second device (another browser window), on the Computer tab: two watchers of one browser. */
+  const watcher = async (): Promise<typeof me> => {
+    const other = await seat(s, w.owner, "Owner");
+    await computerTabOf(other);
+    return other;
   };
   const close = async (): Promise<void> => {
     if (o.realWorkspace === true) {
@@ -148,5 +159,5 @@ export async function world(
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, close };
+  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, watcher, close };
 }

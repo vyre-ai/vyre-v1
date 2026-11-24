@@ -17,7 +17,7 @@ The notes the person reads: their own and those shared with them. Pinned first, 
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/notes/list |
-| MCP tool | none |
+| MCP tool | notes_list (memory, deferred) |
 | CLI | none |
 | Emits | none |
 

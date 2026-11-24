@@ -200,14 +200,25 @@ test("a project chat: the footer names the project's folder, and its records onl
   );
 });
 
-test("a chat whose record cannot be found leaves records out of the footer, with no error text", async () => {
+const recordFooter = async (
+  resolve: () => unknown,
+  withoutRecord = false,
+): Promise<{ line: string; sheet: string }> => {
+  let out = { line: "", sheet: "" };
   await withDom(async () => {
     const s = createSample("idle");
     const data = {
       ...s.data,
       async call(cap: string, input: unknown) {
-        if (cap === "search.resolve") return {};
-        return s.data.call(cap, input);
+        if (cap === "search.resolve") return resolve();
+        const out = await s.data.call(cap, input);
+        // a chat that links no record at all: the thread and its channel carry no recordId
+        if (withoutRecord && (cap === "threads.get" || cap === "channels.get")) {
+          const o = out as { thread?: Record<string, unknown>; channel?: Record<string, unknown> };
+          if (o.thread) delete o.thread["recordId"];
+          if (o.channel) delete o.channel["recordId"];
+        }
+        return out;
       },
     };
     const root = await mount(createRoot, <Conversation data={data} />);
@@ -216,8 +227,35 @@ test("a chat whose record cannot be found leaves records out of the footer, with
     await press(find(root, "people-footer"));
     await flush();
     await press(find(root, "as-row-person:usr_maya"));
-    const line = textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim();
-    assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
-    assert.ok(!/error|could not|not found|undefined|null/i.test(textOf(find(root, "add-sheet"))), "no error text");
+    out = {
+      line: textOf(find(root, "as-line-std")).replace(/\s+/g, " ").trim(),
+      sheet: textOf(find(root, "add-sheet")),
+    };
   });
+  return out;
+};
+
+test("a chat whose record's name cannot be read still says records are shared, in general words, with no error text", async () => {
+  // the lookup answers with nothing (not found), or fails outright (a refused or dropped read): either way the newcomer is told they get the linked records
+  // a record that may be gone or may only be hidden from the person adding looks the same from here (not found is how a hidden one answers), so it is never taken to be gone
+  const notFound = () =>
+    Promise.reject(Object.assign(new Error("validation.not_found"), { error: { code: "validation.not_found" } }));
+  for (const resolve of [() => ({}), () => Promise.reject(new Error("provider.unavailable")), notFound]) {
+    const { line, sheet } = await recordFooter(resolve);
+    assert.equal(
+      line,
+      "They'll see this chat's messages from now on, its files folder Customer signup uploads, and the records linked to this chat.",
+    );
+    assert.ok(!/error|could not|not found|undefined|null|unavailable/i.test(sheet), "no error text");
+  }
+});
+
+test("a record whose name is read keeps the exact words: records in its title", async () => {
+  const { line } = await recordFooter(() => ({ hit: { kind: "record", itemId: "rec_x", title: "Client file" } }));
+  assert.match(line, /and records in Client file\.$/);
+});
+
+test("a chat with no linked record says nothing about records", async () => {
+  const { line } = await recordFooter(() => ({}), true);
+  assert.equal(line, "They'll see this chat's messages from now on, and its files folder Customer signup uploads.");
 });

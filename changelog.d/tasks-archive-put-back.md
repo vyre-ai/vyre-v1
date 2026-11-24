@@ -1,0 +1,1 @@
+A task that no longer matters can be archived with its reason and put back with one press. It leaves Needs you, My work and the counts, stays in search and in the new Archived list on Tasks, and Undo puts it back exactly as it was. Nothing is deleted.

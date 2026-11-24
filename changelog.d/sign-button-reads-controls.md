@@ -1,0 +1,1 @@
+The signer's page never takes consent from the checkbox the browser shows: a restored tick is cleared on load and whenever the page is shown again, the checkbox is marked not to be restored, and Sign waits for the person's own tick. A name the browser filled is kept.

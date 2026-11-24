@@ -1,6 +1,6 @@
 # engine.crew.status
 
-Everything that works for a chat, in one read for the Island, the header chip and the Crew pane: each helper and teammate with its state, the step it is on, model, account, branch, files changed, tokens and cost, and the totals for the crew. Only what is known; nothing is estimated
+Everything that works for a chat, in one read: each helper and teammate with its state, current step, model, account, branch, files changed, tokens and cost, and the crew totals. Only what is known
 
 | | |
 |---|---|
@@ -36,6 +36,7 @@ type Out = {
   members: Array<{
       kind: "helper" | "teammate" | "subagent";
       id: string;
+      runId?: string;
       jobId?: string;
       parentThreadId: string;
       title: string;
@@ -138,6 +139,7 @@ type Out = {
         "name": "example",
         "parentThreadId": "thr_a1b2c3",
         "provider": "example",
+        "runId": "run_a1b2c3",
         "startedAt": 1760000000000,
         "state": "working",
         "step": "example",

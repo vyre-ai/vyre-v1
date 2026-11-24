@@ -150,7 +150,7 @@ export function main(argv: string[], repoRoot?: string): number {
         // pack <dir> <version>: server (needs IMAGE_* env), app web export (APP_DIST), extension and kits, into <dir>; each only when its input is given
         if (a === undefined || b === undefined) {
           console.error(
-            "usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_BROWSER_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)",
+            "usage: pack <dir> <version>   (env: VYRE_IMAGE[, VYRE_AGENT_IMAGE, VYRE_BROWSER_IMAGE, VYRE_WORKSPACE_IMAGE, VYRE_CONVERTER_IMAGE, VYRE_SANDBOX_IMAGE] APP_DIST)",
           );
           return 2;
         }
@@ -161,6 +161,7 @@ export function main(argv: string[], repoRoot?: string): number {
           "VYRE_AGENT_IMAGE",
           "VYRE_BROWSER_IMAGE",
           "VYRE_WORKSPACE_IMAGE",
+          "VYRE_CONVERTER_IMAGE",
           "VYRE_SANDBOX_IMAGE",
         ] as const) {
           const v = process.env[k];

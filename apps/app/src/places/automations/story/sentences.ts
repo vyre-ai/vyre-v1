@@ -33,6 +33,7 @@ const STEPS: Readonly<Record<string, string>> = {
   "files.copy": "Copy {fileId} to {toFolderId}",
   "files.move": "Move {fileId} to {toFolderId}",
   "files.share": "Share {fileId}",
+  "documents.fill": "Make a document from {templateFileId} in {intoFolderId}",
   "forms.create": "Create a form {name}",
   "forms.list": "List forms",
   "forms.publish": "Publish {formId}",

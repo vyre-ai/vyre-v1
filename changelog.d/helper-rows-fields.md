@@ -1,0 +1,1 @@
+- Helpers on the Running list now show what they are on, who needs your yes and which look stuck, with the live mark before the name; another chat never shows the last chat's board.

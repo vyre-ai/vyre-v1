@@ -88,6 +88,7 @@ const schemaOp = t.obj({
     "type.drop",
     "field.add",
     "field.update",
+    "field.mergeable",
     "field.retype",
     "field.rename",
     "field.drop",
@@ -303,6 +304,17 @@ export default defineManifest({
       audit: "always",
       emits: ["schema.label_changed", "schema.changed"],
       tool: "engineer",
+    }),
+    write("schema.set_mergeable", 'Switch a field\'s "Can go in emails"; private and secret fields never can', {
+      in: { type: id.recordType, field: fieldKey, mergeable: t.bool() },
+      out: { ok: t.bool() },
+      on: ["record_type", "/type"],
+      perm: "schema.manage",
+      audit: "always",
+      emits: ["schema.changed"],
+      // (no MCP tool of its own: schema_apply takes the same change as a field.update op with options.mergeable)
+      idem: "natural",
+      errors: ["validation.bad_input", "validation.not_found", "validation.precondition_failed"],
     }),
     read(
       "schema.infer",

@@ -6,7 +6,7 @@
     "events.replay@1": "069637af2455d8ea574b1d2234b999885c0f69d28c068697ffa112dc1e6ffb71",
     "events.since@1": "311cce0a5ca761b6f4d5148771c8c38731e20de1d3028bd5609a02fae2474600",
     "events.types@1": "4fccc4e7a46d96d7c8961dc9642cac0909638590dc7a255683482ffeaab021f0",
-    "webhooks.create@1": "243d52c82880bd4dfa713daddb97dbbd8c00a7db5842ab9c098f40097d3b90e3",
+    "webhooks.create@1": "69c0e0921c69e8877399d7462bc6055df21b7c419aca89549c83e0fd99b8b116",
     "webhooks.delete@1": "e2117a3aefd5761203639017b9aa0b8cfab383339f835ffd5d534ac113d44267",
     "webhooks.deliveries@1": "1e00330ef7f9a56cdded4df98680f3fd03b4fdc6b2a89994e76f90adcf41e7a9",
     "webhooks.get@1": "b084cc0f414911d456ca3fd77616078b8448b5c4c4aab318395667f5a777d0db",
@@ -16,7 +16,7 @@
     "webhooks.rotate_secret@1": "d4cbda695f8150086ed9c3d027d615084961d08f474303b279119566a0de4ad0",
     "webhooks.send_delivery@1": "64703d81aa2319a305df17b1c82a305f8d68aa1254280f77d1d86a834ae1b509",
     "webhooks.test@1": "c0e040166b57410a0caba8c259fe1ab8908aa578475cc76f19795e2f6420430a",
-    "webhooks.update@1": "b55a098ea057da63810afc8d382548ef8dc70da8747054ca7ba572ea29275f7f"
+    "webhooks.update@1": "ce8f989fcd08ee2ae9e2ac6dfe81039ec78e696f328837a0c07c5e0ad1dc8638"
   },
   "events": {
     "webhook.created": "08947fbf5e8ec5ea30915c07f6f13599e8378b99a7e5ca716182fd15f49d3551",

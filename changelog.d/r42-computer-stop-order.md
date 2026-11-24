@@ -1,0 +1,1 @@
+- When you stop a command and run another straight away, the stopped command's answer is recorded first and the next command is typed only after it, so the two answers can never swap.

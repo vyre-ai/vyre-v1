@@ -108,6 +108,18 @@ export function buildDef(
   for (const k of ["secret", "header", "prefix", "authUrl", "tokenUrl", "clientId", "clientSecret", "revokeUrl"])
     if (a[k] !== undefined && typeof a[k] !== "string") bad(ctx, where, `auth.${k} is text.`);
   if (a["scopes"] !== undefined && !strs(a["scopes"])) bad(ctx, where, "auth.scopes is a list of text.");
+  if (a["template"] !== undefined && typeof a["template"] !== "string") bad(ctx, where, "auth.template is text.");
+  if (a["template"] !== undefined && a["type"] !== "api_key")
+    bad(ctx, where, "auth.template is for an api_key connector: it fills the header the key travels in.");
+  if (
+    a["basic"] !== undefined &&
+    !(
+      isObj(a["basic"]) &&
+      typeof a["basic"]["user"] === "string" &&
+      (a["basic"]["pass"] === undefined || typeof a["basic"]["pass"] === "string")
+    )
+  )
+    bad(ctx, where, "auth.basic is a user and an optional password, each text or {secret.Name}.");
   if (a["type"] !== "none" && typeof a["secret"] !== "string")
     bad(ctx, where, "auth.secret names the declared secret that holds the key or token.");
   const secrets = main["secrets"] ?? [];
@@ -148,6 +160,80 @@ export function buildDef(
   if (main["health"] !== undefined && typeof main["health"] !== "string") bad(ctx, where, "health is text.");
   if (main["objects"] !== undefined && !isObj(main["objects"])) bad(ctx, where, "objects is a table of tables.");
 
+  // placeholders: a secret is declared and never optional; an optional {input.x?} is for a query key, header, form field or body key, never the address
+  const declared = new Set(slots.map((s) => s.name));
+  const FORBIDDEN_HEADERS = new Set([
+    "host",
+    "content-length",
+    "transfer-encoding",
+    "connection",
+    "cookie",
+    "proxy-authorization",
+    "te",
+    "upgrade",
+    "expect",
+    "trailer",
+    "keep-alive",
+    "proxy-connection",
+    "set-cookie",
+    "origin",
+    "referer",
+  ]);
+  const checkHeaderName = (at: string, what: string, name: unknown): void => {
+    if (typeof name !== "string" || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(name))
+      bad(ctx, at, `${what} is a header name: letters, digits and - _ . only.`);
+    else if (FORBIDDEN_HEADERS.has(name.toLowerCase()))
+      bad(ctx, at, `${what} cannot be ${name}: a connector does not set that header.`);
+  };
+  const BLOCKED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+  // exact names, matched without case and with - and _ alike (so `previews` and `preview_text` stay ordinary keys)
+  const SAFETY_NAMES = new Set([
+    "dry_run",
+    "dryrun",
+    "confirm",
+    "force",
+    "preview",
+    "simulate",
+    "validate_only",
+    "check_only",
+    "noop",
+    "sandbox",
+    "test_mode",
+    "live",
+  ]);
+  const SAFETY_KEY = { test: (k: string): boolean => SAFETY_NAMES.has(k.toLowerCase().replace(/-/g, "_")) };
+  /** A key of a template table or body: never a prototype key, and a safety flag (dry_run, confirm, force, preview, ...) is never left out when its value is absent. */
+  const checkKeys = (at: string, value: unknown): void => {
+    if (Array.isArray(value)) value.forEach((x) => checkKeys(at, x));
+    else if (value !== null && typeof value === "object")
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        if (BLOCKED_KEYS.has(k)) bad(ctx, at, `${k} cannot be a key in a template.`);
+        if (SAFETY_KEY.test(k) && JSON.stringify(v).includes("?}"))
+          bad(ctx, at, `${k} cannot be optional: a safety flag that goes missing silently changes what the call does.`);
+        checkKeys(at, v);
+      }
+  };
+  const checkTemplate = (at: string, value: unknown, inAddress = false): void => {
+    if (typeof value === "string") {
+      for (const m of value.matchAll(/\{(input|secret|connection)\.([A-Za-z0-9_.]+)(\?)?\}/g)) {
+        if (m[1] === "secret" && m[3]) bad(ctx, at, `{secret.${m[2]}?}: a secret cannot be optional.`);
+        if (m[1] === "secret" && !declared.has(m[2]!))
+          bad(ctx, at, `it reads ${m[2]}, which the connector does not declare in secrets.`);
+        if (m[3] && inAddress) bad(ctx, at, `{${m[1]}.${m[2]}?}: an optional value cannot be part of the address.`);
+      }
+    } else if (Array.isArray(value)) value.forEach((x) => checkTemplate(at, x, inAddress));
+    else if (value !== null && typeof value === "object")
+      Object.values(value).forEach((x) => checkTemplate(at, x, inAddress));
+  };
+  for (const k of ["template"] as const) if (typeof a[k] === "string") checkTemplate(where, a[k]);
+  // the sign-in header is a header name, and not one that changes how the request is framed or who it is for
+  if (a["header"] !== undefined) checkHeaderName(where, "auth.header", a["header"]);
+  // a header template reads secrets only: an input would let whoever calls the connector choose what the sign-in says
+  if (typeof a["template"] === "string" && /\{(?:input|connection)\./.test(a["template"]))
+    bad(ctx, where, "auth.template reads secrets only: {input.x} and {connection.id} are not allowed in it.");
+  if (isObj(a["basic"])) checkTemplate(where, a["basic"]);
+  if (typeof a["template"] === "string" && !/\{secret\.[A-Za-z0-9_.]+\}/.test(a["template"]))
+    bad(ctx, where, "auth.template reads at least one secret: put {secret.Name} in it.");
   const actions = actionDocs.map(({ path, doc }): ActionDef => {
     if (!isObj(doc) || typeof doc["name"] !== "string" || !NAME.test(doc["name"]))
       return bad(ctx, path, "an action has a name of letters, digits, spaces, dots, dashes and underscores.");
@@ -162,9 +248,56 @@ export function buildDef(
         bad(ctx, path, `${k} is a table of text.`);
     if (doc["output"] !== undefined && typeof doc["output"] !== "string") bad(ctx, path, "output is a JSON pointer.");
     if (doc["write"] !== undefined && typeof doc["write"] !== "boolean") bad(ctx, path, "write is true or false.");
+    const method = (doc["method"] as string | undefined) ?? "GET";
+    if (
+      doc["form"] !== undefined &&
+      !(isObj(doc["form"]) && Object.values(doc["form"] as Json).every((v) => typeof v === "string"))
+    )
+      bad(ctx, path, "form is a table of text.");
+    if (doc["body"] !== undefined && doc["form"] !== undefined)
+      bad(ctx, path, "an action has either a body or a form, not both.");
+    if ((doc["body"] !== undefined || doc["form"] !== undefined) && method === "GET")
+      bad(ctx, path, "a GET carries no body: use POST, PUT or PATCH, or put the values in query.");
+    if (doc["body"] !== undefined) {
+      let size = 0;
+      try {
+        size = JSON.stringify(doc["body"]).length;
+      } catch {
+        bad(ctx, path, "body is JSON.");
+      }
+      if (size > 50_000) bad(ctx, path, "body is too large: at most 50,000 characters.");
+    }
+    if (
+      doc["basic"] !== undefined &&
+      !(
+        isObj(doc["basic"]) &&
+        typeof doc["basic"]["user"] === "string" &&
+        (doc["basic"]["pass"] === undefined || typeof doc["basic"]["pass"] === "string")
+      )
+    )
+      bad(ctx, path, "basic is a user and an optional password.");
+    checkTemplate(path, doc["url"], true);
+    for (const k of ["headers", "query", "form", "body", "basic"] as const) {
+      checkTemplate(path, doc[k]);
+      checkKeys(path, doc[k]);
+    }
+    if (isObj(doc["headers"]))
+      for (const h of Object.keys(doc["headers"] as Json)) {
+        checkHeaderName(path, `header ${h}`, h);
+        // the sign-in is the connector's own: an action that sets Authorization (or the header the sign-in uses) would replace or duplicate it
+        const authHeader = typeof a["header"] === "string" ? a["header"].toLowerCase() : "authorization";
+        if (h.toLowerCase() === "authorization" || h.toLowerCase() === authHeader)
+          bad(ctx, path, `header ${h} is the connector's sign-in: set it under auth, not on an action.`);
+      }
     return doc as unknown as ActionDef;
   });
   if (new Set(actions.map((x) => x.name)).size !== actions.length) bad(ctx, "actions", "two actions share a name.");
+  if (typeof main["health"] === "string") {
+    const h = actions.find((x) => x.name === main["health"]);
+    if (!h) bad(ctx, "connector.toml", `health names ${main["health"]}, which is not one of the actions.`);
+    else if ((h.method ?? "GET") !== "GET" || h.write === true)
+      bad(ctx, "connector.toml", `health is ${h.name}, which changes something: health is a read (a GET).`);
+  }
   const tests = testDocs.map(({ path, doc }): TestCase => {
     if (!isObj(doc) || typeof doc["name"] !== "string" || !doc["name"] || typeof doc["action"] !== "string")
       return bad(ctx, path, "a test has a name and the action it runs.");

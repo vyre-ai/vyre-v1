@@ -6,6 +6,11 @@
 import { overlayCursor, overlayHide, overlayShow } from "./overlay.js";
 import { HELD_TTL_MS, IDLE_MS, OVERLAY_PORT, fail } from "./protocol.js";
 
+/** After the last act of an agent in a tab, a real event is still its own for this long (events arrive a little after the command). */
+const TOUCH_GRACE_MS = 600;
+/** A real event the page reports is the agent's own only if it matches input the agent sent in the last second (same kind, same place or key), and each sent input is matched once. */
+const OWN_INPUT_MS = 1000;
+
 export const BEACON = "●";
 /** Chrome's tab group colours, without grey (grey reads as "no agent"). */
 export const GROUP_COLORS = Object.freeze(["blue", "purple", "cyan", "green", "orange", "pink", "yellow", "red"]);
@@ -37,6 +42,9 @@ function randomId(prefix) {
   return `${prefix}_${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
 
+/** How strong a pause is: the agent's own stop gives way to a person's Stop or Esc, and those give way to a take-over, never the other way. */
+const PAUSE_RANK = Object.freeze({ tool: 1, person: 2, esc: 2, takeover: 3 });
+
 /**
  * @typedef {{ id: string, name: string }} AgentRef
  * @typedef {{ agent: AgentRef, space: string, since: number, timer: any, goal: string }} Driver
@@ -49,6 +57,7 @@ function randomId(prefix) {
  *   emit: (event: Record<string, any>) => void,
  *   now?: () => number, setTimer?: (f: () => void, ms: number) => any, clearTimer?: (t: any) => void, idleMs?: number,
  *   grouping?: () => boolean,
+ *   keep?: ReturnType<typeof import("./pausekeep.js").createPauseKeep>,
  * }} deps
  */
 export function createSessions({
@@ -61,6 +70,7 @@ export function createSessions({
   clearTimer = (t) => clearTimeout(t),
   idleMs = IDLE_MS,
   grouping = () => true,
+  keep,
 }) {
   /** @type {Map<number, Driver>} */
   const drivers = new Map();
@@ -74,7 +84,7 @@ export function createSessions({
   const current = new Map();
   /** @type {Map<string, Held>} */
   const held = new Map();
-  /** @type {Map<string, { by: "person" | "esc" | "tool", at: number }>} agents the person (or the agent itself) stopped, until chrome_resume */
+  /** @type {Map<string, { by: "person" | "esc" | "tool" | "takeover", at: number }>} agents the person (or the agent itself) stopped or whose tab the person took over, until chrome_resume */
   const paused = new Map();
   /** @type {Map<number, Map<string, import("./selector.js").Selector>>} refs the agent last read, by tab */
   const refs = new Map();
@@ -82,9 +92,37 @@ export function createSessions({
   const plans = new Map();
   /** @type {Map<number, AgentRef>} tabs that wear a Take over or Stopped bar, and whose agent it is */
   const shown = new Map();
+  /** @type {Map<number, { n: number, last: number }>} tabs an agent is acting in right now (a tool call in flight), and when its last act ended */
+  const acts = new Map();
+  /** Agents whose tab the person touched while a call was running: they pause before their next step. @type {Set<string>} */
+  const pausing = new Set();
+  /** What the agent sent to each tab in the last moments: its kind (pointer, wheel, key) and, for a pointer, where. @type {Map<number, Array<{ at: number, kind: string, x: number, y: number, code: string }>>} */
+  const ownAt = new Map();
+  /**
+   * Is this report from the page the agent's own input, sent a moment ago? Same kind and place or key; a match uses up the entry it matched.
+   * @param {number} tabId @param {{ kind?: string, x?: number, y?: number, code?: string } | undefined} info
+   */
+  function matchOwn(tabId, info) {
+    const t = now();
+    const kind = info?.kind === "key" || info?.kind === "wheel" ? info.kind : "pointer";
+    const sent = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
+    const at = sent.findIndex(
+      (o) =>
+        o.kind === kind &&
+        (kind === "wheel" ||
+          (kind === "key"
+            ? o.code === String(info?.code ?? "")
+            : Math.abs(o.x - Number(info?.x)) <= 3 && Math.abs(o.y - Number(info?.y)) <= 3)),
+    );
+    if (at >= 0) sent.splice(at, 1);
+    ownAt.set(tabId, sent);
+    return at >= 0;
+  }
   /** @type {Map<string, string>} what each agent said it is doing (chrome_plan) */
   const goals = new Map();
 
+  /** Tabs being put into their agent's group right now: Chrome's group-changed event for these is our own doing, not the person's. @type {Set<number>} */
+  const grouping_ = new Set();
   /** @type {Map<string, number>} the Chrome tab group of each agent in this window set */
   const groupIds = new Map();
 
@@ -105,6 +143,15 @@ export function createSessions({
 
   /** Put a tab in its agent's group, "Vyre · <agent>", made on first use and found again by id. The group is the person's view of which tabs an agent has. @param {AgentRef} agent @param {number} tabId */
   async function group(agent, tabId) {
+    grouping_.add(tabId);
+    try {
+      await groupInner(agent, tabId);
+    } finally {
+      grouping_.delete(tabId);
+    }
+  }
+  /** @param {AgentRef} agent @param {number} tabId */
+  async function groupInner(agent, tabId) {
     if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function" || !ext.tabGroups) return;
     await quiet(async () => {
       let gid = groupIds.get(agent.id);
@@ -139,6 +186,7 @@ export function createSessions({
 
   /** @param {string} agentId */
   const goalText = (agentId) => {
+    if (pausing.has(agentId)) return "Pausing after this step";
     const g = goals.get(agentId) ?? "";
     const p = plans.get(agentId);
     return g && p && p.total > 0 ? `${g} · ${p.done} of ${p.total}` : g;
@@ -157,6 +205,7 @@ export function createSessions({
         args: [
           {
             name: agent.name,
+            agent: agent.id,
             goal: goalText(agent.id),
             paused: isPaused,
             ...(state ? { state } : {}),
@@ -175,6 +224,19 @@ export function createSessions({
         if (a.setTitle) await a.setTitle({ tabId, title: `Vyre: ${agent.name} is using this tab` });
       });
     }
+  }
+
+  let loaded = !keep;
+  /** The record on disk was read and cannot be understood: a live pause may replace it. */
+  let overwritable = false;
+  /** Write the pauses and the bars that show them where the next worker finds them (pausekeep.js). */
+  function persist() {
+    // nothing is written until the saved pauses have been read back: a write made from a partial picture would erase the rest
+    if (!keep || !(loaded || overwritable)) return Promise.resolve();
+    return keep.save({
+      pauses: [...paused].map(([agent, p]) => ({ agent, by: p.by, at: p.at })),
+      bars: [...shown].map(([tab, a]) => ({ tab, id: a.id, name: a.name })),
+    });
   }
 
   /** @param {number} tabId */
@@ -206,7 +268,11 @@ export function createSessions({
     if (!d) return;
     clearTimer(d.timer);
     drivers.delete(tabId);
+    ownAt.delete(tabId);
     refs.delete(tabId);
+    acts.delete(tabId);
+    // a touch that queued a pause belongs to the task it happened in: when the agent lets go of the tab, it does not carry over to the next task
+    pausing.delete(d.agent.id);
     for (const [id, h] of held) if (h.tabId === tabId) held.delete(id);
     await undraw(tabId);
     // The person's own tab goes back out of the agent's group when the agent lets go of it.
@@ -223,6 +289,7 @@ export function createSessions({
       const d = drivers.get(tabId);
       if (d && d.agent.id !== call.agent.id) fail("busy");
       if (!d) {
+        pausing.delete(call.agent.id);
         drivers.set(tabId, { agent: call.agent, space: call.space, since: now(), timer: null, goal: "" });
         /** @type {string} */
         let site = "";
@@ -247,6 +314,31 @@ export function createSessions({
     },
     /** @param {number} tabId */
     touch: arm,
+    /** A press on one of the bar's buttons, at this place: was it the agent's own click (a person's hand is not)? A match uses up the agent's input. @param {number} tabId @param {number} x @param {number} y */
+    ownPress: (tabId, x, y) => matchOwn(tabId, { kind: "pointer", x, y }),
+    /** A keyboard click on one of the bar's buttons: did the agent send Enter or Space a moment ago? A match uses up that key. @param {number} tabId */
+    ownKeyPress: (tabId) =>
+      matchOwn(tabId, { kind: "key", code: "Enter" }) || matchOwn(tabId, { kind: "key", code: "Space" }),
+    /** The agent sent input to this tab just now (or is about to): the page will report it as a real event. @param {number} tabId @param {string} method @param {any} params */
+    ownInput(tabId, method, params) {
+      if (method !== "Input.dispatchMouseEvent" && method !== "Input.dispatchKeyEvent") return;
+      let kind = "";
+      // only what the page reports as a real event: a press (not a move or a release), a wheel, a key going down; Input.insertText reports no key at all
+      if (method === "Input.dispatchMouseEvent")
+        kind = params?.type === "mousePressed" ? "pointer" : params?.type === "mouseWheel" ? "wheel" : "";
+      else kind = params?.type === "keyDown" || params?.type === "rawKeyDown" ? "key" : "";
+      if (!kind) return;
+      const t = now();
+      const list = (ownAt.get(tabId) ?? []).filter((o) => t - o.at < OWN_INPUT_MS);
+      list.push({
+        at: t,
+        kind,
+        x: Number(params?.x ?? 0),
+        y: Number(params?.y ?? 0),
+        code: String(params?.code ?? ""),
+      });
+      ownAt.set(tabId, list.slice(-40));
+    },
     /** The page loaded again (a navigation, a reload): the frame went with the old document, so draw it again. @param {number} tabId */
     async redraw(tabId) {
       const d = drivers.get(tabId);
@@ -254,6 +346,59 @@ export function createSessions({
     },
     release,
     group,
+    /** Before an agent's next step: did the person touch the tab during the last one? Then it stops here, the tab is theirs, and the answer is true. @param {string} agentId */
+    async takePausing(agentId) {
+      if (!pausing.delete(agentId)) return false;
+      await this.pause(agentId, "takeover");
+      return true;
+    },
+    /** A tool call starts acting in a tab, or ends. The agent's own clicks and keys reach the page as real events, so a person's touch counts only outside these moments. @param {number} tabId */
+    actStart(tabId) {
+      const a = acts.get(tabId) ?? { n: 0, last: 0 };
+      a.n++;
+      acts.set(tabId, a);
+    },
+    /** @param {number} tabId */
+    actEnd(tabId) {
+      const a = acts.get(tabId);
+      if (!a) return;
+      a.n = Math.max(0, a.n - 1);
+      a.last = now();
+    },
+    /** The page said the person touched it. Hands the tab to the person (the agent pauses and the bar says it is theirs) unless the agent is acting there. @param {number} tabId @param {{ kind?: string, x?: number, y?: number, code?: string }} [info] */
+    async touched(tabId, info) {
+      const d = drivers.get(tabId);
+      if (!d) return false;
+      // the page's report (kind, rounded place, and for a key its physical key code, which on a normal layout names the character) reaches only this worker, is matched here and is kept nowhere
+      if (matchOwn(tabId, info)) return false;
+      const a = acts.get(tabId);
+      if (a && (a.n > 0 || now() - a.last < TOUCH_GRACE_MS)) {
+        // not lost: the agent finishes the step it is on, then stops, and the bar says so
+        if (!pausing.has(d.agent.id)) {
+          pausing.add(d.agent.id);
+          await draw(tabId, d.agent);
+        }
+        return false;
+      }
+      pausing.delete(d.agent.id);
+      await this.pause(d.agent.id, "takeover");
+      return true;
+    },
+    /**
+     * May the debugger go on this tab? In the person's own Chrome only a tab that sits in this agent's own tab group: a person's tab joins the group when they hand it over
+     * (begin puts it there), so a tab outside it is never debugged. An agent computer's browser has no groups and no person's tabs. @param {string} agentId @param {number} tabId
+     */
+    async inGroup(agentId, tabId) {
+      if (grouping_.has(tabId)) return true;
+      if (!grouping() || !ext.tabs || typeof ext.tabs.group !== "function") return true;
+      const gid = groupIds.get(agentId);
+      if (gid === undefined) return false;
+      try {
+        return (await ext.tabs.get(tabId)).groupId === gid;
+      } catch {
+        return false;
+      }
+    },
     /** The agent's cursor goes to a point; with `click`, a ring. @param {number} tabId @param {number} x @param {number} y @param {boolean} [click] */
     async cursor(tabId, x, y, click) {
       await quiet(() =>
@@ -338,6 +483,10 @@ export function createSessions({
      * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
+      pausing.delete(agentId);
+      // a pause never goes down: the agent's own stop leaves a person's Stop, Esc or take-over (and the time it was made) as it was, and a person's Stop or Esc leaves their take-over until Give back
+      const was = paused.get(agentId);
+      if (was && PAUSE_RANK[was.by] > PAUSE_RANK[by]) return;
       paused.set(agentId, { by, at: now() });
       for (const [tabId, d] of [...drivers]) {
         if (d.agent.id !== agentId) continue;
@@ -366,6 +515,7 @@ export function createSessions({
           await draw(tabId, d.agent, by === "person" ? "stopped" : "takeover");
         } else await release(tabId, "stopped by the agent");
       }
+      await persist();
       emit({
         event: by === "esc" ? "paused" : by === "takeover" ? "takeover" : "stopped",
         agent: agentId,
@@ -373,14 +523,66 @@ export function createSessions({
         ...(reason ? { reason: String(reason).slice(0, 200) } : {}),
       });
     },
+    /**
+     * The worker started again: take back the pauses and the bars it had. A take-over whose bar is gone (the person closed the tab they held: a hand-back) has nobody left to give it back and is dropped; a Stop, an Esc and the agent's own stop are kept, and wait
+     * for the person's word like any other. Runs before any call of an agent is answered.
+     */
+    async restore() {
+      /** @type {Awaited<ReturnType<NonNullable<typeof keep>["load"]>>} */
+      let k = null;
+      try {
+        k = keep ? await keep.load() : null;
+      } catch (e) {
+        if (/** @type {any} */ (e)?.unreadable) overwritable = true;
+        throw e;
+      }
+      /** @type {string[]} the agents whose pause this restore put back */
+      const put = [];
+      if (k) {
+        for (const b of k.bars) {
+          const alive = await Promise.resolve(ext.tabs?.get ? ext.tabs.get(b.tab) : null).then(
+            (t) => Boolean(t),
+            () => false,
+          );
+          if (alive && !shown.has(b.tab)) shown.set(b.tab, { id: b.id, name: b.name });
+        }
+        for (const p of k.pauses) {
+          if (paused.has(p.agent)) continue;
+          const barred = [...shown.values()].some((a) => a.id === p.agent);
+          if (p.by === "takeover" && !barred) continue; // a take-over only ends at the bar, and its tab is gone
+          paused.set(p.agent, { by: p.by, at: p.at });
+          put.push(p.agent);
+        }
+      }
+      loaded = true;
+      await persist();
+      return put;
+    },
+    /**
+     * May the agent's own chrome_resume lift the pause it is under? A pause the agent made itself, yes. A person's take-over, never (only the bar's Give back ends it). A person's Stop or Esc, only when the person wrote
+     * to the agent after the pause: the Space says how long ago the person's message that started this turn was sent, and it must be newer than the pause. Returns the failure code, or null.
+     * @param {string} agentId @param {unknown} lineAgeMs
+     */
+    resumeRefusal(agentId, lineAgeMs) {
+      const p = paused.get(agentId);
+      if (!p) return null;
+      if (p.by === "takeover") return "takeover_held";
+      if (p.by === "tool") return null;
+      const sentAfter =
+        typeof lineAgeMs === "number" && Number.isFinite(lineAgeMs) && lineAgeMs >= 0 && now() - lineAgeMs > p.at;
+      return sentAfter ? null : "person_stopped";
+    },
     /** @param {string} agentId */
     async resume(agentId) {
       const was = paused.delete(agentId);
       if (was) {
         // An Esc pause left a dashed frame on the tabs: take it off now that the person has answered.
-        for (const tabId of owned.get(agentId) ?? []) if (!drivers.has(tabId)) await undraw(tabId);
+        const tabs = new Set(owned.get(agentId) ?? []);
+        for (const [tabId, a] of shown) if (a.id === agentId) tabs.add(tabId); // a bar read back after a restart is not in `owned`
+        for (const tabId of tabs) if (!drivers.has(tabId)) await undraw(tabId);
         emit({ event: "resumed", agent: agentId });
       }
+      await persist();
       return was;
     },
 

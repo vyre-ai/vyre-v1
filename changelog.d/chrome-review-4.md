@@ -1,0 +1,1 @@
+Review follow-ups: a long bare token is found by the shared scanner, a read whose address carries a known-shape secret is refused before any card, and a card writes out unassigned code points, lone surrogates and combining marks.

@@ -1,0 +1,1 @@
+- An agent's browser answers much faster: each step used to wait about an eighth of a second before it began, and now begins at once (reading a page went from about 130 ms to under 10 ms on the test server).

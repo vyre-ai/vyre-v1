@@ -70,6 +70,33 @@ function offerLink() {
 const CODE_RE = /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/,
   FP_RE = /^[a-f0-9]{8,128}$/i;
 
+/**
+ * A browser that used this Space at an address of its own still holds the app's worker (/sw.js, scope /). Registering ours beside it leaves ours waiting while the old one keeps the page, and
+ * `ready` resolves with the old one: the reload that follows ends on "did not let Vyre take over". So that worker is removed first and the page loads again without it (once: a worker that
+ * would not go must not loop the page; the next start goes on as before).
+ * @returns {Promise<boolean>} true when the page is being reloaded
+ */
+async function retireStaleWorker() {
+  const q = new URLSearchParams(location.search);
+  const again = q.has("vyre-sw-retired");
+  if (again) {
+    // loaded once already after removing the worker: the marker goes, and whatever is left is not removed again (no loop, with storage or without)
+    q.delete("vyre-sw-retired");
+    const rest = q.toString();
+    history.replaceState(null, "", location.pathname + (rest ? `?${rest}` : "") + location.hash);
+  }
+  const regs = await navigator.serviceWorker.getRegistrations();
+  const stale = regs.filter((r) => {
+    const w = r.active || r.waiting || r.installing;
+    return r.scope === `${location.origin}/` && w && new URL(w.scriptURL).pathname !== "/__vyre/sw.js";
+  });
+  if (!stale.length || again) return false;
+  await Promise.all(stale.map((r) => r.unregister().catch(() => false)));
+  q.set("vyre-sw-retired", "1");
+  location.replace(`${location.pathname}?${q}${location.hash}`);
+  return true;
+}
+
 async function go() {
   const info = await (await fetch("/__vyre/info.json", { cache: "no-store" })).json();
   const name = String(info.name);
@@ -84,6 +111,7 @@ async function go() {
       return;
     }
     status("Connecting");
+    if (await retireStaleWorker()) return;
     const reg = await navigator.serviceWorker.register("/__vyre/sw.js", { scope: "/" });
     await navigator.serviceWorker.ready;
     reg.active?.postMessage({ t: "reset" });

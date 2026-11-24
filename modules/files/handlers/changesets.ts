@@ -511,6 +511,25 @@ function virtualFile(ctx: Ctx, entry: Row): Record<string, unknown> {
   };
 }
 
+/** files.create_many writes straight into a folder; a folder under Review changes takes an agent's files one at a time through files.create, where each is staged. */
+async function stagedCreateMany(
+  ctx: Ctx,
+  input: unknown,
+): Promise<Awaited<ReturnType<(typeof treeHandlers)["files.create_many"]>>> {
+  if (stages(ctx)) {
+    const o = record(ctx, input);
+    const folderId = typeof o["folderId"] === "string" ? o["folderId"] : "";
+    const folder = one(ctx, "SELECT * FROM files_folder WHERE id = ?", folderId);
+    if (live(folder) && reviewRoot(ctx, folderId))
+      fail(
+        ctx,
+        "validation.precondition_failed",
+        "This folder keeps changes for review: add the files one at a time with files.create.",
+      );
+  }
+  return treeHandlers["files.create_many"](ctx, input);
+}
+
 async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   if (!stages(ctx)) return treeHandlers["files.create"](ctx, input);
   const o = record(ctx, input);
@@ -1308,6 +1327,7 @@ async function commentsAdd(ctx: Ctx, input: unknown): Promise<{ comment: Record<
 export const changesetHandlers = {
   "files.write": (ctx: Ctx, input: unknown) => stagedWrite(ctx, input),
   "files.create": (ctx: Ctx, input: unknown) => stagedCreate(ctx, input),
+  "files.create_many": (ctx: Ctx, input: unknown) => stagedCreateMany(ctx, input),
   "changesets.list": (ctx: Ctx, input: unknown) => list(ctx, input),
   "changesets.get": (ctx: Ctx, input: unknown) => get(ctx, input),
   "changesets.diff": (ctx: Ctx, input: unknown) => diff(ctx, input),

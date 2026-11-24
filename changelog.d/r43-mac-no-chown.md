@@ -1,0 +1,1 @@
+- vyre-server no longer chowns the backups folder to uid 1000 on a Mac (the folder stays the person's own); Linux keeps it.

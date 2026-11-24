@@ -1,7 +1,7 @@
 {
   "module": "files",
   "capabilities": {
-    "changesets.approve@1": "c9099a12ea02d52d730224a129e6ebca47fba10fc30fdf0dc7f3d882fad91774",
+    "changesets.approve@1": "d52e5f0a622023b1ad784aeb0f73e6d6e37b73ae153742ce7a56cf214210be5b",
     "changesets.comments.add@1": "3274ef5dbb4fca7283c4c3663c3d5a2758ce574e2c53bb6c6527d9ab4c5cc5e0",
     "changesets.comments.list@1": "1bd160fd823c322da1578147dfd25b81c227267ee60664fb894eef1a991d5807",
     "changesets.diff@1": "be05eef5bc08e588e129b97e594496ee1e76cca7bc7051f20027731a20c1dcbc",
@@ -22,6 +22,7 @@
     "files.comments.resolve@1": "f3fd2a65e777c28c58bea3ac5b7f4faca3d496b8aebd6cb13e3e59690bea5cdf",
     "files.copy@1": "0666c72be41c0554b3e46f34d0cbbb1030b5f8be06df84e99f487cd519837147",
     "files.create@1": "6f8692880bf50797dbe2278d7b360711d2b784b79be19b37926009dd4610c2b5",
+    "files.create_many@1": "b6c799436ed720a58e150007ac7a2b5511843e110d246b8bb471326f485da106",
     "files.delete@1": "d2796e24e7571ba8f2afb7986b8974e32ebdc7578e440708fd2d6ca08dc30ed0",
     "files.diff@1": "24c83809fac1911e6b8017b2ab6abaef0b0b3c20c004a0ebc52b049d2c23bf7e",
     "files.external_links@1": "9023e82ffe58d5c7f91f85e8b2129ce74576b438a8405717cccbc4a9f5779af3",
@@ -69,7 +70,7 @@
     "files.tree@1": "08ebaa8345ec6552ed7f58e62b0e1ad46da394b1a259df96137f6194bf76e9c7",
     "files.upload_url@1": "b5a8dab5ed01b899fa32549267f7ec86e9a1747dd685b03e56b45929a25509a6",
     "files.versions@1": "6ef5722145d9f329c4d3253e0e703a600be21720c7dd57f68826594c76bf9bbb",
-    "files.versions_purge@1": "7773571e9a1addca1920461f230de333a1b4dd1591d4a010ec0eef789cdbc6cd",
+    "files.versions_purge@1": "b137284929c06c1e44de3ac0830e8184388839dd6022ea54101a724bc00ed14e",
     "files.viewer_data@1": "676338ba24542eefbc8dfe5e14bd4a4946f0053105b620e0d0e4f38fd915aaa5",
     "files.write@1": "2449aa3e03a0945bce1000243058cf140a7b600f63331f1c71eb84a72b54fdf0",
     "sheets.add_sheet@1": "aa193ab16bc4632573aa95e62b18c65e8abc42c0fcdd7c97060f06b68441e08a",

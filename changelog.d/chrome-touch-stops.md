@@ -1,0 +1,1 @@
+If you touch a page an agent is working in your Chrome (a click, a key, a scroll) or drag its tab out of the agent's group, the agent stops at once and the bar says the tab is yours; Give back lets it go on.

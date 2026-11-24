@@ -85,6 +85,7 @@ jobs:
     outputs:
       browser: ${{ steps.browser.outputs.image }}
       workspace: ${{ steps.workspace.outputs.image }}
+      converter: ${{ steps.converter.outputs.image }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps
@@ -124,6 +125,15 @@ jobs:
             case "$digest" in sha256:*) ;; *) echo "no image digest in the build metadata"; exit 1 ;; esac
             echo "image=ghcr.io/vyre-ai/agent-workspace@$digest" >> "$GITHUB_OUTPUT"
           fi
+      - name: Word to PDF converter image (LibreOffice, no desktop; fetched by a server the first time a Word file becomes a PDF)
+        id: converter
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # a practice run builds and proves it for this platform and pushes nothing; a real release logs in, then reuses the published image when images/doc-converter has not changed (a LibreOffice build for arm64
+          # under qemu takes many minutes) and otherwise builds both platforms (scripts/release/doc-converter-image.sh)
+          if [ "$DRYRUN" != true ]; then bash scripts/release/retry.sh 3 10 bash -c 'echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin'; fi
+          bash scripts/release/doc-converter-image.sh "$VERSION" "$DRYRUN"
   package:
     needs: [guard, agent-images]
     # the multi-arch image build needs docker buildx and qemu: one host serves the `buildx` label (vyre-ci-7)
@@ -136,6 +146,7 @@ jobs:
       # built and pushed for both platforms by agent-images; empty in a practice run, and `pack` then leaves the line out of images.lock
       VYRE_BROWSER_IMAGE: ${{ needs.agent-images.outputs.browser }}
       VYRE_WORKSPACE_IMAGE: ${{ needs.agent-images.outputs.workspace }}
+      VYRE_CONVERTER_IMAGE: ${{ needs.agent-images.outputs.converter }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/deps

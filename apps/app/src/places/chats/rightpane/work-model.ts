@@ -81,11 +81,26 @@ export interface BrowserView {
   /** Takeover: who has the controls, by name; `mine` when it is the person looking. */
   takenBy?: string;
   mine?: boolean;
+  /** Open and paused by a person: the agent's next browser step waits for Resume. `pausedBy`: who, by name. */
+  paused?: boolean;
+  pausedBy?: string;
+  /** Sends, posts or payments of the agent that wait for approval (the Gate): how many, the oldest in a line, its task, and whether this person may answer it. */
+  held?: { count: number; what: string; taskId: string; mayAnswer: boolean };
   /** May this person see its live view and take over? Owner and admin for a team agent; the owner alone for a personal agent. */
   canTakeOver: boolean;
   cannotTakeOver?: string;
   /** The logins its profile keeps. */
   sites: readonly BrowserSite[];
+}
+/** One step the agent took in its browser, for the desk's step list. */
+export interface DeskStep {
+  idx: number;
+  at: number;
+  caption: string;
+  tool: string;
+  by: "agent" | "person";
+  /** The picture kept after the step (a file); the desk shows it when you press the step. */
+  frameFileId?: string;
 }
 export interface BrowserData {
   watch(agentId: string, on: (v: BrowserView) => void): () => void;
@@ -93,7 +108,17 @@ export interface BrowserData {
   open(agentId: string): Promise<void>;
   takeOver(agentId: string): Promise<void>;
   giveBack(agentId: string): Promise<void>;
+  /** Hold the agent's next browser step until Resume (nothing is spent while it waits). */
+  pause?(agentId: string): Promise<void>;
+  /** `stopped`: the agent was stopped while paused, so the step that waits does not run at all. */
+  resume?(agentId: string, o?: { stopped?: boolean }): Promise<void>;
   signOut(agentId: string, site: string): Promise<void>;
+  /** Where the agent last acted on its page, for the desk's cursor; null when it has not, or the browser sleeps or is held. A look that starts nothing. */
+  pointer?(agentId: string): Promise<import("./desk-pointer.ts").PointerView | null>;
+  /** What the agent did in its browser, newest last: one line each, for the desk's steps. */
+  steps?(agentId: string): Promise<DeskStep[]>;
+  /** The address of a step's picture (a Space blob, drawn with BlobImage), or null when it has none to show. */
+  frame?(fileId: string): Promise<string | null>;
   /** The live view, drawn by the Space browser (Chrome's screencast and input). Absent: a picture of a browser window stands in. */
   renderLive?(agentId: string, o: { state: BrowserState; control: boolean }): ReactElement;
 }

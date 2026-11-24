@@ -19,6 +19,8 @@ export interface Decision {
 export interface ScopedDb {
   all(sql: string, ...args: unknown[]): unknown[];
   run(sql: string, ...args: unknown[]): { changes: number };
+  /** Run `fn` (synchronous statements only) as one transaction: one commit for all its writes. Absent where the database has no transactions. */
+  batch?<T>(fn: () => T): T;
 }
 /**
  * afterFailure: the event is still written when the call ends in an error (a refused sign-in must leave its signin.failed in the log). It must be an event the capability declares; the host commits
@@ -101,6 +103,14 @@ export interface Ctx {
   trace: TraceContext;
   run?: string;
   thread?: string;
+  /** why the engine started the turn an agent's call is made in: message, wake (the engine woke the agent: the baton, a Routine, a nudge), resume (a held call was answered), interrupt, handoff. Absent when unknown. */
+  /** `messageId` and its author: the message that started a "message" or "interrupt" turn, from the engine's own record (never from a caller). */
+  turn?: {
+    kind: string;
+    messageId?: string | undefined;
+    authorKind?: string | undefined;
+    authorId?: string | undefined;
+  };
   origin: string;
   depth: number;
   /** this call was forwarded for its caller by another module (CallOpts.asCaller): it carries the caller's standing, not that module's */
@@ -134,8 +144,14 @@ export interface Ctx {
   /**
    * Run a capability later as the principal that asks. `as` (a person's id) is for the server's own jobs only: the job then runs as that person, whose right to act is checked when it is
    * scheduled and again when it runs; any other caller, and a person who is not active or may not manage connectors, is refused.
+   * `system` (the mail module's own follow-up calls, to its own capabilities only) runs the job as the host service, pre-authorized, never as the person or agent whose call scheduled it: nobody's identity is replayed.
    */
-  schedule(at: number | string, cap: CapName, input: unknown, opts?: { as?: string }): Promise<string>;
+  schedule(
+    at: number | string,
+    cap: CapName,
+    input: unknown,
+    opts?: { as?: string; system?: boolean },
+  ): Promise<string>;
   seal: { seal(v: Uint8Array, scope: string): Sealed; unseal(s: Sealed): Uint8Array };
   /** Present on a booted daemon; a hand-built test ctx may omit it. */
   blobs?: Blobs;

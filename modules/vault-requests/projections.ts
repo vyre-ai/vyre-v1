@@ -101,7 +101,10 @@ export const strOf = (v: unknown): string | undefined => (typeof v === "string" 
 export const idsOf = (json: string): string[] => JSON.parse(json) as string[];
 
 /** The request as the contract returns it: names, never values. */
-export function requestOut(r: RequestRow) {
+export function requestOut(r: RequestRow): ReturnType<typeof requestBase> & { placeholder?: boolean } {
+  return requestBase(r);
+}
+function requestBase(r: RequestRow) {
   const tasks = idsOf(r.task_ids_json);
   return {
     id: r.id,
@@ -115,7 +118,7 @@ export function requestOut(r: RequestRow) {
     ...(r.item_id ? { itemId: r.item_id } : {}),
     ...(r.note ? { note: r.note } : {}),
     ...(r.service ? { service: r.service } : {}),
-    taskId: tasks[0] ?? "",
+    ...(tasks[0] ? { taskId: tasks[0] } : {}),
     at: r.at,
     ...(r.decided_at !== null ? { decidedAt: r.decided_at } : {}),
   };

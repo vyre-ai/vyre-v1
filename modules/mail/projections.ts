@@ -29,7 +29,7 @@ export interface MailCtx {
   ): unknown;
   call(cap: string, input: unknown): Promise<unknown>;
   authorize(
-    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; direct?: boolean },
     resource: { type: string; id: string | null },
   ): { effect: "allow" | "deny" | "hold"; reason: string; decisionId: string };
   vault: { use(handle: string): { handle: string } };

@@ -162,6 +162,13 @@
       "proto": "settings,{skin}",
       "waitFor": "[data-testid='account-sign-in']",
       "note": "Opened on that account by a link (a failed turn's Sign in again): the account is marked and its sign-in starts under it."
+    },
+    {
+      "id": "CHROME2A_01-webread",
+      "route": "/m/CHROME2A_01?part=webread",
+      "proto": "chat,{skin}",
+      "waitFor": "[data-testid^='approval-address-']",
+      "note": "The held card for an agent's read of a web page: the host on the first line, then the whole address in a wrapped monospaced block that scrolls after about six lines; a bidi mark is written out as its code."
     }
   ]
 }

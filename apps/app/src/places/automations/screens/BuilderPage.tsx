@@ -3,7 +3,7 @@
 // Until the server holds a draft next to what is live, an On Automation's edits are saved by an explicit Save, and the page says so.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement, ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { CapMap } from "../../../../../../generated/types.ts";
 import { useMenu } from "../../../../../../ui/src/Menu/index.tsx";
 import { renameDuplicate } from "../../chats/menus/kinds-b.ts";
@@ -1207,12 +1207,12 @@ function Body({
       ) : null}
       {phone && phoneFix ? <View style={s.fill}>{inspector}</View> : null}
       {phone && !phoneFix ? (
-        <>
+        <ScrollView style={s.paneScroll} testID="phone-runs-scroll">
           <Text style={[look.quiet, s.note]} testID="phone-build-line">
             Building opens on a computer. Runs and their fixes work here.
           </Text>
           {runsBody}
-        </>
+        </ScrollView>
       ) : null}
       {!phone && tab === "steps" ? (
         <View style={s.split}>
@@ -1227,7 +1227,7 @@ function Body({
         </View>
       ) : null}
       {!phone && tab === "runs" ? (
-        <View style={s.pane}>
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane}>
           <AnalyticsPanel automationId={a.id} />
           {runsBody}
           {/* a run someone expected and did not get: last week's list says, for each thing that happened, whether it would have started this and what stopped it */}
@@ -1247,19 +1247,19 @@ function Body({
           <More head="Event log" testID="runs-event-log">
             <LiveEvents />
           </More>
-        </View>
+        </ScrollView>
       ) : null}
       {!phone && tab === "settings" ? (
-        <View style={s.pane}>
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane}>
           <AutomationConfig automationId={a.id} embedded readOnly={locked} />
           <Dependencies automationId={a.id} />
           <Pressable testID="settings-copies" accessibilityRole="button" onPress={() => setPackagesOpen(true)}>
             <Text style={look.btnText}>Make a copy to share, or import one</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       ) : null}
       {tab === "history" ? (
-        <View style={s.pane} testID="versions-list">
+        <ScrollView style={s.paneScroll} contentContainerStyle={s.pane} testID="versions-list">
           <CohortMigration automationId={a.id} currentVersion={a.version} />
           {versions.length === 0 ? (
             <Text style={look.quiet}>This is the first version.</Text>
@@ -1290,7 +1290,7 @@ function Body({
               />
             ))
           )}
-        </View>
+        </ScrollView>
       ) : null}
       {picker && pickIn ? (
         <StepPicker
@@ -1429,10 +1429,13 @@ const s = StyleSheet.create({
   },
   conflictRow: { flexDirection: "row", gap: 16, alignItems: "center" },
   split: { flex: 1, flexDirection: "row", minHeight: 0 },
-  main: { flex: 1, minWidth: 0 },
+  main: { flex: 1, minWidth: 0, minHeight: 0 },
   side: { width: 400, borderLeftWidth: 1, borderLeftColor: "var(--line)" as string },
   fill: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0, backgroundColor: "var(--win)" as string },
-  pane: { flex: 1, padding: 16 },
+  // a tab taller than the window scrolls inside its own frame (a plain View here clipped it and nothing scrolled)
+  paneScroll: { flex: 1, minHeight: 0 },
+  // flexGrow keeps a short page filling the frame (no gap under it)
+  pane: { flexGrow: 1, padding: 16 },
   whyBtn: { alignSelf: "flex-start", marginTop: 12 },
   note: { paddingHorizontal: 16, paddingBottom: 4 },
 });

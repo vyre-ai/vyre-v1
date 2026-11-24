@@ -48,15 +48,19 @@ const run = (name: string, ctx: Ctx, input: unknown): Promise<unknown> => {
 };
 
 /** A Space with the file and folder the examples name: a Word template that asks for nothing, and a record. */
-function populated(): World {
+function populated(vyreDoc = false): World {
   const w = world();
-  w.add("Template.docx", docx(para("Static line")), "fld_a1b2c3", "fil_a1b2c3");
+  if (vyreDoc) w.add("Template.md", Buffer.from("Static line\n", "utf8"), "fld_a1b2c3", "fil_a1b2c3");
+  else w.add("Service agreement.docx", docx(para("Static line")), "fld_a1b2c3", "fil_a1b2c3");
   w.records.set("rec_a1b2c3", { name: "Example" });
+  // the examples mark a template for the record type "customer": the Space has one
+  w.records.set("rec_b2c3d4", { name: "Northwind" });
+  w.recordTypes.set("rec_b2c3d4", "customer");
   return w;
 }
 
 test("a real handler exists for exactly the capabilities the registry declares for documents", () => {
-  assert.equal(caps.length, 5);
+  assert.equal(caps.length, 8);
   assert.deepEqual(Object.keys(handlers).sort(), caps.map((c) => c.name).sort());
 });
 
@@ -67,7 +71,11 @@ for (const cap of caps) {
     assert.ok(cap.examples.length >= 1);
     for (const ex of cap.examples) {
       assert.deepEqual(validate(cap.input, ex.input, "", defs), [], `example ${ex.name} input is valid`);
-      const w = populated();
+      const w = populated(cap.name === "documents.make_pdf");
+      if (cap.name === "documents.make") {
+        await run("documents.mark_template", w.ctx, { fileId: "fil_a1b2c3", isTemplate: true });
+        w.events.length = 0;
+      }
       const out = await run(cap.name, w.ctx, ex.input);
       assert.deepEqual(validate(cap.output, out, "", defs), [], `example ${ex.name} output`);
       for (const e of w.events) {
@@ -82,14 +90,19 @@ for (const cap of caps) {
   test(`${name}: real handler answers the schema sample with a valid output`, async () => {
     const input = sample(cap.input, 0, defs);
     assert.deepEqual(validate(cap.input, input, "", defs), []);
-    const out = await run(cap.name, populated().ctx, input);
+    const w = populated(cap.name === "documents.make_pdf");
+    if (cap.name === "documents.make") {
+      await run("documents.mark_template", w.ctx, { fileId: "fil_a1b2c3", isTemplate: true });
+      w.events.length = 0;
+    }
+    const out = await run(cap.name, w.ctx, input);
     assert.deepEqual(validate(cap.output, out, "", defs), []);
   });
 }
 
 test("every declared event is emitted by the handler that declares it", async () => {
   const emitted = async (cap: string, input: unknown): Promise<string[]> => {
-    const w = populated();
+    const w = populated(cap === "documents.make_pdf");
     await run(cap, w.ctx, input);
     for (const e of w.events)
       assert.deepEqual(validate(eventSchemas.get(e.name)!, e.payload, "", defs), [], `${e.name} payload`);

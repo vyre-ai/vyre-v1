@@ -17,7 +17,7 @@ What may go without asking: your Always allow rules and the automations your pre
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/gate/allow/list |
-| MCP tool | none |
+| MCP tool | gate_allow_list (engineer, deferred) |
 | CLI | none |
 | Emits | none |
 
@@ -34,7 +34,7 @@ type Out = {
   rules: Array<{
       id: string;
       kind: "standing" | "always" | "goal";
-      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "signature_send" | "spend_raise" | "signin_change" | "install" | "approve" | "github_approval" | "agent_erase";
+      act: "send" | "post" | "pay" | "delete" | "transfer" | "enroll_node" | "connection_change" | "push_protected" | "secret_export" | "site_promote" | "deploy" | "signature_send" | "spend_raise" | "signin_change" | "admit" | "access" | "install" | "approve" | "github_approval" | "agent_erase";
       target: string;
       agentId?: string;
       threadId?: string;

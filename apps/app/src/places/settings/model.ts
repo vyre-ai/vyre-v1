@@ -16,6 +16,7 @@ export type YouPage =
   | "connected"
   | "mail"
   | "signin"
+  | "outside"
   | "computer"
   | "about";
 export type SpacePage = "space" | "people" | "agents" | "data" | "apps" | "advanced";
@@ -44,6 +45,7 @@ export const PAGES: readonly PageDef[] = [
   { key: "appearance", title: "Appearance", group: "you", icon: "palette", pages: [] },
   { key: "computer", title: "This device", group: "you", icon: "laptop", pages: ["This computer"] },
   { key: "signin", title: "Privacy and security", group: "you", icon: "key", pages: ["Sign-in and devices"] },
+  { key: "outside", title: "Connected apps", group: "you", icon: "link", pages: [] },
   { key: "memory", title: "Memory and privacy", group: "you", icon: "lock", pages: [], hidden: true },
   { key: "notes", title: "Notes", group: "you", icon: "doc", pages: ["Notes"], hidden: true },
   { key: "skills", title: "Skills", group: "you", icon: "spark", pages: ["Skills"], hidden: true },
@@ -67,6 +69,7 @@ export const PAGE_SUB: Readonly<Partial<Record<PageKey, string>>> = {
   appearance: "How Vyre looks for you.",
   computer: "This computer and what Vyre can do on it.",
   signin: "Your password, two-step sign-in and where you are signed in.",
+  outside: "Apps that work in this Space as you.",
   connected: "Your app connections live in Vault now.",
   mail: "Add an inbox or a calendar from Inbox.",
 };
@@ -145,9 +148,11 @@ export const SECTIONS: Readonly<Record<YouPage, readonly SectionDef[]>> = {
   memory: [],
   notes: [{ title: "From chats", keys: ["notes.offers"] }],
   skills: [],
+  github: [],
   connected: [],
   mail: [],
   signin: [],
+  outside: [],
   computer: [],
   about: [],
 };
@@ -296,6 +301,38 @@ export const SPACE_ROWS: readonly SpaceRowDef[] = [
     "Agents can reply to each other",
     { kind: "number", min: 1, max: 20, unit: "times" },
     "After this many agent turns, helpers and teammates counted, a person has to answer or press Continue. It stops loops.",
+  ),
+  sr(
+    "tasks.tidy",
+    "space",
+    "Tasks",
+    "Tidy tasks by itself",
+    { kind: "switch" },
+    "Vyre asks about tasks that no longer matter and puts them away with the reason. Nothing is deleted and Put back undoes it.",
+  ),
+  sr(
+    "tasks.ask_after_days",
+    "space",
+    "Tasks",
+    "Ask about a task nobody has touched for",
+    { kind: "number", min: 3, max: 90, unit: "days" },
+    "It goes on the Still need these card, never a notification.",
+  ),
+  sr(
+    "tasks.assistant_look",
+    "space",
+    "Tasks",
+    "Let a cheap model look at tasks that may be done",
+    { kind: "switch" },
+    "Off until you turn it on. Once a day, the title and the last two messages of up to 20 tasks go to the cheapest model your Space AI accounts allow, only from chats everyone on the task can read. It can only suggest; the Still need these card is where you decide.",
+  ),
+  sr(
+    "tasks.moment_grace_days",
+    "space",
+    "Tasks",
+    "Put a task away after its moment has passed by",
+    { kind: "number", min: 0, max: 14, unit: "days" },
+    "A task that names when it stops mattering (a call on Thursday) is put away this long after.",
   ),
   sr(
     "tasks.review_loop_limit",
@@ -722,6 +759,13 @@ export const DRAWN_ROWS: readonly { key: string; page: PageKey; title: string; s
     title: "Passkeys",
     sub: "Touch ID and security keys",
     words: "second factor biometric",
+  },
+  {
+    key: "outside.apps",
+    page: "outside",
+    title: "Connected apps",
+    sub: "Claude, ChatGPT, Cursor and other apps that work as you",
+    words: "mcp claude chatgpt cursor connect app agent",
   },
   { key: "signin.devs", page: "signin", title: "Devices", sub: "Where you are signed in", words: "computers sign out" },
   { key: "signin.spaces", page: "signin", title: "Your Spaces", sub: "Open or leave a Space", words: "switch leave" },

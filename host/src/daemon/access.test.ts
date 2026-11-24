@@ -54,3 +54,20 @@ test("repair duplicate validation rejects a changed span_id", () => {
   const stored = { ...intended, span_id: "span_collision", depth: 0, label: 0, enc: 0 };
   assert.equal(repairEventMatches(stored, intended), false);
 });
+
+test("agent.renamed gives the agent's principal in the boot snapshot its new name, and renames no one else", () => {
+  const access = new AccessSnapshot();
+  foldEvent(access, {
+    type: "principal.created",
+    payload: { id: "agt_docs", kind: "agent", owner: "usr_olivia", status: "active", name: "Docs" },
+  });
+  foldEvent(access, {
+    type: "principal.created",
+    payload: { id: "usr_olivia", kind: "person", status: "active", name: "Olivia Reyes" },
+  });
+  foldEvent(access, { type: "agent.renamed", payload: { agentId: "agt_docs", name: "Front Desk" } });
+  foldEvent(access, { type: "agent.renamed", payload: { agentId: "usr_olivia", name: "Nobody" } });
+  assert.equal(access.principal("agt_docs")?.name, "Front Desk");
+  assert.equal(access.principal("usr_olivia")?.name, "Olivia Reyes");
+  assert.equal(isAccessEvent("agent.renamed"), true);
+});

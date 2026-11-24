@@ -5,7 +5,8 @@
 import { VyreErr } from "../../../packages/contracts/src/errors.ts";
 import {
   asRow,
-  describeTarget,
+  hostNameOf,
+  labelOf,
   failWith,
   findItem,
   findItemOrIndex,
@@ -14,7 +15,7 @@ import {
   mint,
   need,
   openTarget,
-  readConfig,
+  targetOf,
   readTombstones,
   unpack,
   unwrap,
@@ -26,11 +27,10 @@ const RESTORE_BYTES_PER_SECOND = 20_000_000;
 const RESTORE_FIXED_SECONDS = 5;
 
 async function targetAndItem(ctx: BackupCtx, backupId: string): Promise<{ target: BackupTarget; item: Item }> {
-  const cfg = readConfig(ctx);
-  if (!cfg.target)
-    return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
-  const target = await openTarget(ctx, cfg.target);
-  const item = await findItemOrIndex(ctx, target, backupId, describeTarget(cfg.target));
+  const chosen = targetOf(ctx);
+  if (!chosen) return failWith(ctx.trace.traceId, "validation.precondition_failed", "Choose where backups go first.");
+  const target = await openTarget(ctx, chosen.target);
+  const item = await findItemOrIndex(ctx, target, backupId, labelOf(chosen));
   if (!item)
     return failWith(ctx.trace.traceId, "validation.not_found", "There is no backup with that id.", { backupId });
   return { target, item };
@@ -63,7 +63,20 @@ async function openArchive(
   }
 }
 
+/** A backup vyre-server took is a tar.gz of the data folder, put back with the server stopped: it cannot be restored from inside the running server. */
+async function notFromHere(ctx: BackupCtx, backupId: string): Promise<void> {
+  const name = await hostNameOf(ctx, backupId);
+  if (name)
+    failWith(
+      ctx.trace.traceId,
+      "validation.precondition_failed",
+      `This backup was taken by vyre-server. Restore it on the server with: vyre-server restore ${name}`,
+      { backupId },
+    );
+}
+
 export async function restore_preview(ctx: BackupCtx, input: { backupId: string }) {
+  await notFromHere(ctx, input.backupId);
   const d = need(ctx);
   const { target, item } = await targetAndItem(ctx, input.backupId);
   const [head, live, listed] = await Promise.all([
@@ -84,6 +97,7 @@ export async function restore(ctx: BackupCtx, input: { backupId: string; confirm
   const d = need(ctx);
   if (input.confirm !== true)
     return failWith(ctx.trace.traceId, "validation.bad_input", "Confirm the restore to go on.");
+  await notFromHere(ctx, input.backupId);
   const { target, item } = await targetAndItem(ctx, input.backupId);
   const runId = ctx.run ?? mint("run");
 
@@ -136,6 +150,12 @@ export async function restore(ctx: BackupCtx, input: { backupId: string; confirm
 
 export async function verify(ctx: BackupCtx, input: { backupId: string }) {
   const d = need(ctx);
+  const hostName = await hostNameOf(ctx, input.backupId);
+  if (hostName) {
+    // a vyre-server backup: the archive is read to its end and the gzip checksum must hold (its databases are checked by vyre-server restore)
+    const ok = (await (await openTarget(ctx, targetOf(ctx)!.target)).checkHost?.(hostName)) === true;
+    return { ok, checkedEvents: 0 };
+  }
   const { target, item } = await targetAndItem(ctx, input.backupId);
   const { snapshot, tombstones } = await openArchive(ctx, target, item);
   if (snapshot.headHash !== item.headHash && item.headHash !== "")

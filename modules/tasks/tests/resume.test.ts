@@ -17,7 +17,7 @@ function world(status = "waiting", waitReason = "approval"): Harness {
   return h;
 }
 const made = async (h: Harness, over: Record<string, unknown> = {}): Promise<string> =>
-  (await h.call("tasks.create", newTask({ source: { kind: "run", id: "run_1" }, ...over }), me)).task.id as string;
+  (await h.call("tasks.create", newTask({ source: { kind: "run", id: "run_1" }, ...over }), svc)).task.id as string;
 const resumes = (h: Harness) => h.calls.filter((c) => c.cap === "runs.resume").map((c) => c.input);
 /** What the host does for a consumer: hand it the event the call emitted, with the ctx of the module. */
 const deliver = async (h: Harness, name = "task.transitioned"): Promise<Array<string | undefined>> => {

@@ -128,6 +128,8 @@ export function ConnectCardLive({
         requestId,
         // the addresses this card said the key goes to: the server refuses when they are no longer the service's
         hosts: hostsNow,
+        // the service revision this card showed: the server refuses when it was published again since
+        revision: option ? option.revision : card.service.revision,
         ...(option ? { choice: option.value } : {}),
         ...(useSaved
           ? { useSaved: true }
@@ -244,6 +246,7 @@ export function ConnectCardLive({
         askedAt={card.admin?.askedAt ? whenText(card.admin.askedAt, Date.now()) : undefined}
         tested={card.tested}
         checksWith={hostsNow.length > 0 ? hostsNow.join(", ") : undefined}
+        untested={card.untested === true}
         choice={
           card.choice && option
             ? {

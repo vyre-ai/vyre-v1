@@ -1,0 +1,1 @@
+The document editor can show a record field as a chip and track changes: a suggestion made by a person or an agent keeps its author and time in the file as plain text, and each one is accepted or rejected from the page.

@@ -4,6 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createTurnEngine, scriptedProvider, toolRunnerFrom } from "../src/turn-engine/index.ts";
 import type { DriverEvent, EngineAgent, OpenThread } from "../src/turn-engine/index.ts";
+import { readsEpoch } from "../src/tools/reads-epoch.ts";
 
 const person = { kind: "person" as const, id: "dana" };
 const agents = (): EngineAgent[] => [
@@ -48,8 +49,11 @@ test("a held call parks the turn and sends the model nothing; approval wakes it 
     ["done"],
   );
 
+  const parked = turn!.id;
+  const before = readsEpoch(parked);
   assert.notEqual(engine.resume("tsk_1", { approved: true }), null);
   await engine.idle("T");
+  assert.equal(readsEpoch(parked) > before, true, "a wake after a Gate hold forgets what the parked turn read");
   assert.equal(p.sessions[1]?.inputs[0]?.resumed?.approved, true);
   assert.equal(p.sessions[1]?.inputs[0]?.resumed?.callId, "call_1");
   assert.equal(engine.turns("T")[1]?.kind, "wake");

@@ -1,6 +1,6 @@
 # tasks.agent_on_it
 
-Say that an agent is on a task for the person it is assigned to: the task moves to Doing and its row reads "<Agent> is on it for you". Only that person, or the host, may say so
+Say an agent is on a task for its assignee: it moves to Doing and reads "<Agent> is on it for you". Only they or the host
 
 | | |
 |---|---|
@@ -82,6 +82,7 @@ type Out = {
     reviewLoops: number;
     snoozedUntil?: number;
     expiresAt?: number;
+    relevantUntil?: number;
     createdBy: string;
     createdAt: number;
     updatedAt: number;
@@ -96,6 +97,16 @@ type Out = {
       n?: number;
     };
     workerThread?: string;
+    doneWhen?: {
+      kind: "vault_item" | "message_sent" | "meeting_ended" | "connection_on";
+      key: string;
+    };
+    archived?: {
+      at: number;
+      by: string;
+      code: "hand" | "asked" | "passed" | "gone" | "quiet";
+      why: string;
+    };
   };
 };
 ```
@@ -131,6 +142,12 @@ type Out = {
         "id": "usr_a1b2c3",
         "kind": "person"
       },
+      "archived": {
+        "at": 1760000000000,
+        "by": "usr_a1b2c3",
+        "code": "hand",
+        "why": "example"
+      },
       "assigned": {
         "id": "usr_a1b2c3",
         "kind": "person"
@@ -148,6 +165,10 @@ type Out = {
       "dependsOn": [
         "tsk_a1b2c3"
       ],
+      "doneWhen": {
+        "key": "example",
+        "kind": "vault_item"
+      },
       "due": 1760000000000,
       "effort": 1,
       "expiresAt": 1760000000000,
@@ -171,6 +192,7 @@ type Out = {
         "every": "day",
         "n": 1
       },
+      "relevantUntil": 1760000000000,
       "reviewLoops": 1,
       "reviewer": {
         "id": "usr_a1b2c3",

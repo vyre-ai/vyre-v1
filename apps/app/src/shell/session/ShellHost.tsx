@@ -782,6 +782,7 @@ export function ShellHost({
         place={ctx.place}
         runtime={session?.runtime ?? null}
         hash={ctx.hash}
+        {...(ctx.links === undefined ? {} : { links: ctx.links })}
         opened={(t) => {
           const next = formatHash(t);
           if (next !== ctx.hash) hub.move(ctx.place, next, true);

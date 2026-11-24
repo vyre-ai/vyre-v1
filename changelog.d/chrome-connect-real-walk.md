@@ -1,0 +1,1 @@
+Walk of Vyre for Chrome through the real web app: connect from the panel, the Space's own Connect page, Chrome listed in Settings, Sign-in and devices, and signing it out there ends the extension's link.

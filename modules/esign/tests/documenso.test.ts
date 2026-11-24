@@ -506,7 +506,7 @@ test("replay: opened, signed twice, completed. The signed PDF is saved as a new 
   await hook(h, hookBody(server, "DOCUMENT_COMPLETED", id, "2026-10-25T10:10:01Z"));
   assert.deepEqual(
     h.events.map((e) => [e.name, e.payload]),
-    [["signature.signed", { envelopeId, fileId: FILE }]],
+    [["signature.signed", { envelopeId, fileId: FILE, recordId: RECORD }]],
   );
   assert.equal(h.written.length, 1);
   assert.deepEqual([...fromBase64(h.written[0]!.base64)], [...SIGNED_PDF]);

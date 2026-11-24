@@ -1,0 +1,1 @@
+- A finished helper can now be saved as an agent (it keeps the brief, the model and the tools it used), or run again with a changed brief or another model. The first result stays, and a Compare tab in the helper's pane shows the two side by side with what changed: the brief, the model, the result and the cost.

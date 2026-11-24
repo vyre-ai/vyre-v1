@@ -15,6 +15,7 @@ import {
   isComputerImage,
   isSbrowserImage,
 } from "./computers-policy.ts";
+import { CONV_NAME, isConverterImage } from "./converter-policy.ts";
 import {
   WS_INIT_NAME,
   WS_NAME,
@@ -301,10 +302,11 @@ export function judge(
     return Object.values(ADDON_IMAGES).includes(ref) ||
       isComputerImage(ref) ||
       isWorkspaceImage(ref) ||
-      isSbrowserImage(ref)
+      isSbrowserImage(ref) ||
+      isConverterImage(ref)
       ? { ok: true, kind: "plain" }
       : no(
-          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer and workspace images may be fetched`,
+          `only ${Object.values(ADDON_IMAGES).join(" and ")} and the agent computer, workspace, Space browser and Word converter images may be fetched`,
         );
   }
   const img = /^\/images\/(.+?)(\/json)?$/.exec(p);
@@ -318,7 +320,8 @@ export function judge(
         Object.values(ADDON_IMAGES).includes(name) ||
         isComputerImage(name) ||
         isWorkspaceImage(name) ||
-        isSbrowserImage(name))
+        isSbrowserImage(name) ||
+        isConverterImage(name))
     )
       return { ok: true, kind: "plain" };
     if (m === "DELETE" && !img[2] && site) return { ok: true, kind: "plain" };
@@ -332,19 +335,25 @@ export function judge(
       HELPER_NAME_RE.test(name) ||
       WS_NAME.test(name) ||
       WS_INIT_NAME.test(name) ||
+      CONV_NAME.test(name) ||
       name === SBROWSER_NAME
       ? { ok: true, kind: "body", path: name }
-      : no("a site container is named vyre-site-..., a computer's vyre-comp-... and a workspace's vyre-ws-...");
+      : no(
+          "a site container is named vyre-site-..., a computer's vyre-comp-..., a workspace's vyre-ws-... and a converter's vyre-conv-<16 hex>",
+        );
   }
   if (m === "GET" && p === "/containers/json")
     return workspaceListOk(r.query) ? { ok: true, kind: "plain" } : no("only the list of agent workspaces may be read");
-  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|start|stop|restart|archive|exec|wait))?$/.exec(p);
+  const c = /^\/containers\/([A-Za-z0-9_.-]{1,128})(?:\/(json|logs|stats|start|stop|restart|archive|exec|wait))?$/.exec(
+    p,
+  );
   if (c) {
     const action = c[2] ?? (m === "DELETE" ? "remove" : "");
     // the first look is for the methods; which of them a container may be asked is decided once its labels say whether it is a site's or a computer's (siteAllows, computerAllows)
     const ok =
       (action === "json" && m === "GET") ||
       (action === "logs" && m === "GET") ||
+      (action === "stats" && m === "GET") ||
       (["start", "stop", "restart", "wait"].includes(action) && m === "POST") ||
       (action === "remove" && m === "DELETE") ||
       (action === "archive" && ["PUT", "GET", "HEAD"].includes(m)) ||
@@ -353,6 +362,11 @@ export function judge(
     if (action === "logs")
       for (const k of r.query.keys())
         if (!["stdout", "stderr", "tail", "timestamps", "since"].includes(k)) return no(`logs may not set ${k}`);
+    // one reading of CPU and memory: never a stream, so a request cannot hold a connection open
+    if (action === "stats") {
+      if (r.query.get("stream") !== "false") return no("stats are read once: stream=false");
+      for (const k of r.query.keys()) if (k !== "stream") return no(`stats may not set ${k}`);
+    }
     return { ok: true, kind: "container", id: c[1] as string, action };
   }
   const e = /^\/exec\/([a-f0-9]{64})\/(start|json)$/.exec(p);
@@ -401,14 +415,19 @@ export function judge(
 
 /** What a site's container may be asked, by method and query. */
 export function siteAllows(action: string, method: string, query: URLSearchParams): boolean {
-  if (action === "archive") return method === "PUT" && query.get("path") === "/tmp";
+  if (action === "archive")
+    return (
+      (method === "PUT" && query.get("path") === "/tmp") ||
+      // a database dump written under /tmp/vyre-backup by a backup, read out once
+      (method === "GET" && /^\/tmp\/vyre-backup[A-Za-z0-9._-]{0,64}$/.test(query.get("path") ?? ""))
+    );
   return action !== "wait";
 }
 
 /** What a computer's container may be asked: everything a site's may, and read and write inside its own home. The removal helper is the one container that is waited for. */
 export function computerAllows(action: string, method: string, query: URLSearchParams, helper: boolean): boolean {
   if (helper) return action === "start" || action === "wait" || action === "remove" || action === "json";
-  if (action === "wait") return false;
+  if (action === "wait" || action === "stats") return false; // CPU and memory are read for a site's containers only
   if (action === "archive") return archiveOk(method, query);
   return true;
 }

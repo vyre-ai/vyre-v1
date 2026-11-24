@@ -28,6 +28,7 @@ import type { ActEnv } from "./actions.ts";
 import { taskRowEntries } from "./row-menu.ts";
 import {
   bulkAssign,
+  bulkArchive,
   bulkDelete,
   bulkDue,
   bulkLabel,
@@ -36,8 +37,7 @@ import {
   bulkStatus,
   dueEntries,
   failure,
-  keepQuiet,
-  letGo,
+  putBack,
   priorityEntries,
   setStatus,
   snoozeQuiet,
@@ -65,6 +65,7 @@ import type { ScopeKey } from "./store.ts";
 import { CalendarView, Timeline } from "./Timeline.tsx";
 import { offered } from "../../../shell/session/private-agents.ts";
 import { AwayLine } from "./AwayLine.tsx";
+import { AliveLine, StillCard } from "./Living.tsx";
 import { canTake, movesFor } from "./moves.ts";
 import type { Move } from "./moves.ts";
 import { useTaskPeople } from "./people.ts";
@@ -76,7 +77,11 @@ export const TASKS_SCREEN = "tasks.my-work";
 type NeedsOut = CapMap["tasks.needs_you"]["out"];
 type ProjectRow = { projectId: string; recordId: string; title: string };
 type ViewRow = CapMap["views.list"]["out"]["views"][number];
-type Scope = { kind: ScopeKind } | { kind: "snoozed" } | { kind: "project"; recordId: string; title: string };
+type Scope =
+  | { kind: ScopeKind }
+  | { kind: "snoozed" }
+  | { kind: "archived" }
+  | { kind: "project"; recordId: string; title: string };
 
 const VIEWS = [
   { id: "list", label: "List" },
@@ -112,7 +117,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
   const [searching, setSearching] = useState(false);
   const [line, setLine] = useState<{ text: string; undo?: () => void } | null>(null);
   const [doneRows, setDoneRows] = useState<readonly TaskRow[] | null>(null);
-  const [quietOpen, setQuietOpen] = useState(false);
+  const [needsOpen, setNeedsOpen] = useState(false);
   const [quick, setQuick] = useState("");
   // files dropped or pasted on quick add: held beside the field, stored the way a chat stores its uploads, and made the new task's attachments
   const [quickFiles, setQuickFiles] = useState<readonly DroppedFile[]>([]);
@@ -135,7 +140,9 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
         ? { scope: "everyone" as const, recordId: scope.recordId }
         : scope.kind === "snoozed"
           ? { scope: "mine" as const, snoozed: true }
-          : { scope: scope.kind },
+          : scope.kind === "archived"
+            ? { scope: "mine" as const, archived: true }
+            : { scope: scope.kind },
     [scope],
   );
   const store = useMemo(() => storeFor(rt, rt.call, key), [rt, key]);
@@ -332,7 +339,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
     (row: TaskRow, at: { x: number; y: number }): void => {
       const ids = selected.has(row.id) ? [...selected] : [row.id];
       const items = taskRowEntries(
-        { done: row.state === "done", selected: selected.has(row.id) },
+        { done: row.state === "done", selected: selected.has(row.id), archived: row.archived !== undefined },
         {
           open: () => openTask(row.id),
           toggleSelect: () => pick(row.id, false),
@@ -394,6 +401,8 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
                 () => say("Duplicated"),
                 (e: unknown) => say(failure(e, "It could not be copied.")),
               ),
+          archive: () => void bulkArchive(act, ids),
+          putBack: () => void putBack(act, ids),
           remove: () => void bulkDelete(act, ids),
         },
       );
@@ -522,13 +531,14 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
         filter: shownFilter,
         doneRows,
         doneCount: snap.doneThisWeek,
-        quietOff: false,
+        needsOpen,
         names: { name: nameOf, project: (id) => projectName.get(id) },
       }),
     [
       shownRows,
       snap.doneThisWeek,
       needs,
+      needsOpen,
       rt.me.id,
       now,
       clock.offsetMin,
@@ -728,9 +738,11 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           ? "Everyone"
           : scope.kind === "snoozed"
             ? "Snoozed"
-            : "title" in scope
-              ? scope.title
-              : "Tasks");
+            : scope.kind === "archived"
+              ? "Archived"
+              : "title" in scope
+                ? scope.title
+                : "Tasks");
   const applySaved = (v: ViewRow): void => {
     const c = (v.config ?? {}) as { scope?: Scope; view?: ViewKind; sort?: SortKey; filter?: Filter };
     if (c.scope) setScope(c.scope);
@@ -750,6 +762,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
       { label: "Given by you", checked: scope.kind === "given", onSelect: () => choose({ kind: "given" }) },
       { label: "Everyone", checked: scope.kind === "everyone", onSelect: () => choose({ kind: "everyone" }) },
       { label: "Snoozed", checked: scope.kind === "snoozed", onSelect: () => choose({ kind: "snoozed" }) },
+      { label: "Archived", checked: scope.kind === "archived", onSelect: () => choose({ kind: "archived" }) },
     ];
     if (projects.length > 0) {
       items.push({ head: "Projects" });
@@ -869,16 +882,6 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           const cur = e.row.id === currentRow?.id;
           return <TaskLine row={e.row} env={env} selected={selected.has(e.row.id)} current={cur} />;
         }
-        case "quiet":
-          return (
-            <QuietLine
-              rows={e.rows}
-              open={quietOpen}
-              onToggle={() => setQuietOpen((o) => !o)}
-              assistant={rt.assistant}
-              act={act}
-            />
-          );
         case "add":
           return (
             <View style={st.wrap}>
@@ -925,6 +928,21 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
               </Pressable>
             </View>
           );
+        case "more":
+          return (
+            <View style={st.wrap}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={e.open ? "Show fewer" : `${e.count} more`}
+                accessibilityState={{ expanded: e.open }}
+                testID="needs-more"
+                onPress={() => setNeedsOpen((o) => !o)}
+                style={st.done}
+              >
+                <Text style={st.doneText}>{e.open ? "Show fewer" : `${e.count} more`}</Text>
+              </Pressable>
+            </View>
+          );
         case "empty":
           return (
             <View style={st.wrap}>
@@ -933,7 +951,7 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           );
       }
     },
-    [act, addTask, currentRow?.id, env, quick, quickFiles, quietOpen, rt.assistant, selected, toggleDone],
+    [act, addTask, currentRow?.id, env, quick, quickFiles, rt.assistant, selected, toggleDone],
   );
 
   const body =
@@ -1065,6 +1083,26 @@ export function TasksPage({ rt, openTask, openAgent, openChat, window }: TasksPa
           openTask={openTask}
         />
       ) : null}
+      {scope.kind === "mine" && !isFiltered(filter) ? (
+        <>
+          <AliveLine
+            call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+            now={now}
+            rev={revValue}
+            openTask={openTask}
+            onChanged={() => store.refresh()}
+          />
+          <StillCard
+            who={rt.me.id}
+            nameOf={nameOf}
+            openChat={(threadId) => rt.open({ subject: { type: "thread", id: threadId } })}
+            call={rt.call as (cap: string, input: unknown) => Promise<unknown>}
+            rev={revValue}
+            openTask={openTask}
+            onChanged={() => store.refresh()}
+          />
+        </>
+      ) : null}
       <View style={{ flex: 1, minHeight: 0 }}>
         {body}
         {selected.size > 0 ? (
@@ -1182,71 +1220,6 @@ function BulkBar({
   );
 }
 
-/** Things do not pile up: the tasks nobody has moved fold into one line from Assistant, with keep, snooze and let go, for all of them or one at a time. */
-function QuietLine({
-  rows,
-  open,
-  onToggle,
-  assistant,
-  act,
-}: {
-  rows: readonly TaskRow[];
-  open: boolean;
-  onToggle(): void;
-  assistant: { id: string; name: string };
-  act: ActEnv;
-}): ReactElement {
-  const ids = rows.map((r) => r.id);
-  const month = (): number => act.now() + 30 * DAY;
-  return (
-    <View style={st.wrap}>
-      <View testID="tasks-quiet" style={st.quiet}>
-        <Avatar name={assistant.name} seedId={assistant.id} kind="assistant" size={22} />
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text
-            numberOfLines={1}
-            style={st.quietTitle}
-          >{`${rows.length} ${rows.length === 1 ? "task has" : "tasks have"} not moved in weeks`}</Text>
-          <Text numberOfLines={1} style={st.quietSub}>
-            {open
-              ? rows
-                  .slice(0, 3)
-                  .map((r) => r.title)
-                  .join(", ")
-              : "Keep them, snooze them, or let them go"}
-          </Text>
-        </View>
-        {open ? (
-          <>
-            <QuietBtn label="Keep" testID="quiet-keep" onPress={() => void keepQuiet(act, ids)} />
-            <QuietBtn
-              label="Snooze a month"
-              testID="quiet-snooze"
-              onPress={() => void snoozeQuiet(act, ids, month(), "for a month")}
-            />
-            <QuietBtn label="Let go" testID="quiet-letgo" onPress={() => void letGo(act, ids)} />
-          </>
-        ) : (
-          <QuietBtn label="Go through them" testID="quiet-open" onPress={onToggle} />
-        )}
-      </View>
-    </View>
-  );
-}
-function QuietBtn({ label, onPress, testID }: { label: string; onPress(): void; testID: string }): ReactElement {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      testID={testID}
-      onPress={onPress}
-      style={({ hovered }: { hovered?: boolean }) => [st.quietBtn, hovered === true && st.quietOver]}
-    >
-      <Text style={st.quietBtnText}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const QUICK_DROP = { minWidth: 0 };
 
 const st = StyleSheet.create({
@@ -1292,21 +1265,6 @@ const st = StyleSheet.create({
   done: { height: 36, justifyContent: "center", paddingLeft: 26 },
   doneText: { fontSize: 13, color: "var(--ink-3)" as string },
   empty: { paddingTop: 30, textAlign: "center", fontSize: 13.5, color: "var(--ink-3)" as string },
-  quiet: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    marginTop: 10,
-    minHeight: 58,
-    paddingHorizontal: 14,
-    borderRadius: 16,
-    backgroundColor: "var(--sunk)" as string,
-  },
-  quietTitle: { fontSize: 14, color: "var(--ink)" as string },
-  quietSub: { fontSize: 12.5, color: "var(--ink-3)" as string },
-  quietBtn: { height: 30, justifyContent: "center", paddingHorizontal: 11, borderRadius: 9 },
-  quietOver: { backgroundColor: "var(--hover)" as string },
-  quietBtnText: { fontSize: 13, color: "var(--ink)" as string },
   bulk: {
     position: "absolute",
     bottom: 10,

@@ -11,7 +11,7 @@ Attach a number to the registered messaging service
 | Grant level | use |
 | Risk | high |
 | Resource | space |
-| Gate | none |
+| Gate | send when actor.kind != 'person' |
 | Idempotency | key |
 | Offline | online |
 | Audit | always |

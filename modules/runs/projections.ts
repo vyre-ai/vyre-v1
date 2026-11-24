@@ -1,6 +1,7 @@
 // Runs projections (ARCH 4.7, 7.7). The Run row (runs_items), its durable step log (runs_steps), waits, facts the row has no column for (runs_extra)
 // and the read queries behind runs.list, runs.get, runs.steps, runs.count and runs.status.
 // Durable tables: generated/modules/runs/schema.sql plus migrations/0001_runs_engine.sql. Every statement names only runs_* tables (ctx.db refuses anything else, ARCH B2).
+import { mirrorRun, mirrorWake } from "./node-flow.ts";
 import { agentStanding } from "../../lib/agent-asker.ts";
 import { isTrustedService } from "../../lib/trust.ts";
 import { fail } from "../../host/src/routes/errors.ts";
@@ -262,6 +263,7 @@ export function saveRun(db: Db, r: Run): void {
     r.version,
     r.updatedAt,
   );
+  mirrorRun(db, r); // the tree of agent work sees the Runs it mirrors (node-flow.ts)
 }
 export function findRun(db: Db, id: string): Run | undefined {
   const rows = db.all("SELECT * FROM runs_items WHERE id = ? AND deleted_at IS NULL", id) as Raw[];
@@ -495,6 +497,7 @@ export function saveWait(db: Db, w: WaitRow): void {
     nul(w.label),
     w.createdAt,
   );
+  mirrorWake(db, w);
 }
 export function clearWait(db: Db, runId: string): void {
   db.run("DELETE FROM runs_waits WHERE run_id = ?", runId);

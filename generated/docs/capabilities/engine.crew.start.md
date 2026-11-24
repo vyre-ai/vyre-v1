@@ -1,6 +1,6 @@
 # engine.crew.start
 
-Start a teammate on a brief in any chat. It works on its own branch in its own copy of the repository: the chat's project's, else the chat's own work folder on this computer (made on first use). Nothing to set up first
+Start a teammate on a brief in any chat. It works on its own branch of its own copy of the repository: the chat's project's, else the chat's work folder on this computer. Nothing to set up first
 
 | | |
 |---|---|

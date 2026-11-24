@@ -1,0 +1,1 @@
+Vyre for Chrome can connect straight to a Space with no desktop app: it keeps a value only it holds, the Space's own page hands back a one-time code bound to that value, and the extension's own session opens the Space's socket. A signed-out or revoked session is forgotten with a plain message.

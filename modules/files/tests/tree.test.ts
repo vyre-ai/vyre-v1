@@ -131,7 +131,22 @@ function memoryDb(): Ctx["db"] & { rows(table: string): Row[] } {
     tables.set(name, kept);
     return { changes };
   };
-  return { all, run, rows: (table) => bag(table).map((row) => ({ ...row })) };
+  // a transaction, as the host's database has: a throw puts every table back as it was
+  const batch = <T>(fn: () => T): T => {
+    const saved = new Map([...tables].map(([name, rows]) => [name, rows.map((row) => ({ ...row }))]));
+    try {
+      return fn();
+    } catch (e) {
+      for (const [name, rows] of saved) {
+        const live = bag(name);
+        live.length = 0;
+        live.push(...rows);
+      }
+      for (const name of tables.keys()) if (!saved.has(name)) bag(name).length = 0;
+      throw e;
+    }
+  };
+  return { all, run, batch, rows: (table) => bag(table).map((row) => ({ ...row })) } as ReturnType<typeof memoryDb>;
 }
 
 function spaceSeal(key: Uint8Array): Ctx["seal"] {
@@ -816,4 +831,124 @@ test("a file the document fill makes can be larger than a direct write: 400 KB a
     );
     assert.equal(refused?.error?.code, "validation.too_large", "a direct write keeps its limit");
   }
+});
+
+test("files.create_many makes every file of the call in one folder, or none when one name is taken", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Batch" })).folder.folderId;
+  const made = await handlers["files.create_many"](ctx, {
+    folderId: folder,
+    files: [
+      { name: "a.json", content: { text: "{}" }, mime: "application/json" },
+      { name: "b.md", content: { text: "# b" } },
+      { name: "c.txt", content: { text: "c" } },
+    ],
+  });
+  assert.deepEqual(
+    made.files.map((f) => f.name),
+    ["a.json", "b.md", "c.txt"],
+  );
+  assert.equal(made.files[1]!.kind, "markdown");
+  const listed = await handlers["files.list"](ctx, { folder });
+  assert.equal(listed.total, 3);
+  // a name that is taken, or named twice in the call, is refused
+  await assert.rejects(
+    handlers["files.create_many"](ctx, { folderId: folder, files: [{ name: "a.json", content: { text: "x" } }] }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate",
+  );
+  await assert.rejects(
+    handlers["files.create_many"](ctx, {
+      folderId: folder,
+      files: [
+        { name: "d.txt", content: { text: "x" } },
+        { name: "d.txt", content: { text: "y" } },
+      ],
+    }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate",
+  );
+  // an empty list, and more than 200 files, are refused
+  await assert.rejects(
+    handlers["files.create_many"](ctx, { folderId: folder, files: [] }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input",
+  );
+  await assert.rejects(
+    handlers["files.create_many"](ctx, {
+      folderId: folder,
+      files: Array.from({ length: 201 }, (_, i) => ({ name: `f${i}.txt` })),
+    }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.bad_input",
+  );
+});
+
+test("text content is text: a string written under a binary name is never classed as a PDF, a workbook or a picture", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Texty" })).folder.folderId;
+  const names = ["report.pdf", "sheet.xlsx", "photo.png", "memo.docx", "notes.md", "data.csv", "logo.svg", "run.py"];
+  const made = await handlers["files.create_many"](ctx, {
+    folderId: folder,
+    files: names.map((name) => ({ name, content: { text: "hello" } })),
+  });
+  const by = new Map(made.files.map((f) => [f.name, f]));
+  for (const n of ["report.pdf", "sheet.xlsx", "photo.png", "memo.docx"]) {
+    assert.equal(by.get(n)!.kind, "text", `${n} holds text`);
+    assert.equal(by.get(n)!.mime, "text/plain", `${n} is served as text`);
+  }
+  assert.equal(by.get("notes.md")!.kind, "markdown");
+  assert.equal(by.get("data.csv")!.kind, "spreadsheet", "a csv is text on disk and keeps its viewer");
+  assert.equal(by.get("logo.svg")!.kind, "image");
+  assert.equal(by.get("run.py")!.kind, "code");
+  // one files.create keeps the name's kind (a mount makes a placeholder of text under a document's name)
+  const single = await handlers["files.create"](ctx, { folderId: folder, name: "single.pdf", content: { text: "x" } });
+  assert.equal(single.file.kind, "pdf");
+});
+
+test("files.create_many refuses a call over 25 MB in words, before any file is made", async () => {
+  const { ctx } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Huge" })).folder.folderId;
+  const files = Array.from({ length: 110 }, (_, i) => ({
+    name: `f${i}.txt`,
+    content: { text: `${i}`.padEnd(250_000, "x") },
+  }));
+  await assert.rejects(
+    handlers["files.create_many"](ctx, { folderId: folder, files }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.too_large" && /25 MB/.test(e.error.message),
+  );
+  assert.equal((await handlers["files.list"](ctx, { folder })).total, 0, "nothing was made");
+});
+
+test("files.create_many is all or none: a refused call leaves no file, version or stored content, and a server without a transaction refuses it in words", async () => {
+  const { ctx, db } = open();
+  const tree = await handlers["files.tree"](ctx, {});
+  const personalId = idOf(tree.roots.find((root) => root.key === "personal")?.folderId, "personal");
+  const folder = (await handlers["files.folder.create"](ctx, { parentId: personalId, name: "Whole" })).folder.folderId;
+  const count = () => [
+    db.rows("files_file").length,
+    db.rows("files_file_version").length,
+    db.rows("files_blob").length,
+  ];
+  const before = count();
+  await assert.rejects(
+    handlers["files.create_many"](ctx, {
+      folderId: folder,
+      files: [
+        { name: "one.txt", content: { text: "first" } },
+        { name: "two.txt", content: { text: "second" } },
+        { name: "one.txt", content: { text: "again" } },
+      ],
+    }),
+    (e: unknown) => e instanceof VyreErr && e.error.code === "validation.duplicate",
+  );
+  assert.deepEqual(count(), before, "no file, no version, no blob");
+  const bare = { ...ctx, db: { all: ctx.db.all, run: ctx.db.run } } as Ctx;
+  await assert.rejects(
+    handlers["files.create_many"](bare, { folderId: folder, files: [{ name: "x.txt", content: { text: "x" } }] }),
+    (e: unknown) => e instanceof VyreErr && /one step/.test(e.error.message),
+  );
+  assert.deepEqual(count(), before, "nothing was written without a transaction");
 });

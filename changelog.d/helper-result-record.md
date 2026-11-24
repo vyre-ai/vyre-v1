@@ -1,0 +1,1 @@
+- A finished helper's result can be added to any record from its pane: you pick the record with the search Cmd-K uses, and the result is added once as a note on that record with a link back to the chat.

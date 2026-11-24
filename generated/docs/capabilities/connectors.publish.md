@@ -47,6 +47,8 @@ type Out = {
         message?: string;
       }>;
   };
+  untested?: boolean;
+  message?: string;
 };
 ```
 
@@ -71,6 +73,7 @@ type Out = {
     "note": "example"
   },
   "output": {
+    "message": "example",
     "published": true,
     "result": {
       "cases": [
@@ -83,6 +86,7 @@ type Out = {
       "failed": 1,
       "passed": 1
     },
+    "untested": true,
     "version": "example"
   }
 }

@@ -376,6 +376,7 @@ export default defineManifest({
           computer: t.opt(t.bool()),
           templateKey: t.opt(t.str()),
           tools: t.opt(t.obj({ allowed: t.arr(t.str()), denied: t.arr(t.str()) })),
+          instructions: t.opt(t.str({ maxLength: 20000 })),
           limits: t.opt(limits),
           projectId: t.opt(
             t.str({
@@ -403,7 +404,7 @@ export default defineManifest({
         in: { ...target, patch: t.rec() },
         out: { agent: agentRow },
         on: ["agent", "/agentId"],
-        emits: ["agent.config_changed", "agent.config_error"],
+        emits: ["agent.config_changed", "agent.config_error", "agent.renamed"],
         tool: "agents",
         offline: "patch",
         errors: ["validation.field_locked", "validation.bad_input"],
@@ -716,7 +717,7 @@ export default defineManifest({
       in: { ...target, versionId: id.version, file: t.opt(agentFile) },
       out: { agent: agentRow },
       on: ["agent", "/agentId"],
-      emits: ["agent.config_changed"],
+      emits: ["agent.config_changed", "agent.renamed"],
       tool: "agents",
       agent: { planMode: "blocked" },
     }),
@@ -1062,6 +1063,15 @@ export default defineManifest({
       subject: ["agent", "/agentId"],
       trigger: { title: "An agent is created" },
     }),
+    ev(
+      "agent.renamed",
+      "An agent's name changed; access gives the agent's principal the new name, so every reader of the people directory (mentions, share sheets, rows) shows it",
+      {
+        p: { agentId: id.agent, name: t.str() },
+        subject: ["agent", "/agentId"],
+        retention: "audit",
+      },
+    ),
     ev(
       "agent.privacy_set",
       "An agent became private to its person (their assistant, an outside agent) or stopped being so; access names it as its person to everyone else",

@@ -77,6 +77,8 @@ const BY_STEP: Readonly<Record<string, Missing>> = {
   "files.get.fileId": { do: "choose the file to read", chip: "Needs a file" },
   "files.create.name": { do: "name the new file", chip: "Needs a name" },
   "files.create.folderId": { do: "choose the folder for the new file", chip: "Needs a folder" },
+  "documents.fill.templateFileId": { do: "choose the template to fill", chip: "Needs a template" },
+  "documents.fill.intoFolderId": { do: "choose the folder for the new document", chip: "Needs a folder" },
   "calendar.list_events.from": { do: "set when the range starts", chip: "Needs a start" },
   "calendar.list_events.to": { do: "set when the range ends", chip: "Needs an end" },
   "ai.prompt": { do: "say what to ask", chip: "Needs a question" },

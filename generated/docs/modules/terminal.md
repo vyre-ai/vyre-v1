@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (23)
+## Capabilities (25)
 
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
 - [terminal.capture](../capabilities/terminal.capture.md): The screen of a session as tmux draws it, with its colours (escape sequences), the cursor, how much history there is, and whether a program is reading a hidden prompt (secrets already scrubbed)
@@ -16,6 +16,8 @@ Requires: nothing.
 - [terminal.interrupt](../capabilities/terminal.interrupt.md): Send Ctrl-C to a session
 - [terminal.keys](../capabilities/terminal.keys.md): Press keys in a session as a person at a keyboard does: text, a named key (Enter, Tab, Up, C-c, F5 ...) or a paste as one write, raw through tmux; for a person who holds the keyboard. Never stored or logged: what is typed at a hidden prompt does not reach the stored log, other viewers or the agent
 - [terminal.list](../capabilities/terminal.list.md): List terminal sessions you can see, including named leftover scripts
+- [terminal.log.list](../capabilities/terminal.log.list.md): The commands of a terminal, newest first, and whether the output of each is still kept (a week after it ended)
+- [terminal.log.read](../capabilities/terminal.log.read.md): Part of what one command printed, scrubbed: the last lines, the lines that contain words (with context), or a range of lines; never the whole output
 - [terminal.open](../capabilities/terminal.open.md): Open a terminal tab: a named tmux session in your workspace (an agent that names no host gets one in its own workspace, or its parent's when it is a helper), or on your own computer (the device daemon)
 - [terminal.open_server](../capabilities/terminal.open_server.md): Open a shell on the Space server (needs server.services; locked state with Ask for access otherwise)
 - [terminal.read](../capabilities/terminal.read.md): Read the scrollback of a session (secrets already scrubbed)
@@ -25,7 +27,7 @@ Requires: nothing.
 - [terminal.risk](../capabilities/terminal.risk.md): What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks
 - [terminal.rules.get](../capabilities/terminal.rules.get.md): Your allow, ask and deny rules and the folders the terminal is locked to
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
-- [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it (the terminal_run tool); secrets only as #Handle.field; output is scrubbed before it returns
+- [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed
 - [terminal.status](../capabilities/terminal.status.md): Live status of terminals for Home (state and last line read from tmux)
 - [terminal.take_over](../capabilities/terminal.take_over.md): Take the keyboard of a terminal: the agent's commands and everyone else's keys are refused until you hand it back. Only the owner of the terminal or an admin can take it from another person
 - [terminal.workspace](../capabilities/terminal.workspace.md): An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line

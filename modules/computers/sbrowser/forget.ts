@@ -6,6 +6,7 @@ import { releaseRoom } from "../capacity.ts";
 import { ensure, rowsOf } from "../projections.ts";
 import type { CompCtx } from "../projections.ts";
 import { dropHold } from "./hold.ts";
+import { dropPause } from "./pause.ts";
 import { askerProfileId, profileIdOf } from "./policy.ts";
 import { spaceBrowser } from "./port.ts";
 
@@ -59,6 +60,7 @@ export async function browserOfDeleted(ctx: CompCtx, agentId: unknown): Promise<
   if (!id) return false;
   ensure(ctx.db);
   dropHold(ctx, id);
+  dropPause(ctx, id);
   releaseRoom(ctx, id);
   ctx.db.run(
     "INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING",
@@ -100,6 +102,7 @@ export async function browserOfLeaver(ctx: CompCtx, personId: unknown): Promise<
     const id = askerProfileId(agentId, personId);
     if (!id) continue;
     dropHold(ctx, id);
+    dropPause(ctx, id);
     releaseRoom(ctx, id);
     ctx.db.run(
       "INSERT INTO computers_browser_gone (profile_id, deleted_at) VALUES (?, ?) ON CONFLICT (profile_id) DO NOTHING",

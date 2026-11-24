@@ -95,6 +95,7 @@ export default defineManifest({
       {
         in: { mode: t.enm("own_domain", "relay") },
         out: { address: t.str() },
+        gate: { act: "send", when: "actor.kind != 'person'" },
         perm: "server.network",
         level: "manage",
         risk: "high",
@@ -160,6 +161,7 @@ export default defineManifest({
     create("network.server_join_code", "Make a join code to add a cloud box or office Mac for compute", {
       in: {},
       out: { code: t.str({ examples: ["VYRE-1234-ABCD"] }), expiresAt: t.ts() },
+      gate: { act: "admit", when: "gate.by_actor(input)" },
       perm: "server.network",
       level: "manage",
       risk: "high",

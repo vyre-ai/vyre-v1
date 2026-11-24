@@ -16,7 +16,6 @@ import {
   holderOf,
   monthCells,
   NO_FILTER,
-  QUIET_MS,
   sectionsOf,
   sortRows,
 } from "./model.ts";
@@ -55,16 +54,14 @@ const base: Omit<BuildIn, "rows"> = {
   doneRows: null,
   doneCount: 0,
   names,
-  quietOff: false,
 };
 
-test("the list is ordered for you: Now, Next, Waiting on others, with quiet tasks folded", () => {
+test("the list is ordered for you: Now, Next, Waiting on others; what nobody touched is the server's to ask about", () => {
   const rows = [
     row({ id: "late", due: NOW - 2 * DAY }),
     row({ id: "today", due: NOW + 3_600_000 }),
     row({ id: "under-way", state: "doing" }),
     row({ id: "later", due: NOW + 5 * DAY }),
-    row({ id: "old", updatedAt: NOW - QUIET_MS - 1 }),
     row({ id: "theirs", assigned: { kind: "agent", id: "agt_mira" } }),
   ];
   const s = sectionsOf(rows, me, NOW, 0, new Set());
@@ -75,10 +72,6 @@ test("the list is ordered for you: Now, Next, Waiting on others, with quiet task
   assert.deepEqual(
     s.next.map((r) => r.id),
     ["later"],
-  );
-  assert.deepEqual(
-    s.quiet.map((r) => r.id),
-    ["old"],
   );
   assert.deepEqual(
     s.waiting.map((r) => r.id),
@@ -99,13 +92,13 @@ test("the flat list has Needs you first, then the sections, then add and the cou
   const need = { task: { id: "n", kind: "answer", title: "Q" }, yourTurn: true } as unknown as NeedItem;
   const entries = buildEntries({
     ...base,
-    rows: [row({ id: "a", due: NOW }), row({ id: "b", updatedAt: NOW - QUIET_MS - 1 })],
+    rows: [row({ id: "a", due: NOW })],
     needs: [need],
     doneCount: 12,
   });
   assert.deepEqual(
     entries.map((e) => e.key),
-    ["h:needs", "n:n", "h:now", "now:a", "quiet", "add", "done"],
+    ["h:needs", "n:n", "h:now", "now:a", "add", "done"],
   );
 });
 
@@ -318,4 +311,32 @@ test("a due chip in a Space's zone: the day is the Space's day, hover names both
   assert.match(chip.title ?? "", /^Thu 5 Nov 2026, 10:00 PM Pacific Time\. Your time: Fri 6 Nov, 11:00 AM Pakistan/);
   assert.equal(dueLabel(Date.parse("2026-11-05T05:00:00Z"), now, z).late, true, "last night in the Space");
   assert.equal(dueLabel(Date.parse("2026-12-12T20:00:00Z"), now, z).text, "12 Dec");
+});
+
+test("an Approve that was sent back is not under way: it never sits in Now", () => {
+  const back = row({ id: "back", kind: "approve", state: "doing" });
+  const s = sectionsOf([back, row({ id: "mine", state: "doing" })], me, NOW, 0, new Set());
+  assert.deepEqual(
+    s.now.map((r) => r.id),
+    ["mine"],
+  );
+  assert.deepEqual(
+    s.next.map((r) => r.id),
+    ["back"],
+  );
+});
+
+test("Needs you shows five rows and the rest wait under N more, until opened", () => {
+  const needs = Array.from(
+    { length: 8 },
+    (_, i) => ({ task: row({ id: `n${i}` }), reason: "ready", yourTurn: true }) as unknown as NeedItem,
+  );
+  const keys = (open: boolean): string[] =>
+    buildEntries({ ...base, scope: "mine", rows: [], needs, needsOpen: open })
+      .map((e) => e.key)
+      .filter((k) => k.startsWith("n:") || k === "more");
+  assert.deepEqual(keys(false), ["n:n0", "n:n1", "n:n2", "n:n3", "n:n4", "more"]);
+  assert.equal(keys(true).length, 9, "all eight and the Show fewer line");
+  const few = buildEntries({ ...base, scope: "mine", rows: [], needs: needs.slice(0, 5) });
+  assert.ok(!few.some((e) => e.kind === "more"), "five rows need no more line");
 });

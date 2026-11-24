@@ -1,6 +1,6 @@
 # inbox.follow_set
 
-Follow a contact or set Alert me on replies (the follow itself is stored with stars and follows)
+Follow a contact or set Alert me on replies
 
 | | |
 |---|---|

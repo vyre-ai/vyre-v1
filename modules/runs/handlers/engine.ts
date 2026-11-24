@@ -261,7 +261,15 @@ export function resumeRun(ctx: RunsCtx, run: Run, reason?: WaitReason): Run {
   return run;
 }
 export async function resume(ctx: RunsCtx, input: In): Promise<unknown> {
-  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(resumeRun(ctx, seeRun(ctx, input.runId), input.reason)) };
+  const run = seeRun(ctx, input.runId);
+  // An agent may continue a Run that waits for background work. A wait for a person's decision (approval of a held act, a key to paste) is answered by that decision, never by the agent that is waiting: no path
+  // (a tool, an outside app, a Flow step) lets an agent satisfy the Gate this way (r-review, 19 Nov).
+  if (ctx.principal.kind === "agent" && run.status === "waiting" && run.waitReason !== "background")
+    raise(ctx, "permission.no_grant", "Only a person's decision continues a run that waits for one.", {
+      reason: "wait_is_a_decision",
+      waiting: run.waitReason,
+    });
+  return { run: ((x) => runOut(x, readTrigger(ctx.db, x.id)))(resumeRun(ctx, run, input.reason)) };
 }
 
 /** Move an active Run onto a definition version. Finished steps stay in the log. This does not resume, retry, or start the Run. */

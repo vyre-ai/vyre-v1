@@ -81,6 +81,14 @@ test("link, three conditional relations, a sealed field and a list title: applie
     throw new Error(JSON.stringify(e.error?.details?.cases?.filter((c: any) => !c.ok)));
   });
   assert.equal(applied.connector, "crm_ledger");
+  // a sync-spec publish moves the connector's revision, and a second apply that changes it moves it again
+  const revOf = () => w.k.tx.get<{ rev: number }>("SELECT rev FROM cn_revisions WHERE key = 'crm_ledger'")?.rev ?? 0;
+  const first = revOf();
+  assert.ok(first > 0, "the apply gave the connector a revision");
+  const changed = allInOne();
+  changed["objects"][0]["list"]["cursor"]["size"] = 25;
+  await w.k.hs["sync_specs.apply"](w.ctx, { spec: changed, idempotencyKey: "all2" });
+  assert.ok(revOf() > first, "a second apply that changes the connector moves its revision");
   const spec = parseSpec(raw).spec as SyncSpec;
   const compiled = compileSpec(spec);
   const typeOf = (t: string): CompiledType => compiled.types.find((x) => x.recordType === t)!;

@@ -1,0 +1,1 @@
+- vyre-server sets mode 0700 and the server's owner only on a backups folder it made itself (the default or one it just created); a folder an admin pointed at that already exists is left as it is, with one warning if the server user cannot write it.

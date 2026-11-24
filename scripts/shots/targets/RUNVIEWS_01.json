@@ -1,0 +1,11 @@
+{
+  "targets": [
+    {
+      "id": "RUNVIEWS_01-all",
+      "route": "/m/RUNVIEWS_01",
+      "proto": "chats,{skin}",
+      "waitFor": "[data-testid='runviews-mount']",
+      "note": "The pieces around a delegated run on sample runtime data: lines between helpers and the dependency line, the board, the token report, the sleeping line, the running-and-asleep list and the @name menu."
+    }
+  ]
+}

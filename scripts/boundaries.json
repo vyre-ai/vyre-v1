@@ -172,13 +172,14 @@
       ]
     },
     "B4": {
-      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it)",
+      "text": "no fetch in ui or apps outside client; ui gets data through client hooks (tests may mock it); allowFetchIn names the sanctioned others: the service worker, and apps/chrome/src/worker/link.js, the extension's one connection (to the Space the person typed in; the guard in apps/chrome/tests/ext-core.test.ts pins it to that address and two requests)",
       "noFetchIn": [
         "ui",
         "apps"
       ],
       "allowFetchIn": [
-        "apps/app/public/"
+        "apps/app/public/",
+        "apps/chrome/src/worker/link.js"
       ]
     },
     "B5": {
@@ -327,6 +328,13 @@
       "file": "host/tests/recovery.challenge.live.test.ts",
       "spec": "../../client/src/crypto/keys.ts",
       "reason": "test-only interop proof: it must use the other side's real implementation to show both speak the same bytes; no production code crosses this edge",
+      "until": "2027-01-31"
+    },
+    {
+      "rule": "layer",
+      "file": "host/tests/gate.module-when.test.ts",
+      "spec": "../../modules/gate/projections.ts",
+      "reason": "test-only: the Gate's module conditions are asked through the real effectiveRule, not a stub that holds everyone",
       "until": "2027-01-31"
     },
     {

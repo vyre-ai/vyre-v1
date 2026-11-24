@@ -9,8 +9,8 @@ const mine = registry.capabilities
   .map((c) => c.name)
   .sort();
 
-test("mail live: the handler map equals the manifest's 39 capabilities (mail.thread.get of l-inboxthreads among them)", () => {
-  assert.equal(mine.length, 39);
+test("mail live: the handler map equals the manifest's 60 capabilities (mail.thread.get of l-inboxthreads, the setup, address and smtp ones among them)", () => {
+  assert.equal(mine.length, 60);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);
