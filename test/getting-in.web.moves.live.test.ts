@@ -146,7 +146,11 @@ test("a Space that moves between the relay and its own address is found where it
                 .catch(() => undefined);
             });
             const t0 = Date.now();
-            await page.reload();
+            // the reload is the navigation that makes the browser ask for the relay worker's script: the address now answers with the retiring worker, which takes over and sends the open pages to
+            // the address again (client.navigate), by design. That second navigation can land before the reload has finished, which ends it with ERR_ABORTED; the end state is asserted right below
+            await page.reload().catch((e: unknown) => {
+              if (!/ERR_ABORTED|frame was detached/.test(String(e))) throw e;
+            });
             await page.waitForFunction(
               async () =>
                 !/\/__vyre\/sw\.js$/.test(navigator.serviceWorker.controller?.scriptURL ?? "") &&
