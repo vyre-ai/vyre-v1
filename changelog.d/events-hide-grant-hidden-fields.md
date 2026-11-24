@@ -1,0 +1,1 @@
+The event log shows a member only the fields of a record their grant lets them see: the record.created, record.updated and record.deleted events read through events.list, events.get and events.since no longer carry the values a grant hides (the log itself keeps them whole).
