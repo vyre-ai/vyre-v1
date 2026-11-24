@@ -1,1 +1,0 @@
-- A page drawn before a tab switch, Back or link no longer writes its old address over that move: the hub counts moves that are not a place's own report, and a report from a page drawn before the latest one is dropped.

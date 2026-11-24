@@ -1,1 +1,0 @@
-- fill, reopenTab and newTab end the own-report claim like every other move that changes the address on screen, so no later report can be taken for the echo of an address the person has already left.

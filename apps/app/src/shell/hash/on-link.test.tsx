@@ -3,11 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { act, useEffect, useState } from "react";
+import { act, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
 import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
-import { PlaceHashProvider, useOnLink, useOpenedId, useOwnReport, usePlaceHash } from "./context.tsx";
+import { PlaceHashProvider, useOnLink, useOpenedId } from "./context.tsx";
 import { inboxViewsLinked } from "../providers/inbox-links.ts";
 
 const noop = (): void => undefined;
@@ -133,42 +133,6 @@ test("a place hears the links that came after it was made, not the ones before",
     assert.equal(heard, 0, "no new link");
     await draw(r, <Probe />, "", 4);
     assert.equal(heard, 1, "a new link, even to the same address");
-  } finally {
-    restore();
-  }
-});
-
-test("a place's own report coming back is told apart from a Back, a tab switch and a link, for the places that follow the address (Files, Inbox)", async () => {
-  const restore = installDom();
-  try {
-    const r = createRoot();
-    const seen: boolean[] = [];
-    const Probe = (): ReactElement => {
-      const own = useOwnReport();
-      const { target } = usePlaceHash();
-      useEffect(() => {
-        seen.push(own());
-      }, [target.screen]);
-      return <Text testID="open">x</Text>;
-    };
-    let ownNow = "";
-    const at = async (hash: string, reports: number, links: number, own = ""): Promise<void> => {
-      ownNow = own;
-      await act(async () => {
-        r.render(
-          <PlaceHashProvider hash={hash} links={links} reports={reports} ownHash={() => ownNow} opened={noop}>
-            <Probe />
-          </PlaceHashProvider>,
-        );
-      });
-      await flush();
-    };
-    await at("screen=a", 0, 0); // mount
-    await at("screen=b", 1, 0, "screen=b"); // the place's own report came back
-    await at("screen=c", 1, 0, "screen=b"); // a Back or a tab switch: no report with it
-    await at("screen=d", 2, 0, "screen=b"); // a Back landed in the same draw as a report: not the address the place reported
-    await at("screen=e", 3, 1, "screen=e"); // a link came (with a report in the same draw): a link wins
-    assert.deepEqual(seen, [false, true, false, false, false]);
   } finally {
     restore();
   }

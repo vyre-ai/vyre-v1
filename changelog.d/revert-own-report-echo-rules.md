@@ -1,0 +1,1 @@
+- Held back for rc.44: the own-report echo rules (the sidebar's Back-before-report skip, Chats' own-echo test, the hub's shift and stale-report counters and the Files and Inbox sweep) are taken out of this release because they made the Chats landing tab keep showing the previous chat (tabs.switch-a). They return in rc.44 with a fix for that.

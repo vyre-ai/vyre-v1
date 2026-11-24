@@ -23,7 +23,6 @@ import type { ReactElement } from "react";
 import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
 import { Text } from "react-native";
 import { useSidebarSlot } from "./index.ts";
-import { noteInputForTests } from "./SidebarSlot.tsx";
 
 const props = { deviceId: "d1", personId: "p1", spaceId: "northwind", place: "chats", epoch: 1 };
 
@@ -340,8 +339,6 @@ test("Back remembers the reports issued before it: a late draw of that report ke
       slotNow!.back();
     });
     await flush();
-    // the person then acts again (a press or a key): what that opens is a new open, never the press Back dismissed
-    noteInputForTests();
     live = 2;
     assert.equal(await draw({ hash: "subject=thread:t3", reports: 2 }), "body", "a report after Back opens the body");
     // a link always opens
@@ -390,110 +387,11 @@ test("a new goal, a created record opened, and the Notes row each open the body 
         slotNow!.back();
       });
       await flush();
-      noteInputForTests(); // the person acts again: New goal, a search pick, the Notes row
       // the place then opens the goal, record or Notes page by its own report (a higher count): the body opens
       live = 2;
       assert.equal(await draw(2), "body", hash);
     } finally {
       restore();
     }
-  }
-});
-
-test("Back before the press's own report is even issued (the place reports after its own render): the late report keeps the list, once; the next report-only open opens the body", async () => {
-  const restore = installDom();
-  try {
-    const r = createRoot();
-    let live = 0;
-    const draw = async (o: { hash: string; reports: number }): Promise<string> => {
-      await act(async () => {
-        r.render(
-          <SidebarSlotProvider
-            {...props}
-            epoch={1}
-            compact
-            hash={o.hash}
-            links={0}
-            reports={o.reports}
-            liveReports={() => live}
-            initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
-          >
-            <Probe />
-          </SidebarSlotProvider>,
-        );
-      });
-      await flush();
-      return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
-    };
-    assert.equal(await draw({ hash: "", reports: 0 }), "list");
-    await act(async () => {
-      slotNow!.openBody(); // the row press; the place has not reported yet (live is still 0)
-    });
-    await act(async () => {
-      slotNow!.back(); // Back beats the report
-    });
-    await flush();
-    live = 1; // the place reports now, after Back
-    assert.equal(
-      await draw({ hash: "subject=thread:t1", reports: 1 }),
-      "list",
-      "the late report of the press Back dismissed keeps the list",
-    );
-    // an item the place opens by its own report afterwards (New chat, a search pick) opens the body
-    live = 2;
-    assert.equal(await draw({ hash: "subject=thread:t2", reports: 2 }), "body", "the next report opens the body");
-    // and a press that never reports, Back, a keypress, then another item's report: the body opens (the keypress ends the wait for the press's report)
-    await act(async () => {
-      slotNow!.openBody();
-    });
-    await act(async () => {
-      slotNow!.back();
-    });
-    await flush();
-    noteInputForTests();
-    live = 3;
-    assert.equal(await draw({ hash: "subject=thread:t3", reports: 3 }), "body", "a later act's report opens the body");
-  } finally {
-    restore();
-  }
-});
-
-test("an open driven by an agent or a notification after Back, with no press or key since, is a link from outside and still opens the body", async () => {
-  const restore = installDom();
-  try {
-    const r = createRoot();
-    let live = 0;
-    const draw = async (o: { hash: string; reports: number; links: number }): Promise<string> => {
-      await act(async () => {
-        r.render(
-          <SidebarSlotProvider
-            {...props}
-            epoch={1}
-            compact
-            hash={o.hash}
-            links={o.links}
-            reports={o.reports}
-            liveReports={() => live}
-            initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
-          >
-            <Probe />
-          </SidebarSlotProvider>,
-        );
-      });
-      await flush();
-      return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
-    };
-    assert.equal(await draw({ hash: "", reports: 0, links: 0 }), "list");
-    await act(async () => {
-      slotNow!.openBody(); // a press whose report is still to come
-    });
-    await act(async () => {
-      slotNow!.back();
-    });
-    await flush();
-    // no press or key since Back: a link arrives (an agent's card, a notification)
-    assert.equal(await draw({ hash: "subject=thread:t9", reports: 0, links: 1 }), "body", "a link opens the item");
-  } finally {
-    restore();
   }
 });

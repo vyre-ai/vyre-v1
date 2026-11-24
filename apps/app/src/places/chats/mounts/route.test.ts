@@ -2,18 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  SCREEN,
-  START,
-  askAbout,
-  fromHash,
-  linkedTo,
-  openKeyOf,
-  isOwnEcho,
-  routeKeyOf,
-  step,
-  takesAddress,
-} from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -306,32 +295,4 @@ test("the page takes a changed address, and a same address only when one came fr
   // a changed hash is a link, unless the page already took that very one
   assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false }), true);
   assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true }), false);
-});
-
-test("the page's own report coming back is not a link, but only the address it reported: a Back or a tab switch landing in the same draw as a report still applies", () => {
-  const own = {
-    hashChanged: true,
-    reportsSince: 1,
-    linksSince: 0,
-    hash: "subject=thread:thr_1",
-    ownHash: "subject=thread:thr_1",
-  };
-  assert.equal(isOwnEcho(own), true, "the place's own report");
-  assert.equal(isOwnEcho({ ...own, linksSince: 1 }), false, "a link came with it");
-  assert.equal(isOwnEcho({ ...own, reportsSince: 0 }), false, "no report with it");
-  assert.equal(isOwnEcho({ ...own, hashChanged: false }), false, "no change of address");
-  // a Back or a tab switch lands in the same render as a report: its address is not the one the place reported, so it applies
-  assert.equal(
-    isOwnEcho({ ...own, hash: "subject=thread:thr_back" }),
-    false,
-    "a Back in the same draw as a report is never swallowed",
-  );
-});
-
-test("a page's address key differs between the page being left and the page a link names: a report made for the old page is not written over the link", () => {
-  assert.equal(routeKeyOf(START.route), "new");
-  const link = fromHash("screen=chats.agent-page&agentId=agt_1");
-  assert.equal(routeKeyOf(link.route), "g:agt_1");
-  assert.notEqual(routeKeyOf(link.route), routeKeyOf(START.route));
-  assert.equal(routeKeyOf(fromHash("subject=thread:thr_1").route), "t:thr_1");
 });

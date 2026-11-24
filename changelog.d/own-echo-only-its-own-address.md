@@ -1,1 +1,0 @@
-- A Back or a tab switch that lands in the same draw as a place's own address report is never swallowed: a place treats a changed address as its own report coming back only when it is the very address it reported.

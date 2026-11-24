@@ -1,1 +1,0 @@
-- Switching to a tab or taking a link no longer lets the page being left write its old address over it in the same moment: Chats does not report from a page whose address a link or tab switch has just replaced. Fixes the Chats landing tab showing the previous chat after a switch.

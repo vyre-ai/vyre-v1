@@ -353,22 +353,6 @@ export function askAbout(v: string): { type: string; id: string } | null {
  * was last drawn (a link, a pasted address, a goto: HubState.links) and the address is a page, not a layer or a terminal. The page's own reports and a click inside it are never links, however many
  * times the address moves, so the page's own state wins over them.
  */
-/**
- * Is a change of address the page's own report coming back? The place writes the address of what it shows (its report), and the shell draws it a frame or more later; by then the person may have
- * pressed something else (the press opens a thread beside the chat and moves the route on), and applying the old report as if it were a link took the new state away (agent-delete walks: the thread
- * that a press had just opened beside the chat was closed again ~10 ms later). A change that arrives with the page's own reports and no link is not a link.
- */
-export function isOwnEcho(o: {
-  hashChanged: boolean;
-  reportsSince: number;
-  linksSince: number;
-  /** The address now, and the address of the last report the place itself wrote: a Back or a tab switch landing in the same draw as a report is a different address and still applies. */
-  hash: string;
-  ownHash: string;
-}): boolean {
-  return o.hashChanged && o.reportsSince > 0 && o.linksSince === 0 && o.hash === o.ownHash;
-}
-
 export function takesAddress(o: {
   hashChanged: boolean;
   alreadyTook: boolean;
@@ -378,33 +362,6 @@ export function takesAddress(o: {
 }): boolean {
   if (o.hashChanged) return !o.alreadyTook;
   return o.linksSince >= 1 && !o.layerOrTerminal;
-}
-
-/** The address key of a page: what the tab and the address follow (one string per page, empty for a page with no address of its own). */
-export function routeKeyOf(r: Shown["route"]): string {
-  return r.view === "agent"
-    ? `g:${r.agentId}`
-    : r.view === "agent-form"
-      ? `a:${r.agentId ?? ""}`
-      : r.view === "chat"
-        ? `t:${r.threadId ?? ""}`
-        : r.view === "new"
-          ? "new"
-          : r.view === "task"
-            ? `k:${r.taskId}`
-            : r.view === "tasks"
-              ? "tasks"
-              : r.view === "threads"
-                ? "threads"
-                : r.view === "artifacts"
-                  ? "artifacts"
-                  : r.view === "artifact"
-                    ? `x:${r.artifactId}`
-                    : r.view === "notes"
-                      ? "notes"
-                      : r.view === "project"
-                        ? `j:${r.projectId}:${r.tab ?? ""}`
-                        : "";
 }
 
 export const TASKS_HASH = "screen=tasks.my-work";
