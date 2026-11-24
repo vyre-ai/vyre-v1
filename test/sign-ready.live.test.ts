@@ -40,6 +40,10 @@ test("sign: a tick the browser restored is never consent; the name it restored i
     // the person's own tick, a real click: now Sign is enabled for the name that is there
     await me.page.check("#consent");
     await me.page.locator("#signbtn:not([disabled])").waitFor({ timeout: 5_000 });
+    // a pageshow that is not a restore (the one after a first load) leaves the person's own tick alone
+    await me.page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: false })));
+    assert.equal(await me.page.locator("#consent").isChecked(), true, "a tick made in this view stays");
+    assert.equal(await me.page.locator("#signbtn").isDisabled(), false, "and Sign stays enabled");
     // the page is shown again after the tick (back and forward): the tick is cleared once more, Sign waits again
     await me.page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
     assert.equal(await me.page.locator("#consent").isChecked(), false, "the tick is the person's, in this view");
