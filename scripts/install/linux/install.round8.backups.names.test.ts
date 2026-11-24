@@ -4,7 +4,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { SERVER, tmp, SAME, sh, world, mkSpace } from "./install.round8-kit.test.ts";
+import {
+  SERVER,
+  tmp,
+  SAME,
+  sh,
+  world,
+  mkSpace,
+} from "./install.round8-kit.test.ts";
 import type { Out } from "./install.round8-kit.test.ts";
 
 test("two backups in the same second get two names; a manual backup is never removed; what goes is named; the newest backups taken before an update or a restore stay", () => {
@@ -29,7 +36,10 @@ test("two backups in the same second get two names; a manual backup is never rem
     assert.equal(b.status, 0, b.stderr);
     assert.deepEqual(
       names(),
-      ["vyre-manual-20261112T004605Z-2.tar.gz", "vyre-manual-20261112T004605Z.tar.gz"],
+      [
+        "vyre-manual-20261112T004605Z-2.tar.gz",
+        "vyre-manual-20261112T004605Z.tar.gz",
+      ],
       "the second did not replace the first",
     );
     for (const n of names())
@@ -40,10 +50,29 @@ test("two backups in the same second get two names; a manual backup is never rem
       );
     for (const n of names()) fs.rmSync(path.join(dir, "backups", n));
     // one before an update, one before a restore, then twelve manual ones
-    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-1.1.0 live`, env).status, 0);
-    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-restore live`, env).status, 0);
+    assert.equal(
+      sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-1.1.0 live`,
+        env,
+      ).status,
+      0,
+    );
+    assert.equal(
+      sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-restore live`,
+        env,
+      ).status,
+      0,
+    );
     let last: Out = a;
-    for (let i = 0; i < 12; i++) last = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env);
+    for (let i = 0; i < 12; i++)
+      last = sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`,
+        env,
+      );
     const left = names();
     assert.equal(
       left.filter((n) => n.startsWith("vyre-manual-")).length,
@@ -70,17 +99,41 @@ test("two backups in the same second get two names; a manual backup is never rem
       /Manual backups are never removed by this command: 12 of them take \d+ MB/,
       "the pile of manual backups is said, not pruned",
     );
-    fs.writeFileSync(path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"), "x");
-    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, env).status, 0);
-    assert.ok(names().includes("vyre-restored-by-hand.tar.gz"), "a name the script does not know is left alone");
+    fs.writeFileSync(
+      path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"),
+      "x",
+    );
+    assert.equal(
+      sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`,
+        env,
+      ).status,
+      0,
+    );
+    assert.ok(
+      names().includes("vyre-restored-by-hand.tar.gz"),
+      "a name the script does not know is left alone",
+    );
     // the kinds keep their own few: a third backup before an update pushes out only the oldest of that kind
     let pruned: Out = a;
     for (const v of ["1.2.0", "1.3.0"])
-      pruned = sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`, env);
-    assert.match(pruned.stdout, /^ {2}Removed an older backup: vyre-pre-1\.1\.0-\S+\.tar\.gz$/m, "what goes is named");
+      pruned = sh(
+        SERVER,
+        `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data pre-${v} live`,
+        env,
+      );
+    assert.match(
+      pruned.stdout,
+      /^ {2}Removed an older backup: vyre-pre-1\.1\.0-\S+\.tar\.gz$/m,
+      "what goes is named",
+    );
     const pre = names().filter((n) => /^vyre-pre-\d/.test(n));
     assert.equal(pre.length, 2, pre.join(" "));
-    assert.ok(!pre.some((n) => n.startsWith("vyre-pre-1.1.0-")), "the oldest pre-update backup went first");
+    assert.ok(
+      !pre.some((n) => n.startsWith("vyre-pre-1.1.0-")),
+      "the oldest pre-update backup went first",
+    );
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
