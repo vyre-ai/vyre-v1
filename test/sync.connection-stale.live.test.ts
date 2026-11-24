@@ -1,5 +1,5 @@
 // A first pull of several types on one connection, while a bulk writer fills another type (17 Nov 2026: a firm's first sync, 7 tables at once, about 100,000 records written; passes of two types failed
-// again and again with "There is no such connection." while the connection was there and the other types pulled fine). No pass may say the connection is missing while it exists. The writers write until every pass has finished and a batch must be in flight during each pass, so the walk proves the overlap on any runner.
+// again and again with "There is no such connection." while the connection was there and the other types pulled fine). No pass may say the connection is missing while it exists. This walk does not reproduce the 17 Nov defect at this scale, not even on its own pre-fix tree (that needed about 100,000 records over 7 tables); the retry is covered by modules/connectors/tests/syncrun.test.ts, and what this walk proves is the overlap and the absence of "no such connection" under writers. The writers write until every pass has finished and a batch must be in flight during each pass, so the walk proves the overlap on any runner.
 import test from "node:test";
 import assert from "node:assert/strict";
 import { call, hostLog, waitFor } from "./support/eco-live.ts";
