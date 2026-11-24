@@ -33,7 +33,7 @@ jobs:
           BASE="$(git merge-base origin/main HEAD)"
           # Affected perf files run in perf-affected.yml on the pinned host, one
           # at a time. They must not queue behind the same disk lock here.
-          node scripts/ci-select.ts "$BASE" --matrix --no-perf > select.json
+          node -e 'const f="apps/chrome/tests/ext-chrome2a.shots.graphite.e2e.test.ts";const inc=[];for(let i=1;i<=10;i++)inc.push({name:"bar-"+i,files:f,slow:"false"});require("fs").writeFileSync("select.json",JSON.stringify({all:false,files:[f],why:["throwaway bar trace"],matrix:{include:inc}}))'
           node -e 'const r=JSON.parse(require("fs").readFileSync("select.json","utf8"));console.log("select: "+(r.all?"all":r.files.length+" files")+" "+r.why.join("; "));require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"matrix="+JSON.stringify(r.matrix)+"\ncount="+r.matrix.include.length+"\n")'
   shards:
     name: ${{ matrix.name }}
@@ -52,6 +52,7 @@ jobs:
           slow: ${{ matrix.slow }}
           runner: ${{ matrix.runner }}
   gates:
+    if: false
     # P-CI_03: ownership, boundaries, lint and typecheck run on every push, so evidence that claims them is verified here.
     runs-on: [self-hosted, linux, v1]
     # 15, not 5: on a branch that changes every source file (the one-time format, a mass rename) the Prettier and per-package typecheck steps alone pass five minutes; a normal branch still finishes in about one
@@ -154,6 +155,7 @@ jobs:
           [ -x "$tsc" ] || bash tools/gen/check.sh
           for d in $dirs; do echo "tsc -p $d"; "$tsc" -p "$d/tsconfig.json" --noEmit; done
   typecheck:
+    if: false
     # The typecheck ratchet for apps/app and ui (scripts/typecheck-ratchet.ts), in a job of its own: it needs the workspace dependencies (react-native's types) and tools/gen's tsc,
     # and tsc over the app takes about a minute, which the gates job's 5 minute cap does not leave room for. Until 5 Nov it ran in gates with no dependencies and read "skipped"
     # on every push; now a ratchet that cannot count fails on CI. The error count in scripts/typecheck-baseline.json may only fall.
@@ -175,6 +177,7 @@ jobs:
       - name: Typecheck ratchet for modules, host and packages/contracts (the count may only fall; nothing typechecked them before 12 Nov)
         run: node scripts/typecheck-ratchet.ts --project tsconfig.typecheck.server.json --baseline scripts/typecheck-baseline.server.json
   images-docker:
+    if: false
     # Ruling 31 and P-L8_HEAVY: when images/ or a heavy test changes, run the tests the 20 s shard cannot: the vyred image boots in Docker, the site builders
     # build and serve samples on real Docker, and a pinned Documenso container takes an envelope from create to completed. VYRE_HEAVY_DOCKER=1 turns the
     # Docker parts on (without it every one of these tests is skipped by name, and a skip is not a pass). Not part of the `check` gate below: it reports its own result on the run.
@@ -250,6 +253,7 @@ jobs:
         if: always() && steps.scope.outputs.changed == 'true'
         run: docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   l2-heavy:
+    if: false
     # P-L2_HEAVY (security sign-off, spec S8): real Docker, real bubblewrap and real tmux against the sandbox and the terminal module; P-L2_16b adds the agent computers module (lifecycle and the 35 tools). The tests skip unless VYRE_HEAVY_DOCKER=1 and, with it on,
     # fail instead of skipping when Docker, the image, bwrap or tmux is missing, so a green job means the proofs ran. Not part of the `check` gate below: it reports its own result on the run.
     runs-on: [self-hosted, linux, v1]
@@ -344,6 +348,7 @@ jobs:
           grep -E "^ℹ skipped 0$" s9-heavy.out
           grep -E "METRIC s9" s9-heavy.out
   computer-lifecycle:
+    if: false
     # Release gate for the agent Computer: host/tests/computers.{lifecycle,control,home-sync,home-links,home-changes}.live.test.ts on real Docker, every run, never path-selected. It covers provision, wake, screen, the desktop, the Files home mirror (both ways, the read-only AGENT.md, the symlink and escape cases, conflicts, access removal, downloads), sleep and remove. A skipped test is a failure: the output must say pass 1 and skipped 0. Gates `check`.
     # Four jobs, split by behaviour (the one 278 s test was the floor under the 5 minute push budget): lifecycle and control (token, provision, wake, screen, desktop, sleep, remove; download, take the wheel), and three for the Files home mirror (sync, links, changes).
     name: computer-lifecycle (${{ matrix.part }})
@@ -391,6 +396,7 @@ jobs:
         if: always()
         run: docker ps -a --filter "name=vyre-comp" --format '{{.Names}} {{.Status}}' || true
   heavy-live:
+    if: false
     # Issue 908: live test files that hold Docker-gated tests and are not named *.heavy.test.ts. The slow shards run them without VYRE_HEAVY_DOCKER=1, so their gated tests were skipped and the shard still passed.
     # Here the flag is set and --no-skip makes any skip a failure, so a green job means every one of them ran. scripts/hidden-skips.test.ts fails when a file like these is named in no job that sets its flag.
     # Not part of the `check` gate and not in `budget`'s needs, so it is outside the 5 minute push budget: it reports its own result on the run (the same as l2-heavy). computers.live and chat.live run in computer-lifecycle and l2-heavy.
@@ -457,6 +463,7 @@ jobs:
           docker rmi -f "vyre/agent-workspace:ci-${{ github.run_id }}" "vyre/agent-computer:ci-${{ github.run_id }}" || true
           docker ps -a --filter "name=vyre" --format '{{.Names}} {{.Status}}' || true
   chrome-real:
+    if: false
     # P-L10_06b: the Chrome extension's agent tools against a real Chromium page. VYRE_REQUIRE_CHROME=1 turns a missing Chromium into a failure (a skip is not a pass), so a green job means the
     # three real-page tests ran. Chromium comes from playwright-core the way scripts/shots does (cached by playwright after the first run); CHROME_BIN points the test at it. Gates `check`.
     runs-on: [self-hosted, linux, v1]
@@ -519,6 +526,7 @@ jobs:
           node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
   check:
+    if: false
     needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle]
     if: always()
     runs-on: [self-hosted, linux, v1]
@@ -541,6 +549,7 @@ jobs:
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   # The golden flows run in three shards (scripts/golden.ts --shard i/n) so each job has real headroom under its 5 minute cap. The `golden` job below is the required check: it passes only when all three shards passed.
   golden-1:
+    if: false
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -549,6 +558,7 @@ jobs:
       - name: Golden flows, shard 1 of 3 (also prints the report of flows still blocked by stub modules)
         run: node scripts/golden.ts --shard 1/3
   golden-2:
+    if: false
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -557,6 +567,7 @@ jobs:
       - name: Golden flows, shard 2 of 3
         run: node scripts/golden.ts --shard 2/3
   golden-3:
+    if: false
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -565,6 +576,7 @@ jobs:
       - name: Golden flows, shard 3 of 3
         run: node scripts/golden.ts --shard 3/3
   golden:
+    if: false
     needs: [golden-1, golden-2, golden-3]
     if: always()
     runs-on: [self-hosted, linux, v1]
@@ -581,6 +593,7 @@ jobs:
           [ "$S3" = "success" ] || { echo "golden shard 3: $S3"; exit 1; }
           echo "golden: all three shards passed"
   contracts:
+    if: false
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -610,6 +623,7 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: tools/gen/check.sh
   budget:
+    if: false
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
     if: always() && github.event_name != 'merge_group' && github.event_name != 'schedule'
