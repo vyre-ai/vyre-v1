@@ -1,0 +1,1 @@
+A sync pull makes new records a group of up to 200 at a time in one commit instead of one commit each: a first sync of thousands of records is more than twice as fast, and the records, links, events and report it leaves are the same.
