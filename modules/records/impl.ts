@@ -38,6 +38,7 @@ import { createHistoryHandlers } from "./handlers/history.ts";
 import { createCommentsHandlers, settleTurn } from "./handlers/comments.ts";
 import type { CommentsHandlers } from "./handlers/comments.ts";
 import type { HistoryHandlers } from "./handlers/history.ts";
+import { createUpdateManyHandler } from "./handlers/update-many.ts";
 import { createMergeHandlers } from "./handlers/merge.ts";
 import type { MergeHandlers } from "./handlers/merge.ts";
 import { createReviewHandlers, propose } from "./handlers/review.ts";
@@ -598,6 +599,7 @@ type Extra = {
   review: ReviewHandlers;
   views: ViewHandlers;
   purge: PurgeHandlers;
+  updateMany: ReturnType<typeof createUpdateManyHandler>;
 };
 function more(c?: { db?: unknown }): Extra {
   const h = live(c);
@@ -621,6 +623,17 @@ function more(c?: { db?: unknown }): Extra {
       review: createReviewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       views: createViewHandlers({ tx: h.host.tx, store: h.store, writes: h.handlers, space: h.host.store.space }),
       purge: createPurgeHandlers({ store: h.store, tx: h.host.tx }),
+      updateMany: createUpdateManyHandler({
+        store: h.store,
+        meta: (type, id) => {
+          const row = h.host.tx.get<{ label: number; holds: number }>(
+            "SELECT label, holds FROM records_row_meta WHERE type = ? AND id = ?",
+            type,
+            id,
+          );
+          return { label: row?.label ?? 0, holds: row?.holds ?? 0 };
+        },
+      }),
     };
     extras.set(h, extra);
   }
@@ -660,6 +673,7 @@ const table: LiveRecordsHandlers = {
   "records.reveal": (ctx, input) => more(ctx).history["records.reveal"](ctx, input),
   "records.merge": (ctx, input) => more(ctx).merge["records.merge"](ctx, input),
   "records.bulk_upsert": (ctx, input) => more(ctx).merge["records.bulk_upsert"](ctx, input),
+  "records.update_many": (ctx, input) => more(ctx).updateMany(ctx as never, input as never) as never,
   "records.export": (ctx, input) => more(ctx).merge["records.export"](ctx, input),
   "records.changes": (ctx, input) => more(ctx).review["records.changes"](ctx, input),
   "records.completeness": (ctx, input) => more(ctx).review["records.completeness"](ctx, input),

@@ -15,7 +15,8 @@ import type { Store } from "../../kernel/src/store/types.ts";
 
 const ROWS = 450;
 
-async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean) {
+/** seal: how the fake records module answers the sealed write-back. one: only records.update exists (the call for a group is refused, so the engine does one record at a time); many: records.update_many exists; fail: it answers every item as the store being unavailable. */
+async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean, seal: "one" | "many" | "fail" = "one") {
   const core = coreOf(await fileExportsImporter(CODE_ROOT)("sources"));
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-syncgroup-"));
   const space = createSpaceStore({ path: path.join(dir, "space.db"), space: `sp_group_${grouped ? "g" : "o"}` });
@@ -51,6 +52,45 @@ async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean) {
     emit: () => ({}),
     call: async (cap, input) => {
       if (cap === "connectors.get") return { connector: { key: "fakeapp" } };
+      if (cap === "records.update_many") {
+        if (seal === "one") throw { error: { code: "validation.bad_input", message: "no such capability" } };
+        const i = input as { type: string; items: { recordId: string; patch: Record<string, any> }[] };
+        if (seal === "fail")
+          return {
+            results: i.items.map(() => ({
+              error: { code: "internal.unexpected", message: "the store is unavailable", reason: "unavailable" },
+            })),
+          };
+        if (!vaultOpen)
+          return {
+            results: i.items.map(() => ({
+              error: { code: "internal.unavailable", message: "The Vault is not unlocked." },
+            })),
+          };
+        const work: { recordId: string; patch: Record<string, unknown>; base_version: number }[] = [];
+        for (const it of i.items) {
+          const cur = (await store.get(i.type, it.recordId))!;
+          const patch: Record<string, unknown> = {};
+          for (const [k, v] of Object.entries(it.patch)) {
+            if (v && v.sealed === true) {
+              vault.set(`${String(cur.data["name"])} ${k}`, String(v.value));
+              patch[k] = { sealed: k, ref: `ref ${String(cur.data["name"])} ${k}`, present: true, set_at: 1 };
+            } else patch[k] = v;
+          }
+          work.push({ recordId: it.recordId, patch, base_version: cur.version });
+        }
+        const made = await opened.store.updateMany!(
+          i.type,
+          work.map((w) => ({ id: w.recordId, patch: w.patch as never, base_version: w.base_version })),
+        );
+        return {
+          results: made.map((m, k) =>
+            m.ok
+              ? { recordId: work[k]!.recordId, record: { id: work[k]!.recordId } }
+              : { recordId: work[k]!.recordId, error: { code: "internal.unexpected", message: "refused" } },
+          ),
+        };
+      }
       if (cap === "records.update") {
         if (!vaultOpen) throw { error: { code: "internal.unavailable", message: "The Vault is not unlocked." } };
         const i = input as { type: string; recordId: string; patch: Record<string, any> };
@@ -96,6 +136,13 @@ async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean) {
     deletes: "off",
     conflict: "newest",
   };
+  let commits = 0;
+  const log = opened.host.store as unknown as { appendBatch: (b: unknown[]) => unknown };
+  const was = log.appendBatch.bind(log);
+  log.appendBatch = (b) => {
+    commits++;
+    return was(b);
+  };
   const engine = createSyncEngine({ core, local: { open: () => ({ store, tx }) } });
   const dump = (): string =>
     tx
@@ -124,7 +171,7 @@ async function pull(grouped: boolean, vaultOpensAfterFirstPass: boolean) {
     await engine.run(ctx, row, { mode: "incremental" });
     second = await state();
   }
-  return { first, second, groups };
+  return { first, second, groups, commits };
 }
 
 test("a grouped pull seals what the one-at-a-time pull seals: the same values, references, waiting count and notes", async () => {
@@ -145,4 +192,27 @@ test("a grouped pull whose Vault could not take the values yet leaves the record
   assert.deepEqual(many.second, one.second, "after the next pass: the same sealed state");
   assert.ok(many.second.vault.length > 0 && many.second.waiting === 0, "the next pass fills them");
   assert.equal(many.second.leaked, false);
+});
+
+test("the sealed write-back of a grouped pull is one commit for each group of records, and leaves the Vault, records and notes the one-at-a-time write-back leaves", async () => {
+  const one = await pull(true, false, "one");
+  const many = await pull(true, false, "many");
+  assert.deepEqual(many.first, one.first);
+  assert.ok(many.first.vault.length > 0 && many.first.leaked === false);
+  assert.ok(many.commits < one.commits / 4, `far fewer commits (${many.commits} against ${one.commits})`);
+});
+
+test("a group whose write-back cannot be done as a whole is done one record at a time: the same Vault, records, waiting count and notes", async () => {
+  const one = await pull(true, false, "one");
+  const failed = await pull(true, false, "fail");
+  assert.deepEqual(failed.first, one.first);
+});
+
+test("with the Vault locked the batched write-back counts the same values as waiting, says the same words, and the next pass fills them", async () => {
+  const one = await pull(true, true, "one");
+  const many = await pull(true, true, "many");
+  assert.deepEqual(many.first, one.first, "after the first pass");
+  assert.ok(many.first.waiting > 0);
+  assert.deepEqual(many.second, one.second, "after the next pass");
+  assert.equal(many.second.waiting, 0);
 });

@@ -47,7 +47,9 @@ async function run(grouped: boolean) {
   const dump = (sql: string) => o.host.tx.all<Record<string, unknown>>(sql);
   return {
     results: out.map((r) => (r.ok ? `ok v${r.record.version}` : `refused ${(r.error as { code?: string }).code}`)),
-    rows: dump("SELECT version, data FROM rt_party ORDER BY json_extract(data, '$.name'), id").map((r) => `${r["version"]} ${r["data"]}`),
+    rows: dump("SELECT version, data FROM rt_party ORDER BY json_extract(data, '$.name'), id").map(
+      (r) => `${r["version"]} ${r["data"]}`,
+    ),
     changes: dump("SELECT type, kind, version, after FROM rs_changes ORDER BY cursor").map((r) => JSON.stringify(r)),
     events: dump("SELECT json_extract(event, '$.type') AS t FROM events ORDER BY seq").map((r) => String(r["t"])),
     commits: 0,
@@ -58,7 +60,13 @@ test("updateMany leaves the state the one-at-a-time update leaves, and refuses a
   const one = await run(false);
   const many = await run(true);
   assert.deepEqual(many.results, one.results);
-  assert.deepEqual(many.results.slice(0, 5), ["ok v2", "refused invalid", "ok v1", "refused version_conflict", "refused not_found"]);
+  assert.deepEqual(many.results.slice(0, 5), [
+    "ok v2",
+    "refused invalid",
+    "ok v1",
+    "refused version_conflict",
+    "refused not_found",
+  ]);
   assert.deepEqual(many.rows, one.rows);
   assert.deepEqual(many.changes, one.changes);
   assert.deepEqual(many.events, one.events);
@@ -87,9 +95,15 @@ test("updateMany commits the group once, and a commit that fails updates nothing
   assert.ok(r.every((x) => x.ok));
   failNext = true;
   await assert.rejects(
-    o.store.updateMany!("party", ids.map((id) => ({ id, patch: { age: 3 }, base_version: 2 }))),
+    o.store.updateMany!(
+      "party",
+      ids.map((id) => ({ id, patch: { age: 3 }, base_version: 2 })),
+    ),
     (e: { code?: string }) => e.code === "unavailable",
   );
   const rows = o.host.tx.all<{ version: number }>("SELECT version FROM rt_party");
-  assert.ok(rows.every((x) => x.version === 2), "a failed commit updated nothing");
+  assert.ok(
+    rows.every((x) => x.version === 2),
+    "a failed commit updated nothing",
+  );
 });

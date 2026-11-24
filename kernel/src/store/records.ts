@@ -540,7 +540,10 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       if (uniques(def).length || new Set(items.map((x) => x.id)).size !== items.length) {
         for (let i = 0; i < items.length; i++) {
           try {
-            out[i] = { ok: true, record: await store.update(type, items[i]!.id, items[i]!.patch, items[i]!.base_version) };
+            out[i] = {
+              ok: true,
+              record: await store.update(type, items[i]!.id, items[i]!.patch, items[i]!.base_version),
+            };
           } catch (e) {
             out[i] = { ok: false, error: e };
           }
@@ -567,7 +570,16 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
             out[i] = { ok: true, record: record(type, r) };
             return;
           }
-          evs.push(eventOf("record.updated", type, it.id, { type, id: it.id, data: merged, before, version: r.version + 1, at: clock() }));
+          evs.push(
+            eventOf("record.updated", type, it.id, {
+              type,
+              id: it.id,
+              data: merged,
+              before,
+              version: r.version + 1,
+              at: clock(),
+            }),
+          );
           at.push(i);
         } catch (e) {
           out[i] = { ok: false, error: e };

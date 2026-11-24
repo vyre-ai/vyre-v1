@@ -2437,6 +2437,7 @@ export function stubs(ctx: CallCtx) {
       reveal: call("records.reveal"),
       search: call("records.search"),
       update: call("records.update"),
+      update_many: call("records.update_many"),
       value_source: call("records.value_source"),
       values: {
         pending: call("records.values.pending"),

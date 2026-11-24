@@ -1,1 +1,1 @@
-records can update many records in one commit inside the store (not yet reachable from a capability).
+A sync pull puts the sealed values of a group of new records in the Vault and keeps their references in one commit for the group (records.update_many, for the server's own use, not an agent tool), instead of one commit for each record: a pull of wide records with sealed fields is much faster, and the values, references, waiting count and notes are the same.
