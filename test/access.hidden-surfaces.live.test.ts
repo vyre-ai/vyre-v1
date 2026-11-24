@@ -109,8 +109,39 @@ test("no surface shows a member the fields a grant hides from them", async () =>
   await probe("records.get (control)", "records.get", { type: "contact", recordId: rid }, "Surface Hana");
   // the sync status and the sources
   await probe("sync.status", "sync.status", {});
+  // the replica sync a device pulls: every change since the start, as this person
+  for (const epoch of [0, 1])
+    await probe(
+      `sync.pull from the start (epoch ${epoch})`,
+      "sync.pull",
+      { cursor: 0, epoch, limit: 5000 },
+      "Surface Hana",
+    );
   await probe("sources.list", "sources.list", {});
   process.stderr.write(`\nSURFACE PROBE\n${rows.join("\n")}\n`);
+  // the agent's own reads for the member: she asks Spark in a chat, and Spark reads the record every way its tools offer
+  // the agent may read this record in its own right (no hidden fields for the agent): what it hands the member back must still be the member's view
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: { kind: "agent", id: h.agentId },
+    level: "view",
+    idempotencyKey: "hs-share-agent",
+  });
+  const chat = (await n.call("chat.start", { kind: "chat", agentIds: [h.agentId] })).thread.threadId as string;
+  await n.call("chat.post", { threadId: chat, body: `PEEK ${rid} zq7xkv`, idempotencyKey: "hs-peek" });
+  let peeked = "";
+  for (let i = 0; i < 40 && !peeked.includes("PEEKED"); i++) {
+    await new Promise((r) => setTimeout(r, 1000));
+    const list = (await n.call("chat.messages.list", { threadId: chat })) as { messages: Array<{ body?: string }> };
+    peeked = list.messages.map((m) => m.body ?? "").find((b) => b.includes("PEEKED")) ?? "";
+  }
+  const l = leaked(peeked);
+  rows.push(
+    `agent tools for the member (records_get, _query, _search, _history): ${peeked === "" ? "NO ANSWER" : l.length ? `LEAK ${JSON.stringify(l)}` : "clean"}`,
+  );
+  if (peeked !== "" && l.length) rows.push(`   data: ${peeked.slice(0, 700)}`);
+  if (peeked !== "") rows.push(`   (answer: ${peeked.replace(/\s+/g, " ").slice(0, 900)})`);
+  process.stderr.write(`${rows.filter((r) => r.startsWith("agent") || r.startsWith("   ")).join("\n")}\n`);
   // the probes are not empty: the visible name finds the record, and the owner finds it by the hidden email (so the index does hold it)
   const empty = rows.filter((r) => r.includes("EMPTY probe") && !r.startsWith("search.recent.list"));
   assert.deepEqual(empty, [], `a probe came back empty, so it proves nothing:\n${empty.join("\n")}`);
@@ -119,6 +150,6 @@ test("no surface shows a member the fields a grant hides from them", async () =>
     ownerFound.includes("Surface Hana") && ownerFound.includes("zq7xkv"),
     "the owner finds the contact by its email, and sees it",
   );
-  const bad = rows.filter((r) => r.includes("LEAK"));
+  const bad = rows.filter((r) => r.includes("LEAK") || r.includes("NO ANSWER"));
   assert.deepEqual(bad, [], `surfaces that leak a hidden field:\n${bad.join("\n")}`);
 });
