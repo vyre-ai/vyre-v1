@@ -4,7 +4,7 @@ Lane L4. Kind module. Version 0.1.0.
 
 Requires: mounts.
 
-## Capabilities (80)
+## Capabilities (81)
 
 - [changesets.approve](../capabilities/changesets.approve.md): Approve and commit a changeset: 3-way merge on the recorded base, conflicts go to the reviewer; optionally push
 - [changesets.comments.add](../capabilities/changesets.comments.add.md): Add an inline comment to a changeset with @ people and agents (an @ agent answers in the thread)
@@ -45,6 +45,7 @@ Requires: mounts.
 - [files.knowledge](../capabilities/files.knowledge.md): The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries
 - [files.lint](../capabilities/files.lint.md): Lint a guidance file: line counts against the limits, Inherits VYRE.md, Override lines, secret scan, agent.toml schema, routine prompt files, handoff names, repeated facts
 - [files.list](../capabilities/files.list.md): List files and folders in a folder or a section (Personal, Shared with me, Space). deep with section space lists every file in every Space folder the caller may see; q keeps names that contain it
+- [files.live_among](../capabilities/files.live_among.md): Which of the given files or folders are not in Trash, for the server's own lists (access.lists asks it once per page); an id that is trashed or unknown is left out
 - [files.marks.add](../capabilities/files.marks.add.md): Highlight part of a file for the team, or hide it from AI (a span, a box on a scan or picture, a transcript range, or a piece of the name); anyone who can open the file may
 - [files.marks.list](../capabilities/files.marks.list.md): The redactions and highlights on a file, its review for AI, what a new version could not place, and agents waiting to read it
 - [files.marks.place](../capabilities/files.marks.place.md): A redaction a new version could not carry over: place it on a near match, or drop it

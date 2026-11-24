@@ -1046,3 +1046,12 @@ Signed: 24 Nov 2026, lead.
 - Snapshots: docs/frozen/snapshots/records.json.
 
 Signed: 24 Nov 2026, lead.
+
+## 24 Nov 2026: new capability files.live_among, and access.lists leaves out what Files put in Trash (lane r42-scroll, from the Trash finding of the kept-view check), for the lead to sign
+
+- What changed in contracts, additive: a new read capability `files.live_among`. Input: `type` (`file` or `folder`) and `ids` (at most 500). Output: `live`, the ids among them that exist and are not in Trash. Level member, on the Space. Not an agent tool: it sits on the no-tool list (`packages/contracts/src/mcp-coverage.ts`, system calls) and adds nothing to the tool surface or the tool-token baseline.
+- What else changes, no contract field: `access.lists` for type `file` or `folder` no longer lists an item that Files has put in Trash, whatever the caller's access to it. Trash is Files' own state (its rows hold the flag; access cannot read them), so `access.lists` asks `files.live_among` once for each 500 rows, through the capability call, and drops the ones that are not live. Where that call cannot be made, or fails, the rows are listed as before: a list never fails for this. An item restored from Trash is listed again. The counts in the answer count only what is listed.
+- Why: the agent's `meta` tool and the Console's Labels picker read `access.lists` and showed a trashed folder as if it were live (Files' own lists already filtered). A member's access to a trashed item is unchanged; it is only not listed.
+- Snapshots: docs/frozen/snapshots/files.json.
+
+Signed:

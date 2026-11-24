@@ -16717,6 +16717,13 @@ export type FilesListOut = {
   next?: string;
   total?: number;
 };
+export type FilesLiveAmongIn = {
+  type: "file" | "folder";
+  ids: Array<string>;
+};
+export type FilesLiveAmongOut = {
+  live: Array<string>;
+};
 export type FilesMarksAddIn = {
   target: {
     type: "file" | "folder";
@@ -52489,6 +52496,7 @@ export interface CapMap {
   "files.knowledge": { in: FilesKnowledgeIn; out: FilesKnowledgeOut };
   "files.lint": { in: FilesLintIn; out: FilesLintOut };
   "files.list": { in: FilesListIn; out: FilesListOut };
+  "files.live_among": { in: FilesLiveAmongIn; out: FilesLiveAmongOut };
   "files.marks.add": { in: FilesMarksAddIn; out: FilesMarksAddOut };
   "files.marks.list": { in: FilesMarksListIn; out: FilesMarksListOut };
   "files.marks.place": { in: FilesMarksPlaceIn; out: FilesMarksPlaceOut };

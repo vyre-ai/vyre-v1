@@ -1087,6 +1087,7 @@ export function createClient(transport: Transport) {
       knowledge: call("files.knowledge", 1),
       lint: call("files.lint", 1),
       list: call("files.list", 1),
+      live_among: call("files.live_among", 1),
       marks: {
         add: call("files.marks.add", 1),
         list: call("files.marks.list", 1),

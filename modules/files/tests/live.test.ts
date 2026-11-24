@@ -9,8 +9,8 @@ const mine = registry.capabilities
   .map((c) => c.name)
   .sort();
 
-test("files live: the handler map equals the manifest's 80 capabilities (68, plus 12 for Redaction for AI)", () => {
-  assert.equal(mine.length, 80);
+test("files live: the handler map equals the manifest's 81 capabilities (69, plus 12 for Redaction for AI)", () => {
+  assert.equal(mine.length, 81);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);

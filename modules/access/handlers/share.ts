@@ -2294,6 +2294,28 @@ export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: 
   return { folders: folders.map((f) => folderView(ss, f, countIn(ctx, store, ss, f.id))) };
 }
 
+/**
+ * A file or folder the Files module has put in Trash is not listed: Trash is Files' own state (its rows hold the flag, access cannot read them), so Files is asked once for each 500 rows, through the capability call,
+ * which of them are live. Where there is no call to make (a hand-built test context) or Files does not answer, the rows are listed as they were: a list never fails for this.
+ */
+async function liveRows(ctx: ShareCtx, type: string, rows: AccessRow[]): Promise<AccessRow[]> {
+  if (type !== "file" && type !== "folder") return rows;
+  const call = (ctx as unknown as { call?: (cap: string, input: unknown) => Promise<unknown> }).call;
+  if (typeof call !== "function" || rows.length === 0) return rows;
+  const live = new Set<string>();
+  try {
+    for (let from = 0; from < rows.length; from += 500) {
+      const ids = rows.slice(from, from + 500).map((r) => r.id);
+      const out = (await call.call(ctx, "files.live_among", { type, ids })) as { live?: unknown };
+      if (!Array.isArray(out?.live)) return rows;
+      for (const id of out.live) if (typeof id === "string") live.add(id);
+    }
+  } catch {
+    return rows;
+  }
+  return rows.filter((r) => live.has(r.id));
+}
+
 export async function lists(
   ctx: ShareCtx,
   input: { type: string; section?: Section; folder?: string; cursor?: string; limit?: number },
@@ -2301,7 +2323,7 @@ export async function lists(
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;
-  const rows = mine(ctx, store, ss, person, input.type);
+  const rows = await liveRows(ctx, input.type, mine(ctx, store, ss, person, input.type));
   const marks = ctx.marks?.(person, input.type);
   const starred = marks?.starred ?? new Set<string>();
   const following = marks?.following ?? new Set<string>();

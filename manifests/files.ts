@@ -768,6 +768,16 @@ export default defineManifest({
       },
     ),
     read(
+      "files.live_among",
+      "Which of the given files or folders are not in Trash, for the server's own lists (access.lists asks it once per page); an id that is trashed or unknown is left out",
+      {
+        in: { type: t.enm("file", "folder"), ids: t.arr(t.str(), { maxItems: 500 }) },
+        out: { live: t.arr(t.str()) },
+        level: "member",
+        space: true,
+      },
+    ),
+    read(
       "files.knowledge",
       "The Knowledge section of the tree: the knowledge folders and files the caller may read, plus the Memory and Graph entries",
       {

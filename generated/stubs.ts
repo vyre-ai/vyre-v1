@@ -1087,6 +1087,7 @@ export function stubs(ctx: CallCtx) {
       knowledge: call("files.knowledge"),
       lint: call("files.lint"),
       list: call("files.list"),
+      live_among: call("files.live_among"),
       marks: {
         add: call("files.marks.add"),
         list: call("files.marks.list"),

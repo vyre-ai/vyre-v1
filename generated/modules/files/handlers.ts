@@ -44,6 +44,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "files.knowledge": Handler<"files.knowledge", X>;
   "files.lint": Handler<"files.lint", X>;
   "files.list": Handler<"files.list", X>;
+  "files.live_among": Handler<"files.live_among", X>;
   "files.marks.add": Handler<"files.marks.add", X>;
   "files.marks.list": Handler<"files.marks.list", X>;
   "files.marks.place": Handler<"files.marks.place", X>;

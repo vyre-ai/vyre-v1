@@ -222,7 +222,29 @@ async function knowledge(ctx: Ctx, input: unknown): Promise<KnowledgeOut> {
   return out;
 }
 
+/** The most ids one call is asked about. */
+const LIVE_MAX = 500;
+/** Which of the given files or folders are not in Trash. The answer is about rows the caller was already told of (access.lists asks it once per page of rows it is about to hand out): an id that is not here, is trashed or does not exist is left out. */
+async function liveAmong(ctx: Ctx, input: unknown): Promise<{ live: string[] }> {
+  ensureReady(ctx);
+  const o = rec(ctx, input);
+  const type = optStr(ctx, o, "type");
+  if (type !== "file" && type !== "folder")
+    fail(ctx, "validation.bad_input", "The input is not valid.", { field: "type" });
+  const ids = Array.isArray(o["ids"]) ? o["ids"].filter((x): x is string => typeof x === "string") : [];
+  if (ids.length > LIVE_MAX) fail(ctx, "validation.bad_input", "The input is not valid.", { field: "ids" });
+  if (ids.length === 0) return { live: [] };
+  const table = type === "file" ? "files_file" : "files_folder";
+  const rows = many(
+    ctx,
+    `SELECT id FROM ${table} WHERE deleted_at IS NULL AND id IN (${ids.map(() => "?").join(", ")})`,
+    ...ids,
+  );
+  return { live: rows.map((r) => String(r.id)) };
+}
+
 export const listHandlers = {
+  "files.live_among": (ctx: Ctx, input: unknown) => liveAmong(ctx, input),
   "files.shared_with_me": (ctx: Ctx, input: unknown) => sharedWithMe(ctx, input),
   "files.knowledge": (ctx: Ctx, input: unknown) => knowledge(ctx, input),
 };

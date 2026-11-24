@@ -44,6 +44,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "files.knowledge": async (ctx) => { throw new VyreErr(notImplemented("files.knowledge", ctx.trace)); },
   "files.lint": async (ctx) => { throw new VyreErr(notImplemented("files.lint", ctx.trace)); },
   "files.list": async (ctx) => { throw new VyreErr(notImplemented("files.list", ctx.trace)); },
+  "files.live_among": async (ctx) => { throw new VyreErr(notImplemented("files.live_among", ctx.trace)); },
   "files.marks.add": async (ctx) => { throw new VyreErr(notImplemented("files.marks.add", ctx.trace)); },
   "files.marks.list": async (ctx) => { throw new VyreErr(notImplemented("files.marks.list", ctx.trace)); },
   "files.marks.place": async (ctx) => { throw new VyreErr(notImplemented("files.marks.place", ctx.trace)); },

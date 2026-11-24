@@ -260,6 +260,7 @@ const SYSTEM_CALLS: readonly string[] = [
   "engine.turn.start",
   "engine.turn.wait",
   "engine.warm",
+  "files.live_among",
   "github.actions.secrets",
   "github.installation_token",
   "github.me.approve",
