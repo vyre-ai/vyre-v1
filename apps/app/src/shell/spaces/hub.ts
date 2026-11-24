@@ -62,8 +62,6 @@ export interface HubState {
   links: number;
   /** Counts the addresses a place wrote itself (its report of what the person opened inside it), never a link or a press elsewhere: the shell uses it to tell a place's own address from one that came to it. */
   reports: number;
-  /** The address of the last report a place wrote itself (what it showed when it reported): a changed address equal to it, arriving with a report and no link, is that report coming back. */
-  ownHash: string;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -256,7 +254,6 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   let links = 0;
   let reports = 0;
-  let ownHash = "";
   function build(): HubState {
     const s = open();
     const tabs = s.tabs.state();
@@ -271,7 +268,6 @@ export function createShellHub(options: HubOptions): ShellHub {
       hash: s.hash,
       links,
       reports,
-      ownHash,
       away,
       online,
       waiting,
@@ -494,10 +490,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       return forwardTarget(open().tabs.state()) !== null && step((tabs) => tabs.forward());
     },
     move(place, hash, own = false) {
-      if (own) {
-        reports += 1;
-        ownHash = hash ?? "";
-      }
+      if (own) reports += 1;
       const s = open();
       if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
       s.tabs.move(livePlace(place), hash, screenTitle(hash));

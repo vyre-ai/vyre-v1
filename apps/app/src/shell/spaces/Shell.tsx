@@ -80,7 +80,6 @@ export interface PlaceContext {
   hash: string;
   /** Addresses that came from outside so far (HubState.links): a place told the same address twice can tell a link back to it from nothing. */
   links?: number;
-  reports?: number;
   epoch: number;
   kit: KitDef;
 }
@@ -521,15 +520,7 @@ export function ShellStage({
   /** How many places stay made, the one on screen among them (kept-places.tsx). 1: none is kept, a place is made and unmade as it is opened and left. */
   keep?: number;
   hub: Pick<ShellHub, "placeDrawn" | "retry">;
-  state: {
-    phase: string;
-    error: string | null;
-    epoch: number;
-    place: PlaceId;
-    hash: string;
-    links: number;
-    reports: number;
-  };
+  state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string; links: number };
   spaceName: string;
   kind: string;
   ctx: PlaceContext;
@@ -548,7 +539,7 @@ export function ShellStage({
   const place = state.phase !== "skeleton" && state.error === null && !newTab && blocked === null;
   const placeKey = `${state.epoch}:${ctx.spaceId}:${state.place}`;
   const placeBody = place ? (
-    <ShownLocationProvider place={state.place} hash={state.hash} links={state.links} reports={state.reports}>
+    <ShownLocationProvider place={state.place} hash={state.hash} links={state.links}>
       {renderPlace(ctx)}
     </ShownLocationProvider>
   ) : null;
@@ -807,7 +798,6 @@ export function Shell(props: ShellProps): ReactElement {
           place: shown.state.place,
           hash: shown.state.hash,
           links: shown.state.links,
-          reports: shown.state.reports,
           epoch: shown.state.epoch,
           kit: shown.kit,
         }}
@@ -884,7 +874,6 @@ export function Shell(props: ShellProps): ReactElement {
           links={shown.state.links}
           reports={shown.state.reports}
           liveReports={() => hub.state().reports}
-          liveOwnHash={() => hub.state().ownHash}
           initialHold={!compact && (PLACES_WITH_LIST.has(state.place) || tabNew)}
           compact={compact}
           storage={props.sidebar?.storage ?? null}

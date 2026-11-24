@@ -62,7 +62,7 @@ import {
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, linkedTo, openKeyOf, isOwnEcho, personOfHash, step, takesAddress, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, takesAddress, workOf } from "./route.ts";
 import { PendingChat } from "../landing/PendingChat.tsx";
 import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
@@ -142,10 +142,6 @@ export interface ChatsMountedProps {
   hash?: string;
   /** The hub's count of addresses that came from outside (HubState.links): a link back to the page just left still reaches the page. */
   links?: number;
-  /** The hub's count of addresses a place wrote itself (HubState.reports). */
-  reports?: number;
-  /** The address of the place's last own report, as of now (HubState.ownHash). */
-  ownHash?: () => string;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -176,8 +172,6 @@ export function ChatsMounted({
   rt,
   hash = "",
   links = 0,
-  reports = 0,
-  ownHash,
   initial,
   window,
   opened,
@@ -286,7 +280,6 @@ export function ChatsMounted({
   const hashNow = useRef(hash);
   hashNow.current = hash;
   const linksSeen = useRef(links);
-  const reportsSeen = useRef(reports);
   const hashSeen = useRef(hash);
   useEffect(() => {
     // An address that came from outside (a link, a pasted address, a goto) while the page was drawn for the same address twice (it left the address and was sent back to it before the gap was drawn:
@@ -296,13 +289,6 @@ export function ChatsMounted({
     linksSeen.current = links;
     const hashChanged = hash !== hashSeen.current;
     hashSeen.current = hash;
-    const reportsSince = reports - reportsSeen.current;
-    reportsSeen.current = reports;
-    // the page's own report coming back is not a link: the page already shows what it reported
-    if (isOwnEcho({ hashChanged, reportsSince, linksSince, hash, ownHash: ownHash?.() ?? "\u0000" })) {
-      linked.current = hash;
-      return;
-    }
     const at = fromHash(hash);
     if (
       !takesAddress({
@@ -323,7 +309,7 @@ export function ChatsMounted({
       return next;
     });
     forgetLayerLink(hash);
-  }, [hash, links, reports]);
+  }, [hash, links]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
   // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
   const forgetLayerLink = (h: string): void => {
