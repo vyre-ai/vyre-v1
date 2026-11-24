@@ -6,6 +6,8 @@ import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
 import type { Store, StoredRecord } from "../../kernel/src/store/types.ts";
 import { createRecordAccess } from "../src/daemon/record-access.ts";
 
+type Gate = (key: string) => boolean;
+
 function fixture() {
   const snapshot = new AccessSnapshot();
   snapshot.putPrincipal({ id: "reader", kind: "person", status: "active" });
@@ -55,10 +57,10 @@ test("fieldGate: a field the grant hides is not visible, the others are, and a r
   const f = fixture();
   const gate = await f.guard.fieldGate({ principal: "reader" }, "type", "row", "t");
   assert.ok(gate);
-  assert.equal(gate!("name"), true);
-  assert.equal(gate!("notes"), true);
-  assert.equal(gate!("secret"), false, "the grant hides it");
-  assert.equal(gate!("not_a_field"), false, "a field the type does not label is not shown");
+  assert.equal((gate as Gate)("name"), true);
+  assert.equal((gate as Gate)("notes"), true);
+  assert.equal((gate as Gate)("secret"), false, "the grant hides it");
+  assert.equal((gate as Gate)("not_a_field"), false, "a field the type does not label is not shown");
   assert.equal(await f.guard.fieldGate({ principal: "stranger" }, "type", "row", "t"), null);
 });
 
@@ -66,10 +68,10 @@ test("fieldGate: the label ceiling of the provider the answer goes to applies, a
   const f = fixture();
   f.snapshot.setPolicies([{ key: "p1", kind: "provider_label", allow: { cloud: 1 } }]);
   const plain = await f.guard.fieldGate({ principal: "reader" }, "type", "row", "t");
-  assert.equal(plain!("notes"), true, "to the person themselves a confidential field is theirs");
+  assert.equal((plain as Gate)("notes"), true, "to the person themselves a confidential field is theirs");
   const cloud = await f.guard.fieldGate({ principal: "reader", provider: "cloud" }, "type", "row", "t");
-  assert.equal(cloud!("name"), true);
-  assert.equal(cloud!("notes"), false, "a confidential field does not go to a provider cleared for internal");
+  assert.equal((cloud as Gate)("name"), true);
+  assert.equal((cloud as Gate)("notes"), false, "a confidential field does not go to a provider cleared for internal");
 });
 
 test("fieldGate: the labels of a type are read once for a call that keeps them", async () => {
@@ -139,14 +141,21 @@ test("fieldGate: a record the snapshot learns a moment late is waited for and ju
   const never = lateFixture(Infinity);
   assert.equal(await never.guard.fieldGate({ principal: "reader" }, "type", "row", "t"), "later");
   const nowait = lateFixture(1);
-  assert.equal(await nowait.guard.fieldGate({ principal: "reader" }, "type", "row", "t", undefined, { settle: false }), "later");
+  assert.equal(
+    await nowait.guard.fieldGate({ principal: "reader" }, "type", "row", "t", undefined, { settle: false }),
+    "later",
+  );
   assert.equal(nowait.refreshes(), 0, "a reader that cannot wait does not ask the snapshot to refresh");
 });
 
 test("fieldGate: a deletion's record is judged on the kept row, and only when asked for as a trashed one", async () => {
   const f = lateFixture(1);
   f.trashed.on = true;
-  assert.equal(await f.guard.fieldGate({ principal: "reader" }, "type", "row", "t"), null, "a trashed row is not a live one");
+  assert.equal(
+    await f.guard.fieldGate({ principal: "reader" }, "type", "row", "t"),
+    null,
+    "a trashed row is not a live one",
+  );
   const gate = await f.guard.fieldGate({ principal: "reader" }, "type", "row", "t", undefined, { deleted: true });
   assert.equal(typeof gate, "function");
   assert.equal((gate as (k: string) => boolean)("name"), true);

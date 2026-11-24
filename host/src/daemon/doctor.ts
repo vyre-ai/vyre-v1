@@ -313,7 +313,10 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
         try {
           const fields = (JSON.parse(g.c ?? "{}") as { hiddenFields?: unknown }).hiddenFields;
           if (g.who && Array.isArray(fields))
-            hiddenOf.set(g.who, new Set([...(hiddenOf.get(g.who) ?? []), ...fields.filter((f): f is string => typeof f === "string")]));
+            hiddenOf.set(
+              g.who,
+              new Set([...(hiddenOf.get(g.who) ?? []), ...fields.filter((f): f is string => typeof f === "string")]),
+            );
         } catch {
           /* a grant that does not parse names no field */
         }
@@ -342,12 +345,16 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
           for (const part of [p.record, p.changed])
             if (part && typeof part === "object" && !Array.isArray(part))
               for (const [f, v] of Object.entries(part as Record<string, unknown>))
-                if (hidden.has(f) && (typeof v === "string" || typeof v === "number") && String(v) !== "") held.push(String(v));
+                if (hidden.has(f) && (typeof v === "string" || typeof v === "number") && String(v) !== "")
+                  held.push(String(v));
           if (!held.length) continue;
           automations.add(a.id);
           runs.push(r.id);
           if (hasSteps)
-            for (const s of db.all(`SELECT input_json AS i, output_json AS o FROM runs_steps WHERE run_id = ?`, r.id) as {
+            for (const s of db.all(
+              `SELECT input_json AS i, output_json AS o FROM runs_steps WHERE run_id = ?`,
+              r.id,
+            ) as {
               i: string | null;
               o: string | null;
             }[]) {
@@ -356,7 +363,8 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
             }
         }
       }
-      if (!runs.length) return { key, state: "healthy", detail: "No kept Run holds a field its person's access hides.", next: OK };
+      if (!runs.length)
+        return { key, state: "healthy", detail: "No kept Run holds a field its person's access hides.", next: OK };
       return {
         key,
         state: "degraded",

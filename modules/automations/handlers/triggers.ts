@@ -436,9 +436,14 @@ export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
   // started again for the Automation's person: the record as that person may see it now (a Run made before the trigger was cut keeps what it was given)
   const replayPayload = await payloadAsSeen(ctx, a.runsAs ?? a.ownerId, old.payload);
   if (replayPayload === null)
-    raise(ctx, "validation.precondition_failed", "That run cannot be repeated: its record is not there for you any more.", {
-      reason: "no_event",
-    });
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      "That run cannot be repeated: its record is not there for you any more.",
+      {
+        reason: "no_event",
+      },
+    );
   const runId = await startRun(ctx, a, {
     trigger: old.trigger,
     payload: replayPayload,
@@ -811,8 +816,20 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
  * record they may not see (any longer) is not offered at all (null). Runs made before the trigger was cut keep what they were given, so this is what keeps those old values from being shown again.
  */
 async function payloadAsSeen(ctx: AutoCtx, person: string, payload: unknown): Promise<unknown | null> {
-  const p = payload as { recordId?: unknown; type?: unknown; record?: unknown; changed?: unknown; fields?: unknown } | null;
-  if (!ctx.recordFieldGate || p === null || typeof p !== "object" || typeof p.recordId !== "string" || typeof p.type !== "string")
+  const p = payload as {
+    recordId?: unknown;
+    type?: unknown;
+    record?: unknown;
+    changed?: unknown;
+    fields?: unknown;
+  } | null;
+  if (
+    !ctx.recordFieldGate ||
+    p === null ||
+    typeof p !== "object" ||
+    typeof p.recordId !== "string" ||
+    typeof p.type !== "string"
+  )
     return payload;
   const got = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
   const gate = got === "later" ? null : got; // shown now: when in doubt, not offered
@@ -868,7 +885,14 @@ async function eventForOwner(
     v !== null && typeof v === "object" && !Array.isArray(v)
       ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => keep(f)))
       : v;
-  return { ...ev, payload: { ...ev.payload, ...("fields" in p ? { fields: cut(p.fields) } : {}), ...("prev" in p ? { prev: cut(p.prev) } : {}) } };
+  return {
+    ...ev,
+    payload: {
+      ...ev.payload,
+      ...("fields" in p ? { fields: cut(p.fields) } : {}),
+      ...("prev" in p ? { prev: cut(p.prev) } : {}),
+    },
+  };
 }
 
 export async function consumeEvent(
@@ -887,7 +911,10 @@ export async function consumeEvent(
   // must find nothing half done. A record they may not see starts nothing (and is not reported: that would say it exists).
   const views = new Map<string, LoggedEvent | null>();
   for (const a of listening)
-    views.set(a.id, a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev);
+    views.set(
+      a.id,
+      a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev,
+    );
   for (const a of listening) {
     const seen = views.get(a.id) ?? null;
     if (seen === null) continue;

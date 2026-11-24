@@ -55,19 +55,36 @@ test("a member's Automation sees a changed record as the member may see it, and 
   const aid = String((made.automation ?? {}).id ?? made.automationId);
   await member.call("automations.set_enabled", { automationId: aid, enabled: true });
   const runs = async (): Promise<number> =>
-    ((await member.call("runs.list", { scope: "subject", subject: { type: "automation", id: aid }, limit: 50 })).runs as unknown[])
-      .length;
+    (
+      (await member.call("runs.list", { scope: "subject", subject: { type: "automation", id: aid }, limit: 50 }))
+        .runs as unknown[]
+    ).length;
 
   // an edit of the record the member may not see comes first in the log; then an edit of the one they may see (name) and one of the hidden fields
   await owner.call("records.update", { type: "contact", recordId: unseen.record.id, patch: { name: "Unseen Bo 2" } });
   await owner.call("records.update", { type: "contact", recordId: f.rid, patch: { name: "Seen Hana C" } });
-  await owner.call("records.update", { type: "contact", recordId: f.rid, patch: { email: "third-visible-test@probe-mail.test" } });
-  type Te = { events: Array<{ payload: { recordId?: string; record?: Record<string, unknown>; changed?: Record<string, unknown>; fields?: string[] } }> };
-  const testEvents = async (): Promise<Te> => (await member.call("automations.test_events", { automationId: aid })) as Te;
+  await owner.call("records.update", {
+    type: "contact",
+    recordId: f.rid,
+    patch: { email: "third-visible-test@probe-mail.test" },
+  });
+  type Te = {
+    events: Array<{
+      payload: {
+        recordId?: string;
+        record?: Record<string, unknown>;
+        changed?: Record<string, unknown>;
+        fields?: string[];
+      };
+    }>;
+  };
+  const testEvents = async (): Promise<Te> =>
+    (await member.call("automations.test_events", { automationId: aid })) as Te;
   // the runs for the edits of the seen record are in (the second one only touched a hidden field); the edit of the unseen one came before them in the log, so by now it would have run too
   await until("the Automation to run for both edits of the seen record", 15000, async () =>
-    (await testEvents()).events.filter((e) => e.payload.recordId === f.rid && e.payload.changed?.["name"] === "Seen Hana C")
-      .length >= 1 && (await runs()) >= 2
+    (await testEvents()).events.filter(
+      (e) => e.payload.recordId === f.rid && e.payload.changed?.["name"] === "Seen Hana C",
+    ).length >= 1 && (await runs()) >= 2
       ? true
       : undefined,
   );
@@ -80,7 +97,10 @@ test("a member's Automation sees a changed record as the member may see it, and 
   const te = await testEvents();
   const text = JSON.stringify(te);
   assert.deepEqual(f.leaks(text), [], "automations.test_events shows no hidden value");
-  assert.ok(!text.includes("third-visible-test") && !text.includes("unseen-bo"), "nor the later email, nor the unseen record");
+  assert.ok(
+    !text.includes("third-visible-test") && !text.includes("unseen-bo"),
+    "nor the later email, nor the unseen record",
+  );
   const named = te.events.find((e) => e.payload.record?.["name"] === "Seen Hana C");
   assert.ok(named, "the visible name is in the trigger, so the probe is not an empty one");
   assert.deepEqual(Object.keys(named!.payload.record ?? {}), ["name"], "and it is the only field of the record");
@@ -90,7 +110,13 @@ test("a member's Automation sees a changed record as the member may see it, and 
     rows: Array<{ fields: { title?: string } }>;
   };
   const titles = notes.rows.map((r) => String(r.fields.title ?? ""));
-  assert.ok(titles.some((t) => t.includes("Seen Hana C")), `a step read the visible name: ${JSON.stringify(titles)}`);
+  assert.ok(
+    titles.some((t) => t.includes("Seen Hana C")),
+    `a step read the visible name: ${JSON.stringify(titles)}`,
+  );
   assert.deepEqual(f.leaks(titles.join("\n")), [], "no step wrote a hidden value");
-  assert.ok(!titles.join("\n").includes("unseen-bo") && !titles.join("\n").includes("Unseen Bo"), "nor anything of the unseen record");
+  assert.ok(
+    !titles.join("\n").includes("unseen-bo") && !titles.join("\n").includes("Unseen Bo"),
+    "nor anything of the unseen record",
+  );
 });

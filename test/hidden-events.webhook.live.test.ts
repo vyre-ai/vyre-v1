@@ -29,12 +29,19 @@ test("a webhook of a member with a hidden-field grant delivers the record as tha
   const f = await hiddenMember(h);
   const { member, owner } = f;
   // the member's role holds connectors.manage (a webhook is made with it)
-  const roles = (await owner.call("access.roles.list")).roles as Array<{ id: string; name: string; permissions?: string[] }>;
+  const roles = (await owner.call("access.roles.list")).roles as Array<{
+    id: string;
+    name: string;
+    permissions?: string[];
+  }>;
   const base = roles.find((r) => r.name === "Member")!;
-  const role = (await owner.call("access.roles.create", { name: "Hook maker", cloneFrom: base.id, idempotencyKey: "hw-role" }))
-    .role as { id: string; permissions: string[] };
+  const role = (
+    await owner.call("access.roles.create", { name: "Hook maker", cloneFrom: base.id, idempotencyKey: "hw-role" })
+  ).role as { id: string; permissions: string[] };
   const permissions = [...role.permissions, "connectors.manage"];
-  const preview = (await owner.call("access.roles.preview", { roleId: role.id, permissions })) as { previewHash: string };
+  const preview = (await owner.call("access.roles.preview", { roleId: role.id, permissions })) as {
+    previewHash: string;
+  };
   await owner.call("access.roles.apply", { roleId: role.id, permissions, previewHash: preview.previewHash });
   await owner.call("access.roles.assign", { subject: { kind: "person", id: member.personId }, roleId: role.id });
 
@@ -78,10 +85,15 @@ test("a webhook of a member with a hidden-field grant delivers the record as tha
   const text = all.map((r) => r.body ?? "").join("\n");
   assert.ok(delivered.length >= 1, "the visible edit is delivered, so the probe is not an empty one");
   assert.deepEqual(f.leaks(text), [], "no delivery body carries a hidden value");
-  assert.ok(!text.includes("hook-probe-edit") && !text.includes("hook-unseen"), "nor the later email, nor the unseen record's");
+  assert.ok(
+    !text.includes("hook-probe-edit") && !text.includes("hook-unseen"),
+    "nor the later email, nor the unseen record's",
+  );
   assert.ok(!text.includes("Hook Unseen"), "the edit of a record the member may not see sends nothing");
   const unseenEvents = (
-    (await owner.call("events.list", { subject: { type: "record", id: unseen.record.id } })).events as Array<{ id: string }>
+    (await owner.call("events.list", { subject: { type: "record", id: unseen.record.id } })).events as Array<{
+      id: string;
+    }>
   ).map((e) => e.id);
   assert.ok(unseenEvents.length >= 1, "the owner's log holds the unseen record's edit");
   assert.ok(

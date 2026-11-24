@@ -654,7 +654,14 @@ export async function webhooksSendDelivery(
     } else if (row && !unseen) d = { ...d, body: deliveryBody(row, w.id) };
     else {
       ctx.db.run(`DELETE FROM events_delivery WHERE id = ?`, d.id);
-      return { delivery: deliveryOut({ ...d, state: "failed", next_attempt_at: null, last_error: "The event can no longer be read." }) };
+      return {
+        delivery: deliveryOut({
+          ...d,
+          state: "failed",
+          next_attempt_at: null,
+          last_error: "The event can no longer be read.",
+        }),
+      };
     }
   }
   return { delivery: deliveryOut(await attempt(ctx, w, d, true)) };

@@ -16,7 +16,12 @@ const live = async (h: Harness, filter?: unknown): Promise<string> => {
   const id = (
     await h.call(
       "automations.create",
-      create({ definition: goodDefinition({ triggers: [{ key: "record_change", ...(filter ? { filter } : {}) }], nodes: [step] }) }),
+      create({
+        definition: goodDefinition({
+          triggers: [{ key: "record_change", ...(filter ? { filter } : {}) }],
+          nodes: [step],
+        }),
+      }),
       alice,
     )
   ).automation.id as string;
@@ -36,7 +41,10 @@ const ev = (id: string, recordId: string, type = "record.updated"): LoggedEvent 
 });
 const fired = async (h: Harness, e: LoggedEvent) => {
   const out = await h.consumer(engine, (ctx) => consumeEvent(ctx, e));
-  return out.map((o) => ({ ...o, payload: "runId" in o.result ? findRunLink(h.db as never, o.result.runId)?.payload : undefined }));
+  return out.map((o) => ({
+    ...o,
+    payload: "runId" in o.result ? findRunLink(h.db as never, o.result.runId)?.payload : undefined,
+  }));
 };
 
 test("the trigger carries the fields the Automation's person may see and a record they may not see starts nothing", async () => {
@@ -49,7 +57,11 @@ test("the trigger carries the fields the Automation's person may see and a recor
   assert.deepEqual(p.changed, { name: "Ada B" });
   assert.deepEqual(p.fields, ["name"]);
   assert.ok(!JSON.stringify(p).includes("ada-"), "no email, new or old");
-  assert.deepEqual(await fired(h, ev("evt_2", "rec_none")), [], "a record the person cannot see starts nothing, and nothing is reported");
+  assert.deepEqual(
+    await fired(h, ev("evt_2", "rec_none")),
+    [],
+    "a record the person cannot see starts nothing, and nothing is reported",
+  );
 });
 
 test("a filter on a field the person cannot see matches nothing, and a filter on one they can see matches", async () => {
@@ -151,7 +163,15 @@ test("what an old Run kept is cut again when test_events shows it, and a test or
     version: 1,
     trigger: "record_change",
     test: false,
-    payload: { record: { name: "Ada", email: "old@example.com" }, recordId: "rec_1", type: "contact", op: "updated", fields: ["name", "email"], changed: { email: "old@example.com" }, version: 1 },
+    payload: {
+      record: { name: "Ada", email: "old@example.com" },
+      recordId: "rec_1",
+      type: "contact",
+      op: "updated",
+      fields: ["name", "email"],
+      changed: { email: "old@example.com" },
+      version: 1,
+    },
     depth: 0,
     principal: { kind: "person", id: alice.id },
     startedAt: 1,
@@ -162,7 +182,15 @@ test("what an old Run kept is cut again when test_events shows it, and a test or
     version: 1,
     trigger: "record_change",
     test: false,
-    payload: { record: { name: "Zed" }, recordId: "rec_none", type: "contact", op: "updated", fields: ["name"], changed: {}, version: 1 },
+    payload: {
+      record: { name: "Zed" },
+      recordId: "rec_none",
+      type: "contact",
+      op: "updated",
+      fields: ["name"],
+      changed: {},
+      version: 1,
+    },
     depth: 0,
     principal: { kind: "person", id: alice.id },
     startedAt: 2,
@@ -173,6 +201,13 @@ test("what an old Run kept is cut again when test_events shows it, and a test or
   assert.deepEqual(te.events[0].payload.fields, ["name"]);
   assert.deepEqual(te.events[0].payload.changed, {});
   assert.ok(!JSON.stringify(te).includes("old@example.com"));
-  const r = await h.call("automations.test", { automationId: id, eventRunId: "run_old00000000000000000000000001" }, alice);
-  assert.ok(!JSON.stringify(findRunLink(h.db as never, r.runId)!.payload).includes("old@example.com"), "a test starts from the cut payload");
+  const r = await h.call(
+    "automations.test",
+    { automationId: id, eventRunId: "run_old00000000000000000000000001" },
+    alice,
+  );
+  assert.ok(
+    !JSON.stringify(findRunLink(h.db as never, r.runId)!.payload).includes("old@example.com"),
+    "a test starts from the cut payload",
+  );
 });

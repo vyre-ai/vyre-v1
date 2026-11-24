@@ -20,9 +20,13 @@ function world(o: { hides: boolean; stepHolds: boolean; triggerHolds: boolean })
   db.prepare(`INSERT INTO automations_defs VALUES ('aut_1', 'usr_m', ?, NULL)`).run(
     JSON.stringify({ triggers: [{ key: "record_change" }] }),
   );
-  db.prepare(`INSERT INTO automations_defs VALUES ('aut_2', 'usr_m', ?, NULL)`).run(JSON.stringify({ triggers: [{ key: "manual" }] }));
+  db.prepare(`INSERT INTO automations_defs VALUES ('aut_2', 'usr_m', ?, NULL)`).run(
+    JSON.stringify({ triggers: [{ key: "manual" }] }),
+  );
   if (o.hides)
-    db.prepare(`INSERT INTO access_grants VALUES ('g1', 'usr_m', ?, NULL)`).run(JSON.stringify({ hiddenFields: ["email"] }));
+    db.prepare(`INSERT INTO access_grants VALUES ('g1', 'usr_m', ?, NULL)`).run(
+      JSON.stringify({ hiddenFields: ["email"] }),
+    );
   db.prepare(`INSERT INTO automations_runs VALUES ('run_1', 'aut_1', ?)`).run(
     JSON.stringify({ record: o.triggerHolds ? { name: "Ada", email: HIDDEN } : { name: "Ada" }, recordId: "rec_1" }),
   );
@@ -61,10 +65,17 @@ test("a short hidden value is not searched in the steps, so a hidden `5` does no
     CREATE TABLE automations_runs (run_id TEXT PRIMARY KEY, automation_id TEXT, payload TEXT);
     CREATE TABLE runs_steps (run_id TEXT, step TEXT, input_json TEXT, output_json TEXT);
     CREATE TABLE access_grants (id TEXT PRIMARY KEY, subjectId TEXT, conditions TEXT, deleted_at INTEGER);`);
-  db.prepare(`INSERT INTO automations_defs VALUES ('aut_1', 'usr_m', ?, NULL)`).run(JSON.stringify({ triggers: [{ key: "record_change" }] }));
-  db.prepare(`INSERT INTO access_grants VALUES ('g1', 'usr_m', ?, NULL)`).run(JSON.stringify({ hiddenFields: ["age"] }));
-  db.prepare(`INSERT INTO automations_runs VALUES ('run_1', 'aut_1', ?)`).run(JSON.stringify({ record: { name: "Ada", age: 5 }, recordId: "rec_1" }));
-  for (const step of ["a", "b", "c"]) db.prepare(`INSERT INTO runs_steps VALUES ('run_1', ?, ?, ?)`).run(step, JSON.stringify({ n: 15, m: 5 }), "{}");
+  db.prepare(`INSERT INTO automations_defs VALUES ('aut_1', 'usr_m', ?, NULL)`).run(
+    JSON.stringify({ triggers: [{ key: "record_change" }] }),
+  );
+  db.prepare(`INSERT INTO access_grants VALUES ('g1', 'usr_m', ?, NULL)`).run(
+    JSON.stringify({ hiddenFields: ["age"] }),
+  );
+  db.prepare(`INSERT INTO automations_runs VALUES ('run_1', 'aut_1', ?)`).run(
+    JSON.stringify({ record: { name: "Ada", age: 5 }, recordId: "rec_1" }),
+  );
+  for (const step of ["a", "b", "c"])
+    db.prepare(`INSERT INTO runs_steps VALUES ('run_1', ?, ?, ?)`).run(step, JSON.stringify({ n: 15, m: 5 }), "{}");
   db.close();
   const f = hiddenRunDataFinding(file);
   assert.equal(f.state, "degraded", "the kept trigger does hold the hidden field");
