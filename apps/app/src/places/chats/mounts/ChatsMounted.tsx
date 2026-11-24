@@ -138,6 +138,8 @@ export interface ChatsMountedProps {
   rt: ShellRuntime;
   /** The link another place opened this one with: `screen=chats.agent-page&agentId=...`. */
   hash?: string;
+  /** The hub's count of moves of the address (HubState.moves): a move away and back to the same address still reaches the page. */
+  moves?: number;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -167,6 +169,7 @@ export interface ChatsMountedProps {
 export function ChatsMounted({
   rt,
   hash = "",
+  moves = 0,
   initial,
   window,
   opened,
@@ -274,8 +277,14 @@ export function ChatsMounted({
   const routeFrom = useRef<string | null>(null);
   const hashNow = useRef(hash);
   hashNow.current = hash;
+  const movesSeen = useRef(moves);
   useEffect(() => {
-    if (hash === linked.current) return;
+    // A move of the address the page did not see as a change (it left the address and came back to the same one before the page was drawn for the gap: Move to Trash on an agent's page, then a link
+    // to that agent's page) still takes the page: the hub counts every move (agent-delete.keyboard, 24 Nov 2026). The page was left on "new" and the link was lost, with no effect to run.
+    const moved = moves !== movesSeen.current;
+    movesSeen.current = moves;
+    if (hash === linked.current && !(moved && fromHash(hash).layer === null && fromHash(hash).terminalId === null))
+      return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
@@ -286,7 +295,7 @@ export function ChatsMounted({
       return next;
     });
     forgetLayerLink(hash);
-  }, [hash]);
+  }, [hash, moves]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
   // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
   const forgetLayerLink = (h: string): void => {

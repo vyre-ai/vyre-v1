@@ -28,6 +28,8 @@ export function useHubState(hub: ShellHub): HubState {
 export interface ShownLocation {
   place: string;
   hash: string;
+  /** The hub's count of moves of the address when this was drawn (see HubState.moves). */
+  moves?: number;
 }
 const ShownContext = createContext<ShownLocation | null>(null);
 
@@ -35,9 +37,10 @@ const ShownContext = createContext<ShownLocation | null>(null);
 export function ShownLocationProvider({
   place,
   hash,
+  moves,
   children,
 }: ShownLocation & { children?: ReactNode }): ReactElement {
-  const value = useMemo(() => ({ place, hash }), [place, hash]);
+  const value = useMemo(() => ({ place, hash, ...(moves === undefined ? {} : { moves }) }), [place, hash, moves]);
   return <ShownContext.Provider value={value}>{children}</ShownContext.Provider>;
 }
 

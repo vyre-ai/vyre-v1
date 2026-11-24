@@ -1,0 +1,1 @@
+- A link to a page the person just left (a link to an agent's page right after Move to Trash on it) now reaches the Chats page: the shell counts every move of the address and the page takes the address on any move, so the in-Trash line shows instead of the start page.
