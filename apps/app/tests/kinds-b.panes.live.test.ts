@@ -159,6 +159,8 @@ test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async
 
     // 3. the same links at 760 wide, where one panel fits
     const narrow = await owner.newPage();
+    const fsx = await import("node:fs");
+    narrow.on("console", (m) => { if (m.text().startsWith("DBG")) fsx.appendFileSync(process.env["VYRE_TRACE_FILE"] ?? "/tmp/kbtrace.txt", m.text() + "\n"); });
     await narrow.setViewportSize({ width: 760, height: 900 });
     narrow.on("pageerror", (e) => errs.push(e.message));
     await narrow.goto(`${web.origin}/chat#subject=thread:${agentChat}`, { waitUntil: "load" });
@@ -184,6 +186,7 @@ test("kinds-b: pane subject per chat kind, no cut text, one panel at 760", async
     for (const id of ids.slice(0, 12)) {
       const row = narrow.locator(`[data-testid="${id}"]:visible`).first();
       if (!(await row.isVisible().catch(() => false))) continue; // the list re-sorts after a visit; a row that moved is not a dead link
+      fsx.appendFileSync(process.env["VYRE_TRACE_FILE"] ?? "/tmp/kbtrace.txt", "ROW " + id + " click\n");
       await row.click();
       await narrow.getByTestId("sidebar-back").waitFor({ timeout: 10_000 }); // the item is shown: the way back to the list is on screen
       await narrow.getByTestId("sidebar-back").click();

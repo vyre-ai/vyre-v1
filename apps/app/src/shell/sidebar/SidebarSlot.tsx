@@ -171,6 +171,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       pressPending.current = false;
       backedWhilePending.current = false;
     }
+    console.warn("DBG " + Math.round(performance.now()) + " effect hash=" + String(p.hash).slice(-14) + " hashChanged=" + hashChanged + " reported=" + reported + " linked=" + linked + " reports=" + (p.reports ?? 0) + " backedAt=" + backedAt.current + " pend=" + pressPending.current + " backedPend=" + backedWhilePending.current + " inputsSame=" + (inputsSoFar() === backedInputs.current) + " ownAddr=" + ownAddress + " echo=" + echo + " opens=" + hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo }));
     if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo })) setBodyOpen(true);
   }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
@@ -193,11 +194,13 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       hasSidebar,
       compact: p.compact,
       openBody: () => {
+        console.warn("DBG " + Math.round(performance.now()) + " openBody live=" + (liveReports.current?.() ?? -1));
         pressPending.current = true;
         backedWhilePending.current = false;
         setBodyOpen(true);
       },
       back: () => {
+        console.warn("DBG " + Math.round(performance.now()) + " back live=" + (liveReports.current?.() ?? -1) + " pend=" + pressPending.current);
         backedAt.current = liveReports.current?.() ?? -1;
         backedWhilePending.current = pressPending.current;
         backedInputs.current = inputsSoFar();
