@@ -16,4 +16,6 @@ export const NEXT = {
   logs: "Read them with vyre logs --level error.",
   recordEvents:
     "The records are safe in the Space, but search, sync and Run undo do not see them. Report the count to support.",
+  hiddenRunData:
+    "Runs made before this release kept the record's fields in their history, among them fields the person's access hides. Nothing is changed by this check. Report the counts to support before anyone clears the history.",
 } as const;
