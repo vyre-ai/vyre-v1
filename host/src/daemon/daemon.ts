@@ -353,7 +353,8 @@ import {
   ownPlaceGrant,
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
-import { replayAnnouncements } from "./record-announce.ts";
+import { randomBytes } from "node:crypto";
+import { announcementSeed, announcementSpec, replayAnnouncements } from "./record-announce.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -4242,7 +4243,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         announceSweep = replayAnnouncements({
           spaceDb: spaceStorePath(paths.root),
           eventsDb: paths.events,
-          append: (e) => log!.append(e),
+          commit: (p) =>
+            invoke.commitEvents!(
+              "records.bulk_upsert",
+              { type: p.type },
+              announcementSeed(p, spaceId, randomBytes(8).toString("hex")) as never,
+              [announcementSpec(p) as never],
+            ),
           say: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "boot", attrs }),
         })
           .then((made) => {

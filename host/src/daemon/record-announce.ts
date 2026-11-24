@@ -5,7 +5,6 @@
 import fs from "node:fs";
 import { openDb } from "./sqlite.ts";
 import { recordEventIds } from "./doctor.ts";
-import type { NewEvent } from "../../../kernel/src/log/types.ts";
 
 export interface PendingAnnouncement {
   id: string;
@@ -72,39 +71,54 @@ export function pendingAnnouncements(spaceDb: string, eventsDb: string): Pending
   return out;
 }
 
-/** The event the call would have committed: the same type, subject and payload bytes records.bulk_upsert and records.create give it. The id is fixed by the record, so making it twice writes it once. */
-export function announcementEvent(p: PendingAnnouncement): NewEvent {
+/** The event the call would have committed: the same type, subject and payload records.bulk_upsert and records.create give it. The id is fixed by the record, so making it twice writes it once. */
+export function announcementSpec(p: PendingAnnouncement): { name: "record.created"; subject: string; payload: unknown; id: string } {
   return {
+    name: "record.created",
+    subject: `record/${p.id}`,
     id: `evt_${p.id.replace(/^rec_/, "a")}`,
-    type: "record.created",
-    sv: 1,
-    trace_id: p.traceId,
-    actor: p.actor,
-    ...(p.onBehalf ? { on_behalf: p.onBehalf } : {}),
-    ...(p.runId ? { run_id: p.runId } : {}),
-    origin: "hook",
-    depth: 0,
-    entity: "record",
-    entity_id: p.id,
-    label: 0,
-    vis: "space",
-    enc: 0,
     payload: { recordId: p.id, type: p.type, fields: { ...p.data }, ...(p.quiet ? { quiet: true } : {}) },
-  } as NewEvent;
+  };
+}
+
+/** Who the call ran as, for the pipeline: the actor, whom it acted for, its Run and trace. The resource it registers is owned as the call would have owned it. */
+export function announcementSeed(
+  p: PendingAnnouncement,
+  space: string,
+  spanId: string,
+): {
+  space: string;
+  principal: { kind: "person" | "agent" | "service"; id: string };
+  actingFor?: string;
+  run?: string;
+  trace: { traceId: string; spanId: string };
+  preAuth: true;
+  origin: string;
+} {
+  return {
+    space,
+    principal: { kind: p.actor.startsWith("agt_") ? "agent" : p.actor.startsWith("svc_") ? "service" : "person", id: p.actor },
+    ...(p.onBehalf ? { actingFor: p.onBehalf } : {}),
+    ...(p.runId ? { run: p.runId } : {}),
+    trace: { traceId: p.traceId, spanId },
+    preAuth: true,
+    origin: p.actor.startsWith("agt_") ? `agent:${p.actor}` : "user",
+  };
 }
 
 /** Make the missing announcements, in the order the records were made. Answers how many it made. */
 export async function replayAnnouncements(a: {
   spaceDb: string;
   eventsDb: string;
-  append: (e: NewEvent) => Promise<unknown>;
+  /** Commit the announcement through the pipeline (invoke.commitEvents), so the record is registered as a resource as the call would have registered it. */
+  commit: (p: PendingAnnouncement) => Promise<unknown>;
   say?: (msg: string, attrs: Record<string, unknown>) => void;
 }): Promise<number> {
   const pending = pendingAnnouncements(a.spaceDb, a.eventsDb);
   let made = 0;
   for (const p of pending) {
     try {
-      await a.append(announcementEvent(p));
+      await a.commit(p);
       made++;
     } catch (e) {
       a.say?.("records.announce_failed", { id: p.id, error: e instanceof Error ? e.message : String(e) });

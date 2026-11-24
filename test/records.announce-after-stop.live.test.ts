@@ -34,7 +34,7 @@ test("a stop between the records and their announcement is repaired at the next 
     const block = new DatabaseSync(d.paths.events);
     block.exec("PRAGMA busy_timeout = 5000");
     block.exec(
-      "CREATE TRIGGER stop_between BEFORE INSERT ON events WHEN json_extract(NEW.event, '$.type') = 'record.created' BEGIN SELECT RAISE(ABORT, 'stopped between the two writes'); END",
+      "CREATE TRIGGER stop_between BEFORE INSERT ON events WHEN json_extract(NEW.event, '$.type') = 'record.created' AND json_extract(NEW.event, '$.entity') = 'record' BEGIN SELECT RAISE(ABORT, 'stopped between the two writes'); END",
     );
     const rows = Array.from({ length: 5 }, (_, i) => ({ name: `Stopped Person ${i}`, email: `s${i}@x.test` }));
     const failed = await call(d, "records.bulk_upsert", { type: "contact", match: ["email"], rows, createOnly: true, idempotencyKey: "stop1" });
@@ -42,7 +42,10 @@ test("a stop between the records and their announcement is repaired at the next 
     block.exec("DROP TRIGGER stop_between");
     block.close();
     const before = await cap(d, "records.query", { type: "contact", limit: 50 });
-    assert.equal(before.rows.filter((r: any) => /^Stopped Person/.test(String((r.fields ?? r.data).name))).length, 5, "the records were written");
+    const sp = new DatabaseSync(`${dir}/space.db`, { readOnly: true });
+    assert.equal(Number((sp.prepare("SELECT count(*) AS c FROM rt_contact").get() as { c: number }).c), 6, "the five records were written to the record store");
+    sp.close();
+    assert.equal(before.rows.length, 1, "and none of them can be seen: they were never registered as resources");
     const dirSpace = `${dir}/space.db`;
     const finding = recordEventsFinding(dirSpace, d.paths.events);
     assert.equal(finding.state, "degraded", "the doctor sees five records without their announcement");
@@ -63,6 +66,8 @@ test("a stop between the records and their announcement is repaired at the next 
       assert.match(e.trace, /^[0-9a-f]{32}$/);
     }
     assert.equal(recordEventsFinding(`${dir}/space.db`, d.paths.events).state, "healthy", "the doctor is clean");
+    const after = await cap(d, "records.query", { type: "contact", limit: 50 });
+    assert.equal(after.rows.length, 6, "all six are visible after the restart: the resources were registered too");
     // undoable: the Run undo rule reads the announcement and names the delete
     const one = stopped[0]!;
     const undo = (RULES["record.created"] as (e: unknown) => any)({ seq: 1, id: one.id, type: "record.created", at: 1, subject: { type: "record", id: one.payload.recordId }, payload: one.payload });
