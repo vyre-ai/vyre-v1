@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, isOwnEcho, step, takesAddress } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -295,4 +295,15 @@ test("the page takes a changed address, and a same address only when one came fr
   // a changed hash is a link, unless the page already took that very one
   assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false }), true);
   assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true }), false);
+});
+
+test("the page's own report coming back is not a link: a changed address that arrives with the page's own reports and no link keeps what a later press opened; a Back or a tab switch (no own report) still applies", () => {
+  assert.equal(isOwnEcho({ hashChanged: true, reportsSince: 1, linksSince: 0 }), true, "the place's own report");
+  assert.equal(isOwnEcho({ hashChanged: true, reportsSince: 1, linksSince: 1 }), false, "a link came with it");
+  assert.equal(
+    isOwnEcho({ hashChanged: true, reportsSince: 0, linksSince: 0 }),
+    false,
+    "a Back, a tab switch: not the page's report",
+  );
+  assert.equal(isOwnEcho({ hashChanged: false, reportsSince: 1, linksSince: 0 }), false, "no change of address");
 });

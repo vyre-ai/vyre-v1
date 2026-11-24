@@ -58,6 +58,7 @@ function ChatsLinked({
       rt={rt}
       hash={at.hash}
       {...(at.links === undefined ? {} : { links: at.links })}
+      {...(at.reports === undefined ? {} : { reports: at.reports })}
       opened={opened}
       onSwitch={hub.hold}
       onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}

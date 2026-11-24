@@ -353,6 +353,15 @@ export function askAbout(v: string): { type: string; id: string } | null {
  * was last drawn (a link, a pasted address, a goto: HubState.links) and the address is a page, not a layer or a terminal. The page's own reports and a click inside it are never links, however many
  * times the address moves, so the page's own state wins over them.
  */
+/**
+ * Is a change of address the page's own report coming back? The place writes the address of what it shows (its report), and the shell draws it a frame or more later; by then the person may have
+ * pressed something else (the press opens a thread beside the chat and moves the route on), and applying the old report as if it were a link took the new state away (agent-delete walks: the thread
+ * that a press had just opened beside the chat was closed again ~10 ms later). A change that arrives with the page's own reports and no link is not a link.
+ */
+export function isOwnEcho(o: { hashChanged: boolean; reportsSince: number; linksSince: number }): boolean {
+  return o.hashChanged && o.reportsSince > 0 && o.linksSince === 0;
+}
+
 export function takesAddress(o: {
   hashChanged: boolean;
   alreadyTook: boolean;
