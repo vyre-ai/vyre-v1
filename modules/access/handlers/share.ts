@@ -45,6 +45,7 @@ import {
 } from "../projections.ts";
 import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { turns } from "../../../lib/yield-loop.ts";
 
 export type Via = "owner" | "grant" | "folder" | "space";
 export type Section = "personal" | "shared" | "space" | "starred" | "following";
@@ -157,7 +158,7 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0 };
+export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0 };
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -624,17 +625,24 @@ function computeRows(
   return next;
 }
 
-/** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
-function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
-  // the rows are worked out as a handler's own store always worked them out: without the role grants the host's decisions add to a kept snapshot (what a reader did before this call must not change them)
-  let snap = store.snapshot();
-  if (hasRoleGrants(snap)) snap = store.buildSnapshot();
-  const now = ctx.now();
-  const people = [...store.principals.values()]
-    .filter((p) => p.kind === "person" && p.status === "active")
-    .map((p) => p.id);
-  const scope = roots === "all" ? null : descendants(store, roots);
-  const next = computeRows(ss, store, snap, people, scope, now);
+/** The snapshot rows are worked out against: without the role grants the host's decisions add to a kept snapshot (what a reader did before this call must not change them). */
+function snapshotForRows(store: AccessStore): AccessSnapshot {
+  const snap = store.snapshot();
+  return hasRoleGrants(snap) ? store.buildSnapshot() : snap;
+}
+const activePeople = (store: AccessStore): string[] =>
+  [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+
+/** Put `next` (the rows worked out for `scope`) into the cache in memory, and say which rows to delete from and write to the table. Writes nothing to the table. */
+function applyRows(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+  next: Map<string, AccessRow>,
+  now: number,
+): { gone: AccessRow[]; touched: AccessRow[] } {
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
   const dropIfGone = (key: string): void => {
@@ -672,31 +680,161 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
       if (t !== undefined && t > now && t < until) until = t;
   }
   ss.until = until;
+  return { gone, touched };
+}
+
+const deleteRow = (ctx: AccessCtx, g: AccessRow): void =>
+  void ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
+const insertRow = (ctx: AccessCtx, r: AccessRow): void =>
+  void ctx.db.run(
+    "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
+    accessId(r.person, r.type, r.id),
+    r.person,
+    r.type,
+    r.id,
+    r.level,
+    r.via,
+    1,
+    ctx.now(),
+  );
+/** The cache could not be written: it is not trusted and the kept copy goes. */
+function writeFailed(ctx: AccessCtx, ss: ShareStore, e: unknown): never {
+  ss.fresh = -1;
+  const raw = rawDbOf(ctx.db);
+  if (raw) KEPT.delete(raw);
+  throw e;
+}
+
+/** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
+function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
+  const snap = snapshotForRows(store);
+  const now = ctx.now();
+  const scope = roots === "all" ? null : descendants(store, roots);
+  const next = computeRows(ss, store, snap, activePeople(store), scope, now);
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
   try {
     // the rows of one rebuild are one transaction: each statement was a commit of its own, and a change to a hundred files (an export of a connector) paid for a few hundred commits, each dearer on a bigger database
     const write = (): void => {
-      for (const g of gone) ctx.db.run("DELETE FROM access_my_access WHERE id = ?", accessId(g.person, g.type, g.id));
-      for (const r of touched) {
-        ctx.db.run(
-          "INSERT OR REPLACE INTO access_my_access (id,person,resourceType,resourceId,level,via,version,updated_at) VALUES (?,?,?,?,?,?,?,?)",
-          accessId(r.person, r.type, r.id),
-          r.person,
-          r.type,
-          r.id,
-          r.level,
-          r.via,
-          1,
-          ctx.now(),
-        );
-      }
+      for (const g of gone) deleteRow(ctx, g);
+      for (const r of touched) insertRow(ctx, r);
     };
     if (ctx.db.batch) ctx.db.batch(write);
     else write();
   } catch (e) {
-    ss.fresh = -1;
-    const raw = rawDbOf(ctx.db);
-    if (raw) KEPT.delete(raw);
-    throw e;
+    writeFailed(ctx, ss, e);
+  }
+}
+
+// ---- the first build of a big view, in slices ----
+//
+// A reader that finds the cache stale for the whole Space (the first list after a start, or after a sync that moved the view on) worked every row out and wrote every row in one go: a Space of 50,000 records held
+// the server for a second (24 Nov 2026, found timing a 50,000-row export). `settleView` does the same work in slices with a turn for other requests between. Nobody sees a half-built view: the rows are worked out
+// into a map of their own, the cache the caller holds is private to the call until `publish`, and a reader that finds a build under way waits for it and then takes what it kept. A table written in slices is only ever
+// read back as the base of a diff (the cache loaded from it is never trusted as current), so a build that stops half way costs the next reader a longer diff and nothing else.
+
+/** Views smaller than this (resources times people) are built in one go: slicing them costs more than it saves. */
+const SLICE_FROM = 4000;
+/** Rows written to the table per transaction when a view is written in slices. */
+const WRITE_SLICE = 1500;
+const BUILDING = new WeakMap<object, Promise<void>>();
+
+async function computeRowsAsync(
+  ss: ShareStore,
+  store: AccessStore,
+  snap: AccessSnapshot,
+  people: readonly string[],
+  scope: Set<string> | null,
+  now: number,
+  turn: () => Promise<void>,
+): Promise<Map<string, AccessRow>> {
+  const next = new Map<string, AccessRow>();
+  for (const res of store.resources.values()) {
+    if (scope && !scope.has(res.id)) continue;
+    for (const person of people) {
+      const row = rowFor(ss, store, snap, person, res, now);
+      if (row) next.set(ak(person, row.type, row.id), row);
+    }
+    await turn();
+  }
+  return next;
+}
+
+async function buildSliced(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+): Promise<void> {
+  shareKept.sliced++;
+  const turn = turns();
+  const snap = snapshotForRows(store);
+  const now = ctx.now();
+  const folders0 = stateOf(ctx.db)?.folders;
+  const next = await computeRowsAsync(ss, store, snap, activePeople(store), scope, now, turn);
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
+  ss.pending = [];
+  // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
+  let clean = true;
+  let seen = stateOf(ctx.db)?.rows;
+  const slice = (f: () => void): void => {
+    if (stateOf(ctx.db)?.rows !== seen) clean = false;
+    if (ctx.db.batch) ctx.db.batch(f);
+    else f();
+    seen = stateOf(ctx.db)?.rows;
+  };
+  try {
+    for (let i = 0; i < gone.length; i += WRITE_SLICE) {
+      slice(() => {
+        for (const g of gone.slice(i, i + WRITE_SLICE)) deleteRow(ctx, g);
+      });
+      await turn();
+    }
+    for (let i = 0; i < touched.length; i += WRITE_SLICE) {
+      slice(() => {
+        for (const r of touched.slice(i, i + WRITE_SLICE)) insertRow(ctx, r);
+      });
+      await turn();
+    }
+  } catch (e) {
+    writeFailed(ctx, ss, e);
+  }
+  if (clean && stateOf(ctx.db)?.folders === folders0 && ss.fresh === store.epoch) publish(ctx, store, ss);
+}
+
+/**
+ * Called first by a reader that is about to ask for the whole view (access.lists, folders.list). When the cache is stale for the whole Space and the Space is big, build it here in slices (or wait for the build
+ * that is under way) so the sync path that follows finds it fresh. Anything else (a small Space, a cache that only needs a few resources worked out again, a writer) is left to that sync path as before.
+ */
+export async function settleView(ctx: AccessCtx): Promise<void> {
+  if (!isReader(ctx)) return;
+  const raw = rawDbOf(ctx.db);
+  if (!raw) return;
+  for (let tries = 0; tries < 3; tries++) {
+    const store = storeOf(ctx);
+    const ss = shareOf(ctx);
+    // stale for the whole Space (the first read after a start, or the world moved too far), or fresh but with many resources to work out again (a sync that added thousands of records): either way the same work, in slices
+    const fresh = isFresh(ctx, store, ss);
+    if (fresh && !ss.pending.length) return;
+    const roots: readonly string[] | "all" = fresh ? [...ss.pending] : "all";
+    const scope = roots === "all" ? null : descendants(store, roots);
+    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < SLICE_FROM) return;
+    const under = BUILDING.get(raw);
+    if (under) {
+      await under.catch(() => undefined);
+      dropShare(ctx.db);
+      continue;
+    }
+    const build = buildSliced(ctx, store, ss, roots, scope);
+    BUILDING.set(raw, build);
+    try {
+      await build;
+    } finally {
+      if (BUILDING.get(raw) === build) BUILDING.delete(raw);
+      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with
+      dropShare(ctx.db);
+    }
+    return;
   }
 }
 
@@ -2272,6 +2410,7 @@ function countIn(ctx: AccessCtx, store: AccessStore, ss: ShareStore, folderId: s
 }
 
 export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: "personal" | "space" }) {
+  await settleView(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   ensureFresh(ctx, store, ss);
@@ -2298,6 +2437,7 @@ export async function lists(
   ctx: ShareCtx,
   input: { type: string; section?: Section; folder?: string; cursor?: string; limit?: number },
 ) {
+  await settleView(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;

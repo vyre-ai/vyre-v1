@@ -1,0 +1,1 @@
+The first list after many records were added (a sync, a start) no longer freezes the server for a second: the rows people may see are worked out and written in slices with a turn for other requests between, and a person who asks in the middle waits for the whole view. A Space of 50,000 records holds the loop for 161 ms at most, down from 1.4 s.
