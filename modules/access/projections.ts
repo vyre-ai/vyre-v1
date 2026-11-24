@@ -1307,6 +1307,12 @@ export function dropStore(db: Db): void {
 const READERS = new WeakSet<object>();
 /** True for a call of a capability wrapped in readOnly: it never changes the access store. */
 export const isReader = (ctx: object): boolean => READERS.has(ctx);
+/** A context that reads what `ctx` writes through: the same database, and the kept read view in place of a store of its own. A writer that must wait for a view to be built asks it of this one (handlers/share.ts settleForWriter). */
+export function asReader<C extends object>(ctx: C): C {
+  const r = Object.create(ctx) as C;
+  READERS.add(r);
+  return r;
+}
 let readView: ((ctx: AccessCtx) => AccessStore | null) | null = null;
 /** consumers.ts hands over how to find the kept view of a ctx's database. */
 export function setReadView(f: (ctx: AccessCtx) => AccessStore | null): void {
