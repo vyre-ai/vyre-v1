@@ -244,6 +244,13 @@ export interface InvokeDeps {
       req: AuthReq,
       trace: string,
     ): Promise<{ finish(): unknown } | null>;
+    /** which fields of one record a reader may see (the rule records.get applies); null when they may not see it */
+    fieldGate?(
+      reader: { principal: string; actingFor?: string | undefined },
+      type: string,
+      recordId: string,
+      trace: string,
+    ): Promise<((key: string) => boolean) | null>;
   };
   /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
   madeFor?: MadeForFacts;
@@ -1613,6 +1620,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
             return false;
           }
         });
+      },
+      async recordFieldGate(person, type, recordId) {
+        return (await deps.recordAccess?.fieldGate?.({ principal: person }, type, recordId, trace.traceId)) ?? null;
       },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),

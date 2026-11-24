@@ -793,6 +793,38 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
 }
 
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
+/**
+ * What a record's event is to one Automation: the event as its owner may see it. An Automation runs for a person (its owner, or whom it runs as) and receives the record in its trigger; that person
+ * sees only the fields their grants let them see, so the filter, the trigger payload and every step read only those (a step could otherwise write a hidden value where the person can read it, and a filter on
+ * a hidden field would tell them its value). A record the person may not see at all starts nothing, and nothing says that it exists. A deletion cannot be judged (the record is gone): it starts the Automation
+ * with no values. The host's field rule answers (ctx.recordFieldGate); a hand-built ctx without it keeps the event whole.
+ */
+async function eventForOwner(
+  ctx: AutoCtx,
+  a: Automation,
+  ev: LoggedEvent,
+  gates: Map<string, ((field: string) => boolean) | null>,
+): Promise<LoggedEvent | null> {
+  const op = recordOp(ev.type);
+  const p = ev.payload as { recordId?: unknown; type?: unknown; fields?: unknown; prev?: unknown };
+  if (op === undefined || !ctx.recordFieldGate || typeof p.recordId !== "string" || typeof p.type !== "string")
+    return ev;
+  const person = a.runsAs ?? a.ownerId;
+  const key = `${person}\u0000${p.type}\u0000${p.recordId}`;
+  let gate = gates.get(key);
+  if (gate === undefined) {
+    gate = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+    gates.set(key, gate);
+  }
+  if (gate === null && op !== "deleted") return null;
+  const keep = gate ?? (() => false);
+  const cut = (v: unknown): unknown =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => keep(f)))
+      : v;
+  return { ...ev, payload: { ...ev.payload, ...("fields" in p ? { fields: cut(p.fields) } : {}), ...("prev" in p ? { prev: cut(p.prev) } : {}) } };
+}
+
 export async function consumeEvent(
   ctx: AutoCtx,
   ev: LoggedEvent,
@@ -803,9 +835,13 @@ export async function consumeEvent(
   // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
   if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
+  const gates = new Map<string, ((field: string) => boolean) | null>();
   for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
+    // the event as this Automation's person may see it; a record they may not see starts nothing (and is not reported: that would say it exists)
+    const seen = a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev;
+    if (seen === null) continue;
     for (const ref of a.definition.triggers) {
-      const m = matches(ref, ev);
+      const m = matches(ref, ref.key === "record_change" ? seen : ev);
       if (m === false) continue;
       if (m === "filter_error") {
         out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
@@ -825,7 +861,7 @@ export async function consumeEvent(
       const f: Firing = {
         trigger: ref.key,
         eventId: ev.id,
-        payload: triggerPayload(ref.key, ev),
+        payload: triggerPayload(ref.key, ref.key === "record_change" ? seen : ev),
         origin: ev.origin,
         depth: ev.depth ?? 0,
         key: `fire:${a.id}:${ev.id}:${ref.key}`,

@@ -245,29 +245,52 @@ export function createRecordAccess(ports: {
       );
     });
   }
-  function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
+  /** The rule for which fields of a record a reader sees: not hidden by the grant, labelled, and within the label ceiling of the grant, the reader's provider and the type. Null when the reader may not see the record. */
+  function gateOf(seed: ReadSeed, row: StoredRecord): ((key: string) => boolean) | null {
     const result = decision(seed, row);
-    if (!result) throw fail("permission.no_grant", trace);
+    if (!result) return null;
     const snapshot = ports.snapshot(),
       hidden = new Set(result.scope?.hiddenFields ?? []);
     let ceiling = result.scope?.labelCeiling ?? -1;
     if (seed.provider)
       for (const policy of snapshot.policies())
         if (policy.kind === "provider_label") ceiling = Math.min(ceiling, providerMax(policy, seed.provider));
+    return (key) =>
+      !hidden.has(key) &&
+      seed.labels?.[key] !== undefined &&
+      seed.labels[key] <= ceiling &&
+      snapshot.fieldLabel(row.type, key) <= ceiling &&
+      snapshot.fieldLabel("record", key) <= ceiling;
+  }
+  function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
+    const gate = gateOf(seed, row);
+    if (!gate) throw fail("permission.no_grant", trace);
     return Object.fromEntries(
       Object.entries(original)
-        .filter(
-          ([key]) =>
-            !hidden.has(key) &&
-            seed.labels?.[key] !== undefined &&
-            seed.labels[key] <= ceiling &&
-            snapshot.fieldLabel(row.type, key) <= ceiling &&
-            snapshot.fieldLabel("record", key) <= ceiling,
-        )
+        .filter(([key]) => gate(key))
         .map(([key, value]) => [key, seeable(seed, value)]),
     );
   }
   return {
+    /**
+     * Which fields of one record a reader may see, as a test on a field name (the rule `records.get` applies, kept in one place: gateOf). Null when the reader may not see the record, or it is gone. For the readers
+     * that show what a record's events carried (the event log, a run, a notification): the values a grant hides are not in what they show.
+     */
+    async fieldGate(
+      reader: { principal: string; actingFor?: string | undefined },
+      type: string,
+      recordId: string,
+      trace: string,
+    ): Promise<((key: string) => boolean) | null> {
+      const row = await ports.store().get(type, recordId);
+      if (!row) return null;
+      const seed = {
+        principal: { id: reader.principal },
+        actingFor: reader.actingFor,
+        labels: await recordSensitivity(ports.store(), type, trace),
+      } as unknown as ReadSeed;
+      return gateOf(seed, row);
+    },
     async collection(
       cap: string,
       input: unknown,

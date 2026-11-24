@@ -4585,6 +4585,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
       connectorTables = { all: (sql: string, ...a: unknown[]) => spaceStore.open().tx.all(sql, ...a) };
       closers.push(() => spaceStore.close());
+      // the field rule of `records.get`, for the readers that show what a record's events carried (the event log)
+      const eventRecordAccess = createRecordAccess({
+        store: () => spaceStore.open().store,
+        snapshot: () => access.snap,
+        now,
+        fresh: () => !accessStale,
+      });
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
       // authorizes against its connector, and without this every built-in connector answered "not found" to everyone. A connector someone writes becomes a resource when it is created
@@ -6438,6 +6445,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               owner: () => access.owner() ?? cfg.owner ?? null,
               now,
               subjects: (name) => eventSubjects.get(name),
+              fieldGate: (c, type, id) =>
+                eventRecordAccess.fieldGate({ principal: c.principal, actingFor: c.actingFor }, type, id, "events"),
               // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
               moduleView: async (person, type, id) => {
                 if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;
