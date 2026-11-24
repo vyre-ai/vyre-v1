@@ -1,1 +1,1 @@
-The signer's Sign button follows the name and the tick that are in the card, also when the browser filled or restored them without the page seeing a change: the page reads its controls once its listeners are on and again whenever it is shown.
+The signer's page never takes consent from the checkbox the browser shows: a restored tick is cleared on load and whenever the page is shown again, the checkbox is marked not to be restored, and Sign waits for the person's own tick. A name the browser filled is kept.

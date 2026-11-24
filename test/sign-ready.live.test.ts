@@ -1,11 +1,11 @@
-// The signer's Sign button follows what is in the card, not only the events the page saw (24 Nov 2026: in one CI run the button stayed disabled for 30 s on a page whose name and consent were set).
-// A browser can restore or autofill a form without the page seeing a change event: the page reads its controls again when it is shown, and the button is enabled for a name and a consent that are there.
+// Consent to sign is a click in this view (24 Nov 2026). A browser can restore or autofill a form: the name it puts in the box is the signer's to see and is used, but a tick it restores is never taken as
+// the signer's consent. The page clears it on load and whenever it is shown again, and Sign waits for the person's own tick (a real click, like the walks of sign-send and sign-phone).
 // Needs VYRE_APP_DIST and Chromium (with VYRE_REQUIRE_CHROME=1 a missing one fails).
 import test from "node:test";
 import assert from "node:assert/strict";
 import { linkOf, openSpace } from "./sign-kit.test.ts";
 
-test("sign: a card whose name and consent were set without an event has an enabled Sign button once the page is shown", async (t) => {
+test("sign: a tick the browser restored is never consent; the name it restored is kept; Sign waits for the person's own click", async (t) => {
   const s = await openSpace(t, { width: 1440, height: 900 }, "light");
   if (!s) return;
   try {
@@ -24,14 +24,27 @@ test("sign: a card whose name and consent were set without an event has an enabl
     await me.page.goto(`${s.web.origin}${link}`, { waitUntil: "load" });
     await me.page.locator(".page canvas").first().waitFor({ timeout: 30_000 });
     assert.equal(await me.page.locator("#signbtn").isDisabled(), true, "nothing is ticked yet: Sign waits");
-    // a restored or autofilled form: the controls hold the values, the page saw no event
+    assert.equal(
+      await me.page.locator("#consent").getAttribute("autocomplete"),
+      "off",
+      "browsers do not restore the tick",
+    );
+    // a restored page: the browser put a tick in the box (no event the page saw) and a name in the field, then shows the page again
     await me.page.evaluate(() => {
       (document.getElementById("nm") as HTMLInputElement).value = "Imran Ibarra";
       (document.getElementById("consent") as HTMLInputElement).checked = true;
+      window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
     });
-    assert.equal(await me.page.locator("#signbtn").isDisabled(), true, "no event yet: the page has not looked");
-    await me.page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
+    assert.equal(await me.page.locator("#consent").isChecked(), false, "a restored tick is cleared");
+    assert.equal(await me.page.locator("#signbtn").isDisabled(), true, "a restored tick does not enable Sign");
+    // the person's own tick, a real click: now Sign is enabled for the name that is there
+    await me.page.check("#consent");
     await me.page.locator("#signbtn:not([disabled])").waitFor({ timeout: 5_000 });
+    // the page is shown again after the tick (back and forward): the tick is cleared once more, Sign waits again
+    await me.page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+    assert.equal(await me.page.locator("#consent").isChecked(), false, "the tick is the person's, in this view");
+    assert.equal(await me.page.locator("#signbtn").isDisabled(), true);
+    await me.page.check("#consent");
     await me.page.click("#signbtn");
     await me.page.getByText("Thank you, Imran").waitFor({ timeout: 30_000 });
     await me.ctx.close();

@@ -191,6 +191,7 @@ async function ready(v) {
   const consent = h("input", {
     type: "checkbox",
     id: "consent",
+    autocomplete: "off",
     onchange: (e) => {
       state.consent = e.target.checked;
       sync();
@@ -461,18 +462,24 @@ async function ready(v) {
     why.focus();
   }
 
-  // What the person (or the browser: autofill, a restored form, a fast fill) has already put in the card counts: the state is read from the controls once the listeners are on, and again when the page is shown
-  // again (back, a restored page), so the button is never disabled for a name and a consent that are plainly there.
+  // The name is whatever is in the box (autofill or a restored page put it there and the signer sees it). Consent is never taken from the control: it is a click in this view, so a tick a browser restored
+  // is cleared (on load and whenever the page is shown again) and the button waits for the person's own tick.
   const readControls = () => {
     state.name = nameIn.value;
-    state.consent = consent.checked;
+    consent.checked = false;
+    state.consent = false;
     sync();
     updateMarks();
   };
-  nameIn.addEventListener("change", readControls);
+  nameIn.addEventListener("change", () => {
+    state.name = nameIn.value;
+    sync();
+    updateMarks();
+  });
   window.addEventListener("pageshow", readControls);
   state.name = nameIn.value;
-  state.consent = consent.checked;
+  consent.checked = false;
+  state.consent = false;
   setMode("type");
   sync();
 
