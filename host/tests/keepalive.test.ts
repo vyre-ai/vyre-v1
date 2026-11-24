@@ -5,6 +5,10 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { KEEP_ALIVE_MS, createLiveHub } from "../src/ws.ts";
 
+/** How long the connection sits idle: it must stay above Node's old 5 s default, or the test passes without the fix. */
+const IDLE_MS = 6_000;
+assert.ok(IDLE_MS > 5_000);
+
 test("the daemon's server keeps an idle connection open longer than a proxy does, and its header time is longer still", () => {
   const hub = createLiveHub({ session: () => null });
   try {
@@ -41,7 +45,7 @@ test("a POST sent on a reused connection after 6 s idle goes out on the same con
     });
   try {
     const first = await post();
-    await new Promise((r) => setTimeout(r, 6_000));
+    await new Promise((r) => setTimeout(r, IDLE_MS));
     const second = await post();
     assert.equal(second.status, 426, "the hub answers (it is not a gateway: upgrade required)");
     assert.equal(
