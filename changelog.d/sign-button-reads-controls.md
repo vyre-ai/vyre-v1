@@ -1,0 +1,1 @@
+The signer's Sign button follows the name and the tick that are in the card, also when the browser filled or restored them without the page seeing a change: the page reads its controls once its listeners are on and again whenever it is shown.

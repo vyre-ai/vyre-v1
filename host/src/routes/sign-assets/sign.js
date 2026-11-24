@@ -461,6 +461,18 @@ async function ready(v) {
     why.focus();
   }
 
+  // What the person (or the browser: autofill, a restored form, a fast fill) has already put in the card counts: the state is read from the controls once the listeners are on, and again when the page is shown
+  // again (back, a restored page), so the button is never disabled for a name and a consent that are plainly there.
+  const readControls = () => {
+    state.name = nameIn.value;
+    state.consent = consent.checked;
+    sync();
+    updateMarks();
+  };
+  nameIn.addEventListener("change", readControls);
+  window.addEventListener("pageshow", readControls);
+  state.name = nameIn.value;
+  state.consent = consent.checked;
   setMode("type");
   sync();
 
