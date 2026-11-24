@@ -21,6 +21,7 @@ import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
+import { recordWriter } from "../../../kernel/src/store/records.ts";
 import type {
   CreateManyResult,
   FieldDef,
@@ -39,6 +40,11 @@ export const MAX_MERGED = 50;
 export const MAX_UPSERT_ROWS = 10_000;
 /** New rows made in one commit at most: a run this long holds the loop for about 50 ms. */
 const CREATE_RUN = 200;
+/** The depth and origin of the call, so a replayed announcement goes on counting an Automation chain's depth as the call would have. */
+export const callerStamp = (ctx: object): { depth?: number; origin?: string } => {
+  const c = ctx as { depth?: unknown; origin?: unknown };
+  return { ...(Number.isInteger(c.depth) ? { depth: c.depth as number } : {}), ...(typeof c.origin === "string" ? { origin: c.origin } : {}) };
+};
 /** Excel's own row limit, header included. */
 export const XLSX_MAX_ROWS = 1_048_576;
 
@@ -672,6 +678,9 @@ async function upsert(
   if (input.rows.length > MAX_UPSERT_ROWS)
     bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
+  // each record made below is announced by a record.created module event after the call: its own event says how, so a stop between the two writes can be repaired at the next start
+  const writer = recordWriter.getStore();
+  if (writer) writer.announce = { ...(quiet ? { quiet: true } : {}), ...callerStamp(ctx) };
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
   interface Plan {

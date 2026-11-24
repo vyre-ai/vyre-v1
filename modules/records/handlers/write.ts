@@ -5,6 +5,8 @@ import { ERROR_CODES, VyreErr } from "../../../packages/contracts/src/errors.ts"
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, EventName, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
+import { recordWriter } from "../../../kernel/src/store/records.ts";
+import { callerStamp } from "./merge.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 
 /** The part of the host Ctx these handlers read. A test passes a small object; the host passes the full Ctx. */
@@ -156,6 +158,8 @@ export function createWriteHandlers(deps: WriteDeps): WriteHandlers {
           if (have) return { record: toRow(have, deps.meta(prior.type, prior.id)) };
         }
         const id = mintRecordId();
+        const writer = recordWriter.getStore();
+        if (writer) writer.announce = callerStamp(ctx); // announced below by record.created (see host/src/daemon/record-announce.ts)
         const rec = await deps.store.create(input.type, id, input.fields);
         if (key !== undefined) seen.set(key, { type: input.type, id: rec.id });
         ctx.emit("record.created", subject(rec.id), { recordId: rec.id, type: rec.type, fields: { ...rec.data } });

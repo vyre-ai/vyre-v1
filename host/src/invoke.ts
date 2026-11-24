@@ -548,7 +548,19 @@ export const usesVault = (cap: string, input: unknown): boolean => {
 /** Tests: forget what was written. */
 export const resetUnexpectedLog = (): void => written.clear();
 
-export type Invoke = (cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>;
+/**
+ * Commit events a call made (or should have made) outside the call itself: after a stop between a record's own write and the call's commit (host/src/daemon/record-announce.ts). The events are stamped with `seed` as the
+ * call would have stamped them, the objects they bring into being become resources and grants as in the call, and they are committed and published. No audit row: the call is not made again.
+ */
+export type CommitEvents = (
+  cap: string,
+  input: unknown,
+  seed: CtxSeed,
+  events: { name: EventName; subject: string; payload: unknown; id?: string }[],
+  /** the depth of the call being made good (an Automation chain's count carries on from it) */
+  opts?: { depth?: number },
+) => Promise<EventEnvelope[]>;
+export type Invoke = ((cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>) & { commitEvents?: CommitEvents };
 
 /** The decision for a capability that needs membership only: allowed, with no scope (the handler narrows). */
 const memberAllow = (decisionId: string): KernelDecision => ({
@@ -1257,57 +1269,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       }
       throw e;
     }
-    // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
-    if (deps.resources && events.length) {
-      for (const row of deps.resources.register({
-        cap: c,
-        input,
-        space: seed.space,
-        owner: seed.actingFor ?? seed.principal.id,
-        principal: seed.principal,
-        events,
-      })) {
-        events.push(
-          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth, {
-            vis: deps.resources.visOf?.(row) ?? "space",
-          }) as EventEnvelope,
-        );
-        // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
-        const made = madeForGrant(row, events, seed, deps.madeFor);
-        if (made) {
-          const id = `gnt_${hex(16)}`;
-          events.push(
-            envelope(
-              "grant.created" as EventName,
-              `grant/${id}`,
-              {
-                id,
-                subject_kind: "actor",
-                subject_id: seed.principal.id,
-                resource_type: row.type,
-                resource_id: row.id,
-                level: made.level,
-                by: seed.actingFor,
-                ...(made.source ? { source: `made-by:${seed.principal.id}` } : {}),
-              },
-              seed,
-              trace,
-              depth,
-            ) as EventEnvelope,
-          );
-        }
-      }
-    }
-    if (deps.principals && events.length) {
-      for (const r of deps.principals.register({
-        space: seed.space,
-        maker: seed.actingFor ?? seed.principal.id,
-        events,
-      }))
-        events.push(
-          envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope,
-        );
-    }
+    bornObjects(c, input, seed, trace, depth, events);
 
     // 7 commit: events, inline projections and the audit row land together
     const finishOutput =
@@ -1392,6 +1354,68 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       ...(runAs ? { runAs } : {}),
     });
     return { status: "held", taskId: p.taskId, runId: p.runId, traceId };
+  }
+
+  /** P-H_16 and the agent-principal rule: the objects the events bring into being become resources (and an agent's, a principal) in the same commit. Pushes the births onto `events`. One place for a call and for a replay (commitEvents). */
+  function bornObjects(
+    c: CapabilityDef,
+    input: unknown,
+    seed: CtxSeed,
+    trace: TraceContext,
+    depth: number,
+    events: EventEnvelope[],
+  ): void {
+    // P-H_16: every object this call created becomes a resource in the same commit, so it is authorizable at once (one place for every module)
+    if (deps.resources && events.length) {
+      for (const row of deps.resources.register({
+        cap: c,
+        input,
+        space: seed.space,
+        owner: seed.actingFor ?? seed.principal.id,
+        principal: seed.principal,
+        events,
+      })) {
+        events.push(
+          envelope("resource.created" as EventName, `resource/${row.id}`, row, seed, trace, depth, {
+            vis: deps.resources.visOf?.(row) ?? "space",
+          }) as EventEnvelope,
+        );
+        // What an agent makes for the person it acts for is that person's, and the agent goes on working on it: one rule for all of it (madeForGrant below).
+        const made = madeForGrant(row, events, seed, deps.madeFor);
+        if (made) {
+          const id = `gnt_${hex(16)}`;
+          events.push(
+            envelope(
+              "grant.created" as EventName,
+              `grant/${id}`,
+              {
+                id,
+                subject_kind: "actor",
+                subject_id: seed.principal.id,
+                resource_type: row.type,
+                resource_id: row.id,
+                level: made.level,
+                by: seed.actingFor,
+                ...(made.source ? { source: `made-by:${seed.principal.id}` } : {}),
+              },
+              seed,
+              trace,
+              depth,
+            ) as EventEnvelope,
+          );
+        }
+      }
+    }
+    if (deps.principals && events.length) {
+      for (const r of deps.principals.register({
+        space: seed.space,
+        maker: seed.actingFor ?? seed.principal.id,
+        events,
+      }))
+        events.push(
+          envelope(r.type as EventName, `${r.entity}/${r.id}`, r.payload, seed, trace, depth) as EventEnvelope,
+        );
+    }
   }
 
   const shouldAudit = (c: CapabilityDef): boolean =>
@@ -1589,7 +1613,21 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     return ctx;
   }
 
-  return invoke;
+  const commitEvents: CommitEvents = async (capName, input, seed, specs, opts) => {
+    const depth = opts?.depth ?? 0;
+    const c = deps.caps.get(capName);
+    if (!c) throw fail("internal.not_implemented", seed.trace?.traceId ?? "0".repeat(32), { details: { cap: capName } });
+    const trace: TraceContext = seed.trace ?? { traceId: hex(16), spanId: hex(8) };
+    const events = specs.map((sp) => {
+      const ev = envelope(sp.name, sp.subject, sp.payload, seed, trace, depth) as EventEnvelope;
+      return sp.id ? { ...ev, id: sp.id } : ev;
+    });
+    bornObjects(c, input, seed, trace, depth, events);
+    const stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: null });
+    if (stored.length) deps.publish?.(stored);
+    return stored;
+  };
+  return Object.assign(invoke, { commitEvents });
 }
 
 /**

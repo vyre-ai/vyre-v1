@@ -353,6 +353,7 @@ import {
   ownPlaceGrant,
 } from "../gateway/principals.ts";
 import { fromStored, toNew } from "./commit.ts";
+import { announcementSeed, announcementSpec, replayAnnouncements } from "./record-announce.ts";
 import { collectHooks, createHookRunner, SYSTEM_PRINCIPAL } from "./consumers.ts";
 import { bindStateKinds } from "../seams/state.ts";
 import { createRecordsVaultHost } from "../seams/records-vault.ts";
@@ -1725,6 +1726,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   let ensurePersonalCalendar: (person: string) => Promise<void> = async () => {};
   /** Starts the pass that gives everyone who has none their Personal calendar; set with ensurePersonalCalendar, run once the daemon serves (never holds the start up). */
   let startPersonalCalendars: () => void = () => {};
+  /** After a stop between a record and its announcement (host/src/daemon/record-announce.ts): the missing record.created events are made once the daemon serves. */
+  let startRecordAnnouncements: (startedAtMs: number) => void = () => {};
+  let announceSweep: Promise<void> = Promise.resolve();
   let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
@@ -4233,7 +4237,41 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         personalSweep = Promise.all([worker(), worker(), worker(), worker()]).then(() => undefined);
       };
-      startupWork = () => personalSweep;
+      startRecordAnnouncements = (startedAtMs: number) => {
+        if (loaded.serving.get("records") !== "live") return;
+        announceSweep = replayAnnouncements({
+          spaceDb: spaceStorePath(paths.root),
+          eventsDb: paths.events,
+          markFile: path.join(paths.root, "records-announced.seq"),
+          startedAt: startedAtMs,
+          exists: (id) => access.snap.info(id) !== null,
+          spaceOwner: () => access.owner() ?? null,
+          commit: (p, who) =>
+            invoke.commitEvents!(
+              "records.bulk_upsert",
+              { type: p.type },
+              announcementSeed(p, spaceId, Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join(""), who) as never,
+              [announcementSpec(p) as never],
+              { depth: p.depth ?? 0 },
+            ),
+          say: (msg, attrs) => sink.log({ space: spaceId, level: 30, msg, place: "boot", attrs }),
+        })
+          .then((made) => {
+            if (!made) return;
+            void hookRunner.pump().catch(() => undefined);
+            void projectionRunner.pump().catch(() => undefined);
+          })
+          .catch((e: unknown) =>
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "records.announce_sweep_failed",
+              place: "boot",
+              attrs: { error: e instanceof Error ? e.message : String(e) },
+            }),
+          );
+      };
+      startupWork = () => Promise.all([personalSweep, announceSweep]).then(() => undefined);
       closers.push(() => {
         personalStopped = true;
         return personalSweep;
@@ -8214,6 +8252,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       attrs: { roles: cfg.roles, port: boundPort, version: cfg.version },
     });
     startPersonalCalendars();
+    startRecordAnnouncements(startedAt);
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
