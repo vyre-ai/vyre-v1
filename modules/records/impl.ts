@@ -54,8 +54,12 @@ import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.t
 export interface RecordsVault {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   reveal(ref: string, person: string): Promise<string>;
+  /** Take back a value put for a record that was then not made (best effort: the value is overwritten). Absent: nothing is taken back. */
+  discard?(ref: string): Promise<void>;
 }
 let vault: RecordsVault | null = null;
+/** The Vault the host handed, for a test that checks what the real one does with a call Records makes. */
+export const recordsVaultInUse = (): RecordsVault | null => vault;
 /** The host hands the Vault (a seam like the others). */
 export function setRecordsVault(v: RecordsVault | null): void {
   vault = v;
@@ -71,6 +75,8 @@ async function sealIn(
   recordId: string,
   data: Record<string, unknown>,
   current?: Record<string, unknown>,
+  /** Dry: nothing goes to the Vault; a value that would be sealed shows as a reference to nothing, so the record can be checked before any value is written. */
+  dry = false,
 ): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
@@ -98,6 +104,10 @@ async function sealIn(
         "unavailable",
         `${f.name} is sealed and the Vault is not available on this server, so the value was not saved.`,
       );
+    if (dry) {
+      out[f.name] = { sealed: f.name, ref: "pending", present: true, set_at: 0 };
+      continue;
+    }
     const have = current?.[f.name];
     const ref = await vault.put({
       type: def.name,
@@ -328,9 +338,29 @@ export function openRecords(
     async createMany(type, items) {
       const def = await needType(type);
       const out: CreateManyResult[] = new Array(items.length);
+      // 1. check every item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
+      let refused: unknown[] = [];
+      if (inner.checkNew) {
+        const dry: { id: RecordId; data: Record<string, FieldValue> }[] = [];
+        for (const it of items) {
+          try {
+            dry.push({ id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue> });
+          } catch (e) {
+            dry.push({ id: it.id, data: {} });
+            refused[dry.length - 1] = e;
+          }
+        }
+        const checked = await inner.checkNew(def.name, dry);
+        refused = items.map((_, i) => refused[i] ?? checked[i] ?? null);
+      }
+      // 2. seal and store the items that passed
       const ready: { at: number; id: RecordId; data: Record<string, FieldValue> }[] = [];
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
+        if (refused[i]) {
+          out[i] = { ok: false, error: refused[i] };
+          continue;
+        }
         try {
           ready.push({
             at: i,
@@ -360,6 +390,16 @@ export function openRecords(
       made.forEach((m, k) => {
         out[ready[k]!.at] = m;
       });
+      // 3. a value sealed for a record that was then not made is taken back
+      if (vault?.discard) {
+        for (const [k, m] of made.entries()) {
+          if (m.ok) continue;
+          for (const f of def.fields) {
+            const v = ready[k]!.data[f.name];
+            if (f.kind === "sealed" && isSealedRef(v)) await vault.discard((v as { ref: string }).ref).catch(() => undefined);
+          }
+        }
+      }
       return out;
     },
     async update(type, id, patch, base) {

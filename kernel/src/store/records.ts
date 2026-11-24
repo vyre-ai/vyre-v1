@@ -340,6 +340,12 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       if (err) throw fail("invalid", err);
     }
   }
+  /** What create asks of one new record before it writes: a contract id that is not taken (nor repeated in the batch), and values the type accepts. Throws the refusal. */
+  function checkNewItem(def: TypeDef, type: string, it: { id: string; data: Readonly<Record<string, unknown>> }, seen: ReadonlySet<string>): void {
+    if (!isRecordId(it.id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
+    if (seen.has(it.id) || rowOf(type, it.id)) throw fail("invalid", `${type} ${it.id} already exists`);
+    validate(def, it.data as Record<string, unknown>);
+  }
   const uniques = (def: TypeDef): FieldDef[] => def.fields.filter((f) => f.unique === true);
   /** Refuse a value another LIVE record holds. */
   function checkUnique(def: TypeDef, data: Record<string, unknown>, selfId: string | null): void {
@@ -488,6 +494,19 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       emit("record.created", type, id, { type, id, data: clone(data), at });
       return record(type, rowOf(type, id)!);
     },
+    async checkNew(type, items) {
+      const def = needType(type);
+      const seen = new Set<string>();
+      return items.map((it) => {
+        try {
+          checkNewItem(def, type, it, seen);
+          seen.add(it.id);
+          return null;
+        } catch (e) {
+          return e;
+        }
+      });
+    },
     async createMany(type, items) {
       const def = needType(type);
       const out: CreateManyResult[] = new Array(items.length);
@@ -507,9 +526,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       const seen = new Set<string>();
       items.forEach((it, i) => {
         try {
-          if (!isRecordId(it.id)) throw fail("invalid", "id must be a contract record id: rec_ then 32 hex digits");
-          if (seen.has(it.id) || rowOf(type, it.id)) throw fail("invalid", `${type} ${it.id} already exists`);
-          validate(def, it.data as Record<string, unknown>);
+          checkNewItem(def, type, it, seen);
           seen.add(it.id);
           evs.push(eventOf("record.created", type, it.id, { type, id: it.id, data: clone(it.data), at: clock() }));
           at.push(i);
@@ -529,7 +546,14 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         out[i] = r.ok
           ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
           : // the whole transaction failed (every item answers "internal", nothing was committed): the store is unavailable. One event the log refused on its own (the rest committed) is that row's refusal.
-            { ok: false, error: r.code === "internal" ? fail("unavailable", r.message) : fail("invalid", r.message) };
+            {
+              ok: false,
+              error:
+                r.code === "internal"
+                  ? fail("unavailable", r.message)
+                  : // a row the log refused alone: the caller gets a plain sentence; the log's own words stay on the error as `detail` for the host log
+                    Object.assign(fail("invalid", "This record could not be saved."), { detail: r.message }),
+            };
       });
       return out;
     },
