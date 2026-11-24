@@ -26,17 +26,14 @@ export function retryCase(mode: "500" | "drop"): void {
         async () => {
           await pump(w.d);
           const st = (await call(w.d, "sync_types.status", { type: "person" })).data;
-          // the pass's own failure: a sealed value the Vault could not take yet is also listed (and comes first on a loaded server: the records of the first group are not visible to the Vault yet), but it is not the cut-off and the next poll is only set when the pass ends
-          return (st.failures ?? []).some(
-            (f: { summary: string }) => !/^A sealed value could not be kept yet/.test(f.summary),
-          )
-            ? st
-            : null;
+          return st.failures?.length ? st : null;
         },
         115_000,
         () => hostLog(w.d),
       );
-      assert.ok(failed.failures[0].summary.length > 0, "the page says what happened");
+      const own = failed.failures.find((f: { summary: string }) => /^sync of /.test(f.summary));
+      assert.ok(own, `the page names the failed sync: ${JSON.stringify(failed.failures)}`);
+      assert.ok(own.summary.length > 0, "the page says what happened");
       assert.ok(
         typeof failed.nextPollAt === "number",
         `a next poll is scheduled: ${JSON.stringify(failed.nextPollAt)}`,
