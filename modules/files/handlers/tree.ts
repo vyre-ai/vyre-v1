@@ -24,9 +24,11 @@ export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB li
  * (the pipeline names the calling capability in ctx.callerCap; a caller cannot set it) is held to the upload limit, the same one files.upload_url holds. */
 /** What a refused write says for the limit that applied to it: the direct-write words, or (for a file the server makes) the upload limit and what to do. */
 export function tooLargeWords(ctx: Pick<Ctx, "callerCap">): string {
-  return inlineLimit(ctx) === MAX_UPLOAD
-    ? `This file is over the ${MAX_UPLOAD / 1024 / 1024} MB limit. Make it smaller: fewer rows or fewer columns.`
-    : TOO_LARGE_WORDS;
+  return inlineLimit(ctx) === MAX_UPLOAD ? overUploadWords(ctx) : TOO_LARGE_WORDS;
+}
+/** What a file over the upload limit says: the limit and to make it smaller; the advice about rows and columns only for an export of records, where it is what a person can do. */
+export function overUploadWords(ctx: Pick<Ctx, "callerCap">): string {
+  return `This file is over the ${MAX_UPLOAD / 1024 / 1024} MB limit. Make it smaller${ctx.callerCap === "records.export" ? ": fewer rows or fewer columns" : ""}.`;
 }
 export function inlineLimit(ctx: Pick<Ctx, "callerCap">): number {
   return ctx.callerCap !== undefined && SERVER_MAKERS.has(ctx.callerCap) ? MAX_UPLOAD : MAX_INLINE;
@@ -933,12 +935,7 @@ async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): P
 
 /** The size limits of a direct write, checked before any hashing or storing. */
 function checkPlainSize(ctx: Ctx, plain: Uint8Array): void {
-  if (plain.byteLength > MAX_UPLOAD)
-    fail(
-      ctx,
-      "validation.too_large",
-      `This file is over the ${MAX_UPLOAD / 1024 / 1024} MB limit. Make it smaller: fewer rows or fewer columns.`,
-    );
+  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", overUploadWords(ctx));
   if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
 }
 
@@ -961,7 +958,7 @@ async function blobForPlain(
   plain: Uint8Array,
   mime: string,
 ): Promise<{ id: string; hash: string; size: number }> {
-  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
+  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", overUploadWords(ctx));
   if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);

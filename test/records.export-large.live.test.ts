@@ -58,4 +58,5 @@ test("an export over 25 MB fails and says what the limit is", { timeout: 900_000
   const err = asked.error as { code?: string; message?: string };
   assert.equal(err.code, "validation.too_large");
   assert.match(String(err.message), /25 MB/, `the refusal says what the limit is: ${err.message}`);
+  assert.match(String(err.message), /fewer rows or fewer columns/, "an export is told what a person can do");
 });

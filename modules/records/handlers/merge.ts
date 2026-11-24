@@ -952,10 +952,40 @@ const csvCell = (c: { text: string; number?: number }, plainText: boolean): stri
   return /[",\r\n]/.test(s) ? `"${s.replaceAll('"', '""')}"` : s;
 };
 
-export function toCsv(columns: readonly FieldDef[], rows: readonly Record<string, unknown>[]): string {
-  const lines = [columns.map((c) => csvCell({ text: c.label ?? c.name }, true)).join(",")];
-  for (const r of rows) lines.push(columns.map((c) => csvCell(cellText(c, r[c.name]), true)).join(","));
-  return `\ufeff${lines.join("\r\n")}\r\n`;
+/** Rows between two checks of the clock when a big file is built: a check costs little, a turn is only taken when the budget is spent. */
+const BUILD_STEP = 200;
+
+/** Joins parts into one array (a copy of memory, not of text). */
+function concat(parts: readonly Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) {
+    out.set(p, at);
+    at += p.length;
+  }
+  return out;
+}
+
+/** The csv bytes. The text is built and encoded a few hundred rows at a time with a turn between, so a file of tens of thousands of rows never holds the event loop. */
+export async function toCsv(
+  columns: readonly FieldDef[],
+  rows: readonly Record<string, unknown>[],
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
+  const enc = new TextEncoder();
+  const parts: Uint8Array[] = [];
+  let lines = [`\ufeff${columns.map((c) => csvCell({ text: c.label ?? c.name }, true)).join(",")}`];
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i]!;
+    lines.push(columns.map((c) => csvCell(cellText(c, r[c.name]), true)).join(","));
+    if (lines.length >= BUILD_STEP) {
+      parts.push(enc.encode(`${lines.join("\r\n")}\r\n`));
+      lines = [];
+      await turn();
+    }
+  }
+  if (lines.length) parts.push(enc.encode(`${lines.join("\r\n")}\r\n`));
+  return concat(parts);
 }
 
 const xmlEsc = (s: string): string =>
@@ -980,21 +1010,29 @@ const CRC = (() => {
   }
   return t;
 })();
-const crc32 = (b: Uint8Array): number => {
+/** The crc of a big array, a slice at a time with a turn between. */
+const crc32 = async (b: Uint8Array, turn: () => Promise<void>): Promise<number> => {
   let c = 0xffffffff;
-  for (const x of b) c = CRC[(c ^ x) & 0xff]! ^ (c >>> 8);
+  for (let from = 0; from < b.length; from += 262_144) {
+    const to = Math.min(b.length, from + 262_144);
+    for (let i = from; i < to; i++) c = CRC[(c ^ b[i]!) & 0xff]! ^ (c >>> 8);
+    await turn();
+  }
   return (c ^ 0xffffffff) >>> 0;
 };
 
 /** A zip with stored (uncompressed) entries. */
-export function zipStore(files: readonly { name: string; data: Uint8Array }[]): Uint8Array {
+export async function zipStore(
+  files: readonly { name: string; data: Uint8Array }[],
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
   const enc = new TextEncoder();
   const locals: Uint8Array[] = [];
   const central: Uint8Array[] = [];
   let offset = 0;
   for (const f of files) {
     const name = enc.encode(f.name);
-    const crc = crc32(f.data);
+    const crc = await crc32(f.data, turn);
     const lh = new DataView(new ArrayBuffer(30));
     lh.setUint32(0, 0x04034b50, true);
     lh.setUint16(4, 20, true);
@@ -1031,21 +1069,15 @@ export function zipStore(files: readonly { name: string; data: Uint8Array }[]): 
   end.setUint16(10, files.length, true);
   end.setUint32(12, size, true);
   end.setUint32(16, offset, true);
-  const parts = [...locals, ...central, new Uint8Array(end.buffer)];
-  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
-  let at = 0;
-  for (const p of parts) {
-    out.set(p, at);
-    at += p.length;
-  }
-  return out;
+  return concat([...locals, ...central, new Uint8Array(end.buffer)]);
 }
 
-export function toXlsx(
+export async function toXlsx(
   sheet: string,
   columns: readonly FieldDef[],
   rows: readonly Record<string, unknown>[],
-): Uint8Array {
+  turn: () => Promise<void> = async () => {},
+): Promise<Uint8Array> {
   const enc = new TextEncoder();
   const cell = (ref: string, c: { text: string; number?: number }): string => {
     if (c.number !== undefined) return `<c r="${ref}"><v>${c.number}</v></c>`;
@@ -1053,47 +1085,60 @@ export function toXlsx(
     const text = c.text.length > 32767 ? c.text.slice(0, 32767) : c.text;
     return `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(text)}</t></is></c>`;
   };
-  const body: string[] = [];
-  body.push(`<row r="1">${columns.map((c, i) => cell(`${colName(i)}1`, { text: c.label ?? c.name })).join("")}</row>`);
-  rows.forEach((r, n) =>
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
+  // the sheet is built and encoded a few hundred rows at a time with a turn between (see toCsv), then joined as bytes
+  const sheetParts: Uint8Array[] = [
+    enc.encode(`${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>`),
+  ];
+  let body: string[] = [
+    `<row r="1">${columns.map((c, i) => cell(`${colName(i)}1`, { text: c.label ?? c.name })).join("")}</row>`,
+  ];
+  for (let n = 0; n < rows.length; n++) {
+    const r = rows[n]!;
     body.push(
       `<row r="${n + 2}">${columns.map((c, i) => cell(`${colName(i)}${n + 2}`, cellText(c, r[c.name]))).join("")}</row>`,
-    ),
-  );
+    );
+    if (body.length >= BUILD_STEP) {
+      sheetParts.push(enc.encode(body.join("")));
+      body = [];
+      await turn();
+    }
+  }
+  sheetParts.push(enc.encode(`${body.join("")}</sheetData></worksheet>`));
   const name = xmlEsc(sheet.replace(/[\\/?*[\]:]/g, " ").slice(0, 31) || "Sheet1");
-  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
-  return zipStore([
-    {
-      name: "[Content_Types].xml",
-      data: enc.encode(
-        `${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
-      ),
-    },
-    {
-      name: "_rels/.rels",
-      data: enc.encode(
-        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
-      ),
-    },
-    {
-      name: "xl/workbook.xml",
-      data: enc.encode(
-        `${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
-      ),
-    },
-    {
-      name: "xl/_rels/workbook.xml.rels",
-      data: enc.encode(
-        `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
-      ),
-    },
-    {
-      name: "xl/worksheets/sheet1.xml",
-      data: enc.encode(
-        `${xml}<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body.join("")}</sheetData></worksheet>`,
-      ),
-    },
-  ]);
+  return zipStore(
+    [
+      {
+        name: "[Content_Types].xml",
+        data: enc.encode(
+          `${xml}<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+        ),
+      },
+      {
+        name: "_rels/.rels",
+        data: enc.encode(
+          `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>`,
+        ),
+      },
+      {
+        name: "xl/workbook.xml",
+        data: enc.encode(
+          `${xml}<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="${name}" sheetId="1" r:id="rId1"/></sheets></workbook>`,
+        ),
+      },
+      {
+        name: "xl/_rels/workbook.xml.rels",
+        data: enc.encode(
+          `${xml}<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`,
+        ),
+      },
+      {
+        name: "xl/worksheets/sheet1.xml",
+        data: concat(sheetParts),
+      },
+    ],
+    turn,
+  );
 }
 
 /** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
@@ -1207,12 +1252,12 @@ async function exportRows(
       ? await putFile({
           name: `${base}.csv`,
           mime: "text/csv; charset=utf-8",
-          bytes: new TextEncoder().encode(toCsv(columns, rows)),
+          bytes: await toCsv(columns, rows, turn),
         })
       : await putFile({
           name: `${base}.xlsx`,
           mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          bytes: toXlsx(def.label ?? def.name, columns, rows),
+          bytes: await toXlsx(def.label ?? def.name, columns, rows, turn),
         });
   return { fileId };
 }
