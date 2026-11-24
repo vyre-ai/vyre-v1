@@ -213,8 +213,11 @@ export function createCapCaller(o: CapCallerOptions): CapCall {
     if (!get) headers["content-type"] = "application/json";
     // The body is made once, so a repeat of the call carries the same key (a key minted for it is part of it).
     const payload = get ? undefined : withKey(route, input, opts.idempotencyKey);
+    // only a route whose contract is idempotency "key" is repeated: the server stores the call under (person, capability, key, input) and answers the stored result to a repeat. For "none" and "natural" it never reads the key,
+    // and a reset can come after the server ran the call (the connection dies on the way back), so a repeat would do it twice.
     const keyed =
       !get &&
+      route.idempotency === "key" &&
       ((isObj(payload) && typeof payload["idempotencyKey"] === "string") || headers["idempotency-key"] !== undefined);
     const go = (): Promise<Response> =>
       doFetch(`${base}${route.path}${get ? queryString(input) : ""}`, {
