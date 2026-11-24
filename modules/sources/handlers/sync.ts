@@ -852,6 +852,7 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
         group.map((c, k) => ({ id: ids[k]!, data: c.data })),
       );
     } catch {
+      // safe to retry under new ids only because a call that threw made nothing (the kernel store answers after its commit from rows it just wrote): never widen this to a call that may have committed
       results = null;
     }
     // A group that failed as a whole (the call threw, or every item came back unavailable or internal: the log rolls the whole batch back when one event cannot be folded) made nothing. One row that cannot be
