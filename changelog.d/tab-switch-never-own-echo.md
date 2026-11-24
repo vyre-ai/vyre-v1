@@ -1,0 +1,1 @@
+- Switching to the Chats landing tab no longer keeps showing the previous chat: a tab switch, Back, Forward, closing a tab or opening anything ends the claim that the address on screen is a place's own report, so the new address always applies.

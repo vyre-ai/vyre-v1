@@ -284,7 +284,12 @@ export function createShellHub(options: HubOptions): ShellHub {
   snap = build();
 
   /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
+  /** A move the person or the app made that is not a place's own report (a tab switch, Back, Forward, closing a tab, opening anything): the last own report no longer names the address on screen, so nothing can be taken for its echo. */
+  const notOwn = (): void => {
+    ownHash = "\u0000";
+  };
   function step(run: (tabs: TabsController) => boolean): boolean {
+    notOwn();
     const s = open();
     holder?.(undefined, undefined, true);
     if (!run(s.tabs)) return false;
@@ -459,6 +464,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     go(requested, hash, background = false, link = false, fresh = false) {
+      notOwn();
       if (link) links += 1;
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
@@ -497,7 +503,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       if (own) {
         reports += 1;
         ownHash = hash ?? "";
-      }
+      } else notOwn();
       const s = open();
       if (place !== s.place || (hash ?? "") !== s.hash) holder?.();
       s.tabs.move(livePlace(place), hash, screenTitle(hash));
@@ -529,6 +535,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       holder = fn;
     },
     showTab(tab) {
+      notOwn();
       const s = open();
       const mine = ++shows;
       const was = { active: s.tabs.state().active, place: s.place, hash: s.hash };
@@ -551,6 +558,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     closeTab(key) {
+      notOwn();
       const s = open();
       holder?.(undefined, undefined, true);
       s.tabs.close(key ?? s.tabs.state().active);

@@ -101,3 +101,18 @@ test("the hub counts the addresses that came from outside, never the page's own 
   hub.move("chats", "screen=chats.notes");
   assert.equal(hub.state().links, b + 1, "the page's own move is not a link");
 });
+
+test("a tab switch, Back or any move that is not a place's own report ends the claim that the address on screen is that report: a landing tab whose address equals the last own report is never taken for its echo", () => {
+  const hub = restored([], "chats");
+  hub.move("chats", "", true); // the page reported the landing address
+  assert.equal(hub.state().ownHash, "", "the own report is on record");
+  hub.go("chats", "screen=tasks.page&taskId=tsk_1");
+  assert.notEqual(hub.state().ownHash, "", "opening something else ends it");
+  hub.move("chats", "", true);
+  assert.equal(hub.state().ownHash, "");
+  hub.back();
+  assert.notEqual(hub.state().ownHash, "", "Back ends it");
+  hub.move("chats", "", true);
+  hub.closeTab();
+  assert.notEqual(hub.state().ownHash, "", "closing a tab ends it");
+});
