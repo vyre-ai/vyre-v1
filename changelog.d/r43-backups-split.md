@@ -1,0 +1,1 @@
+- Test only: the installer's backup names and pruning test, one test of twenty backups in a row, is three tests in three files (names 3.5 s, manual 8 s, plus the original file at 4.6 s), so no install test file takes more than about 8 s on a quiet box.
