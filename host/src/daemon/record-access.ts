@@ -7,14 +7,28 @@ import { canonical } from "../../../lib/canonical.ts";
 import type { Filter, Sort } from "../../../kernel/src/store/types.ts";
 
 type ReadSeed = CtxSeed & { readCap?: string; readInput?: unknown; labels?: Readonly<Record<string, number>> };
-const READS = new Set([
+/** The writes whose answer is the record: a member who may edit a record but not see one of its fields is not handed that field back (a write is projected as a read of the record is). */
+export const WRITES_ANSWERING_WITH_THE_RECORD: ReadonlySet<string> = new Set([
+  "records.update",
+  "records.restore_version",
+  "records.relate",
+  "records.values.review",
+  "records.merge",
+  "records.restore",
+]);
+/** Every capability whose answer is projected through the reader's grant (host/src/invoke.ts SCOPED_RECORD_READS is the same set; test/access.hidden-scrub-guard.test.ts walks the manifest against it). */
+export const SCRUBBED: ReadonlySet<string> = new Set([
   "records.get",
   "records.as_of",
   "records.query",
   "records.search",
   "records.history",
   "records.activity",
+  "records.view",
+  "records.update_many",
+  ...WRITES_ANSWERING_WITH_THE_RECORD,
 ]);
+const READS = SCRUBBED;
 // How long a read waits, at most, for the access snapshot to learn of records it has just read (a record shows in the store a moment before its access entry is folded, and a busy Space folds slowly). The
 // waits add up to about 3 s and cost nothing when the snapshot already knows every row.
 const SETTLE_MS: readonly number[] = [0, 40, 120, 250, 500, 1000, 1000];
@@ -514,6 +528,39 @@ export function createRecordAccess(ports: {
                 : cap === "records.activity",
             ),
           };
+        };
+      }
+      if (cap === "records.update_many") {
+        const items = Array.isArray(result["results"]) ? result["results"].map(object) : [];
+        const stored = await Promise.all(
+          items.map((item) => {
+            const id = object(item["record"])["id"];
+            return typeof id === "string" ? ports.store().get(type, id) : Promise.resolve(null);
+          }),
+        );
+        return async () => {
+          seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
+          return {
+            ...result,
+            results: items.map((item, index) => {
+              if (item["record"] === undefined) return item;
+              const row = stored[index];
+              const record = object(item["record"]);
+              // a record the caller can no longer see, or one the store does not have, comes back with no fields at all
+              const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
+              return { ...item, record: { ...record, fields: visible } };
+            }),
+          };
+        };
+      }
+      if (WRITES_ANSWERING_WITH_THE_RECORD.has(cap)) {
+        const record = object(result["record"]);
+        const id = record["id"] ?? value["recordId"];
+        const row = typeof id === "string" ? await ports.store().get(type, id) : null;
+        return async () => {
+          seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
+          const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
+          return { ...result, record: { ...record, fields: visible } };
         };
       }
       const originals =

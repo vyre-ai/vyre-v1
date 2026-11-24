@@ -24,7 +24,10 @@ export interface HiddenFixture {
 
 let seq = 0;
 
-export async function hiddenMember(h: Hour, o: { hide?: string[] } = {}): Promise<HiddenFixture> {
+export async function hiddenMember(
+  h: Hour,
+  o: { hide?: string[]; level?: "view" | "edit" } = {},
+): Promise<HiddenFixture> {
   const n = ++seq;
   const tag = `zq${n}x${Math.random().toString(36).slice(2, 6)}`;
   const values = {
@@ -51,7 +54,7 @@ export async function hiddenMember(h: Hour, o: { hide?: string[] } = {}): Promis
   await h.owner.call("access.share", {
     resource: ref,
     subject: { kind: "person", id: member.personId },
-    level: "view",
+    level: o.level ?? "view",
     conditions: { hiddenFields: o.hide ?? ["email", "phone"] },
     idempotencyKey: `hm-share-${n}`,
   });

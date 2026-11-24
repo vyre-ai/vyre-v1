@@ -340,6 +340,14 @@ const SCOPED_RECORD_READS = new Set([
   "records.search",
   "records.history",
   "records.activity",
+  "records.view",
+  "records.update_many",
+  "records.update",
+  "records.restore_version",
+  "records.relate",
+  "records.values.review",
+  "records.merge",
+  "records.restore",
 ]);
 const noop = (): void => {};
 const nullLogger: Logger = { debug: noop, info: noop, warn: noop, error: noop };

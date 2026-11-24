@@ -1,0 +1,1 @@
+A member whose grant hides a field of a record no longer gets the hidden values back from the writes that answer with the record (update, restore a version, update many, relate, review a value, merge, restore) nor from a saved view of the type; and a guard test walks the manifest so a new capability that returns a record row cannot slip past the filter.
