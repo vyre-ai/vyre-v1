@@ -5,17 +5,19 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { bootHour, join } from "./support/member-hour.ts";
 import type { Hour, Person } from "./support/member-hour.ts";
-import { shareKept, sliceHook } from "../modules/access/handlers/share.ts";
+import { shareKept, sliceHook, sliceTuning } from "../modules/access/handlers/share.ts";
 import { asKeptWriter } from "../modules/access/projections.ts";
 
 let h: Hour;
 let m: Person;
-// a round of this many new records is enough to make the next read build in slices (resources times people over 2,000)
-const ROUND = 1000;
+// slicing starts at 2,000 resource-people in the product; the test lowers it so a round of a hundred new records is enough (a CI runner has 30 s for the whole file)
+const ROUND = 100;
 before(async () => {
+  sliceTuning.from = 150;
   h = await bootHour("kvchunk");
 });
 after(async () => {
+  sliceTuning.from = 2000;
   await h?.stop();
 });
 
@@ -40,13 +42,13 @@ test(
     let batch = 0;
     let total = 0;
     const add = async (n: number): Promise<void> => {
-      for (let b = 0; b < n / 500; b++, batch++)
+      for (let left = n; left > 0; left -= 500, batch++)
         await h.owner.call("records.bulk_upsert", {
           type: "contact",
           match: ["email"],
           createOnly: true,
           idempotencyKey: `kvc-${batch}`,
-          rows: Array.from({ length: 500 }, (_, i) => ({
+          rows: Array.from({ length: Math.min(500, left) }, (_, i) => ({
             name: `Person ${batch}-${i}`,
             email: `p${batch}-${i}@kv.test`,
           })),
@@ -69,7 +71,7 @@ test(
         idempotencyKey: key,
       });
 
-    await add(500);
+    await add(ROUND);
     const first = await find("p0-0@kv.test");
     const second = await find("p0-1@kv.test");
     const third = await find("p0-2@kv.test");

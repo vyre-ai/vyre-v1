@@ -734,6 +734,8 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
 
 /** Views smaller than this (resources times people) are built in one go: slicing them costs more than it saves. */
 const SLICE_FROM = 2000;
+/** For the tests only: the size from which a view is built in slices, so a test can exercise slicing on a few hundred records. Never set by the product. */
+export const sliceTuning = { from: SLICE_FROM };
 /** Rows written to the table per transaction when a view is written in slices. */
 const WRITE_SLICE = 1500;
 const BUILDING = new WeakMap<object, Promise<void>>();
@@ -850,7 +852,8 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
     if (fresh && !ss.pending.length) return;
     const roots: readonly string[] | "all" = fresh ? [...ss.pending] : "all";
     const scope = roots === "all" ? null : descendants(store, roots);
-    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < SLICE_FROM) return;
+    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < sliceTuning.from)
+      return;
     const under = BUILDING.get(raw);
     if (under) {
       await under.catch(() => undefined);
