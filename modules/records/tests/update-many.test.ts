@@ -17,6 +17,7 @@ async function run(grouped: boolean) {
       return ref;
     },
     reveal: async (ref) => kept.get(ref) ?? "",
+    discard: async (ref) => void kept.delete(ref),
   });
   try {
     const rec = openRecords({ space: `sp_um_${grouped ? "g" : "o"}`, path: ":memory:" });
@@ -63,6 +64,7 @@ async function run(grouped: boolean) {
         .map((r) => r.t),
       leaked: /ssn-\d|plain-8|late/.test(everything),
       puts: n,
+      live: kept.size,
     };
   } finally {
     setRecordsVault(null as never);
@@ -76,7 +78,57 @@ test("updateMany seals and updates the way update does for each item, and refuse
   assert.equal(many.results[7], "refused version_conflict");
   assert.deepEqual(many.rows.length, one.rows.length);
   assert.equal(many.puts, one.puts, "the same number of values reached the Vault");
+  assert.equal(
+    many.live,
+    7,
+    "a value put for the item the store refused (a version that moved) was taken back: one live value for each record updated",
+  );
   assert.deepEqual(many.events, one.events, "the same events in the same order");
   assert.equal(many.leaked, false, "nothing plain is in a row or an event");
   assert.equal(one.leaked, false);
+});
+
+test("a group whose commit fails leaves no value in the Vault, and the one-at-a-time retry leaves exactly one for each record", async () => {
+  const kept = new Map<string, string>();
+  let puts = 0;
+  setRecordsVault({
+    put: async (o) => {
+      const ref = o.ref ?? `vit_${o.recordId}_${o.field}_${++puts}`;
+      kept.set(ref, o.value);
+      return ref;
+    },
+    reveal: async (ref) => kept.get(ref) ?? "",
+    discard: async (ref) => void kept.delete(ref),
+  });
+  try {
+    const rec = openRecords({ space: "sp_um_fail", path: ":memory:" });
+    await rec.store.define({ add_types: [PERSON] });
+    const ids: string[] = [];
+    for (let i = 0; i < 5; i++) {
+      const id = mintRecordId();
+      ids.push(id);
+      await rec.store.create("person", id, { name: `P ${i}` });
+    }
+    const log = rec.host.store as unknown as { appendBatch: (b: unknown[]) => unknown };
+    const was = log.appendBatch.bind(log);
+    let failNext = true;
+    log.appendBatch = (b) => {
+      if (failNext) {
+        failNext = false;
+        throw new Error("the commit failed");
+      }
+      return was(b);
+    };
+    const items = ids.map((id, i) => ({ id, patch: { ssn: { sealed: true, value: `ssn-${i}` } }, base_version: 1 }));
+    await assert.rejects(
+      rec.store.updateMany!("person", items as never),
+      (e: { code?: string }) => e.code === "unavailable",
+    );
+    assert.equal(kept.size, 0, "a group that failed whole left nothing in the Vault");
+    // the caller tries again one record at a time
+    for (const it of items) await rec.store.update("person", it.id, it.patch as never, it.base_version);
+    assert.equal(kept.size, 5, "exactly one live value for each record");
+  } finally {
+    setRecordsVault(null as never);
+  }
 });

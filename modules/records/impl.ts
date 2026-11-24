@@ -344,7 +344,10 @@ export function openRecords(
         const dry: { id: RecordId; data: Record<string, FieldValue> }[] = [];
         for (const it of items) {
           try {
-            dry.push({ id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue> });
+            dry.push({
+              id: it.id,
+              data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, true)) as Record<string, FieldValue>,
+            });
           } catch (e) {
             dry.push({ id: it.id, data: {} });
             refused[dry.length - 1] = e;
@@ -396,7 +399,8 @@ export function openRecords(
           if (m.ok) continue;
           for (const f of def.fields) {
             const v = ready[k]!.data[f.name];
-            if (f.kind === "sealed" && isSealedRef(v)) await vault.discard((v as { ref: string }).ref).catch(() => undefined);
+            if (f.kind === "sealed" && isSealedRef(v))
+              await vault.discard((v as { ref: string }).ref).catch(() => undefined);
           }
         }
       }
@@ -413,43 +417,77 @@ export function openRecords(
     async updateMany(type, items) {
       const def = await needType(type);
       const out: UpdateManyResult[] = new Array(items.length);
-      const ready: { at: number; id: RecordId; patch: Record<string, FieldValue | null>; base_version: number }[] = [];
+      const ready: {
+        at: number;
+        id: RecordId;
+        patch: Record<string, FieldValue | null>;
+        base_version: number;
+        /** The references this call minted in the Vault for the item (a value that went under a reference the record already held was overwritten in place and is not new). */
+        fresh: string[];
+      }[] = [];
+      const takeBack = async (refs: string[]): Promise<void> => {
+        if (vault?.discard) for (const ref of refs) await vault.discard(ref).catch(() => undefined);
+      };
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
+        const fresh: string[] = [];
         try {
           const row = await inner.get(def.name, it.id);
+          // 1. check the item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
+          const dry = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data, true));
+          if (row && row.version === it.base_version) assertWriteOnce(def, row.data, dry);
+          if (row) assertStageGates(def, row.data, dry);
+          // 2. seal it
           const clean = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data));
-          if (row && row.version === it.base_version) assertWriteOnce(def, row.data, clean);
-          if (row) assertStageGates(def, row.data, clean);
+          for (const f of def.fields) {
+            const v = clean[f.name];
+            const had = row?.data[f.name];
+            if (
+              f.kind === "sealed" &&
+              isSealedRef(v) &&
+              !(isSealedRef(had) && (had as { ref: string }).ref === (v as { ref: string }).ref)
+            )
+              fresh.push((v as { ref: string }).ref);
+          }
           ready.push({
             at: i,
             id: it.id,
             patch: clean as Record<string, FieldValue | null>,
             base_version: it.base_version,
+            fresh,
           });
         } catch (e) {
+          await takeBack(fresh);
           out[i] = { ok: false, error: e };
         }
       }
       let made: UpdateManyResult[];
-      if (inner.updateMany)
-        made = await inner.updateMany(
-          def.name,
-          ready.map((r) => ({ id: r.id, patch: r.patch, base_version: r.base_version })),
-        );
-      else {
-        made = [];
-        for (const r of ready) {
-          try {
-            made.push({ ok: true, record: await inner.update(def.name, r.id, r.patch, r.base_version) });
-          } catch (e) {
-            made.push({ ok: false, error: e });
+      try {
+        if (inner.updateMany)
+          made = await inner.updateMany(
+            def.name,
+            ready.map((r) => ({ id: r.id, patch: r.patch, base_version: r.base_version })),
+          );
+        else {
+          made = [];
+          for (const r of ready) {
+            try {
+              made.push({ ok: true, record: await inner.update(def.name, r.id, r.patch, r.base_version) });
+            } catch (e) {
+              made.push({ ok: false, error: e });
+            }
           }
         }
+      } catch (e) {
+        // the group could not be committed: nothing was updated, so every value this call put is taken back before the caller tries again (a second put would leave these behind)
+        for (const r of ready) await takeBack(r.fresh);
+        throw e;
       }
       made.forEach((m, k) => {
         out[ready[k]!.at] = m;
       });
+      // 3. a value put for an item that was then not updated is taken back
+      for (const [k, m] of made.entries()) if (!m.ok) await takeBack(ready[k]!.fresh);
       return out;
     },
     async remove(type, id, base) {

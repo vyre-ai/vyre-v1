@@ -67,6 +67,17 @@ export function createUpdateManyHandler(deps: UpdateManyDeps) {
             { perm: "records.edit", level: "edit", cap: "records.update" },
             { type: "record", id: it.recordId },
           );
+          if (d?.effect === "hold") {
+            // the change would wait for a person's yes: it is not made here, and says so (it is not a missing record)
+            out[i] = {
+              recordId: it.recordId,
+              error: {
+                code: "permission.needs_approval",
+                message: "A change to this record needs approval, so it was not made.",
+              },
+            };
+            continue;
+          }
           if (d?.effect !== "allow") throw new StoreError("not_found", `no ${input.type} ${it.recordId}`);
         }
         const cur = await deps.store.get(input.type, it.recordId);

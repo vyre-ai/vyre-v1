@@ -109,3 +109,22 @@ test("update_many takes at most one group", async () => {
     }),
   );
 });
+
+test("an item that needs approval says so and is not made; it is not a missing record", async () => {
+  const rec = openRecords({ space: "sp_umh_hold", path: ":memory:" });
+  await rec.store.define({ add_types: [PERSON] });
+  const id = mintRecordId();
+  await rec.store.create("person", id, { name: "P" });
+  const h = createUpdateManyHandler({ store: rec.store, meta: () => ({ label: 0, holds: 0 }) });
+  const out = await h(
+    {
+      trace: { traceId: "0123456789abcdef0123456789abcdef" },
+      emit: () => undefined,
+      principal: { kind: "person", id: "usr_dana" },
+      authorize: () => ({ effect: "hold" as const }),
+    } as never,
+    { type: "person", items: [{ recordId: id, patch: { name: "Q" } }] },
+  );
+  assert.equal(out.results[0]!.error?.code, "permission.needs_approval");
+  assert.equal((await rec.store.get("person", id))!.data["name"], "P");
+});
