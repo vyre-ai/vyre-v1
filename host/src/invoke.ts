@@ -557,6 +557,8 @@ export type CommitEvents = (
   input: unknown,
   seed: CtxSeed,
   events: { name: EventName; subject: string; payload: unknown; id?: string }[],
+  /** the depth of the call being made good (an Automation chain's count carries on from it) */
+  opts?: { depth?: number },
 ) => Promise<EventEnvelope[]>;
 export type Invoke = ((cap: string, input: unknown, seed: CtxSeed) => Promise<InvokeResult>) & { commitEvents?: CommitEvents };
 
@@ -1611,15 +1613,16 @@ export function createInvoke(deps: InvokeDeps): Invoke {
     return ctx;
   }
 
-  const commitEvents: CommitEvents = async (capName, input, seed, specs) => {
+  const commitEvents: CommitEvents = async (capName, input, seed, specs, opts) => {
+    const depth = opts?.depth ?? 0;
     const c = deps.caps.get(capName);
     if (!c) throw fail("internal.not_implemented", seed.trace?.traceId ?? "0".repeat(32), { details: { cap: capName } });
     const trace: TraceContext = seed.trace ?? { traceId: hex(16), spanId: hex(8) };
     const events = specs.map((sp) => {
-      const ev = envelope(sp.name, sp.subject, sp.payload, seed, trace, 0) as EventEnvelope;
+      const ev = envelope(sp.name, sp.subject, sp.payload, seed, trace, depth) as EventEnvelope;
       return sp.id ? { ...ev, id: sp.id } : ev;
     });
-    bornObjects(c, input, seed, trace, 0, events);
+    bornObjects(c, input, seed, trace, depth, events);
     const stored = await deps.commit({ cap: c.name, v: c.v, principal: seed.principal.id, events, audit: null });
     if (stored.length) deps.publish?.(stored);
     return stored;

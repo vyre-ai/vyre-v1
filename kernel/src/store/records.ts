@@ -223,7 +223,7 @@ export interface RecordWriter {
   traceId?: string | undefined;
   runId?: string | undefined;
   /** Set by a handler that announces each record it makes with a module `record.created` event after the call: the record's own event then names who and how (see host/src/daemon/record-announce.ts), so a stop between the two writes can be repaired. */
-  announce?: { quiet?: boolean } | undefined;
+  announce?: { quiet?: boolean; depth?: number; origin?: string } | undefined;
 }
 export const recordWriter = new AsyncLocalStorage<RecordWriter>();
 
@@ -238,7 +238,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const clock = o.clock ?? Date.now;
   const tx = host.tx;
 
-  const announceOf = (): { announce?: { quiet?: boolean } } => {
+  const announceOf = (): { announce?: { quiet?: boolean; depth?: number; origin?: string } } => {
     const a = recordWriter.getStore()?.announce;
     return a ? { announce: { ...a } } : {};
   };
