@@ -394,7 +394,37 @@ export async function agentDeleteWalk(
         const replies = page.getByText(/1 reply/).first();
         await replies.waitFor({ timeout: 30_000 });
         await replies.click(); // opening a thread is not part of delete for good: by pointer in every mode
-        await page.getByText(`${name} says the list is ready.`, { exact: true }).first().waitFor({ timeout: 30_000 });
+        try {
+          await page.getByText(`${name} says the list is ready.`, { exact: true }).first().waitFor({ timeout: 30_000 });
+        } catch (e) {
+          // what the page shows when the thread does not open: kept with the walk's evidence (walks-evidence/agent-delete), so a failed run says whether the thread pane, the reply or neither was drawn.
+          // Every step of it is guarded: a failure to write evidence never hides the wait's own error, and nothing that looks like a key, a token or an address is saved.
+          try {
+            const dir = path.join(process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join("walks-evidence"), "agent-delete");
+            fs.mkdirSync(dir, { recursive: true });
+            const mask = (t: string): string =>
+              t
+                .replace(/[A-Za-z0-9_\-]{24,}/g, "[masked]")
+                .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[masked address]")
+                .replace(/\b(?:clm|tok|key|sk|pk)_[A-Za-z0-9]+/g, "[masked]");
+            await page.screenshot({ path: path.join(dir, `thread-step-${mode}-${tag}.png`) }).catch(() => undefined);
+            const seen = await page
+              .evaluate(() => ({
+                url: location.pathname + location.hash,
+                replies: Array.from(document.querySelectorAll("[data-testid*='replies']")).map((n) =>
+                  (n as HTMLElement).innerText.slice(0, 80),
+                ),
+                sidePane: document.querySelectorAll("[data-testid*='side']").length,
+                hasReplyText: document.body.innerText.includes("says the list is ready"),
+                body: document.body.innerText.slice(0, 1500),
+              }))
+              .catch((x) => ({ error: String(x) }));
+            fs.writeFileSync(path.join(dir, `thread-step-${mode}-${tag}.json`), mask(JSON.stringify(seen, null, 2)));
+          } catch {
+            /* the evidence is a help, never the failure */
+          }
+          throw e;
+        }
         await page.locator('[data-testid^="deleted-"]').first().waitFor({ timeout: 20_000 });
         assert.equal((await page.locator('[data-testid^="deleted-"]').first().innerText()).trim(), "deleted");
         assert.equal(await page.getByRole("link", { name: `Open ${name}` }).count(), 0, "its name is not pressable");
