@@ -2,7 +2,7 @@
 // the same rows, the same field clocks, the same events in the same order, and a refused row is refused alone with the rows around it made.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { openRecords } from "../impl.ts";
+import { openRecords, setRecordsVault } from "../impl.ts";
 import { createMergeHandlers } from "../handlers/merge.ts";
 import type { MergeDeps } from "../handlers/merge.ts";
 
@@ -134,4 +134,64 @@ test("one event the log refuses on its own in the middle of a run is that row's 
   assert.deepEqual(out.refused?.map((r) => r.row), [25]);
   assert.equal(stored, 59, "what is stored is what was counted");
   assert.equal(emitted.length, 59, "each stored record was announced");
+});
+
+test("a value to be sealed is written to the Vault only for a row that will be made: a refused row writes none, a row the log refuses alone has its value taken back, and a retry of the reported failures makes no duplicate", async () => {
+  const PERSON = Object.freeze({
+    name: "person",
+    label: "Person",
+    fields: [
+      { name: "name", kind: "text", label: "Name" },
+      { name: "age", kind: "number", label: "Age" },
+      { name: "ssn", kind: "sealed", label: "SSN" },
+    ],
+  });
+  const puts: string[] = [];
+  const discarded: string[] = [];
+  setRecordsVault({
+    put: async (o) => {
+      puts.push(`${o.recordId}:${o.field}`);
+      return `vit_${puts.length}`;
+    },
+    reveal: async () => "x",
+    discard: async (ref) => void discarded.push(ref),
+  });
+  try {
+    const rec = openRecords({ space: "spc_aaaaaaaaaaaa", path: ":memory:" });
+    await rec.store.define({ add_types: [PERSON] as never });
+    const log = rec.host.store as unknown as { appendBatch: (b: { type: string }[]) => unknown };
+    const was = log.appendBatch.bind(log);
+    let breakNth = -1;
+    log.appendBatch = (b) => {
+      if (breakNth >= 0 && b.length > breakNth) b[breakNth]!.type = "NOT A TYPE";
+      return was(b);
+    };
+    const ctx = {
+      trace: { traceId: "0123456789abcdef0123456789abcdef" },
+      emit: () => undefined,
+      actor: "usr_dana",
+      authorize: () => ({ effect: "allow" }),
+    };
+    const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
+    const rows = Array.from({ length: 10 }, (_, i) => ({ name: `P ${i}`, age: i, ssn: `123-45-67${String(i).padStart(2, "0")}` }));
+    (rows[2] as Record<string, unknown>)["age"] = "two"; // refused before anything is written
+    breakNth = 5; // the log refuses the sixth made row alone
+    const out = await h["records.bulk_upsert"](ctx as never, { type: "person", match: ["name"], rows, createOnly: true });
+    assert.equal(out.stopped, undefined);
+    assert.deepEqual(out.refused?.map((r) => r.row).sort(), [2, 6]);
+    assert.equal(out.created, 8);
+    assert.equal(puts.length, 9, "nine values were sealed: one for each row except the one refused up front");
+    assert.equal(discarded.length, 1, "the value of the row the log refused is taken back");
+    assert.match(String(out.refused![0]!.message), /^(?!.*bad_event)/, "the reason is a plain sentence, not the log's own words");
+    // the retry of the reported failures (rows 2 and 6, fixed) makes those two and nothing else
+    breakNth = -1;
+    const retry = [{ ...rows[2]!, age: 2 }, rows[6]!];
+    const again = await h["records.bulk_upsert"](ctx as never, { type: "person", match: ["name"], rows: retry, createOnly: true });
+    assert.equal(again.created, 2);
+    const names = rec.host.tx.all<Record<string, unknown>>("SELECT json_extract(data, '$.name') AS n FROM rt_person").map((r) => String(r["n"]));
+    assert.equal(names.length, 10);
+    assert.equal(new Set(names).size, 10, "no duplicates");
+  } finally {
+    setRecordsVault(null);
+  }
 });

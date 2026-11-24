@@ -10,6 +10,8 @@ export interface RecordsVaultSeam {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   /** Show one value to one person. The Vault refuses a person without access and logs every reveal. */
   reveal(ref: string, person: string): Promise<string>;
+  /** Take back a value put for a record that was then not made: the item goes to Trash. */
+  discard(ref: string): Promise<void>;
   /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
   scrubField(type: string, field: string): Promise<void>;
 }
@@ -66,6 +68,9 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
         idempotencyKey: `sealed-${o.type}-${o.field}-${o.recordId}`,
       })) as { item: { id: string } };
       return out.item.id;
+    },
+    async discard(ref) {
+      await d.system("vault.item.delete", { itemId: ref });
     },
     scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {

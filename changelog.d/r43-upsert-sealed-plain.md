@@ -1,0 +1,1 @@
+- bulk_upsert: a value to be sealed is written to the Vault only for a row that passed its checks; the value of a row the log then refuses is taken back; a row the log refuses alone reports a plain sentence (the log's own words stay on the error as detail).
