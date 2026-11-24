@@ -22,12 +22,20 @@ export const MAX_UPLOAD = 25 * 1024 * 1024;
 export const TOO_LARGE_WORDS = `This file is over the ${MAX_INLINE / 1024} KB limit for a direct write. Split the content into smaller files, each under ${MAX_INLINE / 1024} KB.`;
 /** The most a direct write may carry. The document fill is a server-side maker of whole files (a template with a letterhead picture is over the direct-write limit), so the call it makes
  * (the pipeline names the calling capability in ctx.callerCap; a caller cannot set it) is held to the upload limit, the same one files.upload_url holds. */
+/** What a refused write says for the limit that applied to it: the direct-write words, or (for a file the server makes) the upload limit and what to do. */
+export function tooLargeWords(ctx: Pick<Ctx, "callerCap">): string {
+  return inlineLimit(ctx) === MAX_UPLOAD
+    ? `This file is over the ${MAX_UPLOAD / 1024 / 1024} MB limit. Make it smaller: fewer rows or fewer columns.`
+    : TOO_LARGE_WORDS;
+}
 export function inlineLimit(ctx: Pick<Ctx, "callerCap">): number {
   return ctx.callerCap !== undefined && SERVER_MAKERS.has(ctx.callerCap) ? MAX_UPLOAD : MAX_INLINE;
 }
 /** The capabilities that make whole files on the server: a document fill, and the signed PDF of an envelope (the sent document plus stamps and an audit page is rarely under 256 KB). */
 const SERVER_MAKERS = new Set([
   "documents.fill",
+  // an export of records (tens of thousands of rows is a few MB of csv): the file is made on the server, so it is held to the upload limit, not the direct-write one
+  "records.export",
   "esign.signer_act",
   "esign.fetch_signed",
   "esign.hook",
@@ -925,8 +933,13 @@ async function putBlob(ctx: Ctx, plain: Uint8Array, mime: string, id: string): P
 
 /** The size limits of a direct write, checked before any hashing or storing. */
 function checkPlainSize(ctx: Ctx, plain: Uint8Array): void {
-  if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
-  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+  if (plain.byteLength > MAX_UPLOAD)
+    fail(
+      ctx,
+      "validation.too_large",
+      `This file is over the ${MAX_UPLOAD / 1024 / 1024} MB limit. Make it smaller: fewer rows or fewer columns.`,
+    );
+  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
 }
 
 /** The blob of already hashed bytes: the one held under that hash, or a new one. Synchronous, so a batch can hold it in one transaction. */
@@ -949,7 +962,7 @@ async function blobForPlain(
   mime: string,
 ): Promise<{ id: string; hash: string; size: number }> {
   if (plain.byteLength > MAX_UPLOAD) fail(ctx, "validation.too_large", "This file is over the size limit.");
-  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+  if (plain.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
   const hash = await sha256(plain);
   const existing = one(ctx, "SELECT * FROM files_blob WHERE hash = ?", hash);
   if (existing) return { id: String(existing.id), hash, size: num(existing.size) };

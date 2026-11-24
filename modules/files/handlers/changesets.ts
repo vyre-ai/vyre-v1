@@ -14,7 +14,7 @@ import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import type { ErrorCode, NextStep, VyreError } from "../../../packages/contracts/src/types.ts";
 import { mintUuid } from "../../../lib/ids.ts";
 import { boundedScope } from "../../../kernel/src/seal/scope.ts";
-import { MAX_INLINE, TOO_LARGE_WORDS, inlineLimit, treeHandlers } from "./tree.ts";
+import { MAX_INLINE, TOO_LARGE_WORDS, inlineLimit, tooLargeWords, treeHandlers } from "./tree.ts";
 import { addMarks, hunksOf, lcsPairs, lineOps, splitLines, splitParagraphs, versionHandlers } from "./versions.ts";
 import type { Hunk } from "./versions.ts";
 
@@ -544,7 +544,7 @@ async function stagedCreate(ctx: Ctx, input: unknown): Promise<CreateResult> {
   const mime = optStr(ctx, o, "mime") ?? "application/octet-stream";
   const bytes =
     o["content"] === undefined || o["content"] === null ? new Uint8Array() : contentBytes(ctx, o["content"]);
-  if (bytes.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", TOO_LARGE_WORDS);
+  if (bytes.byteLength > inlineLimit(ctx)) fail(ctx, "validation.too_large", tooLargeWords(ctx));
   if (many(ctx, "SELECT * FROM files_file WHERE folder_id = ? AND name = ?", folderId, name).some(live))
     fail(
       ctx,
