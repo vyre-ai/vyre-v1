@@ -246,11 +246,13 @@ export interface InvokeDeps {
     ): Promise<{ finish(): unknown } | null>;
     /** which fields of one record a reader may see (the rule records.get applies); null when they may not see it */
     fieldGate?(
-      reader: { principal: string; actingFor?: string | undefined },
+      reader: { principal: string; actingFor?: string | undefined; provider?: string | undefined },
       type: string,
       recordId: string,
       trace: string,
-    ): Promise<((key: string) => boolean) | null>;
+      labels?: Map<string, Readonly<Record<string, number>>>,
+      o?: { deleted?: boolean; settle?: boolean },
+    ): Promise<((key: string) => boolean) | null | "later">;
   };
   /** Can this agent's clearance reach what this resource is labelled (its own label and every folder above it)? Asked once a Vault folder or key an agent made for a person is born (host/src/daemon/daemon.ts). */
   madeFor?: MadeForFacts;
@@ -1621,8 +1623,12 @@ export function createInvoke(deps: InvokeDeps): Invoke {
           }
         });
       },
-      async recordFieldGate(person, type, recordId) {
-        return (await deps.recordAccess?.fieldGate?.({ principal: person }, type, recordId, trace.traceId)) ?? null;
+      async recordFieldGate(person, type, recordId, opts) {
+        return (
+          (await deps.recordAccess?.fieldGate?.({ principal: person }, type, recordId, trace.traceId, undefined, {
+            deleted: opts?.deleted === true,
+          })) ?? null
+        );
       },
       vault: svc.vault ?? { fill: unavailable("vault"), use: unavailable("vault") },
       http: svc.http ?? unavailable("http"),

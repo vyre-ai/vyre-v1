@@ -6445,8 +6445,15 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               owner: () => access.owner() ?? cfg.owner ?? null,
               now,
               subjects: (name) => eventSubjects.get(name),
-              fieldGate: (c, type, id) =>
-                eventRecordAccess.fieldGate({ principal: c.principal, actingFor: c.actingFor }, type, id, "events"),
+              fieldGate: (c, type, id, labels, deleted) =>
+                eventRecordAccess.fieldGate(
+                  { principal: c.principal, actingFor: c.actingFor, provider: c.provider },
+                  type,
+                  id,
+                  "events",
+                  labels,
+                  { deleted, settle: false },
+                ),
               // a chat's readers and an agent's visibility (a person's Assistant) are decided by their modules, the same reads the person's own screen makes
               moduleView: async (person, type, id) => {
                 if (type !== "thread" && type !== "agent" && type !== "channel") return undefined;

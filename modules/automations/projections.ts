@@ -154,7 +154,12 @@ export interface AutoCtx {
     resource: { type: string; id: string | null },
   ): { effect: string };
   /** which fields of one record a person may see (the host's rule for records.get), null when they may not see it; a hand-built test ctx may omit it */
-  recordFieldGate?(person: string, type: string, recordId: string): Promise<((field: string) => boolean) | null>;
+  recordFieldGate?(
+    person: string,
+    type: string,
+    recordId: string,
+    opts?: { deleted?: boolean },
+  ): Promise<((field: string) => boolean) | null | "later">;
   /** https://<space address>, when the host knows it; webhook URLs are paths without it */
   baseUrl?: string;
 }

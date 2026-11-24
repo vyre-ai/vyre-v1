@@ -12,6 +12,7 @@ import {
   backoffMs,
   deliveryById,
   deliveryOut,
+  filterMatches,
   hostIfSet,
   hostPorts,
   lastSeq,
@@ -64,6 +65,7 @@ const RESOURCE_TYPES = new Set([
 const caller = (ctx: EventsCtx) => ({
   principal: ctx.principal.id,
   ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}),
+  ...(ctx.provider ? { provider: ctx.provider } : {}),
   ...(isHostService(ctx.principal) ? { system: true } : {}),
 });
 
@@ -642,20 +644,17 @@ export async function webhooksSendDelivery(
   if (!d || d.body === null) {
     // the body is the event as the webhook's owner may read it; an event that is gone or no longer readable ends the delivery
     const row = await hostPorts(ctx).events.get({ principal: w.created_by }, input.eventId);
+    // The event is read as the webhook's owner may read it (the events port cuts a record's fields to the ones they may see). The filter was matched on the whole event when it was queued; it is judged again on
+    // what the owner sees, so a filter on a field they cannot see tells them nothing. An event they cannot read, or that no longer matches what they see, was never theirs: its queued row goes and nothing
+    // is sent or logged (a row would say that the event exists).
+    const unseen = row !== null && w.filter !== null && !filterMatches(JSON.parse(w.filter), row.payload);
     if (!d) {
       if (!row) return raise(ctx, "validation.not_found", "no such event");
       d = newDelivery(ctx, w, { eventId: row.id, eventType: row.type, kind: "event", body: deliveryBody(row, w.id) });
-    } else if (row) d = { ...d, body: deliveryBody(row, w.id) };
+    } else if (row && !unseen) d = { ...d, body: deliveryBody(row, w.id) };
     else {
-      const gone: DeliveryRec = {
-        ...d,
-        state: "failed",
-        last_error: "The event can no longer be read.",
-        at: ctx.now(),
-        next_attempt_at: null,
-      };
-      saveDelivery(ctx, gone);
-      return { delivery: deliveryOut(gone) };
+      ctx.db.run(`DELETE FROM events_delivery WHERE id = ?`, d.id);
+      return { delivery: deliveryOut({ ...d, state: "failed", next_attempt_at: null, last_error: "The event can no longer be read." }) };
     }
   }
   return { delivery: deliveryOut(await attempt(ctx, w, d, true)) };
