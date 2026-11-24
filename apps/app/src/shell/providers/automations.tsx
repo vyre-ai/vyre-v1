@@ -4,7 +4,7 @@ import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { ResizableColumn } from "../../../../../ui/src/SidePane/resize.tsx";
 import { useConnectVersion } from "../connect/context.ts";
 import { useEffect, useMemo, useState } from "react";
-import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { useOnLink, useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
 import type { ReactElement } from "react";
@@ -127,6 +127,11 @@ function Body({ rt }: { rt: ShellRuntime }): ReactElement {
   // the Automations row in the sidebar leaves the open automation (the hash keeps naming it, so that id is remembered as left)
   const [left, setLeft] = useState<string | null>(null);
   const openId = picked ?? (hashed !== null && hashed === left ? null : hashed);
+  // a link back to the automation, Journey or run the person closed opens it again (the address names it the same way as before)
+  useOnLink(() => {
+    setLeft(null);
+    setLeftHashed(null);
+  });
   const goHome = (): void => {
     setOverlay(null);
     setOpenId(null);

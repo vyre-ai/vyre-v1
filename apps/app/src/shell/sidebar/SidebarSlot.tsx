@@ -68,6 +68,8 @@ export interface SidebarSlotProviderProps {
   epoch: number;
   /** The item the place has open (its address). A link that opens an item while the phone shows the list takes the phone to the body, as pressing a row does. */
   hash?: string;
+  /** Addresses that came from outside so far (HubState.links): a link back to the address the phone just left (Back) opens the item again. */
+  links?: number;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -111,7 +113,7 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       return;
     }
     if (linkNamesBody(p.compact, p.hash)) setBodyOpen(true);
-  }, [p.compact, p.hash, p.epoch]);
+  }, [p.compact, p.hash, p.epoch, p.links]);
   const setCollapsed = useCallback(
     (v: boolean) => {
       setCollapsedState(v);

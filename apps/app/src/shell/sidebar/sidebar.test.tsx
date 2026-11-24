@@ -193,7 +193,7 @@ function Probe(): ReturnType<typeof Text> {
 
 async function drawn(
   r: ReturnType<typeof createRoot>,
-  o: { hash: string; epoch: number; compact?: boolean },
+  o: { hash: string; epoch: number; compact?: boolean; links?: number },
 ): Promise<string> {
   await act(async () => {
     r.render(
@@ -202,6 +202,7 @@ async function drawn(
         epoch={o.epoch}
         compact={o.compact ?? true}
         hash={o.hash}
+        links={o.links ?? 0}
         initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
       >
         <Probe />
@@ -232,7 +233,16 @@ test("a link takes a one-panel layout from the list to the item; Back (pressed) 
       "list",
       "the same address is not a new link: the list stays",
     );
-    assert.equal(await drawn(r, { hash: "subject=thread:t2", epoch: 1 }), "body", "another item does open");
+    assert.equal(
+      await drawn(r, { hash: "subject=goal:gol_1", epoch: 1, links: 1 }),
+      "body",
+      "a link back to the same address, from outside, opens the item again",
+    );
+    await act(async () => {
+      slotNow!.back();
+    });
+    await flush();
+    assert.equal(await drawn(r, { hash: "subject=thread:t2", epoch: 1, links: 1 }), "body", "another item does open");
     assert.equal(
       await drawn(r, { hash: "subject=thread:t2", epoch: 1, compact: false }),
       "body",
