@@ -111,9 +111,11 @@ export async function servicesWalk(
       const evidence = async (label: string, cardId: string, slug: string): Promise<void> => {
         const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
         fs.mkdirSync(dir, { recursive: true });
-        const state = await api("vault.requests.get", { requestId: cardId.replace(/^connect-/, "") }).catch((x: unknown) => ({
-          error: String(x).slice(0, 300),
-        }));
+        const state = await api("vault.requests.get", { requestId: cardId.replace(/^connect-/, "") }).catch(
+          (x: unknown) => ({
+            error: String(x).slice(0, 300),
+          }),
+        );
         const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
         const elements = await page
           .locator(`[data-testid^='${cardId}']`)
@@ -132,9 +134,17 @@ export async function servicesWalk(
             `address ${page.url()}`,
             `request ${JSON.stringify(state).slice(0, 1500)}`,
             `connections ${JSON.stringify(conns).slice(0, 1500)}`,
-            `calls the stand-in app saw since the last Connect: ${seen.map((r) => `${r.host} ${r.url}`).join(" | ").slice(0, 1500)}`,
+            `calls the stand-in app saw since the last Connect: ${seen
+              .map((r) => `${r.host} ${r.url}`)
+              .join(" | ")
+              .slice(0, 1500)}`,
             `page errors: ${errs.join(" | ").slice(0, 800)}`,
-            `page text:\n${(await page.locator("body").innerText().catch(() => "")).slice(0, 2500)}`,
+            `page text:\n${(
+              await page
+                .locator("body")
+                .innerText()
+                .catch(() => "")
+            ).slice(0, 2500)}`,
           ].join("\n"),
         );
       };
