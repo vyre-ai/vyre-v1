@@ -7,12 +7,12 @@ Update a group of records of one type in one commit (the sync engine's sealed wr
 | Module | records |
 | Version | 1 (since 1.0.0) |
 | Effects | write |
-| Permission | records.create |
+| Permission | records.edit |
 | Grant level | edit |
 | Risk | medium |
-| Resource | record (create under /type) |
+| Resource | record_type (/type) |
 | Gate | none |
-| Idempotency | key |
+| Idempotency | natural |
 | Offline | online |
 | Audit | none |
 | Team Space only | no |
@@ -31,7 +31,6 @@ type In = {
       patch: Record<string, unknown>;
       baseVersion?: number;
     }>;
-  idempotencyKey: string;
 };
 ```
 
@@ -68,6 +67,7 @@ type Out = {
 - permission.no_grant
 - permission.role_lacks_permission
 - validation.bad_input
+- validation.not_found
 
 ## Example
 
@@ -75,7 +75,6 @@ type Out = {
 {
   "name": "example",
   "input": {
-    "idempotencyKey": "idem_1",
     "items": [
       {
         "baseVersion": 1,

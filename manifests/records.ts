@@ -409,7 +409,7 @@ export default defineManifest({
       errors: ["validation.field_locked", "validation.version_conflict", "validation.duplicate"],
       hook: true,
     }),
-    create(
+    write(
       "records.update_many",
       "Update a group of records of one type in one commit (the sync engine's sealed write-back)",
       {
@@ -428,8 +428,8 @@ export default defineManifest({
             }),
           ),
         },
-        make: ["record", "/type"],
-        perm: "records.create",
+        on: ["record_type", "/type"],
+        perm: "records.edit",
         emits: ["record.updated"],
       },
     ),

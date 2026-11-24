@@ -35866,7 +35866,6 @@ export type RecordsUpdateManyIn = {
       patch: Record<string, unknown>;
       baseVersion?: number;
     }>;
-  idempotencyKey: string;
 };
 export type RecordsUpdateManyOut = {
   results: Array<{

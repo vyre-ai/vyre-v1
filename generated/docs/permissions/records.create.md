@@ -32,4 +32,3 @@ Area: records. Risk: low. Applies to: record_type, record.
 - projects.from_channel
 - records.bulk_upsert
 - records.create
-- records.update_many

@@ -1445,7 +1445,6 @@ if (g5844 === "object") {
 if (g5844 === 'object') { const o5844 = x5844 as Record<string, unknown>;
 if (!("type" in o5844)) e.push(p + "/type" + ': required');
 if (!("items" in o5844)) e.push(p + "/items" + ': required');
-if (!("idempotencyKey" in o5844)) e.push(p + "/idempotencyKey" + ': required');
 if ("type" in o5844) lf(o5844["type"], p + "/type", e, L9);
 if ("items" in o5844) {
 {
@@ -1484,7 +1483,6 @@ if ("baseVersion" in o5846) lf(o5846["baseVersion"], p + "/items" + '/' + i5845 
 }
 }
 }
-if ("idempotencyKey" in o5844) lf(o5844["idempotencyKey"], p + "/idempotencyKey", e, L57);
 }
 }
 }

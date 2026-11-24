@@ -32068,14 +32068,13 @@ const routes5: Route[] = [
     "v": 1,
     "module": "records",
     "effects": "write",
-    "permission": "records.create",
+    "permission": "records.edit",
     "level": "edit",
     "resource": {
-      "type": "record",
-      "create": true,
-      "parent": "/type"
+      "type": "record_type",
+      "id": "/type"
     },
-    "idempotency": "key",
+    "idempotency": "natural",
     "risk": "medium",
     "offline": null,
     "teamOnly": false,
