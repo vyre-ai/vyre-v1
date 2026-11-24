@@ -394,7 +394,27 @@ export async function agentDeleteWalk(
         const replies = page.getByText(/1 reply/).first();
         await replies.waitFor({ timeout: 30_000 });
         await replies.click(); // opening a thread is not part of delete for good: by pointer in every mode
-        await page.getByText(`${name} says the list is ready.`, { exact: true }).first().waitFor({ timeout: 30_000 });
+        try {
+          await page.getByText(`${name} says the list is ready.`, { exact: true }).first().waitFor({ timeout: 30_000 });
+        } catch (e) {
+          // what the page shows when the thread does not open: kept with the walk's evidence (walks-evidence/agent-delete), so a failed run says whether the thread pane, the reply or neither was drawn
+          const dir = path.join("walks-evidence", "agent-delete");
+          fs.mkdirSync(dir, { recursive: true });
+          await page.screenshot({ path: path.join(dir, `thread-step-${mode}-${tag}.png`) }).catch(() => undefined);
+          const seen = await page
+            .evaluate(() => ({
+              url: location.href,
+              replies: Array.from(document.querySelectorAll("[data-testid*='replies']")).map((n) =>
+                (n as HTMLElement).innerText.slice(0, 80),
+              ),
+              sidePane: document.querySelectorAll("[data-testid*='side']").length,
+              hasReplyText: document.body.innerText.includes("says the list is ready"),
+              body: document.body.innerText.slice(0, 1500),
+            }))
+            .catch((x) => ({ error: String(x) }));
+          fs.writeFileSync(path.join(dir, `thread-step-${mode}-${tag}.json`), JSON.stringify(seen, null, 2));
+          throw e;
+        }
         await page.locator('[data-testid^="deleted-"]').first().waitFor({ timeout: 20_000 });
         assert.equal((await page.locator('[data-testid^="deleted-"]').first().innerText()).trim(), "deleted");
         assert.equal(await page.getByRole("link", { name: `Open ${name}` }).count(), 0, "its name is not pressable");
