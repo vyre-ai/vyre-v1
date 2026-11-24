@@ -521,6 +521,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     fill(place, hash, title, from) {
+      notOwn();
       const s = open();
       holder?.(undefined, undefined, true);
       s.tabs.fill(livePlace(place), hash, title, from);
@@ -576,6 +577,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     reopenTab() {
+      notOwn();
       const s = open();
       if (!s.tabs.canReopen()) return;
       holder?.(undefined, undefined, true);
@@ -589,6 +591,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     newTab() {
+      notOwn();
       const s = open();
       const tab = s.tabs.newTab(s.place);
       s.place = tab.place;

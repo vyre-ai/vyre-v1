@@ -134,3 +134,25 @@ test("a report issued by a page drawn before a move that is not its own is stale
   assert.equal(staleReport(drawn, hub.state().shifts), true, "a page drawn before the switch now reports stale");
   assert.equal(staleReport(hub.state().shifts, hub.state().shifts), false, "a page drawn after it reports normally");
 });
+
+test("every method that changes the address on screen is a shift: fill, reopenTab, newTab, showTab, go, Back and closeTab", () => {
+  const task = placeTab("chats", TASK, "Sign in to olivia again");
+  const hub = restored([task], task.key);
+  const shifted = (name: string, run: () => void): void => {
+    const before = hub.state().shifts;
+    hub.move("chats", "", true); // a place's own report: not a shift
+    assert.equal(hub.state().shifts, before, `${name}: an own report is not a shift`);
+    run();
+    assert.ok(hub.state().shifts > before, `${name} is a shift`);
+    assert.notEqual(hub.state().ownHash, "", `${name} ends the own-report claim`);
+  };
+  shifted("showTab", () => hub.showTab(task));
+  shifted("go", () => hub.go("chats", "screen=tasks.page&taskId=tsk_2"));
+  shifted("newTab", () => hub.newTab());
+  shifted("closeTab", () => hub.closeTab());
+  shifted("reopenTab", () => hub.reopenTab());
+  shifted("fill", () =>
+    hub.fill("chats", "screen=tasks.page&taskId=tsk_3", "A task", hub.session().tabs.state().active),
+  );
+  shifted("back", () => void hub.back());
+});
