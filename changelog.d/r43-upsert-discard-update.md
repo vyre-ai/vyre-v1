@@ -1,0 +1,1 @@
+- A sealed value put for a record that was then not made is overwritten through the Vault update the host already uses, not a delete (a delete by the host waits for an approval with the secret still in the Vault). bulk_upsert also makes one attempt per window of new rows before making them one at a time.

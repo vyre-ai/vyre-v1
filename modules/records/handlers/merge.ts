@@ -758,6 +758,7 @@ async function upsert(
   // New records are made a run at a time (one commit for the run, the store's group commit) instead of one commit each: a run is the consecutive new rows from here, and each row still gets its own result, so a
   // refused row is refused alone and the order of the events is the order of the rows. When the run cannot be made as a whole the rows are made one by one, as before.
   const madeBy = new Map<Plan, CreateManyResult>();
+  const tried = new Set<Plan>(); // rows of a run that failed as a whole: one attempt per window, then the rows go one at a time
   const makeRun = async (from: number): Promise<void> => {
     if (!store.createMany) return;
     const run: Plan[] = [];
@@ -767,6 +768,7 @@ async function upsert(
       run.push(p);
     }
     if (run.length < 2) return;
+    for (const p of run) tried.add(p);
     try {
       const res = await store.createMany(
         input.type,
@@ -817,7 +819,7 @@ async function upsert(
         continue;
       }
       if (!plan.existing) {
-        if (!madeBy.has(plan)) await makeRun(at);
+        if (!madeBy.has(plan) && !tried.has(plan)) await makeRun(at);
         const pre = madeBy.get(plan);
         if (pre && !pre.ok) throw pre.error;
         const rec = pre ? pre.record : await store.create(input.type, mintRecordId(), plan.values);

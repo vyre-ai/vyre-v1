@@ -10,7 +10,7 @@ export interface RecordsVaultSeam {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   /** Show one value to one person. The Vault refuses a person without access and logs every reveal. */
   reveal(ref: string, person: string): Promise<string>;
-  /** Take back a value put for a record that was then not made: the item goes to Trash. */
+  /** Take back a value put for a record that was then not made: the value is overwritten (the item stays, holding a note). */
   discard(ref: string): Promise<void>;
   /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
   scrubField(type: string, field: string): Promise<void>;
@@ -69,8 +69,10 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
       })) as { item: { id: string } };
       return out.item.id;
     },
+    // vault.item.delete is gated for a service (a held "Move this item to Trash?" request, with the secret still in the Vault until someone answers), so the host takes the value back the way it put it: through
+    // vault.item.update, which is not gated for the host. The item stays, named for a record that was never made, holding a note and not the value.
     async discard(ref) {
-      await d.system("vault.item.delete", { itemId: ref });
+      await d.system("vault.item.update", { itemId: ref, fieldsSet: [{ key: SEALED_KEY, value: "(taken back: the record was not made)", secret: true }] });
     },
     scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {

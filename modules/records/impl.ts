@@ -52,10 +52,12 @@ import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.t
 export interface RecordsVault {
   put(o: { type: string; recordId: string; field: string; value: string; ref?: string }): Promise<string>;
   reveal(ref: string, person: string): Promise<string>;
-  /** Take back a value put for a record that was then not made (best effort: the Vault item goes to Trash). Absent: nothing is taken back. */
+  /** Take back a value put for a record that was then not made (best effort: the value is overwritten). Absent: nothing is taken back. */
   discard?(ref: string): Promise<void>;
 }
 let vault: RecordsVault | null = null;
+/** The Vault the host handed, for a test that checks what the real one does with a call Records makes. */
+export const recordsVaultInUse = (): RecordsVault | null => vault;
 /** The host hands the Vault (a seam like the others). */
 export function setRecordsVault(v: RecordsVault | null): void {
   vault = v;

@@ -213,7 +213,9 @@ test("one poison row in a run rolls the run back and the rows are made one at a 
     actor: "usr_dana",
     authorize: () => ({ effect: "allow" }),
   };
-  const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
+  let runs = 0;
+  const store = { ...rec.store, createMany: (...a: Parameters<NonNullable<typeof rec.store.createMany>>) => (runs++, rec.store.createMany!(...a)) } as typeof rec.store;
+  const h = createMergeHandlers({ store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
   const rows = Array.from({ length: 60 }, (_, i) => ({ name: i === 30 ? "POISON" : `P ${i}`, email: `p${i}@x.test`, age: i }));
   const out = await h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows, createOnly: true });
   const stored = Number(rec.host.tx.all<Record<string, unknown>>("SELECT count(*) AS n FROM rt_party")[0]!["n"]);
@@ -222,4 +224,5 @@ test("one poison row in a run rolls the run back and the rows are made one at a 
   assert.equal(out.stopped?.row, 30, "the call stops at the poison row");
   assert.equal(out.stopped?.notDone.length, 30, "the poison row and the 29 after it are not done, and none of them exists");
   assert.equal(emitted.length, 30);
+  assert.equal(runs, 1, "one failed attempt for the window, then the rows one at a time");
 });
