@@ -1,0 +1,1 @@
+- records.bulk_upsert makes new records a run of up to 200 at a time in one commit (the log's group commit) instead of one commit per row. The records, field clocks and events it leaves are the same, in the same order, and a refused row is still refused alone. Seeding 28,000 contacts and 9,400 matters is much faster.
