@@ -203,6 +203,88 @@ function eventsFinding(file: string, tail?: number): Finding {
   }
 }
 
+/**
+ * The ids of the records the Space log announces (events.db). The announcement is a `record.created` event whose entity is `record` and whose entity id is the record's id, both columns of the envelope, so an
+ * erased or encrypted payload still names its record. `unreadable` counts announcements with no entity id: if there are any, the answer is "cannot check".
+ */
+export function recordEventIds(file: string): { ids: Set<string>; unreadable: number } {
+  const db = openDb(file, fs.existsSync(`${file}-wal`) ? { readOnly: true } : { immutable: true });
+  const ids = new Set<string>();
+  let unreadable = 0;
+  try {
+    for (let after = 0; ; ) {
+      const rows = db.all(
+        "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 5000",
+        after,
+      ) as { seq: number; entity_id: string | null }[];
+      if (!rows.length) break;
+      for (const r of rows) {
+        if (typeof r.entity_id === "string" && r.entity_id) ids.add(r.entity_id);
+        else unreadable++;
+      }
+      after = rows[rows.length - 1]!.seq;
+    }
+  } finally {
+    db.close();
+  }
+  return { ids, unreadable };
+}
+
+/** A record this young may have its announcement still on its way (the call commits it at its end): never counted. */
+const ANNOUNCE_GRACE_MS = 120_000;
+
+/**
+ * Records that exist in the record store (space.db, its own log) with no `record.created` event in the Space log (events.db). The record is written first and its announcement is committed at the end of the call
+ * (host/src/invoke.ts), in another database file, so a stop between the two leaves a record that search, sync and Run undo never hear of.
+ * Every record is made by records.create or records.bulk_upsert (an import, a sync pull, a kit's starters and an agent's work all call them), and both announce what they make, so a live record with no announcement is a
+ * stop. Nothing else makes a record: a record type promoted from a site table is a type, not a record. Records are read first and the log second, so a record made between the two reads is never reported; one
+ * younger than ANNOUNCE_GRACE_MS is not counted; and if any announcement cannot be read the answer is "not checked", never degraded. Read-only; names a few ids.
+ */
+export function recordEventsFinding(spaceDb: string, eventsDb: string, now: number = Date.now()): Finding {
+  const key = "records.created_events";
+  if (!fs.existsSync(spaceDb) || !fs.existsSync(eventsDb))
+    return { key, state: "healthy", detail: "No records yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    const live: { id: string; at: number }[] = [];
+    try {
+      const tables = db.all(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
+      ) as { name: string }[];
+      for (const t of tables)
+        for (const r of db.all(`SELECT id, created_at FROM "${t.name}" WHERE deleted_at IS NULL`) as { id: string; created_at: number }[])
+          live.push({ id: r.id, at: Number(r.created_at) });
+    } finally {
+      db.close();
+    }
+    const { ids, unreadable } = recordEventIds(eventsDb);
+    const missing = live.filter((r) => !ids.has(r.id) && r.at < now - ANNOUNCE_GRACE_MS).map((r) => r.id);
+    if (!missing.length)
+      return { key, state: "healthy", detail: `All ${live.length} records have their created event.`, next: OK };
+    // an announcement that names no record may belong to any one record: it can hide as many missing records as there are such announcements, no more
+    if (unreadable >= missing.length)
+      return {
+        key,
+        state: "healthy",
+        detail: `Not checked: ${unreadable} announcements in the log name no record, so it cannot be said which of the ${missing.length} records without a named announcement lack one.`,
+        next: OK,
+      };
+    return {
+      key,
+      state: "degraded",
+      detail: `${missing.length - unreadable} of ${live.length} records have no record.created event${unreadable ? ` (at least; ${unreadable} unreadable announcements may account for others)` : ""} (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
+      next: NEXT.recordEvents,
+    };
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the records could not be compared with the log (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -350,6 +432,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   findings.push(finding("host.disk_space", probes.diskSpace(platform, o.dataDir), NEXT.space));
   if (space) {
     findings.push(eventsFinding(paths.events, o.chainTail));
+    findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(
