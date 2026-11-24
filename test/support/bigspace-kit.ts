@@ -1,6 +1,7 @@
 // A large law-firm-shaped Space reached through a real relay the way a browser on vyre.run reaches it (r34-bigspace).
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import { boot, call, seededDir } from "./live.ts";
 import { createRelay } from "../../relay/node/server.js";
@@ -27,7 +28,7 @@ export const FIRM: Size = { matters: 9400, fields: 100, contacts: 28000, orgs: 1
 const word = (i: number, f: number): string =>
   `Matter ${i} field ${f} ${"lorem ipsum dolor sit amet ".repeat(2)}`.trim();
 
-export async function seed(d: Daemon, s: Size, log: (m: string) => void): Promise<void> {
+export async function seed(d: Daemon, s: Size, log: (m: string) => void, fast = false): Promise<void> {
   const t0 = Date.now();
   const fields = Array.from({ length: s.fields }, (_, f) => ({ key: `f${f}`, type: "text", title: `Field ${f}` }));
   await cap(d, "schema.apply", {
@@ -56,7 +57,29 @@ export async function seed(d: Daemon, s: Size, log: (m: string) => void): Promis
       },
     ],
   });
+  // fast: one transaction per table straight into the type's rt_ table (the way modules/records/tests/query.perf does), for a test whose subject is not record writes and that must not spend its
+  // time in 28,000 records.bulk_upsert calls (each one is an event, a clock row and an index entry; the calls get slower as the table grows)
   const batch = async (type: string, total: number, make: (i: number) => Record<string, unknown>): Promise<void> => {
+    if (fast) {
+      const db = new DatabaseSync(`${d.paths.events.replace(/\/[^/]*$/, "")}/space.db`);
+      try {
+        db.exec("PRAGMA busy_timeout = 30000");
+        db.exec("BEGIN");
+        const ins = db.prepare(
+          `INSERT INTO "rt_${type}" (id, version, created_at, updated_at, deleted_at, data) VALUES (?, 1, ?, ?, NULL, ?)`,
+        );
+        const base = Date.now();
+        for (let i = 0; i < total; i++) {
+          const id = `00000000-0000-7000-8${type.length.toString(16).padStart(3, "0")}-${i.toString(16).padStart(12, "0")}`;
+          ins.run(id, base, base, JSON.stringify(make(i)));
+        }
+        db.exec("COMMIT");
+      } finally {
+        db.close();
+      }
+      log(`seeded ${total} ${type} at ${Date.now() - t0} ms`);
+      return;
+    }
     for (let at = 0; at < total; at += 500) {
       const rows = Array.from({ length: Math.min(500, total - at) }, (_, i) => make(at + i));
       await cap(d, "records.bulk_upsert", { type, match: ["name"], rows, createOnly: true, runAutomations: false });

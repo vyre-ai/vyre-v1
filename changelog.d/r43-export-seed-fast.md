@@ -1,0 +1,1 @@
+- Test only: connector.export.live seeds its 28,000 contacts, 9,400 matters and 1,100 organizations with one transaction per table into the type's table, instead of 85 records.bulk_upsert calls, so the test spends its time on the export.
