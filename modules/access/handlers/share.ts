@@ -733,7 +733,7 @@ function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: read
 // read back as the base of a diff (the cache loaded from it is never trusted as current), so a build that stops half way costs the next reader a longer diff and nothing else.
 
 /** Views smaller than this (resources times people) are built in one go: slicing them costs more than it saves. */
-const SLICE_FROM = 4000;
+const SLICE_FROM = 2000;
 /** Rows written to the table per transaction when a view is written in slices. */
 const WRITE_SLICE = 1500;
 const BUILDING = new WeakMap<object, Promise<void>>();
