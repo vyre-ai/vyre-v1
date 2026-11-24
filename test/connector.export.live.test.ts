@@ -11,8 +11,8 @@ import { spec, world } from "./support/sync-live.ts";
 import { seed } from "./support/bigspace-kit.ts";
 
 const TABLES = Number(process.env["EXPORT_TABLES"] ?? 25);
-// half the firm's size by default (14,000 contacts, 4,700 matters of 100 fields, 550 organizations: about 19,000 records, the same Space shape): the seed was 68 s of a 93 s file. EXPORT_SCALE=1 is the full size.
-const SCALE = Number(process.env["EXPORT_SCALE"] ?? 0.5);
+// 70% of the firm's record counts by default (19,700 contacts, 6,580 matters, 770 organizations: about 27,000 records, far above the size at which the access view is built in slices) with narrower rows and name-only contacts: the seed was 68 s of a 93 s file. EXPORT_SCALE=1 is the full count.
+const SCALE = Number(process.env["EXPORT_SCALE"] ?? 0.7);
 const BOUND_MS = 15_000;
 
 /** The stand-in app's matters list under many names: each one is a table of the connector, with its own list actions and its own recorded test. */
@@ -41,7 +41,8 @@ test(
         w.d,
         {
           matters: Math.round(9400 * SCALE),
-          fields: 100,
+          fields: 20,
+          emails: false,
           contacts: Math.round(28000 * SCALE),
           orgs: Math.round(1100 * SCALE),
         },

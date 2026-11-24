@@ -21,6 +21,8 @@ export interface Size {
   fields: number;
   contacts: number;
   orgs: number;
+  /** false: contacts are made with a name only (a contact with an email is written one row at a time, so a big seed of them is slow) */
+  emails?: boolean;
 }
 export const FIRM: Size = { matters: 9400, fields: 100, contacts: 28000, orgs: 1100 };
 
@@ -64,7 +66,10 @@ export async function seed(d: Daemon, s: Size, log: (m: string) => void): Promis
     log(`seeded ${total} ${type} at ${Date.now() - t0} ms`);
   };
   await batch("rt_organization", s.orgs, (i) => ({ name: `Org ${i}` }));
-  await batch("contact", s.contacts, (i) => ({ name: `Person ${i}`, email: `p${i}@northwind.example` }));
+  await batch("contact", s.contacts, (i) => ({
+    name: `Person ${i}`,
+    ...(s.emails === false ? {} : { email: `p${i}@northwind.example` }),
+  }));
   await batch("rt_matter", s.matters, (i) => ({
     name: `Matter ${i}`,
     ...Object.fromEntries(Array.from({ length: s.fields }, (_, f) => [`f${f}`, word(i, f)])),
