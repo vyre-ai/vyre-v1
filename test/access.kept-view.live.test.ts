@@ -266,3 +266,86 @@ test("a grant that expires with nothing written to the log stops being served wh
   await new Promise((r) => setTimeout(r, 5_000));
   assert.equal(await seesFolder(j, fid), false, "the grant has expired and the published view is not served");
 });
+
+/** The next read is right AND was served by the kept view in place (hits or incremental rose, built did not): the designed path for a change to one grant or one resource. */
+const inPlace = async (read: () => Promise<boolean>, want: boolean, why: string): Promise<void> => {
+  const r = await served(read);
+  assert.equal(r.out, want, why);
+  assert.equal(
+    r.kept && !r.built,
+    true,
+    `${why}: served by the kept view in place (kept ${r.kept}, rebuilt ${r.built})`,
+  );
+};
+
+test("a scoped grant's level changed twice in a row, each time served by the kept view in place and right (the base advances)", async () => {
+  const fid = await folderIn(await personalRoot(), "Levels", "kv-folder-level");
+  const ref = { type: "folder", id: fid };
+  const k = await member("Kay Kale", "kay");
+  const levelOf = async (): Promise<string | null> => {
+    const out = await k.call("access.lists", { type: "folder", section: "shared" });
+    return ((out.rows as Array<{ id: string; level: string }>).find((r) => r.id === fid)?.level ?? null) as
+      | string
+      | null;
+  };
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(k),
+    level: "view",
+    idempotencyKey: "kv-level-1",
+  });
+  assert.equal(await levelOf(), "view", "K holds view: this read publishes the view");
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(k),
+    level: "edit",
+    idempotencyKey: "kv-level-2",
+  });
+  const up = await served(levelOf);
+  assert.equal(up.out, "edit", "raised to edit and served at once");
+  assert.equal(up.kept && !up.built, true, `first change served in place (kept ${up.kept}, rebuilt ${up.built})`);
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(k),
+    level: "view",
+    idempotencyKey: "kv-level-3",
+  });
+  const down = await served(levelOf);
+  assert.equal(down.out, "view", "lowered back to view and served at once (the second change in a row)");
+  assert.equal(
+    down.kept && !down.built,
+    true,
+    `second change served in place (kept ${down.kept}, rebuilt ${down.built})`,
+  );
+  await h.owner.call("access.unshare", { resource: ref, subject: forPerson(k) });
+  const gone = await served(levelOf);
+  assert.equal(gone.out, null, "the grant is gone (the third change in a row)");
+  assert.equal(
+    gone.kept && !gone.built,
+    true,
+    `third change served in place (kept ${gone.kept}, rebuilt ${gone.built})`,
+  );
+});
+
+test("a grant given and taken away, and a folder moved and moved back, are each served by the kept view in place", async () => {
+  const root = await personalRoot();
+  const open = await folderIn(root, "Inplace open", "kv-folder-ip-open");
+  const shut = await folderIn(root, "Inplace shut", "kv-folder-ip-shut");
+  const child = await folderIn(open, "Inplace inside", "kv-folder-ip-inside");
+  const m = await member("Max Maple", "max");
+  assert.equal(await seesFolder(m, child), false, "M has nothing yet: this read publishes the view");
+  await h.owner.call("access.share", {
+    resource: { type: "folder", id: open },
+    subject: forPerson(m),
+    level: "view",
+    idempotencyKey: "kv-ip-share",
+  });
+  await inPlace(() => seesFolder(m, child), true, "a grant on the parent shows the child at once");
+  await h.owner.call("files.folder.move", { folderId: child, toParentId: shut });
+  await inPlace(() => seesFolder(m, child), false, "the child moved under an unshared folder is not served");
+  await h.owner.call("files.folder.move", { folderId: child, toParentId: open });
+  await inPlace(() => seesFolder(m, child), true, "the child moved back is served again (the second change in a row)");
+  await h.owner.call("access.unshare", { resource: { type: "folder", id: open }, subject: forPerson(m) });
+  // taking the grant away after a move is answered by a full rebuild (built rose in this run): right, and the designed fallback when a removed grant cannot be scoped to one root, so only the answer is asserted
+  assert.equal(await seesFolder(m, child), false, "the grant is taken away and the child goes");
+});
