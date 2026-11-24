@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, changedGrants, isReader } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -803,6 +803,21 @@ async function buildSliced(
 }
 
 /**
+ * Called first by a writer of shares and folders. A writer that finds the view stale for a big Space would work every row out in the same step as its change (the first share after a sync held the server for a
+ * second); here the view is built first, in slices, as a reader would build it (or the build under way is waited for), and the writer then finds a kept copy to scope its own change on: its change is made after
+ * the view is published, on a whole base, and nothing it writes is lost to a build that was half way.
+ */
+export async function settleForWriter(ctx: AccessCtx): Promise<void> {
+  if (isReader(ctx)) return settleView(ctx);
+  if (SHARES.has(ctx.db)) return;
+  try {
+    await settleView(asReader(ctx));
+  } finally {
+    dropShare(ctx.db);
+  }
+}
+
+/**
  * Called first by a reader that is about to ask for the whole view (access.lists, folders.list). When the cache is stale for the whole Space and the Space is big, build it here in slices (or wait for the build
  * that is under way) so the sync path that follows finds it fresh. Anything else (a small Space, a cache that only needs a few resources worked out again, a writer) is left to that sync path as before.
  */
@@ -1088,6 +1103,7 @@ function assertDelegation(
   }
 }
 export async function updateGrant(ctx: ShareCtx, input: { grantId: string; level?: Level; conditions?: Cond }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx),
     grant = store.grants.get(input.grantId);
   if (!grant) raise(ctx.trace.traceId, "validation.not_found", "no such grant");
@@ -1163,6 +1179,7 @@ export async function joinShare(
     !isHostService(ctx.principal)
   )
     raise(trace, "permission.role_lacks_permission", "This is the join step of an invite, not a direct call.");
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
@@ -1275,6 +1292,7 @@ export async function share(
     notify?: { message?: string };
   },
 ) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1501,6 +1519,7 @@ export async function unshare(
   ctx: ShareCtx,
   input: { grantId?: string; resource?: ResourceRef; subject?: SubjectRef; source?: string },
 ) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1820,6 +1839,7 @@ export async function audienceSet(
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
   opts?: { hostNarrow?: boolean },
 ) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1924,6 +1944,7 @@ export async function audienceSet(
 
 /** The owner hands an item to another active person. The previous owner keeps Manage as a grant of their own, so handing it over never locks them out. */
 export async function makeOwner(ctx: ShareCtx, input: { resource: ResourceRef; personId: string }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1981,6 +2002,7 @@ export async function agentsCanCallGet(ctx: ShareCtx, input: { agentId: string }
 
 /** A person with Manage on the agent turns calls from other agents On or Off. An agent never does. */
 export async function agentsCanCallSet(ctx: ShareCtx, input: { agentId: string; on: boolean }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2107,6 +2129,7 @@ export async function foldersCreate(
   ctx: ShareCtx,
   input: { type: string; name: string; parentId?: string; scope?: "personal" | "space"; idempotencyKey?: string },
 ) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2182,6 +2205,7 @@ export async function foldersCreate(
 }
 
 export async function foldersRename(ctx: ShareCtx, input: { folderId: string; name: string }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2216,6 +2240,7 @@ function isAncestor(ss: ShareStore, ancestor: string, of: string): boolean {
 }
 
 export async function foldersMove(ctx: ShareCtx, input: { folderId: string; parentId: string | null }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2270,6 +2295,7 @@ function release(
 }
 
 export async function foldersDelete(ctx: ShareCtx, input: { folderId: string }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const { rec, res } = folderOf(ctx, ss, store, input.folderId);
@@ -2325,6 +2351,7 @@ function inheritedGrants(store: AccessStore, folderId: string, now: number): Gra
 }
 
 export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef; folderId: string }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -2360,6 +2387,7 @@ export async function foldersPlace(ctx: ShareCtx, input: { resource: ResourceRef
 }
 
 export async function foldersUnplace(ctx: ShareCtx, input: { resource: ResourceRef }) {
+  await settleForWriter(ctx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const res = resourceOf(ctx, store, input.resource);
