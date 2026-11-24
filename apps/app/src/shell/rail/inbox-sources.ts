@@ -92,7 +92,10 @@ export function followInboxSources(screens: ScreenHooks, me: string, on: (has: b
   };
 }
 
-/** The answer for a screen that draws from it (the Inbox place, Settings, the Chats checklist): null until it is known. */
+/** The last answer this session saw, per Space (the runtime's screens object): a return to the Inbox draws what it last knew at once and the reads refresh it, so the first paint never waits on a read. */
+const KNOWN_HAS = new WeakMap<object, boolean>();
+
+/** The answer for a screen that draws from it (the Inbox place, Settings, the Chats checklist): null until it is known; until the reads answer, the last answer this session saw for this Space. */
 export function useInboxSources(screens: ScreenHooks | null, me: string): boolean | null {
   const qs = useMemo(() => (screens ? inboxSourceQueries(screens) : null), [screens]);
   const subscribe = useCallback(
@@ -105,8 +108,12 @@ export function useInboxSources(screens: ScreenHooks | null, me: string): boolea
     },
     [qs],
   );
-  const read = (): boolean | null =>
-    qs ? inboxAnswer([qs[0].getSnapshot(), qs[1].getSnapshot(), qs[2].getSnapshot()], me) : null;
+  const read = (): boolean | null => {
+    if (!qs || !screens) return null;
+    const now = inboxAnswer([qs[0].getSnapshot(), qs[1].getSnapshot(), qs[2].getSnapshot()], me);
+    if (now !== null) KNOWN_HAS.set(screens, now);
+    return now ?? KNOWN_HAS.get(screens) ?? null;
+  };
   return useSyncExternalStore(subscribe, read, read);
 }
 

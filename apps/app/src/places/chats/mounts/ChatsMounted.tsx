@@ -62,7 +62,7 @@ import {
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, workOf } from "./route.ts";
+import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, takesAddress, workOf } from "./route.ts";
 import { PendingChat } from "../landing/PendingChat.tsx";
 import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
@@ -140,6 +140,8 @@ export interface ChatsMountedProps {
   rt: ShellRuntime;
   /** The link another place opened this one with: `screen=chats.agent-page&agentId=...`. */
   hash?: string;
+  /** The hub's count of addresses that came from outside (HubState.links): a link back to the page just left still reaches the page. */
+  links?: number;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -169,6 +171,7 @@ export interface ChatsMountedProps {
 export function ChatsMounted({
   rt,
   hash = "",
+  links = 0,
   initial,
   window,
   opened,
@@ -276,8 +279,26 @@ export function ChatsMounted({
   const routeFrom = useRef<string | null>(null);
   const hashNow = useRef(hash);
   hashNow.current = hash;
+  const linksSeen = useRef(links);
+  const hashSeen = useRef(hash);
   useEffect(() => {
-    if (hash === linked.current) return;
+    // An address that came from outside (a link, a pasted address, a goto) while the page was drawn for the same address twice (it left the address and was sent back to it before the gap was drawn:
+    // Move to Trash on an agent's page, then a link to that agent's page) still takes the page: the hub counts the links, and the page's own reports are never among them, so a click inside
+    // the page is never overwritten (agent-delete.keyboard, kinds-b.panes, 24 Nov 2026). takesAddress, route.ts.
+    const linksSince = links - linksSeen.current;
+    linksSeen.current = links;
+    const hashChanged = hash !== hashSeen.current;
+    hashSeen.current = hash;
+    const at = fromHash(hash);
+    if (
+      !takesAddress({
+        hashChanged,
+        alreadyTook: hash === linked.current,
+        linksSince,
+        layerOrTerminal: at.layer !== null || at.terminalId !== null,
+      })
+    )
+      return;
     linked.current = hash;
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
@@ -288,7 +309,7 @@ export function ChatsMounted({
       return next;
     });
     forgetLayerLink(hash);
-  }, [hash]);
+  }, [hash, links]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
   // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
   const forgetLayerLink = (h: string): void => {

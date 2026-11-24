@@ -349,3 +349,18 @@ test("system: the mail module's own follow-up runs as the host service, never as
   await r.q.tick();
   assert.deepEqual(r.ran.at(-1)!.principal, { kind: "person", id: "usr_dana" });
 });
+
+test("jobs due at the same millisecond run in the order they were scheduled (a first pull of a type others relate to goes first)", async () => {
+  const r = rig();
+  const put = r.q.forCtx(seed);
+  const order: string[] = [];
+  for (let i = 0; i < 40; i++) {
+    await put(T0, "connectors.sync_run", { n: i });
+    order.push(String(i));
+  }
+  assert.equal(await r.q.tick(), 40);
+  assert.deepEqual(
+    r.ran.map((c) => String((c.input as { n: number }).n)),
+    order,
+  );
+});

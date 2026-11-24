@@ -348,6 +348,22 @@ export function askAbout(v: string): { type: string; id: string } | null {
   return m ? { type: m[1]!, id: m[2]! } : null;
 }
 
+/**
+ * Does the page take the address now? On a change of hash, as it always did (unless it is the one it already took). With the hash unchanged, only when an address came from outside since the page
+ * was last drawn (a link, a pasted address, a goto: HubState.links) and the address is a page, not a layer or a terminal. The page's own reports and a click inside it are never links, however many
+ * times the address moves, so the page's own state wins over them.
+ */
+export function takesAddress(o: {
+  hashChanged: boolean;
+  alreadyTook: boolean;
+  /** Addresses that came from outside since the page was last drawn. */
+  linksSince: number;
+  layerOrTerminal: boolean;
+}): boolean {
+  if (o.hashChanged) return !o.alreadyTook;
+  return o.linksSince >= 1 && !o.layerOrTerminal;
+}
+
 export const TASKS_HASH = "screen=tasks.my-work";
 
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */

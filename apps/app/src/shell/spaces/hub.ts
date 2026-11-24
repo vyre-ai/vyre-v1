@@ -58,6 +58,8 @@ export interface HubState {
   epoch: number;
   place: PlaceId;
   hash: string;
+  /** Counts the addresses that came to the app from outside (a link, a pasted address, a goto), never the page's own reports: a page that was drawn for the same address twice can tell a link back to it from nothing. */
+  links: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -248,13 +250,28 @@ export function createShellHub(options: HubOptions): ShellHub {
 
   const open = (): SpaceSession => sessions.get(openId) as SpaceSession;
 
+  let links = 0;
   function build(): HubState {
     const s = open();
     const tabs = s.tabs.state();
     const back = backTarget(tabs);
     const fwd = forwardTarget(tabs);
     const nav: NavState = { back: back === null ? null : back.title, forward: fwd === null ? null : fwd.title };
-    return { openId, phase, epoch, place: s.place, hash: s.hash, away, online, waiting, status, error, fresh, nav };
+    return {
+      openId,
+      phase,
+      epoch,
+      place: s.place,
+      hash: s.hash,
+      links,
+      away,
+      online,
+      waiting,
+      status,
+      error,
+      fresh,
+      nav,
+    };
   }
   snap = build();
 
@@ -434,6 +451,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       emit();
     },
     go(requested, hash, background = false, link = false, fresh = false) {
+      if (link) links += 1;
       // a place with no screen (the old Join) opens Chats instead of an empty page; Home's links land in Chats with their hash
       const gone = NO_SCREEN_PLACES.includes(requested);
       const place = gone ? "chats" : livePlace(requested);

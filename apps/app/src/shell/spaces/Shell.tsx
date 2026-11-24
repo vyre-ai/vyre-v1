@@ -205,14 +205,6 @@ export function Sheets({
       from: string | undefined,
       place?: string,
     ): boolean => {
-      // A place that is still made (kept-places.tsx) is revealed in the frame of the press: nothing is made after it, so no still copy of any page is taken or held in front of it, and the press does not wait a frame.
-      if (
-        to !== undefined &&
-        place !== undefined &&
-        keptKeyRef.current !== undefined &&
-        isKeptPlace(keptKeyRef.current(place))
-      )
-        return false;
       const el0 = main.current as { querySelector?: (q: string) => unknown } | null;
       const body = el0?.querySelector?.('[data-testid="place-body"]') ?? null;
       const views = keptViews.current.views;
@@ -545,7 +537,7 @@ export function ShellStage({
   const place = state.phase !== "skeleton" && state.error === null && !newTab && blocked === null;
   const placeKey = `${state.epoch}:${ctx.spaceId}:${state.place}`;
   const placeBody = place ? (
-    <ShownLocationProvider place={state.place} hash={state.hash}>
+    <ShownLocationProvider place={state.place} hash={state.hash} links={state.links}>
       {renderPlace(ctx)}
     </ShownLocationProvider>
   ) : null;

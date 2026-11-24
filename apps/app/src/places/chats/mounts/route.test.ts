@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -280,4 +280,19 @@ test("closing a terminal gives the right column back to the agent's pane when it
   );
   const noPane = step(step(START, { t: "chat", threadId: "c1" }), { t: "terminal", terminalId: "ter_1" });
   assert.equal(step(noPane, { t: "terminal-close" }).pane, false, "no pane before, none after");
+});
+
+test("the page takes a changed address, and a same address only when one came from outside: the page's own moves (a click, Back then a row press) never overwrite it", () => {
+  const base = { hashChanged: false, alreadyTook: true, linksSince: 0, layerOrTerminal: false };
+  // a click inside Chats, Back then the next row at 760: the page reports where it is, any number of times; the hash may come back to the same one, nothing came from outside
+  assert.equal(takesAddress(base), false, "no link since");
+  // many commits where the hash never left do not add up to a link
+  assert.equal(takesAddress({ ...base, linksSince: 0, hashChanged: false }), false);
+  // Move to Trash, then a link to the page just left: the hash is the same in the commit, a link came from outside
+  assert.equal(takesAddress({ ...base, linksSince: 1 }), true);
+  // never for a layer or a terminal (their address is spent once taken)
+  assert.equal(takesAddress({ ...base, linksSince: 1, layerOrTerminal: true }), false);
+  // a changed hash is a link, unless the page already took that very one
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false }), true);
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true }), false);
 });

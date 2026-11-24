@@ -2,7 +2,7 @@
 // that opens the step and one that runs it again. Read from the run's step log and the Automation's story; nothing here shows an id or a code.
 import { useEffect, useMemo, useState } from "react";
 import type { ReactElement } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { isPhoneWidth } from "../../../../../../ui/src/SidePane/layout.ts";
 import { RunChat } from "../runs/index.ts";
 import { useAutomationsData } from "../canvas/data.tsx";
@@ -173,7 +173,7 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
     <View testID="run-page" style={s.page}>
       <View style={s.cols}>
         {phone && fixing ? null : (
-          <View style={s.rows}>
+          <ScrollView style={s.rows} contentContainerStyle={s.rowsIn}>
             {state.approval ? <ApprovalCard card={state.approval} onAnswered={() => setTick((t) => t + 1)} /> : null}
             <RunView view={view} onFix={() => setFixing((f) => !f)} />
             {view.banner && !fixing ? (
@@ -182,7 +182,7 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
               </Pressable>
             ) : null}
             {note ? <Text style={look.quiet}>{note}</Text> : null}
-          </View>
+          </ScrollView>
         )}
         {fixing ? (
           // the one step's form, in a side panel of this page; the rows stay where they are
@@ -227,7 +227,8 @@ export function RunPage({ runId }: { runId: string }): ReactElement {
 const s = StyleSheet.create({
   page: { flex: 1, padding: 16, gap: 10 },
   cols: { flex: 1, flexDirection: "row", gap: 16, minHeight: 0 },
-  rows: { flex: 1, minWidth: 0, gap: 10 },
+  rows: { flex: 1, minWidth: 0, minHeight: 0 },
+  rowsIn: { gap: 10 },
   fixBody: { flex: 1, minHeight: 360 },
   fixFoot: { margin: 12, alignSelf: "stretch", alignItems: "center" },
   fixPhone: { width: "100%" as unknown as number, flex: 1 },

@@ -1,0 +1,1 @@
+The wave-counts test of the connection sync no longer waits a fixed 6 seconds for passes to become due: the stamps are moved back and each tick waits for the connection's running mark to clear, so every type has its pass in the second wave.

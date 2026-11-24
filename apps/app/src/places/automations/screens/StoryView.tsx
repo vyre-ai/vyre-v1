@@ -310,7 +310,8 @@ function splitHead(sentence: Sentence): { head: string; rest: string } {
 }
 
 const s = StyleSheet.create({
-  page: { gap: 12, padding: 16, maxWidth: 760, width: "100%", alignSelf: "center" },
+  // flex and minHeight 0: the rows scroll inside this frame; without them the frame grew to the rows and the window clipped the page
+  page: { flex: 1, minHeight: 0, gap: 12, padding: 16, maxWidth: 760, width: "100%", alignSelf: "center" },
   pad: { paddingHorizontal: 16 },
   headRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   name: { fontSize: 17, fontWeight: "600", color: "var(--ink)" as string },
