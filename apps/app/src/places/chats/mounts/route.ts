@@ -380,6 +380,33 @@ export function takesAddress(o: {
   return o.linksSince >= 1 && !o.layerOrTerminal;
 }
 
+/** The address key of a page: what the tab and the address follow (one string per page, empty for a page with no address of its own). */
+export function routeKeyOf(r: Shown["route"]): string {
+  return r.view === "agent"
+    ? `g:${r.agentId}`
+    : r.view === "agent-form"
+      ? `a:${r.agentId ?? ""}`
+      : r.view === "chat"
+        ? `t:${r.threadId ?? ""}`
+        : r.view === "new"
+          ? "new"
+          : r.view === "task"
+            ? `k:${r.taskId}`
+            : r.view === "tasks"
+              ? "tasks"
+              : r.view === "threads"
+                ? "threads"
+                : r.view === "artifacts"
+                  ? "artifacts"
+                  : r.view === "artifact"
+                    ? `x:${r.artifactId}`
+                    : r.view === "notes"
+                      ? "notes"
+                      : r.view === "project"
+                        ? `j:${r.projectId}:${r.tab ?? ""}`
+                        : "";
+}
+
 export const TASKS_HASH = "screen=tasks.my-work";
 
 /** The first `Shown` for a link from another place, or the start when the link is not for this place. */
