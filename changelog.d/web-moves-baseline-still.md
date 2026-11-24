@@ -1,0 +1,1 @@
+The walk of a Space that moves to its own address takes its count of requests through the relay's worker once the old page's last boot reads have arrived, so a read made just before the move is not counted as one made after it.
