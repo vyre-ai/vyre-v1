@@ -194,6 +194,7 @@ export function createSessions({
 
   /** @param {number} tabId @param {AgentRef} agent @param {boolean | "takeover" | "stopped"} [mode] true: Esc paused */
   async function draw(tabId, agent, mode = false) {
+    /** @type {any} */ ((globalThis).__dbg ??= []).push(`${Date.now() % 1000000} DRAW ${String(mode)}`);
     const isPaused = mode === true;
     const state = mode === "takeover" || mode === "stopped" ? mode : undefined;
     if (state) shown.set(tabId, agent);
@@ -265,6 +266,7 @@ export function createSessions({
   /** Stop driving a tab: frame off, debugger detached, buffers dropped. @param {number} tabId @param {string} why */
   async function release(tabId, why) {
     const d = drivers.get(tabId);
+    /** @type {any} */ ((globalThis).__dbg ??= []).push(`${Date.now() % 1000000} RELEASE ${why} driver=${!!d}`);
     if (!d) return;
     clearTimer(d.timer);
     drivers.delete(tabId);
@@ -483,6 +485,7 @@ export function createSessions({
      * @param {string} agentId @param {"person" | "esc" | "tool" | "takeover"} by @param {string} [reason]
      */
     async pause(agentId, by, reason) {
+      /** @type {any} */ ((globalThis).__dbg ??= []).push(`${Date.now() % 1000000} PAUSE ${by} was=${paused.get(agentId)?.by}`);
       pausing.delete(agentId);
       // a pause never goes down: the agent's own stop leaves a person's Stop, Esc or take-over (and the time it was made) as it was, and a person's Stop or Esc leaves their take-over until Give back
       const was = paused.get(agentId);

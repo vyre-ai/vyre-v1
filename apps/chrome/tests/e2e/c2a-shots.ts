@@ -178,6 +178,10 @@ export async function shootExtension(scheme: "light" | "dark", skin: "paper" | "
       await press(page, "button", "Not now");
       await new Promise((x) => setTimeout(x, 200));
     }
+  } catch (e) {
+    const lines = await r.worker.evaluate(() => (globalThis as any).__dbg ?? []).catch(() => ["(no worker)"]);
+    console.log("DBGTRACE\n" + (lines as string[]).slice(-80).join("\n"));
+    throw e;
   } finally {
     await r.close();
     await srv.close();

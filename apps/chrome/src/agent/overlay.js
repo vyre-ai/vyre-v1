@@ -15,6 +15,8 @@ export function overlayShow(o) {
   if (!doc || !doc.documentElement) return false;
   let s = g[KEY];
   if (!s || !s.host.isConnected) {
+    g.__vyreGen = (g.__vyreGen || 0) + 1;
+    const gen = g.__vyreGen;
     const host = doc.createElement("div");
     host.setAttribute("data-vyre-agent-overlay", "");
     host.style.cssText = "all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;";
@@ -166,12 +168,12 @@ export function overlayShow(o) {
         fn({ ...where(e, true), ...(e.detail === 0 ? { key: true } : {}) });
       });
     };
-    onPress(stop, (at) => port && port.postMessage({ agent: o.agent, type: "stop", ...at }));
+    onPress(stop, (at) => port && port.postMessage({ agent: o.agent, type: "stop", gen, tr: true, ...at }));
     onPress(open, (at) => port && port.postMessage({ agent: o.agent, type: "openvyre", ...at }), true);
     onPress(give, (at) => port && port.postMessage({ agent: o.agent, type: "giveback", ...at }));
     onPress(resume, (at) => port && port.postMessage({ agent: o.agent, type: "giveback", ...at }));
     onPress(end, (at) => port && port.postMessage({ agent: o.agent, type: "endtask", ...at }), true);
-    onPress(take, (at) => port && port.postMessage({ agent: o.agent, type: "takeover", ...at }));
+    onPress(take, (at) => port && port.postMessage({ agent: o.agent, type: "takeover", gen, tr: true, ...at }));
     // The person's own hand on the page: a real click, key, scroll or touch tells the worker, which hands the tab to the person unless the agent is acting in it at that moment
     // (the agent's own clicks arrive as real events too). Nothing about the event leaves the page, only that it happened; the bar's own buttons are not touches.
     let lastTouch = 0;
