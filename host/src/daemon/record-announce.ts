@@ -8,6 +8,10 @@
 // of the event loop between pages, and looks each candidate up by its entity id in the Space log (indexed). The first start after this feature has no mark and sets it to where the log is: no record made before it
 // carries a marker. Records made after the daemon started are never candidates: their calls are alive and announce them.
 //
+// `at` is wall-clock: a clock stepped back across a restart can hide events from `at < startedAt` until the next start (harmless: they are looked at then).
+// A record whose owner is gone (no actor, no person, no Space owner) stays skipped, with a log line, at every start and holds the mark: a person decides, the doctor finding names it.
+// The first start after this feature only sets the mark: a record orphaned by a stop under the old build is for the doctor to report.
+//
 // The replay needs the access snapshot (who exists, who owns the Space), so it runs after the daemon serves.
 import fs from "node:fs";
 import { openDb } from "./sqlite.ts";
@@ -165,7 +169,11 @@ export function replayActors(
 ): { actor: string; actingFor?: string; changed: boolean } | null {
   const actorOk = exists(p.actor);
   const forOk = p.onBehalf !== undefined && exists(p.onBehalf);
-  if (actorOk) return { actor: p.actor, ...(forOk ? { actingFor: p.onBehalf! } : {}), changed: p.onBehalf !== undefined && !forOk };
+  if (actorOk) {
+    if (forOk || p.onBehalf === undefined) return { actor: p.actor, ...(forOk ? { actingFor: p.onBehalf! } : {}), changed: false };
+    // the person it worked for is gone: the record belongs to the Space owner, as it would for any of their things left without one
+    return { actor: p.actor, ...(spaceOwner && exists(spaceOwner) ? { actingFor: spaceOwner } : {}), changed: true };
+  }
   const owner = forOk ? p.onBehalf! : spaceOwner && exists(spaceOwner) ? spaceOwner : null;
   return owner ? { actor: owner, changed: true } : null;
 }

@@ -108,6 +108,6 @@ test("the replay never runs as a principal that is gone: the person it acted for
   assert.deepEqual(replayActors(p({}), alive("agt_scout", "usr_mira"), "usr_owner"), { actor: "agt_scout", actingFor: "usr_mira", changed: false });
   assert.deepEqual(replayActors(p({}), alive("usr_mira", "usr_owner"), "usr_owner"), { actor: "usr_mira", changed: true }, "the agent is gone: as the person it worked for");
   assert.deepEqual(replayActors(p({}), alive("usr_owner"), "usr_owner"), { actor: "usr_owner", changed: true }, "both gone: the Space owner");
-  assert.deepEqual(replayActors(p({}), alive("agt_scout", "usr_owner"), "usr_owner"), { actor: "agt_scout", changed: true }, "the person is gone: the agent alone");
+  assert.deepEqual(replayActors(p({}), alive("agt_scout", "usr_owner"), "usr_owner"), { actor: "agt_scout", actingFor: "usr_owner", changed: true }, "the person is gone: for the Space owner");
   assert.equal(replayActors(p({}), alive(), "usr_owner"), null, "nobody left");
 });
