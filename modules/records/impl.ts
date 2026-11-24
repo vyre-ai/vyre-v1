@@ -714,7 +714,13 @@ function more(c?: { db?: unknown }): Extra {
   return extra;
 }
 
+/** records.update_many (the sealed write-back's batch): its handler is built in handlers/update-many.ts, typed by the generated registry at the loader. */
+export interface UpdateManyHandlers {
+  "records.update_many"(ctx: { db?: unknown }, input: unknown): Promise<unknown>;
+}
+
 export type LiveRecordsHandlers = RecordsHandlers &
+  UpdateManyHandlers &
   LiveHistory &
   CommentsHandlers &
   MergeHandlers &
