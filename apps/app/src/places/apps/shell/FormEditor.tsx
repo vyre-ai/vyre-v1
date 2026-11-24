@@ -658,7 +658,8 @@ export function FormEditor({ route, back }: { route: AppsRoute; back(): void }):
     back,
     offline: !online,
     error: error ?? form.error ?? types.error ?? schema.error,
-    loading: (form.loading && form.data === null) || (Boolean(route.id) && form.data !== null && filledFrom !== route.id),
+    loading:
+      (form.loading && form.data === null) || (Boolean(route.id) && form.data !== null && filledFrom !== route.id),
     retry: form.refresh,
   };
   return route.id ? (
