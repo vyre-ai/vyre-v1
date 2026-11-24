@@ -1233,11 +1233,17 @@ export function createSyncEngine(o: {
       };
       // A pass over a type with sealed fields: after the engine has made or updated the records, each sealed value read in the pass is sealed into its record (Records puts it in the Vault and keeps a reference).
       // The value is never in the engine's own tables (base, conflicts, outbox): it was taken out of the row when the row was read. A value the app sent empty clears the field.
+      // more groups of this pull are still to come (set where each group is read): a sealed value deferred now is tried again with the next group, so it is not a failure yet
+      let moreToCome = false;
       const sealedIn = async (): Promise<void> => {
         if (!b.fields.some((f) => f.sealed === true)) return;
         const mine = waiting.get(b.syncTypeId) ?? new Map<string, Record<string, unknown>>();
         waiting.set(b.syncTypeId, mine);
+        // one line per pass, however many values were refused: the first reason is the one a person can act on
+        let noted = false;
         const note = (e: unknown): void => {
+          if (noted) return;
+          noted = true;
           // why, in the Vault's own words (never the value): shown in the type's log so a person can see what to fix
           const err = isObj(e) && isObj(e["error"]) ? e["error"] : undefined;
           const why =
@@ -1269,8 +1275,9 @@ export function createSyncEngine(o: {
           try {
             await ctx.call("records.update", { type: b.type, recordId, patch });
             mine.delete(recordId);
-          } catch {
-            /* still waiting */
+          } catch (e) {
+            // still waiting. A value that waited from an earlier group or pass and is refused again, with no group left to read, is a failure; a first refusal is a deferral (the Sync page says it is waiting)
+            if (!moreToCome) note(e);
           }
         }
         const pending: { recordId: string; patch: Record<string, unknown> }[] = [];
@@ -1307,8 +1314,8 @@ export function createSyncEngine(o: {
           try {
             await ctx.call("records.update", { type: b.type, recordId, patch });
             mine.delete(recordId);
-          } catch (e) {
-            note(e);
+          } catch {
+            // a deferral, not a failure: kept in `mine` and tried first at the next group or pass; a refusal that repeats with no group left is noted by the first loop
             if (mine.size < WAITING_MAX) mine.set(recordId, { ...(mine.get(recordId) ?? {}), ...patch });
           }
         };
@@ -1345,7 +1352,7 @@ export function createSyncEngine(o: {
           chunk.forEach((c, k) => {
             const r = results![k];
             if (isObj(r) && isObj(r["error"])) {
-              note({ error: r["error"] });
+              // a deferral (see keepOne): no line on the Sync page for a first refusal
               if (mine.size < WAITING_MAX) mine.set(c.recordId, { ...(mine.get(c.recordId) ?? {}), ...c.patch });
             } else mine.delete(c.recordId);
           });
@@ -1484,6 +1491,7 @@ export function createSyncEngine(o: {
           tx.run("DELETE FROM sy_skipped WHERE sync_type = ?", b.syncTypeId);
         }
         const g = await group(p.sweep?.after);
+        moreToCome = g.next !== undefined;
         for (const r of g.rows)
           tx.run("INSERT OR IGNORE INTO sy_seen (sync_type, remote_id) VALUES (?, ?)", b.syncTypeId, r.id);
         for (const parent of g.done)
@@ -1544,6 +1552,7 @@ export function createSyncEngine(o: {
       const deltaStep = async (p: Progress): Promise<RunOut> => {
         const d = p.delta ?? { since: p.hwm ?? 0, newHwm: startedAt - SINCE_OVERLAP_MS };
         const g = await group(d.after, d.since);
+        moreToCome = g.next !== undefined;
         const r = await runSyncS(deps, binding, {
           mode: "both",
           partial: g.rows,
@@ -1568,6 +1577,7 @@ export function createSyncEngine(o: {
           progress ??= { pulled: 0, done: false };
           const began = progress.began ?? startedAt;
           const g = await group(progress.after);
+          moreToCome = g.next !== undefined;
           const r = await runSyncS(deps, binding, { mode: "both", partial: g.rows, ...common });
           keepVersions(r.skipped ?? 0);
           const said = await linkPass(g.rows);
