@@ -203,6 +203,77 @@ function eventsFinding(file: string, tail?: number): Finding {
   }
 }
 
+/** What a record's module event names: the event's payload holds the record's id as `recordId`. An erased event (its payload removed by a compaction) holds nothing and names no record. */
+const dec = new TextDecoder();
+export function recordEventIds(file: string): Set<string> {
+  const db = openDb(file, fs.existsSync(`${file}-wal`) ? { readOnly: true } : { immutable: true });
+  const ids = new Set<string>();
+  try {
+    for (let after = 0; ; ) {
+      const rows = db.all(
+        "SELECT seq, payload FROM events WHERE seq > ? AND json_extract(event, '$.type') = 'record.created' ORDER BY seq LIMIT 2000",
+        after,
+      ) as { seq: number; payload: Uint8Array }[];
+      if (!rows.length) break;
+      for (const r of rows) {
+        try {
+          const id = (JSON.parse(dec.decode(r.payload)) as { recordId?: unknown }).recordId;
+          if (typeof id === "string") ids.add(id);
+        } catch {
+          /* an erased or encrypted payload names no record */
+        }
+      }
+      after = rows[rows.length - 1]!.seq;
+    }
+  } finally {
+    db.close();
+  }
+  return ids;
+}
+
+/**
+ * Records that exist in the record store (space.db, its own log) with no `record.created` event in the Space log (events.db). The record is written first and its announcement is committed at the end of the call
+ * (host/src/invoke.ts), in another database file, so a stop between the two leaves a record that search, sync and Run undo never hear of. Read-only; names a few ids.
+ */
+export function recordEventsFinding(spaceDb: string, eventsDb: string): Finding {
+  const key = "records.created_events";
+  if (!fs.existsSync(spaceDb) || !fs.existsSync(eventsDb))
+    return { key, state: "healthy", detail: "No records yet.", next: OK };
+  try {
+    const announced = recordEventIds(eventsDb);
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    let total = 0;
+    const missing: string[] = [];
+    try {
+      const tables = db.all(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
+      ) as { name: string }[];
+      for (const t of tables)
+        for (const r of db.all(`SELECT id FROM "${t.name}" WHERE deleted_at IS NULL`) as { id: string }[]) {
+          total++;
+          if (!announced.has(r.id)) missing.push(r.id);
+        }
+    } finally {
+      db.close();
+    }
+    return missing.length
+      ? {
+          key,
+          state: "degraded",
+          detail: `${missing.length} of ${total} records have no record.created event (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
+          next: NEXT.recordEvents,
+        }
+      : { key, state: "healthy", detail: `All ${total} records have their created event.`, next: OK };
+  } catch (e) {
+    return {
+      key,
+      state: "degraded",
+      detail: `The records could not be compared with the log: ${e instanceof Error ? e.message : String(e)}`,
+      next: NEXT.recordEvents,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -350,6 +421,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   findings.push(finding("host.disk_space", probes.diskSpace(platform, o.dataDir), NEXT.space));
   if (space) {
     findings.push(eventsFinding(paths.events, o.chainTail));
+    findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(
