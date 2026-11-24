@@ -97,32 +97,31 @@ export async function servicesWalk(
             .catch(() => undefined);
           opened = true;
         }
-        // the card of THIS ask: the request the agent made for it, found through the API (the newest request for this service that no earlier ask used), and that request's own card on the page. The page keeps the
-        // earlier chat's card on screen for a moment after the address changes (slower under load), and the first card of the page may still be that one (walk-b, 24 Nov 2026: the old declined Twilio card, while the new one
-        // was drawn beside it with all its fields); a card chosen by its request can never be the old chat's.
-        let want = "";
-        const until = Date.now() + 120_000;
-        while (!want && Date.now() < until) {
-          const listed = (await api("vault.requests.list", { limit: 100 }).catch(() => ({ requests: [] }))) as {
-            requests: { id: string; name: string; at: number }[];
-          };
-          want =
-            listed.requests
-              .filter((r) => r.name.toLowerCase() === title.toLowerCase() && !usedCards.has(`connect-${r.id}`))
-              .sort((x, y) => y.at - x.at)[0]?.id ?? "";
-          if (!want) await page.waitForTimeout(500);
-        }
-        const card = page.locator(`[data-testid='connect-${want}']`).first();
-        await card.waitFor({ timeout: Math.max(5_000, until - Date.now() + 20_000) }).catch(async (e) => {
-          await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
-          fs.writeFileSync(
-            `${shots}/no-card-${title}-${tag}.txt`,
-            `request wanted: ${want || "none found"}\n${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
-          );
-          throw e;
-        });
-        usedCards.add(`connect-${want}`);
-        return `connect-${want}`;
+        // the card of THIS ask: the first connect card on the page whose request has not been used before. The page keeps the earlier chat's card on screen for a moment after the address changes (slower under load),
+        // and the first card of the page may still be that one (walk-b, 24 Nov 2026: the old declined Twilio card, while the new one was drawn beside it with all its fields)
+        const fresh = await page
+          .waitForFunction(
+            (used: string[]) => {
+              for (const el of document.querySelectorAll("[data-testid^='connect-vrq_']")) {
+                const id = (el.getAttribute("data-testid") ?? "").replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
+                if (id && !used.includes(id)) return id;
+              }
+              return null;
+            },
+            [...usedCards],
+            { timeout: 120_000 },
+          )
+          .catch(async (e) => {
+            await page.screenshot({ path: `${shots}/no-card-${title}-${tag}.png` });
+            fs.writeFileSync(
+              `${shots}/no-card-${title}-${tag}.txt`,
+              `${(await page.locator("body").innerText()).slice(0, 2000)}\n${errs.join("\n")}`,
+            );
+            throw e;
+          });
+        const cardId = (await fresh.jsonValue()) as string;
+        usedCards.add(cardId);
+        return cardId;
       };
       /** What a card showed when a wait on it failed, in the folder CI uploads: a screenshot and the card's elements, the request, the connections, the calls the stand-in app saw, the page errors and the page text. */
       const evidenceNow = async (label: string, cardId: string, slug: string): Promise<void> => {
