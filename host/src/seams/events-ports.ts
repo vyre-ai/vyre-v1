@@ -91,7 +91,9 @@ export interface EventReaderDeps {
     recordId: string,
     /** the labels of a type's fields, kept for one read so a page of events asks the schema once per type */
     labels: Map<string, Readonly<Record<string, number>>>,
-  ) => Promise<((field: string) => boolean) | null>;
+    /** the event is a deletion: the record is trashed */
+    deleted: boolean,
+  ) => Promise<((field: string) => boolean) | null | "later">;
 }
 
 export interface EventCaller {
@@ -348,7 +350,11 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     const key = `${type ?? ""}\u0000${id ?? ""}`;
     let gate = gates.get(key);
     if (gate === undefined) {
-      gate = type !== undefined && id !== undefined ? await deps.fieldGate(c, type, id, labels).catch(() => null) : null;
+      const got =
+        type !== undefined && id !== undefined
+          ? await deps.fieldGate(c, type, id, labels, row.type === "record.deleted").catch(() => null)
+          : null;
+      gate = got === "later" ? null : got;
       gates.set(key, gate);
     }
     const cut = (v: unknown): unknown =>

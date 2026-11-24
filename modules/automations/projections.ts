@@ -153,14 +153,13 @@ export interface AutoCtx {
     action: { perm: string | null; level: string; direct?: boolean },
     resource: { type: string; id: string | null },
   ): { effect: string };
-  /** each person on their own grants, never the caller's (the host's ctx.mayAll); a hand-built test ctx may omit it */
-  mayAll?(
-    people: readonly string[],
-    action: { perm: string | null; level: "view" },
-    resource: { type: string; id: string | null },
-  ): boolean;
   /** which fields of one record a person may see (the host's rule for records.get), null when they may not see it; a hand-built test ctx may omit it */
-  recordFieldGate?(person: string, type: string, recordId: string): Promise<((field: string) => boolean) | null>;
+  recordFieldGate?(
+    person: string,
+    type: string,
+    recordId: string,
+    opts?: { deleted?: boolean },
+  ): Promise<((field: string) => boolean) | null | "later">;
   /** https://<space address>, when the host knows it; webhook URLs are paths without it */
   baseUrl?: string;
 }

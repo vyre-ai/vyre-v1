@@ -1,0 +1,1 @@
+An Automation on record changes waits for a record the server has not finished learning access to (tried again, never skipped), and a deletion is judged on the kept row, so a person is told of the deletion only of a record they could see.

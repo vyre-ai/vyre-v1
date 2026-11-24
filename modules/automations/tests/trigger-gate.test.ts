@@ -61,16 +61,52 @@ test("a filter on a field the person cannot see matches nothing, and a filter on
   assert.equal((await fired(h2, ev("evt_4", "rec_1"))).length, 1);
 });
 
-test("a deletion starts the Automation with no values, and only for a person who may still see the type", async () => {
-  const del: LoggedEvent = { id: "evt_5", type: "record.deleted", payload: { recordId: "rec_none", type: "contact", prev: { name: "Ada", email: "x@y.z" } } };
-  const h = harness({ recordFieldGate: gate, mayAll: () => true });
+test("a deletion is judged on the kept row: a person who could see the record is told with the values they may see, one who could not is not told at all", async () => {
+  const del: LoggedEvent = {
+    id: "evt_5",
+    type: "record.deleted",
+    payload: { recordId: "rec_gone", type: "contact", prev: { name: "Ada", email: "x@y.z" } },
+  };
+  const asked: Array<{ deleted?: boolean | undefined }> = [];
+  const h = harness({
+    recordFieldGate: async (_p, _t, id, opts) => {
+      asked.push({ deleted: opts?.deleted });
+      return id === "rec_gone" ? (f: string) => seen.has(f) : null;
+    },
+  });
   await live(h);
   const out = await fired(h, del);
   assert.equal(out.length, 1);
-  assert.deepEqual((out[0]!.payload as Record<string, any>).record, {});
-  const h2 = harness({ recordFieldGate: gate, mayAll: () => false });
-  await live(h2);
-  assert.deepEqual(await fired(h2, del), [], "a person who is gone, or may not see the type, starts nothing");
+  assert.deepEqual((out[0]!.payload as Record<string, any>).record, { name: "Ada" });
+  assert.ok(!JSON.stringify(out[0]!.payload).includes("x@y.z"));
+  assert.equal(asked[0]?.deleted, true, "the host is told the record is a trashed one");
+  const hidden: LoggedEvent = { ...del, id: "evt_6", payload: { ...del.payload, recordId: "rec_none" } };
+  assert.deepEqual(await fired(h, hidden), [], "a deletion of a record the person could not see is not told");
+});
+
+test("a record the access does not know yet is tried again, never skipped: the Automation fires once, with the visible fields", async () => {
+  let asks = 0;
+  const h = harness({
+    recordFieldGate: async () => (++asks <= 1 ? "later" : (f: string) => seen.has(f)),
+  });
+  await live(h);
+  const created: LoggedEvent = {
+    id: "evt_7",
+    type: "record.created",
+    payload: { recordId: "rec_new", type: "contact", fields: { name: "New Nia", email: "nia@example.com" } },
+  };
+  // the first delivery meets a snapshot that does not know the record: the consumer is made to try again
+  await assert.rejects(fired(h, created), /not known yet/);
+  const again = await fired(h, created);
+  assert.equal(again.length, 1, "it fires on the retry");
+  assert.deepEqual((again[0]!.payload as Record<string, any>).record, { name: "New Nia" });
+  const third = await fired(h, created);
+  assert.equal(third.length, 1);
+  assert.equal(
+    (third[0]!.result as { runId: string }).runId,
+    (again[0]!.result as { runId: string }).runId,
+    "a third delivery of the same event starts no second run",
+  );
 });
 
 test("what an old Run kept is cut again when test_events shows it, and a test or a replay starts from the cut payload", async () => {

@@ -814,7 +814,8 @@ async function payloadAsSeen(ctx: AutoCtx, person: string, payload: unknown): Pr
   const p = payload as { recordId?: unknown; type?: unknown; record?: unknown; changed?: unknown; fields?: unknown } | null;
   if (!ctx.recordFieldGate || p === null || typeof p !== "object" || typeof p.recordId !== "string" || typeof p.type !== "string")
     return payload;
-  const gate = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+  const got = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+  const gate = got === "later" ? null : got; // shown now: when in doubt, not offered
   if (gate === null) return null;
   const obj = (v: unknown): unknown =>
     v !== null && typeof v === "object" && !Array.isArray(v)
@@ -828,17 +829,26 @@ async function payloadAsSeen(ctx: AutoCtx, person: string, payload: unknown): Pr
   };
 }
 
+/** The access snapshot does not know this record yet: the event is tried again by the consumer (a record is in the store a moment before its access entry is folded), never skipped as "not visible". */
+class RecordNotKnownYet extends Error {
+  constructor() {
+    super("The access to a record is not known yet; the event is tried again.");
+  }
+}
+
 /**
  * What a record's event is to one Automation: the event as its owner may see it. An Automation runs for a person (its owner, or whom it runs as) and receives the record in its trigger; that person
  * sees only the fields their grants let them see, so the filter, the trigger payload and every step read only those (a step could otherwise write a hidden value where the person can read it, and a filter on
- * a hidden field would tell them its value). A record the person may not see at all starts nothing, and nothing says that it exists. A deletion cannot be judged (the record is gone): it starts the Automation
- * with no values. The host's field rule answers (ctx.recordFieldGate); a hand-built ctx without it keeps the event whole.
+ * a hidden field would tell them its value). A record the person may not see at all starts nothing, and nothing says that it exists: a deletion too (it is judged on the kept row of the trashed record, so a
+ * person never learns of the deletion of something they could not see). A record the access snapshot does not know yet is not "not visible": the host waits a bounded while for it and then answers "later",
+ * and the event is tried again by the consumer. An Automation made by an agent or a service runs as the person it acts for (a Space Automation as its owner). The host's field rule answers
+ * (ctx.recordFieldGate); a hand-built ctx without it keeps the event whole.
  */
 async function eventForOwner(
   ctx: AutoCtx,
   a: Automation,
   ev: LoggedEvent,
-  gates: Map<string, ((field: string) => boolean) | null>,
+  gates: Map<string, ((field: string) => boolean) | null | "later">,
 ): Promise<LoggedEvent | null> {
   const op = recordOp(ev.type);
   const p = ev.payload as { recordId?: unknown; type?: unknown; fields?: unknown; prev?: unknown };
@@ -848,14 +858,12 @@ async function eventForOwner(
   const key = `${person}\u0000${p.type}\u0000${p.recordId}`;
   let gate = gates.get(key);
   if (gate === undefined) {
-    gate = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+    gate = await ctx.recordFieldGate(person, p.type, p.recordId, { deleted: op === "deleted" }).catch(() => null);
     gates.set(key, gate);
   }
-  if (gate === null && op !== "deleted") return null;
-  // a deletion cannot be judged by the record (it is gone): the person must still be one who may see records of that type, or it starts nothing (a person who is gone starts nothing)
-  if (gate === null && ctx.mayAll && !ctx.mayAll([person], { perm: null, level: "view" }, { type: "record_type", id: p.type }))
-    return null;
-  const keep = gate ?? (() => false);
+  if (gate === "later") throw new RecordNotKnownYet();
+  if (gate === null) return null;
+  const keep = gate;
   const cut = (v: unknown): unknown =>
     v !== null && typeof v === "object" && !Array.isArray(v)
       ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => keep(f)))
@@ -873,7 +881,7 @@ export async function consumeEvent(
   // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
   if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
-  const gates = new Map<string, ((field: string) => boolean) | null>();
+  const gates = new Map<string, ((field: string) => boolean) | null | "later">();
   for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
     // the event as this Automation's person may see it; a record they may not see starts nothing (and is not reported: that would say it exists)
     const seen = a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev;
