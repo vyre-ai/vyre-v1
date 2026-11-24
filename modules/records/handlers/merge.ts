@@ -21,6 +21,7 @@ import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
+import { recordWriter } from "../../../kernel/src/store/records.ts";
 import type { CreateManyResult, FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
@@ -665,6 +666,9 @@ async function upsert(
   if (input.rows.length > MAX_UPSERT_ROWS)
     bad(ctx, `a bulk upsert takes at most ${MAX_UPSERT_ROWS} rows: split them into smaller batches`);
   const quiet = input.runAutomations !== true;
+  // each record made below is announced by a record.created module event after the call: its own event says how, so a stop between the two writes can be repaired at the next start
+  const writer = recordWriter.getStore();
+  if (writer) writer.announce = quiet ? { quiet: true } : {};
 
   // Plan: one entry per distinct match key; later rows with the same key fold into the first. With createOnly every row is its own new record.
   interface Plan {

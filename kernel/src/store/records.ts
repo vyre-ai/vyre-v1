@@ -222,6 +222,8 @@ export interface RecordWriter {
   onBehalf?: string | undefined;
   traceId?: string | undefined;
   runId?: string | undefined;
+  /** Set by a handler that announces each record it makes with a module `record.created` event after the call: the record's own event then names who and how (see host/src/daemon/record-announce.ts), so a stop between the two writes can be repaired. */
+  announce?: { quiet?: boolean } | undefined;
 }
 export const recordWriter = new AsyncLocalStorage<RecordWriter>();
 
@@ -236,6 +238,10 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
   const clock = o.clock ?? Date.now;
   const tx = host.tx;
 
+  const announceOf = (): { announce?: { quiet?: boolean } } => {
+    const a = recordWriter.getStore()?.announce;
+    return a ? { announce: { ...a } } : {};
+  };
   const eventOf = (type: string, entity: string, entityId: string | undefined, payload: object): NewEvent => {
     // whoever made the call this write is part of (recordWriter.run): the person or agent, the person an agent acts for, the trace and the run; the store's own actor only when nobody is
     const w = recordWriter.getStore();
@@ -490,7 +496,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       validate(def, data as Record<string, unknown>);
       checkUnique(def, data as Record<string, unknown>, null);
       const at = clock();
-      emit("record.created", type, id, { type, id, data: clone(data), at });
+      emit("record.created", type, id, { type, id, data: clone(data), at, ...announceOf() });
       return record(type, rowOf(type, id)!);
     },
     async checkNew(type, items) {
@@ -527,7 +533,7 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         try {
           checkNewItem(def, type, it, seen);
           seen.add(it.id);
-          evs.push(eventOf("record.created", type, it.id, { type, id: it.id, data: clone(it.data), at: clock() }));
+          evs.push(eventOf("record.created", type, it.id, { type, id: it.id, data: clone(it.data), at: clock(), ...announceOf() }));
           at.push(i);
         } catch (e) {
           out[i] = { ok: false, error: e };
