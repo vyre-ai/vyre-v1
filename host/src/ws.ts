@@ -357,6 +357,9 @@ export interface LiveHub {
   close(): Promise<void>;
 }
 
+/** How long the daemon keeps an idle HTTP connection open: longer than a reverse proxy keeps one (Caddy: 2 minutes). */
+export const KEEP_ALIVE_MS = 125_000;
+
 export function createLiveHub(o: LiveOptions): LiveHub {
   const hbMs = o.hbMs ?? HEARTBEAT_MS,
     deadMs = o.deadMs ?? HEARTBEAT_DEAD_MS,
@@ -369,6 +372,10 @@ export function createLiveHub(o: LiveOptions): LiveHub {
   const server = http.createServer((_req, res) => {
     res.writeHead(426, { "content-type": "text/plain" }).end("upgrade required");
   });
+  // A server that closes an idle connection sooner than the proxy in front of it (Caddy keeps its upstream connections idle for 2 minutes) or a browser reuses it resets the first request that goes out on it,
+  // and a POST is not retried: a person's save fails at random. Node's own default is 5 s. The idle time is raised above the proxy's, and the header time above that (Node needs it longer).
+  server.keepAliveTimeout = KEEP_ALIVE_MS;
+  server.headersTimeout = KEEP_ALIVE_MS + 1_000;
 
   let turnChain: Promise<void> = Promise.resolve();
   const send = (c: Conn, frame: Record<string, unknown>): void => {

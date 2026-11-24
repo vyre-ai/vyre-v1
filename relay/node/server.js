@@ -602,6 +602,10 @@ export function createRelay(o = {}) {
     res.writeHead(url.pathname.startsWith("/v1/") ? 426 : 404);
     res.end();
   });
+  // A server that closes an idle connection sooner than the proxy in front of it (Caddy keeps its upstream connections idle for 2 minutes) or a browser reuses it resets the first request that goes out on it,
+  // and a POST is not retried: a person's save fails at random. Node's own default is 5 s. The idle time is raised above the proxy's, and the header time above that (Node needs it longer).
+  server.keepAliveTimeout = 125_000;
+  server.headersTimeout = 126_000;
 
   /** GET-by-POST on purpose (ADR 0045): the locator never sits in a URL, so it never lands in an
    * access log. Single-use: found or not, the entry is gone either way after this call. */
