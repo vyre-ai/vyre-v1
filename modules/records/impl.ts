@@ -12,6 +12,7 @@ import { isSealedRef } from "../../kernel/src/store/values.ts";
 import { StoreError } from "../../kernel/src/store/types.ts";
 import type {
   CreateManyResult,
+  UpdateManyResult,
   FieldDef,
   FieldValue,
   RecordId,
@@ -330,13 +331,21 @@ export function openRecords(
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
         try {
-          ready.push({ at: i, id: it.id, data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue> });
+          ready.push({
+            at: i,
+            id: it.id,
+            data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue>,
+          });
         } catch (e) {
           out[i] = { ok: false, error: e };
         }
       }
       let made: CreateManyResult[];
-      if (inner.createMany) made = await inner.createMany(def.name, ready.map((r) => ({ id: r.id, data: r.data })));
+      if (inner.createMany)
+        made = await inner.createMany(
+          def.name,
+          ready.map((r) => ({ id: r.id, data: r.data })),
+        );
       else {
         made = [];
         for (const r of ready) {
@@ -359,6 +368,48 @@ export function openRecords(
       if (row && row.version === base) assertWriteOnce(def, row.data, clean);
       if (row) assertStageGates(def, row.data, clean);
       return inner.update(def.name, id, clean, base);
+    },
+    async updateMany(type, items) {
+      const def = await needType(type);
+      const out: UpdateManyResult[] = new Array(items.length);
+      const ready: { at: number; id: RecordId; patch: Record<string, FieldValue | null>; base_version: number }[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i]!;
+        try {
+          const row = await inner.get(def.name, it.id);
+          const clean = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data));
+          if (row && row.version === it.base_version) assertWriteOnce(def, row.data, clean);
+          if (row) assertStageGates(def, row.data, clean);
+          ready.push({
+            at: i,
+            id: it.id,
+            patch: clean as Record<string, FieldValue | null>,
+            base_version: it.base_version,
+          });
+        } catch (e) {
+          out[i] = { ok: false, error: e };
+        }
+      }
+      let made: UpdateManyResult[];
+      if (inner.updateMany)
+        made = await inner.updateMany(
+          def.name,
+          ready.map((r) => ({ id: r.id, patch: r.patch, base_version: r.base_version })),
+        );
+      else {
+        made = [];
+        for (const r of ready) {
+          try {
+            made.push({ ok: true, record: await inner.update(def.name, r.id, r.patch, r.base_version) });
+          } catch (e) {
+            made.push({ ok: false, error: e });
+          }
+        }
+      }
+      made.forEach((m, k) => {
+        out[ready[k]!.at] = m;
+      });
+      return out;
     },
     async remove(type, id, base) {
       const def = (await allTypes()).find((t) => t.name === type);
