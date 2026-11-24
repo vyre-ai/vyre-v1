@@ -1,4 +1,4 @@
-ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ pass 29 ℹ fail 0 // Markdown to the editor's document and back, for the one Markdown editor (MarkdownEditor). Pure functions, no DOM: the same code runs in the editor, in tests and in the WebView.
+// Markdown to the editor's document and back, for the one Markdown editor (MarkdownEditor). Pure functions, no DOM: the same code runs in the editor, in tests and in the WebView.
 // The document is TipTap JSON (paragraph, heading, bulletList, orderedList, taskList, blockquote, codeBlock, horizontalRule, hardBreak, and the marks bold, italic, strike, code, link).
 // What is saved is plain .md that agents read, so the round trip is built to leave a file alone: a block keeps whether a blank line came before it (`tight`), a list keeps its marker and
 // whether its items were spaced, text is escaped only where it would otherwise read as markup, and anything the editor has no block for (a table, HTML, front matter, a link
