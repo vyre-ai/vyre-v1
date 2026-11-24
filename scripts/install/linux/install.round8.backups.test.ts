@@ -3,15 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import {
-  SERVER,
-  tmp,
-  SAME,
-  sh,
-  world,
-  MAC_ENV,
-  mkSpace,
-} from "./install.round8-kit.test.ts";
+import { SERVER, tmp, SAME, sh, world, MAC_ENV, mkSpace } from "./install.round8-kit.test.ts";
 
 test("the backups folder is mounted into the server: compose.backups.yml names it, is rewritten only when it changes, and every compose call includes it", () => {
   const dir = tmp();
@@ -24,31 +16,18 @@ test("the backups folder is mounted into the server: compose.backups.yml names i
     const txt = fs.readFileSync(f, "utf8");
     assert.match(
       txt,
-      new RegExp(
-        `device: "${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`,
-        "m",
-      ),
+      new RegExp(`device: "${path.join(dir, "backups").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"),
       "the host folder is the bind source",
     );
     assert.match(txt, /- vyre-backups-\d+:\/backups/, "mounted at /backups");
     assert.match(txt, /VYRE_BACKUP_DIR: \/backups/, "the server is told where");
     const t0 = fs.statSync(f).mtimeMs;
-    assert.equal(
-      sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status,
-      0,
-    );
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status, 0);
     assert.equal(fs.statSync(f).mtimeMs, t0, "unchanged, so not rewritten");
     assert.ok(fs.statSync(path.join(dir, "backups")).isDirectory());
     // dc hands compose the file after the override
-    const calls = sh(
-      SERVER,
-      `DATA_DIR="${dir}/data"; docker(){ printf '%s\\n' "$*"; }; dc config`,
-      env,
-    );
-    assert.match(
-      calls.stdout,
-      /-f \S+\/compose\.override\.yml -f \S+\/compose\.backups\.yml config/,
-    );
+    const calls = sh(SERVER, `DATA_DIR="${dir}/data"; docker(){ printf '%s\\n' "$*"; }; dc config`, env);
+    assert.match(calls.stdout, /-f \S+\/compose\.override\.yml -f \S+\/compose\.backups\.yml config/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
@@ -68,13 +47,7 @@ test("compose.backups.yml survives a hard folder name, and when the folder or th
     );
     assert.equal(r.status, 0, r.stderr);
     const want = hard.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
-    assert.ok(
-      fs
-        .readFileSync(f, "utf8")
-        .split("\n")
-        .includes(`      device: "${want}"`),
-      fs.readFileSync(f, "utf8"),
-    );
+    assert.ok(fs.readFileSync(f, "utf8").split("\n").includes(`      device: "${want}"`), fs.readFileSync(f, "utf8"));
     assert.ok(fs.statSync(hard).isDirectory());
     // the folder cannot be made (its parent is a file): no file, no -f, one line saying why, and compose is called without it (a fake docker that refuses a missing -f file)
     fs.writeFileSync(path.join(dir, "notadir"), "x");
@@ -87,10 +60,7 @@ test("compose.backups.yml survives a hard folder name, and when the folder or th
       noDir.stderr,
       /backups folder .* does not exist and could not be made, so the server starts without it mounted/,
     );
-    assert.ok(
-      !fs.existsSync(f),
-      "a stale file from an earlier start is removed",
-    );
+    assert.ok(!fs.existsSync(f), "a stale file from an earlier start is removed");
     // the file cannot be written (a directory sits where it is first written): same, and the old file is not passed
     fs.writeFileSync(f, "stale");
     fs.mkdirSync(`${f}.new`);
@@ -116,24 +86,13 @@ test("mode and owner are set only on a backups folder the command made: a folder
     const env = world(dir, SAME);
     const mode = (p: string): number => fs.statSync(p).mode & 0o777;
     // the default folder is the command's own: made, and 0700
-    assert.equal(
-      sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status,
-      0,
-    );
+    assert.equal(sh(SERVER, `DATA_DIR="${dir}/data"; ensure_backups_compose`, env).status, 0);
     assert.equal(mode(path.join(dir, "backups")), 0o700);
     // a folder named in backup-dir that does not exist yet is made by the command: 0700
     const fresh = path.join(dir, "elsewhere", "mine");
-    const made = sh(
-      SERVER,
-      `DATA_DIR="${dir}/data"; BACKUP_DIR='${fresh}'; ensure_backups_compose`,
-      env,
-    );
+    const made = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${fresh}'; ensure_backups_compose`, env);
     assert.equal(made.status, 0, made.stderr);
-    assert.equal(
-      mode(fresh),
-      0o700,
-      "a folder it just made is closed to others",
-    );
+    assert.equal(mode(fresh), 0o700, "a folder it just made is closed to others");
     assert.doesNotMatch(made.stderr, /left as it is/);
     // a folder that already exists and is not the default: mode untouched, on a compose call and on a backup
     const shared = path.join(dir, "shared");
@@ -146,17 +105,10 @@ test("mode and owner are set only on a backups folder the command made: a folder
     );
     assert.equal(kept.status, 0, kept.stderr);
     assert.equal(mode(shared), 0o775, "a shared folder keeps its mode");
-    const bk = sh(
-      SERVER,
-      `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; dc(){ :; }; backup_data manual live`,
-      env,
-    );
+    const bk = sh(SERVER, `DATA_DIR="${dir}/data"; BACKUP_DIR='${shared}'; dc(){ :; }; backup_data manual live`, env);
     assert.equal(bk.status, 0, bk.stderr + bk.stdout);
     assert.equal(mode(shared), 0o775, "a backup does not close it either");
-    assert.ok(
-      fs.existsSync(path.join(dir, "compose.backups.yml")),
-      "it is still mounted",
-    );
+    assert.ok(fs.existsSync(path.join(dir, "compose.backups.yml")), "it is still mounted");
     // one that the server user cannot write: left as it is, one warning (skipped as root, who can write anything)
     if (process.getuid && process.getuid() !== 0) {
       const ro = path.join(dir, "readonly");
@@ -169,11 +121,7 @@ test("mode and owner are set only on a backups folder the command made: a folder
       );
       assert.equal(w.status, 0, w.stderr);
       assert.equal(mode(ro), 0o555);
-      assert.equal(
-        w.stderr.match(/already exists and is left as it is/g)?.length,
-        1,
-        "said once: " + w.stderr,
-      );
+      assert.equal(w.stderr.match(/already exists and is left as it is/g)?.length, 1, "said once: " + w.stderr);
       fs.chmodSync(ro, 0o755);
     }
   } finally {
@@ -188,36 +136,22 @@ test("the backups folder is given to uid 1000 on Linux when run as root, and nev
     const run = (osName: string): string => {
       fs.rmSync(path.join(dir, "host.log"), { force: true });
       fs.rmSync(path.join(dir, "backups"), { recursive: true, force: true });
-      const r = sh(
-        SERVER,
-        `${asRoot}DATA_DIR="${dir}/data"; ensure_backups_compose`,
-        {
-          ...world(dir, SAME),
-          VYRE_TEST_OS: osName,
-        },
-      );
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; ensure_backups_compose`, {
+        ...world(dir, SAME),
+        VYRE_TEST_OS: osName,
+      });
       assert.equal(r.status, 0, r.stderr);
-      return fs.existsSync(path.join(dir, "host.log"))
-        ? fs.readFileSync(path.join(dir, "host.log"), "utf8")
-        : "";
+      return fs.existsSync(path.join(dir, "host.log")) ? fs.readFileSync(path.join(dir, "host.log"), "utf8") : "";
     };
-    assert.match(
-      run("Linux"),
-      /^chown 1000:1000 \S+\/backups$/m,
-      "Linux: the server's user owns the folder it made",
-    );
+    assert.match(run("Linux"), /^chown 1000:1000 \S+\/backups$/m, "Linux: the server's user owns the folder it made");
     assert.doesNotMatch(run("Darwin"), /^chown/m, "a Mac: no chown");
     // the backup file itself follows the same rule
     const take = (osName: string): string => {
       fs.rmSync(path.join(dir, "host.log"), { force: true });
-      const r = sh(
-        SERVER,
-        `${asRoot}DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`,
-        {
-          ...world(dir, SAME),
-          VYRE_TEST_OS: osName,
-        },
-      );
+      const r = sh(SERVER, `${asRoot}DATA_DIR="${dir}/data"; dc(){ :; }; backup_data manual live`, {
+        ...world(dir, SAME),
+        VYRE_TEST_OS: osName,
+      });
       assert.equal(r.status, 0, r.stderr + r.stdout);
       return fs.readFileSync(path.join(dir, "host.log"), "utf8");
     };
@@ -226,11 +160,7 @@ test("the backups folder is given to uid 1000 on Linux when run as root, and nev
       /^chown 1000:1000 \S+vyre-manual-\S+\.tar\.gz$/m,
       "Linux: the backup is the server user's to read",
     );
-    assert.doesNotMatch(
-      take("Darwin"),
-      /^chown/m,
-      "a Mac: the backup file is not chowned either",
-    );
+    assert.doesNotMatch(take("Darwin"), /^chown/m, "a Mac: the backup file is not chowned either");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

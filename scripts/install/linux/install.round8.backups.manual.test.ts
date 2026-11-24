@@ -4,22 +4,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import {
-  SERVER,
-  tmp,
-  SAME,
-  sh,
-  world,
-  mkSpace,
-} from "./install.round8-kit.test.ts";
+import { SERVER, tmp, SAME, sh, world, mkSpace } from "./install.round8-kit.test.ts";
 import type { Out } from "./install.round8-kit.test.ts";
 
 const take = (dir: string, env: ReturnType<typeof world>, tag: string): Out =>
-  sh(
-    SERVER,
-    `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data ${tag} live`,
-    env,
-  );
+  sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data ${tag} live`, env);
 const names = (dir: string): string[] =>
   fs
     .readdirSync(path.join(dir, "backups"))
@@ -34,10 +23,7 @@ test("a manual backup is never removed; the newest backups taken before an updat
     // one before an update, one before a restore, then twelve manual ones; a name the script does not know sits in the folder from the start, so every one of the twelve prunes beside it
     assert.equal(take(dir, env, "pre-1.1.0").status, 0);
     assert.equal(take(dir, env, "pre-restore").status, 0);
-    fs.writeFileSync(
-      path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"),
-      "x",
-    );
+    fs.writeFileSync(path.join(dir, "backups", "vyre-restored-by-hand.tar.gz"), "x");
     // twelve manual backups in one shell: the same twelve backup_data runs, and `last` is what all of them printed, so "never named as removed" is checked on every one
     const last: Out = sh(
       SERVER,
@@ -71,10 +57,7 @@ test("a manual backup is never removed; the newest backups taken before an updat
       /Manual backups are never removed by this command: 12 of them take \d+ MB/,
       "the pile of manual backups is said, not pruned",
     );
-    assert.ok(
-      left.includes("vyre-restored-by-hand.tar.gz"),
-      "a name the script does not know is left alone",
-    );
+    assert.ok(left.includes("vyre-restored-by-hand.tar.gz"), "a name the script does not know is left alone");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

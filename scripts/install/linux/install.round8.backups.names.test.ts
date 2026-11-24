@@ -4,22 +4,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import {
-  SERVER,
-  tmp,
-  SAME,
-  sh,
-  world,
-  mkSpace,
-} from "./install.round8-kit.test.ts";
+import { SERVER, tmp, SAME, sh, world, mkSpace } from "./install.round8-kit.test.ts";
 import type { Out } from "./install.round8-kit.test.ts";
 
 const take = (dir: string, env: ReturnType<typeof world>, tag: string): Out =>
-  sh(
-    SERVER,
-    `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data ${tag} live`,
-    env,
-  );
+  sh(SERVER, `DATA_DIR="${dir}/data"; dc(){ :; }; backup_data ${tag} live`, env);
 const names = (dir: string): string[] =>
   fs
     .readdirSync(path.join(dir, "backups"))
@@ -43,10 +32,7 @@ test("two backups in the same second get two names, and a backup holds the Space
     assert.equal(b.status, 0, b.stderr);
     assert.deepEqual(
       names(dir),
-      [
-        "vyre-manual-20261112T004605Z-2.tar.gz",
-        "vyre-manual-20261112T004605Z.tar.gz",
-      ],
+      ["vyre-manual-20261112T004605Z-2.tar.gz", "vyre-manual-20261112T004605Z.tar.gz"],
       "the second did not replace the first",
     );
     for (const n of names(dir))
@@ -68,17 +54,10 @@ test("the kinds keep their own few: a third backup before an update pushes out o
     assert.equal(take(dir, env, "pre-1.1.0").status, 0);
     let pruned: Out = take(dir, env, "pre-1.2.0");
     pruned = take(dir, env, "pre-1.3.0");
-    assert.match(
-      pruned.stdout,
-      /^ {2}Removed an older backup: vyre-pre-1\.1\.0-\S+\.tar\.gz$/m,
-      "what goes is named",
-    );
+    assert.match(pruned.stdout, /^ {2}Removed an older backup: vyre-pre-1\.1\.0-\S+\.tar\.gz$/m, "what goes is named");
     const pre = names(dir).filter((n) => /^vyre-pre-\d/.test(n));
     assert.equal(pre.length, 2, pre.join(" "));
-    assert.ok(
-      !pre.some((n) => n.startsWith("vyre-pre-1.1.0-")),
-      "the oldest pre-update backup went first",
-    );
+    assert.ok(!pre.some((n) => n.startsWith("vyre-pre-1.1.0-")), "the oldest pre-update backup went first");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
