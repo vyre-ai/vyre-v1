@@ -20,14 +20,14 @@ export interface AppOptions {
   bulk?: number;
   /** This many rows in each of matters, contacts and companies (default 2). */
   big?: number;
-  /** The Nth list request for people fails once: with a 500, or by dropping the connection. */
-  failOnce?: { at: number; mode: "500" | "drop" };
+  /** The Nth list request for people fails (and, with `times`, the next ones after it): with a 500, or by dropping the connection. A page read that fails this way is read again (the engine's own retry), so a failure that must reach the pass needs `times` above the retries. */
+  failOnce?: { at: number; mode: "500" | "drop"; times?: number };
   /** `times` requests for this path, after the first `skip` ones, never get an answer (the field fault of 17 Nov: a call that hangs and never fails). */
   hang?: { path: string; times: number; skip?: number };
 }
 export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions = {}) {
   let peopleRequests = 0;
-  let failed = false;
+  let failedCount = 0;
   let hung = 0;
   let hangSeen = 0;
   const people = [
@@ -95,8 +95,8 @@ export function app(seen: { keys: string[]; urls: string[] }, opts: AppOptions =
       if (!rows) return { status: 404, text: "{}" };
       if (url.pathname === "/api/people" && opts.failOnce) {
         peopleRequests++;
-        if (peopleRequests === opts.failOnce.at && !failed) {
-          failed = true;
+        if (peopleRequests >= opts.failOnce.at && failedCount < (opts.failOnce.times ?? 1)) {
+          failedCount++;
           if (opts.failOnce.mode === "drop") throw new Error("ECONNRESET: the app dropped the connection");
           return { status: 500, text: "{}" };
         }

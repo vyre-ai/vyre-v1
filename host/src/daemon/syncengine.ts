@@ -340,7 +340,7 @@ export function namesFor(objects: unknown, remote: string): ObjectNames {
 const RATE_CODES = new Set(["rate_limit.exceeded", "provider.rate_limited"]);
 /** A read that the app could not answer this time (a dropped connection, a service that is down for a moment): the same read is tried again a few times before the pass is given up. A pass over a list the app cannot filter by change is hundreds of pages; one dropped page must not lose it. */
 const TRANSIENT_CODES = new Set(["provider.network", "provider.unavailable"]);
-const TRANSIENT_TRIES = 4;
+export const TRANSIENT_TRIES = 4;
 /** Waits in a row, with nothing answered between, before a pass gives up on an app that keeps saying slow down. */
 const SLOW_DOWNS = 8;
 const SLOW_DOWN_FIRST_MS = 30_000;
