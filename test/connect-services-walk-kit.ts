@@ -107,6 +107,37 @@ export async function servicesWalk(
         });
         return (await card.getAttribute("data-testid"))!.replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
       };
+      /** What a card showed when a wait on it failed, in the folder CI uploads: a screenshot and the card's elements, the request, the connections, the calls the stand-in app saw, the page errors and the page text. */
+      const evidence = async (label: string, cardId: string, slug: string): Promise<void> => {
+        const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
+        fs.mkdirSync(dir, { recursive: true });
+        const state = await api("vault.requests.get", { requestId: cardId.replace(/^connect-/, "") }).catch((x: unknown) => ({
+          error: String(x).slice(0, 300),
+        }));
+        const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
+        const elements = await page
+          .locator(`[data-testid^='${cardId}']`)
+          .evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))
+          .catch(() => []);
+        const cards = await page
+          .locator("[data-testid^='connect-vrq_']")
+          .evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))
+          .catch(() => []);
+        await page.screenshot({ path: `${dir}/${slug}-${tag}-${label}.png` }).catch(() => undefined);
+        fs.writeFileSync(
+          `${dir}/${slug}-${tag}-${label}.txt`,
+          [
+            `waited on card ${cardId}: its elements ${elements.join(" ")}`,
+            `every connect card on the page: ${cards.join(" ")}`,
+            `address ${page.url()}`,
+            `request ${JSON.stringify(state).slice(0, 1500)}`,
+            `connections ${JSON.stringify(conns).slice(0, 1500)}`,
+            `calls the stand-in app saw since the last Connect: ${seen.map((r) => `${r.host} ${r.url}`).join(" | ").slice(0, 1500)}`,
+            `page errors: ${errs.join(" | ").slice(0, 800)}`,
+            `page text:\n${(await page.locator("body").innerText().catch(() => "")).slice(0, 2500)}`,
+          ].join("\n"),
+        );
+      };
       for (const title of titles) {
         const svc = SVCS.find((s) => s.title === title)!;
         const slug = title.toLowerCase().replace(/[^a-z]+/g, "");
@@ -120,7 +151,13 @@ export async function servicesWalk(
         };
         const sayHosts = async () => (await q("-checks").innerText()).replace(/\s+/g, " ");
         // the card for this service: every field a person pastes, and where the key goes, before anything is typed
-        for (const f of svc.fields) await q(`-${f}-input`).waitFor({ timeout: 20_000 });
+        for (const f of svc.fields)
+          await q(`-${f}-input`)
+            .waitFor({ timeout: 20_000 })
+            .catch(async (e) => {
+              await evidence("no-input", id, slug);
+              throw e;
+            });
         assert.match(await sayHosts(), /sent only to/i, `${title}: the card says where the key goes`);
         if (title === "Mailgun") {
           assert.match(await sayHosts(), /api\.mailgun\.net/);
@@ -169,37 +206,11 @@ export async function servicesWalk(
         await fill("GOOD");
         seen.length = 0;
         await q("-connect").click();
-        // when the connected row does not show, say what the card showed and what the request and the connection were, in the folder CI uploads (a failure here once carried only the locator)
+        // when the connected row does not show, say what the card showed (see evidence)
         await q("-row")
           .waitFor({ timeout: 25_000 })
           .catch(async (e) => {
-            const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
-            fs.mkdirSync(dir, { recursive: true });
-            const reqId = id.replace(/^connect-/, "");
-            const state = await api("vault.requests.get", { requestId: reqId }).catch((x: unknown) => ({
-              error: String(x).slice(0, 300),
-            }));
-            const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
-            await page.screenshot({ path: `${dir}/${slug}-${tag}-no-row.png` }).catch(() => undefined);
-            fs.writeFileSync(
-              `${dir}/${slug}-${tag}-no-row.txt`,
-              [
-                `card ${id}: elements ${(await page.locator(`[data-testid^='${id}']`).evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))).join(" ")}`,
-                `request ${JSON.stringify(state).slice(0, 1500)}`,
-                `connections ${JSON.stringify(conns).slice(0, 1500)}`,
-                `calls the stand-in app saw since Connect: ${seen
-                  .map((r) => `${r.host} ${r.url}`)
-                  .join(" | ")
-                  .slice(0, 1500)}`,
-                `page errors: ${errs.join(" | ").slice(0, 800)}`,
-                `page text:\n${(
-                  await page
-                    .locator("body")
-                    .innerText()
-                    .catch(() => "")
-                ).slice(0, 2500)}`,
-              ].join("\n"),
-            );
+            await evidence("no-row", id, slug);
             throw e;
           });
         await shot("done");
@@ -240,7 +251,12 @@ export async function servicesWalk(
         );
         const again = await ask(title);
         const q2 = (s: string) => page.locator(`[data-testid='${again}${s}']`);
-        await q2(`-${svc.fields[0]}-input`).waitFor({ timeout: 20_000 });
+        await q2(`-${svc.fields[0]}-input`)
+          .waitFor({ timeout: 20_000 })
+          .catch(async (e) => {
+            await evidence("again-no-input", again, slug);
+            throw e;
+          });
         assert.equal(await q2(`-${svc.fields[0]}-input`).inputValue(), "", `${title}: asking again shows a clean card`);
         assert.equal(await q2("-have").count(), 0, "the key the first card saved is not offered back");
         // Mailgun's other region: the key goes to its one host, and to no other
