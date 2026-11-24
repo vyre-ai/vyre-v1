@@ -26,7 +26,12 @@ export function retryCase(mode: "500" | "drop"): void {
         async () => {
           await pump(w.d);
           const st = (await call(w.d, "sync_types.status", { type: "person" })).data;
-          return st.failures?.length ? st : null;
+          // the pass's own failure: a sealed value the Vault could not take yet is also listed (and comes first on a loaded server: the records of the first group are not visible to the Vault yet), but it is not the cut-off and the next poll is only set when the pass ends
+          return (st.failures ?? []).some(
+            (f: { summary: string }) => !/^A sealed value could not be kept yet/.test(f.summary),
+          )
+            ? st
+            : null;
         },
         115_000,
         () => hostLog(w.d),
