@@ -178,3 +178,47 @@ test("a person who may not buy or connect a number is not shown the Twilio tile 
   assert.ok(withFlag(true).includes('data-testid="connect-twilio"'));
   for (const k of ["gmail", "outlook", "imap"]) assert.ok(withFlag(false).includes(`data-testid="connect-${k}"`), k);
 });
+
+// while the mailboxes load, the buttons slot paints its final state: the last answer this session saw for the Space, or nothing on a first visit (no + that draws and then goes)
+test("the buttons wait for the answer: the last known one, or nothing on a first visit", () => {
+  for (const [space, tag] of [
+    [none, "none"],
+    [connected, "connected"],
+  ] as const) {
+    const data = createSampleInbox(space).data;
+    const render = (): string =>
+      renderToStaticMarkup(
+        <InboxDataProvider value={data}>
+          <InboxStateProvider>
+            <InboxSidebar />
+          </InboxStateProvider>
+        </InboxDataProvider>,
+      ).replaceAll("<!-- -->", "");
+    const live = data.screens.query;
+    const loading = { subscribe: () => () => undefined, getSnapshot: () => ({ status: "loading" }) };
+    data.screens.query = (() => loading) as unknown as typeof live;
+    try {
+      const first = render();
+      assert.ok(
+        !has(first, 'data-testid="inbox-connect"') && !has(first, 'data-testid="inbox-new"'),
+        `${tag}: first visit, empty slot`,
+      );
+    } finally {
+      data.screens.query = live;
+    }
+    const answered = render();
+    assert.equal(has(answered, 'data-testid="inbox-connect"'), tag === "connected", `${tag}: answered`);
+    data.screens.query = (() => loading) as unknown as typeof live;
+    try {
+      const again = render();
+      assert.equal(
+        has(again, 'data-testid="inbox-connect"'),
+        tag === "connected",
+        `${tag}: return visit paints the last answer`,
+      );
+      assert.equal(has(again, 'data-testid="inbox-new"'), tag === "connected", `${tag}: pencil too`);
+    } finally {
+      data.screens.query = live;
+    }
+  }
+});

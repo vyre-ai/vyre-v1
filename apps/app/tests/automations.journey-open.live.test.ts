@@ -92,8 +92,22 @@ test("production Automations: a Journey made through the API opens from the list
           `the Journey did not open: ${e.message}; page errors ${JSON.stringify(errors)}; ids ${JSON.stringify(ids)}; text ${(await page.locator("body").innerText()).slice(0, 600)}`,
         );
       });
-    for (const k of KEYS) await page.getByTestId(`stage-${k}`).waitFor({ timeout: 10_000 });
-    await page.getByTestId("funnel").waitFor({ timeout: 10_000 });
+    // a Journey opens on its Path: one column per stage, the finish at the end
+    for (const k of KEYS) await page.getByTestId(`path-col-${k}`).waitFor({ timeout: 10_000 });
+    await page.getByTestId("path-finish").waitFor({ timeout: 10_000 });
+    // each column carries its own stage title, and the first counts the two records started in it
+    for (const k of KEYS)
+      assert.match(
+        await page.getByTestId(`path-col-${k}`).innerText(),
+        new RegExp(k[0]!.toUpperCase() + k.slice(1), "i"),
+        `the ${k} column names its stage`,
+      );
+    // the Path counts the records in each stage (the cards in a column are its Automations; the records themselves are on the board): both started in the first
+    const countOf = async (k: string): Promise<string> =>
+      ((await page.getByTestId(`path-col-${k}`).innerText()).split("\n")[1] ?? "").trim();
+    assert.equal(await countOf("new"), "2", "the first column counts the two records started in it");
+    assert.equal(await countOf("won"), "0", "a record is only counted in the stage it is in");
+    assert.ok((await page.getByTestId("path-finish").innerText()).trim() !== "", "the finish shows its words");
     assert.equal(await page.getByTestId("journey-gone").count(), 0, "the Journey is found");
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/journey-open-list.png` });
 

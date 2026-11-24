@@ -86,3 +86,18 @@ test("a link to an item that has a tab focuses that tab; closing the selected ta
   hub.closeTab();
   assert.deepEqual([shown(hub).tab.key, shown(hub).hash], [thr.key, "thr_1"]);
 });
+
+test("the hub counts the addresses that came from outside, never the page's own moves", () => {
+  const hub = restored([], "chats");
+  const at = (h: string): number => {
+    readUrlIntoHub(hub, { pathname: "/chat", hash: h });
+    return hub.state().links;
+  };
+  const a = at("screen=tasks.page&taskId=tsk_1");
+  assert.equal(at("screen=tasks.page&taskId=tsk_1"), a, "the same address again is no link");
+  const b = at("");
+  assert.equal(b, a + 1, "an address that came from outside counts");
+  assert.equal(at("screen=tasks.page&taskId=tsk_1"), b + 1, "coming back to the same address by a link counts");
+  hub.move("chats", "screen=chats.notes");
+  assert.equal(hub.state().links, b + 1, "the page's own move is not a link");
+});

@@ -52,10 +52,12 @@ function ChatsLinked({
   hub: ShellHub;
 }): ReactElement {
   const { opened } = usePlaceHash();
+  const at = useShownLocation(hub);
   return (
     <ChatsMounted
       rt={rt}
-      hash={useShownLocation(hub).hash}
+      hash={at.hash}
+      {...(at.links === undefined ? {} : { links: at.links })}
       opened={opened}
       onSwitch={hub.hold}
       onTitle={(title) => hub.retitle(hub.session().tabs.state().active, title)}

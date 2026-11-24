@@ -70,7 +70,13 @@ test("r32 pickers: a Wait picks its event from the Space's events and narrows it
     for (let i = 1; i <= 8; i++)
       await api("files.create", { folderId, name: `Contract ${i}.docx`, content: { text: `Contract ${i}` } });
 
-    const filesId = await make("Contract reader", [{ id: "n1", key: "files.get", input: {} }]);
+    // a real earlier event for the test to be tried on: a company created after the Automation exists
+    const filesId = await make(
+      "Contract reader",
+      [{ id: "n1", key: "files.get", input: {} }],
+      [{ key: "record_change", filter: { type: "company", op: "created" } }],
+    );
+    await api("records.create", { type: "company", fields: { name: "Contract Co" }, idempotencyKey: "picker-co" });
     await page.goto(`${web.origin}/automations`, { waitUntil: "load" });
     await page.getByTestId("first-page").waitFor({ timeout: 30_000 });
     // the pickers: files by name, searchable
@@ -100,6 +106,13 @@ test("r32 pickers: a Wait picks its event from the Space's events and narrows it
       .getByTestId("sv-test")
       .click()
       .catch(() => undefined);
+    // Test opens a pane to pick what to try it on: a real past event, never the made-up example
+    await page.getByTestId("test-pane").waitFor({ timeout: 20_000 });
+    const past = page.locator('[data-testid^="row-tp-try-"]').first();
+    await past.waitFor({ timeout: 20_000 });
+    const pastName = ((await past.innerText()).split("\n").find((l) => l.trim().length > 1) ?? "").trim();
+    assert.ok(pastName !== "", "the past event has a name");
+    await past.click();
     let made = 0;
     for (let i = 0; i < 40 && made === 0; i++) {
       const runs = await api("runs.list", { scope: "subject", subject: { type: "automation", id: filesId } });
@@ -107,6 +120,10 @@ test("r32 pickers: a Wait picks its event from the Space's events and narrows it
       if (made === 0) await page.waitForTimeout(500);
     }
     assert.ok(made >= 1, "the test made a run to read");
+    assert.ok(
+      (await page.locator("body").innerText()).includes(pastName),
+      `the pane names the event that was picked: ${pastName}`,
+    );
     await shot("4-test-d");
 
     assert.deepEqual(errors, [], "no page error");
