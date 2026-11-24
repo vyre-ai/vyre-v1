@@ -1,4 +1,4 @@
-// Markdown to the editor's document and back, for the one Markdown editor (MarkdownEditor). Pure functions, no DOM: the same code runs in the editor, in tests and in the WebView.
+ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ tests 102 ℹ pass 102 ℹ fail 0 ℹ pass 29 ℹ fail 0 // Markdown to the editor's document and back, for the one Markdown editor (MarkdownEditor). Pure functions, no DOM: the same code runs in the editor, in tests and in the WebView.
 // The document is TipTap JSON (paragraph, heading, bulletList, orderedList, taskList, blockquote, codeBlock, horizontalRule, hardBreak, and the marks bold, italic, strike, code, link).
 // What is saved is plain .md that agents read, so the round trip is built to leave a file alone: a block keeps whether a blank line came before it (`tight`), a list keeps its marker and
 // whether its items were spaced, text is escaped only where it would otherwise read as markup, and anything the editor has no block for (a table, HTML, front matter, a link
@@ -151,6 +151,8 @@ function flushTo(out: Piece[], buf: string, marks: readonly PMMark[]): void {
  */
 function scan(src: string, marks: readonly PMMark[], out: Piece[], before: string): void {
   let buf = "";
+  // the start of the plain characters taken verbatim from `src` since the last thing that was not (they end at `i`): one slice instead of a string built a character at a time
+  let rs = -1;
   let i = 0;
   let cache: SearchCache | undefined;
   let fails: Fails | undefined;
@@ -162,6 +164,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
         CHIP.lastIndex = i;
         hit = CHIP.exec(src);
         if (hit) {
+          if (rs >= 0) {
+            buf += src.slice(rs, i);
+            rs = -1;
+          }
           flushTo(out, buf, marks);
           buf = "";
           out.push({ chip: hit[1] ?? "", marks: [...marks] });
@@ -170,6 +176,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
         }
         const c = criticAt(src, i);
         if (c) {
+          if (rs >= 0) {
+            buf += src.slice(rs, i);
+            rs = -1;
+          }
           flushTo(out, buf, marks);
           buf = "";
           if (c.kind === "add") scan(c.added, [...marks, sgMark("suggestAdd", c.author, c.at, false)], out, "");
@@ -182,18 +192,22 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
           continue;
         }
       }
-      buf += ch;
+      if (rs < 0) rs = i;
       i += 1;
       continue;
     }
     // an ordinary letter starts nothing: it is added without cutting the rest of the text off (that copy made a long paragraph cost its length squared)
     if (!PLAIN_STOP.has(ch)) {
-      buf += ch;
+      if (rs < 0) rs = i;
       i += 1;
       continue;
     }
     const rest = src.slice(i);
     if (ch === "\n") {
+      if (rs >= 0) {
+        buf += src.slice(rs, i);
+        rs = -1;
+      }
       flushTo(out, buf, marks);
       buf = "";
       out.push("br");
@@ -201,12 +215,20 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       continue;
     }
     if (ch === "\\" && rest.length > 1 && ESCAPABLE.test(rest.charAt(1))) {
+      if (rs >= 0) {
+        buf += src.slice(rs, i);
+        rs = -1;
+      }
       buf += rest.charAt(1);
       i += 2;
       continue;
     }
     let m: RegExpExecArray | null = null;
     if (ch === "`" && (m = /^(`+)(?!`)([\s\S]*?[^`])\1(?!`)/.exec(rest))) {
+      if (rs >= 0) {
+        buf += src.slice(rs, i);
+        rs = -1;
+      }
       flushTo(out, buf, marks);
       buf = "";
       const body = (m[2] ?? "").replace(/^ (.*[^ ].*) $/s, "$1");
@@ -229,6 +251,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       ).exec(rest);
       if (!m) (fails ??= new Map()).set(ch + ch, { from: i, until: Infinity });
       else {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         flushTo(out, buf, marks);
         buf = "";
         scan(m[1] ?? "", [...marks, mark("bold")], out, "");
@@ -240,6 +266,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest);
       if (!m) (fails ??= new Map()).set("~~", { from: i, until: Infinity });
       else {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         flushTo(out, buf, marks);
         buf = "";
         scan(m[1] ?? "", [...marks, mark("strike")], out, "");
@@ -252,6 +282,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       if (!m)
         (fails ??= new Map()).set("*", { from: i, until: firstOf(src, (cache ??= new Map()), ["*", "\n"], i + 1) });
       else {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         flushTo(out, buf, marks);
         buf = "";
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
@@ -264,6 +298,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       if (!m)
         (fails ??= new Map()).set("_", { from: i, until: firstOf(src, (cache ??= new Map()), ["_", "\n"], i + 1) });
       else {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         flushTo(out, buf, marks);
         buf = "";
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
@@ -274,6 +312,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     if (ch === "!" && c1 === "[") {
       const l = linkAt(src, i + 1, true, (cache ??= new Map()));
       if (l) {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         buf += src.slice(i, i + 1 + l.len);
         i += 1 + l.len;
         continue;
@@ -282,6 +324,10 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     if (ch === "[") {
       const l = linkAt(src, i, false, (cache ??= new Map()));
       if (l) {
+        if (rs >= 0) {
+          buf += src.slice(rs, i);
+          rs = -1;
+        }
         flushTo(out, buf, marks);
         buf = "";
         scan(l.text, [...marks.filter((x) => x.type !== "link"), mark("link", l.href, l.title)], out, "");
@@ -289,8 +335,12 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
         continue;
       }
     }
-    buf += ch;
+    if (rs < 0) rs = i;
     i += 1;
+  }
+  if (rs >= 0) {
+    buf += src.slice(rs, i);
+    rs = -1;
   }
   flushTo(out, buf, marks);
   buf = "";

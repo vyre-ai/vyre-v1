@@ -20,30 +20,35 @@ export interface CriticChange {
 // A change never reaches past a blank line (the editor reads one paragraph at a time, and the text readers must agree with it).
 let seenSrc = "";
 const seen = new Map<string, { from: number; at: number }>();
-function cached(src: string, key: string, from: number, search: () => number): number {
-  if (seenSrc !== src) {
-    seenSrc = src;
-    seen.clear();
-  }
-  const c = seen.get(key);
-  if (c && from >= c.from && (c.at === -1 || from <= c.at)) return c.at;
-  const at = search();
-  seen.set(key, { from, at });
-  return at;
-}
 const BLANK = /\n[ \t]*\n/g;
-/** The end of the paragraph that holds `from`: where the next blank line starts, or the end of the text. */
-function paragraphEnd(src: string, from: number): number {
-  const at = cached(src, "\n\n", from, () => {
+/** `key` "\n\n" asks for the next blank line, anything else for that marker. No closure and no new entry per question: this runs at every opener of a long hostile text. */
+function cached(src: string, key: string, from: number): number {
+  // `!==` on two strings that are not the same object compares every character; when the text is equal, keep the newer object, so the next question about it is answered by identity (a long text asked about
+  // thousands of times, each time from a copy of itself, made every question cost the length of the text)
+  if (seenSrc !== src) seen.clear();
+  seenSrc = src;
+  const c = seen.get(key);
+  if (c !== undefined && from >= c.from && (c.at === -1 || from <= c.at)) return c.at;
+  let at: number;
+  if (key === "\n\n") {
     BLANK.lastIndex = from;
     const m = BLANK.exec(src);
-    return m ? m.index : -1;
-  });
+    at = m ? m.index : -1;
+  } else at = src.indexOf(key, from);
+  if (c !== undefined) {
+    c.from = from;
+    c.at = at;
+  } else seen.set(key, { from, at });
+  return at;
+}
+/** The end of the paragraph that holds `from`: where the next blank line starts, or the end of the text. */
+function paragraphEnd(src: string, from: number): number {
+  const at = cached(src, "\n\n", from);
   return at < 0 ? src.length : at;
 }
 /** The marker at or after `from`, when it is inside the paragraph; otherwise -1. */
 function find(src: string, closer: string, from: number): number {
-  const at = cached(src, closer, from, () => src.indexOf(closer, from));
+  const at = cached(src, closer, from);
   return at >= 0 && at < paragraphEnd(src, from) ? at : -1;
 }
 const WHO = /^([^|<>{}\n]*)\|([^<>{}\n]*)$/;
