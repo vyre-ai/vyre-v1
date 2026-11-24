@@ -252,7 +252,10 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
       ) as { name: string }[];
       for (const t of tables)
-        for (const r of db.all(`SELECT id, created_at FROM "${t.name}" WHERE deleted_at IS NULL`) as { id: string; created_at: number }[])
+        for (const r of db.all(`SELECT id, created_at FROM "${t.name}" WHERE deleted_at IS NULL`) as {
+          id: string;
+          created_at: number;
+        }[])
           live.push({ id: r.id, at: Number(r.created_at) });
     } finally {
       db.close();

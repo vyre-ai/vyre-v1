@@ -13,7 +13,9 @@ function world(records: Record<string, string[]>, announced: (string | null)[], 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-doc-"));
   const space = new DatabaseSync(path.join(dir, "space.db"));
   for (const [type, ids] of Object.entries(records)) {
-    space.exec(`CREATE TABLE rt_${type} (id TEXT PRIMARY KEY, version INTEGER, created_at INTEGER, updated_at INTEGER, deleted_at INTEGER, data TEXT)`);
+    space.exec(
+      `CREATE TABLE rt_${type} (id TEXT PRIMARY KEY, version INTEGER, created_at INTEGER, updated_at INTEGER, deleted_at INTEGER, data TEXT)`,
+    );
     space.exec(`CREATE TABLE rt_${type}__fm (id TEXT, field TEXT)`);
     for (const id of ids) {
       space.prepare(`INSERT INTO rt_${type} VALUES (?, 1, ?, ?, NULL, '{}')`).run(id, created, created);
@@ -28,11 +30,19 @@ function world(records: Record<string, string[]>, announced: (string | null)[], 
       .prepare("INSERT INTO events (seq, event, payload) VALUES (?, ?, ?)")
       .run(
         i + 1,
-        JSON.stringify({ id: `evt_${i}`, type: "record.created", seq: i + 1, entity: "record", ...(id === null ? {} : { entity_id: id }) }),
+        JSON.stringify({
+          id: `evt_${i}`,
+          type: "record.created",
+          seq: i + 1,
+          entity: "record",
+          ...(id === null ? {} : { entity_id: id }),
+        }),
         enc.encode(JSON.stringify({ recordId: id, type: "party" })),
       ),
   );
-  log.exec(`INSERT INTO events (seq, event, payload) VALUES (1000, '{"id":"evt_u","type":"record.updated","entity":"record","entity_id":"rec_c"}', x'7b7d')`);
+  log.exec(
+    `INSERT INTO events (seq, event, payload) VALUES (1000, '{"id":"evt_u","type":"record.updated","entity":"record","entity_id":"rec_c"}', x'7b7d')`,
+  );
   log.close();
   return { dir, space: path.join(dir, "space.db"), log: path.join(dir, "events.db") };
 }
@@ -61,7 +71,7 @@ test("records with no created event are counted and named; an update is not an a
   }
 });
 
-test("an announcement that names no record makes the answer \"not checked\", never degraded", () => {
+test('an announcement that names no record makes the answer "not checked", never degraded', () => {
   const w = world({ party: ["rec_a", "rec_b", "rec_c"] }, ["rec_a", null, null]);
   try {
     const f = recordEventsFinding(w.space, w.log, 1_000_000_000);

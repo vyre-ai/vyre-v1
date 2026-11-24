@@ -14,5 +14,6 @@ export const NEXT = {
   ingress:
     "vyred writes the route within a minute of starting once Caddy answers. If it stays missing, run vyre-server restart and read vyre-server logs vyred.",
   logs: "Read them with vyre logs --level error.",
-  recordEvents: "The records are safe in the Space, but search, sync and Run undo do not see them. Report the count to support.",
+  recordEvents:
+    "The records are safe in the Space, but search, sync and Run undo do not see them. Report the count to support.",
 } as const;

@@ -10,11 +10,26 @@ test("no false alarm after records.create, bulk upsert, a sync pull and an impor
   const w = await world(true);
   try {
     const dir = w.d.paths.events.replace(/\/[^/]*$/, "");
-    const created = await call(w.d, "records.create", { type: "contact", fields: { name: "Solo", email: "solo@x.test" }, idempotencyKey: "solo" });
+    const created = await call(w.d, "records.create", {
+      type: "contact",
+      fields: { name: "Solo", email: "solo@x.test" },
+      idempotencyKey: "solo",
+    });
     assert.equal(created.status, 200, JSON.stringify(created.data));
-    const bulk = await call(w.d, "records.bulk_upsert", { type: "contact", match: ["email"], rows: Array.from({ length: 50 }, (_, i) => ({ name: `Bulk ${i}`, email: `b${i}@x.test` })), idempotencyKey: "bulk-doc" });
+    const bulk = await call(w.d, "records.bulk_upsert", {
+      type: "contact",
+      match: ["email"],
+      rows: Array.from({ length: 50 }, (_, i) => ({ name: `Bulk ${i}`, email: `b${i}@x.test` })),
+      idempotencyKey: "bulk-doc",
+    });
     assert.equal(bulk.status, 200);
-    const imported = await call(w.d, "records.bulk_upsert", { type: "contact", match: ["email"], rows: [{ name: "Import", email: "imp@x.test" }], runAutomations: true, idempotencyKey: "imp-doc" });
+    const imported = await call(w.d, "records.bulk_upsert", {
+      type: "contact",
+      match: ["email"],
+      rows: [{ name: "Import", email: "imp@x.test" }],
+      runAutomations: true,
+      idempotencyKey: "imp-doc",
+    });
     assert.equal(imported.status, 200);
     const applied = await call(w.d, "sync_specs.apply", { spec: spec("people"), idempotencyKey: "apply-doc" });
     assert.equal(applied.status, 200, JSON.stringify(applied.data));
