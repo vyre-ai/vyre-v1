@@ -13,7 +13,8 @@ import { seed } from "./support/bigspace-kit.ts";
 const TABLES = Number(process.env["EXPORT_TABLES"] ?? 25);
 // 70% of the firm's record counts by default (19,700 contacts, 6,580 matters, 770 organizations: about 27,000 records, far above the size at which the access view is built in slices) with narrower rows and name-only contacts: the seed was 68 s of a 93 s file. EXPORT_SCALE=1 is the full count.
 const SCALE = Number(process.env["EXPORT_SCALE"] ?? 0.7);
-const BOUND_MS = 15_000;
+// the bound is for the whole firm and shrinks with the data, so the budget per record never relaxes
+const BOUND_MS = Math.ceil(15_000 * Math.min(1, SCALE));
 
 /** The stand-in app's matters list under many names: each one is a table of the connector, with its own list actions and its own recorded test. */
 const wide = () => {
@@ -41,8 +42,9 @@ test(
         w.d,
         {
           matters: Math.round(9400 * SCALE),
-          fields: 20,
-          emails: false,
+          // below the full size the rows are narrower and the contacts have no email (a faster seed); at full size the rows are the firm's (100 fields, an email each)
+          fields: SCALE < 1 ? 20 : 100,
+          emails: SCALE >= 1,
           contacts: Math.round(28000 * SCALE),
           orgs: Math.round(1100 * SCALE),
         },
