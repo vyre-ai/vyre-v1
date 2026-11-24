@@ -69,6 +69,21 @@ export function harness(o: HarnessOptions = {}) {
       called.push({ cap, input: body });
       const r = respond[cap];
       if (r) return r(body);
+      // a record the test put in the index is read back whole, as a caller who may see every field would get it (a test that hides fields answers records.get itself)
+      if (cap === "records.get") {
+        const row = raw.all(
+          "SELECT title, body, record_type FROM search_docs WHERE kind = 'record' AND id = ?",
+          String(body["recordId"]),
+        )[0] as { title: string; body: string; record_type: string | null } | undefined;
+        if (row)
+          return {
+            record: {
+              id: body["recordId"],
+              type: row.record_type ?? "",
+              fields: { _title: row.title, notes: row.body },
+            },
+          };
+      }
       throw new Error(`unexpected capability ${cap}`);
     },
     authorize(_action, resource) {

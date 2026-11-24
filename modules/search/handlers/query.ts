@@ -17,6 +17,7 @@ import {
 } from "../projections.ts";
 import type { DocRow, Kind, SearchCtx } from "../projections.ts";
 import { agentBound } from "../../../lib/redact.ts";
+import { fieldWords } from "../fields.ts";
 
 export interface Hit {
   kind: Kind;
@@ -221,11 +222,46 @@ function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
 }
 
 /**
+ * A record as this caller may read it. The index holds the words of every field, but a grant can hide fields from a person (conditions.hiddenFields): the record itself comes back to them without those
+ * fields (records.get, asked as the caller), and so must its search hit. The text of the document is rebuilt from the fields the caller gets, so a hidden value neither finds the record nor shows in its
+ * snippet; a hit that matches only on a hidden word is dropped by the callers (the document is not the one the index holds). A record with nothing hidden is the document itself, and costs one read.
+ * When the read fails, the document is withheld rather than shown whole.
+ */
+async function fieldsSeen(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | null>): Promise<DocRow | null> {
+  const key = `record:${d.id}`;
+  const had = memo.get(key);
+  if (had !== undefined) return had;
+  let out: DocRow | null = null;
+  try {
+    const got = (await ctx.call("records.get", {
+      recordId: d.id,
+      ...(d.recordType ? { type: d.recordType } : {}),
+    })) as { record?: { fields?: Record<string, unknown> } };
+    const fields = got.record?.fields ?? {};
+    // the title field is the one whose value is the title; when no visible field holds it, the title itself was hidden
+    const titleKey =
+      Object.entries(fields).find(([, v]) => typeof v === "string" && v.slice(0, 300) === d.title)?.[0] ?? "";
+    const body = fieldWords(fields, titleKey);
+    if (titleKey !== "" && body === d.body) out = d;
+    else if (titleKey !== "") out = { ...d, body };
+    else {
+      const first = Object.values(fields).find((v): v is string => typeof v === "string" && v.length > 0);
+      out = { ...d, title: (first ?? d.id).slice(0, 300), body: fieldWords(fields, "") };
+    }
+  } catch {
+    out = null;
+  }
+  memo.set(key, out);
+  return out;
+}
+
+/**
  * A room that gained a person (a channel or thread with a later join) is read by an agent only from the last join on: what was said before was not said to the people there now, and an agent's
  * answer is read by all of them. The index holds the whole text of the room, so for an agent-bound caller the text is read again from the messages after the cut, and a hit that matches only
  * words from before it is dropped. A person searching their own history is not cut here.
  */
 async function afterJoin(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | null>): Promise<DocRow | null> {
+  if (d.kind === "record") return fieldsSeen(ctx, d, memo);
   if (d.kind !== "chat" || !agentBound(ctx)) return d;
   const had = memo.get(d.id);
   if (had !== undefined) return had;
