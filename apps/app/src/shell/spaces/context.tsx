@@ -30,6 +30,8 @@ export interface ShownLocation {
   hash: string;
   /** The hub's count of addresses that came from outside when this was drawn (see HubState.links). */
   links?: number;
+  /** The hub's count of addresses a place wrote itself (see HubState.reports). */
+  reports?: number;
 }
 const ShownContext = createContext<ShownLocation | null>(null);
 

@@ -56,6 +56,20 @@ export function linkNamesBody(compact: boolean, hash: string | undefined): boole
   return compact && hash !== undefined && /(^|&)(screen|subject)=/.test(hash.replace(/^#/, ""));
 }
 
+/**
+ * Does a change of the address open the body on a phone? A link does, and so does any address the person did not write by pressing a row (Cmd-K, a notification, a tab switch). The address a place
+ * wrote itself for a row just pressed does not: the press already opened the body, and if the person pressed Back before that address was drawn, opening the body again put the item back over the
+ * list they had asked for (kinds-b.panes at 760 wide, a channel row then Back). `ownReport`: the place's own report arrived with this change and no link did.
+ */
+export function hashOpensBody(o: {
+  compact: boolean;
+  hash: string | undefined;
+  hashChanged: boolean;
+  ownReport: boolean;
+}): boolean {
+  return linkNamesBody(o.compact, o.hash) && !(o.hashChanged && o.ownReport);
+}
+
 /** Rows whose text contains every word of the query, case-insensitively. An empty query keeps them all. */
 export function matchRows<T extends { title: string; note?: string }>(rows: readonly T[], query: string): T[] {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);

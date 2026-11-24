@@ -9,7 +9,7 @@ import type { ReactElement, ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { MenuIcon } from "../../../../../ui/src/Menu/index.tsx";
 import { iconMarkup } from "../rail/icons.tsx";
-import { collapseKey, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
+import { collapseKey, hashOpensBody, linkNamesBody, phoneView, readCollapsed, writeCollapsed } from "./model.ts";
 import type { PhoneView, SidebarStorage } from "./model.ts";
 import { portalInto } from "./portal.ts";
 import { ResizeHandle, useResizable } from "../../../../../ui/src/SidePane/resize.tsx";
@@ -68,8 +68,12 @@ export interface SidebarSlotProviderProps {
   epoch: number;
   /** The item the place has open (its address). A link that opens an item while the phone shows the list takes the phone to the body, as pressing a row does. */
   hash?: string;
-  /** Addresses that came from outside so far (HubState.links): a link back to the address the phone just left (Back) opens the item again. */
+  /** Addresses that came from outside so far (HubState.links). */
   links?: number;
+  /** Addresses the place wrote itself so far (HubState.reports). */
+  reports?: number;
+  /** The hub's count of own reports as of now (not as last drawn): Back remembers it, so a report issued before Back that is drawn after it is known for what it is. */
+  liveReports?: () => number;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -107,13 +111,30 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
   // a link to a goal, a chat or any item (an address, a notification, Cmd-K) shows that item at once, also where only one panel fits (K9, 13 Nov 2026)
   // A place switch resets to the list even when the new place carries an address: the switch is the epoch, so a change of epoch is not a link to an item.
   const epochSeen = useRef(p.epoch);
+  const hashSeen = useRef(p.hash);
+  const linksSeen = useRef(p.links ?? 0);
+  const reportsSeen = useRef(p.reports ?? 0);
+  // the own-report count when Back last closed the body: a report up to that count was issued before Back, so its address coming into the page now is not a new open (-1: Back has not closed anything since the last link)
+  const backedAt = useRef(-1);
+  const liveReports = useRef(p.liveReports);
+  liveReports.current = p.liveReports;
   useEffect(() => {
+    const hashChanged = p.hash !== hashSeen.current;
+    const linked = (p.links ?? 0) !== linksSeen.current;
+    const reported = (p.reports ?? 0) !== reportsSeen.current;
+    hashSeen.current = p.hash;
+    linksSeen.current = p.links ?? 0;
+    reportsSeen.current = p.reports ?? 0;
     if (epochSeen.current !== p.epoch) {
       epochSeen.current = p.epoch;
       return;
     }
-    if (linkNamesBody(p.compact, p.hash)) setBodyOpen(true);
-  }, [p.compact, p.hash, p.epoch, p.links]);
+    // only an address reported before Back was pressed is skipped (it was the press Back dismissed): an item opened after that (New chat, a created record, a search result, a press that wrote
+    // nothing and a later open of another item) is a later report, past the count Back remembered, and opens the body
+    if (linked) backedAt.current = -1;
+    const echo = reported && !linked && backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
+    if (hashOpensBody({ compact: p.compact, hash: p.hash, hashChanged, ownReport: echo })) setBodyOpen(true);
+  }, [p.compact, p.hash, p.epoch, p.links, p.reports]);
   const setCollapsed = useCallback(
     (v: boolean) => {
       setCollapsedState(v);
@@ -134,7 +155,10 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
       hasSidebar,
       compact: p.compact,
       openBody: () => setBodyOpen(true),
-      back: () => setBodyOpen(false),
+      back: () => {
+        backedAt.current = liveReports.current?.() ?? -1;
+        setBodyOpen(false);
+      },
       view: phoneView(hasSidebar, p.compact, bodyOpen),
       title: entry?.title ?? "",
       actionsOutlet,

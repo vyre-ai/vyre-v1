@@ -785,7 +785,7 @@ export function ShellHost({
         {...(ctx.links === undefined ? {} : { links: ctx.links })}
         opened={(t) => {
           const next = formatHash(t);
-          if (next !== ctx.hash) hub.move(ctx.place, next);
+          if (next !== ctx.hash) hub.move(ctx.place, next, true);
         }}
       />
     );

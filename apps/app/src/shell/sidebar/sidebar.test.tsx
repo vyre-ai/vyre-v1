@@ -9,6 +9,7 @@ import {
   SidebarSlot,
   SidebarSlotProvider,
   collapseKey,
+  hashOpensBody,
   linkNamesBody,
   matchRows,
   phoneView,
@@ -193,7 +194,7 @@ function Probe(): ReturnType<typeof Text> {
 
 async function drawn(
   r: ReturnType<typeof createRoot>,
-  o: { hash: string; epoch: number; compact?: boolean; links?: number },
+  o: { hash: string; epoch: number; compact?: boolean; links?: number; reports?: number },
 ): Promise<string> {
   await act(async () => {
     r.render(
@@ -203,6 +204,7 @@ async function drawn(
         compact={o.compact ?? true}
         hash={o.hash}
         links={o.links ?? 0}
+        reports={o.reports ?? 0}
         initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
       >
         <Probe />
@@ -279,5 +281,117 @@ test("a place switch to a place that already has an address shows the list, not 
     );
   } finally {
     restore();
+  }
+});
+
+test("hashOpensBody: the place's own report after a row press never reopens the body; a link, Cmd-K or a tab switch does", () => {
+  const at = { compact: true, hash: "subject=thread:t1", hashChanged: true };
+  assert.equal(hashOpensBody({ ...at, ownReport: false }), true, "an address that came to the place opens the body");
+  assert.equal(hashOpensBody({ ...at, ownReport: true }), false, "the place's own report does not");
+  assert.equal(hashOpensBody({ ...at, hashChanged: false, ownReport: true }), true, "no change of address: as before");
+  assert.equal(hashOpensBody({ ...at, hash: "", ownReport: false }), false);
+});
+
+test("Back remembers the reports issued before it: a late draw of that report keeps the list; an item opened after Back (even after a press that wrote nothing) opens the body", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    let live = 0;
+    const draw = async (o: { hash: string; reports: number; links?: number }): Promise<string> => {
+      await act(async () => {
+        r.render(
+          <SidebarSlotProvider
+            {...props}
+            epoch={1}
+            compact
+            hash={o.hash}
+            links={o.links ?? 0}
+            reports={o.reports}
+            liveReports={() => live}
+            initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
+          >
+            <Probe />
+          </SidebarSlotProvider>,
+        );
+      });
+      await flush();
+      return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+    };
+    assert.equal(await draw({ hash: "", reports: 0 }), "list");
+    live = 1; // a row press: the place reports its address at once (the hub counts it), the slot opens the body
+    await act(async () => {
+      slotNow!.openBody();
+    });
+    await act(async () => {
+      slotNow!.back(); // Back, before that report is drawn: the hub already counted 1
+    });
+    await flush();
+    assert.equal(
+      await draw({ hash: "subject=thread:t1", reports: 1 }),
+      "list",
+      "the late draw of the report issued before Back keeps the list",
+    );
+    // a press that writes nothing, Back, then another item the place opens by its own report (New chat, a search pick)
+    await act(async () => {
+      slotNow!.openBody();
+    });
+    await act(async () => {
+      slotNow!.back();
+    });
+    await flush();
+    live = 2;
+    assert.equal(await draw({ hash: "subject=thread:t3", reports: 2 }), "body", "a report after Back opens the body");
+    // a link always opens
+    await act(async () => {
+      slotNow!.back();
+    });
+    await flush();
+    assert.equal(await draw({ hash: "subject=thread:t4", reports: 2, links: 1 }), "body", "a link opens it");
+  } finally {
+    restore();
+  }
+});
+
+test("a new goal, a created record opened, and the Notes row each open the body on a phone from their own report, with no row press and after an earlier Back", async () => {
+  for (const hash of ["subject=goal:gol_new", "subject=record:rec_new", "screen=chats.notes"]) {
+    const restore = installDom();
+    try {
+      const r = createRoot();
+      let live = 0;
+      const draw = async (reports: number): Promise<string> => {
+        await act(async () => {
+          r.render(
+            <SidebarSlotProvider
+              {...props}
+              epoch={1}
+              compact
+              hash={reports === 0 ? "" : hash}
+              reports={reports}
+              liveReports={() => live}
+              initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
+            >
+              <Probe />
+            </SidebarSlotProvider>,
+          );
+        });
+        await flush();
+        return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+      };
+      assert.equal(await draw(0), "list");
+      // an earlier row press and Back left the slot remembering one report
+      live = 1;
+      await act(async () => {
+        slotNow!.openBody();
+      });
+      await act(async () => {
+        slotNow!.back();
+      });
+      await flush();
+      // the place then opens the goal, record or Notes page by its own report (a higher count): the body opens
+      live = 2;
+      assert.equal(await draw(2), "body", hash);
+    } finally {
+      restore();
+    }
   }
 });
