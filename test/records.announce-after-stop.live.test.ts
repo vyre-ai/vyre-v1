@@ -47,7 +47,7 @@ test("a stop between the records and their announcement is repaired at the next 
     sp.close();
     assert.equal(before.rows.length, 1, "and none of them can be seen: they were never registered as resources");
     const dirSpace = `${dir}/space.db`;
-    const finding = recordEventsFinding(dirSpace, d.paths.events);
+    const finding = recordEventsFinding(dirSpace, d.paths.events, Date.now() + 10 * 60_000);
     assert.equal(finding.state, "degraded", "the doctor sees five records without their announcement");
     assert.match(finding.detail, /^5 of /);
     // restart on the same data: the announcements are made
@@ -65,7 +65,7 @@ test("a stop between the records and their announcement is repaired at the next 
       assert.equal(e.payload.quiet, true);
       assert.match(e.trace, /^[0-9a-f]{32}$/);
     }
-    assert.equal(recordEventsFinding(`${dir}/space.db`, d.paths.events).state, "healthy", "the doctor is clean");
+    assert.equal(recordEventsFinding(`${dir}/space.db`, d.paths.events, Date.now() + 10 * 60_000).state, "healthy", "the doctor is clean");
     const after = await cap(d, "records.query", { type: "contact", limit: 50 });
     assert.equal(after.rows.length, 6, "all six are visible after the restart: the resources were registered too");
     // undoable: the Run undo rule reads the announcement and names the delete
