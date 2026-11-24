@@ -294,6 +294,8 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
  * Read-only, counts and ids only, never a value. A person's own grants are read (a grant given through a role or a group is not), so the answer is a lower bound; a field is counted when the kept trigger
  * of a Run names a hidden field of its owner, and a step when its kept input or output holds that field's value as text.
  */
+/** A value shorter than this is not searched for in the steps: a hidden `5` or `Yes` would be "found" in nearly every step. */
+const MIN_SEARCHED = 4;
 export function hiddenRunDataFinding(modulesDb: string): Finding {
   const key = "automations.hidden_run_data";
   if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No Automations yet.", next: OK };
@@ -350,7 +352,7 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
               o: string | null;
             }[]) {
               const text = `${s.i ?? ""}\n${s.o ?? ""}`;
-              if (held.some((v) => text.includes(v))) steps++;
+              if (held.some((v) => v.length >= MIN_SEARCHED && text.includes(v))) steps++;
             }
         }
       }
@@ -358,7 +360,7 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
       return {
         key,
         state: "degraded",
-        detail: `${runs.length} kept Runs of ${automations.size} Automations on record changes hold a field their person's access hides in the kept trigger; ${steps} steps hold such a value in their input or output. Runs: ${runs.slice(0, 10).join(", ")}${runs.length > 10 ? ", and more" : ""}.`,
+        detail: `${runs.length} kept Runs of ${automations.size} Automations on record changes hold a field their person's access hides in the kept trigger; ${steps} steps hold such a value in their input or output (values shorter than ${MIN_SEARCHED} characters are not searched, so the count is a lower bound). Runs: ${runs.slice(0, 10).join(", ")}${runs.length > 10 ? ", and more" : ""}.`,
         next: NEXT.hiddenRunData,
       };
     } finally {
