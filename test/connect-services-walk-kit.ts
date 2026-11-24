@@ -176,7 +176,9 @@ export async function servicesWalk(
             const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
             fs.mkdirSync(dir, { recursive: true });
             const reqId = id.replace(/^connect-/, "");
-            const state = await api("vault.requests.get", { requestId: reqId }).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
+            const state = await api("vault.requests.get", { requestId: reqId }).catch((x: unknown) => ({
+              error: String(x).slice(0, 300),
+            }));
             const conns = await api("connections.list", {}).catch((x: unknown) => ({ error: String(x).slice(0, 300) }));
             await page.screenshot({ path: `${dir}/${slug}-${tag}-no-row.png` }).catch(() => undefined);
             fs.writeFileSync(
@@ -185,9 +187,17 @@ export async function servicesWalk(
                 `card ${id}: elements ${(await page.locator(`[data-testid^='${id}']`).evaluateAll((els) => els.map((x) => `${x.getAttribute("data-testid")}`))).join(" ")}`,
                 `request ${JSON.stringify(state).slice(0, 1500)}`,
                 `connections ${JSON.stringify(conns).slice(0, 1500)}`,
-                `calls the stand-in app saw since Connect: ${seen.map((r) => `${r.host} ${r.url}`).join(" | ").slice(0, 1500)}`,
+                `calls the stand-in app saw since Connect: ${seen
+                  .map((r) => `${r.host} ${r.url}`)
+                  .join(" | ")
+                  .slice(0, 1500)}`,
                 `page errors: ${errs.join(" | ").slice(0, 800)}`,
-                `page text:\n${(await page.locator("body").innerText().catch(() => "")).slice(0, 2500)}`,
+                `page text:\n${(
+                  await page
+                    .locator("body")
+                    .innerText()
+                    .catch(() => "")
+                ).slice(0, 2500)}`,
               ].join("\n"),
             );
             throw e;
