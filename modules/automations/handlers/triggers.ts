@@ -882,9 +882,14 @@ export async function consumeEvent(
   if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
   const gates = new Map<string, ((field: string) => boolean) | null | "later">();
-  for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
-    // the event as this Automation's person may see it; a record they may not see starts nothing (and is not reported: that would say it exists)
-    const seen = a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev;
+  const listening = allAutomations(ctx.db, "status IN ('on', 'paused')");
+  // The event as each Automation's person may see it is worked out for ALL of them before any Run starts: it is the one step that can ask for a retry (a record the access does not know yet), and a retry
+  // must find nothing half done. A record they may not see starts nothing (and is not reported: that would say it exists).
+  const views = new Map<string, LoggedEvent | null>();
+  for (const a of listening)
+    views.set(a.id, a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev);
+  for (const a of listening) {
+    const seen = views.get(a.id) ?? null;
     if (seen === null) continue;
     for (const ref of a.definition.triggers) {
       const m = matches(ref, ref.key === "record_change" ? seen : ev);

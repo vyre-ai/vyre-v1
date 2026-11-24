@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { harness } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
-import { alice, create, engine, goodDefinition, node } from "../fixtures/seed.ts";
+import { alice, bob, create, engine, goodDefinition, node } from "../fixtures/seed.ts";
 import { consumeEvent } from "../impl.ts";
 import type { LoggedEvent } from "../handlers/triggers.ts";
 import { findRunLink, saveRunLink } from "../projections.ts";
@@ -107,6 +107,39 @@ test("a record the access does not know yet is tried again, never skipped: the A
     (again[0]!.result as { runId: string }).runId,
     "a third delivery of the same event starts no second run",
   );
+});
+
+test("a retry finds nothing half done: with two Automations and one that must wait, the first delivery starts nothing for either and the retry starts both, once", async () => {
+  let bobAsks = 0;
+  const h = harness({
+    recordFieldGate: async (person) => (person === bob.id && ++bobAsks <= 1 ? "later" : (f: string) => seen.has(f)),
+  });
+  const make = async (who: typeof alice): Promise<string> => {
+    const id = (
+      await h.call(
+        "automations.create",
+        create({ definition: goodDefinition({ triggers: [{ key: "record_change" }], nodes: [step] }) }),
+        who,
+      )
+    ).automation.id as string;
+    await h.call("automations.set_enabled", { automationId: id, enabled: true }, who);
+    return id;
+  };
+  const a = await make(alice);
+  const b = await make(bob);
+  const runs = (): number => (h.db.all("SELECT run_id FROM automations_runs") as unknown[]).length;
+  const e: LoggedEvent = {
+    id: "evt_8",
+    type: "record.created",
+    payload: { recordId: "rec_two", type: "contact", fields: { name: "Two Tia", email: "tia@example.com" } },
+  };
+  await assert.rejects(fired(h, e), /not known yet/);
+  assert.equal(runs(), 0, "the first delivery started nothing, for the Automation that could fire either");
+  const retry = await fired(h, e);
+  assert.deepEqual(retry.map((r) => r.automationId).sort(), [a, b].sort(), "the retry starts both");
+  assert.equal(runs(), 2);
+  await fired(h, e);
+  assert.equal(runs(), 2, "and a further delivery starts no more");
 });
 
 test("what an old Run kept is cut again when test_events shows it, and a test or a replay starts from the cut payload", async () => {
