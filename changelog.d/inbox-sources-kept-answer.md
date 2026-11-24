@@ -1,0 +1,1 @@
+- The Inbox place draws the last answer it knew about whether anything is connected while the mailbox, calendar and number reads load, so a return to a Space with nothing connected shows the Connect choice at once instead of waiting for the reads.

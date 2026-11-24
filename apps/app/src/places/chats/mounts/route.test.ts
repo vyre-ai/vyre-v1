@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, wentAndCame } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -280,4 +280,14 @@ test("closing a terminal gives the right column back to the agent's pane when it
   );
   const noPane = step(step(START, { t: "chat", threadId: "c1" }), { t: "terminal", terminalId: "ter_1" });
   assert.equal(step(noPane, { t: "terminal-close" }).pane, false, "no pane before, none after");
+});
+
+test("only a move away and back to the same address is a link back; one move with the same hash is the page's own report", () => {
+  assert.equal(wentAndCame(4, 4), false, "no move");
+  assert.equal(
+    wentAndCame(4, 5),
+    false,
+    "one move (the page reported where it already is, or a click changed it): the page's own state wins",
+  );
+  assert.equal(wentAndCame(4, 6), true, "away and back: the page takes the address again");
 });
