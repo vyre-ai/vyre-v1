@@ -788,7 +788,10 @@ export function ShellHost({
         opened={(t) => {
           const next = formatHash(t);
           // a page drawn before a tab switch, Back or link reports what it showed before it: that is stale, and must not put its old address over the move
-          if (staleReport(ctx.shifts ?? hub.state().shifts, hub.state().shifts)) return;
+          if (staleReport(ctx.shifts ?? hub.state().shifts, hub.state().shifts)) {
+            hub.droppedStale();
+            return;
+          }
           if (next !== ctx.hash) hub.move(ctx.place, next, true);
         }}
       />

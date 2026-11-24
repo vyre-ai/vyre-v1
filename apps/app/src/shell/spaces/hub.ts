@@ -66,6 +66,8 @@ export interface HubState {
   ownHash: string;
   /** Counts the moves that are not a place's own report (a tab switch, Back, a link, closing a tab): a report issued by a page drawn before the latest one is stale. */
   shifts: number;
+  /** Reports dropped as stale (a page drawn before a shift): for a red that says "report dropped as stale". */
+  staleDropped: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -135,6 +137,8 @@ export interface ShellHub {
   fill(place: PlaceId, hash: string, title?: string, from?: string): void;
   /** The view is about to change: whoever draws the frame keeps a still copy until the next one is ready. */
   hold(): void;
+  /** A place's report was dropped as stale: counted in HubState.staleDropped. */
+  droppedStale(): void;
   /**
    * `to` names the tab being shown, when the change is a switch to a tab: the frame can then show that tab's own last view at once. When it does, it answers true and
    * runs `then` itself once that view has been painted: the change of place waits one frame, so the press is answered before the place is made again.
@@ -260,8 +264,15 @@ export function createShellHub(options: HubOptions): ShellHub {
   let reports = 0;
   let ownHash = "";
   let shifts = 0;
+  // a shift is counted when the address really changes on screen (the next emit), so a path that returns without one (a press that waits for the holder and then bails, a Back with nowhere to go) never leaves the hub ahead of the page drawn
+  let shiftPending = false;
+  let staleDropped = 0;
   function build(): HubState {
     const s = open();
+    if (shiftPending) {
+      shifts += 1;
+      shiftPending = false;
+    }
     const tabs = s.tabs.state();
     const back = backTarget(tabs);
     const fwd = forwardTarget(tabs);
@@ -276,6 +287,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       reports,
       ownHash,
       shifts,
+      staleDropped,
       away,
       online,
       waiting,
@@ -290,7 +302,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   /** A move the person or the app made that is not a place's own report (a tab switch, Back, Forward, closing a tab, opening anything): the last own report no longer names the address on screen, so nothing can be taken for its echo. */
   const notOwn = (): void => {
     ownHash = "\u0000";
-    shifts += 1;
+    shiftPending = true;
   };
   /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
   function step(run: (tabs: TabsController) => boolean): boolean {
@@ -533,6 +545,10 @@ export function createShellHub(options: HubOptions): ShellHub {
         s.hash = t.hash ?? "";
       }
       emit();
+    },
+    droppedStale() {
+      staleDropped += 1;
+      snap = build();
     },
     hold() {
       holder?.();

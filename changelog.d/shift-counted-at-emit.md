@@ -1,0 +1,1 @@
+- A move that returns without drawing (a tab press that waits for the holder and then gives way, a Back with nowhere to go) no longer leaves the hub ahead of the page on screen, so that page's own reports are not dropped as stale; dropped reports are counted (HubState.staleDropped) so a red can say so.

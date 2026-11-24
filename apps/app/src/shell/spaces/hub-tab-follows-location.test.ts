@@ -156,3 +156,15 @@ test("every method that changes the address on screen is a shift: fill, reopenTa
   );
   shifted("back", () => void hub.back());
 });
+
+test("a shift is counted when the address really changes, not when a move starts: a Back with nowhere to go leaves the hub where the drawn page is, and a dropped report is counted", () => {
+  const hub = restored([], "chats");
+  const before = hub.state().shifts;
+  assert.equal(hub.back(), false, "nowhere to go");
+  assert.equal(hub.state().shifts, before, "no emit, no shift: the page drawn is not stale");
+  hub.go("chats", "screen=tasks.page&taskId=tsk_9");
+  assert.ok(hub.state().shifts > before, "a move that emits counts");
+  const dropped = hub.state().staleDropped;
+  hub.droppedStale();
+  assert.equal(hub.state().staleDropped, dropped + 1, "a dropped report is counted");
+});
