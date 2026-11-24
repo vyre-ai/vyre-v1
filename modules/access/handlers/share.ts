@@ -158,7 +158,7 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0 };
+export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0 };
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -737,6 +737,8 @@ const SLICE_FROM = 4000;
 /** Rows written to the table per transaction when a view is written in slices. */
 const WRITE_SLICE = 1500;
 const BUILDING = new WeakMap<object, Promise<void>>();
+/** For the tests only: run once, between two slices of a build (a test that changes who may see what while the rows are being worked out). Never set by the product. */
+export const sliceHook: { run: ((store: AccessStore) => Promise<void>) | null } = { run: null };
 
 async function computeRowsAsync(
   ss: ShareStore,
@@ -755,6 +757,11 @@ async function computeRowsAsync(
       if (row) next.set(ak(person, row.type, row.id), row);
     }
     await turn();
+    const hook = sliceHook.run;
+    if (hook) {
+      sliceHook.run = null;
+      await hook(store);
+    }
   }
   return next;
 }
@@ -765,13 +772,21 @@ async function buildSliced(
   ss: ShareStore,
   roots: readonly string[] | "all",
   scope: Set<string> | null,
-): Promise<void> {
+): Promise<boolean> {
   shareKept.sliced++;
   const turn = turns();
+  // the rows are worked out against the world as it stands now; if the store moves on while the slices run (access.sync folds a revoke, a role change, a label), what was worked out is old, and is not applied
+  const epoch0 = store.epoch;
+  // the view access.sync keeps is folded in place (the epoch moves) or replaced by a new one (this store is no longer the view): either way the world is not the one the rows were worked out against
+  const moved = (): boolean => store.epoch !== epoch0 || storeOf(ctx) !== store;
   const snap = snapshotForRows(store);
   const now = ctx.now();
   const folders0 = stateOf(ctx.db)?.folders;
   const next = await computeRowsAsync(ss, store, snap, activePeople(store), scope, now, turn);
+  if (moved()) {
+    shareKept.discarded++;
+    return false;
+  }
   const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
   ss.pending = [];
   // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
@@ -799,7 +814,9 @@ async function buildSliced(
   } catch (e) {
     writeFailed(ctx, ss, e);
   }
-  if (clean && stateOf(ctx.db)?.folders === folders0 && ss.fresh === store.epoch) publish(ctx, store, ss);
+  // (a write to the table that is not ours inside one slice cannot happen: a slice is one synchronous transaction)
+  if (clean && stateOf(ctx.db)?.folders === folders0 && ss.fresh === store.epoch && !moved()) publish(ctx, store, ss);
+  return true;
 }
 
 /**
@@ -841,15 +858,23 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
       continue;
     }
     const build = buildSliced(ctx, store, ss, roots, scope);
-    BUILDING.set(raw, build);
+    BUILDING.set(
+      raw,
+      build.then(
+        () => undefined,
+        () => undefined,
+      ),
+    );
+    let applied = false;
     try {
-      await build;
+      applied = await build;
     } finally {
-      if (BUILDING.get(raw) === build) BUILDING.delete(raw);
+      BUILDING.delete(raw);
       // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with
       dropShare(ctx.db);
     }
-    return;
+    // the store moved on while it was worked out: nothing was applied, and the view is looked at again as it is now
+    if (applied) return;
   }
 }
 
@@ -2516,17 +2541,11 @@ export async function lists(
         following: following.has(r.id),
       };
       if (folderId) row.folderId = folderId;
-      return row;
+      // the lower-case title once per row, not twice per comparison (a list of 50,000 rows held the loop for about 100 ms in its sort)
+      return { row, key: row.title.toLowerCase() };
     })
-    .sort((a, b) =>
-      a.title.toLowerCase() < b.title.toLowerCase()
-        ? -1
-        : a.title.toLowerCase() > b.title.toLowerCase()
-          ? 1
-          : a.id < b.id
-            ? -1
-            : 1,
-    );
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.row.id < b.row.id ? -1 : 1))
+    .map((x) => x.row);
   const p = page(view, input.cursor, input.limit);
   return { rows: p.rows, counts, total: p.total, ...(p.next ? { next: p.next } : {}) };
 }

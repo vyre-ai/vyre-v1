@@ -4,7 +4,8 @@ import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
 import { bootHour, join } from "./support/member-hour.ts";
 import type { Hour, Person } from "./support/member-hour.ts";
-import { shareKept } from "../modules/access/handlers/share.ts";
+import { shareKept, sliceHook } from "../modules/access/handlers/share.ts";
+import { asKeptWriter } from "../modules/access/projections.ts";
 
 let h: Hour;
 let m: Person;
@@ -135,5 +136,39 @@ test(
     assert.equal(all.total, 3, "the share is there, and the two before it");
     assert.deepEqual(new Set(all.rows.map((r) => r.id)), new Set([first, second, third]));
     assert.equal((await contacts(h.owner)).total, TOTAL + 10_000, "the owner's view is whole");
+    // the view access.sync keeps is folded in place while the rows are being worked out (a revoke adopted into it): what was worked out is old and is thrown away, the build is done again and nothing stale is kept
+    await add(5000);
+    const discarded0 = shareKept.discarded;
+    sliceHook.run = async (store) => {
+      asKeptWriter(() => store.bump());
+    };
+    await contacts(h.owner);
+    assert.equal(sliceHook.run, null, "the view moved in the middle of a build");
+    assert.equal(shareKept.discarded, discarded0 + 1, "the build that was overtaken was thrown away");
+    assert.equal((await contacts(h.owner)).total, TOTAL + 15_000, "the owner's view is whole");
+
+    // a revoke that lands while the view is being built is never lost: a label raised over the member's clearance, 30 ms into a build of 30,000 new records, and the member's next list does not show the record
+    await add(30_000);
+    const sliced3 = shareKept.sliced;
+    // the label is raised between two slices, after the rows of the early records were worked out as they stood (a revoke folded into the view mid-build)
+    sliceHook.run = async () => {
+      await h.owner.call("access.labels.set", { resource: { type: "record", id: first }, label: "restricted" });
+      await new Promise((r) => setTimeout(r, 400));
+    };
+    const building = contacts(h.owner);
+    await new Promise((r) => setTimeout(r, 30));
+    // a second reader asks (and ensures the same kept state) while the build runs
+    const alongside = contacts(m);
+    await Promise.all([building, alongside]);
+    assert.equal(sliceHook.run, null, "the label was raised in the middle of a build");
+    assert.ok(shareKept.sliced > sliced3, "this round was built in slices too");
+    const revoked = await contacts(m);
+    assert.deepEqual(
+      new Set(revoked.rows.map((r) => r.id)),
+      new Set([second, third]),
+      "the record that was restricted mid-build is not in the member's list",
+    );
+    assert.equal(revoked.total, 2);
+    assert.equal((await contacts(h.owner)).total, TOTAL + 15_000 + 30_000, "the owner's view is whole");
   },
 );
