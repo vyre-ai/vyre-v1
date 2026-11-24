@@ -7,7 +7,14 @@ import { canonical } from "../../../lib/canonical.ts";
 import type { Filter, Sort } from "../../../kernel/src/store/types.ts";
 
 type ReadSeed = CtxSeed & { readCap?: string; readInput?: unknown; labels?: Readonly<Record<string, number>> };
-const READS = new Set(["records.get", "records.query", "records.search", "records.history", "records.activity"]);
+const READS = new Set([
+  "records.get",
+  "records.as_of",
+  "records.query",
+  "records.search",
+  "records.history",
+  "records.activity",
+]);
 // How long a read waits, at most, for the access snapshot to learn of records it has just read (a record shows in the store a moment before its access entry is folded, and a busy Space folds slowly). The
 // waits add up to about 3 s and cost nothing when the snapshot already knows every row.
 const SETTLE_MS: readonly number[] = [0, 40, 120, 250, 500, 1000, 1000];
@@ -477,7 +484,7 @@ export function createRecordAccess(ports: {
         }
         return req;
       }
-      if (!["records.get", "records.history", "records.activity"].includes(cap)) return req;
+      if (!["records.get", "records.as_of", "records.history", "records.activity"].includes(cap)) return req;
       const value = object(input);
       if (typeof value["type"] !== "string" || typeof value["recordId"] !== "string") return req;
       const row = await ports.store().get(value["type"], value["recordId"]);
@@ -510,7 +517,7 @@ export function createRecordAccess(ports: {
         };
       }
       const originals =
-        cap === "records.get"
+        cap === "records.get" || cap === "records.as_of"
           ? [object(result["record"])]
           : Array.isArray(result["rows"])
             ? result["rows"].map(object)
@@ -593,7 +600,7 @@ export function createRecordAccess(ports: {
               .slice(0, 20),
           });
         }
-        if (cap === "records.get") {
+        if (cap === "records.get" || cap === "records.as_of") {
           if (!rows[0]) throw fail("permission.no_grant", trace);
           return { ...result, record: rows[0] };
         }

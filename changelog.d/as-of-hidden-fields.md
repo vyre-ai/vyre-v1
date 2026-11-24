@@ -1,0 +1,1 @@
+A member whose grant hides a field of a record no longer sees the hidden values through records.as_of (the record as it was at an earlier time): it was missing from the list of reads whose answers are filtered by the grant.
