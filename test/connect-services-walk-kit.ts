@@ -108,7 +108,7 @@ export async function servicesWalk(
         return (await card.getAttribute("data-testid"))!.replace(/^(connect-vrq_[0-9a-f]+).*$/, "$1");
       };
       /** What a card showed when a wait on it failed, in the folder CI uploads: a screenshot and the card's elements, the request, the connections, the calls the stand-in app saw, the page errors and the page text. */
-      const evidence = async (label: string, cardId: string, slug: string): Promise<void> => {
+      const evidenceNow = async (label: string, cardId: string, slug: string): Promise<void> => {
         const dir = `${process.env["VYRE_TEST_CAPTURE_DIR"] ?? shots}/connect-services`;
         fs.mkdirSync(dir, { recursive: true });
         const state = await api("vault.requests.get", { requestId: cardId.replace(/^connect-/, "") }).catch(
@@ -147,6 +147,14 @@ export async function servicesWalk(
             ).slice(0, 2500)}`,
           ].join("\n"),
         );
+      };
+      /** The capture never hides the wait's own error: when it cannot be written the failure is said on stderr and the wait's error goes on. */
+      const evidence = async (label: string, cardId: string, slug: string): Promise<void> => {
+        try {
+          await evidenceNow(label, cardId, slug);
+        } catch (e) {
+          process.stderr.write(`could not write the services-walk evidence: ${String(e).slice(0, 200)}\n`);
+        }
       };
       for (const title of titles) {
         const svc = SVCS.find((s) => s.title === title)!;
