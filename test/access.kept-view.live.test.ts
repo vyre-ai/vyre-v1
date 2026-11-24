@@ -140,3 +140,129 @@ test("after a view is published, a grant given to a role shows to its members on
   await h.owner.call("access.unshare", { resource: ref, subject: { kind: "role", id: memberRole.id } });
   assert.equal(await seesFolder(d, fid), false, "the role's grant is gone and so is the folder");
 });
+
+// Which path serves the next read: a change to resources or to one grant is taken in place (changedRoots, the incremental path); a change to principals, roles, role assignments, groups, policies or a label changes restOf/the
+// resources and the rows are built again (the designed answer), so those tests assert the right answer whichever of the two served it and name the path in the message. Time is the one change that writes nothing to the
+// log: shareOf drops a kept view when ctx.now() reaches its `until` (the earliest expiry of a grant it holds), which the expiry test exercises.
+// ---- the changes a change counter could miss: each test publishes a view with a read, changes the access, and reads again at once ----
+
+const served = async <T>(read: () => Promise<T>): Promise<{ out: T; kept: boolean; built: boolean }> => {
+  const k0 = shareKept.hits + shareKept.incremental;
+  const b0 = shareKept.built;
+  const out = await read();
+  return { out, kept: shareKept.hits + shareKept.incremental > k0, built: shareKept.built > b0 };
+};
+const folderIn = async (parent: string | undefined, name: string, key: string): Promise<string> => {
+  const made = (await h.owner.call("files.folder.create", { parentId: parent, name, idempotencyKey: key })) as {
+    folder: { folderId: string };
+  };
+  return made.folder.folderId;
+};
+const personalRoot = async (): Promise<string> => {
+  const tree = (await h.owner.call("files.tree", {})) as { roots: Array<{ key: string; folderId?: string }> };
+  return tree.roots.find((r) => r.key === "personal" && r.folderId !== undefined)!.folderId!;
+};
+const forPerson = (p: Person) => ({ kind: "person", id: p.personId });
+
+test("a label raised after a view was published takes the folder away from a member whose clearance does not reach it, at once", async () => {
+  const fid = await folderIn(await personalRoot(), "Labelled", "kv-folder-label");
+  const ref = { type: "folder", id: fid };
+  const e = await member("Eli Elm", "eli");
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(e),
+    level: "view",
+    idempotencyKey: "kv-share-label",
+  });
+  assert.equal(await seesFolder(e, fid), true, "E sees the folder: this read publishes the view");
+  await h.owner.call("access.labels.set", { resource: ref, label: "restricted" });
+  const r = await served(() => seesFolder(e, fid));
+  assert.equal(
+    r.out,
+    false,
+    `the folder is restricted and E's clearance does not reach it (kept ${r.kept}, rebuilt ${r.built})`,
+  );
+  await h.owner.call("access.labels.set", { resource: ref, label: "internal" });
+  assert.equal(await seesFolder(e, fid), true, "the label is lowered and E sees it again");
+});
+
+test("a suspended person is no longer served", async () => {
+  const fid = await folderIn(await personalRoot(), "Suspend", "kv-folder-suspend");
+  const ref = { type: "folder", id: fid };
+  const f = await member("Fay Fir", "fay");
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(f),
+    level: "view",
+    idempotencyKey: "kv-share-suspend",
+  });
+  assert.equal(await seesFolder(f, fid), true, "F sees the folder: this read publishes the view");
+  await h.owner.call("members.suspend", { personId: f.personId });
+  const gone = await f.attempt("access.lists", { type: "folder", section: "shared" });
+  assert.equal(gone.ok, false, "a suspended person is refused");
+});
+
+test("a role given to a person after a view was published shows what the role holds on the next read, and a role taken away takes it", async () => {
+  const fid = await folderIn(await personalRoot(), "Role only", "kv-folder-role");
+  const ref = { type: "folder", id: fid };
+  const g = await member("Gus Gray", "gus");
+  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  const base = roles.find((r) => r.name === "Member")!;
+  const role = (await h.owner.call("access.roles.create", { name: "Plan readers", cloneFrom: base.id })).role as {
+    id: string;
+  };
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: { kind: "role", id: role.id },
+    level: "view",
+    idempotencyKey: "kv-share-plan-role",
+  });
+  assert.equal(await seesFolder(g, fid), false, "G does not hold the role: this read publishes the view");
+  await h.owner.call("access.roles.assign", { subject: forPerson(g), roleId: role.id });
+  assert.equal(await seesFolder(g, fid), true, "G is given the role and sees the folder on the next read");
+  await h.owner.call("access.roles.unassign", { subject: forPerson(g), roleId: role.id });
+  assert.equal(await seesFolder(g, fid), false, "the role is taken away and so is the folder");
+});
+
+test("a folder moved out from under a shared folder stops being served on the next read, and is served again when moved back", async () => {
+  const root = await personalRoot();
+  const shared = await folderIn(root, "Open plans", "kv-folder-open");
+  const closed = await folderIn(root, "Closed plans", "kv-folder-closed");
+  const child = await folderIn(shared, "Inside", "kv-folder-inside");
+  const i = await member("Ida Ivy", "ida");
+  await h.owner.call("access.share", {
+    resource: { type: "folder", id: shared },
+    subject: forPerson(i),
+    level: "view",
+    idempotencyKey: "kv-share-open",
+  });
+  assert.equal(
+    await seesFolder(i, child),
+    true,
+    "I sees the folder inside the shared one: this read publishes the view",
+  );
+  await h.owner.call("files.folder.move", { folderId: child, toParentId: closed });
+  assert.equal(await seesFolder(i, child), false, "moved under a folder nobody shared: not served");
+  await h.owner.call("files.folder.move", { folderId: child, toParentId: shared });
+  assert.equal(await seesFolder(i, child), true, "moved back: served again");
+});
+
+test("a grant that expires with nothing written to the log stops being served when its time comes", async () => {
+  const fid = await folderIn(await personalRoot(), "Short loan", "kv-folder-loan");
+  const ref = { type: "folder", id: fid };
+  const j = await member("Jo Juniper", "jo");
+  await h.owner.call("access.share", {
+    resource: ref,
+    subject: forPerson(j),
+    level: "view",
+    conditions: { expiresAt: Date.now() + 4_000 },
+    idempotencyKey: "kv-share-loan",
+  });
+  assert.equal(
+    await seesFolder(j, fid),
+    true,
+    "J sees the folder before the grant expires: this read publishes the view",
+  );
+  await new Promise((r) => setTimeout(r, 5_000));
+  assert.equal(await seesFolder(j, fid), false, "the grant has expired and the published view is not served");
+});
