@@ -2271,22 +2271,6 @@ function countIn(ctx: AccessCtx, store: AccessStore, ss: ShareStore, folderId: s
   return n;
 }
 
-const WARMED = new WeakSet<object>();
-/**
- * The first build of the rows people are served (my_access: one row for each person and resource they may see) at the first idle moment after a start, so the first person to open Files does not wait for it
- * (about a second of CPU on a firm's Space of 40,000 resources). It is the same ensureFresh a list runs, called once for this database; it is not asynchronous and does nothing the first list would not do.
- */
-export async function warmRows(ctx: ShareCtx): Promise<{ warmed: boolean }> {
-  const raw = rawDbOf(ctx.db);
-  if (!raw || WARMED.has(raw)) return { warmed: false };
-  WARMED.add(raw);
-  const a = ctx as AccessCtx;
-  const store = storeOf(a);
-  const ss = shareOf(a);
-  ensureFresh(a, store, ss);
-  return { warmed: true };
-}
-
 export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: "personal" | "space" }) {
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
