@@ -750,7 +750,8 @@ async function computeRowsAsync(
   scope: Set<string> | null,
   now: number,
   turn: () => Promise<void>,
-): Promise<Map<string, AccessRow>> {
+  overtaken: () => boolean,
+): Promise<Map<string, AccessRow> | null> {
   const next = new Map<string, AccessRow>();
   for (const res of store.resources.values()) {
     if (scope && !scope.has(res.id)) continue;
@@ -759,6 +760,8 @@ async function computeRowsAsync(
       if (row) next.set(ak(person, row.type, row.id), row);
     }
     await turn();
+    // the access state moved on while the rows were being worked out (a writer committed): what is worked out is old, so stop now and not after the rest of it
+    if (overtaken()) return null;
     const hook = sliceHook.run;
     if (hook) {
       sliceHook.run = null;
@@ -784,8 +787,17 @@ async function buildSliced(
   const snap = snapshotForRows(store);
   const now = ctx.now();
   const folders0 = stateOf(ctx.db)?.folders;
-  const next = await computeRowsAsync(ss, store, snap, activePeople(store), scope, now, turn);
-  if (moved()) {
+  const next = await computeRowsAsync(
+    ss,
+    store,
+    snap,
+    activePeople(store),
+    scope,
+    now,
+    turn,
+    () => store.epoch !== epoch0,
+  );
+  if (!next || moved()) {
     shareKept.discarded++;
     return false;
   }
@@ -844,7 +856,7 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
   if (!isReader(ctx)) return;
   const raw = rawDbOf(ctx.db);
   if (!raw) return;
-  for (let tries = 0; tries < 3; tries++) {
+  for (let tries = 0; tries < 2; tries++) {
     const store = storeOf(ctx);
     const ss = shareOf(ctx);
     // stale for the whole Space (the first read after a start, or the world moved too far), or fresh but with many resources to work out again (a sync that added thousands of records): either way the same work, in slices
