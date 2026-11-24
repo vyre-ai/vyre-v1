@@ -85,7 +85,13 @@ export interface EventReaderDeps {
    * Which fields of a record the reader may see (the rule `records.get` applies), as a test on a field name; null when they may not see the record or it is gone. With it the `fields` and `prev` an event of a
    * record carries are cut to what the reader may see, where the event is shown: the log keeps the whole payload, a reader gets only their own part of it. Without it (a test) payloads go out as stored.
    */
-  fieldGate?: (c: EventCaller, type: string, recordId: string) => Promise<((field: string) => boolean) | null>;
+  fieldGate?: (
+    c: EventCaller,
+    type: string,
+    recordId: string,
+    /** the labels of a type's fields, kept for one read so a page of events asks the schema once per type */
+    labels: Map<string, Readonly<Record<string, number>>>,
+  ) => Promise<((field: string) => boolean) | null>;
 }
 
 export interface EventCaller {
@@ -93,6 +99,8 @@ export interface EventCaller {
   actingFor?: string | undefined;
   /** the host itself (svc_host: the scheduler matching a wait, a hook): it reads what it builds state from, so the rule about what a person may view does not apply to it */
   system?: boolean | undefined;
+  /** the AI provider the answer goes to, when it does (the label ceiling of the provider applies to the fields of a record's event as it does to the record) */
+  provider?: string | undefined;
 }
 
 export interface EventRow {
@@ -329,6 +337,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     e: StoredEvent,
     row: EventRow,
     gates: Map<string, ((f: string) => boolean) | null>,
+    labels: Map<string, Readonly<Record<string, number>>>,
   ): Promise<EventRow> {
     if (!deps.fieldGate || c.system === true || !RECORD_VALUE_EVENTS.has(row.type) || madeBy(r, e)) return row;
     const p = row.payload;
@@ -339,7 +348,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     const key = `${type ?? ""}\u0000${id ?? ""}`;
     let gate = gates.get(key);
     if (gate === undefined) {
-      gate = type !== undefined && id !== undefined ? await deps.fieldGate(c, type, id).catch(() => null) : null;
+      gate = type !== undefined && id !== undefined ? await deps.fieldGate(c, type, id, labels).catch(() => null) : null;
       gates.set(key, gate);
     }
     const cut = (v: unknown): unknown =>
@@ -418,6 +427,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     const events: EventRow[] = [];
     const verdicts = new Map<string, boolean>();
     const gates = new Map<string, ((f: string) => boolean) | null>();
+    const labels = new Map<string, Readonly<Record<string, number>>>();
     let cursor = a.after,
       scanned = 0,
       more = false;
@@ -444,7 +454,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
           !(await reaches(snap, reader, c, e, now, verdicts))
         )
           continue;
-        events.push(await forReader(c, reader, e, toRow(e), gates));
+        events.push(await forReader(c, reader, e, toRow(e), gates, labels));
       }
       if (more) break;
       if (rows.length < batch) break;
@@ -501,7 +511,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
       return found &&
         visible(snap, deps.owner(), reader, c, found, deps.now()) &&
         (await reaches(snap, reader, c, found, deps.now(), new Map()))
-        ? await forReader(c, reader, found, toRow(found), new Map())
+        ? await forReader(c, reader, found, toRow(found), new Map(), new Map())
         : null;
     },
   };

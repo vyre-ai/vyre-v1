@@ -263,17 +263,25 @@ export function createRecordAccess(ports: {
      * that show what a record's events carried (the event log, a run, a notification): the values a grant hides are not in what they show.
      */
     async fieldGate(
-      reader: { principal: string; actingFor?: string | undefined },
+      reader: { principal: string; actingFor?: string | undefined; provider?: string | undefined },
       type: string,
       recordId: string,
       trace: string,
+      /** the labels of a type's fields, kept by the caller for the length of one read (a page of events over thousands of records asks the schema once per type, not once per record) */
+      labels?: Map<string, Readonly<Record<string, number>>>,
     ): Promise<((key: string) => boolean) | null> {
       const row = await ports.store().get(type, recordId);
       if (!row) return null;
+      let known = labels?.get(type);
+      if (known === undefined) {
+        known = await recordSensitivity(ports.store(), type, trace);
+        labels?.set(type, known);
+      }
       const seed = {
         principal: { id: reader.principal },
         actingFor: reader.actingFor,
-        labels: await recordSensitivity(ports.store(), type, trace),
+        provider: reader.provider,
+        labels: known,
       } as unknown as ReadSeed;
       return gateOf(seed, row);
     },

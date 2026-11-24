@@ -65,6 +65,7 @@ const RESOURCE_TYPES = new Set([
 const caller = (ctx: EventsCtx) => ({
   principal: ctx.principal.id,
   ...(ctx.actingFor ? { actingFor: ctx.actingFor } : {}),
+  ...(ctx.provider ? { provider: ctx.provider } : {}),
   ...(isHostService(ctx.principal) ? { system: true } : {}),
 });
 
