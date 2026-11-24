@@ -349,3 +349,56 @@ test("a grant given and taken away, and a folder moved and moved back, are each 
   // taking the grant away after a move is answered by a full rebuild (built rose in this run): right, and the designed fallback when a removed grant cannot be scoped to one root, so only the answer is asserted
   assert.equal(await seesFolder(m, child), false, "the grant is taken away and the child goes");
 });
+
+test("a field hidden by a grant on one record follows the grant when it is changed twice and then removed, and a hidden value is never in the answer (the case rc.35 lost and had to revert)", async () => {
+  const EMAIL = "hana-hidden@example.test";
+  const PHONE = "+1 555 0142";
+  const made = (await h.owner.call("records.create", {
+    type: "contact",
+    fields: { name: "Hidden Hana", email: EMAIL, phone: PHONE },
+  })) as { record: { id: string } };
+  const rid = made.record.id;
+  const ref = { type: "record", id: rid };
+  // only people added see this record: the member sees it through the grant and nothing else
+  await h.owner.call("access.audience_set", { resource: ref, audience: "added" });
+  const n = await member("Nia Nut", "nia");
+  const read = async (): Promise<{ shown: string[]; body: string }> => {
+    const got = (await n.call("records.get", { type: "contact", recordId: rid })) as {
+      record: { fields: Record<string, unknown> };
+    };
+    const shown = Object.entries(got.record.fields)
+      .filter(([k, v]) => ["name", "email", "phone"].includes(k) && v !== null && v !== undefined && v !== "")
+      .map(([k]) => k)
+      .sort();
+    return { shown, body: JSON.stringify(got) };
+  };
+  const share = (hidden: string[] | undefined, key: string) =>
+    h.owner.call("access.share", {
+      resource: ref,
+      subject: forPerson(n),
+      level: "view",
+      ...(hidden ? { conditions: { hiddenFields: hidden } } : {}),
+      idempotencyKey: key,
+    });
+  // records.get answers from the access decisions (the kept authorize snapshot, dropped when the epoch moves), not from the my_access rows shareOf keeps: in this run neither the kept-view counters nor the build counter
+  // moved on these reads (recorded: kept false, built false at every step), so what is under test here is that the decisions follow the grant, with the hidden value absent from the answer
+  const step = async (want: string[], hiddenValues: string[], why: string): Promise<void> => {
+    const r = await served(read);
+    assert.deepEqual(r.out.shown, want, `${why} (kept ${r.kept}, rebuilt ${r.built})`);
+    for (const v of hiddenValues)
+      assert.equal(r.out.body.includes(v), false, `${why}: the hidden value is not in the answer at all`);
+  };
+  await share(["email"], "kv-hid-1");
+  await step(["name", "phone"], [EMAIL], "email is hidden by the grant: this read publishes the view");
+  await share(["phone"], "kv-hid-2");
+  await step(["email", "name"], [PHONE], "the grant now hides phone and shows email (first change)");
+  await share(["email", "phone"], "kv-hid-3");
+  await step(["name"], [EMAIL, PHONE], "the grant hides both (second change in a row)");
+  await share(undefined, "kv-hid-4");
+  await step(["email", "name", "phone"], [], "the grant hides nothing now");
+  await share(["email"], "kv-hid-5");
+  await step(["name", "phone"], [EMAIL], "hidden again (the view still follows)");
+  await h.owner.call("access.unshare", { resource: ref, subject: forPerson(n) });
+  const gone = await n.attempt("records.get", { type: "contact", recordId: rid });
+  assert.equal(gone.ok, false, "the grant is removed: the record is not served at all");
+});
