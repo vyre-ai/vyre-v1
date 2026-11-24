@@ -3,11 +3,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createRoot } from "test-renderer";
-import { act, useState } from "react";
+import { act, useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { Text } from "react-native";
 import { find, flush, installDom } from "../../../../../ui/src/testing/dom.ts";
-import { PlaceHashProvider, useOnLink, useOpenedId } from "./context.tsx";
+import { PlaceHashProvider, useOnLink, useOpenedId, useOwnReport, usePlaceHash } from "./context.tsx";
 import { inboxViewsLinked } from "../providers/inbox-links.ts";
 
 const noop = (): void => undefined;
@@ -133,6 +133,39 @@ test("a place hears the links that came after it was made, not the ones before",
     assert.equal(heard, 0, "no new link");
     await draw(r, <Probe />, "", 4);
     assert.equal(heard, 1, "a new link, even to the same address");
+  } finally {
+    restore();
+  }
+});
+
+test("a place's own report coming back is told apart from a Back, a tab switch and a link, for the places that follow the address (Files, Inbox)", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    const seen: boolean[] = [];
+    const Probe = (): ReactElement => {
+      const own = useOwnReport();
+      const { target } = usePlaceHash();
+      useEffect(() => {
+        seen.push(own());
+      }, [target.screen]);
+      return <Text testID="open">x</Text>;
+    };
+    const at = async (hash: string, reports: number, links: number): Promise<void> => {
+      await act(async () => {
+        r.render(
+          <PlaceHashProvider hash={hash} links={links} reports={reports} opened={noop}>
+            <Probe />
+          </PlaceHashProvider>,
+        );
+      });
+      await flush();
+    };
+    await at("screen=a", 0, 0); // mount
+    await at("screen=b", 1, 0); // the place's own report came back
+    await at("screen=c", 1, 0); // a Back or a tab switch: no report with it
+    await at("screen=d", 2, 1); // a link came (with a report in the same draw): a link wins
+    assert.deepEqual(seen, [false, true, false, false]);
   } finally {
     restore();
   }

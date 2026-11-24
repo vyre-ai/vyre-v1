@@ -80,6 +80,7 @@ export interface PlaceContext {
   hash: string;
   /** Addresses that came from outside so far (HubState.links): a place told the same address twice can tell a link back to it from nothing. */
   links?: number;
+  reports?: number;
   epoch: number;
   kit: KitDef;
 }
@@ -520,7 +521,15 @@ export function ShellStage({
   /** How many places stay made, the one on screen among them (kept-places.tsx). 1: none is kept, a place is made and unmade as it is opened and left. */
   keep?: number;
   hub: Pick<ShellHub, "placeDrawn" | "retry">;
-  state: { phase: string; error: string | null; epoch: number; place: PlaceId; hash: string; links: number };
+  state: {
+    phase: string;
+    error: string | null;
+    epoch: number;
+    place: PlaceId;
+    hash: string;
+    links: number;
+    reports: number;
+  };
   spaceName: string;
   kind: string;
   ctx: PlaceContext;
@@ -798,6 +807,7 @@ export function Shell(props: ShellProps): ReactElement {
           place: shown.state.place,
           hash: shown.state.hash,
           links: shown.state.links,
+          reports: shown.state.reports,
           epoch: shown.state.epoch,
           kit: shown.kit,
         }}

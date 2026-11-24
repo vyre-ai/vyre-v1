@@ -1,0 +1,1 @@
+- Files (Knowledge screens) and the Inbox no longer take their own address coming back a frame later as a link: a place that follows the address checks whether the change is its own report (useOwnReport) before moving the view, so a view the person has just moved to is not pulled back.

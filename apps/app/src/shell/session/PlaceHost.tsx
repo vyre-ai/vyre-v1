@@ -121,12 +121,14 @@ export function PlaceHost({
   runtime,
   hash = "",
   links = 0,
+  reports = 0,
   opened,
 }: {
   place: PlaceId;
   runtime: ShellRuntime | null;
   hash?: string;
   links?: number;
+  reports?: number;
   opened?: PlaceHash["opened"];
 }): ReactElement | null {
   const latest = useRef(opened);
@@ -136,7 +138,7 @@ export function PlaceHost({
   if (!routeId) return null;
   const Place = placeFor(routeId);
   const body = (
-    <PlaceHashProvider hash={hash} links={links} opened={stable}>
+    <PlaceHashProvider hash={hash} links={links} reports={reports} opened={stable}>
       <PlaceBoundary key={routeId} place={routeId}>
         <Suspense fallback={<Quiet />}>
           <AfterLoad
