@@ -1,0 +1,1 @@
+- vyre-server doctor has a new check, records.created_events: it counts records in the Space that have no record.created event in the Space log (search, sync and Run undo do not see them), and names a few. It only reports.
