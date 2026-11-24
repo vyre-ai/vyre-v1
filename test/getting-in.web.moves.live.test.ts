@@ -201,7 +201,11 @@ test("a Space that moves between the relay and its own address is found where it
           { timeout: 30_000 },
         );
         mode = "relay";
-        await page.reload();
+        // as in subtest 2: this reload makes the browser ask for the app's worker script, the relay answers with the worker that retires itself and sends the open pages to the address again, and that
+        // second navigation can end the reload with ERR_ABORTED; what the page shows is asserted right below
+        await page.reload().catch((e: unknown) => {
+          if (!/ERR_ABORTED|frame was detached/.test(String(e))) throw e;
+        });
         // the relay's first-time page is what the person sees; the app's old worker may still be in charge of the page (the browser asks for its replacement on its own schedule, up to a day), and the page
         // removes it when the Space link is used, so the walk waits for what a person waits for: the box
         await page.locator("#k").waitFor({ timeout: 15_000 });
