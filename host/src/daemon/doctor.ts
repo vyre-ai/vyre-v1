@@ -261,17 +261,18 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
     const missing = live.filter((r) => !ids.has(r.id) && r.at < now - ANNOUNCE_GRACE_MS).map((r) => r.id);
     if (!missing.length)
       return { key, state: "healthy", detail: `All ${live.length} records have their created event.`, next: OK };
-    if (unreadable > 0)
+    // an announcement that names no record may belong to any one record: it can hide as many missing records as there are such announcements, no more
+    if (unreadable >= missing.length)
       return {
         key,
         state: "healthy",
-        detail: `Not checked: ${unreadable} announcements in the log name no record, so it cannot be said which records lack one.`,
+        detail: `Not checked: ${unreadable} announcements in the log name no record, so it cannot be said which of the ${missing.length} records without a named announcement lack one.`,
         next: OK,
       };
     return {
       key,
       state: "degraded",
-      detail: `${missing.length} of ${live.length} records have no record.created event (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
+      detail: `${missing.length - unreadable} of ${live.length} records have no record.created event${unreadable ? ` (at least; ${unreadable} unreadable announcements may account for others)` : ""} (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
       next: NEXT.recordEvents,
     };
   } catch (e) {
