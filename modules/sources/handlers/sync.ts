@@ -236,6 +236,15 @@ function relinkFar(
 const FAR_CHUNK = 200;
 /** New records made in one commit (it holds the loop about 50 ms per 200). */
 const CREATE_GROUP = 200;
+/** Open a transaction on the sync's own tables when none is open (or when the database is busy: then the writes are made as before); true when this call opened it (and must commit it). */
+function beginIfFree(tx: Tx): boolean {
+  try {
+    tx.exec("BEGIN IMMEDIATE");
+    return true;
+  } catch {
+    return false;
+  }
+}
 /** The store answers a group whose commit failed with the same refusal for every item: nothing of it was made. */
 const isWholeFailure = (e: unknown): boolean => {
   const code = (e as { code?: unknown } | null)?.code;
@@ -862,15 +871,32 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
       for (const c of group) await makeOne(c);
       continue;
     }
-    for (let k = 0; k < group.length; k++) {
-      const c = group[k]!;
-      const r = results![k]!;
-      try {
-        if (!r.ok) throw r.error;
-        linkNew(ids[k]!, c, r.record);
-      } catch (e) {
-        skip(`${label} record ${c.remote.id}`, e);
+    // the group's links are written in one transaction (the loop below does not wait for anything), not one autocommit each; where a transaction is already open here they are written as before
+    const own = beginIfFree(d.tx);
+    try {
+      for (let k = 0; k < group.length; k++) {
+        const c = group[k]!;
+        const r = results![k]!;
+        try {
+          if (!r.ok) throw r.error;
+          linkNew(ids[k]!, c, r.record);
+        } catch (e) {
+          skip(`${label} record ${c.remote.id}`, e);
+        }
       }
+    } finally {
+      if (own)
+        try {
+          d.tx.exec("COMMIT");
+        } catch (e) {
+          // a commit that failed (busy, disk) must not leave the transaction open on the shared connection: the log's next BEGIN would fail with it
+          try {
+            d.tx.exec("ROLLBACK");
+          } catch {
+            /* already closed */
+          }
+          throw e;
+        }
     }
   }
   for (const a of localActions) {
