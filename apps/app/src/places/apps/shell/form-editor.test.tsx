@@ -6,6 +6,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { AppsDataProvider } from "./data.tsx";
 import type { AppsData } from "./data.tsx";
 import { FormEditor } from "./FormEditor.tsx";
+import { AppsSurface } from "./Surfaces.tsx";
+import type { ReactElement } from "react";
 
 const SAVED = {
   form: { id: "frm_saved", name: "Saved form name", recordType: "contact", kind: "public" },
@@ -40,4 +42,23 @@ test("a new form, which has nothing to load, draws its fields at once", () => {
     </AppsDataProvider>,
   );
   assert.match(html, /Form name/);
+});
+
+test("each form gets its own editor: a different form is a different key, so the fields of one never wait on the other's unsaved edits", () => {
+  const keys: (string | null)[] = [];
+  const probe = (id?: string): void => {
+    const Probe = (): ReactElement => {
+      const el = AppsSurface({ route: { group: "forms", kind: "detail", id } as never }) as ReactElement;
+      keys.push(el.key);
+      return <></>;
+    };
+    renderToStaticMarkup(
+      <AppsDataProvider value={data(false)}>
+        <Probe />
+      </AppsDataProvider>,
+    );
+  };
+  probe("frm_a");
+  probe("frm_b");
+  assert.deepEqual(keys, ["frm_a", "frm_b"]);
 });

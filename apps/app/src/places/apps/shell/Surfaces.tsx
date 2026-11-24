@@ -17,7 +17,8 @@ export function AppsSurface({ route }: { route: Exclude<AppsRoute, { kind: "list
   const target = { group: route.group, ...(route.kind === "detail" ? { id: route.id } : { create: true }) };
   switch (route.group) {
     case "forms":
-      return <FormEditor route={target} back={back} />;
+      // one editor per form: unsaved edits of one form never hold back the fields of the next (a keyed editor starts empty and fills from its own form)
+      return <FormEditor key={"id" in target ? target.id : "new"} route={target} back={back} />;
     case "templates":
       return <TemplateEditor route={target} back={back} />;
     case "domains":
