@@ -1,0 +1,1 @@
+A call that carries an idempotency key is sent once more when the connection was reset or hung up before an answer came, with the same key, so a save does not fail at random on a reused connection; a call without a key is never repeated.
