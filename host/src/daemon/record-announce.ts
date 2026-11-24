@@ -23,13 +23,15 @@ const TYPE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
 /** Records made with an announcement owed and no `record.created` event in the Space log, oldest first. Read-only. */
 export function pendingAnnouncements(spaceDb: string, eventsDb: string): PendingAnnouncement[] {
   if (!fs.existsSync(spaceDb) || !fs.existsSync(eventsDb)) return [];
-  const announced = recordEventIds(eventsDb);
+  const { ids: announced, unreadable } = recordEventIds(eventsDb);
+  // an announcement that names no record: which records are announced cannot be said, and a second announcement is worse than a missing one, so nothing is made
+  if (unreadable > 0) return [];
   const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
   const out: PendingAnnouncement[] = [];
   try {
     for (let after = 0; ; ) {
       const rows = db.all(
-        "SELECT seq, event, payload FROM events WHERE seq > ? AND json_extract(event, '$.type') = 'record.created' ORDER BY seq LIMIT 2000",
+        "SELECT seq, event, payload FROM events WHERE type = 'record.created' AND seq > ? ORDER BY seq LIMIT 2000",
         after,
       ) as { seq: number; event: string; payload: Uint8Array }[];
       if (!rows.length) break;
