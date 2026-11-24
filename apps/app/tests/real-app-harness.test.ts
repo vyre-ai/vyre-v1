@@ -120,6 +120,9 @@ export function edge(
     fs.createReadStream(file).pipe(res);
   };
   const server = tls ? https.createServer(tls, handle) : http.createServer(handle);
+  // as the daemon: an idle connection stays open longer than a client reuses it (Node closes it after 5 s, and a request sent on it at that moment is reset)
+  server.keepAliveTimeout = 125_000;
+  server.headersTimeout = 126_000;
   server.on("upgrade", (req, socket, head) => {
     let target: URL;
     try {
