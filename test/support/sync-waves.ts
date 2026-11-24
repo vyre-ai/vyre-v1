@@ -66,6 +66,10 @@ const makeDue = (dir: string): void => {
         "DELETE FROM cn_sync_running",
         `UPDATE cn_synced_types SET polling = '{"activeSec":1,"idleSec":1,"dormantSec":1}'`,
         "DELETE FROM host_schedule WHERE cap = 'connectors.sync_poll'",
+        // every type has waited out its one-second interval: its last pass, its guard and its creation are 5 s older (no row lies between the old and the new stamp: the mock rows are stamped 1000, so the passes read the same rows)
+        "UPDATE sy_state SET last_run_at = last_run_at - 5000 WHERE last_run_at IS NOT NULL",
+        "UPDATE cn_sync_guard SET last_at = last_at - 5000 WHERE last_at IS NOT NULL",
+        "UPDATE cn_synced_types SET created_at = created_at - 5000",
       ])
         try {
           db.exec(sql);
@@ -76,6 +80,23 @@ const makeDue = (dir: string): void => {
       db.close();
     }
   }
+};
+
+/** Passes running now, over every database file of the Space (the mark the cadence keeps per connection). */
+const running = (dir: string): number => {
+  let n = 0;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith(".db"))) {
+    const db = new DatabaseSync(path.join(dir, f));
+    try {
+      db.exec("PRAGMA busy_timeout = 5000");
+      n += (db.prepare("SELECT count(*) AS n FROM cn_sync_running").get() as { n: number }).n;
+    } catch {
+      /* the table is in another file */
+    } finally {
+      db.close();
+    }
+  }
+  return n;
 };
 
 export interface WaveResult {
@@ -115,20 +136,27 @@ export async function waves(big: number): Promise<WaveResult> {
     );
     const pull = { ...counts(w.d, first), ...watch.stop(), seconds: Math.round((performance.now() - t0) / 100) / 10 };
     makeDue(w.dir);
-    await new Promise((r) => setTimeout(r, 2500));
     const second = lastLogId(w.d);
     const watch2 = watchLoop();
     const t1 = performance.now();
-    for (let tick = 0; tick < 12; tick++) {
+    // a tick starts at most two passes (one per connection): tick until five reads of the due wave are in (one per type at least, as the five types are due together), each tick after the last pass ended (the
+    // wait is on the connection's running mark, not on a clock). One deadline for the wave, so a pass that never finishes is named. Every type having its OWN pass here would make five full passes (8 to 9
+    // Vault reads, 25 s wall): the Vault bound below is for a wave that is cut at five reads.
+    const deadline = performance.now() + 25_000;
+    while (counts(w.d, second).reads < Object.keys(TYPES).length) {
+      assert.ok(
+        performance.now() < deadline,
+        `a pass never finished: ${counts(w.d, second).reads} reads after 25 s, ${running(w.dir)} still running`,
+      );
       await w.d.hooks!.runPeriodic("connectors.cadence");
       await pump(w.d);
-      await new Promise((r) => setTimeout(r, 300));
+      for (let i = 0; i < 500 && running(w.dir) > 0; i++) await new Promise((r) => setTimeout(r, 20));
     }
     await pump(w.d);
     const due = { ...counts(w.d, second), ...watch2.stop(), seconds: Math.round((performance.now() - t1) / 100) / 10 };
     for (const type of Object.keys(TYPES)) {
       const st = (await call(w.d, "sync_types.status", { type })).data;
-      assert.deepEqual(st.failures ?? [], [], `${type}: no failure`);
+      assert.deepEqual(st.failures ?? [], [], `${type}: no failure ${JSON.stringify(st.failures)}`);
     }
     return { pull, due };
   } finally {
