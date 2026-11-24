@@ -132,6 +132,16 @@ export interface Ctx {
    * open (lib/audience.ts). Answers yes or no only. Present on a booted daemon; a hand-built test ctx may omit it.
    */
   mayAll?(people: readonly string[], action: { perm: string | null; level: Level }, resource: ResourceRef): boolean;
+  /**
+   * Which fields of one record this person may see, as a test on a field name (the rule `records.get` applies to them), or null when they may not see the record or it is gone, or "later" when the access snapshot does not know the record yet (it waited a bounded while for it: the caller tries again, it does not treat it as not visible). With `deleted` the record is a trashed one (a deletion's event). For a module that hands
+   * record values to something that runs for a person without that person's own call (an Automation's trigger). Present on a booted daemon; a hand-built test ctx may omit it.
+   */
+  recordFieldGate?(
+    person: string,
+    type: string,
+    recordId: string,
+    opts?: { deleted?: boolean },
+  ): Promise<((field: string) => boolean) | null | "later">;
   vault: {
     fill(handle: string, into: { kind: string; ref: string }): Promise<void>;
     use(handle: string): { handle: string };

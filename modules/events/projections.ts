@@ -20,7 +20,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 export type EventsCtx = Pick<
   Ctx,
   "space" | "principal" | "trace" | "now" | "db" | "emit" | "call" | "seal" | "schedule"
-> & { actingFor?: string | undefined };
+> & { actingFor?: string | undefined; provider?: string | undefined };
 
 type Code = Parameters<typeof fail>[0];
 export function raise(ctx: Pick<EventsCtx, "trace">, code: Code, message?: string): never {

@@ -153,6 +153,11 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
     raise(ctx, "validation.precondition_failed", "That past event is not there any more. Pick another.", {
       reason: "no_event",
     });
+  const pastPayload = past === undefined ? undefined : await payloadAsSeen(ctx, me(ctx), past.payload);
+  if (past !== undefined && pastPayload === null)
+    raise(ctx, "validation.precondition_failed", "That past event is not there any more. Pick another.", {
+      reason: "no_event",
+    });
   // a real thing that happened (a row of the event log), or a real record as it is now: the Run reads what a live Run would have read
   const real =
     input.sample === undefined && past === undefined
@@ -160,7 +165,7 @@ export async function test(ctx: AutoCtx, input: In): Promise<unknown> {
       : undefined;
   const runId = await startRun(ctx, a, {
     trigger: real?.trigger ?? key,
-    payload: input.sample ?? past?.payload ?? real?.payload ?? def.sample,
+    payload: input.sample ?? pastPayload ?? real?.payload ?? def.sample,
     test: true,
     depth: 0,
     version: input.version,
@@ -236,10 +241,12 @@ export async function testEvents(ctx: AutoCtx, input: In): Promise<unknown> {
   onlyAsOwner(ctx, a);
   const key: string = input.trigger ?? a.definition.triggers[0]?.key ?? "manual";
   const links = pastEvents(ctx.db, key, 8, a.id);
-  return {
-    events: links.map((l) => ({ runId: l.runId, at: l.startedAt, payload: l.payload })),
-    sample: TRIGGERS.get(key)?.sample ?? {},
-  };
+  const events: Array<{ runId: string; at: number; payload: unknown }> = [];
+  for (const l of links) {
+    const payload = await payloadAsSeen(ctx, me(ctx), l.payload);
+    if (payload !== null) events.push({ runId: l.runId, at: l.startedAt, payload });
+  }
+  return { events, sample: TRIGGERS.get(key)?.sample ?? {} };
 }
 
 /** The origin of a Run an agent started by hand (runs.ts reads it as the trigger "agent_run", which is from outside). */
@@ -426,9 +433,15 @@ export async function replay(ctx: AutoCtx, input: In): Promise<unknown> {
     });
   usable(ctx, a);
   const version = input.version === "current" ? a.version : old.version;
+  // started again for the Automation's person: the record as that person may see it now (a Run made before the trigger was cut keeps what it was given)
+  const replayPayload = await payloadAsSeen(ctx, a.runsAs ?? a.ownerId, old.payload);
+  if (replayPayload === null)
+    raise(ctx, "validation.precondition_failed", "That run cannot be repeated: its record is not there for you any more.", {
+      reason: "no_event",
+    });
   const runId = await startRun(ctx, a, {
     trigger: old.trigger,
-    payload: old.payload,
+    payload: replayPayload,
     test: old.test,
     depth: old.depth,
     origin: old.origin,
@@ -793,6 +806,71 @@ async function pauseForBurst(ctx: AutoCtx, a: Automation): Promise<void> {
 }
 
 /** One event from the log: start a Run of every enabled Automation it triggers. Importers and sync backfill are skipped unless the Space turned that on. */
+/**
+ * A payload kept with a Run (the trigger of a past Run, shown by `test_events`, started again by a test or a replay) as a person may see it now: the record's values are cut to what their grants allow today, and a
+ * record they may not see (any longer) is not offered at all (null). Runs made before the trigger was cut keep what they were given, so this is what keeps those old values from being shown again.
+ */
+async function payloadAsSeen(ctx: AutoCtx, person: string, payload: unknown): Promise<unknown | null> {
+  const p = payload as { recordId?: unknown; type?: unknown; record?: unknown; changed?: unknown; fields?: unknown } | null;
+  if (!ctx.recordFieldGate || p === null || typeof p !== "object" || typeof p.recordId !== "string" || typeof p.type !== "string")
+    return payload;
+  const got = await ctx.recordFieldGate(person, p.type, p.recordId).catch(() => null);
+  const gate = got === "later" ? null : got; // shown now: when in doubt, not offered
+  if (gate === null) return null;
+  const obj = (v: unknown): unknown =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => gate(f)))
+      : v;
+  return {
+    ...(payload as Record<string, unknown>),
+    ...("record" in p ? { record: obj(p.record) } : {}),
+    ...("changed" in p ? { changed: obj(p.changed) } : {}),
+    ...(Array.isArray(p.fields) ? { fields: p.fields.filter((f) => typeof f === "string" && gate(f)) } : {}),
+  };
+}
+
+/** The access snapshot does not know this record yet: the event is tried again by the consumer (a record is in the store a moment before its access entry is folded), never skipped as "not visible". */
+class RecordNotKnownYet extends Error {
+  constructor() {
+    super("The access to a record is not known yet; the event is tried again.");
+  }
+}
+
+/**
+ * What a record's event is to one Automation: the event as its owner may see it. An Automation runs for a person (its owner, or whom it runs as) and receives the record in its trigger; that person
+ * sees only the fields their grants let them see, so the filter, the trigger payload and every step read only those (a step could otherwise write a hidden value where the person can read it, and a filter on
+ * a hidden field would tell them its value). A record the person may not see at all starts nothing, and nothing says that it exists: a deletion too (it is judged on the kept row of the trashed record, so a
+ * person never learns of the deletion of something they could not see). A record the access snapshot does not know yet is not "not visible": the host waits a bounded while for it and then answers "later",
+ * and the event is tried again by the consumer. An Automation made by an agent or a service runs as the person it acts for (a Space Automation as its owner). The host's field rule answers
+ * (ctx.recordFieldGate); a hand-built ctx without it keeps the event whole.
+ */
+async function eventForOwner(
+  ctx: AutoCtx,
+  a: Automation,
+  ev: LoggedEvent,
+  gates: Map<string, ((field: string) => boolean) | null | "later">,
+): Promise<LoggedEvent | null> {
+  const op = recordOp(ev.type);
+  const p = ev.payload as { recordId?: unknown; type?: unknown; fields?: unknown; prev?: unknown };
+  if (op === undefined || !ctx.recordFieldGate || typeof p.recordId !== "string" || typeof p.type !== "string")
+    return ev;
+  const person = a.runsAs ?? a.ownerId;
+  const key = `${person}\u0000${p.type}\u0000${p.recordId}`;
+  let gate = gates.get(key);
+  if (gate === undefined) {
+    gate = await ctx.recordFieldGate(person, p.type, p.recordId, { deleted: op === "deleted" }).catch(() => null);
+    gates.set(key, gate);
+  }
+  if (gate === "later") throw new RecordNotKnownYet();
+  if (gate === null) return null;
+  const keep = gate;
+  const cut = (v: unknown): unknown =>
+    v !== null && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => keep(f)))
+      : v;
+  return { ...ev, payload: { ...ev.payload, ...("fields" in p ? { fields: cut(p.fields) } : {}), ...("prev" in p ? { prev: cut(p.prev) } : {}) } };
+}
+
 export async function consumeEvent(
   ctx: AutoCtx,
   ev: LoggedEvent,
@@ -803,9 +881,18 @@ export async function consumeEvent(
   // a write that says it is quiet (a system move, such as a Journey migration) starts nothing, whatever listens for it
   if ((ev.payload as { quiet?: unknown } | undefined)?.quiet === true) return out;
   // a draft or an Automation that is off is not listening; a paused one is, so each event it ignores is reported
-  for (const a of allAutomations(ctx.db, "status IN ('on', 'paused')")) {
+  const gates = new Map<string, ((field: string) => boolean) | null | "later">();
+  const listening = allAutomations(ctx.db, "status IN ('on', 'paused')");
+  // The event as each Automation's person may see it is worked out for ALL of them before any Run starts: it is the one step that can ask for a retry (a record the access does not know yet), and a retry
+  // must find nothing half done. A record they may not see starts nothing (and is not reported: that would say it exists).
+  const views = new Map<string, LoggedEvent | null>();
+  for (const a of listening)
+    views.set(a.id, a.definition.triggers.some((t) => t.key === "record_change") ? await eventForOwner(ctx, a, ev, gates) : ev);
+  for (const a of listening) {
+    const seen = views.get(a.id) ?? null;
+    if (seen === null) continue;
     for (const ref of a.definition.triggers) {
-      const m = matches(ref, ev);
+      const m = matches(ref, ref.key === "record_change" ? seen : ev);
       if (m === false) continue;
       if (m === "filter_error") {
         out.push({ automationId: a.id, result: dropped(ctx, a, "filter_error", ev.id) });
@@ -825,7 +912,7 @@ export async function consumeEvent(
       const f: Firing = {
         trigger: ref.key,
         eventId: ev.id,
-        payload: triggerPayload(ref.key, ev),
+        payload: triggerPayload(ref.key, ref.key === "record_change" ? seen : ev),
         origin: ev.origin,
         depth: ev.depth ?? 0,
         key: `fire:${a.id}:${ev.id}:${ref.key}`,

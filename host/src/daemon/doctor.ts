@@ -288,6 +288,94 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
   }
 }
 
+/**
+ * Runs of Automations on record changes whose kept history may hold a value their person's access hides (24 Nov 2026). Before this release the trigger of such a Run carried the whole record and every
+ * step could read it, so a person whose grant hides a field (hiddenFields) could have a Run, its kept trigger and the inputs and outputs of its steps, with that field's value in them; new Runs never keep it.
+ * Read-only, counts and ids only, never a value. A person's own grants are read (a grant given through a role or a group is not), so the answer is a lower bound; a field is counted when the kept trigger
+ * of a Run names a hidden field of its owner, and a step when its kept input or output holds that field's value as text.
+ */
+/** A value shorter than this is not searched for in the steps: a hidden `5` or `Yes` would be "found" in nearly every step. */
+const MIN_SEARCHED = 4;
+export function hiddenRunDataFinding(modulesDb: string): Finding {
+  const key = "automations.hidden_run_data";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No Automations yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      const has = (t: string): boolean =>
+        db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = ?", t).length > 0;
+      if (!has("automations_defs") || !has("automations_runs") || !has("access_grants"))
+        return { key, state: "healthy", detail: "No Automation runs to check.", next: OK };
+      const hiddenOf = new Map<string, Set<string>>();
+      for (const g of db.all(
+        `SELECT "subjectId" AS who, "conditions" AS c FROM access_grants WHERE deleted_at IS NULL AND "conditions" LIKE '%hiddenFields%'`,
+      ) as { who: string | null; c: string | null }[]) {
+        try {
+          const fields = (JSON.parse(g.c ?? "{}") as { hiddenFields?: unknown }).hiddenFields;
+          if (g.who && Array.isArray(fields))
+            hiddenOf.set(g.who, new Set([...(hiddenOf.get(g.who) ?? []), ...fields.filter((f): f is string => typeof f === "string")]));
+        } catch {
+          /* a grant that does not parse names no field */
+        }
+      }
+      if (!hiddenOf.size) return { key, state: "healthy", detail: "No grant hides a field.", next: OK };
+      const automations = new Set<string>();
+      const runs: string[] = [];
+      let steps = 0;
+      const hasSteps = has("runs_steps");
+      for (const a of db.all(
+        `SELECT id, owner_id AS owner, definition FROM automations_defs WHERE deleted_at IS NULL AND definition LIKE '%record_change%'`,
+      ) as { id: string; owner: string; definition: string }[]) {
+        const hidden = hiddenOf.get(a.owner);
+        if (!hidden) continue;
+        for (const r of db.all(`SELECT run_id AS id, payload FROM automations_runs WHERE automation_id = ?`, a.id) as {
+          id: string;
+          payload: string;
+        }[]) {
+          let p: { record?: unknown; changed?: unknown };
+          try {
+            p = JSON.parse(r.payload) as typeof p;
+          } catch {
+            continue;
+          }
+          const held: string[] = [];
+          for (const part of [p.record, p.changed])
+            if (part && typeof part === "object" && !Array.isArray(part))
+              for (const [f, v] of Object.entries(part as Record<string, unknown>))
+                if (hidden.has(f) && (typeof v === "string" || typeof v === "number") && String(v) !== "") held.push(String(v));
+          if (!held.length) continue;
+          automations.add(a.id);
+          runs.push(r.id);
+          if (hasSteps)
+            for (const s of db.all(`SELECT input_json AS i, output_json AS o FROM runs_steps WHERE run_id = ?`, r.id) as {
+              i: string | null;
+              o: string | null;
+            }[]) {
+              const text = `${s.i ?? ""}\n${s.o ?? ""}`;
+              if (held.some((v) => v.length >= MIN_SEARCHED && text.includes(v))) steps++;
+            }
+        }
+      }
+      if (!runs.length) return { key, state: "healthy", detail: "No kept Run holds a field its person's access hides.", next: OK };
+      return {
+        key,
+        state: "degraded",
+        detail: `${runs.length} kept Runs of ${automations.size} Automations on record changes hold a field their person's access hides in the kept trigger; ${steps} steps hold such a value in their input or output (values shorter than ${MIN_SEARCHED} characters are not searched, so the count is a lower bound). Runs: ${runs.slice(0, 10).join(", ")}${runs.length > 10 ? ", and more" : ""}.`,
+        next: NEXT.hiddenRunData,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the kept Runs could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -436,6 +524,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
   if (space) {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
+    findings.push(hiddenRunDataFinding(paths.modules));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

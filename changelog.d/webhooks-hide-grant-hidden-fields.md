@@ -1,0 +1,1 @@
+A webhook delivers a record's event as the person who made it may see it: the fields their grant hides are not in the body, a filter on a hidden value matches nothing for them, and an event they may not see is neither sent nor logged.
