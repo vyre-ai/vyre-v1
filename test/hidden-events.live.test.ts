@@ -49,19 +49,33 @@ test("the events of a record show a member only the fields their grant lets them
     patch: { email: EMAIL2, phone: PHONE2, name: "Event Hana B" },
   });
 
-  type Ev = { id: string; type: string; subject?: { id: string }; payload: { fields?: Record<string, unknown>; prev?: Record<string, unknown> } };
+  type Ev = {
+    id: string;
+    type: string;
+    subject?: { id: string };
+    payload: { fields?: Record<string, unknown>; prev?: Record<string, unknown> };
+  };
   const about = (events: Ev[]): Ev[] => events.filter((e) => e.type.startsWith("record.") && e.subject?.id === rid);
 
   // the owner reads the events whole: the probe is not an empty one
   const ownerList = about((await h.owner.call("events.list", { types: ["record.*"] })).events as Ev[]);
   const ownerText = JSON.stringify(ownerList);
-  assert.ok(ownerList.some((e) => e.type === "record.created"), "the owner sees the creation");
-  assert.ok(ownerList.some((e) => e.type === "record.updated"), "the owner sees the update");
+  assert.ok(
+    ownerList.some((e) => e.type === "record.created"),
+    "the owner sees the creation",
+  );
+  assert.ok(
+    ownerList.some((e) => e.type === "record.updated"),
+    "the owner sees the update",
+  );
   for (const s of [EMAIL, PHONE, EMAIL2, PHONE2]) assert.ok(ownerText.includes(s), `the owner's events carry ${s}`);
 
   // the member sees the same events, with the fields the grant lets them see and nothing of the others
   const memberList = about((await n.call("events.list", { types: ["record.*"] })).events as Ev[]);
-  assert.ok(memberList.some((e) => e.type === "record.updated"), "the member sees the update");
+  assert.ok(
+    memberList.some((e) => e.type === "record.updated"),
+    "the member sees the update",
+  );
   const text = JSON.stringify(memberList);
   for (const s of SECRETS) assert.ok(!text.includes(s), `events.list shows the member no ${s}`);
   const updated = memberList.find((e) => e.type === "record.updated")!;
