@@ -527,7 +527,8 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
         const i = at[k]!;
         out[i] = r.ok
           ? { ok: true, record: record(type, rowOf(type, items[i]!.id)!) }
-          : { ok: false, error: fail("unavailable", r.message) };
+          : // the whole transaction failed (every item answers "internal", nothing was committed): the store is unavailable. One event the log refused on its own (the rest committed) is that row's refusal.
+            { ok: false, error: r.code === "internal" ? fail("unavailable", r.message) : fail("invalid", r.message) };
       });
       return out;
     },

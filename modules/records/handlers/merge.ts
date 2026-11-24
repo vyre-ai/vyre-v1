@@ -774,7 +774,7 @@ async function upsert(
       );
       run.forEach((p, k) => madeBy.set(p, res[k]!));
     } catch {
-      /* the rows are made one at a time below and meet the same refusal one by one */
+      /* the run could not be tried at all (the type is gone): the rows are made one at a time below and meet the same refusal one by one. A commit that fails comes back as a refusal of every row of the run, nothing made. */
     }
   };
   for (let at = 0; at < all.length && !stopped; at++) {

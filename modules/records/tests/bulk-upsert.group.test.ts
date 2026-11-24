@@ -108,3 +108,30 @@ test("a group that fails at its commit leaves none of its rows: no record, no ev
   assert.equal(count("SELECT count(*) AS n FROM rt_party"), 50);
   assert.equal(count("SELECT count(*) AS n FROM rt_party__fm"), 150);
 });
+
+test("one event the log refuses on its own in the middle of a run is that row's refusal: the rows around it are made, counted and emitted, and nothing is called not done", async () => {
+  const rec = openRecords({ space: "spc_aaaaaaaaaaaa", path: ":memory:" });
+  await rec.store.define({ add_types: [PARTY] as never });
+  const log = rec.host.store as unknown as { appendBatch: (b: { type: string }[]) => unknown };
+  const was = log.appendBatch.bind(log);
+  log.appendBatch = (b) => {
+    if (b.length > 25) b[25]!.type = "NOT A TYPE"; // the log refuses this one event alone
+    return was(b);
+  };
+  const emitted: string[] = [];
+  const ctx = {
+    trace: { traceId: "0123456789abcdef0123456789abcdef" },
+    emit: (type: string) => void emitted.push(type),
+    actor: "usr_dana",
+    authorize: () => ({ effect: "allow" }),
+  };
+  const h = createMergeHandlers({ store: rec.store, tx: rec.host.tx, now: () => 1_800_000_000_000, putFile: async () => "file_1" });
+  const rows = Array.from({ length: 60 }, (_, i) => ({ name: `P ${i}`, email: `p${i}@x.test`, age: i }));
+  const out = await h["records.bulk_upsert"](ctx as never, { type: "party", match: ["email"], rows, createOnly: true });
+  const stored = Number(rec.host.tx.all<Record<string, unknown>>("SELECT count(*) AS n FROM rt_party")[0]!["n"]);
+  assert.equal(out.stopped, undefined, "the call did not stop");
+  assert.equal(out.created, 59);
+  assert.deepEqual(out.refused?.map((r) => r.row), [25]);
+  assert.equal(stored, 59, "what is stored is what was counted");
+  assert.equal(emitted.length, 59, "each stored record was announced");
+});
