@@ -78,6 +78,8 @@ export interface PlaceContext {
   kind: SpaceKind;
   place: PlaceId;
   hash: string;
+  /** Addresses that came from outside so far (HubState.links): a place told the same address twice can tell a link back to it from nothing. */
+  links?: number;
   epoch: number;
   kit: KitDef;
 }
@@ -795,6 +797,7 @@ export function Shell(props: ShellProps): ReactElement {
           kind: shown.kind,
           place: shown.state.place,
           hash: shown.state.hash,
+          links: shown.state.links,
           epoch: shown.state.epoch,
           kit: shown.kit,
         }}
@@ -868,6 +871,7 @@ export function Shell(props: ShellProps): ReactElement {
           place={shown.state.place}
           epoch={shown.state.epoch}
           hash={shown.state.hash}
+          links={shown.state.links}
           initialHold={!compact && (PLACES_WITH_LIST.has(state.place) || tabNew)}
           compact={compact}
           storage={props.sidebar?.storage ?? null}

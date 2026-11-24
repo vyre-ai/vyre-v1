@@ -1,0 +1,1 @@
+- Every place that remembers it left what its address names now hears an address that came from outside, even to the same address: a closed automation, Journey or run, a Knowledge screen or Live folders left in the sidebar, an Inbox view or picked conversation, and the phone's list after Back open again on a link back to them.

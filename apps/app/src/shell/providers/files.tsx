@@ -37,7 +37,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-import { useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { useOnLink, useOpenedId, usePlaceHash } from "../hash/context.tsx";
 import { AgentFileGate, ReviewScreen, reviewKind } from "./files-review-screens.tsx";
 import { FileDetail } from "./file-detail.tsx";
 import { FileTrail } from "../../places/files/viewer/FileTrail.tsx";
@@ -146,6 +146,12 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
   useEffect(() => {
     if (screen === "files.live") setLiveOn(true);
   }, [screen]);
+  // a link back to a Knowledge screen or the Live folders the person left in the sidebar opens it again
+  useOnLink(() => {
+    const r = fromHash();
+    if (r) setMemory(r);
+    if (screen === "files.live") setLiveOn(true);
+  });
   const openRoute = useCallback(
     (r: KnowRoute | null): void => {
       setMemory(r);
