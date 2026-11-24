@@ -81,6 +81,11 @@ export interface EventReaderDeps {
    * the type has no such rule. Asked after the kernel allows, once per thing per call.
    */
   moduleView?: (person: string, type: string, id: string) => Promise<boolean | undefined>;
+  /**
+   * Which fields of a record the reader may see (the rule `records.get` applies), as a test on a field name; null when they may not see the record or it is gone. With it the `fields` and `prev` an event of a
+   * record carries are cut to what the reader may see, where the event is shown: the log keeps the whole payload, a reader gets only their own part of it. Without it (a test) payloads go out as stored.
+   */
+  fieldGate?: (c: EventCaller, type: string, recordId: string) => Promise<((field: string) => boolean) | null>;
 }
 
 export interface EventCaller {
@@ -308,8 +313,43 @@ function aboutOne(deps: EventReaderDeps, e: StoredEvent): [string, string] | nul
   return null;
 }
 
+/** The events whose payload names the values of a record's fields: `fields` (what was set) and `prev` (what it was before). */
+const RECORD_VALUE_EVENTS = new Set(["record.created", "record.updated", "record.deleted"]);
+
 export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
   const maxScan = deps.maxScan ?? DEFAULT_SCAN;
+
+  /**
+   * A record's event shown to a reader carries only the fields that reader may see. The person who made the event keeps it whole (they wrote the values); the host itself reads it whole. A record the reader
+   * can no longer judge (gone, or access being refreshed) shows no values at all: when in doubt, the event says that it happened and not what was in it.
+   */
+  async function forReader(
+    c: EventCaller,
+    r: Reader,
+    e: StoredEvent,
+    row: EventRow,
+    gates: Map<string, ((f: string) => boolean) | null>,
+  ): Promise<EventRow> {
+    if (!deps.fieldGate || c.system === true || !RECORD_VALUE_EVENTS.has(row.type) || madeBy(r, e)) return row;
+    const p = row.payload;
+    if (p === null || typeof p !== "object" || Array.isArray(p)) return row;
+    const body = p as Record<string, unknown>;
+    const type = str(body["type"]),
+      id = str(body["recordId"]);
+    const key = `${type ?? ""}\u0000${id ?? ""}`;
+    let gate = gates.get(key);
+    if (gate === undefined) {
+      gate = type !== undefined && id !== undefined ? await deps.fieldGate(c, type, id).catch(() => null) : null;
+      gates.set(key, gate);
+    }
+    const cut = (v: unknown): unknown =>
+      v !== null && typeof v === "object" && !Array.isArray(v)
+        ? Object.fromEntries(Object.entries(v as Record<string, unknown>).filter(([f]) => gate !== null && gate(f)))
+        : v;
+    const out: Record<string, unknown> = { ...body };
+    for (const name of ["fields", "prev"]) if (name in out) out[name] = cut(out[name]);
+    return { ...row, payload: out };
+  }
 
   /**
    * An event about a thing is readable only by someone who may view that thing (F61): a "space" event used to reach every member whatever it was about. Judged at read time, so history already
@@ -377,6 +417,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
     const single = a.types && a.types.length === 1 ? a.types[0] : undefined;
     const events: EventRow[] = [];
     const verdicts = new Map<string, boolean>();
+    const gates = new Map<string, ((f: string) => boolean) | null>();
     let cursor = a.after,
       scanned = 0,
       more = false;
@@ -403,7 +444,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
           !(await reaches(snap, reader, c, e, now, verdicts))
         )
           continue;
-        events.push(toRow(e));
+        events.push(await forReader(c, reader, e, toRow(e), gates));
       }
       if (more) break;
       if (rows.length < batch) break;
@@ -460,7 +501,7 @@ export function createEventLogPort(deps: EventReaderDeps): EventLogPort {
       return found &&
         visible(snap, deps.owner(), reader, c, found, deps.now()) &&
         (await reaches(snap, reader, c, found, deps.now(), new Map()))
-        ? toRow(found)
+        ? await forReader(c, reader, found, toRow(found), new Map())
         : null;
     },
   };
