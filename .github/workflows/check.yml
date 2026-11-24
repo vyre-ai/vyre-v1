@@ -528,7 +528,6 @@ jobs:
   check:
     if: false
     needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle]
-    if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -578,7 +577,6 @@ jobs:
   golden:
     if: false
     needs: [golden-1, golden-2, golden-3]
-    if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
@@ -626,7 +624,6 @@ jobs:
     if: false
     permissions: { contents: read, actions: read }
     needs: [select, shards, check, golden]
-    if: always() && github.event_name != 'merge_group' && github.event_name != 'schedule'
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
     steps:
