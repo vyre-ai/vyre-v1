@@ -37,7 +37,7 @@ import { useOptionalShellRuntime } from "./runtime.tsx";
 import { GATE, allows } from "../session/gates.ts";
 import type { ShellRuntime } from "./runtime.tsx";
 
-import { useOnLink, useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { useOnLink, useOpenedId, useOwnReport, usePlaceHash } from "../hash/context.tsx";
 import { AgentFileGate, ReviewScreen, reviewKind } from "./files-review-screens.tsx";
 import { FileDetail } from "./file-detail.tsx";
 import { FileTrail } from "../../places/files/viewer/FileTrail.tsx";
@@ -129,7 +129,10 @@ export default function FilesPlace(_props: { place: string }): ReactElement {
           : null;
   const [memory, setMemory] = useState<KnowRoute | null>(fromHash);
   const argsKey = JSON.stringify(target.args);
+  const ownReport = useOwnReport();
   useEffect(() => {
+    // the screen's own report coming back is not a link: the person may have moved on since it was issued
+    if (ownReport()) return;
     const r = fromHash();
     if (r) setMemory(r);
   }, [screen, argsKey]); // eslint-disable-line react-hooks/exhaustive-deps

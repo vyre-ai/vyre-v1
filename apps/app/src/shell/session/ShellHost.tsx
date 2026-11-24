@@ -783,6 +783,8 @@ export function ShellHost({
         runtime={session?.runtime ?? null}
         hash={ctx.hash}
         {...(ctx.links === undefined ? {} : { links: ctx.links })}
+        {...(ctx.reports === undefined ? {} : { reports: ctx.reports })}
+        ownHash={() => hub.state().ownHash}
         opened={(t) => {
           const next = formatHash(t);
           if (next !== ctx.hash) hub.move(ctx.place, next, true);

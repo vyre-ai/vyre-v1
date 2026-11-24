@@ -1,0 +1,1 @@
+- A thread opened beside a chat is no longer closed again by the chat's own address coming back a frame later: Chats treats a changed address that arrives with its own reports and no link as its own report, never as a link to a different page.
