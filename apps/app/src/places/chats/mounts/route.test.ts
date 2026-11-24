@@ -297,13 +297,22 @@ test("the page takes a changed address, and a same address only when one came fr
   assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true }), false);
 });
 
-test("the page's own report coming back is not a link: a changed address that arrives with the page's own reports and no link keeps what a later press opened; a Back or a tab switch (no own report) still applies", () => {
-  assert.equal(isOwnEcho({ hashChanged: true, reportsSince: 1, linksSince: 0 }), true, "the place's own report");
-  assert.equal(isOwnEcho({ hashChanged: true, reportsSince: 1, linksSince: 1 }), false, "a link came with it");
+test("the page's own report coming back is not a link, but only the address it reported: a Back or a tab switch landing in the same draw as a report still applies", () => {
+  const own = {
+    hashChanged: true,
+    reportsSince: 1,
+    linksSince: 0,
+    hash: "subject=thread:thr_1",
+    ownHash: "subject=thread:thr_1",
+  };
+  assert.equal(isOwnEcho(own), true, "the place's own report");
+  assert.equal(isOwnEcho({ ...own, linksSince: 1 }), false, "a link came with it");
+  assert.equal(isOwnEcho({ ...own, reportsSince: 0 }), false, "no report with it");
+  assert.equal(isOwnEcho({ ...own, hashChanged: false }), false, "no change of address");
+  // a Back or a tab switch lands in the same render as a report: its address is not the one the place reported, so it applies
   assert.equal(
-    isOwnEcho({ hashChanged: true, reportsSince: 0, linksSince: 0 }),
+    isOwnEcho({ ...own, hash: "subject=thread:thr_back" }),
     false,
-    "a Back, a tab switch: not the page's report",
+    "a Back in the same draw as a report is never swallowed",
   );
-  assert.equal(isOwnEcho({ hashChanged: false, reportsSince: 1, linksSince: 0 }), false, "no change of address");
 });

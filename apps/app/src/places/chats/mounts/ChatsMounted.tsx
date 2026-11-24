@@ -144,6 +144,8 @@ export interface ChatsMountedProps {
   links?: number;
   /** The hub's count of addresses a place wrote itself (HubState.reports). */
   reports?: number;
+  /** The address of the place's last own report, as of now (HubState.ownHash). */
+  ownHash?: () => string;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -175,6 +177,7 @@ export function ChatsMounted({
   hash = "",
   links = 0,
   reports = 0,
+  ownHash,
   initial,
   window,
   opened,
@@ -296,7 +299,7 @@ export function ChatsMounted({
     const reportsSince = reports - reportsSeen.current;
     reportsSeen.current = reports;
     // the page's own report coming back is not a link: the page already shows what it reported
-    if (isOwnEcho({ hashChanged, reportsSince, linksSince })) {
+    if (isOwnEcho({ hashChanged, reportsSince, linksSince, hash, ownHash: ownHash?.() ?? "\u0000" })) {
       linked.current = hash;
       return;
     }

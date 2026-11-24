@@ -151,10 +151,12 @@ test("a place's own report coming back is told apart from a Back, a tab switch a
       }, [target.screen]);
       return <Text testID="open">x</Text>;
     };
-    const at = async (hash: string, reports: number, links: number): Promise<void> => {
+    let ownNow = "";
+    const at = async (hash: string, reports: number, links: number, own = ""): Promise<void> => {
+      ownNow = own;
       await act(async () => {
         r.render(
-          <PlaceHashProvider hash={hash} links={links} reports={reports} opened={noop}>
+          <PlaceHashProvider hash={hash} links={links} reports={reports} ownHash={() => ownNow} opened={noop}>
             <Probe />
           </PlaceHashProvider>,
         );
@@ -162,10 +164,11 @@ test("a place's own report coming back is told apart from a Back, a tab switch a
       await flush();
     };
     await at("screen=a", 0, 0); // mount
-    await at("screen=b", 1, 0); // the place's own report came back
-    await at("screen=c", 1, 0); // a Back or a tab switch: no report with it
-    await at("screen=d", 2, 1); // a link came (with a report in the same draw): a link wins
-    assert.deepEqual(seen, [false, true, false, false]);
+    await at("screen=b", 1, 0, "screen=b"); // the place's own report came back
+    await at("screen=c", 1, 0, "screen=b"); // a Back or a tab switch: no report with it
+    await at("screen=d", 2, 0, "screen=b"); // a Back landed in the same draw as a report: not the address the place reported
+    await at("screen=e", 3, 1, "screen=e"); // a link came (with a report in the same draw): a link wins
+    assert.deepEqual(seen, [false, true, false, false, false]);
   } finally {
     restore();
   }

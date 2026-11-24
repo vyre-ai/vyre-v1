@@ -74,6 +74,8 @@ export interface SidebarSlotProviderProps {
   reports?: number;
   /** The hub's count of own reports as of now (not as last drawn): Back remembers it, so a report issued before Back that is drawn after it is known for what it is. */
   liveReports?: () => number;
+  /** The address of the place's last own report, as of now: only a change to that address can be the place's own report coming back. */
+  liveOwnHash?: () => string;
   compact: boolean;
   storage?: SidebarStorage | null;
   /** For tests and shots: start with an entry registered. */
@@ -85,6 +87,7 @@ export interface SidebarSlotProviderProps {
   children?: ReactNode;
 }
 
+// Lifetime: one pair of document listeners (pointerdown, keydown, capture) installed on first use and kept for the life of the page; the counter only grows.
 // How many presses and keys the person has made so far: Back remembers it, so a report issued with no input since is still the press Back dismissed, and one after another input is a new open.
 let inputs = 0;
 let listening = false;
@@ -158,7 +161,9 @@ export function SidebarSlotProvider(p: SidebarSlotProviderProps): ReactElement {
     }
     const issuedBeforeBack = backedAt.current >= 0 && (p.reports ?? 0) <= backedAt.current;
     // the press's late report is issued with no input between Back and it: anything the person does next (a press, a key) is a new act, whose report is a new open
+    const ownAddress = p.liveOwnHash === undefined || p.hash === p.liveOwnHash();
     const echo =
+      ownAddress &&
       reported &&
       !linked &&
       (issuedBeforeBack || (backedWhilePending.current && inputsSoFar() === backedInputs.current));

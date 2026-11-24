@@ -12,27 +12,40 @@ export interface PlaceHash {
   links: number;
   /** How many addresses places have written themselves so far (HubState.reports). With `links`, tells a place whether a changed address is its own report coming back (never a link) or came to it. */
   reports: number;
+  /** The address of this place's last own report, as of now. */
+  ownHash: () => string;
+  /** The address this place is drawn for (the words of `target`). */
+  hash: string;
 }
 
-const EMPTY: PlaceHash = { target: { args: {} }, opened: () => undefined, links: 0, reports: 0 };
+const EMPTY: PlaceHash = {
+  target: { args: {} },
+  opened: () => undefined,
+  links: 0,
+  reports: 0,
+  ownHash: () => "",
+  hash: "",
+};
 const Ctx = createContext<PlaceHash>(EMPTY);
 
 export function PlaceHashProvider({
   hash,
   links = 0,
   reports = 0,
+  ownHash = () => "\u0000",
   opened,
   children,
 }: {
   hash: string;
   links?: number;
   reports?: number;
+  ownHash?: () => string;
   opened: PlaceHash["opened"];
   children?: ReactNode;
 }): ReactElement {
   const value = useMemo<PlaceHash>(
-    () => ({ target: parseHash(hash), opened, links, reports }),
-    [hash, opened, links, reports],
+    () => ({ target: parseHash(hash), opened, links, reports, ownHash, hash }),
+    [hash, opened, links, reports, ownHash],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
@@ -63,7 +76,7 @@ export function useOnLink(fn: () => void): void {
  * a place must never apply as a link: the person may have moved on since the report was issued. Call it once at the top of the effect.
  */
 export function useOwnReport(): () => boolean {
-  const { links, reports } = usePlaceHash();
+  const { links, reports, ownHash, hash } = usePlaceHash();
   const now = useRef({ links, reports });
   const before = useRef({ links, reports });
   // the commit before this one: the layout effect runs before the passive effects that ask
@@ -71,7 +84,12 @@ export function useOwnReport(): () => boolean {
     before.current = now.current;
     now.current = { links, reports };
   });
-  return () => now.current.reports > before.current.reports && now.current.links === before.current.links;
+  const hashNow = useRef(hash);
+  hashNow.current = hash;
+  return () =>
+    now.current.reports > before.current.reports &&
+    now.current.links === before.current.links &&
+    hashNow.current === ownHash();
 }
 
 /** The id this place was told to open (see openedId). */

@@ -358,8 +358,15 @@ export function askAbout(v: string): { type: string; id: string } | null {
  * pressed something else (the press opens a thread beside the chat and moves the route on), and applying the old report as if it were a link took the new state away (agent-delete walks: the thread
  * that a press had just opened beside the chat was closed again ~10 ms later). A change that arrives with the page's own reports and no link is not a link.
  */
-export function isOwnEcho(o: { hashChanged: boolean; reportsSince: number; linksSince: number }): boolean {
-  return o.hashChanged && o.reportsSince > 0 && o.linksSince === 0;
+export function isOwnEcho(o: {
+  hashChanged: boolean;
+  reportsSince: number;
+  linksSince: number;
+  /** The address now, and the address of the last report the place itself wrote: a Back or a tab switch landing in the same draw as a report is a different address and still applies. */
+  hash: string;
+  ownHash: string;
+}): boolean {
+  return o.hashChanged && o.reportsSince > 0 && o.linksSince === 0 && o.hash === o.ownHash;
 }
 
 export function takesAddress(o: {
