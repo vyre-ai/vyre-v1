@@ -73,7 +73,7 @@ export type ExportCtx = Pick<WriteCtx, "trace"> & {
   now?: () => number;
   /** The host decision for the caller on one record. An export writes a file, which the row filter on the way out cannot reach, so the rows are checked here (the label against the clearance lives in it). */
   authorize?: (
-    action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
+    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; fields?: readonly string[] },
     resource: { type: string; id: string | null },
   ) => { effect: "allow" | "deny" | "hold"; reason?: string };
 };
@@ -1180,7 +1180,19 @@ async function exportRows(
       if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
-      rows.push(r.fields);
+      // and only the columns the caller may read: a grant can hide a field (and a label can lift it out of reach), and a file cannot be filtered after it is written. Asked for every column at once (the common case: nothing
+      // is hidden), then column by column for a row where something is
+      const names = columns.map((c) => c.name);
+      const at = { type: "record", id: r.id };
+      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow") rows.push(r.fields);
+      else
+        rows.push(
+          Object.fromEntries(
+            columns
+              .filter((c) => ctx.authorize!({ perm: null, level: "view", fields: [c.name] }, at).effect === "allow")
+              .map((c) => [c.name, r.fields[c.name]]),
+          ),
+        );
     }
     if (!res.next || rows.length >= want || (picked !== null && picked.size === 0)) break;
     cursor = res.next;

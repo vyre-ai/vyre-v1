@@ -26,7 +26,7 @@ let seq = 0;
 
 export async function hiddenMember(
   h: Hour,
-  o: { hide?: string[]; level?: "view" | "edit" } = {},
+  o: { hide?: string[]; level?: "view" | "edit"; extraPermissions?: string[] } = {},
 ): Promise<HiddenFixture> {
   const n = ++seq;
   const tag = `zq${n}x${Math.random().toString(36).slice(2, 6)}`;
@@ -44,9 +44,21 @@ export async function hiddenMember(
   const ref = { type: "record", id: rid };
   await h.owner.call("access.audience_set", { resource: ref, audience: "added" });
   const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  let roleId = roles.find((r) => r.name === "Member")!.id;
+  if (o.extraPermissions?.length) {
+    // a role of its own: the Member role plus the extra permissions (an exporter, say)
+    const made = (await h.owner.call("access.roles.create", { name: `Probe role ${n}`, cloneFrom: roleId })).role as {
+      id: string;
+      permissions: string[];
+    };
+    const permissions = [...new Set([...made.permissions, ...o.extraPermissions])];
+    const prev = await h.owner.call("access.roles.preview", { roleId: made.id, permissions });
+    await h.owner.call("access.roles.apply", { roleId: made.id, permissions, previewHash: prev.previewHash });
+    roleId = made.id;
+  }
   const username = `probe${n}`;
   const inv = await h.owner.call("members.invites.create", {
-    role: roles.find((r) => r.name === "Member")!.id,
+    role: roleId,
     email: `${username}@firm.test`,
   });
   const member = h.person(`Probe Member ${n}`, username, `${username}@firm.test`, `${username} horse battery staple 9`);

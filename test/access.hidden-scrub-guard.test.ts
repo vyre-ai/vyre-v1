@@ -49,7 +49,8 @@ const NO_FIELD_VALUES: Record<string, string> = {
   "records.counts": "a count (probed, also with a filter on a hidden field)",
   "records.create": "ALLOWED above",
   "records.delete": "no record",
-  "records.export": "needs records.export, which a Member does not hold; a file id (probed: refused)",
+  "records.export":
+    "the file is filtered row by row and column by column by the caller's grant in the handler (probed with an exporter role: no hidden value in the file bytes)",
   "records.gap_check": "which fields are empty, for a person who may edit",
   "records.hold": "no record",
   "records.page_prefs.get": "the person's own preferences",
