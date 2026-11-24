@@ -183,7 +183,12 @@ test("a Space that moves between the relay and its own address is found where it
             // being removed reach the address a moment after that. So the baseline is taken once nothing has moved for 300 ms, neither the page (no new navigation) nor the count; from there, anything the
             // relay's worker carries fails the assertion below.
             let before = carried.length;
+            const quietBy = Date.now() + 10_000;
             for (let still = Date.now(); Date.now() - Math.max(still, lastNavigation) < 300; ) {
+              assert.ok(
+                Date.now() < quietBy,
+                `the page never went quiet: last navigation ${Date.now() - lastNavigation} ms ago, ${carried.length} requests carried by the relay's worker`,
+              );
               await new Promise((r) => setTimeout(r, 50));
               if (carried.length !== before) {
                 before = carried.length;
