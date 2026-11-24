@@ -22,6 +22,12 @@ export interface TypeDef {
   [k: string]: unknown;
 }
 
+/** One item of Store.createMany: the record made, or why this item was not. */
+export type CreateManyResult = { ok: true; record: StoredRecord } | { ok: false; error: unknown };
+
+/** One item of Store.updateMany: the record as it is now (the same version when the patch changed nothing), or why this item was not updated. */
+export type UpdateManyResult = { ok: true; record: StoredRecord } | { ok: false; error: unknown };
+
 export interface StoredRecord {
   readonly type: string;
   readonly id: RecordId;
@@ -154,6 +160,18 @@ export interface Store {
   query(type: string, spec: QuerySpec): Promise<Page<StoredRecord>>;
   aggregate(type: string, spec: AggregateSpec): Promise<AggregateRow[]>;
   create(type: string, id: RecordId, data: Readonly<Record<string, FieldValue>>): Promise<StoredRecord>;
+  /** Create several records in one commit. Each item gets its own result: one refused item (a bad value, an id taken) is refused alone and the rest are made. The records are made in the order given. */
+  /** What createMany would refuse before writing anything: for each item null, or the refusal. Cheap checks only (id and values), so a caller can hold back side effects for items that would be refused. */
+  checkNew?(type: string, items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[]): Promise<unknown[]>;
+  createMany?(
+    type: string,
+    items: readonly { id: RecordId; data: Readonly<Record<string, FieldValue>> }[],
+  ): Promise<CreateManyResult[]>;
+  /** Update several records of one type in one commit. Each item has its own result and base version: one refused item (not found, a version that moved, a bad value) is refused alone and the rest are updated. Items are applied in the order given. */
+  updateMany?(
+    type: string,
+    items: readonly { id: RecordId; patch: Readonly<Record<string, FieldValue | null>>; base_version: number }[],
+  ): Promise<UpdateManyResult[]>;
   update(
     type: string,
     id: RecordId,

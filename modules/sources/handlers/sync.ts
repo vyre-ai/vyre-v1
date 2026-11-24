@@ -234,6 +234,22 @@ function relinkFar(
 
 /** How many far records are written between two turns of the event loop, and one chunk's worth of owed rows read at a time. */
 const FAR_CHUNK = 200;
+/** New records made in one commit (it holds the loop about 50 ms per 200). */
+const CREATE_GROUP = 200;
+/** Open a transaction on the sync's own tables when none is open (or when the database is busy: then the writes are made as before); true when this call opened it (and must commit it). */
+function beginIfFree(tx: Tx): boolean {
+  try {
+    tx.exec("BEGIN IMMEDIATE");
+    return true;
+  } catch {
+    return false;
+  }
+}
+/** The store answers a group whose commit failed with the same refusal for every item: nothing of it was made. */
+const isWholeFailure = (e: unknown): boolean => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === "unavailable" || code === "internal";
+};
 /** A write to a far record that fails this many times is parked: never tried again, and said once. */
 const FAR_TRIES = 5;
 /** A record that stays over the most links is said again after this long, or sooner when its count changes. */
@@ -813,16 +829,74 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
   };
   // what an earlier pass owed to the far ends and did not write (it stopped, or a record was busy) is written first
   const early = await writeFar(d, b.syncTypeId, skip, turn, true);
-  for (const c of creates) {
-    await turn();
+  // New records are made a group at a time, one commit for the group (the store's group commit), not one commit each: a first sync of a firm's tables is mostly this loop. Each item still has its own
+  // result and is linked and announced in the order it was given, so what is left in the tables and the log is what the one-at-a-time path leaves; an item the store refuses is skipped alone. A group whose commit
+  // failed made nothing: every item of it is skipped, no link is saved, and the next pass finds them still to create. A store without createMany (or a type with a unique field, which it handles itself) is made one by one.
+  const linkNew = (id: string, c: (typeof creates)[number], rec: StoredRecord): void => {
+    saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
+    relinkFar(d, b, id, fields, {}, c.data);
+    announce("record.created", id, { fields: { ...rec.data } });
+  };
+  const makeOne = async (c: (typeof creates)[number]): Promise<void> => {
     try {
       const id = mintRecordId(now(d));
-      const rec = await d.local.create(b.type, id, c.data);
-      saveLink(d.tx, b.syncTypeId, { localId: id, remoteId: c.remote.id, base: c.base, removedAt: null });
-      relinkFar(d, b, id, fields, {}, c.data);
-      announce("record.created", id, { fields: { ...rec.data } });
+      linkNew(id, c, await d.local.create(b.type, id, c.data));
     } catch (e) {
       skip(`${label} record ${c.remote.id}`, e);
+    }
+  };
+  for (let from = 0; from < creates.length; ) {
+    await turn();
+    const group = d.local.createMany ? creates.slice(from, from + CREATE_GROUP) : creates.slice(from, from + 1);
+    from += group.length;
+    if (group.length < 2 || !d.local.createMany) {
+      for (const c of group) await makeOne(c);
+      continue;
+    }
+    const ids = group.map(() => mintRecordId(now(d)));
+    let results: Awaited<ReturnType<NonNullable<Store["createMany"]>>> | null = null;
+    try {
+      results = await d.local.createMany(
+        b.type,
+        group.map((c, k) => ({ id: ids[k]!, data: c.data })),
+      );
+    } catch {
+      // safe to retry under new ids only because a call that threw made nothing (the kernel store answers after its commit from rows it just wrote): never widen this to a call that may have committed
+      results = null;
+    }
+    // A group that failed as a whole (the call threw, or every item came back unavailable or internal: the log rolls the whole batch back when one event cannot be folded) made nothing. One row that cannot be
+    // made must not take the other rows of its group with it, so the group is made one at a time, each in its own try: the bad row is skipped alone and the rest are made and linked.
+    const wholly = results === null || results.every((r) => !r.ok && isWholeFailure(r.error));
+    if (wholly) {
+      for (const c of group) await makeOne(c);
+      continue;
+    }
+    // the group's links are written in one transaction (the loop below does not wait for anything), not one autocommit each; where a transaction is already open here they are written as before
+    const own = beginIfFree(d.tx);
+    try {
+      for (let k = 0; k < group.length; k++) {
+        const c = group[k]!;
+        const r = results![k]!;
+        try {
+          if (!r.ok) throw r.error;
+          linkNew(ids[k]!, c, r.record);
+        } catch (e) {
+          skip(`${label} record ${c.remote.id}`, e);
+        }
+      }
+    } finally {
+      if (own)
+        try {
+          d.tx.exec("COMMIT");
+        } catch (e) {
+          // a commit that failed (busy, disk) must not leave the transaction open on the shared connection: the log's next BEGIN would fail with it
+          try {
+            d.tx.exec("ROLLBACK");
+          } catch {
+            /* already closed */
+          }
+          throw e;
+        }
     }
   }
   for (const a of localActions) {

@@ -37,6 +37,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "records.reveal": Handler<"records.reveal", X>;
   "records.search": Handler<"records.search", X>;
   "records.update": Handler<"records.update", X>;
+  "records.update_many": Handler<"records.update_many", X>;
   "records.value_source": Handler<"records.value_source", X>;
   "records.values.pending": Handler<"records.values.pending", X>;
   "records.values.review": Handler<"records.values.review", X>;

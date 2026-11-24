@@ -317,6 +317,7 @@ const SYSTEM_CALLS: readonly string[] = [
   "plugins.files",
   "previews.render",
   "projects.shared_view",
+  "records.update_many",
   "runs.finish",
   "runs.mark_waiting",
   "runs.pin_version",

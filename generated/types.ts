@@ -35859,6 +35859,35 @@ export type RecordsUpdateOut = {
     holds: number;
   };
 };
+export type RecordsUpdateManyIn = {
+  type: string;
+  items: Array<{
+      recordId: string;
+      patch: Record<string, unknown>;
+      baseVersion?: number;
+    }>;
+};
+export type RecordsUpdateManyOut = {
+  results: Array<{
+      recordId: string;
+      record?: {
+        id: string;
+        type: string;
+        version: number;
+        label: number;
+        fields: Record<string, unknown>;
+        createdAt: number;
+        updatedAt: number;
+        deletedAt?: number;
+        holds: number;
+      };
+      error?: {
+        code: string;
+        message: string;
+        reason?: string;
+      };
+    }>;
+};
 export type RecordsValueSourceIn = {
   type: string;
   recordId: string;
@@ -53436,6 +53465,7 @@ export interface CapMap {
   "records.reveal": { in: RecordsRevealIn; out: RecordsRevealOut };
   "records.search": { in: RecordsSearchIn; out: RecordsSearchOut };
   "records.update": { in: RecordsUpdateIn; out: RecordsUpdateOut };
+  "records.update_many": { in: RecordsUpdateManyIn; out: RecordsUpdateManyOut };
   "records.value_source": { in: RecordsValueSourceIn; out: RecordsValueSourceOut };
   "records.values.pending": { in: RecordsValuesPendingIn; out: RecordsValuesPendingOut };
   "records.values.review": { in: RecordsValuesReviewIn; out: RecordsValuesReviewOut };

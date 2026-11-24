@@ -13,7 +13,7 @@ import { createSpaceStore } from "../src/daemon/store.ts";
 
 const N = 5;
 
-async function world(): Promise<{
+async function world(grouped = false): Promise<{
   run: () => Promise<unknown>;
   errors: () => string[];
   open: (v: boolean) => void;
@@ -42,6 +42,31 @@ async function world(): Promise<{
     emit: () => ({}),
     call: async (cap, input) => {
       if (cap === "connectors.get") return { connector: { key: "fakeapp" } };
+      if (cap === "records.update_many" && grouped) {
+        // the grouped door: each item answers for itself; a locked Vault refuses every one of them with the reason of a record that is not visible yet (not "unavailable", which would send the group back to one call per record)
+        const items = (input as { items: Array<{ recordId: string }> }).items;
+        if (!vaultOpen)
+          return {
+            results: items.map(() => ({
+              error: { reason: "not_found", message: "There is no record by that name that you can see." },
+            })),
+          };
+        return {
+          results: await Promise.all(
+            items.map(async (it) => {
+              const cur = (await store.get("contact", it.recordId))!;
+              await store.update(
+                "contact",
+                it.recordId,
+                { ssn: { sealed: "ssn", ref: `ref_${it.recordId}`, present: true, set_at: Date.now() } },
+                cur.version,
+              );
+              kept++;
+              return { record: { id: it.recordId } };
+            }),
+          ),
+        };
+      }
       if (cap === "records.update") {
         if (!vaultOpen) throw new Error("There is no record by that name that you can see.");
         const i = input as { type: string; recordId: string };
@@ -95,23 +120,28 @@ async function world(): Promise<{
   };
 }
 
-test("a sealed value the Vault cannot take yet is a deferral: the first pull shows no failure, and the next pass keeps every value", async () => {
-  const w = await world();
-  await w.run();
-  assert.equal(w.kept(), 0, "the Vault refused every value");
-  assert.deepEqual(w.errors(), [], "a first refusal is a deferral, not a failure line on the Sync page");
-  w.open(true);
-  await w.run();
-  assert.equal(w.kept(), N, "every deferred value is kept by the next pass");
-  assert.deepEqual(w.errors(), [], "and nothing was ever listed as a failure");
-});
+for (const grouped of [false, true]) {
+  test(`a sealed value the Vault cannot take yet is a deferral (${grouped ? "grouped" : "one by one"}): the first pull shows no failure, and the next pass keeps every value`, async () => {
+    const w = await world(grouped);
+    await w.run();
+    assert.equal(w.kept(), 0, "the Vault refused every value");
+    assert.deepEqual(w.errors(), [], "a first refusal is a deferral, not a failure line on the Sync page");
+    w.open(true);
+    await w.run();
+    assert.equal(w.kept(), N, "every deferred value is kept by the next pass");
+    assert.deepEqual(w.errors(), [], "and nothing was ever listed as a failure");
+  });
 
-test("a sealed value the Vault refuses again, with no group left to read, is a failure that says why", async () => {
-  const w = await world();
-  await w.run();
-  assert.deepEqual(w.errors(), [], "the first refusal is a deferral");
-  await w.run();
-  const errors = w.errors();
-  assert.equal(errors.length, 1, "one line per pass, however many values were refused");
-  assert.match(errors[0]!, /^A sealed value could not be kept yet: There is no record by that name that you can see\./);
-});
+  test(`a sealed value the Vault refuses again, with no group left to read, is a failure that says why (${grouped ? "grouped" : "one by one"})`, async () => {
+    const w = await world(grouped);
+    await w.run();
+    assert.deepEqual(w.errors(), [], "the first refusal is a deferral");
+    await w.run();
+    const errors = w.errors();
+    assert.equal(errors.length, 1, "one line per pass, however many values were refused");
+    assert.match(
+      errors[0]!,
+      /^A sealed value could not be kept yet: There is no record by that name that you can see\./,
+    );
+  });
+}

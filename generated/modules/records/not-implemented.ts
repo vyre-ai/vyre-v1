@@ -37,6 +37,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "records.reveal": async (ctx) => { throw new VyreErr(notImplemented("records.reveal", ctx.trace)); },
   "records.search": async (ctx) => { throw new VyreErr(notImplemented("records.search", ctx.trace)); },
   "records.update": async (ctx) => { throw new VyreErr(notImplemented("records.update", ctx.trace)); },
+  "records.update_many": async (ctx) => { throw new VyreErr(notImplemented("records.update_many", ctx.trace)); },
   "records.value_source": async (ctx) => { throw new VyreErr(notImplemented("records.value_source", ctx.trace)); },
   "records.values.pending": async (ctx) => { throw new VyreErr(notImplemented("records.values.pending", ctx.trace)); },
   "records.values.review": async (ctx) => { throw new VyreErr(notImplemented("records.values.review", ctx.trace)); },

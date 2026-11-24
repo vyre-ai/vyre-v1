@@ -21,7 +21,7 @@ import { mintRecordId } from "../ids.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { StoreError } from "../../../kernel/src/store/types.ts";
-import type { FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
+import type { CreateManyResult, FieldDef, Filter, Store, StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import { RecordsError, fail, mapError, toRow } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { MAX_LIMIT, ensureMatchIndex, findRows, warmSearch } from "./query.ts";
@@ -30,6 +30,8 @@ import type { ViewSpec } from "./query.ts";
 export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
 export const MAX_MERGED = 50;
 export const MAX_UPSERT_ROWS = 10_000;
+/** New rows made in one commit at most: a run this long holds the loop for about 50 ms. */
+const CREATE_RUN = 200;
 /** Excel's own row limit, header included. */
 export const XLSX_MAX_ROWS = 1_048_576;
 
@@ -753,6 +755,33 @@ async function upsert(
   // so a store that goes away (or a record that changes under the batch) stops the loop and the call still answers: what was written is committed with its events, and the rows not tried are listed.
   const all = [...plans.values()];
   let stopped: UpsertStopped | undefined;
+  // New records are made a run at a time (one commit for the run, the store's group commit) instead of one commit each: a run is the consecutive new rows from here, and each row still gets its own result, so a
+  // refused row is refused alone and the order of the events is the order of the rows. When the run cannot be made as a whole the rows are made one by one, as before.
+  const madeBy = new Map<Plan, CreateManyResult>();
+  const tried = new Set<Plan>(); // rows of a run that failed as a whole: one attempt per window, then the rows go one at a time
+  const makeRun = async (from: number): Promise<void> => {
+    if (!store.createMany) return;
+    const run: Plan[] = [];
+    for (let j = from; j < all.length && run.length < CREATE_RUN; j++) {
+      const p = all[j]!;
+      if (p.skip || p.blocked || p.existing) break;
+      run.push(p);
+    }
+    if (run.length < 2) return;
+    for (const p of run) tried.add(p);
+    try {
+      const res = await store.createMany(
+        input.type,
+        run.map((p) => ({ id: mintRecordId(), data: p.values })),
+      );
+      // a commit that failed as a whole rolled the run back and answers every row "unavailable" (one poison row does this to its 199 neighbours): nothing was made, so the rows are made one at a time below and
+      // only the row that fails is stopped on, as before
+      if (res.every((r) => !r.ok && r.error instanceof StoreError && r.error.code === "unavailable")) return;
+      run.forEach((p, k) => madeBy.set(p, res[k]!));
+    } catch {
+      /* the run could not be tried at all (the type is gone): the rows are made one at a time below and meet the same refusal one by one. A commit that fails comes back as a refusal of every row of the run, nothing made. */
+    }
+  };
   for (let at = 0; at < all.length && !stopped; at++) {
     await turn();
     const plan = all[at]!;
@@ -790,8 +819,10 @@ async function upsert(
         continue;
       }
       if (!plan.existing) {
-        const id = mintRecordId();
-        const rec = await store.create(input.type, id, plan.values);
+        if (!madeBy.has(plan) && !tried.has(plan)) await makeRun(at);
+        const pre = madeBy.get(plan);
+        if (pre && !pre.ok) throw pre.error;
+        const rec = pre ? pre.record : await store.create(input.type, mintRecordId(), plan.values);
         created++;
         skipped += plan.folded.length;
         ctx.emit("record.created", `record/${rec.id}`, {

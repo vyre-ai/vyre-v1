@@ -17,6 +17,8 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Page, QuerySpec, Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 
 /** Work between two turns while sealed values are kept: short, because each value waits for the Vault (a key derivation, a write) and the stretch before the loop is already one block. */
+/** Records sealed in one commit at most (records.update_many holds the loop about 50 ms for a group this long). */
+const SEAL_GROUP = 200;
 const SEAL_TURN_MS = 5;
 
 // ---- what the engine takes from the connectors module (structural copies; the module's own types are not importable here)
@@ -1278,6 +1280,7 @@ export function createSyncEngine(o: {
             if (!moreToCome) note(e);
           }
         }
+        const pending: { recordId: string; patch: Record<string, unknown> }[] = [];
         for (const [remoteId, got] of remote.held) {
           await turn();
           const link = tx.get<{ local_id: string }>(
@@ -1301,17 +1304,58 @@ export function createSyncEngine(o: {
             )
               patch[local] = { sealed: true, value };
           }
-          // through records.update: that is the one door that puts a sealed value in the Vault and keeps the reference (the Space store itself refuses a sealed value)
-          if (Object.keys(patch).length) {
-            // the Vault cannot take it (a Space nobody has signed in to, a locked Vault, a record not visible yet): the record stays without the field, the value is NOT stored anywhere, and it is tried again at the next group or pass
-            try {
-              await ctx.call("records.update", { type: b.type, recordId: link.local_id, patch });
-              mine.delete(link.local_id);
-            } catch {
-              // the Vault cannot take it yet: a deferral, kept in `mine` and tried first at the next group or pass (a refusal that repeats is noted above)
-              if (mine.size < WAITING_MAX) mine.set(link.local_id, { ...(mine.get(link.local_id) ?? {}), ...patch });
-            }
+          // through records.update (or records.update_many for a group of them): that is the door that puts a sealed value in the Vault and keeps the reference (the Space store itself refuses a sealed value)
+          if (Object.keys(patch).length) pending.push({ recordId: link.local_id, patch });
+        }
+        // one commit for each group of records (records.update_many, up to SEAL_GROUP), not one for each record: the second write of every record of a pull was most of its time. A group that cannot be done as a whole
+        // (the call was refused or failed, or every item says the store was unavailable) is done one record at a time as before, so the Vault's words and the waiting count are the same as they were.
+        const keepOne = async (recordId: string, patch: Record<string, unknown>): Promise<void> => {
+          // the Vault cannot take it (a Space nobody has signed in to, a locked Vault, a record not visible yet): the record stays without the field, the value is NOT stored anywhere, and it is tried again at the next group or pass
+          try {
+            await ctx.call("records.update", { type: b.type, recordId, patch });
+            mine.delete(recordId);
+          } catch {
+            // a deferral, not a failure: kept in `mine` and tried first at the next group or pass; a refusal that repeats with no group left is noted by the first loop
+            if (mine.size < WAITING_MAX) mine.set(recordId, { ...(mine.get(recordId) ?? {}), ...patch });
           }
+        };
+        for (let from = 0; from < pending.length; from += SEAL_GROUP) {
+          await turn();
+          const chunk = pending.slice(from, from + SEAL_GROUP);
+          let results: unknown[] | null = null;
+          if (chunk.length > 1)
+            try {
+              const out = await ctx.call("records.update_many", {
+                type: b.type,
+                items: chunk.map((c) => ({ recordId: c.recordId, patch: c.patch })),
+              });
+              results = isObj(out) && Array.isArray(out["results"]) ? (out["results"] as unknown[]) : null;
+            } catch {
+              results = null;
+            }
+          const whole =
+            results === null ||
+            results.length !== chunk.length ||
+            results.every(
+              (r) =>
+                isObj(r) &&
+                isObj(r["error"]) &&
+                (r["error"]["reason"] === "unavailable" || r["error"]["reason"] === "internal"),
+            );
+          if (whole) {
+            for (const c of chunk) {
+              await turn();
+              await keepOne(c.recordId, c.patch);
+            }
+            continue;
+          }
+          chunk.forEach((c, k) => {
+            const r = results![k];
+            if (isObj(r) && isObj(r["error"])) {
+              // a deferral (see keepOne): no line on the Sync page for a first refusal
+              if (mine.size < WAITING_MAX) mine.set(c.recordId, { ...(mine.get(c.recordId) ?? {}), ...c.patch });
+            } else mine.delete(c.recordId);
+          });
         }
         const owed = [...mine.values()].reduce((n, p) => n + Object.values(p).filter((x) => x !== null).length, 0);
         remote.held.clear();

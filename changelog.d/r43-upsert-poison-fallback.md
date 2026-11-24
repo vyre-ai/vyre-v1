@@ -1,0 +1,1 @@
+- bulk_upsert: when a run's commit fails as a whole (one poison row), the rows of the run are made one at a time, so only the failing row stops the call, as before.
