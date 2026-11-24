@@ -15,7 +15,9 @@ interface CardField {
   value?: unknown;
 }
 
-const MAX_RECORDS = 50;
+/** How many records are read at once, and how many distinct records one call looks up at all: a record beyond that is treated as one the reader cannot read, never shown whole. */
+const GROUP = 8;
+const MAX_RECORDS = 200;
 
 const isCard = (b: Block): b is Block & { data: Record<string, unknown> } =>
   b.type === "record_card" &&
@@ -24,19 +26,24 @@ const isCard = (b: Block): b is Block & { data: Record<string, unknown> } =>
   !Array.isArray(b.data) &&
   typeof (b.data as Record<string, unknown>)["recordId"] === "string";
 
-/** What each record's card may show this caller: its fields, or null when the caller cannot read it. */
+/** What each record's card may show this caller: its fields, or null when the caller cannot read it (or it was not looked up). A record that is not in the answer is treated as null too. */
 async function visibleFields(
   ctx: ChatCtx,
   blocks: readonly Block[],
 ): Promise<Map<string, Record<string, unknown> | null>> {
   const seen = new Map<string, Record<string, unknown> | null>();
-  if (!ctx.call) return seen;
+  const wanted = new Map<string, string | undefined>();
   for (const b of blocks) {
     if (!isCard(b)) continue;
     const id = b.data["recordId"] as string;
-    if (seen.has(id) || seen.size >= MAX_RECORDS) continue;
-    const type = typeof b.data["type"] === "string" ? (b.data["type"] as string) : undefined;
+    if (!wanted.has(id)) wanted.set(id, typeof b.data["type"] === "string" ? (b.data["type"] as string) : undefined);
+  }
+  const ids = [...wanted.keys()];
+  for (const id of ids.slice(MAX_RECORDS)) seen.set(id, null);
+  const read = async (id: string): Promise<void> => {
+    const type = wanted.get(id);
     try {
+      if (!ctx.call) throw new Error("no way to ask");
       const got = (await ctx.call("records.get", { recordId: id, ...(type ? { type } : {}) })) as {
         record?: { fields?: Record<string, unknown> };
       };
@@ -44,18 +51,26 @@ async function visibleFields(
     } catch {
       seen.set(id, null);
     }
-  }
+  };
+  const head = ids.slice(0, MAX_RECORDS);
+  for (let at = 0; at < head.length; at += GROUP) await Promise.all(head.slice(at, at + GROUP).map(read));
   return seen;
 }
+
+/** The card's own name when something of it had to be taken away: the title may be the value of a hidden field, so the type and the end of the id stand in for it. */
+const nameOf = (data: Record<string, unknown>): string => {
+  const type = typeof data["type"] === "string" && data["type"] !== "" ? (data["type"] as string) : "Record";
+  const id = String(data["recordId"]);
+  return `${type} ${id.slice(-6)}`;
+};
 
 function shown(
   data: Record<string, unknown>,
   fields: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> {
-  // a record that could not be read (or that this call did not look up) shows the card's name only
-  if (fields === undefined) return data;
   const { summary: _s, status: _t, fields: listed, ...rest } = data;
-  if (fields === null) return { ...rest, fields: [] };
+  // a record that could not be read, or that was never looked up, shows no fields and no words of its own
+  if (fields === null || fields === undefined) return { ...rest, title: nameOf(data), fields: [] };
   const had = Array.isArray(listed) ? (listed as CardField[]) : [];
   const kept = had.flatMap((f) =>
     typeof f.key === "string" && f.key in fields ? [{ ...f, value: fields[f.key] }] : [],
@@ -65,7 +80,7 @@ function shown(
   return {
     ...rest,
     ...(lost
-      ? {}
+      ? { title: nameOf(data) }
       : {
           ...(data["summary"] !== undefined ? { summary: data["summary"] } : {}),
           ...(data["status"] !== undefined ? { status: data["status"] } : {}),

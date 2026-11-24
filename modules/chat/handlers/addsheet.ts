@@ -28,6 +28,7 @@ import { readFloor } from "./floor.ts";
 import { deliver, mayGovernChannel, rootOf, startsAlone } from "./post.ts";
 import { followHome, grantsOf, homesOf, revokeGrants, shareOwnedWithReaders, sourceOf, trashOwned } from "./owned.ts";
 import type { Granted } from "./owned.ts";
+import { attachCards } from "./record-cards.ts";
 
 type Row = Record<string, unknown>;
 export type SetMode = "lead" | "listen" | "quiet";
@@ -440,7 +441,10 @@ export async function historyPage(ctx: ChatCtx, input: { threadId: string; befor
     ).length > 0;
   const enc = encOf(ctx.db, t);
   return {
-    messages: page.map((m) => messageOut(m, enc, askerOf(ctx))),
+    messages: await attachCards(
+      ctx,
+      page.map((m) => messageOut(m, enc, askerOf(ctx))),
+    ),
     hasMore,
     ...(hasMore && first ? { next: first.seq } : {}),
   };
