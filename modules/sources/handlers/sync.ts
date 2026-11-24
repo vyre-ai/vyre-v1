@@ -236,6 +236,11 @@ function relinkFar(
 const FAR_CHUNK = 200;
 /** New records made in one commit (it holds the loop about 50 ms per 200). */
 const CREATE_GROUP = 200;
+/** The store answers a group whose commit failed with the same refusal for every item: nothing of it was made. */
+const isWholeFailure = (e: unknown): boolean => {
+  const code = (e as { code?: unknown } | null)?.code;
+  return code === "unavailable" || code === "internal";
+};
 /** A write to a far record that fails this many times is parked: never tried again, and said once. */
 const FAR_TRIES = 5;
 /** A record that stays over the most links is said again after this long, or sooner when its count changes. */
@@ -823,34 +828,42 @@ export async function runSync(d: SyncDeps, b: SyncBinding, o: SyncOptions = {}):
     relinkFar(d, b, id, fields, {}, c.data);
     announce("record.created", id, { fields: { ...rec.data } });
   };
+  const makeOne = async (c: (typeof creates)[number]): Promise<void> => {
+    try {
+      const id = mintRecordId(now(d));
+      linkNew(id, c, await d.local.create(b.type, id, c.data));
+    } catch (e) {
+      skip(`${label} record ${c.remote.id}`, e);
+    }
+  };
   for (let from = 0; from < creates.length; ) {
     await turn();
     const group = d.local.createMany ? creates.slice(from, from + CREATE_GROUP) : creates.slice(from, from + 1);
     from += group.length;
     if (group.length < 2 || !d.local.createMany) {
-      for (const c of group)
-        try {
-          const id = mintRecordId(now(d));
-          linkNew(id, c, await d.local.create(b.type, id, c.data));
-        } catch (e) {
-          skip(`${label} record ${c.remote.id}`, e);
-        }
+      for (const c of group) await makeOne(c);
       continue;
     }
     const ids = group.map(() => mintRecordId(now(d)));
-    let results: Awaited<ReturnType<NonNullable<Store["createMany"]>>>;
+    let results: Awaited<ReturnType<NonNullable<Store["createMany"]>>> | null = null;
     try {
       results = await d.local.createMany(
         b.type,
         group.map((c, k) => ({ id: ids[k]!, data: c.data })),
       );
-    } catch (e) {
-      for (const c of group) skip(`${label} record ${c.remote.id}`, e);
+    } catch {
+      results = null;
+    }
+    // A group that failed as a whole (the call threw, or every item came back unavailable or internal: the log rolls the whole batch back when one event cannot be folded) made nothing. One row that cannot be
+    // made must not take the other rows of its group with it, so the group is made one at a time, each in its own try: the bad row is skipped alone and the rest are made and linked.
+    const wholly = results === null || results.every((r) => !r.ok && isWholeFailure(r.error));
+    if (wholly) {
+      for (const c of group) await makeOne(c);
       continue;
     }
     for (let k = 0; k < group.length; k++) {
       const c = group[k]!;
-      const r = results[k]!;
+      const r = results![k]!;
       try {
         if (!r.ok) throw r.error;
         linkNew(ids[k]!, c, r.record);

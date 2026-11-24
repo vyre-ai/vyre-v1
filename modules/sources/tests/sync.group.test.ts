@@ -47,6 +47,8 @@ const BINDING: SyncBinding = {
 
 interface Fail {
   commit?: boolean;
+  /** One row whose event cannot be folded: the group that holds it fails as a whole (every item internal) and the row alone cannot be made. */
+  poison?: boolean;
 }
 async function pull(grouped: boolean, rows: number, fail: Fail = {}) {
   const clock = { t: 1000 };
@@ -74,7 +76,25 @@ async function pull(grouped: boolean, rows: number, fail: Fail = {}) {
     commits++;
     return was(b);
   };
-  const local: Store = grouped ? localOpen.store : ({ ...localOpen.store, createMany: undefined } as Store);
+  const base: Store = grouped ? localOpen.store : ({ ...localOpen.store, createMany: undefined } as Store);
+  const POISON = "Person 5";
+  const local: Store = fail.poison
+    ? ({
+        ...base,
+        createMany: async (type: string, items: readonly { id: string; data: Record<string, unknown> }[]) => {
+          if (items.some((i) => i.data["name"] === POISON))
+            return items.map(() => ({
+              ok: false as const,
+              error: Object.assign(new Error("a projection threw"), { code: "internal" }),
+            }));
+          return base.createMany!(type, items as never);
+        },
+        create: async (type: string, id: string, data: Record<string, unknown>) => {
+          if (data["name"] === POISON) throw Object.assign(new Error("a projection threw"), { code: "internal" });
+          return base.create(type, id as never, data as never);
+        },
+      } as unknown as Store)
+    : base;
   const seen: string[] = [];
   const deps = (): SyncDeps => ({
     local,
@@ -117,10 +137,20 @@ test("a pull makes new records a group at a time and leaves the state the one-at
   );
 });
 
-test("a group whose commit fails makes nothing, saves no link, and the next pass makes it", async () => {
+test("a group whose commit fails as a whole is made one at a time in the same pass: nothing half made, no row lost", async () => {
   const k = await pull(true, 150, { commit: true });
-  assert.equal(k.count, 0, "nothing was half made");
-  assert.equal(k.links.length, 0, "no link was saved");
-  const again = await k.rerun();
-  assert.ok(again.local.created >= 149, "the next pass makes what the failed group left");
+  assert.equal(k.report.local.created, 150);
+  assert.equal(k.count, 149, "the row the store refuses is skipped alone and every other row is made");
+  assert.equal(k.linkCount, 149, "each made row is linked");
+});
+
+test("one row that cannot be made does not take the rest of its group with it", async () => {
+  const k = await pull(true, 150, { poison: true });
+  assert.equal(
+    k.count,
+    148,
+    "149 rows are made (one is refused by its choice field and one is the poison row): only those two are missing",
+  );
+  assert.equal(k.linkCount, 148, "each made row is linked");
+  assert.equal(k.report.skipped, 2, "the refused row and the poison row are skipped, alone");
 });
