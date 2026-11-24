@@ -312,6 +312,15 @@ export function createSessions({
       await group(call.agent, tabId);
       arm(tabId);
     },
+    /** A person's Stop or Take over from a bar whose agent no longer drives the tab: pause that agent and draw the bar in the pause's state. @param {number} tabId @param {AgentRef} agent @param {"person" | "takeover"} by */
+    async pauseBar(tabId, agent, by) {
+      await this.pause(agent.id, by);
+      // pause() drew the bar only for a tab the agent drives; this one it let go of, so the bar says the person has it
+      if (!drivers.has(tabId)) {
+        const held = paused.get(agent.id)?.by ?? by; // a take-over already held stays a take-over
+        await draw(tabId, agent, held === "takeover" ? "takeover" : "stopped");
+      }
+    },
     /** @param {number} tabId */
     touch: arm,
     /** A press on one of the bar's buttons, at this place: was it the agent's own click (a person's hand is not)? A match uses up the agent's input. @param {number} tabId @param {number} x @param {number} y */

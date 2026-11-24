@@ -2976,3 +2976,42 @@ test("what a tab recorded on one site is dropped when it goes to another and is 
   const urls = (await w.call("chrome_sources")).endpoints.map((e) => e.url);
   assert.deepEqual(urls, [], "nothing recorded before the last move survives it");
 });
+
+// ---------- a person's press on the bar is never lost (hardening of the lost-press paths) ----------
+
+test("a person's Take over or Stop on a bar whose agent let go of the tab still pauses that agent, redraws the bar, and the agent's next call is refused", async () => {
+  for (const [type, state, held] of [
+    ["takeover", "takeover", "takeover_held"],
+    ["stop", "stopped", "stopped"],
+  ] as const) {
+    const w = await ready();
+    await w.call("chrome_snapshot");
+    const port = overlayPort(w);
+    await w.advance(21_000);
+    assert.equal(w.overlay.size, 0, "the agent let go of the tab (idle)");
+    port.send({ type, agent: w.agent.id, name: w.agent.name });
+    await w.advance(0);
+    assert.equal(w.overlay.get(7)?.state, state, `${type}: the bar says so`);
+    assert.equal((await w.call("chrome_status")).paused, true, `${type}: the pause is held`);
+    await w.fails("chrome_snapshot", {}, "paused");
+    if (type === "takeover") await w.fails("chrome_resume", { turnMessageAgeMs: 1 }, held);
+  }
+});
+
+test("a press with no driver and no bar never resumes or releases anything, and a stop over a take-over does not turn it into a stop", async () => {
+  const w = await ready();
+  await w.call("chrome_snapshot");
+  const port = overlayPort(w);
+  await w.advance(21_000);
+  port.send({ type: "giveback", agent: "agt_other", name: "Other" });
+  port.send({ type: "endtask", agent: "agt_other", name: "Other" });
+  await w.advance(0);
+  assert.equal(w.overlay.size, 0, "no bar was drawn");
+  assert.equal(w.eventsOf("resumed").length, 0, "nothing was resumed");
+  assert.equal((await w.call("chrome_status")).paused, false, "nobody was paused");
+  port.send({ type: "takeover", agent: w.agent.id, name: w.agent.name });
+  await w.advance(0);
+  port.send({ type: "stop", agent: w.agent.id, name: w.agent.name });
+  await w.advance(0);
+  assert.equal(w.overlay.get(7)?.state, "takeover", "the take-over is still the take-over");
+});

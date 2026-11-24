@@ -266,6 +266,21 @@ export function createAgentControl(ext, o = {}) {
         });
         return;
       }
+      // A person's Stop or Take over is never lost for want of a driver: the agent may have let go of the tab (its own stop, the idle timer) while the bar still shows. The bar names its agent, and a pause
+      // only ever holds the agent back, so it is applied to that agent and the bar redrawn in its state; the agent's next call finds the pause and respects it. Nothing else (resume, release) acts without a driver.
+      if (
+        !agent &&
+        m &&
+        (m.type === "stop" || m.type === "takeover") &&
+        typeof m.agent === "string" &&
+        m.agent &&
+        m.agent.length <= 200
+      ) {
+        const by = m.type === "stop" ? "person" : "takeover";
+        const name = typeof m.name === "string" && m.name ? m.name.slice(0, 80) : m.agent;
+        void sessions.pauseBar(tabId, { id: m.agent, name }, by);
+        return;
+      }
       if (!agent || !m) return;
       if (m.type === "stop") void sessions.pause(agent.id, "person");
       else if (m.type === "takeover") void sessions.pause(agent.id, "takeover");
