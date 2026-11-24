@@ -2,7 +2,7 @@
 // The links that open Chats: a link with `with` and `about` is an Ask about an object, `with` alone is a chat with that agent, and a thread id is that thread.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress, wentAndCame } from "./route.ts";
+import { SCREEN, START, askAbout, fromHash, linkedTo, openKeyOf, step, takesAddress } from "./route.ts";
 
 test("with and about make an Ask about the object, and bring names the chat whose summary comes along", () => {
   const s = fromHash("#screen=chats.conversation&with=agt_billing&about=record%3Arec_a1&bring=thr_old");
@@ -282,27 +282,17 @@ test("closing a terminal gives the right column back to the agent's pane when it
   assert.equal(step(noPane, { t: "terminal-close" }).pane, false, "no pane before, none after");
 });
 
-test("only a move away and back to the same address is a link back; one move with the same hash is the page's own report", () => {
-  assert.equal(wentAndCame(4, 4), false, "no move");
-  assert.equal(
-    wentAndCame(4, 5),
-    false,
-    "one move (the page reported where it already is, or a click changed it): the page's own state wins",
-  );
-  assert.equal(wentAndCame(4, 6), true, "away and back: the page takes the address again");
-});
-
-test("the page takes a changed address, and a same address only after an away-and-back: a click inside the page is never overwritten by the address it already shows", () => {
-  const base = { hashChanged: false, alreadyTook: true, was: 7, now: 7, layerOrTerminal: false };
-  // a click inside Chats: the page acts, its report moves the count by one and the hash stays the one the page followed
-  assert.equal(takesAddress({ ...base, now: 8 }), false, "one move, same hash, after the page's own act");
-  // a count that moves with nothing else changing (a place switch elsewhere, a title)
-  assert.equal(takesAddress(base), false);
-  // the lost link of Move to Trash: left and came back to the same address
-  assert.equal(takesAddress({ ...base, now: 9 }), true, "away and back");
+test("the page takes a changed address, and a same address only when one came from outside: the page's own moves (a click, Back then a row press) never overwrite it", () => {
+  const base = { hashChanged: false, alreadyTook: true, linksSince: 0, layerOrTerminal: false };
+  // a click inside Chats, Back then the next row at 760: the page reports where it is, any number of times; the hash may come back to the same one, nothing came from outside
+  assert.equal(takesAddress(base), false, "no link since");
+  // many commits where the hash never left do not add up to a link
+  assert.equal(takesAddress({ ...base, linksSince: 0, hashChanged: false }), false);
+  // Move to Trash, then a link to the page just left: the hash is the same in the commit, a link came from outside
+  assert.equal(takesAddress({ ...base, linksSince: 1 }), true);
   // never for a layer or a terminal (their address is spent once taken)
-  assert.equal(takesAddress({ ...base, now: 9, layerOrTerminal: true }), false);
+  assert.equal(takesAddress({ ...base, linksSince: 1, layerOrTerminal: true }), false);
   // a changed hash is a link, unless the page already took that very one
-  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false, now: 8 }), true);
-  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true, now: 8 }), false);
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: false }), true);
+  assert.equal(takesAddress({ ...base, hashChanged: true, alreadyTook: true }), false);
 });

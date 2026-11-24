@@ -348,24 +348,20 @@ export function askAbout(v: string): { type: string; id: string } | null {
   return m ? { type: m[1]!, id: m[2]! } : null;
 }
 
-/** The address left and came back to the same one (two moves or more with the hash unchanged): a link to the page the person just left. One move with the same hash is the page's own report, never a link. */
-export function wentAndCame(was: number, now: number): boolean {
-  return now - was >= 2;
-}
-
 /**
- * Does the page take the address now? On a change of hash, as it always did (unless it is the one it already took). With the hash unchanged, only when the address went away and came back
- * (wentAndCame) and the address is a page, not a layer or a terminal: one move with the same hash is the page's own report or a click inside it, and the page's own state wins.
+ * Does the page take the address now? On a change of hash, as it always did (unless it is the one it already took). With the hash unchanged, only when an address came from outside since the page
+ * was last drawn (a link, a pasted address, a goto: HubState.links) and the address is a page, not a layer or a terminal. The page's own reports and a click inside it are never links, however many
+ * times the address moves, so the page's own state wins over them.
  */
 export function takesAddress(o: {
   hashChanged: boolean;
   alreadyTook: boolean;
-  was: number;
-  now: number;
+  /** Addresses that came from outside since the page was last drawn. */
+  linksSince: number;
   layerOrTerminal: boolean;
 }): boolean {
   if (o.hashChanged) return !o.alreadyTook;
-  return wentAndCame(o.was, o.now) && !o.layerOrTerminal;
+  return o.linksSince >= 1 && !o.layerOrTerminal;
 }
 
 export const TASKS_HASH = "screen=tasks.my-work";

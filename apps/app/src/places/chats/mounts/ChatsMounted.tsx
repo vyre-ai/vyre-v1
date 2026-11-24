@@ -138,8 +138,8 @@ export interface ChatsMountedProps {
   rt: ShellRuntime;
   /** The link another place opened this one with: `screen=chats.agent-page&agentId=...`. */
   hash?: string;
-  /** The hub's count of moves of the address (HubState.moves): a move away and back to the same address still reaches the page. */
-  moves?: number;
+  /** The hub's count of addresses that came from outside (HubState.links): a link back to the page just left still reaches the page. */
+  links?: number;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -169,7 +169,7 @@ export interface ChatsMountedProps {
 export function ChatsMounted({
   rt,
   hash = "",
-  moves = 0,
+  links = 0,
   initial,
   window,
   opened,
@@ -277,15 +277,14 @@ export function ChatsMounted({
   const routeFrom = useRef<string | null>(null);
   const hashNow = useRef(hash);
   hashNow.current = hash;
-  const movesSeen = useRef(moves);
+  const linksSeen = useRef(links);
   const hashSeen = useRef(hash);
   useEffect(() => {
-    // A move of the address the page did not see as a change (it left the address and came back to the same one before the page was drawn for the gap: Move to Trash on an agent's page, then a link
-    // to that agent's page) still takes the page: the hub counts every move (agent-delete.keyboard, 24 Nov 2026). The page was left on "new" and the link was lost, with no effect to run.
-    const was = movesSeen.current;
-    movesSeen.current = moves;
-    // a change of hash is a link as it always was; with the hash unchanged only an away-and-back move is one (a count that moved for any other reason must not run this body again: `linked` is
-    // cleared on purpose after a layer link, and running with it cleared would apply the address over what the person has since done): takesAddress, route.ts
+    // An address that came from outside (a link, a pasted address, a goto) while the page was drawn for the same address twice (it left the address and was sent back to it before the gap was drawn:
+    // Move to Trash on an agent's page, then a link to that agent's page) still takes the page: the hub counts the links, and the page's own reports are never among them, so a click inside
+    // the page is never overwritten (agent-delete.keyboard, kinds-b.panes, 24 Nov 2026). takesAddress, route.ts.
+    const linksSince = links - linksSeen.current;
+    linksSeen.current = links;
     const hashChanged = hash !== hashSeen.current;
     hashSeen.current = hash;
     const at = fromHash(hash);
@@ -293,8 +292,7 @@ export function ChatsMounted({
       !takesAddress({
         hashChanged,
         alreadyTook: hash === linked.current,
-        was,
-        now: moves,
+        linksSince,
         layerOrTerminal: at.layer !== null || at.terminalId !== null,
       })
     )
@@ -309,7 +307,7 @@ export function ChatsMounted({
       return next;
     });
     forgetLayerLink(hash);
-  }, [hash, moves]);
+  }, [hash, links]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
   // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
   const forgetLayerLink = (h: string): void => {
