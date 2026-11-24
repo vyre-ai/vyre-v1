@@ -64,6 +64,8 @@ export interface HubState {
   reports: number;
   /** The address of the last report a place wrote itself (what it showed when it reported): a changed address equal to it, arriving with a report and no link, is that report coming back. */
   ownHash: string;
+  /** Counts the moves that are not a place's own report (a tab switch, Back, a link, closing a tab): a report issued by a page drawn before the latest one is stale. */
+  shifts: number;
   away: boolean;
   online: boolean;
   waiting: number;
@@ -257,6 +259,7 @@ export function createShellHub(options: HubOptions): ShellHub {
   let links = 0;
   let reports = 0;
   let ownHash = "";
+  let shifts = 0;
   function build(): HubState {
     const s = open();
     const tabs = s.tabs.state();
@@ -272,6 +275,7 @@ export function createShellHub(options: HubOptions): ShellHub {
       links,
       reports,
       ownHash,
+      shifts,
       away,
       online,
       waiting,
@@ -283,11 +287,12 @@ export function createShellHub(options: HubOptions): ShellHub {
   }
   snap = build();
 
-  /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
   /** A move the person or the app made that is not a place's own report (a tab switch, Back, Forward, closing a tab, opening anything): the last own report no longer names the address on screen, so nothing can be taken for its echo. */
   const notOwn = (): void => {
     ownHash = "\u0000";
+    shifts += 1;
   };
+  /** Back or Forward in the tab on screen; the page shows what the tab shows afterwards. */
   function step(run: (tabs: TabsController) => boolean): boolean {
     notOwn();
     const s = open();
@@ -660,3 +665,9 @@ export function createShellHub(options: HubOptions): ShellHub {
 export function titleText(spaceName: string, place: PlaceId, away: boolean): string {
   return `Vyre · ${spaceName} · ${PLACE_TITLE[place]}${away ? " · Away" : ""}`;
 }
+
+/**
+ * Is a place's report stale? The place was drawn when the hub had counted `drawn` shifts; if the hub has counted more since (a tab switch, Back or a link moved the address under it), the
+ * place is reporting what it showed before that move, and writing it would put the old address back over the switch (and set the own-report claim to it).
+ */
+export const staleReport = (drawn: number, now: number): boolean => now !== drawn;

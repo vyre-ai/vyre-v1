@@ -28,7 +28,7 @@ import { formatHash } from "../hash/hash.ts";
 import { followAllTabs } from "../tabs/titles.ts";
 import { railPlaces } from "../rail/kits.ts";
 import type { PlaceId } from "../rail/kits.ts";
-import { createShellHub } from "../spaces/hub.ts";
+import { createShellHub, staleReport } from "../spaces/hub.ts";
 import { INBOX_TIP, followInboxSources, rememberInbox, seedInbox, takeInboxTip } from "../rail/inbox-sources.ts";
 import type { ShellHub } from "../spaces/hub.ts";
 import { removeSpaceFromBrowser, watchPurge, webPurgeClient } from "../spaces/purge.ts";
@@ -787,6 +787,8 @@ export function ShellHost({
         ownHash={() => hub.state().ownHash}
         opened={(t) => {
           const next = formatHash(t);
+          // a page drawn before a tab switch, Back or link reports what it showed before it: that is stale, and must not put its old address over the move
+          if (staleReport(ctx.shifts ?? hub.state().shifts, hub.state().shifts)) return;
           if (next !== ctx.hash) hub.move(ctx.place, next, true);
         }}
       />

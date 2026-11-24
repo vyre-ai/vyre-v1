@@ -2,7 +2,7 @@
 // (the same-tab navigation changes that tab), and a request for a place with no item still goes to the tab the place already has, showing what that tab shows.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createShellHub } from "./hub.ts";
+import { createShellHub, staleReport } from "./hub.ts";
 import { SEED_DEFS } from "./model.ts";
 import { placeTab, tabsStorageKey, writeTabs } from "../tabs/store.ts";
 import type { TabEntry } from "../tabs/store.ts";
@@ -115,4 +115,22 @@ test("a tab switch, Back or any move that is not a place's own report ends the c
   hub.move("chats", "", true);
   hub.closeTab();
   assert.notEqual(hub.state().ownHash, "", "closing a tab ends it");
+});
+
+test("a report issued by a page drawn before a move that is not its own is stale; showTab ends the own-report claim too", () => {
+  const task = placeTab("chats", TASK, "Sign in to olivia again");
+  const landing = placeTab("chats", "", "New chat");
+  const hub = restored([landing, task], landing.key);
+  const drawn = hub.state().shifts;
+  hub.move("chats", "", true);
+  assert.equal(hub.state().ownHash, "");
+  assert.equal(
+    staleReport(drawn, hub.state().shifts),
+    false,
+    "a place's own report does not make the next report stale",
+  );
+  hub.showTab(task);
+  assert.notEqual(hub.state().ownHash, "", "a tab switch ends the claim");
+  assert.equal(staleReport(drawn, hub.state().shifts), true, "a page drawn before the switch now reports stale");
+  assert.equal(staleReport(hub.state().shifts, hub.state().shifts), false, "a page drawn after it reports normally");
 });

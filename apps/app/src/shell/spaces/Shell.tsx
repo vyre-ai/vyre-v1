@@ -81,6 +81,8 @@ export interface PlaceContext {
   /** Addresses that came from outside so far (HubState.links): a place told the same address twice can tell a link back to it from nothing. */
   links?: number;
   reports?: number;
+  /** HubState.shifts as of this draw. */
+  shifts?: number;
   epoch: number;
   kit: KitDef;
 }
@@ -529,6 +531,7 @@ export function ShellStage({
     hash: string;
     links: number;
     reports: number;
+    shifts: number;
   };
   spaceName: string;
   kind: string;
@@ -808,6 +811,7 @@ export function Shell(props: ShellProps): ReactElement {
           hash: shown.state.hash,
           links: shown.state.links,
           reports: shown.state.reports,
+          shifts: shown.state.shifts,
           epoch: shown.state.epoch,
           kit: shown.kit,
         }}
