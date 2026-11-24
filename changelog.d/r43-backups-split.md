@@ -1,0 +1,1 @@
+- Test only: the backup names and pruning test of the installer moved to its own file, so install.round8.backups.test.ts (15 s of 30 s on a quiet box) no longer sits at the fast runner's cap on a hosted runner.
