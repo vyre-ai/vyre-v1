@@ -62,11 +62,22 @@ test("records with no created event are counted and named; an update is not an a
 });
 
 test("an announcement that names no record makes the answer \"not checked\", never degraded", () => {
-  const w = world({ party: ["rec_a", "rec_b"] }, ["rec_a", null]);
+  const w = world({ party: ["rec_a", "rec_b", "rec_c"] }, ["rec_a", null, null]);
   try {
     const f = recordEventsFinding(w.space, w.log, 1_000_000_000);
     assert.equal(f.state, "healthy");
-    assert.match(f.detail, /^Not checked: 1 announcements/);
+    assert.match(f.detail, /^Not checked: 2 announcements/);
+  } finally {
+    fs.rmSync(w.dir, { recursive: true, force: true });
+  }
+});
+
+test("one unreadable announcement hides at most one missing record: the rest are still reported", () => {
+  const w = world({ party: ["rec_a", "rec_b", "rec_c", "rec_d"] }, ["rec_a", null]);
+  try {
+    const f = recordEventsFinding(w.space, w.log, 1_000_000_000);
+    assert.equal(f.state, "degraded");
+    assert.match(f.detail, /^2 of 4 records have no record\.created event \(at least; 1 unreadable announcements/);
   } finally {
     fs.rmSync(w.dir, { recursive: true, force: true });
   }
