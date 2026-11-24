@@ -203,73 +203,83 @@ function eventsFinding(file: string, tail?: number): Finding {
   }
 }
 
-/** What a record's module event names: the event's payload holds the record's id as `recordId`. An erased event (its payload removed by a compaction) holds nothing and names no record. */
-const dec = new TextDecoder();
-export function recordEventIds(file: string): Set<string> {
+/**
+ * The ids of the records the Space log announces (events.db). The announcement is a `record.created` event whose entity is `record` and whose entity id is the record's id, both columns of the envelope, so an
+ * erased or encrypted payload still names its record. `unreadable` counts announcements with no entity id: if there are any, the answer is "cannot check".
+ */
+export function recordEventIds(file: string): { ids: Set<string>; unreadable: number } {
   const db = openDb(file, fs.existsSync(`${file}-wal`) ? { readOnly: true } : { immutable: true });
   const ids = new Set<string>();
+  let unreadable = 0;
   try {
     for (let after = 0; ; ) {
       const rows = db.all(
-        "SELECT seq, payload FROM events WHERE seq > ? AND json_extract(event, '$.type') = 'record.created' ORDER BY seq LIMIT 2000",
+        "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 5000",
         after,
-      ) as { seq: number; payload: Uint8Array }[];
+      ) as { seq: number; entity_id: string | null }[];
       if (!rows.length) break;
       for (const r of rows) {
-        try {
-          const id = (JSON.parse(dec.decode(r.payload)) as { recordId?: unknown }).recordId;
-          if (typeof id === "string") ids.add(id);
-        } catch {
-          /* an erased or encrypted payload names no record */
-        }
+        if (typeof r.entity_id === "string" && r.entity_id) ids.add(r.entity_id);
+        else unreadable++;
       }
       after = rows[rows.length - 1]!.seq;
     }
   } finally {
     db.close();
   }
-  return ids;
+  return { ids, unreadable };
 }
+
+/** A record this young may have its announcement still on its way (the call commits it at its end): never counted. */
+const ANNOUNCE_GRACE_MS = 120_000;
 
 /**
  * Records that exist in the record store (space.db, its own log) with no `record.created` event in the Space log (events.db). The record is written first and its announcement is committed at the end of the call
- * (host/src/invoke.ts), in another database file, so a stop between the two leaves a record that search, sync and Run undo never hear of. Read-only; names a few ids.
+ * (host/src/invoke.ts), in another database file, so a stop between the two leaves a record that search, sync and Run undo never hear of.
+ * Every record is made by records.create or records.bulk_upsert (an import, a sync pull, a kit's starters and an agent's work all call them), and both announce what they make, so a live record with no announcement is a
+ * stop. Nothing else makes a record: a record type promoted from a site table is a type, not a record. Records are read first and the log second, so a record made between the two reads is never reported; one
+ * younger than ANNOUNCE_GRACE_MS is not counted; and if any announcement cannot be read the answer is "not checked", never degraded. Read-only; names a few ids.
  */
-export function recordEventsFinding(spaceDb: string, eventsDb: string): Finding {
+export function recordEventsFinding(spaceDb: string, eventsDb: string, now: number = Date.now()): Finding {
   const key = "records.created_events";
   if (!fs.existsSync(spaceDb) || !fs.existsSync(eventsDb))
     return { key, state: "healthy", detail: "No records yet.", next: OK };
   try {
-    const announced = recordEventIds(eventsDb);
     const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
-    let total = 0;
-    const missing: string[] = [];
+    const live: { id: string; at: number }[] = [];
     try {
       const tables = db.all(
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
       ) as { name: string }[];
       for (const t of tables)
-        for (const r of db.all(`SELECT id FROM "${t.name}" WHERE deleted_at IS NULL`) as { id: string }[]) {
-          total++;
-          if (!announced.has(r.id)) missing.push(r.id);
-        }
+        for (const r of db.all(`SELECT id, created_at FROM "${t.name}" WHERE deleted_at IS NULL`) as { id: string; created_at: number }[])
+          live.push({ id: r.id, at: Number(r.created_at) });
     } finally {
       db.close();
     }
-    return missing.length
-      ? {
-          key,
-          state: "degraded",
-          detail: `${missing.length} of ${total} records have no record.created event (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
-          next: NEXT.recordEvents,
-        }
-      : { key, state: "healthy", detail: `All ${total} records have their created event.`, next: OK };
-  } catch (e) {
+    const { ids, unreadable } = recordEventIds(eventsDb);
+    const missing = live.filter((r) => !ids.has(r.id) && r.at < now - ANNOUNCE_GRACE_MS).map((r) => r.id);
+    if (!missing.length)
+      return { key, state: "healthy", detail: `All ${live.length} records have their created event.`, next: OK };
+    if (unreadable > 0)
+      return {
+        key,
+        state: "healthy",
+        detail: `Not checked: ${unreadable} announcements in the log name no record, so it cannot be said which records lack one.`,
+        next: OK,
+      };
     return {
       key,
       state: "degraded",
-      detail: `The records could not be compared with the log: ${e instanceof Error ? e.message : String(e)}`,
+      detail: `${missing.length} of ${live.length} records have no record.created event (for example ${missing.slice(0, 3).join(", ")}), so search, sync and Run undo do not see them.`,
       next: NEXT.recordEvents,
+    };
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the records could not be compared with the log (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
     };
   }
 }
