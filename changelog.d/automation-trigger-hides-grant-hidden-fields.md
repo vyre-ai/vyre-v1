@@ -1,0 +1,1 @@
+An Automation sees a changed record the way its owner may see it: the trigger payload, its filter and every step read only the fields the owner's grants allow, and a record the owner may not see starts nothing.
