@@ -73,6 +73,10 @@ export interface HarnessOptions {
   /** the kernel's answer for view/manage on automations held through a role or grant; the default denies */
   authorize?: Authorize;
   calls?: Record<string, Callee>;
+  /** the host's field rule for a person and a record (ctx.recordFieldGate); the default ctx has none, as a hand-built one */
+  recordFieldGate?: (person: string, type: string, recordId: string) => Promise<((field: string) => boolean) | null>;
+  /** the host's ctx.mayAll */
+  mayAll?: (people: readonly string[], type: string) => boolean;
 }
 
 export interface FakeRun {
@@ -210,6 +214,8 @@ export function harness(o: HarnessOptions = {}) {
         return f(input, who);
       },
       authorize: (action, resource) => ({ effect: authorize(who, action, resource) ? "allow" : "deny" }),
+      ...(o.recordFieldGate ? { recordFieldGate: o.recordFieldGate } : {}),
+      ...(o.mayAll ? { mayAll: (people, _action, resource) => o.mayAll!(people, resource.id ?? "") } : {}),
     };
   }
 

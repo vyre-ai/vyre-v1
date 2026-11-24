@@ -1,0 +1,1 @@
+An Automation's past runs are shown to its person as that person may see the record now: test events, a test from a past event and a replay carry only the fields their grants allow, and a deletion starts an Automation only for a person who may still see the type.
