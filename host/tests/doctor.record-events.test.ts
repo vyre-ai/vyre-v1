@@ -26,19 +26,17 @@ function world(records: Record<string, string[]>, announced: (string | null)[], 
   const log = new DatabaseSync(path.join(dir, "events.db"));
   log.exec(SCHEMA);
   announced.forEach((id, i) =>
-    log
-      .prepare("INSERT INTO events (seq, event, payload) VALUES (?, ?, ?)")
-      .run(
-        i + 1,
-        JSON.stringify({
-          id: `evt_${i}`,
-          type: "record.created",
-          seq: i + 1,
-          entity: "record",
-          ...(id === null ? {} : { entity_id: id }),
-        }),
-        enc.encode(JSON.stringify({ recordId: id, type: "party" })),
-      ),
+    log.prepare("INSERT INTO events (seq, event, payload) VALUES (?, ?, ?)").run(
+      i + 1,
+      JSON.stringify({
+        id: `evt_${i}`,
+        type: "record.created",
+        seq: i + 1,
+        entity: "record",
+        ...(id === null ? {} : { entity_id: id }),
+      }),
+      enc.encode(JSON.stringify({ recordId: id, type: "party" })),
+    ),
   );
   log.exec(
     `INSERT INTO events (seq, event, payload) VALUES (1000, '{"id":"evt_u","type":"record.updated","entity":"record","entity_id":"rec_c"}', x'7b7d')`,
