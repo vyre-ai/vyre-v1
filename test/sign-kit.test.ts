@@ -99,15 +99,33 @@ export async function signByTyping(page: Page, name: string, before?: () => Prom
 export async function signByDrawing(page: Page, name: string, before?: () => Promise<unknown>): Promise<void> {
   await page.locator(".page canvas").first().waitFor({ timeout: 30_000 });
   await page.click("#tab-draw");
+  // The pad is sized one animation frame after Draw, and the document's pages keep rendering above the signing card on a slow first load, so the pad can move after its box is read and the stroke then lands beside it
+  // (no pointerdown on the pad, no ink, Sign stays disabled). Scroll it into view and read its box only once it has held the same place for two frames.
+  await page.locator("#drawpad").scrollIntoViewIfNeeded();
+  await page.waitForFunction(
+    () => {
+      const w = window as unknown as { __padBox?: string; __padHeld?: number };
+      const r = document.getElementById("drawpad")!.getBoundingClientRect();
+      const now = [r.x, r.y, r.width, r.height].map((n) => Math.round(n * 10)).join(",");
+      w.__padHeld = now === w.__padBox && r.width > 0 ? (w.__padHeld ?? 0) + 1 : 0;
+      w.__padBox = now;
+      return w.__padHeld >= 2;
+    },
+    undefined,
+    { polling: "raf", timeout: 10_000 },
+  );
   const box = (await page.locator("#drawpad").boundingBox())!;
   await page.mouse.move(box.x + 24, box.y + box.height * 0.6);
   await page.mouse.down();
   for (let i = 0; i < 36; i++)
     await page.mouse.move(box.x + 24 + i * ((box.width - 48) / 36), box.y + box.height * 0.55 + Math.sin(i / 2.5) * 28);
   await page.mouse.up();
+  // the page hides the "Draw your signature here" hint on the first pointerdown on the pad: the stroke reached the pad (a miss fails here, at once, and not 30 s later at Sign)
+  await page.locator("#padhint").waitFor({ state: "hidden", timeout: 5_000 });
   await page.check("#consent");
   await page.locator("#signcard").scrollIntoViewIfNeeded();
   await before?.();
+  await page.locator("#signbtn:not([disabled])").waitFor({ timeout: 5_000 });
   await page.click("#signbtn");
   await page.getByText(`Thank you, ${name.split(" ")[0]}`).waitFor({ timeout: 30_000 });
 }
