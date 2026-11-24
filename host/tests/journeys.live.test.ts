@@ -339,18 +339,25 @@ test("the move onto the new form starts no Automation, though one listens for ev
     await started(d, j.id, "Bolt Quiet");
     // a plain edit of a company is a change: the Automation runs for it (the control, so a silent Automation cannot pass this test)
     const subjectId = await subject(d, "Control Co");
-    await until("the Automation to run for an ordinary change", 8000, async () =>
-      (await runs()) > 0 ? true : undefined,
+    // every ordinary change starts one run: the two subjects of the journey and the control. On a busy box they arrive one after the other, so the baseline is taken when all of them are in, not at the first
+    // (a run still on its way would be counted as one the migration started)
+    await until("the Automation to run for each ordinary change", 8000, async () =>
+      (await runs()) >= 3 ? true : undefined,
     );
     const before = await runs();
-    assert.ok(before > 0);
+    assert.ok(before >= 3);
     await d.hooks!.runPeriodic("journeys.auto_pipeline");
     assert.equal(
       ((await ok(d, "/v1/journeys/get", { journeyId: j.id }))["journey"] as { mode: string }).mode,
       "pipeline",
     );
+    // a later ordinary change is the marker: its run is behind anything the migration had queued, so once it has run, a run the migration started would be counted too (the control is never silent, above)
+    await subject(d, "Marker Co");
+    await until("the Automation to run for the change after the migration", 8000, async () =>
+      (await runs()) > before ? true : undefined,
+    );
     await new Promise((r) => setTimeout(r, 1500));
-    assert.equal(await runs(), before, "the migration's writes started nothing");
+    assert.equal(await runs(), before + 1, "the migration's writes started nothing (only the marker's own run is new)");
     void subjectId;
   } finally {
     await d.stop();
