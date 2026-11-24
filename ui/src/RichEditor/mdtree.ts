@@ -140,9 +140,23 @@ function firstOf(src: string, cache: SearchCache, chars: string[], from: number)
   }
   return best;
 }
+/** The plain text of one scan: what is collected (`buf`) and, when plain characters are being taken straight from the source, where that run began (`rs`, -1 for none; the run ends at the scan's position). */
+interface Run {
+  buf: string;
+  rs: number;
+}
+/** Folds the run of plain characters [rs, i) into `buf`. Everything that adds to `buf` or sends it out goes through here first, so no character of a run is lost. */
+function foldRun(r: Run, src: string, i: number): void {
+  if (r.rs >= 0) {
+    r.buf += src.slice(r.rs, i);
+    r.rs = -1;
+  }
+}
 /** The text so far goes out as a piece. */
-function flushTo(out: Piece[], buf: string, marks: readonly PMMark[]): void {
-  if (buf !== "") out.push({ text: buf, marks: [...marks] });
+function flushRun(r: Run, src: string, i: number, out: Piece[], marks: readonly PMMark[]): void {
+  foldRun(r, src, i);
+  if (r.buf !== "") out.push({ text: r.buf, marks: [...marks] });
+  r.buf = "";
 }
 
 /**
@@ -150,9 +164,7 @@ function flushTo(out: Piece[], buf: string, marks: readonly PMMark[]): void {
  * need: the search caches are made when first used, and there are no helper closures to build.
  */
 function scan(src: string, marks: readonly PMMark[], out: Piece[], before: string): void {
-  let buf = "";
-  // the start of the plain characters taken verbatim from `src` since the last thing that was not (they end at `i`): one slice instead of a string built a character at a time
-  let rs = -1;
+  const run: Run = { buf: "", rs: -1 };
   let i = 0;
   let cache: SearchCache | undefined;
   let fails: Fails | undefined;
@@ -164,24 +176,14 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
         CHIP.lastIndex = i;
         hit = CHIP.exec(src);
         if (hit) {
-          if (rs >= 0) {
-            buf += src.slice(rs, i);
-            rs = -1;
-          }
-          flushTo(out, buf, marks);
-          buf = "";
+          flushRun(run, src, i, out, marks);
           out.push({ chip: hit[1] ?? "", marks: [...marks] });
           i += hit[0].length;
           continue;
         }
         const c = criticAt(src, i);
         if (c) {
-          if (rs >= 0) {
-            buf += src.slice(rs, i);
-            rs = -1;
-          }
-          flushTo(out, buf, marks);
-          buf = "";
+          flushRun(run, src, i, out, marks);
           if (c.kind === "add") scan(c.added, [...marks, sgMark("suggestAdd", c.author, c.at, false)], out, "");
           else if (c.kind === "del") scan(c.old, [...marks, sgMark("suggestDel", c.author, c.at, false)], out, "");
           else {
@@ -192,45 +194,32 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
           continue;
         }
       }
-      if (rs < 0) rs = i;
+      if (run.rs < 0) run.rs = i;
       i += 1;
       continue;
     }
     // an ordinary letter starts nothing: it is added without cutting the rest of the text off (that copy made a long paragraph cost its length squared)
     if (!PLAIN_STOP.has(ch)) {
-      if (rs < 0) rs = i;
+      if (run.rs < 0) run.rs = i;
       i += 1;
       continue;
     }
     const rest = src.slice(i);
     if (ch === "\n") {
-      if (rs >= 0) {
-        buf += src.slice(rs, i);
-        rs = -1;
-      }
-      flushTo(out, buf, marks);
-      buf = "";
+      flushRun(run, src, i, out, marks);
       out.push("br");
       i += 1;
       continue;
     }
     if (ch === "\\" && rest.length > 1 && ESCAPABLE.test(rest.charAt(1))) {
-      if (rs >= 0) {
-        buf += src.slice(rs, i);
-        rs = -1;
-      }
-      buf += rest.charAt(1);
+      foldRun(run, src, i);
+      run.buf += rest.charAt(1);
       i += 2;
       continue;
     }
     let m: RegExpExecArray | null = null;
     if (ch === "`" && (m = /^(`+)(?!`)([\s\S]*?[^`])\1(?!`)/.exec(rest))) {
-      if (rs >= 0) {
-        buf += src.slice(rs, i);
-        rs = -1;
-      }
-      flushTo(out, buf, marks);
-      buf = "";
+      flushRun(run, src, i, out, marks);
       const body = (m[2] ?? "").replace(/^ (.*[^ ].*) $/s, "$1");
       out.push({ text: body, marks: [...marks, { type: "code" }] });
       i += m[0].length;
@@ -251,12 +240,7 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       ).exec(rest);
       if (!m) (fails ??= new Map()).set(ch + ch, { from: i, until: Infinity });
       else {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        flushTo(out, buf, marks);
-        buf = "";
+        flushRun(run, src, i, out, marks);
         scan(m[1] ?? "", [...marks, mark("bold")], out, "");
         i += m[0].length;
         continue;
@@ -266,12 +250,7 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       m = /^~~(?=\S)([\s\S]+?)(?<=\S)~~(?!~)/.exec(rest);
       if (!m) (fails ??= new Map()).set("~~", { from: i, until: Infinity });
       else {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        flushTo(out, buf, marks);
-        buf = "";
+        flushRun(run, src, i, out, marks);
         scan(m[1] ?? "", [...marks, mark("strike")], out, "");
         i += m[0].length;
         continue;
@@ -282,12 +261,7 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       if (!m)
         (fails ??= new Map()).set("*", { from: i, until: firstOf(src, (cache ??= new Map()), ["*", "\n"], i + 1) });
       else {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        flushTo(out, buf, marks);
-        buf = "";
+        flushRun(run, src, i, out, marks);
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
         i += m[0].length;
         continue;
@@ -298,12 +272,7 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
       if (!m)
         (fails ??= new Map()).set("_", { from: i, until: firstOf(src, (cache ??= new Map()), ["_", "\n"], i + 1) });
       else {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        flushTo(out, buf, marks);
-        buf = "";
+        flushRun(run, src, i, out, marks);
         scan(m[1] ?? "", [...marks, mark("italic")], out, "");
         i += m[0].length;
         continue;
@@ -312,11 +281,8 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     if (ch === "!" && c1 === "[") {
       const l = linkAt(src, i + 1, true, (cache ??= new Map()));
       if (l) {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        buf += src.slice(i, i + 1 + l.len);
+        foldRun(run, src, i);
+        run.buf += src.slice(i, i + 1 + l.len);
         i += 1 + l.len;
         continue;
       }
@@ -324,26 +290,16 @@ function scan(src: string, marks: readonly PMMark[], out: Piece[], before: strin
     if (ch === "[") {
       const l = linkAt(src, i, false, (cache ??= new Map()));
       if (l) {
-        if (rs >= 0) {
-          buf += src.slice(rs, i);
-          rs = -1;
-        }
-        flushTo(out, buf, marks);
-        buf = "";
+        flushRun(run, src, i, out, marks);
         scan(l.text, [...marks.filter((x) => x.type !== "link"), mark("link", l.href, l.title)], out, "");
         i += l.len;
         continue;
       }
     }
-    if (rs < 0) rs = i;
+    if (run.rs < 0) run.rs = i;
     i += 1;
   }
-  if (rs >= 0) {
-    buf += src.slice(rs, i);
-    rs = -1;
-  }
-  flushTo(out, buf, marks);
-  buf = "";
+  flushRun(run, src, i, out, marks);
 }
 
 /** Do two attribute sets hold the same values? (keys with no value count as absent, as they do in JSON). Primitive values only (strings, booleans): an object value would compare by identity. */
