@@ -13,6 +13,7 @@ import { startGuard } from "./support/loop-guard-kit.ts";
 import type { Guard } from "./support/loop-guard-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import { syncCounts, readCounts } from "../modules/access/consumers.ts";
+import { AccessStore } from "../modules/access/projections.ts";
 
 const BOUND_MS = Number(process.env["LOOP_BOUND_MS"] ?? 100);
 const SCALE = Number(process.env["LOOP_SCALE"] ?? 1);
@@ -68,6 +69,16 @@ test(
       // 2. start-up on that data: the guard is running before the daemon starts
       let clock = Date.now();
       let counters = "";
+      // who hydrates the access store: every full read of the access tables, grouped by the frames that asked
+      const hydrators = new Map<string, number>();
+      const proto = AccessStore.prototype as unknown as { hydrate: (...a: unknown[]) => unknown };
+      const hydrateWas = proto.hydrate;
+      proto.hydrate = function (this: unknown, ...a: unknown[]) {
+        const frames = (new Error().stack ?? "").split("\n").slice(2, 9).map((f) => f.trim().replace(/^at /, "").replace(/\(?file:\/\/\/[^)]*\/(modules|host)\//, "(").slice(0, 90));
+        const key = frames.filter((f) => !/projections\.ts/.test(f)).slice(0, 3).join(" < ");
+        hydrators.set(key, (hydrators.get(key) ?? 0) + 1);
+        return hydrateWas.apply(this, a);
+      };
       const g = startGuard(BOUND_MS);
       g.phase("start-up");
       try {
@@ -86,7 +97,7 @@ test(
         // 4. two 10-minute ticks, with the requests going on while the jobs run
         for (const k of [1, 2]) {
           g.phase(`tick ${k}`);
-          clock += TICK_MS + 1_000;
+          clock += TICK_MS + 61_000; // the staggered jobs (up to 60 s after their boundary) are all due
           const tick = d.scheduler.tick();
           const requests = (async () => {
             for (let round = 10 * k; round < 10 * k + 3; round++) await everyday(d, g, ctx, round);
@@ -97,9 +108,10 @@ test(
           while (d.scheduler.runningNames().length && Date.now() < until) await new Promise((ok) => setTimeout(ok, 200));
         }
         snap("after the ticks");
-        counters = counts.join("\n");
+        counters = `${counts.join("\n")}\nhydrated by:\n${[...hydrators.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `  ${n}x ${k}`).join("\n")}`;
       } finally {
         g.stop();
+        proto.hydrate = hydrateWas;
       }
       const out = process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(dir, "capture");
       fs.mkdirSync(`${out}/loop-guard`, { recursive: true });

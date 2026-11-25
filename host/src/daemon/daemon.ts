@@ -2025,6 +2025,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   });
   const scheduler = new Scheduler({
     now,
+    stagger: true,
     tickMs: o.intervals?.tick ?? 1000,
     log: sink.logger({ space: space ?? "-", place: "scheduler" }),
     onRun: jobRanLog(sink, () => space ?? "-"),
