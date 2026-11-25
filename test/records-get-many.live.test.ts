@@ -80,3 +80,64 @@ test("a record the member may not see is absent, never an error, and the answer 
   assert.equal(onlyHidden.ok, true);
   assert.deepEqual((onlyHidden.data as { rows: Row[] }).rows, []);
 });
+
+import { join } from "./support/member-hour.ts";
+import type { Person } from "./support/member-hour.ts";
+
+let guests = 0;
+async function holder(role: string): Promise<Person> {
+  const n = ++guests;
+  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  const username = `gm${role.toLowerCase()}${n}`;
+  const inv = await h.owner.call("members.invites.create", {
+    role: roles.find((r) => r.name === role)!.id,
+    email: `${username}@firm.test`,
+  });
+  const p = h.person(`Gm ${role} ${n}`, username, `${username}@firm.test`, `${username} horse battery staple 9`);
+  await join(h, p, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
+  return p;
+}
+const shareRecord = (id: string, p: Person, key: string) =>
+  h.owner.call("access.share", {
+    resource: { type: "record", id },
+    subject: { kind: "person", id: p.personId },
+    level: "view",
+    idempotencyKey: key,
+  });
+
+test("a Guest who holds only one record's share reads that record through get_many exactly as records.get gives it, and the others are absent", async () => {
+  const mine = await make("Gm Shared To Guest", { email: "g@gm.test" });
+  const other = await make("Gm Not Shared", { email: "o@gm.test" });
+  const g = await holder("Guest");
+  await shareRecord(mine, g, `gm-guest-${mine}`);
+  const one = await g.attempt("records.get", { type: "contact", recordId: mine });
+  assert.equal(one.ok, true, "records.get serves this person");
+  const many = await g.attempt("records.get_many", { type: "contact", ids: [other, mine] });
+  assert.equal(many.ok, true, `get_many serves them too: ${JSON.stringify(many)}`);
+  const rows = (many.data as { rows: Row[] }).rows;
+  assert.deepEqual(
+    rows.map((r) => r.id),
+    [mine],
+  );
+  assert.deepEqual(rows[0], (one.data as { record: Row }).record, "the same row records.get gives");
+  assert.equal(JSON.stringify(many.data).includes(other), false, "the other record is not named");
+  assert.equal((await g.attempt("records.get", { type: "contact", recordId: other })).ok, false);
+});
+
+test("a record whose own label is above the member's clearance is absent from the answer: no error, no id named", async () => {
+  const open = await make("Gm Open Label");
+  const high = await make("Gm Restricted Label");
+  await h.owner.call("access.labels.set", { resource: { type: "record", id: high }, label: "restricted" });
+  const m = await holder("Member");
+  await shareRecord(open, m, `gm-label-a-${open}`);
+  await shareRecord(high, m, `gm-label-b-${high}`);
+  const direct = await m.attempt("records.get", { type: "contact", recordId: high });
+  assert.equal(direct.ok, false, "records.get refuses the restricted record for this member");
+  const many = await m.attempt("records.get_many", { type: "contact", ids: [high, open] });
+  assert.equal(many.ok, true, "no error");
+  assert.deepEqual(
+    (many.data as { rows: Row[] }).rows.map((r) => r.id),
+    [open],
+  );
+  assert.equal(JSON.stringify(many.data).includes(high) || JSON.stringify(many.data).includes("Restricted"), false);
+});

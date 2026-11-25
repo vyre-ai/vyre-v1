@@ -158,10 +158,18 @@ export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged:
 }
 
 /** The mark as the resource holds it now. A record is replaced, never edited (see applyEvent). */
-function setTrash(store: AccessStore, id: string, root: string | null): boolean {
+function setTrash(store: AccessStore, id: string, root: string | null, idx?: TrashIndex): boolean {
   const r = store.resources.get(id);
   if (!r || (r.type !== "file" && r.type !== "folder")) return false;
   const had = r.row?.[TRASH_KEY];
+  if (idx?.byRoot) {
+    if (typeof had === "string") idx.byRoot.get(had)?.delete(id);
+    if (root !== null) {
+      const at = idx.byRoot.get(root);
+      if (at) at.add(id);
+      else idx.byRoot.set(root, new Set([id]));
+    }
+  }
   if (root === null) {
     if (had === undefined) return false;
     const { [TRASH_KEY]: _t, ...rest } = r.row ?? {};
@@ -176,21 +184,78 @@ function setTrash(store: AccessStore, id: string, root: string | null): boolean 
   return true;
 }
 
-/** The files and folders under a folder (its descendants in the resource tree, the folder itself not included). One pass over the store, however deep the tree. */
-function underFolder(store: AccessStore, folderId: string): string[] {
-  const kids = new Map<string, string[]>();
-  for (const r of store.resources.values()) {
-    if (r.parentId === null || (r.type !== "file" && r.type !== "folder")) continue;
-    const at = kids.get(r.parentId);
-    if (at) at.push(r.id);
-    else kids.set(r.parentId, [r.id]);
+/**
+ * What a batch of Trash events looks things up in, built once from the store the first time one of them needs it and kept up to date by the marks the batch itself sets: the children of each file or folder
+ * (by parent id), and the ids that carry each root's mark. A step in the store that is not a Trash event drops it (the caller sets `idx.kids = null`). Without it every event walked every resource in the store.
+ */
+export interface TrashIndex {
+  kids: Map<string, string[]> | null;
+  byRoot: Map<string, Set<string>> | null;
+  /** how many more marks this call may set (a folder of ten thousand files is set in steps, see TRASH_STEP) */
+  left: number;
+  /** the marks still to set or clear, in the order of their events: the store's own queue */
+  backlog: TrashTask[];
+}
+/** What is left of a folder's Trash or restore: the ids still to mark with `root` (set), or to take the mark `root` off (clear). */
+interface TrashTask {
+  root: string;
+  set: boolean;
+  ids: string[];
+  at: number;
+}
+/** How many marks one call of access.sync sets or clears at most: about 15 ms of the server's loop (a folder of 10,000 files cost 70 to 110 ms in one call). The rest is done by the calls that follow (hostCalls access.trash_pending). */
+export const TRASH_STEP = 2000;
+const BACKLOGS = new WeakMap<AccessStore, TrashTask[]>();
+/** How many marks the store still has to set or clear (the host calls access.sync again, with no events, until this is 0). */
+export const pendingTrash = (store: AccessStore): number =>
+  (BACKLOGS.get(store) ?? []).reduce((n, t) => n + t.ids.length - t.at, 0);
+export function newTrashIndex(store?: AccessStore, step: number = TRASH_STEP): TrashIndex {
+  let backlog: TrashTask[] = [];
+  if (store) {
+    backlog = BACKLOGS.get(store) ?? [];
+    BACKLOGS.set(store, backlog);
+  }
+  return { kids: null, byRoot: null, left: step, backlog };
+}
+
+/** Do the marks that are still queued: all of them (`all`, before an event that could meet them) or as many as this call has left. */
+export function drainTrash(store: AccessStore, idx: TrashIndex, all: boolean): string[] {
+  const touched: string[] = [];
+  while (idx.backlog.length) {
+    const t = idx.backlog[0]!;
+    while (t.at < t.ids.length && (all || idx.left > 0)) {
+      const id = t.ids[t.at++]!;
+      const had = store.resources.get(id)?.row?.[TRASH_KEY];
+      // a set takes only what is not marked; a clear takes off only the mark of its own root
+      if (t.set ? had === undefined : had === t.root) {
+        if (setTrash(store, id, t.set ? t.root : null, idx)) touched.push(id);
+        idx.left--;
+      }
+    }
+    if (t.at < t.ids.length) break;
+    idx.backlog.shift();
+  }
+  return touched;
+}
+
+/** The files and folders under a folder (its descendants in the resource tree, the folder itself not included), by the children index. */
+function underFolder(store: AccessStore, folderId: string, idx: TrashIndex): string[] {
+  if (!idx.kids) {
+    const kids = new Map<string, string[]>();
+    for (const r of store.resources.values()) {
+      if (r.parentId === null || (r.type !== "file" && r.type !== "folder")) continue;
+      const at = kids.get(r.parentId);
+      if (at) at.push(r.id);
+      else kids.set(r.parentId, [r.id]);
+    }
+    idx.kids = kids;
   }
   const out: string[] = [];
   const seen = new Set<string>([folderId]);
   for (let at = [folderId]; at.length; ) {
     const next: string[] = [];
     for (const id of at)
-      for (const kid of kids.get(id) ?? [])
+      for (const kid of idx.kids.get(id) ?? [])
         if (!seen.has(kid)) {
           seen.add(kid);
           out.push(kid);
@@ -201,16 +266,39 @@ function underFolder(store: AccessStore, folderId: string): string[] {
   return out;
 }
 
+/** The ids that carry this root's mark. */
+function markedBy(store: AccessStore, root: string, idx: TrashIndex): string[] {
+  if (!idx.byRoot) {
+    const by = new Map<string, Set<string>>();
+    for (const r of store.resources.values()) {
+      const m = r.row?.[TRASH_KEY];
+      if (typeof m !== "string") continue;
+      const at = by.get(m);
+      if (at) at.add(r.id);
+      else by.set(m, new Set([r.id]));
+    }
+    idx.byRoot = by;
+  }
+  return [...(idx.byRoot.get(root) ?? [])];
+}
+
 /**
  * Files' Trash events, folded into the Trash mark of the file and folder resources (projections.ts TRASH_KEY). The mark holds what Files' own Trash row holds as root_id, so a folder put in Trash takes
  * with it only what was not in Trash already, and bringing the folder back brings back only what it took (a file that was trashed by itself stays in Trash). A file taken out of Trash on its own
  * loses its mark whatever its root was. A purge marks too: whatever is left of a purged file or folder in the store is never listed. Answers the ids whose rows changed, or null for an event that is not one of these.
  */
-export function trashEvent(store: AccessStore, e: LogEvent): string[] | null {
+export function trashEvent(
+  store: AccessStore,
+  e: LogEvent,
+  idx: TrashIndex = newTrashIndex(undefined, Number.POSITIVE_INFINITY),
+): string[] | null {
   const p = rec(e.payload);
   const touched: string[] = [];
+  if (!/^(file|folder)\.(deleted|restored|purged)$/.test(e.type)) return null;
+  // an event that is met while marks are still queued finds them done: the order of the events is the order of the marks
+  touched.push(...drainTrash(store, idx, true));
   const mark = (id: string, root: string | null): void => {
-    if (setTrash(store, id, root)) touched.push(id);
+    if (setTrash(store, id, root, idx)) touched.push(id);
   };
   switch (e.type) {
     case "file.deleted":
@@ -229,15 +317,29 @@ export function trashEvent(store: AccessStore, e: LogEvent): string[] | null {
       const id = str(p["folderId"]);
       if (!id) return touched;
       mark(id, id);
-      // under it: only what is not marked yet (a file or folder that was in Trash before keeps its own root)
-      for (const child of underFolder(store, id))
-        if (store.resources.get(child)?.row?.[TRASH_KEY] === undefined) mark(child, id);
+      // under it: only what is not marked yet (a file or folder that was in Trash before keeps its own root); what this call has no room for is queued
+      const rest: string[] = [];
+      for (const child of underFolder(store, id, idx)) {
+        if (store.resources.get(child)?.row?.[TRASH_KEY] !== undefined) continue;
+        if (idx.left > 0) {
+          idx.left--;
+          mark(child, id);
+        } else rest.push(child);
+      }
+      if (rest.length) idx.backlog.push({ root: id, set: true, ids: rest, at: 0 });
       return touched;
     }
     case "folder.restored": {
       const id = str(p["folderId"]);
       if (!id) return touched;
-      for (const r of [...store.resources.values()]) if (r.row?.[TRASH_KEY] === id) mark(r.id, null);
+      const rest: string[] = [];
+      for (const marked of markedBy(store, id, idx)) {
+        if (idx.left > 0) {
+          idx.left--;
+          mark(marked, null);
+        } else rest.push(marked);
+      }
+      if (rest.length) idx.backlog.push({ root: id, set: false, ids: rest, at: 0 });
       return touched;
     }
     default:
@@ -442,6 +544,8 @@ function apply(
   store: AccessStore,
   events: readonly LogEvent[],
   grantAt: number = at,
+  /** how many Trash marks this call sets at most; the call with no host to call it again passes Infinity */
+  step: number = TRASH_STEP,
 ): { touched: Set<string>; marks: Set<string>; rebuild: boolean } {
   let cursor = cursorOf(store),
     changed = false,
@@ -449,6 +553,12 @@ function apply(
   const touched = new Set<string>();
   // the rows whose Trash mark moved: written like a registration, but nothing about who may see them changed, so the snapshot does not take them again
   const marks = new Set<string>();
+  const idx = newTrashIndex(store, step);
+  // marks queued by an earlier call are set first, as many as this call has room for
+  for (const id of drainTrash(store, idx, false)) {
+    changed = true;
+    marks.add(id);
+  }
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
@@ -469,7 +579,7 @@ function apply(
       // a file or folder that was put in Trash before the module kept the mark (the host reads Files' Trash rows at every start): set the mark, change nothing else (idempotent)
       if (rec(e.payload)["trash_only"] === true) {
         const root = str(rec(e.payload)["trash_root"]);
-        if (root && setTrash(store, id, root)) {
+        if (root && setTrash(store, id, root, idx)) {
           changed = true;
           marks.add(id);
         }
@@ -494,7 +604,7 @@ function apply(
       }
     }
     // Files' Trash events change a mark on the rows of the files and folders they name, nothing else: written like a registration (those rows only), the snapshot is not built again
-    const marked = trashEvent(store, e);
+    const marked = trashEvent(store, e, idx);
     if (marked) {
       if (marked.length) {
         changed = true;
@@ -505,6 +615,8 @@ function apply(
     }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
+      idx.kids = null; // a registration or a move: the children index is out of date
+      idx.byRoot = null;
       if (e.type === "resource.created") {
         const id = str(rec(e.payload)["id"]);
         if (id) touched.add(id);
@@ -520,7 +632,8 @@ function apply(
     store.persist(db);
     return { touched, marks, rebuild: true };
   }
-  store.persistResources(db, marks.size ? new Set([...touched, ...marks]) : touched, moved);
+  if (marks.size) store.persistMarks(db, marks);
+  store.persistResources(db, touched, moved);
   return { touched, marks, rebuild: false };
 }
 
@@ -787,13 +900,19 @@ export const hostCalls = {
     return actor ? { actorId: actor.id } : null;
   },
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
+  /** How many Trash marks are still queued (a folder of many thousand files is marked in steps): the host calls access.sync with no events until it is 0. */
+  "access.trash_pending": (ctx: Ctx): number => {
+    const key = rawDbOf((ctx as unknown as AccessCtx).db);
+    const kept = key ? SYNCED.get(key) : undefined;
+    return kept ? pendingTrash(kept.store) : 0;
+  },
   "access.sync": (ctx: Ctx, input: { events: LogEvent[] }): AccessSnapshot => {
     const actx = ctx as unknown as AccessCtx;
     const key = rawDbOf(actx.db);
     if (key) return syncKept(actx, key, input.events);
     // a db handle the host did not make (a test's own): the store of that handle, as before
     const store = storeOf(actx);
-    apply(actx.db, actx.now(), store, input.events);
+    apply(actx.db, actx.now(), store, input.events, actx.now(), Number.POSITIVE_INFINITY);
     return withRoleGrants(store.snapshot(), store, actx.space);
   },
   /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */

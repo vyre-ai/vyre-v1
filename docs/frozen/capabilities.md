@@ -1051,9 +1051,10 @@ Signed: 24 Nov 2026, lead.
 
 - What changes, no contract field: `access.lists` for type `file` or `folder` (rows, and the section counts) and `folders.list` no longer list a file or folder that Files has put in Trash, whatever the caller's access to it; bringing it back lists it again. A folder in Trash takes what was under it, and bringing the folder back brings back only what it took (a file that was in Trash by itself stays there). A file or folder deleted for good is never listed.
 - How: no new capability and no call to Files. The access module folds Files' own events (`file.deleted`, `file.restored`, `file.purged`, `folder.deleted`, `folder.restored`, `folder.purged`, all already declared) into a mark on its own resource row (`access_resources.row_json`, key `trashRoot`; no migration), and the lists read the mark with the rows they already read. At every start the server also sets the mark for what Files' Trash rows already name. The mark is not part of who may see a thing, so no share row is worked out again for it.
+- A folder of many thousand files is marked in steps of 2,000 rows a call: the host calls `access.sync` again with no events (asking the host call `access.trash_pending`, server only, never a capability) until none are left, so the loop is held about 15 ms at a time (a 10,000-item folder in a Space of 40,000 resources held it 118 to 146 ms in one call before). The write that put the folder in Trash is answered after the last step.
 - Replaces the rejected `files.live_among` design (a call to Files once for each 500 rows): there is nothing to ask about an id the caller cannot see.
 
-Signed:
+Signed: 25 Nov 2026, lead.
 
 ## 25 Nov 2026: new capability records.get_many, up to 200 records of one type by id in one call (lane r44-trash), for the lead to sign
 
@@ -1062,4 +1063,4 @@ Signed:
 - Agent tool `records_get_many` in the `records` tool set; the tool-token counts move by about +540 characters (MCP bridge 681,384 to 681,926), under the limits 575,029 and 689,545; scripts/tool-tokens-baseline.json is unchanged.
 - Snapshots: docs/frozen/snapshots/records.json.
 
-Signed:
+Signed: 25 Nov 2026, lead.

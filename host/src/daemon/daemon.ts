@@ -4053,6 +4053,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending = [...es, ...accessPending];
         },
         pending: () => accessPending.length,
+        trashPending: async () => {
+          try {
+            return Number(await hookRunner.call("access.trash_pending", {})) || 0;
+          } catch {
+            return 0;
+          }
+        },
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
         call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
