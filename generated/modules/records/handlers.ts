@@ -21,6 +21,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "records.export": Handler<"records.export", X>;
   "records.gap_check": Handler<"records.gap_check", X>;
   "records.get": Handler<"records.get", X>;
+  "records.get_many": Handler<"records.get_many", X>;
   "records.history": Handler<"records.history", X>;
   "records.hold": Handler<"records.hold", X>;
   "records.merge": Handler<"records.merge", X>;

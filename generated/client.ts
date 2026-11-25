@@ -2419,6 +2419,7 @@ export function createClient(transport: Transport) {
       export: call("records.export", 1),
       gap_check: call("records.gap_check", 1),
       get: call("records.get", 1),
+      get_many: call("records.get_many", 1),
       history: call("records.history", 1),
       hold: call("records.hold", 1),
       merge: call("records.merge", 1),

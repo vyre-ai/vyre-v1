@@ -249,6 +249,18 @@ export default defineManifest({
       label: "check",
       cli: "vyre records get",
     }),
+    read(
+      "records.get_many",
+      "Read up to 200 records of one type by id in one call: each comes back as records.get gives it, with the fields the caller's grant, label and provider allow; an id that does not exist or that the caller may not see is simply not in the answer",
+      {
+        level: "member",
+        in: { type: id.recordType, ids: t.arr(id.record, { maxItems: 200 }) },
+        out: { rows: t.arr(recordRow) },
+        on: ["record_type", "/type"],
+        tool: "records",
+        label: "check",
+      },
+    ),
     read("records.query", "Query rows of a record type with filter, sort, group and window", {
       in: { type: id.recordType, ...viewSpec, ...pageIn },
       out: { rows: t.arr(recordRow), ...pageOut },

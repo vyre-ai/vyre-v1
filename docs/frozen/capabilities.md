@@ -1054,3 +1054,12 @@ Signed: 24 Nov 2026, lead.
 - Replaces the rejected `files.live_among` design (a call to Files once for each 500 rows): there is nothing to ask about an id the caller cannot see.
 
 Signed:
+
+## 25 Nov 2026: new capability records.get_many, up to 200 records of one type by id in one call (lane r44-trash), for the lead to sign
+
+- What changed in contracts, additive: a new capability `records.get_many`. Input: `type` and `ids` (at most 200 record ids). Output: `rows`, the records that exist and that the caller may see, in the order asked, each once, each in the shape `records.get` gives (`id`, `type`, `version`, `fields`, `label`, `createdAt`, `updatedAt`, `holds`). Level `member`, on the record type, no permission, no event.
+- What it does: each row is projected through the same gate `records.get` is read through (host/src/daemon/record-access.ts, in `SCRUBBED` and in `SCOPED_RECORD_READS`): fields the caller's grant hides are cut, as are fields above the label ceiling of the grant, the type and the caller's provider. An id that does not exist, is in Trash, or that the caller may not see is not in the answer: there is no error that names it, and an answer of only such ids is an empty list. A type that does not exist or that the caller cannot reach is refused as `records.get` refuses it.
+- Agent tool `records_get_many` in the `records` tool set; the tool-token counts move by about +540 characters (MCP bridge 681,384 to 681,926), under the limits 575,029 and 689,545; scripts/tool-tokens-baseline.json is unchanged.
+- Snapshots: docs/frozen/snapshots/records.json.
+
+Signed:

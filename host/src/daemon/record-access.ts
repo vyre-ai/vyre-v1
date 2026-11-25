@@ -19,6 +19,7 @@ export const WRITES_ANSWERING_WITH_THE_RECORD: ReadonlySet<string> = new Set([
 /** Every capability whose answer is projected through the reader's grant (host/src/invoke.ts SCOPED_RECORD_READS is the same set; test/access.hidden-scrub-guard.test.ts walks the manifest against it). */
 export const SCRUBBED: ReadonlySet<string> = new Set([
   "records.get",
+  "records.get_many",
   "records.as_of",
   "records.query",
   "records.search",
@@ -673,7 +674,8 @@ export function createRecordAccess(ports: {
         }
         // a snapshot that could not be brought up to date cannot say what is visible: refuse the read (it can be asked again) instead of answering a page with rows missing
         if (rows.length !== originals.length && !ports.fresh()) throw stale(trace);
-        if (rows.length !== originals.length && ports.warn) {
+        // get_many names ids the caller may not see or that are gone: those are left out by design, not a read that lost rows
+        if (rows.length !== originals.length && ports.warn && cap !== "records.get_many") {
           const kept = new Set(rows.map((row) => String(object(row)["id"])));
           ports.warn({
             cap,
