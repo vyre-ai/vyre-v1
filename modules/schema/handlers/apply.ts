@@ -28,7 +28,7 @@ import {
 } from "../projections.ts";
 import type { CardFaceT, FieldDefT, Label, SchemaCtx, SchemaDeps, TypeDefT } from "../projections.ts";
 import { viewRowOf } from "./describe.ts";
-import { SEALABLE_FROM, openJob, putInVault, writeRefsMany } from "./seal.ts";
+import { SEALABLE_FROM, openJob, putInVault, schemaVault, writeRefsMany } from "./seal.ts";
 import type { Move } from "./seal.ts";
 import type { GapRule, LayoutSection, ViewRow } from "./describe.ts";
 
@@ -1188,6 +1188,7 @@ async function execute(
     const counts = await writeRefsMany(deps, type, byField);
     for (const [field, n] of counts) openJob(deps, type, field, n, changeId, now);
   }
+  const droppedFrom = new Map<string, Set<string>>();
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
     const kept = new Map<number, Record<string, unknown>>();
@@ -1212,6 +1213,10 @@ async function execute(
         }
       });
       if (Object.keys(patch).length) await store.update(k, r.id, patch, r.version);
+      effs.forEach((e) => {
+        if (e.k === "drop" && r.data[e.field] !== undefined && r.data[e.field] !== null)
+          (droppedFrom.get(k) ?? droppedFrom.set(k, new Set()).get(k)!).add(r.id);
+      });
     });
     effs.forEach((e, i) => {
       if (e.k === "drop" || e.k === "retype") {
@@ -1234,6 +1239,8 @@ async function execute(
     });
     trash.push({ type: e.type, field: null, rows: rows.length, payload: { kind: "type", def: e.def, rows } });
   }
+  // a dropped field's text leaves the search index now, whatever the index consumer is doing: its documents are rebuilt without the field when the apply's own record events are folded
+  for (const [type, ids] of droppedFrom) await schemaVault()?.dropSearchText?.(type, [...ids]);
   for (const t of trash) {
     tx.run(
       "INSERT INTO sc_trash (change_id, type, field, dropped_at, expires_at, rows, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",

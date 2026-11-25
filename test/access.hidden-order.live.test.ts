@@ -413,17 +413,56 @@ test("a field the type has retired, which a grant still hides, is not found by s
   assert.equal((await found(n, `Retire ${tag}`)).hit, true, "the member finds it by the visible name");
   assert.equal((await found(n, `a visible memo`)).hit, true, "the member finds it by the visible memo");
   assert.equal((await found(n, SECRET)).hit, false, "before the retire: the hidden note does not find it");
-  // the owner retires the field; the grant still names it
-  const diff = (await h.owner.call("schema.diff", { ops: [{ op: "field.drop", type, field: "note" }] })) as {
-    previewToken: string;
-    items: Array<{ itemKey: string; destructive: boolean }>;
-  };
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `rt-drop-${tag}`,
-    ops: [{ op: "field.drop", type, field: "note" }],
-    previewToken: diff.previewToken,
-    confirm: diff.items.filter((i) => i.destructive).map((i) => i.itemKey),
-  });
+  // the search index consumer is held, so the index provably lags the drop: the owner's own events of the drop are not folded until it is let go
+  const hooks = h.d.hooks!;
+  const realPump = hooks.pump.bind(hooks);
+  // every pump already running finishes first (a running pump goes on until it is level with the log, so it would fold the drop's events)
+  await realPump();
+  await new Promise((r) => setTimeout(r, 300));
+  await realPump();
+  let held = 0;
+  hooks.pump = (async () => {
+    held++;
+  }) as typeof hooks.pump;
+  try {
+    // the owner retires the field; the grant still names it
+    const diff = (await h.owner.call("schema.diff", { ops: [{ op: "field.drop", type, field: "note" }] })) as {
+      previewToken: string;
+      items: Array<{ itemKey: string; destructive: boolean }>;
+    };
+    await h.owner.call("schema.apply", {
+      idempotencyKey: `rt-drop-${tag}`,
+      ops: [{ op: "field.drop", type, field: "note" }],
+      previewToken: diff.previewToken,
+      confirm: diff.items.filter((i) => i.destructive).map((i) => i.itemKey),
+    });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(held > 0, "the index consumer was held while the drop was applied (the index lags)");
+    for (const [label, q] of [
+      ["the whole word", SECRET],
+      ["a fragment", SECRET.slice(0, 9)],
+      ["the word and the name", `${SECRET} Retire`],
+    ] as const) {
+      const a = await found(n, q);
+      assert.equal(
+        a.body.includes(SECRET),
+        false,
+        `index held: records.search for ${label} carries the hidden word: ${a.body.slice(0, 300)}`,
+      );
+      const w = await g(q);
+      assert.equal(
+        w.body.includes(SECRET),
+        false,
+        `index held: the Space-wide search for ${label} carries the hidden word: ${w.body.slice(0, 300)}`,
+      );
+      if (label !== "the word and the name")
+        assert.equal(w.hit, false, `index held: the Space-wide search for ${label} finds the record as the member`);
+    }
+  } finally {
+    hooks.pump = realPump;
+  }
+  await hooks.pump();
+  await new Promise((r) => setTimeout(r, 300));
   const schema = JSON.stringify(await h.owner.call("schema.types.get", { type }));
   assert.equal(schema.includes('"key":"note"'), false, "the type no longer has the note field");
   for (const [label, q] of [
@@ -432,8 +471,9 @@ test("a field the type has retired, which a grant still hides, is not found by s
     ["the word and the name", `${SECRET} Retire`],
   ] as const) {
     const a = await found(n, q);
+    // the combined query holds the visible name too, so it may find the record; what it must not do is carry the hidden word
     assert.equal(
-      a.hit,
+      a.hit && label !== "the word and the name",
       false,
       `after the retire, a search for ${label} finds the record as the member: ${a.body.slice(0, 300)}`,
     );
@@ -444,7 +484,12 @@ test("a field the type has retired, which a grant still hides, is not found by s
     );
     const w = await g(q);
     assert.equal(
-      w.hit,
+      w.body.includes(SECRET),
+      false,
+      `after the retire, the Space-wide search for ${label} carries the hidden word`,
+    );
+    assert.equal(
+      w.hit && label !== "the word and the name",
       false,
       `after the retire, the Space-wide search for ${label} finds the record as the member: ${w.body.slice(0, 300)}`,
     );

@@ -4917,7 +4917,28 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
           scrub: (type, field) => scrubSealedField(type, field),
+          dropSearch: (type, ids) => dropSearchText(type, ids),
         }));
+      // A field was dropped from a type: the records that held a value in it leave the search index now, in slices of 200 (the loop is given back between slices), so a search cannot show the old text while the index
+      // catches up. The apply's own record.updated events put each record back, rebuilt without the field.
+      const dropSearchText = async (type: string, ids: readonly string[]): Promise<void> => {
+        if (!db) return;
+        for (let at = 0; at < ids.length; at += 200) {
+          const part = ids.slice(at, at + 200);
+          const marks = part.map(() => "?").join(",");
+          try {
+            db.run(
+              `DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id IN (${marks}))`,
+              `record:${type}`,
+              ...part,
+            );
+            db.run(`DELETE FROM search_docs WHERE entity = ? AND id IN (${marks})`, `record:${type}`, ...part);
+          } catch {
+            /* a Space without the search index has nothing to clear */
+          }
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+      };
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
       const scrubSealedField = async (type: string, field: string): Promise<void> => {
         const dec = new TextDecoder();
