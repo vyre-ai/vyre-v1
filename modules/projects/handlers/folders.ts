@@ -308,6 +308,8 @@ export async function syncAccess(
 // with 40 projects: 70 s of blocks of 1.5 to 3 s at every tick). `sweptSpaces` is the same guard for the periodic job (impl.ts): the full sweep runs once per process, and after that only when sweepNeeded says so.
 const FOLLOWED = new Set<string>();
 export const sweptSpaces = new Set<string>();
+/** How many full sweeps ran and how many times the cheap look was asked (the tests read it). */
+export const sweepStats = { full: 0, asked: 0 };
 /** For the tests: a new world is a new Space with the same name. */
 export function resetSweepGuards(): void {
   FOLLOWED.clear();
@@ -417,6 +419,7 @@ export async function onRecordEvent(ctx: ProjectsCtx, event: HookEvent): Promise
  * unseen here (a failed event, a type that became a project type later, a cleared folder) is what the full sweep then mends.
  */
 export async function sweepNeeded(ctx: ProjectsCtx): Promise<boolean> {
+  sweepStats.asked++;
   ensure(ctx.db);
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
     ctx,
@@ -443,6 +446,7 @@ export async function sweepNeeded(ctx: ProjectsCtx): Promise<boolean> {
  * The boot sweep (and the slow repeat): every project record with no project behind it is adopted as a real project (a channel, roles, and a folder when it has none). Returns how many folders it made.
  */
 export async function backfill(realCtx: ProjectsCtx): Promise<number> {
+  sweepStats.full++;
   // the sweep only tries again: whatever it calls, a folder that cannot follow its record is never reported for narrowing from here
   const ctx: ProjectsCtx = {
     ...realCtx,

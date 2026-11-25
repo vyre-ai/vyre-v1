@@ -60,8 +60,10 @@ export const periodic = {
     immediate: true,
     run: async (ctx: StateCtx): Promise<void> => {
       const store = await storeWithPeople(ctx);
-      const first = !checked.has(ctx.db);
-      checked.add(ctx.db);
+      const first = !checked.has(ctx.space);
+      checked.add(ctx.space);
+      if (first) verifyPasses.deep++;
+      else verifyPasses.recent++;
       const r = store.verify({ repair: true, deep: true, ...(first ? {} : { since: ctx.now() - 7 * 86_400_000 }) });
       const access = store.reconcile();
       if (r.problems.length > 0 || access.left > 0 || access.entered > 0)
@@ -75,4 +77,7 @@ export const periodic = {
     },
   },
 };
-const checked = new WeakSet<object>();
+// Keyed by the Space: a job's db handle is new on every run, so a set of handles made every run the first one (the deep recount of every row) instead of only the first after a start.
+const checked = new Set<string>();
+/** How many verify passes were deep (every row recounted) and how many looked only at the recent ones (the tests read it). */
+export const verifyPasses = { deep: 0, recent: 0 };
