@@ -4,7 +4,7 @@
 // tiles of Settings > Email and calendar instead of an empty Inbox.
 import { isPhoneWidth } from "../../../../../ui/src/SidePane/layout.ts";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useOnLink, useOpenedId, usePlaceHash } from "../hash/context.tsx";
+import { useOnLink, useOpenedId, useOwnReport, usePlaceHash } from "../hash/context.tsx";
 import { inboxViewsLinked } from "./inbox-links.ts";
 import { NotFound } from "../hash/NotFound.tsx";
 import { useMissing } from "../hash/useMissing.ts";
@@ -302,6 +302,8 @@ function linkMain(target: { screen?: string | undefined; subject?: { type: strin
  */
 function useInboxLinks(): void {
   const { state, dispatch } = useInboxState();
+  // the Inbox's own report of the view it shows coming back is not a link: the person may have moved to another view since
+  const ownReport = useOwnReport();
   const { target } = usePlaceHash();
   const meetingHash =
     target.subject?.type === "meeting"
@@ -310,20 +312,24 @@ function useInboxLinks(): void {
         ? (target.args["meetingId"] ?? "")
         : null;
   useEffect(() => {
+    if (ownReport()) return;
     if (meetingHash !== null && state.main !== "meetings") dispatch({ type: "meetings" });
   }, [meetingHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the tab
   // a link to the Replies list (the old Threads page redirects here) opens it
   const repliesHash = target.screen === "inbox.replies";
   useEffect(() => {
+    if (ownReport()) return;
     if (repliesHash && state.main !== "replies") dispatch({ type: "replies" });
   }, [repliesHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // the Unmatched list (a conversation's Match button opens it): the link moves the view once; a row tapped afterwards leaves it, and the address's old words do not bring it back
   const unmatchedLink = target.screen === "inbox.unmatched" ? `${target.args["conversationId"] ?? ""}` : null;
   useEffect(() => {
+    if (ownReport()) return;
     if (unmatchedLink !== null && state.main !== "unmatched") dispatch({ type: "unmatched" });
   }, [unmatchedLink]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   const eventHash = target.subject?.type === "event" ? target.subject.id : null;
   useEffect(() => {
+    if (ownReport()) return;
     if (eventHash !== null && state.main !== "calendar") dispatch({ type: "calendar" });
   }, [eventHash]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new link moves the view
   // a link back to the same meeting, Replies, Unmatched list or event the person moved off (the address is the same words as before, so the effects above do not run) moves the view again

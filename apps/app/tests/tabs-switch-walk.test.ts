@@ -214,13 +214,24 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
       if (landing && plans) {
         await page.locator(`[data-testid="tab-${plans.id}"], [data-testid="tab-${plans.id}-selected"]`).first().click();
         await page.waitForTimeout(1200);
-        const seen = page.evaluate(
-          `new Promise(function (res) { var t0 = performance.now(); var bad = -1; function f() { var body = document.querySelector('[data-testid="place-body"]') || document.body; var text = [].filter.call(body.children, function (c) { return !c.hasAttribute("data-swap"); }).map(function (c) { return c.innerText || ""; }).join(" "); if (bad < 0 && /Message 12/.test(text)) bad = Math.round(performance.now() - t0); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
+        // the check below means something only if the chat tab really is on screen first (a walk that left the landing page up would pass it without testing anything)
+        const onScreen = (await page.evaluate(
+          `(function () { var body = document.querySelector('[data-testid="place-body"]') || document.body; return /Message 12/.test(body.innerText || ""); })()`,
+        )) as boolean;
+        assert.equal(
+          onScreen,
+          true,
+          "the chat tab shows its chat once chosen (the tab is not left on the landing page)",
         );
+        // What the person sees after the press: a held copy of the tab's own view covers the live page for a frame or two (it lies over the live page, which still holds the chat that was on screen), so the
+        // covering copy is what counts while it is there; once it is gone the live page is what is seen. The sampling starts at the press: before it the Plans tab is rightly on screen with its messages.
         await page
           .locator(`[data-testid="tab-${landing.id}"], [data-testid="tab-${landing.id}-selected"]`)
           .first()
           .click();
+        const seen = page.evaluate(
+          `new Promise(function (res) { var t0 = performance.now(); var bad = -1; function f() { var body = document.querySelector('[data-testid="place-body"]') || document.body; var kids = [].slice.call(body.children); var held = kids.filter(function (c) { return c.hasAttribute("data-swap"); }); var top = held.length > 0 ? held : kids; var text = top.map(function (c) { return c.innerText || ""; }).join(" "); if (bad < 0 && /Message 12/.test(text)) bad = Math.round(performance.now() - t0); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
+        );
         const bad = (await seen) as number;
         say(`the landing tab: previous chat's content seen at ${bad} ms (-1 is never)`);
         assert.equal(

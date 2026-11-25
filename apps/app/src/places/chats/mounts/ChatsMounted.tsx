@@ -62,7 +62,18 @@ import {
 import type { CaptureCounter, Go, LineAction } from "./data.ts";
 import { useLive } from "./live.ts";
 import { noteThreadKind } from "../../../shell/ask/screen.ts";
-import { START, fromHash, linkedTo, openKeyOf, personOfHash, step, takesAddress, workOf } from "./route.ts";
+import {
+  START,
+  fromHash,
+  linkedTo,
+  openKeyOf,
+  isOwnEcho,
+  personOfHash,
+  routeKeyOf,
+  step,
+  takesAddress,
+  workOf,
+} from "./route.ts";
 import { PendingChat } from "../landing/PendingChat.tsx";
 import { firstWords, holdPending } from "../landing/pending.ts";
 import { Landing } from "../landing/Landing.tsx";
@@ -142,6 +153,10 @@ export interface ChatsMountedProps {
   hash?: string;
   /** The hub's count of addresses that came from outside (HubState.links): a link back to the page just left still reaches the page. */
   links?: number;
+  /** The hub's count of addresses a place wrote itself (HubState.reports). */
+  reports?: number;
+  /** The address of the place's last own report, as of now (HubState.ownHash). */
+  ownHash?: () => string;
   /** What to show first, instead of the link (tests and screenshots). */
   initial?: Shown;
   /** Pins which rows are drawn (tests and screenshots draw them all). */
@@ -172,6 +187,8 @@ export function ChatsMounted({
   rt,
   hash = "",
   links = 0,
+  reports = 0,
+  ownHash,
   initial,
   window,
   opened,
@@ -280,6 +297,7 @@ export function ChatsMounted({
   const hashNow = useRef(hash);
   hashNow.current = hash;
   const linksSeen = useRef(links);
+  const reportsSeen = useRef(reports);
   const hashSeen = useRef(hash);
   useEffect(() => {
     // An address that came from outside (a link, a pasted address, a goto) while the page was drawn for the same address twice (it left the address and was sent back to it before the gap was drawn:
@@ -289,6 +307,13 @@ export function ChatsMounted({
     linksSeen.current = links;
     const hashChanged = hash !== hashSeen.current;
     hashSeen.current = hash;
+    const reportsSince = reports - reportsSeen.current;
+    reportsSeen.current = reports;
+    // the page's own report coming back is not a link: the page already shows what it reported
+    if (isOwnEcho({ hashChanged, reportsSince, linksSince, hash, ownHash: ownHash?.() ?? "\u0000" })) {
+      linked.current = hash;
+      return;
+    }
     const at = fromHash(hash);
     if (
       !takesAddress({
@@ -303,13 +328,10 @@ export function ChatsMounted({
     // a person's profile opens beside what is on screen (the right pane), so the page itself stays
     if (personOfHash(hash) !== null) return;
     // a tab switch or a link: the same thing already on screen keeps its pane and its place
-    setShown((s) => {
-      const next = linkedTo(s, hash);
-      if (next !== s) routeFrom.current = hash;
-      return next;
-    });
+    routeFrom.current = hash;
+    setShown((s) => linkedTo(s, hash));
     forgetLayerLink(hash);
-  }, [hash, links]);
+  }, [hash, links, reports]);
   // A popover or sheet a link opened (the terminal list, All agents, the rules) is not a place: if it stayed in the tab's address, closing it and coming back, or a reload, opened it again, and the landing address
   // /chat could not clear it (the tab shows what the tab holds). The tab goes back to what is really open as soon as the layer has been taken.
   const forgetLayerLink = (h: string): void => {
@@ -324,35 +346,18 @@ export function ChatsMounted({
   // what is open follows into the tab and the address (the Chats tab moves with it; tabs/store.ts moveTab), so coming back lands on it
   const openedRef = useRef(opened);
   openedRef.current = opened;
-  const routeKey =
-    shown.route.view === "agent"
-      ? `g:${shown.route.agentId}`
-      : shown.route.view === "agent-form"
-        ? `a:${shown.route.agentId ?? ""}`
-        : shown.route.view === "chat"
-          ? `t:${shown.route.threadId ?? ""}`
-          : shown.route.view === "new"
-            ? "new"
-            : shown.route.view === "task"
-              ? `k:${shown.route.taskId}`
-              : shown.route.view === "tasks"
-                ? "tasks"
-                : shown.route.view === "threads"
-                  ? "threads"
-                  : shown.route.view === "artifacts"
-                    ? "artifacts"
-                    : shown.route.view === "artifact"
-                      ? `x:${shown.route.artifactId}`
-                      : shown.route.view === "notes"
-                        ? "notes"
-                        : shown.route.view === "project"
-                          ? `j:${shown.route.projectId}:${shown.route.tab ?? ""}`
-                          : "";
+  const routeKey = routeKeyOf(shown.route);
   useEffect(() => {
     const report = openedRef.current;
     if (!report || routeKey === "") return;
     // this page followed an address the tab has left: the tab is the newer word, and the page is about to follow it
     if (routeFrom.current !== null && routeFrom.current !== hashNow.current) return;
+    // a link was taken in this very commit (the page is about to show what it names, and its state is only updated after this effect): the page this effect was made for is the one being left, and
+    // its report would write the old address over the link or the tab switch (the landing page reported "" over a tab it had just switched to; tabs.switch-a)
+    if (routeFrom.current !== null) {
+      const taken = fromHash(routeFrom.current);
+      if (taken.layer === null && taken.terminalId === null && routeKeyOf(taken.route) !== routeKey) return;
+    }
     if (routeKey === "new") report({});
     else if (routeKey === "tasks") report({ screen: "tasks.my-work" });
     else if (routeKey === "artifacts") report({ screen: "chats.artifacts" });
