@@ -354,7 +354,12 @@ test("a deferred put that fails twice makes the whole item as it was: a sealed a
     assert.equal((await rec.store.get("pair", b))!.data.name, "B renamed");
     // one record at a time: the same
     const one = await rec.store
-      .update("pair", a, { name: "A again", ssn: { sealed: true, value: "boom" } } as never, (await rec.store.get("pair", a))!.version)
+      .update(
+        "pair",
+        a,
+        { name: "A again", ssn: { sealed: true, value: "boom" } } as never,
+        (await rec.store.get("pair", a))!.version,
+      )
       .then(
         () => null,
         (e: { code?: string }) => e.code,

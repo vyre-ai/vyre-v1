@@ -1,1 +1,1 @@
-Changing a sealed value that already exists now puts it into the Vault only after the record change is saved, so a refused change leaves the old value alone; if the Vault cannot take it, the change says the value was not saved and the record keeps its previous value.
+Changing a sealed value that already exists now puts it into the Vault only after the record change is saved, so a refused change leaves the old value alone; if the Vault cannot take it, the whole change is undone, the answer says the value was not saved, and the record reads as before.
