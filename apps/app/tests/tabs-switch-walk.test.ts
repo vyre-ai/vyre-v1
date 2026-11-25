@@ -214,8 +214,20 @@ export async function switchWalk(t: TestContext, names: readonly string[], tag: 
       if (landing && plans) {
         await page.locator(`[data-testid="tab-${plans.id}"], [data-testid="tab-${plans.id}-selected"]`).first().click();
         await page.waitForTimeout(1200);
+        // the check below means something only if the chat tab really is on screen first (a walk that left the landing page up would pass it without testing anything)
+        const onScreen = (await page.evaluate(
+          `(function () { var body = document.querySelector('[data-testid="place-body"]') || document.body; return /Message 12/.test(body.innerText || ""); })()`,
+        )) as boolean;
+        assert.equal(
+          onScreen,
+          true,
+          "the chat tab shows its chat once chosen (the tab is not left on the landing page)",
+        );
+        // What the person sees after the press. The sampler starts before the press (a flash between the pointer going down and the sampler starting would be missed); a capture-phase listener stamps the
+        // press, and only samples taken after it count. A held copy of the tab's own view that really covers the page (its box contains the page's box, with an opaque background) is what is seen while
+        // it is there; a held copy that does not cover, or has no opaque background, leaves the live page in view and its text counts too.
         const seen = page.evaluate(
-          `new Promise(function (res) { var t0 = performance.now(); var bad = -1; function f() { var body = document.querySelector('[data-testid="place-body"]') || document.body; var text = [].filter.call(body.children, function (c) { return !c.hasAttribute("data-swap"); }).map(function (c) { return c.innerText || ""; }).join(" "); if (bad < 0 && /Message 12/.test(text)) bad = Math.round(performance.now() - t0); if (performance.now() - t0 < 800) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
+          `new Promise(function (res) { var press = -1; document.addEventListener("pointerdown", function () { if (press < 0) press = performance.now(); }, true); var t0 = performance.now(); var bad = -1; function f() { var now = performance.now(); if (press >= 0 && bad < 0) { var body = document.querySelector('[data-testid="place-body"]') || document.body; var kids = [].slice.call(body.children); var held = kids.filter(function (c) { return c.hasAttribute("data-swap"); }); var br = body.getBoundingClientRect(); var covers = held.length > 0 && held.every(function (c) { var r = c.getBoundingClientRect(); var bg = getComputedStyle(c).backgroundColor; var opaque = /^rgb\\(/.test(bg) || /^rgba\\(.*,\\s*1\\)$/.test(bg); return r.left <= br.left + 1 && r.top <= br.top + 1 && r.right >= br.right - 1 && r.bottom >= br.bottom - 1 && opaque; }); var top = covers ? held : kids; var text = top.map(function (c) { return c.innerText || ""; }).join(" "); if (/Message 12/.test(text)) bad = Math.round(now - press); } if (now - t0 < 1500) requestAnimationFrame(f); else res(bad); } requestAnimationFrame(f); })`,
         );
         await page
           .locator(`[data-testid="tab-${landing.id}"], [data-testid="tab-${landing.id}-selected"]`)
