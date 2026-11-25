@@ -157,7 +157,7 @@ interface Deferred extends Put {
 }
 /** The words an item answers when a deferred put failed twice. */
 const NOT_SAVED = "the value was not saved; the record keeps its previous value";
-/** Put the deferred values of one committed item (each retried once). If one still fails the item is made whole again: every field its patch set is written back to what the row held before (a sealed field keeps its earlier ref, set_at and present), so an error means nothing in the item changed; answers the error, or null. */
+/** Put the deferred values of one committed item (each retried once). If one still fails the item is made whole again: every field its patch set is written back to what the row held before (a sealed field keeps its earlier ref, set_at and present), and the new values this call put under new refs are taken back (nothing references them now), so an error means nothing in the item changed; answers the error, or null. If the row moved on since the commit (a person's edit landed in the gap) the write back is refused: the error then says so and does not claim the record kept its previous value. */
 async function settle(
   inner: Store,
   type: string,
@@ -166,6 +166,7 @@ async function settle(
   deferred: Deferred[],
   prior: Record<string, unknown> | undefined,
   patchKeys: string[],
+  fresh: Put[],
 ): Promise<StoreError | null> {
   let failed = false;
   for (const d of deferred) {
@@ -184,7 +185,21 @@ async function settle(
   if (!failed) return null;
   const back: Record<string, FieldValue | null> = {};
   for (const k of patchKeys) back[k] = (prior?.[k] ?? null) as FieldValue | null;
-  await inner.update(type, id, back as Record<string, FieldValue>, version).catch(() => undefined);
+  let restored = true;
+  let moved = false;
+  await inner.update(type, id, back as Record<string, FieldValue>, version).catch((e: unknown) => {
+    restored = false;
+    moved = e instanceof StoreError && e.code === "version_conflict";
+  });
+  // the new refs of this call are referenced by no row once the write back took; when it did not, the row may still hold them and they stay
+  if (restored) await takeBackPuts(fresh);
+  if (!restored)
+    return new StoreError(
+      moved ? "version_conflict" : "unavailable",
+      moved
+        ? "the value was not saved and the record changed since; check it"
+        : "the value was not saved and the record could not be put back; check it",
+    );
   return new StoreError("unavailable", NOT_SAVED);
 }
 
@@ -506,7 +521,7 @@ export function openRecords(
         throw e;
       }
       if (deferred.length) {
-        const err = await settle(inner, def.name, id, made.version, deferred, row?.data, keys);
+        const err = await settle(inner, def.name, id, made.version, deferred, row?.data, keys, puts);
         if (err) throw err;
       }
       return made;
@@ -579,17 +594,30 @@ export function openRecords(
         throw e;
       }
       // the values for fields that already held a reference go in now that the group is committed; one that fails twice answers its item an error and has its field's earlier metadata written back
+      const settled = new Set<number>();
       for (const [k, m] of made.entries()) {
         const r = ready[k]!;
         if (!m.ok || !r.deferred.length) continue;
-        const err = await settle(inner, def.name, r.id, m.record.version, r.deferred, r.prior, Object.keys(r.patch));
-        if (err) made[k] = { ok: false, error: err };
+        const err = await settle(
+          inner,
+          def.name,
+          r.id,
+          m.record.version,
+          r.deferred,
+          r.prior,
+          Object.keys(r.patch),
+          r.fresh,
+        );
+        if (err) {
+          made[k] = { ok: false, error: err };
+          settled.add(k); // its new values were dealt with there
+        }
       }
       made.forEach((m, k) => {
         out[ready[k]!.at] = m;
       });
       // 3. a value put for an item that was then not updated is taken back
-      for (const [k, m] of made.entries()) if (!m.ok) await takeBack(ready[k]!.fresh);
+      for (const [k, m] of made.entries()) if (!m.ok && !settled.has(k)) await takeBack(ready[k]!.fresh);
       return out;
     },
     async remove(type, id, base) {

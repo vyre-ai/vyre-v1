@@ -370,3 +370,97 @@ test("a deferred put that fails twice makes the whole item as it was: a sealed a
     setRecordsVault(null as never);
   }
 });
+
+test("a failed deferred put also takes back the values the same item put under new refs: the Vault holds no orphan", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_orphan", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const [oldRef] = [...v.kept.keys()];
+    const out = await rec.store.updateMany!("pair", [
+      {
+        id,
+        patch: { ssn: { sealed: true, value: "boom" }, dob: { sealed: true, value: "new-dob" } } as never,
+        base_version: 1,
+      },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    assert.deepEqual(
+      [...v.kept],
+      [[oldRef, "old-ssn"]],
+      "only the old value is in the Vault: the new dob was taken back",
+    );
+    assert.equal((await rec.store.get("pair", id))!.data.dob, undefined);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a person's edit that lands between the commit and the failed put is not overwritten, and the error says the record changed", async () => {
+  const kept = new Map<string, string>();
+  let rec!: ReturnType<typeof openRecords>;
+  const id = mintRecordId();
+  let edited = false;
+  setRecordsVault({
+    put: async (o) => {
+      if (o.value === "boom") {
+        if (!edited) {
+          edited = true;
+          const cur = (await rec.store.get("pair", id))!;
+          await rec.store.update("pair", id, { name: "edited by a person" }, cur.version);
+        }
+        throw new Error("the Vault refused");
+      }
+      const ref = o.ref ?? `vit_${o.recordId}_${o.field}`;
+      kept.set(ref, o.value);
+      return ref;
+    },
+    reveal: async (ref) => kept.get(ref) ?? "",
+    discard: async (ref) => void kept.delete(ref),
+  });
+  try {
+    rec = openRecords({ space: "sp_um_gap", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const out = await rec.store.updateMany!("pair", [
+      { id, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    const err = (out[0] as { error: { code?: string; message?: string } }).error;
+    assert.equal(err.code, "version_conflict");
+    assert.match(err.message ?? "", /the value was not saved and the record changed since; check it/);
+    assert.doesNotMatch(err.message ?? "", /keeps its previous value/);
+    assert.equal((await rec.store.get("pair", id))!.data.name, "edited by a person", "the person's edit stands");
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("the store's log holds the change and its write back as two record.updated events (the version goes up by two) and the row ends as it began", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_log", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const before = await rec.store.get("pair", id);
+    const n = () =>
+      rec.host.tx
+        .all<{ t: string }>("SELECT json_extract(event, '$.type') AS t FROM events")
+        .filter((r) => r.t === "record.updated").length;
+    const n0 = n();
+    await rec.store.updateMany!("pair", [
+      { id, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+    ]);
+    assert.equal(n() - n0, 2);
+    const after = await rec.store.get("pair", id);
+    assert.equal(after!.version, before!.version + 2);
+    assert.deepEqual(after!.data, before!.data);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
