@@ -436,7 +436,7 @@ const grantVals = (g: GrantRec): unknown[] => [
 ];
 
 /** How many rows a sliced hydrate reads and turns into records between two yields (a test sets it low to force many). */
-export const hydrateTuning = { page: 4000 };
+export const hydrateTuning = { page: 1000 };
 
 export class AccessStore {
   epoch = 0;
@@ -988,7 +988,7 @@ export class AccessStore {
   }
 
   /**
-   * hydrate in steps: the three tables that grow with the Space (resources, grants, principals) are read a page at a time and their rows turned into records a few thousand at a time, and each page or
+   * hydrate in steps: the three tables that grow with the Space (resources, grants, principals) are read a page at a time (1,000 rows) and their rows turned into records a page at a time, and each page or
    * batch ends with a yield. hydrate() runs the steps straight through; a caller that can wait (loadStoreSliced, for access.sync at a start: reading 38,000 resources whole held the loop 4.4 s) gives
    * the event loop a turn at each yield. The result is the same store either way.
    */
