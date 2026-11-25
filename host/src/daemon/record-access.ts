@@ -79,6 +79,59 @@ export function createRecordAccess(ports: {
     }
     return output;
   }
+  /**
+   * The sort or group fields this reader may not be able to read on SOME row, decided from their grants and the label rules alone, never from what the data holds. A field any of their grants hides, or whose label
+   * is above their ceiling, is taken out of the sort for the whole read and every page: ordering by it (empty values come first) would tell them which rows hold a value.
+   */
+  function sortBlocked(
+    req: Req,
+    type: string,
+    labels: Readonly<Record<string, number>>,
+    roots: readonly string[],
+  ): Set<string> {
+    const out = new Set<string>();
+    if (!roots.length) return out;
+    const snapshot = ports.snapshot();
+    for (const principal of subjects(req)) {
+      const info = snapshot.info(principal);
+      if (!info) throw fail("permission.no_grant", "sort");
+      const exact = authorize(snapshot, { ...req, principal, actingFor: undefined });
+      const grants = snapshot
+        .allGrantRecs()
+        .filter(
+          (grant) =>
+            info.keys.has(grant.key) &&
+            grant.rank >= 1 &&
+            grant.exp > ports.now() &&
+            grant.nb <= ports.now() &&
+            grant.na >= ports.now() &&
+            (related(grant.row.resource_id, type) ||
+              (grant.row.resource_id === null && grant.row.resource_type === "record")),
+        );
+      const hidden = new Set([
+        ...(exact.effect === "allow" ? (exact.scope?.hiddenFields ?? []) : []),
+        ...grants.flatMap((grant) => [...grant.hidden]),
+      ]);
+      let ceiling = Math.min(
+        info.clearance,
+        ...grants.map((grant) => grant.ceiling),
+        ...(exact.effect === "allow" ? [exact.scope?.labelCeiling ?? -1] : []),
+      );
+      if (req.provider)
+        for (const policy of snapshot.policies())
+          if (policy.kind === "provider_label") ceiling = Math.min(ceiling, providerMax(policy, req.provider));
+      for (const field of roots)
+        if (
+          hidden.has(field) ||
+          (!["id", "version", "created_at", "updated_at"].includes(field) && labels[field] === undefined) ||
+          (labels[field] ?? 0) > ceiling ||
+          snapshot.fieldLabel(type, field) > ceiling ||
+          snapshot.fieldLabel("record", field) > ceiling
+        )
+          out.add(field);
+    }
+    return out;
+  }
   function assertFields(
     req: Req,
     type: string,
@@ -387,15 +440,15 @@ export function createRecordAccess(ports: {
       let skip = remainingSkip ?? (typeof value["offset"] === "number" ? value["offset"] : 0);
       if (!Number.isInteger(skip) || skip < 0) throw fail("validation.bad_input", trace);
       // A sort or a group by a field this reader may not see: that field is EMPTY for them, so it does not order their rows (the rows keep the order of the other keys, then the default order). Ordering by the real
-      // value would tell them the order of values they cannot read. `drop` holds those fields; a row that hides a sort field makes the read start again without it, and a later page keeps it.
+      // value would tell them the order of values they cannot read. `drop` holds the fields the reader's grants or the label rules can hide on some row (sortBlocked: decided before the first query, never from the data); they stay out of every page, and the page token keeps them.
       const drop = new Set<string>(saved0?.drop ?? []);
       const askedSort = [...(Array.isArray(value["sort"]) ? value["sort"] : [])] as Sort[];
       if (typeof value["group"] === "string" && !askedSort.some((row) => row.field === value["group"]))
         askedSort.unshift({ field: value["group"], dir: "asc" });
-      const SYSTEM = ["id", "version", "created_at", "updated_at"];
       const touched = references(value["filter"]).map((field) => field.split(".")[0]!);
       const sortRoots = (): string[] => askedSort.map((row) => row.field.split(".")[0]!);
-      let sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
+      if (!saved0) for (const field of sortBlocked(req, type, seed.labels ?? {}, sortRoots())) drop.add(field);
+      const sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
       assertFields(req, type, seed.labels ?? {}, touched, trace);
       const requested = Array.isArray(value["fields"]) ? new Set(value["fields"] as string[]) : null;
       const words =
@@ -407,18 +460,7 @@ export function createRecordAccess(ports: {
       const rows: StoredRecord[] = [];
       let scanned = 0;
       let gaveUp = false;
-      const cursor0 = cursor;
-      const skip0 = skip;
-      let again = false;
       do {
-        if (again) {
-          again = false;
-          rows.length = 0;
-          scanned = 0;
-          cursor = cursor0;
-          skip = skip0;
-          sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
-        }
         const before = cursor;
         const page = await ports.store().query(type, {
           ...(value["filter"] !== undefined ? { filter: value["filter"] as Filter } : {}),
@@ -434,22 +476,6 @@ export function createRecordAccess(ports: {
         if (row && !ports.fresh()) throw stale(trace);
         if (row && decision(seed, row)) {
           const visible = fields(seed, row, row.data, trace);
-          const hiddenSort = sortRoots().filter(
-            (field) =>
-              !SYSTEM.includes(field) &&
-              !drop.has(field) &&
-              row.data[field] !== undefined &&
-              row.data[field] !== null &&
-              !Object.hasOwn(visible, field),
-          );
-          if (hiddenSort.length) {
-            // the rows already read were ordered by a value this reader may not see: read again without that key (on a later page the saved cursor is for the old order, so the page is asked again)
-            if (cursor0 !== undefined)
-              throw fail("validation.bad_input", trace, { message: "This page expired. Refresh the list." });
-            for (const field of hiddenSort) drop.add(field);
-            again = true;
-            continue;
-          }
           const sortable = touched.every(
             (field) => ["id", "version", "created_at", "updated_at"].includes(field) || Object.hasOwn(visible, field),
           );
@@ -481,7 +507,7 @@ export function createRecordAccess(ports: {
             message: "This restricted count exceeds the 5,000-row scan limit. Narrow the filter and retry.",
           });
         if (cap !== "records.counts" && scanned >= 2000) break;
-      } while (cursor || again);
+      } while (cursor);
       let next: string | undefined;
       if (cursor && cap !== "records.counts") {
         for (const [token, saved] of cursors) if (saved.expires <= ports.now()) cursors.delete(token);

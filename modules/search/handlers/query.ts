@@ -223,7 +223,7 @@ function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
 
 /** The field keys of a record type, asked of the schema once per type for a call (the memo is the call's). Empty when the schema cannot be read: the record is then read and rebuilt, never shown whole.
  * Known limit: these are the type's CURRENT fields. A field the type has retired is not asked about, so a hit whose document words still hold a retired field that a grant hides passes the fast path with
- * those words (records.get hides keys that have no label, the check here does not). It needs a retired field a grant still names; rc.44 (LAUNCH-STATE) rebuilds a hit when a word of it is not explained by the type's fields. */
+ * those words (records.get hides keys that have no label, the check here does not). Closed in rc.44: the fast path also asks for "*" (every field, retired ones too), so a grant that hides any field sends the hit to the rebuild. */
 const typeKeys = new WeakMap<object, Map<string, string[]>>();
 async function fieldKeys(ctx: SearchCtx, type: string, memo: Map<string, DocRow | null>): Promise<string[]> {
   let per = typeKeys.get(memo);
@@ -256,7 +256,8 @@ async function fieldsSeen(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | 
   const keys = d.recordType ? await fieldKeys(ctx, d.recordType, memo) : [];
   if (
     keys.length > 0 &&
-    ctx.authorize({ perm: null, level: "view", fields: keys }, { type: d.resType, id: d.resId }).effect === "allow"
+    ctx.authorize({ perm: null, level: "view", fields: [...keys, "*"] }, { type: d.resType, id: d.resId }).effect ===
+      "allow"
   ) {
     memo.set(key, d);
     return d;

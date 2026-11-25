@@ -100,8 +100,9 @@ function collect(
     if (label > g.ceiling) continue;
     if (g.hasHidden && fields) {
       let hit = false;
+      // "*" asks for every field of the resource, whether the schema still has it or not: any field this grant hides is a hit
       for (const f of fields)
-        if (g.hidden.includes(f)) {
+        if (f === "*" || g.hidden.includes(f)) {
           hit = true;
           break;
         }

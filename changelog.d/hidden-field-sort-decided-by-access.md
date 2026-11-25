@@ -1,0 +1,1 @@
+A field a person's access hides, or that a search finds only in an old copy after the field was removed, no longer orders their lists or shows in their search results: the sort key is dropped before the first read from their access alone, and a search hit is rebuilt whenever any of their grants hides any field.

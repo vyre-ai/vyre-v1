@@ -147,6 +147,113 @@ test("sort and group by a hidden field do not order the member's rows by the hid
   );
 });
 
+test("sort and group by a hidden field give the same pages as the default order, whether the hidden values are empty or set, for small limits, later pages, a value set mid-read and a pair filter", async () => {
+  const tag = `mx${++seq}x${Math.random().toString(36).slice(2, 6)}`;
+  // six contacts: two with an email on file (the rest empty), created so that an ascending sort by email would put the empty ones first and the valued ones in reverse name order
+  const made: Array<{ id: string; name: string }> = [];
+  for (const [i, l] of ["a", "b", "c", "d", "e", "f"].entries()) {
+    const name = `Mix ${tag} ${l}`;
+    const fields: Record<string, unknown> = { name };
+    if (i === 1) fields["email"] = `9-${tag}@probe-mail.test`;
+    if (i === 4) fields["email"] = `1-${tag}@probe-mail.test`;
+    const r = (await h.owner.call("records.create", { type: "contact", fields })) as { record: { id: string } };
+    made.push({ id: r.record.id, name });
+  }
+  const n = await newMember(`mix${tag}`);
+  for (const m of made) await shareHiding(m.id, n, `mx-${m.id}`);
+  const mine = new Set(made.map((m) => m.id));
+  type Page = { rows: Array<{ id: string }>; next?: string };
+  const pages = async (
+    who: Pick<Person, "call">,
+    spec: Record<string, unknown>,
+    limit: number,
+    between?: () => Promise<void>,
+  ): Promise<string[][]> => {
+    const out: string[][] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 20; i++) {
+      const got = (await who.call("records.query", {
+        type: "contact",
+        limit,
+        ...spec,
+        ...(cursor ? { cursor } : {}),
+      })) as Page;
+      out.push(got.rows.map((r) => r.id).filter((id) => mine.has(id)));
+      cursor = got.next;
+      if (i === 0 && between) await between();
+      if (!cursor) break;
+    }
+    return out;
+  };
+  const flat = (p: string[][]): string[] => p.flat();
+  const defaultOrder = flat(await pages(n, {}, 500));
+  assert.equal(defaultOrder.length, 6, "the member sees all six contacts");
+  // controls: the owner's ascending sort by email is not the default order (empty values first), so a sort by the real values would show
+  const ownerAsc = flat(
+    await pages(h.owner as unknown as Pick<Person, "call">, { sort: [{ field: "email", dir: "asc" }] }, 500),
+  );
+  assert.notDeepEqual(
+    ownerAsc.filter((id) => mine.has(id)),
+    defaultOrder,
+    "the owner's sort by email is not the default order",
+  );
+  for (const limit of [1, 2, 3]) {
+    const base = await pages(n, {}, limit);
+    for (const dir of ["asc", "desc"] as const)
+      for (const spec of [
+        { sort: [{ field: "email", dir }] },
+        { group: "email" },
+        { sort: [{ field: "phone", dir }] },
+      ]) {
+        const got = await pages(n, spec, limit);
+        assert.deepEqual(
+          got,
+          base,
+          `limit ${limit} ${dir} ${JSON.stringify(spec)}: the pages follow the hidden values`,
+        );
+      }
+  }
+  // the owner sets a hidden value between page 1 and page 2: nothing the member sees changes
+  const base = await pages(n, {}, 2);
+  const mid = await pages(n, { sort: [{ field: "email", dir: "asc" }] }, 2, async () => {
+    await h.owner.call("records.update", {
+      type: "contact",
+      recordId: made[0]!.id,
+      patch: { email: `0-${tag}@probe-mail.test` },
+    });
+  });
+  assert.deepEqual(mid, base, "a value set between two pages changes nothing the member sees");
+  // a pair filter against a reference row: with a sort by the hidden field and limit 1, which of the pair comes first tells nothing
+  for (const m of made) {
+    const asked = (await n.call("records.query", {
+      type: "contact",
+      limit: 1,
+      sort: [{ field: "email", dir: "asc" }],
+      filter: {
+        or: [
+          { field: "name", op: "eq", value: m.name },
+          { field: "name", op: "eq", value: made[5]!.name },
+        ],
+      },
+    })) as Page;
+    const plain = (await n.call("records.query", {
+      type: "contact",
+      limit: 1,
+      filter: {
+        or: [
+          { field: "name", op: "eq", value: m.name },
+          { field: "name", op: "eq", value: made[5]!.name },
+        ],
+      },
+    })) as Page;
+    assert.deepEqual(
+      asked.rows.map((r) => r.id),
+      plain.rows.map((r) => r.id),
+      `pair with ${m.name}: the sort by the hidden email gives a signal`,
+    );
+  }
+});
+
 test("counts by a hidden field are not an oracle: a count of rows with a hidden fragment is 0 for the member", async () => {
   const tag = `cn${++seq}x${Math.random().toString(36).slice(2, 6)}`;
   const r = (await h.owner.call("records.create", {
