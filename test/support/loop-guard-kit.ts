@@ -78,7 +78,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
       blocks.push({
         at: Math.round(at - t0),
         ms: Math.round(lag),
-        jobs: over(jobs).map((j) => `${j.name} (${Math.round(j.end - j.start)} ms)`),
+        jobs: over(jobs).map((j) => (Number.isFinite(j.end) ? `${j.name} (${Math.round(j.end - j.start)} ms)` : `${j.name} (still running)`)),
         requests: over(requests).map((r) => `${r.name} (${Math.round(r.end - r.start)} ms)`),
         statements: over(statements)
           .sort((a, b) => b.ms - a.ms)

@@ -95,11 +95,11 @@ test(
       }
       const out = process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(dir, "capture");
       fs.mkdirSync(`${out}/loop-guard`, { recursive: true });
-      const text = `bound ${BOUND_MS} ms; ${g.blocks.length} blocks\\nworst: ${g
+      const text = `bound ${BOUND_MS} ms; ${g.blocks.length} blocks\nworst: ${g
         .worst()
         .slice(0, 12)
         .map((x) => `${x.name} ${x.ms} ms`)
-        .join(", ")}\\n${g.report()}\\n`;
+        .join(", ")}\n${g.report()}\n`;
       fs.writeFileSync(`${out}/loop-guard/report.txt`, text);
       process.stderr.write(`[guard] ${text}`);
       assert.equal(g.blocks.length, 0, text.slice(0, 6000));
