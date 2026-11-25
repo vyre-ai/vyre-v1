@@ -51,7 +51,7 @@ export function createRecordAccess(ports: {
     missing: string[];
   }): void;
 }) {
-  const cursors = new Map<string, { key: string; cursor: string; expires: number; skip: number }>();
+  const cursors = new Map<string, { key: string; cursor: string; expires: number; skip: number; drop?: string[] }>();
   const random = () =>
     Array.from(crypto.getRandomValues(new Uint8Array(24)), (byte) => byte.toString(16).padStart(2, "0")).join("");
   function related(resourceId: string | null, type: string): boolean {
@@ -374,22 +374,28 @@ export function createRecordAccess(ports: {
         });
       let cursor: string | undefined;
       let remainingSkip: number | undefined;
+      let saved0: { drop?: string[] } | undefined;
       if (value["cursor"] !== undefined) {
         const saved = typeof value["cursor"] === "string" ? cursors.get(value["cursor"]) : undefined;
         if (!saved || saved.key !== key || saved.expires <= ports.now())
           throw fail("validation.bad_input", trace, { message: "This page expired. Refresh the list." });
         cursor = saved.cursor;
         remainingSkip = saved.skip;
+        saved0 = saved;
       }
       const limit = typeof value["limit"] === "number" ? value["limit"] : cap === "records.search" ? 50 : 200;
       let skip = remainingSkip ?? (typeof value["offset"] === "number" ? value["offset"] : 0);
       if (!Number.isInteger(skip) || skip < 0) throw fail("validation.bad_input", trace);
-      const sort = [...(Array.isArray(value["sort"]) ? value["sort"] : [])] as Sort[];
-      if (typeof value["group"] === "string" && !sort.some((row) => row.field === value["group"]))
-        sort.unshift({ field: value["group"], dir: "asc" });
-      const touched = [...references(value["filter"]), ...sort.map((row) => row.field)].map(
-        (field) => field.split(".")[0]!,
-      );
+      // A sort or a group by a field this reader may not see: that field is EMPTY for them, so it does not order their rows (the rows keep the order of the other keys, then the default order). Ordering by the real
+      // value would tell them the order of values they cannot read. `drop` holds those fields; a row that hides a sort field makes the read start again without it, and a later page keeps it.
+      const drop = new Set<string>(saved0?.drop ?? []);
+      const askedSort = [...(Array.isArray(value["sort"]) ? value["sort"] : [])] as Sort[];
+      if (typeof value["group"] === "string" && !askedSort.some((row) => row.field === value["group"]))
+        askedSort.unshift({ field: value["group"], dir: "asc" });
+      const SYSTEM = ["id", "version", "created_at", "updated_at"];
+      const touched = references(value["filter"]).map((field) => field.split(".")[0]!);
+      const sortRoots = (): string[] => askedSort.map((row) => row.field.split(".")[0]!);
+      let sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
       assertFields(req, type, seed.labels ?? {}, touched, trace);
       const requested = Array.isArray(value["fields"]) ? new Set(value["fields"] as string[]) : null;
       const words =
@@ -401,7 +407,18 @@ export function createRecordAccess(ports: {
       const rows: StoredRecord[] = [];
       let scanned = 0;
       let gaveUp = false;
+      const cursor0 = cursor;
+      const skip0 = skip;
+      let again = false;
       do {
+        if (again) {
+          again = false;
+          rows.length = 0;
+          scanned = 0;
+          cursor = cursor0;
+          skip = skip0;
+          sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
+        }
         const before = cursor;
         const page = await ports.store().query(type, {
           ...(value["filter"] !== undefined ? { filter: value["filter"] as Filter } : {}),
@@ -417,6 +434,22 @@ export function createRecordAccess(ports: {
         if (row && !ports.fresh()) throw stale(trace);
         if (row && decision(seed, row)) {
           const visible = fields(seed, row, row.data, trace);
+          const hiddenSort = sortRoots().filter(
+            (field) =>
+              !SYSTEM.includes(field) &&
+              !drop.has(field) &&
+              row.data[field] !== undefined &&
+              row.data[field] !== null &&
+              !Object.hasOwn(visible, field),
+          );
+          if (hiddenSort.length) {
+            // the rows already read were ordered by a value this reader may not see: read again without that key (on a later page the saved cursor is for the old order, so the page is asked again)
+            if (cursor0 !== undefined)
+              throw fail("validation.bad_input", trace, { message: "This page expired. Refresh the list." });
+            for (const field of hiddenSort) drop.add(field);
+            again = true;
+            continue;
+          }
           const sortable = touched.every(
             (field) => ["id", "version", "created_at", "updated_at"].includes(field) || Object.hasOwn(visible, field),
           );
@@ -448,13 +481,19 @@ export function createRecordAccess(ports: {
             message: "This restricted count exceeds the 5,000-row scan limit. Narrow the filter and retry.",
           });
         if (cap !== "records.counts" && scanned >= 2000) break;
-      } while (cursor);
+      } while (cursor || again);
       let next: string | undefined;
       if (cursor && cap !== "records.counts") {
         for (const [token, saved] of cursors) if (saved.expires <= ports.now()) cursors.delete(token);
         if (cursors.size >= 2000) cursors.delete(cursors.keys().next().value!);
         next = random();
-        cursors.set(next, { key, cursor, expires: ports.now() + 3600000, skip });
+        cursors.set(next, {
+          key,
+          cursor,
+          expires: ports.now() + 3600000,
+          skip,
+          ...(drop.size ? { drop: [...drop] } : {}),
+        });
       }
       return {
         finish: async () => {
@@ -531,9 +570,8 @@ export function createRecordAccess(ports: {
             if (typeof row["field"] === "string") touched.push(row["field"]);
             Object.values(row).forEach(visit);
           };
+          // a sort or a group by a field this reader may not see is not refused: that field counts as empty for them (see collection), so only the filter names fields that must be visible
           visit(value["filter"]);
-          visit(value["sort"]);
-          if (typeof value["group"] === "string") touched.push(value["group"]);
           assertFields(req, type, labels, touched, trace);
         }
         return req;

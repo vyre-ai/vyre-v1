@@ -87,41 +87,64 @@ test("sort and group by a hidden field do not order the member's rows by the hid
   assert.notEqual(plain, "refused");
   assert.equal((plain as string[]).length, 4, "the member sees all four contacts");
 
-  // the probes: the hidden field does not order the member's rows (it is refused, or it is the order the member gets with no sort at all)
-  const probes: Record<string, Record<string, unknown>> = {
-    "sort by the hidden email, ascending": { sort: [{ field: "email", dir: "asc" }] },
-    "sort by the hidden email, descending": { sort: [{ field: "email", dir: "desc" }] },
-    "sort by the hidden phone": { sort: [{ field: "phone", dir: "asc" }] },
-    "hidden email as the first of two sort keys": {
-      sort: [
-        { field: "email", dir: "asc" },
-        { field: "name", dir: "asc" },
-      ],
-    },
-    "group by the hidden email": { group: "email" },
-    "group by the hidden phone": { group: "phone" },
+  // the probes (lead ruling, 26 Nov): a field the grant hides is EMPTY for the member. Every row stays, and the order is the one the member gets with no sort (or by the other keys); it never depends on the hidden values.
+  const probes: Record<string, [Record<string, unknown>, "plain" | "name desc"]> = {
+    "sort by the hidden email, ascending": [{ sort: [{ field: "email", dir: "asc" }] }, "plain"],
+    "sort by the hidden email, descending": [{ sort: [{ field: "email", dir: "desc" }] }, "plain"],
+    "sort by the hidden phone": [{ sort: [{ field: "phone", dir: "asc" }] }, "plain"],
+    "hidden email first, visible name descending second": [
+      {
+        sort: [
+          { field: "email", dir: "asc" },
+          { field: "name", dir: "desc" },
+        ],
+      },
+      "name desc",
+    ],
+    "group by the hidden email": [{ group: "email" }, "plain"],
+    "group by the hidden phone": [{ group: "phone" }, "plain"],
   };
-  const rows: string[] = [];
-  for (const [label, spec] of Object.entries(probes)) {
-    const got = await q(n, spec);
-    rows.push(
-      `${label.padEnd(44)} ${got === "refused" ? "refused" : got.map((id) => made.findIndex((m) => m.id === id)).join(",")}`,
-    );
-    // refused, or no rows at all (the sort fails closed), or the member's own order: none of them orders by a hidden value
-    if (got === "refused" || got.length === 0) continue;
-    assert.deepEqual(
-      got,
-      plain,
-      `${label}: the member's order follows the hidden values (got ${got.join(",")}, unsorted ${(plain as string[]).join(",")})`,
-    );
-  }
-  console.log(rows.join("\n"));
+  const runProbes = async (): Promise<string[]> => {
+    const lines: string[] = [];
+    for (const [label, [spec, want]] of Object.entries(probes)) {
+      const got = await q(n, spec);
+      assert.notEqual(got, "refused", `${label}: the member's sort is not refused`);
+      const expected = want === "plain" ? (plain as string[]) : byName.slice().reverse();
+      assert.deepEqual(got, expected, `${label}: all four rows, in an order that does not follow the hidden values`);
+      lines.push(`${label.padEnd(52)} ${(got as string[]).map((id) => made.findIndex((m) => m.id === id)).join(",")}`);
+    }
+    return lines;
+  };
+  const first = await runProbes();
+  console.log(first.join("\n"));
   // the member's own answer never carries a hidden value, whatever it is sorted by
   const body = JSON.stringify(
     (await n.attempt("records.query", { type: "contact", sort: [{ field: "email", dir: "asc" }], limit: 500 })).data ??
       null,
   );
   for (const m of made) assert.equal(body.includes(m.email), false, "a hidden email is in the sorted answer");
+
+  // the hidden values change (the order of the emails is swapped): the member's orders are IDENTICAL, and the owner's sort follows the real values
+  for (const [i, m] of made.entries()) {
+    m.email = `${String(i)}-${tag}@probe-mail.test`;
+    await h.owner.call("records.update", { type: "contact", recordId: m.id, patch: { email: m.email } });
+  }
+  const byEmail2 = made
+    .slice()
+    .sort((a, b) => a.email.localeCompare(b.email))
+    .map((m) => m.id);
+  assert.deepEqual(
+    await q(own, { sort: [{ field: "email", dir: "asc" }] }),
+    byEmail2,
+    "the owner's sort follows the new emails",
+  );
+  assert.notDeepEqual(byEmail2, byEmail, "the owner's order changed with the hidden values");
+  assert.deepEqual(await q(n, {}), plain, "the member's unsorted order did not move");
+  assert.deepEqual(
+    await runProbes(),
+    first,
+    "the member's sorted and grouped orders are identical whatever the hidden values are",
+  );
 });
 
 test("counts by a hidden field are not an oracle: a count of rows with a hidden fragment is 0 for the member", async () => {
@@ -339,4 +362,85 @@ test("a field the type has retired, which a grant still hides, is not found by s
     false,
     `the history or versions after the retire carry the hidden word: ${past.slice(0, 300)}`,
   );
+});
+
+test("a computed field built on a hidden field (formula, lookup through a relation, rollup) does not carry the hidden value to the member", async () => {
+  const tag = `cf${++seq}x${Math.random().toString(36).slice(2, 6)}`;
+  const type = `ledger${tag}`;
+  const SECRET = `zqsecret${tag}`;
+  const apply = async (key: string, ops: unknown[]): Promise<void> => {
+    await h.owner.call("schema.apply", { idempotencyKey: `${key}-${tag}`, ops });
+  };
+  await apply("cf-type", [
+    {
+      op: "type.create",
+      type,
+      def: {
+        title: "Ledger",
+        plural: "Ledgers",
+        icon: "table",
+        titleField: "name",
+        fields: ["name", "secret"].map((key) => ({ key, type: "text", title: key })),
+      },
+    },
+  ]);
+  await apply("cf-rel", [{ op: "relation.add", type, field: "parent", def: { to: type, inverse: "children" } }]);
+  await apply("cf-calc", [
+    { op: "field.add", type, field: "shadow", def: { type: "formula", title: "Shadow", options: { expr: "secret" } } },
+    {
+      op: "field.add",
+      type,
+      field: "seen",
+      def: { type: "lookup", title: "Seen", options: { via: "parent", field: "secret" } },
+    },
+    {
+      op: "field.add",
+      type,
+      field: "tally",
+      def: { type: "rollup", title: "Tally", options: { via: "parent", field: "secret", fn: "count" } },
+    },
+  ]);
+  const a = (await h.owner.call("records.create", { type, fields: { name: `Alpha ${tag}`, secret: SECRET } })) as {
+    record: { id: string; fields: Record<string, unknown> };
+  };
+  const b = (await h.owner.call("records.create", {
+    type,
+    fields: { name: `Beta ${tag}`, secret: `other ${SECRET}` },
+  })) as { record: { id: string; fields: Record<string, unknown> } };
+  await h.owner.call("records.relate", { type, recordId: b.record.id, field: "parent", toId: a.record.id });
+  const n = await newMember(`cal${tag}`);
+  await shareHiding(a.record.id, n, `cf-a-${tag}`, ["secret"]);
+  await shareHiding(b.record.id, n, `cf-b-${tag}`, ["secret"]);
+  const rec = (id: string) => ({ type, recordId: id });
+  // control: the owner's own answers carry the secret, directly and through every computed field that is computed at all
+  const ownA = JSON.stringify(await h.owner.call("records.get", rec(a.record.id)));
+  const ownB = JSON.stringify(await h.owner.call("records.get", rec(b.record.id)));
+  assert.ok(ownA.includes(SECRET), "the owner's record carries the secret");
+  // control: on this tree the owner's read does not compute these fields at all (no formula, lookup or rollup value comes back), so what is guarded is the day one is computed
+  const probes: Array<[string, string, Record<string, unknown>]> = [
+    ["get a", "records.get", rec(a.record.id)],
+    ["get b", "records.get", rec(b.record.id)],
+    ["query", "records.query", { type, limit: 500 }],
+    ["query only the computed fields", "records.query", { type, fields: ["shadow", "seen", "tally"] }],
+    ["search by the secret", "records.search", { type, q: SECRET }],
+    ["history b", "records.history", rec(b.record.id)],
+    ["versions b", "records.versions", rec(b.record.id)],
+    ["filter on the formula", "records.query", { type, filter: { field: "shadow", op: "contains", value: SECRET } }],
+    ["filter on the lookup", "records.query", { type, filter: { field: "seen", op: "contains", value: SECRET } }],
+    ["sort by the lookup", "records.query", { type, sort: [{ field: "seen", dir: "asc" }] }],
+    ["count on the formula", "records.counts", { type, filter: { field: "shadow", op: "contains", value: SECRET } }],
+    ["count on the lookup", "records.counts", { type, filter: { field: "seen", op: "contains", value: SECRET } }],
+  ];
+  for (const [label, cap, input] of probes) {
+    const r = await n.attempt(cap, input);
+    const body = r.ok ? JSON.stringify(r.data) : "refused";
+    assert.equal(
+      body.includes(SECRET),
+      false,
+      `${label}: the hidden value is in the member's answer: ${body.slice(0, 300)}`,
+    );
+  }
+  // the probe is not empty: the member does see the records
+  const seen = JSON.stringify((await n.call("records.query", { type, limit: 500 })).rows);
+  assert.ok(seen.includes(`Alpha ${tag}`) && seen.includes(`Beta ${tag}`), "the member sees both ledger rows");
 });

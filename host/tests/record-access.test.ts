@@ -91,27 +91,65 @@ test("conditional hidden-field probes are rejected before any canonical row quer
     level: "view",
     conditions: { rowFilter: { op: "eq", field: "name", value: "no visible row" }, hiddenFields: ["secret"] },
   });
-  for (const input of [
-    { filter: { field: "secret", op: "eq", value: "no match" } },
-    { sort: [{ field: "secret", dir: "asc" }] },
-    { group: "secret" },
-  ])
-    await assert.rejects(
-      f.guard.collection(
-        "records.query",
-        { type: "type", ...input },
-        f.seed,
-        {
-          principal: "reader",
-          action: { perm: null, level: "view" },
-          resource: { type: "record_type", id: "type" },
-          now: 1,
-        },
-        "trace",
-      ),
-      (error) => (error as { error?: { code?: string } }).error?.code === "permission.no_grant",
+  const ask = (input: Record<string, unknown>) =>
+    f.guard.collection(
+      "records.query",
+      { type: "type", ...input },
+      f.seed,
+      {
+        principal: "reader",
+        action: { perm: null, level: "view" },
+        resource: { type: "record_type", id: "type" },
+        now: 1,
+      },
+      "trace",
     );
+  await assert.rejects(
+    ask({ filter: { field: "secret", op: "eq", value: "no match" } }),
+    (error) => (error as { error?: { code?: string } }).error?.code === "permission.no_grant",
+  );
   assert.equal(queries, 0);
+});
+test("a sort or group by a hidden field is not refused: the field counts as empty, so the stored order never follows its values", async () => {
+  const f = fixture();
+  const seen: unknown[] = [];
+  f.store.query = async (_type: string, q: unknown) => {
+    seen.push(q);
+    return { rows: [f.row] };
+  };
+  f.snapshot.putGrant({
+    id: "grant",
+    subject_kind: "actor",
+    subject_id: "reader",
+    resource_type: "record_type",
+    resource_id: "type",
+    level: "view",
+    conditions: { hiddenFields: ["secret"] },
+  });
+  for (const input of [{ sort: [{ field: "secret", dir: "asc" }] }, { group: "secret" }]) {
+    const scoped = await f.guard.collection(
+      "records.query",
+      { type: "type", ...input },
+      f.seed,
+      {
+        principal: "reader",
+        action: { perm: null, level: "view" },
+        resource: { type: "record_type", id: "type" },
+        now: 1,
+      },
+      "trace",
+    );
+    assert.ok(scoped, "the read is answered by the scoped path");
+    const out = (await scoped!.finish()) as { rows: Array<{ fields: Record<string, unknown> }> };
+    assert.equal(out.rows.length, 1, "the row is still there");
+    assert.equal("secret" in out.rows[0]!.fields, false, "and carries no hidden value");
+    const last = seen[seen.length - 1] as { sort?: Array<{ field: string }> };
+    assert.equal(
+      (last.sort ?? []).some((row) => row.field === "secret"),
+      false,
+      "the read that answered was not ordered by the hidden field",
+    );
+  }
 });
 test("dropping classified fields or a type after preparation never declassifies retained values", async () => {
   const f = fixture();
