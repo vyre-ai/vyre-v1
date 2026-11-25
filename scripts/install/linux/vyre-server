@@ -11,6 +11,7 @@
 #   vyre-server rollback                    switch back to the previous release (code only; data written by the newer one stays)
 #   vyre-server backup                      write a backup of the data directory to the backup folder, by default next to the data (the server keeps running)
 #   vyre-server restore FILE [--yes]        put a backup back: checks it, backs up the current data, stops, restores, starts, checks health
+#   vyre-server compact [--check] [--yes]   a planned stopped window: shrink events.db (drops the kept answers of read calls, makes a file that gives pages back), keeps the old file until `compact --finish`
 #   vyre-server fix-userns                  let the engine sandbox make user namespaces (Ubuntu 24.04 setting); install and update do this themselves
 #   vyre-server version
 #
@@ -904,6 +905,115 @@ backup_note() {
 }
 
 # The server keeps running for a plain backup: nothing is stopped, nothing needs starting.
+# ---- compact: shrink events.db in a planned stopped window ------------------------------------------------------------------------------------------------------------------------------
+# The capabilities whose kept answers are only a copy of someone else's data (the `rerun` flag in the contracts: connectors.read). A test compares this list with the registry.
+RERUN_CAPS="connectors.read"
+# The node program (argv[1] is report or run, argv[2] the caps; /data is the Space folder, COMPACT_DIR in tests). `report` only reads. `run` writes events.db.compact: the same tables, the answers of the
+# rerun capabilities left out, a new file that gives free pages back in steps (auto_vacuum incremental); every table's rows are counted against the old file, the newest event and its hash compared, quick_check run.
+COMPACT_JS='const{DatabaseSync}=require("node:sqlite"),fs=require("node:fs");
+const mode=process.argv[1],caps=(process.argv[2]||"").split(",").filter(Boolean);
+const dir=process.env.COMPACT_DIR||"/data",src=dir+"/events.db",dst=dir+"/events.db.compact";
+const sz=(p)=>{try{return fs.statSync(p).size}catch(e){return 0}};
+const marks=caps.map(()=>"?").join(",")||"NULL";
+const one=(d,sql,...a)=>d.prepare(sql).get(...a);
+const id=(n)=>"\""+String(n).replaceAll("\"","\"\"")+"\"";
+if(mode==="report"){
+  const d=new DatabaseSync(src,{readOnly:true});d.exec("PRAGMA busy_timeout=30000");
+  let drop=0,keep=0,rows=0;
+  for(const r of d.prepare("SELECT cap,count(*) AS n,sum(length(result)) AS b FROM idempotency GROUP BY cap").all()){
+    rows+=Number(r.n);
+    if(caps.includes(r.cap))drop+=Number(r.b||0);else keep+=Number(r.b||0);
+  }
+  console.log("file "+sz(src));console.log("rows "+rows);console.log("drop "+drop);console.log("keep "+keep);
+  console.log("auto_vacuum "+Object.values(one(d,"PRAGMA auto_vacuum"))[0]);
+  d.close();process.exit(0);
+}
+const s=new DatabaseSync(src);s.exec("PRAGMA busy_timeout=30000");
+s.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+for(const x of ["","-wal","-shm"])fs.rmSync(dst+x,{force:true});
+const n=new DatabaseSync(dst);
+n.exec("PRAGMA auto_vacuum=INCREMENTAL");
+n.exec("PRAGMA journal_mode=DELETE");n.exec("PRAGMA synchronous=OFF");
+n.prepare("ATTACH DATABASE ? AS old").run(src);
+const objs=s.prepare("SELECT type,name,sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE ? ORDER BY rowid").all("sqlite_%");
+const tables=objs.filter((o)=>o.type==="table"),rest=objs.filter((o)=>o.type!=="table");
+for(const t of tables)n.exec(t.sql);
+const counts={};
+for(const t of tables){
+  const cols=s.prepare("PRAGMA table_xinfo("+id(t.name)+")").all().filter((c)=>Number(c.hidden)<2).map((c)=>id(c.name)).join(",");
+  const where=t.name==="idempotency"&&caps.length?" WHERE cap IS NULL OR cap NOT IN ("+marks+")":"";
+  const args=t.name==="idempotency"?caps:[];
+  n.prepare("INSERT INTO main."+id(t.name)+" ("+cols+") SELECT "+cols+" FROM old."+id(t.name)+where).run(...args);
+  const want=Number(one(s,"SELECT count(*) AS n FROM "+id(t.name)).n)-(t.name==="idempotency"&&caps.length?Number(one(s,"SELECT count(*) AS n FROM idempotency WHERE cap IN ("+marks+")",...caps).n):0);
+  const got=Number(one(n,"SELECT count(*) AS n FROM main."+id(t.name)).n);
+  if(want!==got){console.log("MISMATCH "+t.name+" "+want+" "+got);n.close();s.close();for(const x of ["","-wal","-shm"])fs.rmSync(dst+x,{force:true});process.exit(3)}
+  counts[t.name]=got;
+}
+for(const o of rest)n.exec(o.sql);
+const q=Object.values(one(n,"PRAGMA main.quick_check"))[0];
+const head=(d,sch)=>JSON.stringify(one(d,"SELECT max(seq) AS m,(SELECT hash FROM "+sch+"events ORDER BY seq DESC LIMIT 1) AS h FROM "+sch+"events"));
+const same=head(s,"")===head(n,"main.");
+const av=Object.values(one(n,"PRAGMA main.auto_vacuum"))[0];
+n.close();s.close();
+if(q!=="ok"||!same||Number(av)!==2){console.log("CHECK failed quick_check="+q+" head_same="+same+" auto_vacuum="+av);for(const x of ["","-wal","-shm"])fs.rmSync(dst+x,{force:true});process.exit(3)}
+console.log("before "+sz(src));console.log("after "+sz(dst));console.log("tables "+JSON.stringify(counts));console.log("ok");
+'
+# cmd_compact [--check] [--finish] [--yes]: for a file the daily purge cannot shrink (made before incremental vacuum, or full of answers that are no longer kept). It stops the server, builds events.db.compact beside the old
+# file (it needs room for the compacted file only, not for a second copy of the old one), checks it, puts it in place with the old one kept as events.db.precompact, starts the server and, if it does not
+# come up healthy, puts the old file back. `--check` only reports what it would drop. `--finish` removes events.db.precompact once the server has run well on the new file.
+cmd_compact() {
+  _check=0; _finish=0
+  for a in "$@"; do case "$a" in --check) _check=1 ;; --finish) _finish=1 ;; --yes|-y) YES=1 ;; *) die "compact takes --check, --finish and --yes" 2 ;; esac; done
+  _ev="$DATA_DIR/space/events.db"
+  [ -f "$_ev" ] || die "there is no Space here: $_ev is missing"
+  _img=$(sed -n 's/^VYRE_IMAGE=//p' "$DIR/compose.env" 2>/dev/null | head -n 1)
+  [ -n "$_img" ] || die "no server image is named in $DIR/compose.env; nothing was changed."
+  command -v docker >/dev/null 2>&1 || die "compact needs Docker to open the database the way the server does; nothing was changed."
+  if [ "$_finish" = 1 ]; then
+    [ -f "$_ev.precompact" ] || die "there is no $_ev.precompact to remove"
+    check_quiet || die "the server is not healthy now; the old file is kept ($_ev.precompact)."
+    rm -f "$_ev.precompact" "$_ev.precompact-wal" "$_ev.precompact-shm"
+    say "Removed the old events.db; the compacted one is the only copy now."
+    return 0
+  fi
+  _rep=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/data:ro" --entrypoint node "$_img" --no-warnings -e "$COMPACT_JS" report "$RERUN_CAPS") || die "could not read events.db; nothing was changed."
+  _file=$(printf '%s\n' "$_rep" | awk '$1 == "file" { print $2 }'); _drop=$(printf '%s\n' "$_rep" | awk '$1 == "drop" { print $2 }')
+  say "events.db is $((_file / 1048576)) MB; the kept answers of $RERUN_CAPS hold about $((_drop / 1048576)) MB of it."
+  [ "$_check" != 1 ] || return 0
+  [ "$((_drop))" -gt 0 ] || die "there is nothing to drop; nothing was changed."
+  _need_kb=$(( (_file - _drop) / 1024 + 1048576 ))
+  _free_kb=$(df -Pk "$DATA_DIR/space" | awk 'NR == 2 { print $4 }')
+  [ "${_free_kb:-0}" -gt "$_need_kb" ] || die "not enough room: about $((_need_kb / 1024)) MB are needed beside the old file and $((${_free_kb:-0} / 1024)) MB are free; nothing was changed."
+  lock_update_operation
+  if [ "$YES" != 1 ]; then
+    [ -t 0 ] || die "compact stops the server while it works; run it from a terminal, or pass --yes. Nothing was changed."
+    printf 'This stops the server for the time it takes to copy about %s MB (a few minutes), keeps the old events.db until you remove it, and starts the server again. Type yes to go on: ' "$(( (_file - _drop) / 1048576 ))"
+    read -r answer || answer=""
+    [ "$answer" = yes ] || die "not confirmed; nothing was changed."
+  fi
+  say "  Stopping the server"
+  cmd_stop
+  stop_strays
+  say "  Building the compacted file"
+  if ! _out=$(docker run --rm --network none --user 1000:1000 -v "$DATA_DIR/space:/data" --entrypoint node "$_img" --no-warnings -e "$COMPACT_JS" run "$RERUN_CAPS"); then
+    rm -f "$_ev.compact" "$_ev.compact-wal" "$_ev.compact-shm"
+    cmd_start || true; resume_strays
+    die "the compacted file did not pass its checks ($(printf '%s' "$_out" | tr '\n' ' ')); the old file is untouched and the server is started again."
+  fi
+  say "  Putting it in place"
+  mv -f "$_ev" "$_ev.precompact" && rm -f "$_ev-wal" "$_ev-shm" && mv -f "$_ev.compact" "$_ev" || { [ -f "$_ev" ] || mv -f "$_ev.precompact" "$_ev"; cmd_start || true; resume_strays; die "could not put the compacted file in place; the old one is back and the server is started again."; }
+  if cmd_start && wait_healthy; then
+    resume_strays
+    say "Done. events.db is now $(( $(wc -c <"$_ev") / 1048576 )) MB (it was $((_file / 1048576)) MB). The old file is kept as $_ev.precompact: once the server has run well, remove it with: vyre-server compact --finish"
+  else
+    say "  The server did not come up healthy on the new file; putting the old one back"
+    cmd_stop || true
+    mv -f "$_ev" "$_ev.failed" && rm -f "$_ev-wal" "$_ev-shm" && mv -f "$_ev.precompact" "$_ev"
+    cmd_start || true; resume_strays
+    die "the old events.db is back; the compacted file is kept as $_ev.failed for a look."
+  fi
+}
+
 cmd_backup() {
   lock_update_operation
   backup_data manual live
@@ -1535,7 +1645,7 @@ cmd_rollback() {
 
 main() {
   trap cleanup EXIT
-  [ $# -gt 0 ] || { sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
+  [ $# -gt 0 ] || { sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
   cmd=$1; shift
   hand_off "$cmd" "$@"
   case "$cmd" in
@@ -1550,9 +1660,10 @@ main() {
     fix-userns) ensure_userns; say "Done." ;;
     rollback) cmd_rollback ;;
     backup) cmd_backup ;;
+    compact) cmd_compact "$@" ;;
     restore) cmd_restore "$@" ;;
     version|--version) say "$(cur_version)" ;;
-    -h|--help|help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
+    -h|--help|help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//' ;;
     *) die "unknown command $cmd (try: vyre-server help)" 2 ;;
   esac
 }
