@@ -308,12 +308,15 @@ export async function syncAccess(
 // with 40 projects: 70 s of blocks of 1.5 to 3 s at every tick). `sweptSpaces` is the same guard for the periodic job (impl.ts): the full sweep runs once per process, and after that only when sweepNeeded says so.
 const FOLLOWED = new Set<string>();
 export const sweptSpaces = new Set<string>();
+/** A first sweep that failed is tried again at a later tick, not at once and not never: 10 minutes, 20, 40, then every 60. */
+export const sweepFailures = new Map<string, { n: number; retryAt: number }>();
 /** How many full sweeps ran and how many times the cheap look was asked (the tests read it). */
 export const sweepStats = { full: 0, asked: 0 };
 /** For the tests: a new world is a new Space with the same name. */
 export function resetSweepGuards(): void {
   FOLLOWED.clear();
   sweptSpaces.clear();
+  sweepFailures.clear();
 }
 /**
  * Once per boot: every record files folder and every project folder follows its record (access.audience_set follows), so a folder made before folders followed their records stops being open to people

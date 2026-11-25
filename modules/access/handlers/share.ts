@@ -1883,8 +1883,15 @@ export async function audienceSet(
   // the host's sweep at every start asks every record folder and project folder to follow its record again; one that already does changes nothing, so it is answered from the kept read view before
   // anything is loaded or rebuilt (a writer's own store is read whole from the tables on each call: 0.6 s on a Space of 38,000 records)
   if (input.follows !== undefined && isHostOwnService(ctx.principal)) {
-    const seen = storeOf(asReader(ctx as AccessCtx)).resources.get(input.resource.id);
-    if (seen && seen.type === "folder" && seen.parentId === input.follows && seen.row?.["audienceChosen"] !== true)
+    const view = storeOf(asReader(ctx as AccessCtx));
+    const seen = view.resources.get(input.resource.id);
+    if (
+      seen &&
+      seen.type === "folder" &&
+      seen.parentId === input.follows &&
+      view.resources.get(input.follows)?.type === "record" &&
+      seen.row?.["audienceChosen"] !== true
+    )
       return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
   await settleForWriter(ctx as AccessCtx);

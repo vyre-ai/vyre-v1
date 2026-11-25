@@ -17,13 +17,13 @@ after(async () => {
   await d?.stop();
 });
 
-test("the project folder sweep and the state check run in full once after a start, not at every tick", { timeout: 120_000 }, async () => {
+test("the project folder sweep runs in full once after a start, not at every tick, and the state check goes on in passes", { timeout: 120_000 }, async () => {
   // the start-up runs of both jobs have happened
   await d.scheduler.tick();
   const full = sweepStats.full;
-  const deep = verifyPasses.deep;
+  const passes = verifyPasses.complete + verifyPasses.partial;
   assert.ok(full >= 1, "the sweep ran once at the start");
-  assert.ok(deep >= 1, "the state check ran deep once at the start");
+  assert.ok(passes >= 1, "the state check ran at the start");
   // a project made since, then the ten-minute and six-hour ticks come round
   const made = await call(d, "projects.create", { type: "project", title: "Late", idempotencyKey: "hops-late" });
   assert.equal(made.status, 200, JSON.stringify(made.data).slice(0, 200));
@@ -36,6 +36,5 @@ test("the project folder sweep and the state check run in full once after a star
   assert.equal(sweepStats.full, full, "the sweep did not run in full again: it asked first and found nothing to do");
   t += 6 * 60 * 60_000;
   await d.scheduler.tick();
-  assert.ok(verifyPasses.recent >= 1, "the six-hour check ran");
-  assert.equal(verifyPasses.deep, deep, "the six-hour check did not recount every row again");
+  assert.ok(verifyPasses.complete + verifyPasses.partial > passes, "the six-hour check ran again, as the next pass");
 });

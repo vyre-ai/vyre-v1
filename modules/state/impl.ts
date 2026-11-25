@@ -4,6 +4,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import * as h from "./handlers/index.ts";
 import { storeOf, storeWithPeople } from "./projections.ts";
 import type { StateCtx } from "./projections.ts";
+import { turns } from "../../lib/yield-loop.ts";
 
 export const handlers: Record<string, Handler> = {
   "state.get": (ctx, i) => h.get(ctx as never, i as never),
@@ -52,32 +53,52 @@ export const periodic = {
     },
   },
   /**
-   * At start, then every six hours: compare every head and badge with the entries and repair what differs; ask each kind whether the people with rows can still see their things. The first run also
-   * recounts every row against its entries (finds an arrival lost before a later one); later runs do that for things with a newer entry than the last week. Slices of 200 things, each its own transaction.
+   * Every six hours (and at start): compare every head and badge with the entries and repair what differs, and recount every row against its entries (finds an arrival lost before a later one). The pass
+   * is incremental: each run covers at most VERIFY_THINGS things after a cursor kept in state_verify_cursor, in slices of 200 things with a turn for other work between, and the next run goes on where
+   * it stopped; when the pass reaches the end, the count check runs, each kind is asked who can still see its things, and the next run starts over from the beginning. A thing is never older than one
+   * pass, whatever its age, and no run holds the event loop for more than one slice.
    */
   "state.verify": {
     everyMs: 6 * 60 * 60_000,
     immediate: true,
     run: async (ctx: StateCtx): Promise<void> => {
       const store = await storeWithPeople(ctx);
-      const first = !checked.has(ctx.space);
-      checked.add(ctx.space);
-      if (first) verifyPasses.deep++;
-      else verifyPasses.recent++;
-      const r = store.verify({ repair: true, deep: true, ...(first ? {} : { since: ctx.now() - 7 * 86_400_000 }) });
-      const access = store.reconcile();
-      if (r.problems.length > 0 || access.left > 0 || access.entered > 0)
+      ctx.db.run(CURSOR_TABLE);
+      const at = (ctx.db.all("SELECT cursor FROM state_verify_cursor WHERE id = 1") as Array<{ cursor: string }>)[0]?.cursor;
+      const steps = store.verifySteps({
+        repair: true,
+        deep: true,
+        limit: VERIFY_THINGS,
+        ...(at ? { from: at } : {}),
+      });
+      const turn = turns();
+      let r: IteratorResult<void, import("../../host/src/seams/state.ts").VerifyReport>;
+      for (;;) {
+        r = steps.next();
+        if (r.done) break;
+        await turn();
+      }
+      const report = r.value;
+      if (report.next) verifyPasses.partial++;
+      else verifyPasses.complete++;
+      ctx.db.run(
+        "INSERT INTO state_verify_cursor (id, cursor) VALUES (1, ?) ON CONFLICT (id) DO UPDATE SET cursor = excluded.cursor",
+        report.next ?? "",
+      );
+      const access = report.next ? { left: 0, entered: 0 } : store.reconcile();
+      if (report.problems.length > 0 || access.left > 0 || access.entered > 0)
         ctx.log.warn("state.verify repaired what a crash or a bug left", {
-          problems: r.problems.length,
-          repaired: r.repaired,
-          first: r.problems[0],
+          problems: report.problems.length,
+          repaired: report.repaired,
+          first: report.problems[0],
           left: access.left,
           entered: access.entered,
         });
     },
   },
 };
-// Keyed by the Space: a job's db handle is new on every run, so a set of handles made every run the first one (the deep recount of every row) instead of only the first after a start.
-const checked = new Set<string>();
-/** How many verify passes were deep (every row recounted) and how many looked only at the recent ones (the tests read it). */
-export const verifyPasses = { deep: 0, recent: 0 };
+/** The most things one run recounts (a Space of 46,000 things is done in three runs). */
+export const VERIFY_THINGS = 20_000;
+const CURSOR_TABLE = `CREATE TABLE IF NOT EXISTS state_verify_cursor ("id" INTEGER PRIMARY KEY, "cursor" TEXT NOT NULL)`;
+/** How many runs ended a pass and how many stopped at their cap (the tests read it). */
+export const verifyPasses = { complete: 0, partial: 0 };

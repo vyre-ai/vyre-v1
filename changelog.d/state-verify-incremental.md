@@ -1,0 +1,1 @@
+The six-hourly state check goes on in slices instead of one long pass: each run recounts at most 20,000 things in steps of 200 with a turn for other work between, keeps where it stopped, and the next run resumes from there; a pass that reaches the end starts over. Every row is recounted once per pass, whatever its age, and nothing waits for a restart.

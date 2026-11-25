@@ -15,6 +15,7 @@ import {
 } from "../handlers/folders.ts";
 import { FOLLOW_BACKOFF_MS } from "../projections.ts";
 import { periodic } from "../impl.ts";
+import { sweptSpaces } from "../handlers/folders.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -698,4 +699,22 @@ test("the ten-minute sweep runs in full once per Space and after that only when 
   mkRecord(h, { title: "Late" });
   await run({ ...h.ctx, db: Object.create(h.ctx.db) });
   assert.ok(h.only("records.query").length > pages, "a project record that came later makes the sweep run");
+});
+
+test("a first sweep that fails is tried again at a later tick, with a wait that grows, and is logged", async () => {
+  const clock = { t: Date.parse("2026-11-24T10:00:00Z") };
+  const h = harness({ clock });
+  mkRecord(h, { title: "Retry" });
+  const run = periodic["projects.folder_backfill"].run as (ctx: unknown) => Promise<void>;
+  h.world.down.add("records.query");
+  await assert.rejects(run({ ...h.ctx }), undefined, "the failed sweep is a failed job");
+  assert.equal(sweptSpaces.has(h.ctx.space), false, "a failed sweep does not count as done");
+  assert.ok(h.warned.some((w) => w.includes("the folder sweep failed")), "and the failure is logged");
+  // too soon: the same tick does not try again
+  await run({ ...h.ctx, db: Object.create(h.ctx.db) });
+  h.world.down.delete("records.query");
+  assert.equal(sweptSpaces.has(h.ctx.space), false, "it waits");
+  clock.t += 10 * 60_000;
+  await run({ ...h.ctx, db: Object.create(h.ctx.db) });
+  assert.equal(sweptSpaces.has(h.ctx.space), true, "the next tick runs it, and it is done");
 });

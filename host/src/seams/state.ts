@@ -113,10 +113,15 @@ export interface VerifyOptions {
   deep?: boolean;
   /** with `deep`: only things whose newest entry is at or after this time (a cheap pass that still finds a recent lost arrival) */
   since?: number;
+  /** a window of the pass: the things after this cursor (a report's `next`), in (kind, id) order, at most `limit` of them; the count check runs only on the window that ends the pass */
+  from?: string;
+  limit?: number;
 }
 export interface VerifyReport {
   problems: Problem[];
   repaired: number;
+  /** set when `limit` stopped the pass before its end: give it back as `from` to go on */
+  next?: string;
 }
 
 export interface ThingState {
@@ -221,6 +226,8 @@ export interface StateStore {
   /** set one registered key to a small JSON value, or null to clear it */
   layoutSet(person: string, key: string, value: unknown): LayoutValue;
   verify(o?: VerifyOptions): VerifyReport;
+  /** the same pass in steps: it gives the caller back the loop after every slice of things, and returns the report when done (an async job runs it with a turn between the steps) */
+  verifySteps(o?: VerifyOptions): Generator<void, VerifyReport>;
   followersOf(thing: Thing): string[];
   stateOf(person: string, things: readonly Thing[]): ThingState[];
   canSee(person: string, thing: Thing): boolean;
@@ -933,13 +940,20 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       return { key, value, version, at: now() };
     });
 
-  const verify: StateStore["verify"] = (o = {}) => {
+  function* verifySteps(o: VerifyOptions = {}): Generator<void, VerifyReport> {
     if (o.repair) sweep();
     const problems: Problem[] = [];
     let repaired = 0;
     // 1 heads: what the module holds against what the seam kept. The module's answer is what it says, never what it leaves out: a thing it does not list is unknown (an archived or hidden thing
     // may be left out of `heads`), not gone, and nobody's read position is lowered for it. Only `retract`, which the module calls when it removes an entry, takes positions down.
-    for (const [type, k] of KINDS.get(db) ?? kinds) {
+    const windowed = o.limit !== undefined || o.from !== undefined;
+    let budget = o.limit ?? Number.POSITIVE_INFINITY;
+    let next: string | undefined;
+    const kindList = [...(KINDS.get(db) ?? kinds)];
+    if (windowed) kindList.sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+    for (const [type, k] of kindList) {
+      if (next !== undefined) break;
+      if (windowed && o.from !== undefined && `${type}\u0000\uffff` <= o.from) continue; // this whole kind is before the cursor
       const real = new Map(k.heads(db).map((h) => [h.thing, h]));
       const kept = new Map(
         (db.all("SELECT id, head FROM state_thing WHERE type = ?", type) as Row[]).map((r) => [
@@ -947,7 +961,17 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
           num(r["head"]),
         ]),
       );
-      const ids = [...real.keys()];
+      let ids = [...real.keys()];
+      if (windowed) {
+        ids.sort();
+        if (o.from !== undefined) ids = ids.filter((id) => `${type}\u0000${id}` > o.from!);
+        if (ids.length > budget) {
+          ids = ids.slice(0, budget);
+          next = `${type}\u0000${ids[ids.length - 1]}`;
+        }
+        budget -= ids.length;
+        if (budget <= 0 && next === undefined) next = ids.length ? `${type}\u0000${ids[ids.length - 1]}` : o.from;
+      }
       // in slices, each its own transaction: a long pass never holds the connection for the whole server
       for (let i = 0; i < ids.length; i += SLICE) {
         tx(() => {
@@ -996,8 +1020,11 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
             }
           }
         });
+        yield; // the caller gets the loop back between two slices
       }
     }
+    // a window that stopped before the end of the pass leaves the count check to the window that ends it
+    if (next !== undefined) return { problems, repaired, next };
     return tx(() => {
       // 2 counts: what is stored against what the people's rows add up to
       const want = truth(o);
@@ -1061,6 +1088,13 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
       }
       return { problems, repaired };
     });
+  }
+  const verify: StateStore["verify"] = (o = {}) => {
+    const steps = verifySteps(o);
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
   };
 
   return {
@@ -1079,6 +1113,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     layoutGet,
     layoutSet,
     verify,
+    verifySteps,
     followersOf,
     stateOf,
     canSee,

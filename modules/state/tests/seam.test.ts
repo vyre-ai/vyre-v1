@@ -532,3 +532,27 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
     assert.deepEqual(st.verify({ deep: true }).problems, []);
   });
 }
+
+test("a verify in windows covers every thing across runs, each resuming from the cursor the last one gave", () => {
+  const fx = openFx();
+  const things = Array.from({ length: 7 }, (_, i) => fx.make("conversation", `cnv_w${i}`, [MAYA]));
+  for (const c of things) fx.post(c, STRANGER);
+  fx.db.run("UPDATE state_person SET unread = 9 WHERE person = ?", MAYA); // a wrong row under every thing
+  let from: string | undefined;
+  let windows = 0;
+  let found = 0;
+  const seen = new Set<string>();
+  for (;;) {
+    const r = stateOf(fx).verify({ repair: true, deep: true, limit: 3, ...(from ? { from } : {}) });
+    windows++;
+    for (const p of r.problems) if (p.kind === "unread" && p.thing) seen.add(p.thing.id);
+    found += r.problems.filter((p) => p.kind === "unread").length;
+    if (r.next === undefined) break;
+    assert.notEqual(r.next, from, "the cursor moves");
+    from = r.next;
+  }
+  assert.equal(windows, 3, "7 things in windows of 3 take three runs");
+  assert.equal(found, 7, "every thing's wrong row was found once");
+  assert.equal(seen.size, 7);
+  clean(fx);
+});

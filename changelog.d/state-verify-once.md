@@ -1,1 +1,0 @@
-The six-hourly state check recounts every row only once after a start, as intended: it remembered that per database handle, and a scheduled job gets a new handle on every run, so it did the full recount every time.

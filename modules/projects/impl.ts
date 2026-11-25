@@ -4,7 +4,7 @@ import type { EraseCtx, EraseIn, Footprint } from "../../lib/erase-agent.ts";
 import type { Handler } from "../../host/src/invoke.ts";
 import { handlers as table } from "./handlers/index.ts";
 import { grantOnProject } from "./handlers/project.ts";
-import { backfill, onFolderUnfollowed, onRecordEvent, sweepNeeded, sweptSpaces } from "./handlers/folders.ts";
+import { backfill, onFolderUnfollowed, onRecordEvent, sweepFailures, sweepNeeded, sweptSpaces } from "./handlers/folders.ts";
 import { itemOf, offer } from "./handlers/attach.ts";
 import type { Ctx } from "../../packages/contracts/src/ctx.ts";
 
@@ -58,9 +58,25 @@ export const periodic = {
     everyMs: 10 * 60_000,
     immediate: true,
     async run(ctx: Ctx): Promise<void> {
-      if (sweptSpaces.has(ctx.space) && !(await sweepNeeded(ctx as never))) return;
-      sweptSpaces.add(ctx.space);
-      await backfill(ctx as never);
+      const swept = sweptSpaces.has(ctx.space);
+      if (swept && !(await sweepNeeded(ctx as never))) return;
+      const failed = sweepFailures.get(ctx.space);
+      if (!swept && failed && ctx.now() < failed.retryAt) return;
+      try {
+        await backfill(ctx as never);
+        sweptSpaces.add(ctx.space);
+        sweepFailures.delete(ctx.space);
+      } catch (e) {
+        const n = (failed?.n ?? 0) + 1;
+        const wait = Math.min(10 * 2 ** (n - 1), 60);
+        sweepFailures.set(ctx.space, { n, retryAt: ctx.now() + wait * 60_000 - 60_000 });
+        ctx.log.warn("projects: the folder sweep failed and will be tried again", {
+          attempt: n,
+          retryInMinutes: wait,
+          error: e instanceof Error ? e.message : String(e),
+        });
+        throw e;
+      }
     },
   },
 };

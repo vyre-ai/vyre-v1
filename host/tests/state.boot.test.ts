@@ -19,7 +19,8 @@ test("the state module migrates at boot and answers its public calls through the
         name: string;
       }[]
     ).map((r) => r.name);
-    assert.deepEqual(tables, ["state_count", "state_layout", "state_person", "state_thing"]);
+    // state_verify_cursor: where the six-hourly check stopped (the job makes it on its first run)
+    assert.deepEqual(tables, ["state_count", "state_layout", "state_person", "state_thing", "state_verify_cursor"]);
 
     const counts = await post(d, "/v1/state/counts", {});
     assert.equal(counts.status, 200);

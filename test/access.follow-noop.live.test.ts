@@ -3,7 +3,7 @@
 // Real server-role daemon; the loop is measured in the daemon's own process.
 import { after, before, test } from "node:test";
 import assert from "node:assert/strict";
-import { bootHour } from "./support/member-hour.ts";
+import { bootHour, join } from "./support/member-hour.ts";
 import type { Hour } from "./support/member-hour.ts";
 import { shareKept } from "../modules/access/handlers/share.ts";
 
@@ -65,3 +65,40 @@ test("asking a folder to follow the record it already follows rebuilds nothing",
   console.log(`MEASURE ${FOLDERS} repeated follows: ${took} ms, longest block ${Math.round(worst)} ms`);
   assert.equal(shareKept.committed, committed, "a folder that already follows its record rebuilt the access view");
 });
+
+test(
+  "a person without Manage is refused for a folder that already follows, and a record that is not there is not found",
+  { timeout: 120_000 },
+  async () => {
+    const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+    const inv = await h.owner.call("members.invites.create", {
+      role: roles.find((r) => r.name === "Member")!.id,
+      email: "fol@firm.test",
+    });
+    const p = h.person("Fol Low", "follow", "fol@firm.test", "fol horse battery staple 9");
+    await join(h, p, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
+    const tree = (await h.owner.call("files.tree", {})) as { roots: Array<{ key: string; folderId?: string }> };
+    const root = tree.roots.find((r) => r.key === "personal")!.folderId!;
+    const folder = (
+      (await h.owner.call("files.folder.create", { parentId: root, name: "Fol", idempotencyKey: "fn-fol" })) as {
+        folder: { folderId: string };
+      }
+    ).folder.folderId;
+    const rec = (
+      (await h.owner.call("records.query", {
+        type: "contact",
+        filter: { field: "email", op: "eq", value: "p0-0@fn.test" },
+        limit: 1,
+      })) as { rows: Array<{ id: string }> }
+    ).rows[0]!.id;
+    await h.owner.call("access.audience_set", { resource: { type: "folder", id: folder }, follows: rec }); // follows now
+    const refused = await p.attempt("access.audience_set", { resource: { type: "folder", id: folder }, follows: rec });
+    assert.equal(refused.ok, false, "a person with no access cannot ask, even for what is already so");
+    const gone = await h.owner.attempt("access.audience_set", {
+      resource: { type: "folder", id: folder },
+      follows: "rec_00000000000000000000000000000000",
+    });
+    assert.equal(gone.ok, false);
+    assert.match(JSON.stringify(gone.error ?? gone), /not_found|no such record/);
+  },
+);
