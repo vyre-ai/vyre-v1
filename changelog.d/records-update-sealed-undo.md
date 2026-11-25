@@ -1,0 +1,1 @@
+A sealed value that the record write then refuses, or an item whose second sealed value fails, no longer leaves the first one behind: new values are taken back and a value written over an older one is put back.

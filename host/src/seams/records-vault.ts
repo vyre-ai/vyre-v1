@@ -12,6 +12,8 @@ export interface RecordsVaultSeam {
   reveal(ref: string, person: string): Promise<string>;
   /** Take back a value put for a record that was then not made: the value is overwritten (the item stays, holding a note). */
   discard(ref: string): Promise<void>;
+  /** The value under a reference, read by the host for its own use before a put overwrites it, so the overwrite can be undone. Nothing is shown to a person. */
+  peek(ref: string): Promise<string | undefined>;
   /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
   scrubField(type: string, field: string): Promise<void>;
 }
@@ -76,6 +78,19 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
         itemId: ref,
         fieldsSet: [{ key: SEALED_KEY, value: "(taken back: the record was not made)", secret: true }],
       });
+    },
+    // the host reads the value as its own service (no person, nothing shown) so a put over it can be put back; a value that cannot be read answers undefined and the overwrite stays one that cannot be undone
+    async peek(ref) {
+      try {
+        const out = (await d.system("vault.item.reveal", {
+          itemId: ref,
+          fields: [SEALED_KEY],
+          reason: "A sealed value is about to be replaced",
+        })) as { fields: { key: string; value: string }[] };
+        return out.fields.find((f) => f.key === SEALED_KEY)?.value;
+      } catch {
+        return undefined;
+      }
     },
     scrubField: (type, field) => d.scrub(type, field),
     async reveal(ref, person) {

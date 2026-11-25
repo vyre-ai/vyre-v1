@@ -56,6 +56,16 @@ export interface RecordsVault {
   reveal(ref: string, person: string): Promise<string>;
   /** Take back a value put for a record that was then not made (best effort: the value is overwritten). Absent: nothing is taken back. */
   discard?(ref: string): Promise<void>;
+  /** The value under a reference, read for the host's own use (no person, nothing shown): Records reads it before it overwrites a value in place, so the overwrite can be undone if the record write is then refused. Absent: an overwrite cannot be undone. */
+  peek?(ref: string): Promise<string | undefined>;
+}
+/** One value Records put in the Vault for an item: a new one (`was` absent: discard takes it back) or one written over the value a reference already held (`was`: write that value back). */
+interface Put {
+  ref: string;
+  type: string;
+  recordId: string;
+  field: string;
+  was?: string;
 }
 let vault: RecordsVault | null = null;
 /** The Vault the host handed, for a test that checks what the real one does with a call Records makes. */
@@ -77,8 +87,8 @@ async function sealIn(
   current?: Record<string, unknown>,
   /** Dry: nothing goes to the Vault; a value that would be sealed shows as a reference to nothing, so the record can be checked before any value is written. */
   dry = false,
-  /** Told of each reference this call minted, as its put returns: a failure on a later field still lets the caller take back the earlier ones. */
-  onPut?: (ref: string) => void,
+  /** Told of each value this call put, as its put returns: a failure on a later field still lets the caller take back the earlier ones. */
+  onPut?: (p: Put) => void,
 ): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
@@ -111,6 +121,8 @@ async function sealIn(
       continue;
     }
     const have = current?.[f.name];
+    // a value that goes over the one a reference holds is read first, so the overwrite can be undone
+    const was = isSealedRef(have) && onPut ? await vault.peek?.((have as { ref: string }).ref) : undefined;
     const ref = await vault.put({
       type: def.name,
       recordId,
@@ -118,10 +130,24 @@ async function sealIn(
       value: text,
       ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
     });
-    if (!isSealedRef(have)) onPut?.(ref);
+    if (!isSealedRef(have)) onPut?.({ ref, type: def.name, recordId, field: f.name });
+    else if (was !== undefined) onPut?.({ ref, type: def.name, recordId, field: f.name, was });
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
   }
   return out;
+}
+
+/** Take back what an item put in the Vault: a new value is discarded, a value written over an older one is written back. Best effort, as discard is. */
+async function takeBackPuts(puts: Put[]): Promise<void> {
+  const v = vault;
+  if (!v) return;
+  for (const p of puts) {
+    if (p.was !== undefined)
+      await v
+        .put({ type: p.type, recordId: p.recordId, field: p.field, value: p.was, ref: p.ref })
+        .catch(() => undefined);
+    else if (v.discard) await v.discard(p.ref).catch(() => undefined);
+  }
 }
 
 /** The singular and plural spellings a type key may be asked for by: deal and deals, company and companies, status and statuses. */
@@ -336,7 +362,17 @@ export function openRecords(
     },
     async create(type, id, data) {
       const def = await needType(type);
-      return inner.create(def.name, id, scrub(def, await sealIn(def, id, { ...data })));
+      const puts: Put[] = [];
+      try {
+        return await inner.create(
+          def.name,
+          id,
+          scrub(def, await sealIn(def, id, { ...data }, undefined, false, (p) => puts.push(p))),
+        );
+      } catch (e) {
+        await takeBackPuts(puts);
+        throw e;
+      }
     },
     async createMany(type, items) {
       const def = await needType(type);
@@ -367,13 +403,18 @@ export function openRecords(
           out[i] = { ok: false, error: refused[i] };
           continue;
         }
+        const puts: Put[] = [];
         try {
           ready.push({
             at: i,
             id: it.id,
-            data: scrub(def, await sealIn(def, it.id, { ...it.data })) as Record<string, FieldValue>,
+            data: scrub(def, await sealIn(def, it.id, { ...it.data }, undefined, false, (p) => puts.push(p))) as Record<
+              string,
+              FieldValue
+            >,
           });
         } catch (e) {
+          await takeBackPuts(puts);
           out[i] = { ok: false, error: e };
         }
       }
@@ -412,10 +453,16 @@ export function openRecords(
     async update(type, id, patch, base) {
       const def = await needType(type);
       const row = await inner.get(def.name, id);
-      const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data));
-      if (row && row.version === base) assertWriteOnce(def, row.data, clean);
-      if (row) assertStageGates(def, row.data, clean);
-      return inner.update(def.name, id, clean, base);
+      const puts: Put[] = [];
+      try {
+        const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data, false, (p) => puts.push(p)));
+        if (row && row.version === base) assertWriteOnce(def, row.data, clean);
+        if (row) assertStageGates(def, row.data, clean);
+        return await inner.update(def.name, id, clean, base);
+      } catch (e) {
+        await takeBackPuts(puts);
+        throw e;
+      }
     },
     async updateMany(type, items) {
       const def = await needType(type);
@@ -425,15 +472,13 @@ export function openRecords(
         id: RecordId;
         patch: Record<string, FieldValue | null>;
         base_version: number;
-        /** The references this call minted in the Vault for the item (a value that went under a reference the record already held was overwritten in place and is not new). */
-        fresh: string[];
+        /** What this call put in the Vault for the item (a new value, or one written over the value a reference already held). */
+        fresh: Put[];
       }[] = [];
-      const takeBack = async (refs: string[]): Promise<void> => {
-        if (vault?.discard) for (const ref of refs) await vault.discard(ref).catch(() => undefined);
-      };
+      const takeBack = takeBackPuts;
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
-        const fresh: string[] = [];
+        const fresh: Put[] = [];
         try {
           const row = await inner.get(def.name, it.id);
           // 1. check the item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
@@ -441,10 +486,7 @@ export function openRecords(
           if (row && row.version === it.base_version) assertWriteOnce(def, row.data, dry);
           if (row) assertStageGates(def, row.data, dry);
           // 2. seal it
-          const clean = scrub(
-            def,
-            await sealIn(def, it.id, { ...it.patch }, row?.data, false, (ref) => fresh.push(ref)),
-          );
+          const clean = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data, false, (p) => fresh.push(p)));
           ready.push({
             at: i,
             id: it.id,
