@@ -1,4 +1,5 @@
 // The idempotency table in events.db (ARCH 4.2): key -> first result, kept 30 days. Synchronous; it runs inside the db worker next to the log.
+import { scrubAfterErase } from "../log/reclaim.ts";
 import type { DatabaseSync } from "node:sqlite";
 
 export const IDEM_TTL_MS = 30 * 24 * 3600 * 1000;
@@ -60,15 +61,37 @@ export class IdempotencyTable {
           .run(needle, needle).changes,
       );
     if (n > 0) {
-      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-      this.db.exec("VACUUM");
-      this.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      scrubAfterErase(this.db);
     }
     return n;
   }
 
-  /** Drop everything older than 30 days; returns how many rows went. */
+  /**
+   * Drop what is older than 30 days, a little at a time: batches of 20 rows (a stored answer can be 100 KB or more) until `budgetMs` has passed. The log worker does one thing at a time, so one
+   * delete of a month of answers would hold every append behind it; a slice holds them for a few milliseconds. Returns what went and whether more is due.
+   */
+  purgeSlice(now: number, budgetMs: number = 15): { deleted: number; more: boolean } {
+    const started = performance.now();
+    const cut = now - IDEM_TTL_MS;
+    const step = this.db.prepare(
+      "DELETE FROM idempotency WHERE key IN (SELECT key FROM idempotency WHERE at < ? ORDER BY at LIMIT 20)",
+    );
+    let deleted = 0;
+    for (;;) {
+      const n = Number(step.run(cut).changes);
+      deleted += n;
+      if (n < 20) return { deleted, more: false };
+      if (performance.now() - started >= budgetMs) return { deleted, more: true };
+    }
+  }
+
+  /** Drop everything older than 30 days (all slices, one after the other); returns how many rows went. */
   purge(now: number): number {
-    return Number(this.db.prepare("DELETE FROM idempotency WHERE at < ?").run(now - IDEM_TTL_MS).changes);
+    let total = 0;
+    for (;;) {
+      const r = this.purgeSlice(now, Number.POSITIVE_INFINITY);
+      total += r.deleted;
+      if (!r.more) return total;
+    }
   }
 }

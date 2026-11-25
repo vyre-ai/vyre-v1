@@ -803,7 +803,7 @@ export function createInvoke(deps: InvokeDeps): Invoke {
       const run = (): Promise<InvokeResult> => stepsFour(c, input, seed, trace, depth, collectionRateChecked);
       // the answer kept for a repeat never holds a person's own memory in words (owner ruling 3 Nov 2026: it is sealed under their key, and events.db is not)
       const result =
-        key !== undefined && deps.idem
+        key !== undefined && deps.idem && c.rerun !== true
           ? await deps.idem.once(
               seed.principal.id,
               c.name,
@@ -811,11 +811,13 @@ export function createInvoke(deps: InvokeDeps): Invoke {
               // what a person typed is never kept, not even as a hash of it: the batch is told apart by its key and number (terminal.keys' own ledger), so the stored input leaves the keys out
               c.name === "terminal.keys" ? withoutTypedKeys(input) : input,
               run,
-              c.name.startsWith("memory.")
-                ? withoutPersonalWords
-                : c.name === "terminal.keys"
-                  ? withoutScreen
-                  : undefined,
+              keptAnswer(
+                c.name.startsWith("memory.")
+                  ? withoutPersonalWords
+                  : c.name === "terminal.keys"
+                    ? withoutScreen
+                    : undefined,
+              ),
             )
           : await run();
       if (seed.approval && rawKey && result.status === "ok")
@@ -1677,6 +1679,49 @@ export function withoutPersonalWords(v: unknown): unknown {
 }
 const isPersonPage = (p: unknown): boolean =>
   p !== null && typeof p === "object" && (p as { layer?: unknown }).layer === "person";
+
+/** The most a stored answer may take; a bigger one is kept as a compact record (ids and a few fields it named). */
+export const KEPT_ANSWER_MAX = 64 * 1024;
+const ID_LIKE = /^[a-z][a-z0-9]{1,9}_[A-Za-z0-9]{6,}$/;
+/**
+ * What idempotency keeps for a repeat when the answer is big (a list of thousands of rows): not the answer, whose repeat would be a copy of rows the module holds anyway, but a compact record, so a retry
+ * of an outward write still finds that the first call worked and which rows it made. The repeat is told the full body was not kept.
+ */
+export function compactAnswer(v: unknown): unknown {
+  if (v === null || typeof v !== "object") return v;
+  const o = v as { status?: unknown; output?: unknown; traceId?: unknown };
+  if (JSON.stringify(v).length <= KEPT_ANSWER_MAX) return v;
+  const ids = new Set<string>();
+  const walk = (x: unknown, depth: number): void => {
+    if (ids.size >= 50 || depth > 6) return;
+    if (typeof x === "string") {
+      if (ID_LIKE.test(x)) ids.add(x);
+    } else if (Array.isArray(x)) for (const y of x) walk(y, depth + 1);
+    else if (x !== null && typeof x === "object") for (const y of Object.values(x as object)) walk(y, depth + 1);
+  };
+  walk(o.output, 0);
+  const fields: Record<string, unknown> = {};
+  if (o.output !== null && typeof o.output === "object" && !Array.isArray(o.output))
+    for (const [k, x] of Object.entries(o.output as Record<string, unknown>)) {
+      if (Object.keys(fields).length >= 20) break;
+      if (typeof x === "number" || typeof x === "boolean") fields[k] = x;
+      else if (typeof x === "string") fields[k] = x.slice(0, 200);
+      else if (Array.isArray(x)) fields[k] = `${x.length} items`;
+    }
+  return {
+    ...o,
+    output: {
+      truncated: true,
+      note: "The full answer was not kept: these are the ids and fields it named. Read them again through their own capabilities.",
+      ids: [...ids],
+      fields,
+    },
+  };
+}
+const keptAnswer =
+  (base?: (v: unknown) => unknown) =>
+  (v: unknown): unknown =>
+    compactAnswer(base ? base(v) : v);
 
 /** What a stored repeat of terminal.keys holds: no screen (a pasted token, `cat .env`); the app reads the screen again. */
 export function withoutScreen(v: unknown): unknown {

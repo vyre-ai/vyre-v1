@@ -29,7 +29,7 @@
     "connectors.outbox.retry@1": "492b7eadd7303dafde8ad0f0ce05739742960847b0a3ea7c5e87df968b824c3a",
     "connectors.publish@1": "c7d2ff9a600f2f11a1447e40b9b2a6ceacbf104cc02fc63c7a21e52eff6c5439",
     "connectors.push@1": "5f943a0a4c52eb8087f90dfab071a7dfb0985b08d468bbb4ac5b724ca484d16e",
-    "connectors.read@1": "ebab77677c397d83a73e049a3e5f99919a0e3e3648120c8406499ed7450073f1",
+    "connectors.read@1": "bde1a1121e63dca450b5f4263cea0757121ac4bc6c0d03dc5a9267c8bf10ca4a",
     "connectors.remove@1": "a94eb25a68953ef15a12ccd6a69c23f5bea825c97a80244901556abce33abd77",
     "connectors.rollback@1": "ec6474d1606b56fecc70193b91ae2f0c874b9d114615ec78a035748a358cd174",
     "connectors.run@1": "8af975e3431c6678788f7bd73b5aff6d737e46e19a7c7ada9cd9f5d71545c246",

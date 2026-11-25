@@ -607,6 +607,8 @@ export default defineManifest({
         },
         emits: ["connection.needs_reconnect"],
         errors: ["validation.precondition_failed", "permission.no_grant", "provider.auth_failed"],
+        // a page of someone else's list: a repeat of the key asks again, nothing is stored (it was 136 KB a page, 30 GB in three weeks on a firm's server)
+        rerun: true,
       },
     ),
     read("connectors.diff", "Diff a draft against the live version of a connector", {

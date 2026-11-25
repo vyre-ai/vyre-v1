@@ -1,5 +1,6 @@
 // Sealing a field (modules/schema/handlers/seal.ts) takes the plaintext out of every copy. The idempotency table keeps the answer of each keyed write, and a record write answers with the record,
 // so an old create or update holds the value in its result. This blanks that field in those answers (the answer stays, so a retry of the key still gets one) and scrubs the freed pages.
+import { scrubAfterErase } from "../log/reclaim.ts";
 import type { DatabaseSync } from "node:sqlite";
 
 const isSealedValue = (v: unknown): boolean =>
@@ -54,9 +55,7 @@ export function forgetField(db: DatabaseSync, type: string, field: string): numb
     n++;
   }
   if (n) {
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    db.exec("VACUUM");
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    scrubAfterErase(db); // no VACUUM of a big live log (kernel/src/log/reclaim.ts)
   }
   return n;
 }

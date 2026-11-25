@@ -88,6 +88,9 @@ export class LogStore {
     this.space = o.space;
     this.db = o.db;
     this.clock = o.clock ?? Date.now;
+    // a new file hands freed pages back in slices (kernel/src/log/reclaim.ts); the setting only takes on a file with no tables yet
+    if (!this.db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'events'").get())
+      this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
     this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
     this.db.exec(SCHEMA);
     const meta = this.db.prepare("SELECT value FROM log_meta WHERE key = 'space'").get() as

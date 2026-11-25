@@ -132,6 +132,8 @@ export interface CapOpts {
   audit?: "always" | "sensitive" | "none";
   label?: "check" | "filter";
   offline?: "patch" | "queue" | "online";
+  /** a repeat of the idempotency key runs the call again and nothing is stored: only for a call that reads an outside service and changes nothing, where the stored answer would be a copy of someone else's data */
+  rerun?: boolean;
   run?: { kind: string; stoppable: boolean };
   rate?: { n: number; perSeconds: number; scope: "principal" | "space" };
   tool?: Toolset; // MCP toolset; omitted = no MCP tool
@@ -255,6 +257,7 @@ function makeCap(kind: CapabilityDef["effects"], name: string, summary: string, 
     ...(o.audit ? { audit: o.audit } : {}),
     ...(o.label ? { label: o.label } : {}),
     ...(o.offline ? { offline: o.offline } : {}),
+    ...(o.rerun ? { rerun: true } : {}),
     ...(o.run ? { run: o.run } : {}),
     ...(o.rate ? { rate: o.rate } : {}),
     surfaces,

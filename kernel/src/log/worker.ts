@@ -1,5 +1,6 @@
 // The db worker: the only thread that touches events.db. Appends queue here and commit as one transaction when 2 ms have passed or 64 are waiting (group commit);
 // every other call runs at once. The main thread never runs SQL.
+import { reclaimStep } from "./reclaim.ts";
 import { parentPort, workerData } from "node:worker_threads";
 import { DatabaseSync } from "node:sqlite";
 import { LogStore } from "./store.ts";
@@ -118,6 +119,10 @@ port.on("message", (m: { req: number; op: string; args?: any }) => {
         return port.postMessage({ req: m.req, ok: true, value: idem.forgetText(m.args.needles as string[]) });
       case "idem_purge":
         return port.postMessage({ req: m.req, ok: true, value: idem.purge(Date.now()) });
+      case "idem_purge_slice":
+        return port.postMessage({ req: m.req, ok: true, value: idem.purgeSlice(Date.now(), m.args.ms) });
+      case "idem_reclaim":
+        return port.postMessage({ req: m.req, ok: true, value: reclaimStep(store.db, m.args.pages) });
       case "close":
         flush();
         store.close();

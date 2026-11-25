@@ -168,6 +168,7 @@ export interface CapabilityDef {
   audit?: "always" | "sensitive" | "none";
   label?: "check" | "filter"; // how sensitivity labels apply to results (check = fail; filter = omit)
   offline?: "patch" | "queue" | "online"; // sync: 'patch' = field ops, 'queue' = replay as call, 'online' = never queued
+  rerun?: boolean; // a repeat of the idempotency key runs the call again and nothing is stored (a pure read of an outside service: its answer is a copy of someone else's data, and can be 800 KB)
   run?: { kind: string; stoppable: boolean }; // capability starts a Run and returns {runId}
   rate?: { n: number; perSeconds: number; scope: "principal" | "space" };
   surfaces: {

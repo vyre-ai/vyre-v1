@@ -6,6 +6,7 @@
 //   what is left     {"erased":true} as the payload. A projection rebuild must treat such an event as a no-op (isErased), so an erased subject's purged rows do not come back.
 //   the file         freed pages keep their bytes unless SQLite is told otherwise, so with a database handle the call runs under PRAGMA secure_delete, checkpoints the WAL and vacuums.
 //   once             an event already erased is counted and skipped; running it again changes nothing; one tombstones row (kind "events") per subject is what a restore replays.
+import { scrubAfterErase } from "../log/reclaim.ts";
 import type { DatabaseSync } from "node:sqlite";
 import { sha256Hex } from "../log/hash.ts";
 import type { ReadQuery, StoredEvent } from "../log/index.ts";
@@ -120,8 +121,8 @@ export async function compact(
       .prepare("INSERT OR IGNORE INTO tombstones (kind, subject, at) VALUES (?, ?, ?)")
       .run("events", key, (o.now ?? Date.now)());
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    if (o.vacuum !== false) o.db.exec("VACUUM");
-    o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    // secure_delete zeroed what was erased; a file that gives pages back by itself hands them all back, a small old one is vacuumed, a big old one is not (kernel/src/log/reclaim.ts)
+    if (o.vacuum !== false) scrubAfterErase(o.db);
   }
   return { erased, already };
 }
@@ -148,8 +149,8 @@ export async function compactSeqs(
   }
   if (o.db) {
     o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-    if (o.vacuum !== false) o.db.exec("VACUUM");
-    o.db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    // secure_delete zeroed what was erased; a file that gives pages back by itself hands them all back, a small old one is vacuumed, a big old one is not (kernel/src/log/reclaim.ts)
+    if (o.vacuum !== false) scrubAfterErase(o.db);
   }
   return { erased, already };
 }

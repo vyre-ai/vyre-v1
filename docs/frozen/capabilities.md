@@ -1046,3 +1046,12 @@ Signed: 24 Nov 2026, lead.
 - Snapshots: docs/frozen/snapshots/records.json.
 
 Signed: 24 Nov 2026, lead.
+
+## 26 Nov 2026: a new optional capability field `rerun`, set on connectors.read (lane r42-scroll, from the 34 GB idempotency table on the Meier server), for the lead to sign
+
+- What changed in contracts, additive: an optional boolean `rerun` on a capability definition (`packages/contracts/src/types.ts`, `dsl.ts`), set on `connectors.read@1` only. The input and output schemas of `connectors.read@1` are unchanged, and the snapshot hash of `connectors.read@1` moves only because the definition carries the new field (docs/frozen/snapshots/connectors.json). No other capability is changed.
+- What it means: a capability with `rerun: true` still requires its `idempotencyKey` (the input is the same), but a repeat of the key runs the call again and nothing is stored for it. It is for a call that only reads an outside service and changes nothing, where the stored answer would be a copy of someone else's data (a page of a firm's contacts, 136 KB on average, 229,000 of them in three weeks). A capability that changes anything, or leaves the Space with an effect that must not run twice, never carries it. The other 44 capabilities that leave the Space with a key were audited: none is a pure read, and none is changed.
+- What else changes with it, not a contract change: an answer over 64 KB that idempotency keeps for any other keyed capability is kept as a compact record (status, the first fifty ids it names, its short top-level fields, and a note that the full answer was not kept); the first caller still gets the whole answer.
+- Not a contract change: events.db made by this version hands freed pages back in slices (auto_vacuum incremental), the daily purge of expired answers runs in slices of a few milliseconds, and an erase no longer runs a VACUUM of a big live log.
+- Snapshots: docs/frozen/snapshots/connectors.json.
+

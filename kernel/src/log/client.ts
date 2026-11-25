@@ -128,8 +128,24 @@ export class LogClient {
     };
     return createIdempotency(backend);
   }
-  purgeIdempotency(): Promise<number> {
-    return this.call("idem_purge");
+  /**
+   * The daily purge: expired answers in slices of a few milliseconds of the log's time each, with the worker free to take an append between two of them, then the freed pages handed back in steps (a file
+   * made before incremental vacuum has none to give). Returns how many rows went.
+   */
+  async purgeIdempotency(): Promise<number> {
+    let deleted = 0;
+    for (;;) {
+      const r = (await this.call("idem_purge_slice", { ms: 15 })) as { deleted: number; more: boolean };
+      deleted += r.deleted;
+      if (!r.more) break;
+      await new Promise<void>((done) => setImmediate(done));
+    }
+    for (let i = 0; i < 20_000; i++) {
+      const left = (await this.call("idem_reclaim", { pages: 256 })) as number;
+      if (left <= 0) break;
+      await new Promise<void>((done) => setImmediate(done));
+    }
+    return deleted;
   }
   /** Delete the kept answers that carry these ids (erasing an agent). */
   forgetText(needles: readonly string[]): Promise<number> {
