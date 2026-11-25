@@ -12,6 +12,7 @@ import { seed, FIRM } from "./support/bigspace-kit.ts";
 import { startGuard } from "./support/loop-guard-kit.ts";
 import type { Guard } from "./support/loop-guard-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
+import { syncCounts, readCounts } from "../modules/access/consumers.ts";
 
 const BOUND_MS = Number(process.env["LOOP_BOUND_MS"] ?? 100);
 const SCALE = Number(process.env["LOOP_SCALE"] ?? 1);
@@ -66,14 +67,19 @@ test(
 
       // 2. start-up on that data: the guard is running before the daemon starts
       let clock = Date.now();
+      let counters = "";
       const g = startGuard(BOUND_MS);
       g.phase("start-up");
       try {
         d = await boot(dir, (async function* () {})() as never, { vault: undefined, now: () => clock });
         g.wrapJobs(d);
+        const counts: string[] = [];
+        const snap = (label: string): void => void counts.push(`${label}: access.sync hydrated ${syncCounts.hydrated}, rebuilt ${syncCounts.rebuilt}, in place ${syncCounts.inPlace}, read views ${readCounts.views}`);
         await d.startupWork();
         await new Promise((ok) => setTimeout(ok, 5_000));
+        snap("after start-up");
         const ctx = { contact, project: projectId, role };
+        snap("after 5 s");
         // 3. everyday requests alone
         g.phase("requests");
         for (let round = 0; round < 3; round++) await everyday(d, g, ctx, round);
@@ -90,12 +96,14 @@ test(
           const until = Date.now() + 180_000;
           while (d.scheduler.runningNames().length && Date.now() < until) await new Promise((ok) => setTimeout(ok, 200));
         }
+        snap("after the ticks");
+        counters = counts.join("\n");
       } finally {
         g.stop();
       }
       const out = process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(dir, "capture");
       fs.mkdirSync(`${out}/loop-guard`, { recursive: true });
-      const text = `bound ${BOUND_MS} ms; ${g.blocks.length} blocks\nworst: ${g
+      const text = `${counters}\nbound ${BOUND_MS} ms; ${g.blocks.length} blocks\nworst: ${g
         .worst()
         .slice(0, 12)
         .map((x) => `${x.name} ${x.ms} ms`)
