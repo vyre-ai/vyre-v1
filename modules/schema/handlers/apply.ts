@@ -1188,11 +1188,35 @@ async function execute(
     const counts = await writeRefsMany(deps, type, byField);
     for (const [field, n] of counts) openJob(deps, type, field, n, changeId, now);
   }
-  const droppedFrom = new Map<string, Set<string>>();
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
     const kept = new Map<number, Record<string, unknown>>();
     effs.forEach((_e, i) => kept.set(i, {}));
+    // a dropped field's search text leaves the index a slice of 200 rows at a time, right after those rows are updated (see flush)
+    const searchDrops = effs.some((e) => e.k === "drop");
+    let slice: Array<{ id: string; version: number; patch: Record<string, unknown>; had: boolean }> = [];
+    let lastYield = performance.now();
+    const flush = async (): Promise<void> => {
+      const part = slice;
+      slice = [];
+      // the loop is given back after at most 20 ms of updates, so a type of thousands of rows does not hold the server while the data moves (the apply's answer waits for all of it)
+      for (const x of part) {
+        if (Object.keys(x.patch).length) await store.update(k, x.id, x.patch, x.version);
+        if (performance.now() - lastYield > 20) {
+          await new Promise<void>((resolve) => setImmediate(resolve));
+          lastYield = performance.now();
+        }
+      }
+      if (searchDrops) {
+        // rows updated first (a document the index rebuilds from here on has no text of the field), then the old documents go, then the records are read again: the delete is always followed by a rebuild,
+        // so no record is left out of search, whatever the index consumer was doing meanwhile
+        const ids = part.filter((x) => x.had).map((x) => x.id);
+        if (ids.length) {
+          await schemaVault()?.dropSearchText?.(k, ids, "delete");
+          await schemaVault()?.dropSearchText?.(k, ids, "reindex");
+        }
+      }
+    };
     await eachRow(deps, k, async (r) => {
       const patch: Record<string, unknown> = {};
       effs.forEach((e, i) => {
@@ -1212,12 +1236,11 @@ async function execute(
           patch[e.from] = null;
         }
       });
-      if (Object.keys(patch).length) await store.update(k, r.id, patch, r.version);
-      effs.forEach((e) => {
-        if (e.k === "drop" && r.data[e.field] !== undefined && r.data[e.field] !== null)
-          (droppedFrom.get(k) ?? droppedFrom.set(k, new Set()).get(k)!).add(r.id);
-      });
+      const had = effs.some((e) => e.k === "drop" && r.data[e.field] !== undefined && r.data[e.field] !== null);
+      slice.push({ id: r.id, version: r.version, patch, had });
+      if (slice.length >= 200) await flush();
     });
+    await flush();
     effs.forEach((e, i) => {
       if (e.k === "drop" || e.k === "retype") {
         const values = kept.get(i)!;
@@ -1239,8 +1262,6 @@ async function execute(
     });
     trash.push({ type: e.type, field: null, rows: rows.length, payload: { kind: "type", def: e.def, rows } });
   }
-  // a dropped field's text leaves the search index now, whatever the index consumer is doing: its documents are rebuilt without the field when the apply's own record events are folded
-  for (const [type, ids] of droppedFrom) await schemaVault()?.dropSearchText?.(type, [...ids]);
   for (const t of trash) {
     tx.run(
       "INSERT INTO sc_trash (change_id, type, field, dropped_at, expires_at, rows, payload) VALUES (?, ?, ?, ?, ?, ?, ?)",

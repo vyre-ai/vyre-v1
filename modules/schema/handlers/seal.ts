@@ -17,7 +17,7 @@ export interface SealVault {
   /** The host's part of the cleaning: the Space log, kept answers, sync copies and the search index. */
   scrubField?(type: string, field: string): Promise<void>;
   /** After a field was dropped: the search documents of these records leave the index now (the apply's record events put them back without the field). */
-  dropSearchText?(type: string, ids: readonly string[]): Promise<void>;
+  dropSearchText?(type: string, ids: readonly string[], phase: "delete" | "reindex"): Promise<void>;
 }
 let vault: SealVault | null = null;
 /** The host hands the Vault (a seam like the others). */

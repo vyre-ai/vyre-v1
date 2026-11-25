@@ -1,1 +1,1 @@
-When a field is dropped from a record type, the search entries of the records that held a value in it are removed at once, so a search cannot show the old text while the index catches up.
+When a field is dropped from a record type, the records that held a value in it are updated in short slices, their old search entries are removed and the records are indexed again without the field, so search never shows the dropped text and never loses the record.

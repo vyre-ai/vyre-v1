@@ -4917,26 +4917,49 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
           scrub: (type, field) => scrubSealedField(type, field),
-          dropSearch: (type, ids) => dropSearchText(type, ids),
+          dropSearch: (type, ids, phase) => dropSearchText(type, ids, phase),
         }));
-      // A field was dropped from a type: the records that held a value in it leave the search index now, in slices of 200 (the loop is given back between slices), so a search cannot show the old text while the index
-      // catches up. The apply's own record.updated events put each record back, rebuilt without the field.
-      const dropSearchText = async (type: string, ids: readonly string[]): Promise<void> => {
+      // A field was dropped from a type: the records that held a value in it leave the search index now, in small slices (the loop is given back after at most 15 ms), and are read again once their rows are updated: a touch
+      // event with no values in it (the one the seal flow uses) tells the index to rebuild each from the record as it is then, without the field. The delete comes first, the update and the touch after it.
+      const dropSearchText = async (
+        type: string,
+        ids: readonly string[],
+        phase: "delete" | "reindex",
+      ): Promise<void> => {
         if (!db) return;
-        for (let at = 0; at < ids.length; at += 200) {
-          const part = ids.slice(at, at + 200);
-          const marks = part.map(() => "?").join(",");
-          try {
-            db.run(
-              `DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id IN (${marks}))`,
-              `record:${type}`,
-              ...part,
-            );
-            db.run(`DELETE FROM search_docs WHERE entity = ? AND id IN (${marks})`, `record:${type}`, ...part);
-          } catch {
-            /* a Space without the search index has nothing to clear */
+        let lastYield = performance.now();
+        for (let at = 0; at < ids.length; at += 40) {
+          const part = ids.slice(at, at + 40);
+          if (phase === "delete") {
+            const marks = part.map(() => "?").join(",");
+            try {
+              db.run(
+                `DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id IN (${marks}))`,
+                `record:${type}`,
+                ...part,
+              );
+              db.run(`DELETE FROM search_docs WHERE entity = ? AND id IN (${marks})`, `record:${type}`, ...part);
+            } catch {
+              /* a Space without the search index has nothing to clear */
+            }
+          } else {
+            for (const id of part)
+              await spaceLog.appendResult({
+                id: `evt_dropreindex_${globalThis.crypto.randomUUID().replaceAll("-", "")}`,
+                type: "record.updated",
+                sv: 1,
+                trace_id: "5e".repeat(16),
+                actor: "svc_host",
+                vis: "space",
+                entity: "record",
+                entity_id: id,
+                payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
+              });
           }
-          await new Promise<void>((resolve) => setImmediate(resolve));
+          if (performance.now() - lastYield > 15) {
+            await new Promise<void>((resolve) => setImmediate(resolve));
+            lastYield = performance.now();
+          }
         }
       };
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
