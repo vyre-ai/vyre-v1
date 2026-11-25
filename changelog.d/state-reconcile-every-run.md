@@ -1,0 +1,1 @@
+The state check asks who can still see their things on every six-hour run, whole, in slices of 200 rows with a turn between, so a person who lost access loses the badge as soon as before; the recount pass is spread over runs.

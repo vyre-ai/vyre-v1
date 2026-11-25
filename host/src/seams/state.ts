@@ -219,6 +219,8 @@ export interface StateStore {
   enter(person: string, thing: Thing): boolean;
   /** ask the kind, for every row of its things, whether the person can still see it, and leave or enter to match. Never removes a row on a partial answer: only `visible` saying no does. */
   reconcile(type?: string): { left: number; entered: number };
+  /** the same in steps: the caller gets the loop back after every slice of rows (an async job runs it with a turn between the steps) */
+  reconcileSteps(type?: string): Generator<void, { left: number; entered: number }>;
   /** clear mutes whose time has passed (at most `limit` per call, the oldest first), so those things count in a badge again; answers who and what */
   sweep(limit?: number): { person: string; thing: Thing; result: ChangeResult }[];
   /** a person's layout values (all, or the named keys) */
@@ -576,7 +578,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     return [String(r?.["scope_type"] ?? ""), String(r?.["scope_id"] ?? "")];
   };
 
-  const reconcile: StateStore["reconcile"] = (only) => {
+  function* reconcileSteps(only?: string): Generator<void, { left: number; entered: number }> {
     let left = 0,
       entered = 0;
     for (const type of only ? [only] : [...(KINDS.get(db) ?? kinds).keys()]) {
@@ -593,9 +595,17 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
             else if (sees && num(r["hidden"]) === 1 && enter(person, t)) entered += 1;
           }
         });
+        yield;
       }
     }
     return { left, entered };
+  }
+  const reconcile: StateStore["reconcile"] = (only) => {
+    const steps = reconcileSteps(only);
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
   };
 
   const followersOf: StateStore["followersOf"] = (t) =>
@@ -1114,6 +1124,7 @@ export function createStateStore(db: StateDb, now: () => number, env: StateEnv =
     layoutSet,
     verify,
     verifySteps,
+    reconcileSteps,
     followersOf,
     stateOf,
     canSee,

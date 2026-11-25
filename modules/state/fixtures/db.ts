@@ -17,7 +17,7 @@ export const JONAS = "usr_jonas";
 export const OMAR = "usr_omar";
 export const HELPER = "agt_helper";
 export const STRANGER = "outside@example.com";
-export const MIGRATIONS = ["0001_state.sql", "0002_state_pin_layout.sql"].map((f) =>
+export const MIGRATIONS = ["0001_state.sql", "0002_state_pin_layout.sql", "0003_state_verify_cursor.sql"].map((f) =>
   fileURLToPath(new URL(`../migrations/${f}`, import.meta.url)),
 );
 

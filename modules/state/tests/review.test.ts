@@ -2,7 +2,7 @@
 // long things, a read_scope that touches only its own person, pins with an order of their own, and the layout store. @reads ../migrations/0002_state_pin_layout.sql
 import test from "node:test";
 import assert from "node:assert/strict";
-import { handlers, periodic } from "../impl.ts";
+import { handlers, periodic, verifyPasses, verifyTuning } from "../impl.ts";
 import { HELPER, JONAS, MAYA, OMAR, STRANGER, failure, harness, openFx, stateOf } from "../fixtures/db.ts";
 import type { Harness } from "../fixtures/db.ts";
 import { MUTE_FOREVER } from "../../../lib/state.ts";
@@ -312,4 +312,29 @@ test("the layout store keeps small values for registered keys, apart for each pe
   assert.deepEqual((await run<{ values: unknown[] }>("state.layout.get", h.person(MAYA), {})).values, []);
   assert.equal(OMAR.length > 0, true);
   assert.equal(openFx.length >= 0, true);
+});
+
+test("the six-hour job asks who can still see their things on every run, also a run that stopped at its cap, and the pass goes on from its cursor", async () => {
+  const { h, c } = seeded();
+  const d = h.fx.make("conversation", "cnv_two", [MAYA, JONAS]);
+  h.fx.post(d, STRANGER);
+  assert.equal(stateOf(h.fx).counts(JONAS, ["box:main"])[0]!.things, 2);
+  h.fx.make("conversation", "cnv_one", [MAYA, HELPER]); // Jonas lost cnv_one and nobody told the seam
+  const before = { ...verifyPasses };
+  verifyTuning.things = 1; // a run that covers one thing and stops
+  try {
+    await periodic["state.verify"].run(h.as(HOST));
+  } finally {
+    verifyTuning.things = 20_000;
+  }
+  assert.equal(verifyPasses.partial, before.partial + 1, "the run stopped at its cap");
+  assert.equal(
+    stateOf(h.fx).counts(JONAS, ["box:main"])[0]!.things,
+    1,
+    "and still took the badge off the thing he lost",
+  );
+  // the next run resumes from the cursor and the pass ends
+  await periodic["state.verify"].run(h.as(HOST));
+  assert.equal(verifyPasses.complete, before.complete + 1, "the next run ended the pass");
+  assert.ok(c.id.length > 0);
 });
