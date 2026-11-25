@@ -1261,14 +1261,23 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   }
   let s = STORES.get(ctx.db);
   if (s) return s;
-  s = loadStore(ctx.db);
+  // a read never writes: on empty tables a reader answers from the seed in memory, writes nothing (a write here could race the owner's claim on a fresh Space) and keeps nothing, so the writer's first call seeds and persists
+  const reader = READERS.has(ctx);
+  let kept = true;
+  s = loadStore(
+    ctx.db,
+    (ok) => {
+      if (!ok && reader) kept = false;
+    },
+    !reader,
+  );
   LOAD_STAMP.set(s, stampNow(ctx.db));
-  STORES.set(ctx.db, s);
+  if (kept) STORES.set(ctx.db, s);
   return s;
 }
 
-/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
-export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
+/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once (`persist` false: seeded in memory only, for a read). */
+export function loadStore(db: Db, written?: (ok: boolean) => void, persist = true): AccessStore {
   const s = new AccessStore();
   let rows: unknown[] = [];
   try {
@@ -1285,6 +1294,10 @@ export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore 
       /* a Space from before migration 0004 */
     }
     s.seed();
+    if (!persist) {
+      written?.(false); // the seed stays in memory: the caller must not keep this store as if the tables held it
+      return s;
+    }
     // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
     try {
       s.persist(db);

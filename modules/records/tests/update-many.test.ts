@@ -179,3 +179,288 @@ test("a put that fails on the second sealed field of an item takes back the firs
     setRecordsVault(null as never);
   }
 });
+
+// A vault stand-in that keeps values by reference, overwrites in place under a given ref, can fail a put on a chosen value, and counts puts, so a test can tell a put that never happened from one that was undone.
+function keptVault(): { kept: Map<string, string>; install: () => void; puts: () => number } {
+  const kept = new Map<string, string>();
+  let puts = 0;
+  let calls = 0;
+  return {
+    kept,
+    puts: () => calls,
+    install: () =>
+      setRecordsVault({
+        put: async (o) => {
+          calls++;
+          if (o.value === "boom") throw new Error("the Vault refused");
+          const ref = o.ref ?? `vit_${o.recordId}_${o.field}_${++puts}`;
+          kept.set(ref, o.value);
+          return ref;
+        },
+        reveal: async (ref) => kept.get(ref) ?? "",
+        discard: async (ref) => void kept.delete(ref),
+      }),
+  };
+}
+const TWO_SEALED = {
+  ...PERSON,
+  name: "pair",
+  fields: [...PERSON.fields, { name: "dob", kind: "sealed", label: "Born" }],
+};
+
+test("a sealed value over an existing reference that the record write refuses puts nothing, so the old ref reads the old value", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_inplace", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const ref = [...v.kept.keys()][0]!;
+    const out = await rec.store.updateMany!("pair", [
+      { id, patch: { ssn: { sealed: true, value: "new-ssn" } } as never, base_version: 99 },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    assert.equal(v.kept.get(ref), "old-ssn", "the old ref still reads the old value");
+    assert.equal(v.kept.size, 1, "no new sealed value is left orphaned");
+    assert.equal(v.puts(), 1, "the refused item put nothing: the only put was the create");
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a committed overwrite over an existing reference keeps the ref and holds exactly one live value, the new one", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_commit", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const ref = [...v.kept.keys()][0]!;
+    const out = await rec.store.updateMany!("pair", [
+      { id, patch: { ssn: { sealed: true, value: "new-ssn" } } as never, base_version: 1 },
+    ]);
+    assert.equal(out[0]!.ok, true);
+    assert.deepEqual([...v.kept], [[ref, "new-ssn"]]);
+    assert.equal(
+      (await rec.store.get("pair", id))!.data.ssn &&
+        ((await rec.store.get("pair", id))!.data.ssn as { ref: string }).ref,
+      ref,
+    );
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a deferred put that fails twice answers the error, the row's metadata is the earlier one, and the other put still lands", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_deferred", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, {
+      name: "A",
+      ssn: { sealed: true, value: "old-ssn" },
+      dob: { sealed: true, value: "old-dob" },
+    } as never);
+    const was = (await rec.store.get("pair", id))!.data.dob as { ref: string; present: boolean; set_at: number };
+    await new Promise((r) => setTimeout(r, 5));
+    const out = await rec.store.updateMany!("pair", [
+      {
+        id,
+        patch: { ssn: { sealed: true, value: "new-ssn" }, dob: { sealed: true, value: "boom" } } as never,
+        base_version: 1,
+      },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    const err = (out[0] as { error: { code?: string; message?: string } }).error;
+    assert.equal(err.code, "unavailable");
+    assert.match(err.message ?? "", /the value was not saved; the record keeps its previous value/);
+    const now = (await rec.store.get("pair", id))!.data.dob as typeof was;
+    assert.deepEqual(now, was, "the row claims no value the Vault does not hold: the earlier ref, present and set_at");
+    assert.equal(v.kept.get(was.ref), "old-dob", "the Vault still holds the old value");
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("update (one record) takes back every put of an item whose second put fails, and of an item the record write refuses", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_one", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A" });
+    await assert.rejects(
+      rec.store.update(
+        "pair",
+        id,
+        { ssn: { sealed: true, value: "one" }, dob: { sealed: true, value: "boom" } } as never,
+        1,
+      ),
+    );
+    assert.equal(v.kept.size, 0, "the first put of a half-sealed update was taken back");
+    await assert.rejects(rec.store.update("pair", id, { ssn: { sealed: true, value: "one" } } as never, 99));
+    assert.equal(v.kept.size, 0, "a put for an update the record write refused was taken back");
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("create takes back the first put when the second sealed put fails", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_create", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    await assert.rejects(
+      rec.store.create("pair", mintRecordId(), {
+        name: "A",
+        ssn: { sealed: true, value: "one" },
+        dob: { sealed: true, value: "boom" },
+      } as never),
+    );
+    assert.equal(v.kept.size, 0);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a deferred put that fails twice makes the whole item as it was: a sealed and a plain field in one patch both read as before", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_atomic", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const a = mintRecordId();
+    const b = mintRecordId();
+    await rec.store.create("pair", a, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    await rec.store.create("pair", b, { name: "B", ssn: { sealed: true, value: "old-b" } } as never);
+    const before = (await rec.store.get("pair", a))!.data;
+    await new Promise((r) => setTimeout(r, 5));
+    const out = await rec.store.updateMany!("pair", [
+      { id: a, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+      { id: b, patch: { name: "B renamed" }, base_version: 1 },
+    ]);
+    assert.deepEqual(
+      out.map((r) => r.ok),
+      [false, true],
+      "the other item in the call is unaffected",
+    );
+    assert.deepEqual((await rec.store.get("pair", a))!.data, before, "both fields read exactly as before");
+    assert.equal((await rec.store.get("pair", b))!.data.name, "B renamed");
+    // one record at a time: the same
+    const one = await rec.store
+      .update(
+        "pair",
+        a,
+        { name: "A again", ssn: { sealed: true, value: "boom" } } as never,
+        (await rec.store.get("pair", a))!.version,
+      )
+      .then(
+        () => null,
+        (e: { code?: string }) => e.code,
+      );
+    assert.equal(one, "unavailable");
+    assert.deepEqual((await rec.store.get("pair", a))!.data, before);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a failed deferred put also takes back the values the same item put under new refs: the Vault holds no orphan", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_orphan", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const [oldRef] = [...v.kept.keys()];
+    const out = await rec.store.updateMany!("pair", [
+      {
+        id,
+        patch: { ssn: { sealed: true, value: "boom" }, dob: { sealed: true, value: "new-dob" } } as never,
+        base_version: 1,
+      },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    assert.deepEqual(
+      [...v.kept],
+      [[oldRef, "old-ssn"]],
+      "only the old value is in the Vault: the new dob was taken back",
+    );
+    assert.equal((await rec.store.get("pair", id))!.data.dob, undefined);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("a person's edit that lands between the commit and the failed put is not overwritten, and the error says the record changed", async () => {
+  const kept = new Map<string, string>();
+  let rec!: ReturnType<typeof openRecords>;
+  const id = mintRecordId();
+  let edited = false;
+  setRecordsVault({
+    put: async (o) => {
+      if (o.value === "boom") {
+        if (!edited) {
+          edited = true;
+          const cur = (await rec.store.get("pair", id))!;
+          await rec.store.update("pair", id, { name: "edited by a person" }, cur.version);
+        }
+        throw new Error("the Vault refused");
+      }
+      const ref = o.ref ?? `vit_${o.recordId}_${o.field}`;
+      kept.set(ref, o.value);
+      return ref;
+    },
+    reveal: async (ref) => kept.get(ref) ?? "",
+    discard: async (ref) => void kept.delete(ref),
+  });
+  try {
+    rec = openRecords({ space: "sp_um_gap", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const out = await rec.store.updateMany!("pair", [
+      { id, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+    ]);
+    assert.equal(out[0]!.ok, false);
+    const err = (out[0] as { error: { code?: string; message?: string } }).error;
+    assert.equal(err.code, "version_conflict");
+    assert.match(err.message ?? "", /the value was not saved and the record changed since; check it/);
+    assert.doesNotMatch(err.message ?? "", /keeps its previous value/);
+    assert.equal((await rec.store.get("pair", id))!.data.name, "edited by a person", "the person's edit stands");
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
+
+test("the store's log holds the change and its write back as two record.updated events (the version goes up by two) and the row ends as it began", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_log", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const id = mintRecordId();
+    await rec.store.create("pair", id, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    const before = await rec.store.get("pair", id);
+    const n = () =>
+      rec.host.tx
+        .all<{ t: string }>("SELECT json_extract(event, '$.type') AS t FROM events")
+        .filter((r) => r.t === "record.updated").length;
+    const n0 = n();
+    await rec.store.updateMany!("pair", [
+      { id, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+    ]);
+    assert.equal(n() - n0, 2);
+    const after = await rec.store.get("pair", id);
+    assert.equal(after!.version, before!.version + 2);
+    assert.deepEqual(after!.data, before!.data);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});
