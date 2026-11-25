@@ -1046,3 +1046,11 @@ Signed: 24 Nov 2026, lead.
 - Snapshots: docs/frozen/snapshots/records.json.
 
 Signed: 24 Nov 2026, lead.
+
+## 25 Nov 2026: access.lists and folders.list leave out what Files put in Trash, from a mark the access module keeps (lane r44-trash), for the lead to sign
+
+- What changes, no contract field: `access.lists` for type `file` or `folder` (rows, and the section counts) and `folders.list` no longer list a file or folder that Files has put in Trash, whatever the caller's access to it; bringing it back lists it again. A folder in Trash takes what was under it, and bringing the folder back brings back only what it took (a file that was in Trash by itself stays there). A file or folder deleted for good is never listed.
+- How: no new capability and no call to Files. The access module folds Files' own events (`file.deleted`, `file.restored`, `file.purged`, `folder.deleted`, `folder.restored`, `folder.purged`, all already declared) into a mark on its own resource row (`access_resources.row_json`, key `trashRoot`; no migration), and the lists read the mark with the rows they already read. At every start the server also sets the mark for what Files' Trash rows already name. The mark is not part of who may see a thing, so no share row is worked out again for it.
+- Replaces the rejected `files.live_among` design (a call to Files once for each 500 rows): there is nothing to ask about an id the caller cannot see.
+
+Signed:

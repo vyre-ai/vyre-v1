@@ -105,6 +105,13 @@ const MODULE_EVENTS = new Set([
   "space.ownership_transferred",
   "agent.privacy_set",
   "agent.renamed",
+  // Files' Trash events: the module keeps a Trash mark on its own file and folder rows
+  "file.deleted",
+  "file.restored",
+  "file.purged",
+  "folder.deleted",
+  "folder.restored",
+  "folder.purged",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 /** Events after which the module's tables may differ from the snapshot the daemon holds: the ones it folds, plus what its own capabilities emit when a role, share, revoke or policy changes. */

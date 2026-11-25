@@ -1,0 +1,1 @@
+- A file or folder you put in Trash no longer shows in the lists that read what you may open (the Labels picker, an agent's list of folders or files); bringing it back from Trash lists it again. The server learns it from Trash itself and asks nothing at list time.

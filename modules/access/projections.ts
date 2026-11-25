@@ -1123,6 +1123,14 @@ export class AccessStore {
   }
 }
 
+/**
+ * The Trash mark of a file or folder resource, kept in the resource's own row (row_json, no migration): the id of the file or folder whose move to Trash took this one with it (the same value as the
+ * root_id of Files' own Trash row). The access module folds Files' Trash events into it (consumers.ts trashEvent), so a list reads it with the rows it already has, and asks Files nothing.
+ */
+export const TRASH_KEY = "trashRoot";
+/** Is this resource in Trash (the mark is set)? */
+export const isTrashed = (r: ResourceRec | undefined): boolean => typeof r?.row?.[TRASH_KEY] === "string";
+
 /** A resource as the authorize snapshot holds it. */
 export function kernelResource(r: ResourceRec): ResourceRow {
   // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut

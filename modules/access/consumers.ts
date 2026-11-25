@@ -25,6 +25,7 @@ import {
   sealSnapshot,
   sealStore,
   setPrivate,
+  TRASH_KEY,
   setDecisionView,
   setGrantAdopter,
   setWriterView,
@@ -72,6 +73,13 @@ export const ACCESS_EVENTS = [
   "space.ownership_transferred",
   "agent.privacy_set",
   "agent.renamed",
+  // Files' Trash events: the module keeps a Trash mark on its own file and folder rows (trashEvent), so access.lists leaves a trashed one out without asking Files
+  "file.deleted",
+  "file.restored",
+  "file.purged",
+  "folder.deleted",
+  "folder.restored",
+  "folder.purged",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> =>
@@ -146,6 +154,94 @@ export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged:
       ...store.rolesOf(g.subject.id).map((rid) => LABEL_RANK[store.roles.get(rid)?.clearance ?? "public"]),
     );
     if (ownerChanged || label > clearance) store.grants.delete(gid);
+  }
+}
+
+/** The mark as the resource holds it now. A record is replaced, never edited (see applyEvent). */
+function setTrash(store: AccessStore, id: string, root: string | null): boolean {
+  const r = store.resources.get(id);
+  if (!r || (r.type !== "file" && r.type !== "folder")) return false;
+  const had = r.row?.[TRASH_KEY];
+  if (root === null) {
+    if (had === undefined) return false;
+    const { [TRASH_KEY]: _t, ...rest } = r.row ?? {};
+    void _t;
+    const { row: _r, ...bare } = r;
+    void _r;
+    store.resources.set(id, Object.keys(rest).length ? { ...bare, row: rest } : bare);
+    return true;
+  }
+  if (had === root) return false;
+  store.resources.set(id, { ...r, row: { ...(r.row ?? {}), [TRASH_KEY]: root } });
+  return true;
+}
+
+/** The files and folders under a folder (its descendants in the resource tree, the folder itself not included). One pass over the store, however deep the tree. */
+function underFolder(store: AccessStore, folderId: string): string[] {
+  const kids = new Map<string, string[]>();
+  for (const r of store.resources.values()) {
+    if (r.parentId === null || (r.type !== "file" && r.type !== "folder")) continue;
+    const at = kids.get(r.parentId);
+    if (at) at.push(r.id);
+    else kids.set(r.parentId, [r.id]);
+  }
+  const out: string[] = [];
+  const seen = new Set<string>([folderId]);
+  for (let at = [folderId]; at.length; ) {
+    const next: string[] = [];
+    for (const id of at)
+      for (const kid of kids.get(id) ?? [])
+        if (!seen.has(kid)) {
+          seen.add(kid);
+          out.push(kid);
+          next.push(kid);
+        }
+    at = next;
+  }
+  return out;
+}
+
+/**
+ * Files' Trash events, folded into the Trash mark of the file and folder resources (projections.ts TRASH_KEY). The mark holds what Files' own Trash row holds as root_id, so a folder put in Trash takes
+ * with it only what was not in Trash already, and bringing the folder back brings back only what it took (a file that was trashed by itself stays in Trash). A file taken out of Trash on its own
+ * loses its mark whatever its root was. A purge marks too: whatever is left of a purged file or folder in the store is never listed. Answers the ids whose rows changed, or null for an event that is not one of these.
+ */
+export function trashEvent(store: AccessStore, e: LogEvent): string[] | null {
+  const p = rec(e.payload);
+  const touched: string[] = [];
+  const mark = (id: string, root: string | null): void => {
+    if (setTrash(store, id, root)) touched.push(id);
+  };
+  switch (e.type) {
+    case "file.deleted":
+    case "file.purged": {
+      const id = str(p["fileId"]);
+      if (id) mark(id, id);
+      return touched;
+    }
+    case "file.restored": {
+      const id = str(p["fileId"]);
+      if (id) mark(id, null);
+      return touched;
+    }
+    case "folder.deleted":
+    case "folder.purged": {
+      const id = str(p["folderId"]);
+      if (!id) return touched;
+      mark(id, id);
+      // under it: only what is not marked yet (a file or folder that was in Trash before keeps its own root)
+      for (const child of underFolder(store, id))
+        if (store.resources.get(child)?.row?.[TRASH_KEY] === undefined) mark(child, id);
+      return touched;
+    }
+    case "folder.restored": {
+      const id = str(p["folderId"]);
+      if (!id) return touched;
+      for (const r of [...store.resources.values()]) if (r.row?.[TRASH_KEY] === id) mark(r.id, null);
+      return touched;
+    }
+    default:
+      return null;
   }
 }
 
@@ -326,7 +422,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     case "member.removed":
       return setStatus(store, str(p["personId"]), "removed");
     default:
-      return false;
+      return (trashEvent(store, e)?.length ?? 0) > 0;
   }
 }
 
@@ -346,11 +442,13 @@ function apply(
   store: AccessStore,
   events: readonly LogEvent[],
   grantAt: number = at,
-): { touched: Set<string>; rebuild: boolean } {
+): { touched: Set<string>; marks: Set<string>; rebuild: boolean } {
   let cursor = cursorOf(store),
     changed = false,
     onlyResources = true;
   const touched = new Set<string>();
+  // the rows whose Trash mark moved: written like a registration, but nothing about who may see them changed, so the snapshot does not take them again
+  const marks = new Set<string>();
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
@@ -365,6 +463,15 @@ function apply(
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
           changed = true;
           touched.add(id);
+        }
+        continue;
+      }
+      // a file or folder that was put in Trash before the module kept the mark (the host reads Files' Trash rows at every start): set the mark, change nothing else (idempotent)
+      if (rec(e.payload)["trash_only"] === true) {
+        const root = str(rec(e.payload)["trash_root"]);
+        if (root && setTrash(store, id, root)) {
+          changed = true;
+          marks.add(id);
         }
         continue;
       }
@@ -386,6 +493,16 @@ function apply(
         continue;
       }
     }
+    // Files' Trash events change a mark on the rows of the files and folders they name, nothing else: written like a registration (those rows only), the snapshot is not built again
+    const marked = trashEvent(store, e);
+    if (marked) {
+      if (marked.length) {
+        changed = true;
+        for (const id of marked) marks.add(id);
+      }
+      if (e.seq >= 0) cursor = e.seq;
+      continue;
+    }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
       if (e.type === "resource.created") {
@@ -397,14 +514,14 @@ function apply(
   }
   const moved = cursor !== cursorOf(store);
   if (moved) store.fieldLabels.set(CURSOR, cursor);
-  if (!changed && !moved) return { touched, rebuild: false };
+  if (!changed && !moved) return { touched, marks, rebuild: false };
   store.bump();
   if (changed && !onlyResources) {
     store.persist(db);
-    return { touched, rebuild: true };
+    return { touched, marks, rebuild: true };
   }
-  store.persistResources(db, touched, moved);
-  return { touched, rebuild: false };
+  store.persistResources(db, marks.size ? new Set([...touched, ...marks]) : touched, moved);
+  return { touched, marks, rebuild: false };
 }
 
 /**
@@ -499,7 +616,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         }),
       );
     if (!kept) syncCounts.hydrated++;
-    const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
+    const { touched, marks, rebuild } = apply(db, ctx.now(), store, events, 1);
     let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
     let plain = kept?.plain ?? null;
     if (!kept || rebuild) {
@@ -515,6 +632,11 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         out.rows.set(id, r);
         out.snap.putResource(kernelResource(r));
         plain?.putResource(kernelResource(r));
+      }
+      // a Trash mark is read from the store; the row source holds the same record, the snapshot needs none of it
+      for (const id of marks) {
+        const r = store.resources.get(id);
+        if (r) out.rows.set(id, r);
       }
       if (plain) store.adoptSnapshot(plain);
       syncCounts.inPlace++;
