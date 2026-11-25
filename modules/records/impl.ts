@@ -157,15 +157,17 @@ interface Deferred extends Put {
 }
 /** The words an item answers when a deferred put failed twice. */
 const NOT_SAVED = "the value was not saved; the record keeps its previous value";
-/** Put the deferred values of one committed item (each retried once). A value that still fails gets its field's earlier metadata written back, so the row never claims a value the Vault does not hold; answers the error, or null. */
+/** Put the deferred values of one committed item (each retried once). If one still fails the item is made whole again: every field its patch set is written back to what the row held before (a sealed field keeps its earlier ref, set_at and present), so an error means nothing in the item changed; answers the error, or null. */
 async function settle(
   inner: Store,
   type: string,
   id: RecordId,
   version: number,
   deferred: Deferred[],
+  prior: Record<string, unknown> | undefined,
+  patchKeys: string[],
 ): Promise<StoreError | null> {
-  const failed: Deferred[] = [];
+  let failed = false;
   for (const d of deferred) {
     const once = () => vault!.put({ type: d.type, recordId: d.recordId, field: d.field, value: d.value, ref: d.ref });
     try {
@@ -174,14 +176,15 @@ async function settle(
       try {
         await once();
       } catch {
-        failed.push(d);
+        failed = true;
+        break;
       }
     }
   }
-  if (!failed.length) return null;
-  const back: Record<string, FieldValue> = {};
-  for (const d of failed) back[d.field] = d.prev as FieldValue;
-  await inner.update(type, id, back, version).catch(() => undefined);
+  if (!failed) return null;
+  const back: Record<string, FieldValue | null> = {};
+  for (const k of patchKeys) back[k] = (prior?.[k] ?? null) as FieldValue | null;
+  await inner.update(type, id, back as Record<string, FieldValue>, version).catch(() => undefined);
   return new StoreError("unavailable", NOT_SAVED);
 }
 
@@ -491,8 +494,10 @@ export function openRecords(
       const puts: Put[] = [];
       const deferred: Deferred[] = [];
       let made: StoredRecord;
+      let keys: string[] = [];
       try {
         const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data, false, (p) => puts.push(p), deferred));
+        keys = Object.keys(clean);
         if (row && row.version === base) assertWriteOnce(def, row.data, clean);
         if (row) assertStageGates(def, row.data, clean);
         made = await inner.update(def.name, id, clean, base);
@@ -501,7 +506,7 @@ export function openRecords(
         throw e;
       }
       if (deferred.length) {
-        const err = await settle(inner, def.name, id, made.version, deferred);
+        const err = await settle(inner, def.name, id, made.version, deferred, row?.data, keys);
         if (err) throw err;
       }
       return made;
@@ -518,6 +523,8 @@ export function openRecords(
         fresh: Put[];
         /** Values for fields that already held a reference: put after the commit. */
         deferred: Deferred[];
+        /** The row as it was before this call, to make the item whole again if a deferred put fails. */
+        prior: Record<string, unknown> | undefined;
       }[] = [];
       const takeBack = takeBackPuts;
       for (let i = 0; i < items.length; i++) {
@@ -542,6 +549,7 @@ export function openRecords(
             base_version: it.base_version,
             fresh,
             deferred,
+            prior: row?.data,
           });
         } catch (e) {
           await takeBack(fresh);
@@ -574,7 +582,7 @@ export function openRecords(
       for (const [k, m] of made.entries()) {
         const r = ready[k]!;
         if (!m.ok || !r.deferred.length) continue;
-        const err = await settle(inner, def.name, r.id, m.record.version, r.deferred);
+        const err = await settle(inner, def.name, r.id, m.record.version, r.deferred, r.prior, Object.keys(r.patch));
         if (err) made[k] = { ok: false, error: err };
       }
       made.forEach((m, k) => {

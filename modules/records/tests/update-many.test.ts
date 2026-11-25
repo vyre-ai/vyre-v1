@@ -328,3 +328,40 @@ test("create takes back the first put when the second sealed put fails", async (
     setRecordsVault(null as never);
   }
 });
+
+test("a deferred put that fails twice makes the whole item as it was: a sealed and a plain field in one patch both read as before", async () => {
+  const v = keptVault();
+  v.install();
+  try {
+    const rec = openRecords({ space: "sp_um_atomic", path: ":memory:" });
+    await rec.store.define({ add_types: [TWO_SEALED] as never });
+    const a = mintRecordId();
+    const b = mintRecordId();
+    await rec.store.create("pair", a, { name: "A", ssn: { sealed: true, value: "old-ssn" } } as never);
+    await rec.store.create("pair", b, { name: "B", ssn: { sealed: true, value: "old-b" } } as never);
+    const before = (await rec.store.get("pair", a))!.data;
+    await new Promise((r) => setTimeout(r, 5));
+    const out = await rec.store.updateMany!("pair", [
+      { id: a, patch: { name: "A renamed", ssn: { sealed: true, value: "boom" } } as never, base_version: 1 },
+      { id: b, patch: { name: "B renamed" }, base_version: 1 },
+    ]);
+    assert.deepEqual(
+      out.map((r) => r.ok),
+      [false, true],
+      "the other item in the call is unaffected",
+    );
+    assert.deepEqual((await rec.store.get("pair", a))!.data, before, "both fields read exactly as before");
+    assert.equal((await rec.store.get("pair", b))!.data.name, "B renamed");
+    // one record at a time: the same
+    const one = await rec.store
+      .update("pair", a, { name: "A again", ssn: { sealed: true, value: "boom" } } as never, (await rec.store.get("pair", a))!.version)
+      .then(
+        () => null,
+        (e: { code?: string }) => e.code,
+      );
+    assert.equal(one, "unavailable");
+    assert.deepEqual((await rec.store.get("pair", a))!.data, before);
+  } finally {
+    setRecordsVault(null as never);
+  }
+});

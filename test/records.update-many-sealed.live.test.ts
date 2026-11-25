@@ -76,7 +76,8 @@ test("update_many of 200 sealed overwrites logs zero vault.revealed events and z
   for (const i of [0, 99, 199]) {
     const r = rows[i]!;
     const ref = refs.get(r.id)!;
-    const got = (await h.owner.call("vault.item.reveal", { itemId: ref, fields: ["value"], reason: "test" })).fields as {
+    const got = (await h.owner.call("vault.item.reveal", { itemId: ref, fields: ["value"], reason: "test" }))
+      .fields as {
       key: string;
       value: string;
     }[];
