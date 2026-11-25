@@ -1,1 +1,1 @@
-A sealed value that the record write then refuses, or an item whose second sealed value fails, no longer leaves the first one behind: new values are taken back and a value written over an older one is put back.
+Changing a sealed value that already exists now puts it into the Vault only after the record change is saved, so a refused change leaves the old value alone; if the Vault cannot take it, the change says the value was not saved and the record keeps its previous value.

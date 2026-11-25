@@ -56,16 +56,13 @@ export interface RecordsVault {
   reveal(ref: string, person: string): Promise<string>;
   /** Take back a value put for a record that was then not made (best effort: the value is overwritten). Absent: nothing is taken back. */
   discard?(ref: string): Promise<void>;
-  /** The value under a reference, read for the host's own use (no person, nothing shown): Records reads it before it overwrites a value in place, so the overwrite can be undone if the record write is then refused. Absent: an overwrite cannot be undone. */
-  peek?(ref: string): Promise<string | undefined>;
 }
-/** One value Records put in the Vault for an item: a new one (`was` absent: discard takes it back) or one written over the value a reference already held (`was`: write that value back). */
+/** One new value Records put in the Vault for an item (a field that held no reference): discard takes it back if the record is not made. */
 interface Put {
   ref: string;
   type: string;
   recordId: string;
   field: string;
-  was?: string;
 }
 let vault: RecordsVault | null = null;
 /** The Vault the host handed, for a test that checks what the real one does with a call Records makes. */
@@ -89,6 +86,8 @@ async function sealIn(
   dry = false,
   /** Told of each value this call put, as its put returns: a failure on a later field still lets the caller take back the earlier ones. */
   onPut?: (p: Put) => void,
+  /** Given: a value for a field that already holds a reference is not put now. The reference does not change, so the row does not need the put's answer; it is made after the record write commits (settle), and a refused write has put nothing. */
+  defer?: Deferred[],
 ): Promise<Record<string, unknown>> {
   const out: Record<string, unknown> = { ...data };
   for (const f of def.fields) {
@@ -121,8 +120,18 @@ async function sealIn(
       continue;
     }
     const have = current?.[f.name];
-    // a value that goes over the one a reference holds is read first, so the overwrite can be undone
-    const was = isSealedRef(have) && onPut ? await vault.peek?.((have as { ref: string }).ref) : undefined;
+    if (defer && isSealedRef(have)) {
+      defer.push({
+        ref: (have as { ref: string }).ref,
+        type: def.name,
+        recordId,
+        field: f.name,
+        value: text,
+        prev: have,
+      });
+      out[f.name] = { sealed: f.name, ref: (have as { ref: string }).ref, present: true, set_at: Date.now() };
+      continue;
+    }
     const ref = await vault.put({
       type: def.name,
       recordId,
@@ -131,23 +140,49 @@ async function sealIn(
       ...(isSealedRef(have) ? { ref: (have as { ref: string }).ref } : {}),
     });
     if (!isSealedRef(have)) onPut?.({ ref, type: def.name, recordId, field: f.name });
-    else if (was !== undefined) onPut?.({ ref, type: def.name, recordId, field: f.name, was });
     out[f.name] = { sealed: f.name, ref, present: true, set_at: Date.now() };
   }
   return out;
 }
 
-/** Take back what an item put in the Vault: a new value is discarded, a value written over an older one is written back. Best effort, as discard is. */
+/** Take back the new values an item put in the Vault: each is discarded. Best effort, as discard is. */
 async function takeBackPuts(puts: Put[]): Promise<void> {
-  const v = vault;
-  if (!v) return;
-  for (const p of puts) {
-    if (p.was !== undefined)
-      await v
-        .put({ type: p.type, recordId: p.recordId, field: p.field, value: p.was, ref: p.ref })
-        .catch(() => undefined);
-    else if (v.discard) await v.discard(p.ref).catch(() => undefined);
+  if (vault?.discard) for (const p of puts) await vault.discard(p.ref).catch(() => undefined);
+}
+
+/** A value for a field that already holds a reference, put after the record write commits. `prev` is the field's earlier reference object (its set_at and present), written back if the put fails. */
+interface Deferred extends Put {
+  value: string;
+  prev: unknown;
+}
+/** The words an item answers when a deferred put failed twice. */
+const NOT_SAVED = "the value was not saved; the record keeps its previous value";
+/** Put the deferred values of one committed item (each retried once). A value that still fails gets its field's earlier metadata written back, so the row never claims a value the Vault does not hold; answers the error, or null. */
+async function settle(
+  inner: Store,
+  type: string,
+  id: RecordId,
+  version: number,
+  deferred: Deferred[],
+): Promise<StoreError | null> {
+  const failed: Deferred[] = [];
+  for (const d of deferred) {
+    const once = () => vault!.put({ type: d.type, recordId: d.recordId, field: d.field, value: d.value, ref: d.ref });
+    try {
+      await once();
+    } catch {
+      try {
+        await once();
+      } catch {
+        failed.push(d);
+      }
+    }
   }
+  if (!failed.length) return null;
+  const back: Record<string, FieldValue> = {};
+  for (const d of failed) back[d.field] = d.prev as FieldValue;
+  await inner.update(type, id, back, version).catch(() => undefined);
+  return new StoreError("unavailable", NOT_SAVED);
 }
 
 /** The singular and plural spellings a type key may be asked for by: deal and deals, company and companies, status and statuses. */
@@ -454,15 +489,22 @@ export function openRecords(
       const def = await needType(type);
       const row = await inner.get(def.name, id);
       const puts: Put[] = [];
+      const deferred: Deferred[] = [];
+      let made: StoredRecord;
       try {
-        const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data, false, (p) => puts.push(p)));
+        const clean = scrub(def, await sealIn(def, id, { ...patch }, row?.data, false, (p) => puts.push(p), deferred));
         if (row && row.version === base) assertWriteOnce(def, row.data, clean);
         if (row) assertStageGates(def, row.data, clean);
-        return await inner.update(def.name, id, clean, base);
+        made = await inner.update(def.name, id, clean, base);
       } catch (e) {
         await takeBackPuts(puts);
         throw e;
       }
+      if (deferred.length) {
+        const err = await settle(inner, def.name, id, made.version, deferred);
+        if (err) throw err;
+      }
+      return made;
     },
     async updateMany(type, items) {
       const def = await needType(type);
@@ -474,11 +516,14 @@ export function openRecords(
         base_version: number;
         /** What this call put in the Vault for the item (a new value, or one written over the value a reference already held). */
         fresh: Put[];
+        /** Values for fields that already held a reference: put after the commit. */
+        deferred: Deferred[];
       }[] = [];
       const takeBack = takeBackPuts;
       for (let i = 0; i < items.length; i++) {
         const it = items[i]!;
         const fresh: Put[] = [];
+        const deferred: Deferred[] = [];
         try {
           const row = await inner.get(def.name, it.id);
           // 1. check the item as it will be stored (a value to be sealed shows as a reference to nothing), before any value goes to the Vault: an item that will be refused writes nothing
@@ -486,13 +531,17 @@ export function openRecords(
           if (row && row.version === it.base_version) assertWriteOnce(def, row.data, dry);
           if (row) assertStageGates(def, row.data, dry);
           // 2. seal it
-          const clean = scrub(def, await sealIn(def, it.id, { ...it.patch }, row?.data, false, (p) => fresh.push(p)));
+          const clean = scrub(
+            def,
+            await sealIn(def, it.id, { ...it.patch }, row?.data, false, (p) => fresh.push(p), deferred),
+          );
           ready.push({
             at: i,
             id: it.id,
             patch: clean as Record<string, FieldValue | null>,
             base_version: it.base_version,
             fresh,
+            deferred,
           });
         } catch (e) {
           await takeBack(fresh);
@@ -520,6 +569,13 @@ export function openRecords(
         // the group could not be committed: nothing was updated, so every value this call put is taken back before the caller tries again (a second put would leave these behind)
         for (const r of ready) await takeBack(r.fresh);
         throw e;
+      }
+      // the values for fields that already held a reference go in now that the group is committed; one that fails twice answers its item an error and has its field's earlier metadata written back
+      for (const [k, m] of made.entries()) {
+        const r = ready[k]!;
+        if (!m.ok || !r.deferred.length) continue;
+        const err = await settle(inner, def.name, r.id, m.record.version, r.deferred);
+        if (err) made[k] = { ok: false, error: err };
       }
       made.forEach((m, k) => {
         out[ready[k]!.at] = m;
