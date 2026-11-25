@@ -1905,7 +1905,7 @@ export async function audienceSet(
     }
     res.parentId = rec.id;
     changed(ctx, store, "assignment");
-    commit(ctx, store, ss, false && wasFresh, [res.id], false);
+    commit(ctx, store, ss, wasFresh, [res.id], false);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
   // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from

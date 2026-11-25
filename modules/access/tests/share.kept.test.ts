@@ -277,3 +277,27 @@ test("incremental: random changes, 150 steps, equal to a full rebuild after ever
   await same(raw, "end");
   assert.ok(shareKept.incremental > 20, "most steps were worked out incrementally");
 });
+
+test("incremental: a folder made to follow a record gives the rows a full rebuild gives, and does not rebuild the whole Space", async () => {
+  const { raw } = fresh("follows");
+  seed(raw);
+  await same(raw, "first read");
+  sync(ctxOf(raw), {
+    events: [
+      res("fld_child", "folder", "fld_1", 0, "usr_owner"),
+      res("rec_3", "record", "contact", 3, "usr_owner"),
+      res("rec_4", "record", "fld_child", 0, "usr_mia"),
+    ],
+  });
+  await same(raw, "folders and records added");
+  const audienceSet = handlers["access.audience_set"] as unknown as (c: unknown, i: unknown) => Promise<unknown>;
+  const host = (): Ctx => ({ ...ctxOf(raw), principal: { kind: "service", id: "svc_host" } });
+  const built = shareKept.built;
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_1" }, follows: "rec_2" });
+  await same(raw, "fld_1 follows rec_2 (Space-wide access to it, and to what is under it, changes)");
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_3" });
+  await same(raw, "fld_child follows rec_3 (a record only its owner may open)");
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_1" });
+  await same(raw, "fld_child follows another record");
+  assert.equal(shareKept.built, built, "no follows call rebuilt the whole Space");
+});
