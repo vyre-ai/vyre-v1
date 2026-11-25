@@ -4044,7 +4044,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         pending: () => accessPending.length,
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
-        call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
+        call: async (events) => {
+          // a sync whose kept store is gone (a start, or a handler wrote access rows since) would read the access tables whole, 0.3 to 4 s of blocked loop on a big Space: the module reads them in slices first and keeps what it read
+          await hookRunner.call("access.prime", {}).catch(() => false);
+          return (await hookRunner.call("access.sync", { events })) as AccessSnapshot;
+        },
         adopt: (s) => access.adopt(s),
         adopted: () => access.adopted(),
         stale: {

@@ -41,6 +41,7 @@ import {
   pkey,
   raise,
   storeOf,
+  primeStore,
   decisionSnapshot,
 } from "../projections.ts";
 import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
@@ -1880,6 +1881,7 @@ export async function audienceSet(
   opts?: { hostNarrow?: boolean },
 ) {
   await settleForWriter(ctx as AccessCtx);
+  await primeStore(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;

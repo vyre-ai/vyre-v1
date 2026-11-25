@@ -65,7 +65,13 @@ export const STAGGER_MS = 60_000;
 export function nameHash(name: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 0x01000193) >>> 0;
-  return h;
+  // FNV leaves similar names in similar places in the low bits: mix them (the murmur3 finaliser) so names that differ in one letter land far apart
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
 }
 
 /** The first moment after `after` that is `hour:minute` (local time, or UTC). */

@@ -85,7 +85,7 @@ test(
         d = await boot(dir, (async function* () {})() as never, { vault: undefined, now: () => clock });
         g.wrapJobs(d);
         const counts: string[] = [];
-        const snap = (label: string): void => void counts.push(`${label}: access.sync hydrated ${syncCounts.hydrated}, rebuilt ${syncCounts.rebuilt}, in place ${syncCounts.inPlace}, read views ${readCounts.views}`);
+        const snap = (label: string): void => void counts.push(`${label}: access.sync hydrated ${syncCounts.hydrated} (cold ${syncCounts.cold}, counter moved ${syncCounts.moved}, sliced ${syncCounts.sliced}, no roles ${syncCounts.empty}), rebuilt ${syncCounts.rebuilt}, in place ${syncCounts.inPlace}, read views ${readCounts.views}`);
         await d.startupWork();
         await new Promise((ok) => setTimeout(ok, 5_000));
         snap("after start-up");

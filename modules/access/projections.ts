@@ -435,6 +435,9 @@ const grantVals = (g: GrantRec): unknown[] => [
   1,
 ];
 
+/** How many rows a sliced hydrate reads and turns into records between two yields (a test sets it low to force many). */
+export const hydrateTuning = { page: 4000 };
+
 export class AccessStore {
   epoch = 0;
   catalogue = new Set<string>();
@@ -981,12 +984,39 @@ export class AccessStore {
   }
 
   hydrate(db: Db): void {
+    for (const step of this.hydrateSteps(db)) void step;
+  }
+
+  /**
+   * hydrate in steps: the three tables that grow with the Space (resources, grants, principals) are read a page at a time and their rows turned into records a few thousand at a time, and each page or
+   * batch ends with a yield. hydrate() runs the steps straight through; a caller that can wait (loadStoreSliced, for access.sync at a start: reading 38,000 resources whole held the loop 4.4 s) gives
+   * the event loop a turn at each yield. The result is the same store either way.
+   */
+  *hydrateSteps(db: Db): Generator<void, void, void> {
     // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
     const raw = new Map<string, Record<string, unknown>[]>();
     const read = (table: string): unknown[] => {
       const rows = db.all(`SELECT * FROM ${table}`) as Record<string, unknown>[];
       raw.set(table, rows);
       return rows;
+    };
+    const readPaged = function* (table: string): Generator<void, Record<string, unknown>[], void> {
+      const out: Record<string, unknown>[] = [];
+      for (let after = 0; ; ) {
+        const page = db.all(
+          `SELECT rowid AS _rid, * FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${hydrateTuning.page}`,
+          after,
+        ) as Record<string, unknown>[];
+        for (const r of page) {
+          after = Number(r["_rid"]);
+          delete r["_rid"];
+          out.push(r);
+        }
+        if (page.length < hydrateTuning.page) break;
+        yield;
+      }
+      raw.set(table, out);
+      return out;
     };
     this.roles.clear();
     this.roleChanges.clear();
@@ -1036,7 +1066,9 @@ export class AccessStore {
         managers: JSON.parse(String(g.managers)) as Ref[],
       });
     }
-    for (const p of read("access_principals") as Record<string, unknown>[]) {
+    let sinceYield = 0;
+    for (const p of (yield* readPaged("access_principals")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const rec: PrincipalRec = {
         id: String(p.id),
         kind: p.kind as PKind,
@@ -1053,7 +1085,8 @@ export class AccessStore {
       list.push(a.role_id);
       this.assignments.set(a.holder, list);
     }
-    for (const g of read("access_grants") as Record<string, unknown>[]) {
+    for (const g of (yield* readPaged("access_grants")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const conditions = JSON.parse(String(g.conditions)) as Cond;
       if (g.expiresAt != null && conditions.expiresAt === undefined) conditions.expiresAt = Number(g.expiresAt);
       const rec: GrantRec = {
@@ -1068,7 +1101,8 @@ export class AccessStore {
       if (g.source) rec.source = String(g.source);
       this.grants.set(rec.id, rec);
     }
-    for (const r of read("access_resources") as Record<string, unknown>[]) {
+    for (const r of (yield* readPaged("access_resources")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const rec: ResourceRec = {
         id: String(r.id),
         type: String(r.type),
@@ -1267,6 +1301,22 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   return s;
 }
 
+/**
+ * The writer store of this call's db handle, read in slices before the handler first asks for it (storeOf then finds it). A handler that is async can wait for this; reading the tables whole inside
+ * storeOf held the event loop for up to 0.4 s per call on a Space of 38,000 records (the folder sweep makes 40 such calls). The store is kept only if the write counter did not move while it was read;
+ * otherwise nothing is kept and storeOf reads the tables as before.
+ */
+export async function primeStore(ctx: AccessCtx): Promise<void> {
+  if (READERS.has(ctx) || STORES.has(ctx.db)) return;
+  const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
+  const before = stampNow(ctx.db);
+  if (before === null || before === undefined) return;
+  const s = await loadStoreSliced(ctx.db, turn);
+  if (!s || STORES.has(ctx.db) || stampNow(ctx.db) !== before) return;
+  LOAD_STAMP.set(s, before);
+  STORES.set(ctx.db, s);
+}
+
 /** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
 export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
   const s = new AccessStore();
@@ -1291,6 +1341,26 @@ export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore 
     } catch {
       written?.(false);
     }
+  }
+  return s;
+}
+
+/**
+ * A store read from the tables in steps, with `turn` awaited between them so the event loop is served meanwhile. Null where the tables hold no roles yet: that is the seed path, which loadStore
+ * takes. The tables may change while it is read (another handler writes between two steps): the caller compares the write counter before and after and discards the store if it moved.
+ */
+export async function loadStoreSliced(db: Db, turn: () => Promise<void>): Promise<AccessStore | null> {
+  let rows: unknown[] = [];
+  try {
+    rows = db.all("SELECT id FROM access_roles LIMIT 1");
+  } catch {
+    rows = [];
+  }
+  if (!rows.length) return null;
+  const s = new AccessStore();
+  for (const step of s.hydrateSteps(db)) {
+    void step;
+    await turn();
   }
   return s;
 }

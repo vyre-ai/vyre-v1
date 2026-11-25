@@ -15,6 +15,8 @@ export interface Block {
   jobs: string[];
   requests: string[];
   statements: { sql: string; ms: number }[];
+  /** every statement that ran in the interval, short ones too: how many, their total time, and the three costliest texts by total */
+  sql: { count: number; ms: number; top: string[] };
   phase: string;
 }
 export interface Guard {
@@ -37,6 +39,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
   const jobs: Span[] = [];
   const requests: Span[] = [];
   const statements: { sql: string; ms: number; start: number; end: number }[] = [];
+  const every: { sql: string; start: number; end: number }[] = [];
   let phaseNow = "start";
   // the statements: every call that took long, with its text, from the node:sqlite prototypes
   const sp = StatementSync.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
@@ -51,6 +54,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
         return orig.apply(this, a);
       } finally {
         const e = performance.now();
+        every.push({ sql: this.sourceSQL ?? "?", start: s, end: e });
         if (e - s >= SQL_KEEP_MS) statements.push({ sql: norm(this.sourceSQL ?? "?"), ms: e - s, start: s, end: e });
       }
     };
@@ -84,6 +88,24 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
           .sort((a, b) => b.ms - a.ms)
           .slice(0, 3)
           .map((x) => ({ sql: x.sql, ms: Math.round(x.ms) })),
+        sql: (() => {
+          const mine = over(every);
+          const by = new Map<string, { n: number; ms: number }>();
+          let total = 0;
+          for (const x of mine) {
+            const k = norm(x.sql).slice(0, 70);
+            const v = by.get(k) ?? { n: 0, ms: 0 };
+            v.n++;
+            v.ms += x.end - x.start;
+            total += x.end - x.start;
+            by.set(k, v);
+          }
+          return {
+            count: mine.length,
+            ms: Math.round(total),
+            top: [...by.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 3).map(([k, v]) => `${v.n}x ${Math.round(v.ms)} ms ${k}`),
+          };
+        })(),
         phase: phaseNow,
       });
     }
@@ -92,6 +114,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
     const cut = at - 60_000;
     for (const xs of [jobs, requests] as Span[][]) while (xs.length && xs[0]!.end < cut) xs.shift();
     while (statements.length && statements[0]!.end < cut) statements.shift();
+    while (every.length && every[0]!.end < cut) every.shift();
   }, sampleMs);
 
   const wrapped = new WeakSet<object>();
@@ -135,7 +158,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
       return blocks
         .map(
           (b) =>
-            `block ${b.ms} ms at +${(b.at / 1000).toFixed(1)} s [${b.phase}] jobs: ${b.jobs.join(", ") || "-"} | requests: ${b.requests.join(", ") || "-"} | statements: ${b.statements.map((s) => `${s.ms} ms ${s.sql}`).join(" ; ") || "-"}`,
+            `block ${b.ms} ms at +${(b.at / 1000).toFixed(1)} s [${b.phase}] jobs: ${b.jobs.join(", ") || "-"} | requests: ${b.requests.join(", ") || "-"} | statements: ${b.statements.map((s) => `${s.ms} ms ${s.sql}`).join(" ; ") || "-"} | all sql: ${b.sql.count} statements ${b.sql.ms} ms [${b.sql.top.join(" ; ")}]`,
         )
         .join("\n");
     },
