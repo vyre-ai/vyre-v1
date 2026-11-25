@@ -304,13 +304,21 @@ export async function syncAccess(
   }
 }
 
-const FOLLOWED = new WeakSet<object>();
+// Keyed by the Space, not by the db handle: a job gets a new handle on every run, so a WeakSet of handles never hit and every ten-minute tick ran the full sweep again (24 Nov 2026, a Meier-sized Space
+// with 40 projects: 70 s of blocks of 1.5 to 3 s at every tick). `sweptSpaces` is the same guard for the periodic job (impl.ts): the full sweep runs once per process, and after that only when sweepNeeded says so.
+const FOLLOWED = new Set<string>();
+export const sweptSpaces = new Set<string>();
+/** For the tests: a new world is a new Space with the same name. */
+export function resetSweepGuards(): void {
+  FOLLOWED.clear();
+  sweptSpaces.clear();
+}
 /**
  * Once per boot: every record files folder and every project folder follows its record (access.audience_set follows), so a folder made before folders followed their records stops being open to people
  * who cannot see the record. Idempotent: setting the same parent again changes nothing.
  */
 export async function followRecords(ctx: ProjectsCtx): Promise<void> {
-  if (FOLLOWED.has(ctx.db)) return;
+  if (FOLLOWED.has(ctx.space)) return;
   ensure(ctx.db);
   ctx.db.run(RECORD_FILES_TABLE);
   const pairs: Array<{ folder: string; record: string }> = [];
@@ -324,7 +332,7 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
   ) as Array<{ recordId: string; folderId: string }>)
     pairs.push({ folder: r.folderId, record: r.recordId });
   for (const x of pairs) await followRecord(ctx, x.folder, x.record, { sweep: true });
-  FOLLOWED.add(ctx.db);
+  FOLLOWED.add(ctx.space);
 }
 
 /** The consumer: record events for project types. */

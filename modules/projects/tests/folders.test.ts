@@ -14,6 +14,7 @@ import {
   syncAccess,
 } from "../handlers/folders.ts";
 import { FOLLOW_BACKOFF_MS } from "../projections.ts";
+import { periodic } from "../impl.ts";
 
 /** A project record made the way the Records page makes one: a row with no projects row and no folder. */
 function mkRecord(h: Harness, fields: Record<string, unknown>, type = "project"): string {
@@ -680,4 +681,21 @@ test("a record event asks the schema for its type once, not once for the files a
     actor: DANA,
   } as never);
   assert.equal(h.only("schema.types.get").length, 1, "one read of the type for the event");
+});
+
+test("the ten-minute sweep runs in full once per Space and after that only when sweepNeeded says so, though a job gets a new db handle every run", async () => {
+  const h = harness();
+  mkRecord(h, { title: "Swept" });
+  const run = periodic["projects.folder_backfill"].run as (ctx: unknown) => Promise<void>;
+  await run({ ...h.ctx });
+  const pages = h.only("records.query").length;
+  assert.ok(pages > 0, "the first run made the full sweep");
+  // later ticks: the same Space, a new db handle each time
+  await run({ ...h.ctx, db: Object.create(h.ctx.db) });
+  await run({ ...h.ctx, db: Object.create(h.ctx.db) });
+  assert.equal(h.only("records.query").length, pages, "a tick with nothing to do read no page of records");
+  // work that appears is still found
+  mkRecord(h, { title: "Late" });
+  await run({ ...h.ctx, db: Object.create(h.ctx.db) });
+  assert.ok(h.only("records.query").length > pages, "a project record that came later makes the sweep run");
 });

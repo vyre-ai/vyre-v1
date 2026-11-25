@@ -1,6 +1,7 @@
 // Test harness for the projects module: a real in-memory SQLite behind the host's ctx.db guard (projects_* tables only), a recording ctx, a clock the tests move, and a small world standing in for
 // the modules a project calls (records, tasks, files, channels, chat, access, schema) that keeps what it was asked to do, plus checks against the frozen contract.
 import { ProjectionHost } from "../../../kernel/src/store/projection.ts";
+import { resetSweepGuards } from "../handlers/folders.ts";
 import { registry } from "../../../generated/registry.ts";
 import { scopedDb } from "../../../host/src/ctx/db.ts";
 import type { RawDb } from "../../../host/src/ctx/db.ts";
@@ -450,6 +451,7 @@ export interface HarnessOptions {
 }
 
 export function harness(o: HarnessOptions = {}) {
+  resetSweepGuards(); // every harness is a new world under the same Space name
   const raw = o.raw ?? openRaw();
   const clock = o.clock ?? { t: NOW };
   const emitted: Emitted[] = [];

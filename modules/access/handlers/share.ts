@@ -158,7 +158,7 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0 };
+export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0, committed: 0 };
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -931,6 +931,7 @@ function commit(
   roots: readonly string[],
   persistFolderTables: boolean,
 ): void {
+  shareKept.committed++;
   if (persistFolderTables) persistFolders(ctx, ss);
   const pending = ss.pending;
   ss.pending = [];
@@ -1879,6 +1880,13 @@ export async function audienceSet(
   input: { resource: ResourceRef; audience?: Audience; exporters?: Exporters; outside?: boolean; follows?: string },
   opts?: { hostNarrow?: boolean },
 ) {
+  // the host's sweep at every start asks every record folder and project folder to follow its record again; one that already does changes nothing, so it is answered from the kept read view before
+  // anything is loaded or rebuilt (a writer's own store is read whole from the tables on each call: 0.6 s on a Space of 38,000 records)
+  if (input.follows !== undefined && isHostOwnService(ctx.principal)) {
+    const seen = storeOf(asReader(ctx as AccessCtx)).resources.get(input.resource.id);
+    if (seen && seen.type === "folder" && seen.parentId === input.follows && seen.row?.["audienceChosen"] !== true)
+      return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
+  }
   await settleForWriter(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
@@ -1894,6 +1902,10 @@ export async function audienceSet(
     // a person chose who this folder is open to (audience_set by someone with Manage): the host's own sweep and re-attach never undo that choice
     if (isHostOwnService(ctx.principal) && res.row?.["audienceChosen"] === true)
       return { audience: audienceOf(res), exporters: "admins" as Exporters, outside: false };
+    // already following that record, with no earlier choice of audience to undo: nothing changes, so nothing is rebuilt. The host's sweep at every start asks this once for every record folder
+    // and project folder ("setting the same parent again changes nothing"); each ask used to rebuild the whole access view (1.7 s on a Space of 38,000 records, 40 times in a row)
+    if (res.parentId === rec.id && res.row?.["audienceChosen"] !== true)
+      return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
     const wasFresh = isFresh(ctx, store, ss);
     // a manager who makes the folder follow its record has chosen to follow: an earlier choice of audience no longer stands
     if (res.row?.["audienceChosen"] === true) {
