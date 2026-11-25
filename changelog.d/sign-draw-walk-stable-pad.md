@@ -1,0 +1,1 @@
+- The signing walk's drawn signature waits for the pad to hold its place for two frames before it draws, and fails at the stroke, not 30 s later at Sign, when the stroke missed the pad (a slow first load moved the pad after its box was read).
