@@ -340,6 +340,8 @@ export interface JobRow {
   exitCode?: number | null;
   /** The last line the job printed. */
   lastLine?: string;
+  /** It ended and was started again so often in an hour that its supervisor stopped it for good. */
+  loop?: boolean;
 }
 export interface JobSpec {
   name: string;
@@ -403,6 +405,7 @@ export function jobRowOf(x: unknown): JobRow | null {
       ? { exitCode: st["exitCode"] as number | null }
       : {}),
     ...(last ? { lastLine: last.slice(0, 200) } : {}),
+    ...(st && st["loop"] === true ? { loop: true } : {}),
   };
 }
 

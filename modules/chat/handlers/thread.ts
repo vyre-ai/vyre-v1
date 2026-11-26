@@ -533,7 +533,7 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   patchBlockInMessage(ctx.db, block.message, block.id, (b) => ({
     ...b,
     state: "done",
-    data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by },
+    data: { ...(b["data"] as Record<string, unknown>), answer: given, answeredBy: by, answeredAt: ctx.now() },
   }));
   // The engine reads block.answered and queues a wake, so the parked turn continues in the same thread.
   ctx.emit("block.answered", t.id, { threadId: t.id, blockId: block.id, by });

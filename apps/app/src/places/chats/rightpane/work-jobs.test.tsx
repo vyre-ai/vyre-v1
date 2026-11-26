@@ -82,3 +82,9 @@ test("jobs are rows under the terminals: a running one has Stop, which stops it;
     off();
   }
 });
+
+test("a job that kept crashing says so and has no Stop", () => {
+  const w = jobWords({ jobId: "job_aaaaaaaaaaaa", name: "web", state: "failed", restarts: 20, loop: true });
+  assert.equal(w.word, "Failed");
+  assert.match(w.note, /kept crashing and was stopped/);
+});

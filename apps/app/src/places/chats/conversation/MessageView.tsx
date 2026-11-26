@@ -71,7 +71,7 @@ import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chro
 import type { ChromeCardActions } from "./chrome-cards.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
-import { SigninCard } from "./SigninCard.tsx";
+import { SigninCard, SigninDone } from "./SigninCard.tsx";
 import { RunCode } from "./RunCode.tsx";
 import { LiveCard } from "./LiveCard.tsx";
 import type { LiveCardConfig } from "./LiveCard.tsx";
@@ -254,6 +254,7 @@ export interface MessageActions {
     me: string;
     nameOf(id: string): string;
     openComputer(agentId: string): void;
+    terminal?: import("../terminal/data.ts").TerminalData;
   };
   terminalCard?: {
     deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string };
@@ -1704,6 +1705,19 @@ function Theirs({
         }
         if (isStatusCard(b.type))
           return <StatusCard key={b.id} id={b.id} type={b.type} data={b.data} host={cardHost(actions)} />;
+        if (b.type === "question" && b.state === "done" && actions.signinCard) {
+          const dd = (b.data ?? {}) as Record<string, unknown>;
+          if (signinAskOf(dd) !== null && dd["answer"] !== undefined)
+            return (
+              <SigninDone
+                key={b.id}
+                id={b.id}
+                data={dd}
+                me={actions.signinCard.me}
+                nameOf={actions.signinCard.nameOf}
+              />
+            );
+        }
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
           const options = questionOptions(d);
@@ -1726,6 +1740,7 @@ function Theirs({
                 me={actions.signinCard.me}
                 nameOf={actions.signinCard.nameOf}
                 openComputer={actions.signinCard.openComputer}
+                terminal={actions.signinCard.terminal}
                 answer={actions.answer}
               />
             );

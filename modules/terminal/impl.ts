@@ -28,6 +28,7 @@ import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from 
 import {
   bindWorkspaceStatus,
   bindWorkspaceJobs,
+  boundWorkspaceJobs,
   bindChatFolder,
   bindNotes,
   bindPlaceGrant,
@@ -1597,7 +1598,64 @@ function accessDeps(ctx: TermCtx): AccessDeps {
   };
 }
 
+/** Tell an agent's owner, once, that a background job of the agent's kept ending and was stopped (a crash loop): a task in their Needs you with its notification. */
+export async function jobLoopsWatch(ctx: TermCtx): Promise<string[]> {
+  ensureTerminalTables(ctx.db);
+  const jobs = boundWorkspaceJobs();
+  if (!jobs || !ctx.call) return [];
+  const told: string[] = [];
+  const agents = (
+    ctx.db.all(
+      "SELECT DISTINCT agent_id FROM terminal_sessions WHERE host = 'agent_computer' AND agent_id IS NOT NULL",
+    ) as Array<{ agent_id?: unknown }>
+  ).map((r) => String(r.agent_id));
+  for (const agentId of agents) {
+    const rows = await jobs.list(agentId).catch(() => []);
+    for (const j of rows) {
+      if (j.loop !== true) continue;
+      if (
+        (
+          ctx.db.all(
+            "SELECT 1 FROM terminal_job_loops WHERE agent_id = ? AND job_id = ?",
+            agentId,
+            j.jobId,
+          ) as unknown[]
+        ).length > 0
+      )
+        continue;
+      ctx.db.run(
+        "INSERT INTO terminal_job_loops (agent_id, job_id, told_at) VALUES (?, ?, ?)",
+        agentId,
+        j.jobId,
+        ctx.now(),
+      );
+      try {
+        const owner = ((await ctx.call("agents.share_class", { agentId })) as { ownerId?: string }).ownerId;
+        if (typeof owner !== "string") continue;
+        await ctx.call("tasks.create", {
+          kind: "work",
+          title: `"${j.name}" kept crashing and was stopped`,
+          assigned: { kind: "person", id: owner },
+          summary: `A background job on this agent's computer ended and was started again more than 20 times in an hour, so it was stopped for good and no longer keeps the computer awake. Its last line: ${j.lastLine ?? "none"}. Its log is kept on the computer.`,
+          source: { kind: "manual", id: j.jobId },
+          idempotencyKey: `jobloop:${agentId}:${j.jobId}`,
+        });
+        told.push(j.jobId);
+      } catch (e) {
+        ctx.log.warn("terminal: the owner could not be told of a crash-looping job", {
+          agentId,
+          jobId: j.jobId,
+          reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+        });
+      }
+    }
+  }
+  return told.map((id) => `${id} told`);
+}
+
 export const periodic = {
+  /** Every minute: a background job that was stopped for crash looping is told to its agent's owner, once. */
+  "terminal.jobs_watch": { everyMs: 60_000, run: (ctx: TermCtx): Promise<string[]> => jobLoopsWatch(ctx) },
   /** Hourly: the kept output of commands that ended a week ago or more is deleted (cmdlog.ts). */
   "terminal.cmdlog_expire": {
     everyMs: 60 * 60_000,

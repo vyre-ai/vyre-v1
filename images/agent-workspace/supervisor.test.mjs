@@ -9,13 +9,17 @@ import path from "node:path";
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vyre-jobs-"));
 process.env.VYRE_JOBS_DIR = dir;
 process.env.VYRE_JOBS_GRACE_MS = "300";
+process.env.VYRE_JOBS_LOOP_MAX = "3";
 const sup = await import("./supervisor.mjs?a");
 const mods = [sup];
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const spec = (id, o) => {
   fs.mkdirSync(path.join(dir, id), { recursive: true });
-  fs.writeFileSync(path.join(dir, id, "spec.json"), JSON.stringify({ id, desired: "running", restart: "on-failure", at: Date.now(), ...o }));
+  fs.writeFileSync(
+    path.join(dir, id, "spec.json"),
+    JSON.stringify({ id, desired: "running", restart: "on-failure", at: Date.now(), ...o }),
+  );
 };
 const status = (id) => JSON.parse(fs.readFileSync(path.join(dir, id, "status.json"), "utf8"));
 const log = (id) => {
@@ -95,7 +99,25 @@ test("after the supervisor itself is started again (a reboot) every job that sho
   assert.equal((log("r1").match(/boot-run/g) ?? []).length, 2, "started again from its spec");
   assert.notEqual(status("r1").pid, first);
   spec("r1", { command: "echo boot-run; sleep 30", desired: "stopped" });
+});
 
+test("a crash loop (ended and started again more than the limit in an hour) is stopped for good and says so", async () => {
+  spec("c1", { command: "exit 1", restart: "always" });
+  assert.ok(await until(() => status("c1").state === "failed", 20000), "it ends up failed, not restarting for ever");
+  const st = status("c1");
+  assert.equal(st.loop, true);
+  assert.match(st.note, /kept ending/);
+  assert.equal(
+    JSON.parse(fs.readFileSync(path.join(dir, "c1", "spec.json"), "utf8")).desired,
+    "stopped",
+    "so a reboot does not start it again",
+  );
+  const n = (log("c1").match(/exited with code 1/g) ?? []).length;
+  for (let i = 0; i < 10; i++) {
+    sup.tick();
+    await sleep(40);
+  }
+  assert.equal((log("c1").match(/exited with code 1/g) ?? []).length, n, "and it is not started again");
 });
 
 test("the log is kept to its last part when it grows large", async () => {
@@ -110,7 +132,8 @@ test.after(async () => {
   // every job is asked to stop, and both supervisors look until nothing of theirs is alive, so no process or timer outlives the file
   for (const id of fs.readdirSync(dir)) {
     const f = path.join(dir, id, "spec.json");
-    if (fs.existsSync(f)) fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, "utf8")), desired: "stopped" }));
+    if (fs.existsSync(f))
+      fs.writeFileSync(f, JSON.stringify({ ...JSON.parse(fs.readFileSync(f, "utf8")), desired: "stopped" }));
   }
   for (let i = 0; i < 60; i++) {
     for (const m of mods) m.tick();

@@ -4,6 +4,7 @@
 // @reads /modules/terminal/migrations/0006_people.sql
 // @reads /modules/terminal/migrations/0007_use.sql
 // @reads /modules/terminal/migrations/0008_cmd_log.sql
+// @reads /modules/terminal/migrations/0009_job_loops.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -328,6 +329,13 @@ const CMDLOG_SCHEMA = readFileSync(new URL("./migrations/0008_cmd_log.sql", impo
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const JOBLOOP_SCHEMA = readFileSync(new URL("./migrations/0009_job_loops.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -336,6 +344,12 @@ export function ensure(db: Db): void {
     db.all("SELECT ticket_hash FROM terminal_tickets WHERE terminal_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
+  }
+  // a Space made before background jobs has no table of crash loops
+  try {
+    db.all("SELECT job_id FROM terminal_job_loops WHERE agent_id = ?", "probe");
+  } catch {
+    for (const stmt of JOBLOOP_SCHEMA) db.run(stmt);
   }
   // a Space made before tabs has the first schema only
   try {

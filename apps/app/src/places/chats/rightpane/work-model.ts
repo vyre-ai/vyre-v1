@@ -35,10 +35,14 @@ export interface JobView {
   restarts: number;
   exitCode?: number | null | undefined;
   lastLine?: string | undefined;
+  /** It kept ending and was stopped for good. */
+  loop?: boolean | undefined;
 }
 
 /** The two words of a job's row: the line under its name and the state at its right. */
 export function jobWords(j: JobView): { note: string; word: string; dot: "run" | "wait" | "idle" | "dead" } {
+  if (j.loop === true)
+    return { note: "It kept crashing and was stopped. Its log is kept.", word: "Failed", dot: "dead" };
   const again = j.restarts > 0 ? ` Restarted ${j.restarts} ${j.restarts === 1 ? "time" : "times"}.` : "";
   switch (j.state) {
     case "running":

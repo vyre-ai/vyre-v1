@@ -127,6 +127,18 @@ test("listing jobs never wakes a sleeping workspace and never counts as use", as
   assert.equal(r.dk.ops("exec").length, execs, "nothing was run in it");
 });
 
+test("a crash-looping job is a row with loop set, failed", () => {
+  const spec = { command: "node a.js", name: "a", restart: "always", desired: "stopped" };
+  const r = jobRowOf({
+    id: "job_aaaaaaaaaaaa",
+    spec,
+    status: { state: "failed", exitCode: 1, restarts: 20, loop: true, note: "It kept ending, so it was stopped." },
+    tail: "",
+  });
+  assert.equal(r?.loop, true);
+  assert.equal(r?.state, "failed");
+});
+
 test("a row is read from the folders: restart waits, a missing status is starting, an ended job says how", () => {
   const spec = { command: "node a.js", name: "a", restart: "always", desired: "running" };
   assert.equal(jobRowOf({ id: "job_aaaaaaaaaaaa", spec, status: null, tail: "" })?.state, "starting");

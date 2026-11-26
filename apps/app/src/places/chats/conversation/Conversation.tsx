@@ -7,6 +7,7 @@ import { useFrameStore } from "./frame.ts";
 import type { FrameControls, FrameStore } from "./frame.ts";
 import { foldHelperRows, groupHelperStrips, hideCrewPosts, mergeCrewAnswer, stripFromCoders } from "./helper-rows.ts";
 import { isLong, sessionItems, withFolded } from "../session/model.ts";
+import { isSigninAnswerLine } from "./model.ts";
 import { Dialog } from "../../../../../../ui/src/Dialog/index.tsx";
 import { RewindCard, RewindWatch } from "../rewind/RewindCard.tsx";
 import type { ActiveRewind } from "../rewind/model.ts";
@@ -932,7 +933,7 @@ function ConversationView(): ReactElement {
     return <ConversationLoading threadId={data.threadId} />;
   const thread: Thread = threadQ.data.thread;
   const live = messagesQ.data.messages;
-  const all = mergePages(around ?? live, older);
+  const all = mergePages(around ?? live, older).filter((m) => !isSigninAnswerLine(m));
   const rewindLines = all.filter((m) => m.kind === "system" && /^(Went back|Came back)/.test(m.body)).length;
   const goesBack = thread.kind === "chat" && thread.agents.length > 0;
   const openQs = openQuestions(all);
@@ -1800,6 +1801,24 @@ function ConversationView(): ReactElement {
       me: data.me.id,
       nameOf: (id: string) => data.nameOf(id),
       openComputer: (agentId: string) => data.nav.openBeside("computer", agentId),
+      // Open terminal opens that terminal, full screen: the sheet needs only the chat's own calls, connection and clock
+      terminal: {
+        screens: data.screens,
+        call: data.call,
+        connection: data.connection,
+        space: { id: "", name: data.spaceName ?? "" },
+        team: data.personal !== true,
+        newKey: data.newKey,
+        ...(data.spaceUrl ? { spaceUrl: data.spaceUrl } : {}),
+        clock: data.clock,
+        nav: {
+          openTerminal: () => undefined,
+          closeTab: () => undefined,
+          openList: () => undefined,
+          openRules: () => undefined,
+          openAgent: data.nav.openAgent,
+        },
+      } as never,
     },
     ...(data.mountSheet
       ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } }

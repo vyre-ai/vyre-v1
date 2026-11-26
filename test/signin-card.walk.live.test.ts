@@ -89,9 +89,7 @@ test(
       await page.getByTestId(`signin-card-open-${blockId}`).waitFor({ timeout: 15_000 });
       await shoot(page, DIR, "01-owner-card");
       await page.getByTestId(`signin-card-open-${blockId}`).click();
-      // the agent's Computer tab opens, with its terminals as rows: the person opens the agent's terminal and watches until they take the keyboard
-      await page.getByTestId("terminals-head").waitFor({ timeout: 30_000 });
-      await page.locator('[data-testid^="row-session-"]').first().click();
+      // Open terminal opens THAT terminal, full screen, where the person watches until they take the keyboard
       await page.getByTestId("terminal-take").waitFor({ timeout: 30_000 });
       await shoot(page, DIR, "02-owner-terminal-opened");
       await page.getByTestId("terminal-take").click();
@@ -105,13 +103,20 @@ test(
       await shoot(page, DIR, "03-owner-took-over");
       await page.getByTestId("terminal-give").click();
       await page.getByTestId("terminal-take").waitFor({ timeout: 15_000 });
-      // back to the chat where the agent asked, and Done
-      await open(k.me, k.s, "/chat");
-      await page.getByText("ops", { exact: true }).first().waitFor({ timeout: 30_000 });
-      await page.getByText("ops", { exact: true }).first().click();
+      // close the sheet: the chat is where it was, with the card, and Done
+      await page.getByText("Close", { exact: true }).first().click();
       await page.getByTestId(`signin-card-done-btn-${blockId}`).waitFor({ timeout: 30_000 });
       await page.getByTestId(`signin-card-done-btn-${blockId}`).click();
       await page.getByTestId(`signin-card-done-${blockId}`).waitFor({ timeout: 15_000 });
+      assert.match(
+        (await page.getByTestId(`signin-card-done-${blockId}`).innerText()).trim(),
+        /^Olivia signed in, \d{1,2}:\d{2}/,
+      );
+      assert.equal(
+        await page.getByText(/^Answered: /).count(),
+        0,
+        "the line sent to the agent is not shown to people, and there is no raw (done)",
+      );
       await shoot(page, DIR, "04-owner-done");
       // the agent was told, in the person's own words, and that message is what wakes it (the card answered the parked question: "Answered: Done, I signed in")
       let resumed = false;
@@ -127,6 +132,29 @@ test(
       }
       assert.ok(resumed, "the agent was told the person signed in");
 
+      // a background job the agent keeps running shows as a row in the Computer tab, with Stop
+      await say(
+        `TOOL terminal_job_start ${JSON.stringify({ command: "while true; do echo tick; sleep 2; done", name: "ticker", restart: "always", idempotencyKey: "job-1" })}`,
+      );
+      let jobId = "";
+      for (let i = 0; i < 40 && jobId === ""; i++) {
+        await k.w.d.hooks?.pump?.();
+        const jl = (await k.w.owner.ok("terminal.job.list", { agentId: k.agentId })) as {
+          jobs: Array<{ jobId: string; state: string }>;
+        };
+        jobId = jl.jobs.find((j) => j.state === "running")?.jobId ?? "";
+        if (jobId === "") await new Promise((r) => setTimeout(r, 500));
+      }
+      assert.notEqual(jobId, "", "the agent's job is running");
+      await open(k.me, k.s, `/chat#screen=chats.agent-page&agentId=${k.agentId}&tab=computer`);
+      await page.getByTestId(`row-job-${jobId}`).waitFor({ timeout: 40_000 });
+      assert.match(await page.getByTestId(`row-job-${jobId}`).innerText(), /ticker/);
+      await shoot(page, DIR, "06-jobs-row");
+      await page.getByTestId(`job-stop-${jobId}`).click();
+      await page.getByTestId(`job-stop-${jobId}`).waitFor({ state: "detached", timeout: 30_000 });
+      assert.match(await page.getByTestId(`row-job-${jobId}`).innerText(), /Stopped/);
+      await shoot(page, DIR, "07-jobs-stopped");
+      await open(k.me, k.s, "/chat");
       // a second card for the member's view (the first one is answered): the agent asks again
       await say(
         `TOOL terminal_ask_signin ${JSON.stringify({ threadId, terminalId, why: "Sign in to the staging server too", idempotencyKey: "ask-2" })}`,

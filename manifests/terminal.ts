@@ -94,6 +94,12 @@ const jobRow = t.obj({
   restarts: t.int(),
   exitCode: t.opt(t.nullable(t.int())),
   lastLine: t.opt(t.str({ description: "The last line the job printed" })),
+  loop: t.opt(
+    t.bool({
+      description:
+        "It kept ending and being started again (more than 20 times in an hour): it was stopped for good and its owner was told",
+    }),
+  ),
 });
 
 export default defineManifest({

@@ -148,3 +148,82 @@ test("with no workspace on this host the reason comes back plainly and nothing r
     "validation.precondition_failed",
   );
 });
+
+test("a computer keeps five jobs at a time: the sixth is refused with too_many_jobs, and room comes back when one ends", async () => {
+  reset();
+  const hn = harness();
+  bindHost(fakeHost({}).host);
+  const rows = new Map<string, JobRow>();
+  let n = 0;
+  bindWorkspaceJobs({
+    list: async () => [...rows.values()],
+    start: async (_a, spec) => {
+      const row: JobRow = {
+        jobId: `job_${String(++n).padStart(12, "0")}`,
+        name: spec.name,
+        command: spec.command,
+        state: "running",
+        restart: spec.restart,
+        restarts: 0,
+      };
+      rows.set(row.jobId, row);
+      return row;
+    },
+    stop: async (_a, id) => {
+      const r = rows.get(id);
+      if (!r) return null;
+      rows.set(id, { ...r, state: "stopped" });
+      return rows.get(id)!;
+    },
+  });
+  const agent = hn.as(OWN, "usr_dana", "run_1");
+  for (let i = 0; i < 5; i++)
+    await call(agent, "terminal.job.start", { command: `node job${i}.js`, idempotencyKey: `cap-${i}` });
+  let why = "";
+  try {
+    await h["terminal.job.start"]!(agent, { command: "node job5.js", idempotencyKey: "cap-5" });
+  } catch (e) {
+    why = `${codeOf(e)} ${(e as { error?: { details?: { reason?: string } } }).error?.details?.reason ?? ""}`;
+  }
+  assert.equal(why, "validation.precondition_failed too_many_jobs");
+  await call(agent, "terminal.job.stop", { jobId: "job_000000000001" });
+  await call(agent, "terminal.job.start", { command: "node job6.js", idempotencyKey: "cap-6" });
+  assert.equal(rows.size, 6, "an ended job does not count");
+});
+
+test("a job stopped for crash looping tells the agent's owner once, as a task", async () => {
+  const { jobLoopsWatch } = await import("../impl.ts");
+  reset();
+  const hn = harness();
+  bindHost(fakeHost({}).host);
+  const opened = await h["terminal.open"]!(hn.ctx, {
+    host: "agent_computer",
+    agentId: "agt_intake",
+    idempotencyKey: "loop-open",
+  });
+  assert.ok(opened.terminal.terminalId);
+  const looped: JobRow = {
+    jobId: "job_00000000000a",
+    name: "ticker",
+    command: "node t.js",
+    state: "failed",
+    restart: "always",
+    restarts: 0,
+    loop: true,
+    lastLine: "boom",
+  };
+  bindWorkspaceJobs({ list: async () => [looped], start: async () => looped, stop: async () => looped });
+  const calls: Array<{ cap: string; input: Record<string, unknown> }> = [];
+  const ctx = {
+    ...hn.ctx,
+    call: async (cap: string, input: unknown) => {
+      calls.push({ cap, input: input as Record<string, unknown> });
+      return cap === "agents.share_class" ? { ownerId: "usr_dana", class: "personal" } : { task: { id: "tsk_1" } };
+    },
+  } as typeof hn.ctx;
+  assert.deepEqual(await jobLoopsWatch(ctx), ["job_00000000000a told"]);
+  const task = calls.find((c) => c.cap === "tasks.create")!;
+  assert.deepEqual(task.input["assigned"], { kind: "person", id: "usr_dana" });
+  assert.match(String(task.input["title"]), /ticker.*crashing/);
+  assert.deepEqual(await jobLoopsWatch(ctx), [], "told once");
+});

@@ -4,6 +4,9 @@
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
 import { StyleSheet, Text } from "react-native";
+import { TerminalSheet } from "../rightpane/TerminalSheet.tsx";
+import type { TerminalData } from "../terminal/data.ts";
+import { useWhenText } from "../../../../../../ui/src/Time/index.tsx";
 import { Card, CardActions, CardBody, CardDone, CardHead } from "../../../../../../ui/src/Card/index.tsx";
 
 export interface SigninCardProps {
@@ -20,6 +23,9 @@ export interface SigninCardProps {
   me: string;
   nameOf(id: string): string;
   openComputer(agentId: string): void;
+  /** What the full-screen terminal needs (the chat's own calls, connection and clock); left out where the shell has no terminal: Open terminal then opens the agent's Computer tab. */
+  terminal?: TerminalData | undefined;
+  /** When the card was answered, for "Olivia signed in, 11:09 PM". */
   answer(id: string, answer: unknown): void;
 }
 
@@ -48,9 +54,39 @@ export async function whoMayTakeOver(
   }
 }
 
+/** The collapsed card of one that was answered: "Olivia signed in, 11:09 PM" or "Olivia couldn't sign in, 11:09 PM" (not the raw answer key). `when` is the Space's own time words (ui/Time). */
+export function signinDoneLine(
+  d: Record<string, unknown>,
+  me: string,
+  nameOf: (id: string) => string,
+  when: (at: number, now: number) => string,
+): string {
+  const by = typeof d["answeredBy"] === "string" && d["answeredBy"] !== "" ? (d["answeredBy"] as string) : me;
+  const at = typeof d["answeredAt"] === "number" ? `, ${when(d["answeredAt"] as number, Date.now())}` : "";
+  return `${nameOf(by)} ${d["answer"] === "cannot" ? "couldn't sign in" : "signed in"}${at}`;
+}
+
+/** An answered sign-in card in a chat: one plain line. */
+export function SigninDone({
+  id,
+  data,
+  me,
+  nameOf,
+}: {
+  id: string;
+  data: Record<string, unknown>;
+  me: string;
+  nameOf: (id: string) => string;
+}): ReactElement {
+  const when = useWhenText();
+  return <CardDone testID={`signin-card-done-${id}`} text={signinDoneLine(data, me, nameOf, when)} />;
+}
+
 export function SigninCard(p: SigninCardProps): ReactElement {
   const [who, setWho] = useState<Who>({ s: "reading" });
+  const when = useWhenText();
   const [done, setDone] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<{ takeOver: boolean } | null>(null);
   useEffect(() => {
     let live = true;
     void whoMayTakeOver(p.call, p.agentId, p.me, p.nameOf).then((w) => {
@@ -65,49 +101,73 @@ export function SigninCard(p: SigninCardProps): ReactElement {
   if (done !== null) return <CardDone testID={`signin-card-done-${p.id}`} text={done} />;
   const where = p.surface === "terminal" ? "terminal" : "browser";
   const title = p.site ? `${p.why} (${p.site})` : p.why;
+  const sheetEl =
+    sheet !== null && p.terminal !== undefined && p.terminalId !== undefined ? (
+      <TerminalSheet
+        data={p.terminal}
+        agentName={p.name}
+        asleep={false}
+        watchOnly={!sheet.takeOver}
+        sessions={[{ name: "terminal", terminalId: p.terminalId, state: "idle", owner: { kind: "agent" } }]}
+        start={p.terminalId}
+        me={p.me}
+        nameOf={p.nameOf}
+        onClose={() => setSheet(null)}
+      />
+    ) : null;
   return (
-    <Card kind="decision" testID={`signin-card-${p.id}`} label={p.why}>
-      <CardHead title={`${p.name} needs you to sign in`} />
-      <CardBody>
-        <Text testID={`signin-card-why-${p.id}`} style={s.why}>
-          {title}
+    <>
+      {sheetEl}
+      <Card kind="decision" testID={`signin-card-${p.id}`} label={p.why}>
+        <CardHead title={`${p.name} needs you to sign in`} />
+        <CardBody>
+          <Text testID={`signin-card-why-${p.id}`} style={s.why}>
+            {title}
+          </Text>
+        </CardBody>
+        {who.s === "wait" ? (
+          <CardActions
+            note={<Text testID={`signin-card-wait-${p.id}`} style={s.wait}>{`Waiting for ${who.for} to sign in`}</Text>}
+          />
+        ) : (
+          <CardActions
+            secondary={[
+              {
+                label: "I can't",
+                onPress: () => {
+                  p.answer(p.id, "cannot");
+                  setDone(`${p.nameOf(p.me)} couldn't sign in, ${when(Date.now(), Date.now())}`);
+                },
+                testID: `signin-card-cannot-${p.id}`,
+              },
+              {
+                label: "Done",
+                onPress: () => {
+                  p.answer(p.id, "done");
+                  setDone(`${p.nameOf(p.me)} signed in, ${when(Date.now(), Date.now())}`);
+                },
+                testID: `signin-card-done-btn-${p.id}`,
+              },
+            ]}
+            primary={{
+              label: p.surface === "terminal" ? "Open terminal" : "Open browser",
+              onPress: () => {
+                // Open terminal opens THAT terminal, full screen, where Take over is the button; with no terminal to open it falls back to the agent's Computer tab
+                if (p.surface === "terminal" && p.terminalId !== undefined && p.terminal) {
+                  void Promise.resolve(p.call("terminal.workspace", { agentId: p.agentId }))
+                    .then((w) => setSheet({ takeOver: (w as { takeOver?: boolean }).takeOver !== false }))
+                    .catch(() => setSheet({ takeOver: true }));
+                } else p.openComputer(p.agentId);
+              },
+              testID: `signin-card-open-${p.id}`,
+            }}
+          />
+        )}
+        <Text style={s.hint} accessibilityElementsHidden importantForAccessibility="no">
+          {who.s === "may" ? `Take over the ${where}, sign in, then press Done.` : ""}
         </Text>
-      </CardBody>
-      {who.s === "wait" ? (
-        <CardActions
-          note={<Text testID={`signin-card-wait-${p.id}`} style={s.wait}>{`Waiting for ${who.for} to sign in`}</Text>}
-        />
-      ) : (
-        <CardActions
-          secondary={[
-            {
-              label: "I can't",
-              onPress: () => {
-                p.answer(p.id, "cannot");
-                setDone("Could not sign in");
-              },
-              testID: `signin-card-cannot-${p.id}`,
-            },
-            {
-              label: "Done",
-              onPress: () => {
-                p.answer(p.id, "done");
-                setDone("Signed in. The agent carries on");
-              },
-              testID: `signin-card-done-btn-${p.id}`,
-            },
-          ]}
-          primary={{
-            label: p.surface === "terminal" ? "Open terminal" : "Open browser",
-            onPress: () => p.openComputer(p.agentId),
-            testID: `signin-card-open-${p.id}`,
-          }}
-        />
-      )}
-      <Text style={s.hint} accessibilityElementsHidden importantForAccessibility="no">
-        {who.s === "may" ? `Take over the ${where}, sign in, then press Done.` : ""}
-      </Text>
-    </Card>
+      </Card>
+    </>
   );
 }
 

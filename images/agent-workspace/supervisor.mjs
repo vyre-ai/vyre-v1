@@ -15,6 +15,8 @@ const MAX_LOG = 1024 * 1024;
 const KEEP_LOG = 256 * 1024;
 const GRACE_MS = Number(process.env.VYRE_JOBS_GRACE_MS || 5000);
 const ID = /^[A-Za-z0-9_-]{1,64}$/;
+/** More than this many ends in an hour (and starts again) is a crash loop. */
+const LOOP_MAX = Number(process.env.VYRE_JOBS_LOOP_MAX || 20);
 
 const read = (f) => {
   try {
@@ -58,6 +60,7 @@ function status(id, extra) {
     endedAt: extra.endedAt ?? j?.lastExit?.at ?? null,
     updatedAt: Date.now(),
     ...(extra.note ? { note: extra.note } : {}),
+    ...(extra.loop ? { loop: true } : {}),
   });
 }
 
@@ -94,17 +97,41 @@ function start(id, spec) {
     const ranFor = at - cur.startedAt;
     // a job that ran a minute is a healthy one: its next wait starts over
     if (ranFor > 60_000) cur.restarts = 0;
-    fs.appendFileSync(logFile, `\n[supervisor] exited ${signal ? `by ${signal}` : `with code ${code}`} after ${Math.round(ranFor / 1000)} s\n`);
+    fs.appendFileSync(
+      logFile,
+      `\n[supervisor] exited ${signal ? `by ${signal}` : `with code ${code}`} after ${Math.round(ranFor / 1000)} s\n`,
+    );
     const want = read(path.join(dir, "spec.json"));
     const wanted = want?.desired === "running" && !cur.stopping;
     const again = want?.restart === "always" || (want?.restart !== "never" && (code ?? 1) !== 0);
-    if (wanted && again) {
+    // a job that has ended and been started again more than LOOP_MAX times in the last hour is a crash loop: it is stopped for good (its spec says so), so it does not keep the computer awake for ever, and the status says
+    // so for the daemon, which tells the agent's owner
+    cur.recent = [...(cur.recent ?? []).filter((t) => at - t < 3_600_000), at];
+    if (wanted && again && cur.recent.length > LOOP_MAX) {
+      try {
+        write(path.join(dir, "spec.json"), { ...want, desired: "stopped" });
+      } catch {
+        /* the status below still says it */
+      }
+      fs.appendFileSync(logFile, `[supervisor] stopped: it ended ${cur.recent.length} times in an hour\n`);
+      status(id, {
+        state: "failed",
+        exitCode: cur.lastExit.code,
+        endedAt: at,
+        note: "It kept ending, so it was stopped.",
+        loop: true,
+      });
+    } else if (wanted && again) {
       cur.pendingRestart = true;
       cur.restarts += 1;
       cur.waitUntil = at + Math.min(60_000, 1000 * 2 ** Math.min(6, cur.restarts - 1));
       status(id, { state: "restarting", exitCode: cur.lastExit.code, endedAt: at, note: "Waiting to start again" });
     } else {
-      status(id, { state: cur.stopping || want?.desired === "stopped" ? "stopped" : code === 0 ? "done" : "failed", exitCode: cur.lastExit.code, endedAt: at });
+      status(id, {
+        state: cur.stopping || want?.desired === "stopped" ? "stopped" : code === 0 ? "done" : "failed",
+        exitCode: cur.lastExit.code,
+        endedAt: at,
+      });
     }
   });
   status(id, { state: "running" });
@@ -145,7 +172,8 @@ export function tick() {
     const live = j?.child != null;
     if (spec.desired === "running") {
       // a job is started when it is new to this supervisor (a first start, or after a reboot), when it died and its policy says to start it again and its wait is over, or when it was asked for again (a new `at`)
-      if (!live && Date.now() >= (j?.waitUntil ?? 0) && (!j || j.pendingRestart || spec.at !== j.specAt)) start(id, spec);
+      if (!live && Date.now() >= (j?.waitUntil ?? 0) && (!j || j.pendingRestart || spec.at !== j.specAt))
+        start(id, spec);
     } else if (live) {
       stop(id);
     } else {

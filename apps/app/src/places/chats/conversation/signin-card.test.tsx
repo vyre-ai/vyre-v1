@@ -96,7 +96,7 @@ test("someone who may take over sees Open terminal, Done and I can't; Open termi
   );
   await press(find(root, "signin-card-done-btn-blk_1"));
   assert.deepEqual(c.answers, [["blk_1", "done"]]);
-  assert.match(textOf(find(root, "signin-card-done-blk_1")), /Signed in/);
+  assert.match(textOf(find(root, "signin-card-done-blk_1")), /signed in, \d/);
 });
 
 test("the browser card opens the agent's computer, and I can't answers cannot", async () => {
@@ -141,4 +141,38 @@ test("a sign-in card is never in the dock above the composer, where anyone in th
     }) as never;
   assert.equal(openQuestions([msg({ kind: "signin", surface: "terminal", agentId: "agt_1" })]).length, 0);
   assert.equal(openQuestions([msg(undefined)]).length, 1, "an ordinary question still is");
+});
+
+test("the collapsed card says who signed in and when, plainly; the line sent to the agent is not shown to people", async () => {
+  const { signinDoneLine } = await import("./SigninCard.tsx");
+  const { isSigninAnswerLine } = await import("./model.ts");
+  const at = new Date(2026, 10, 27, 23, 9).getTime();
+  const whenStub = (t: number): string =>
+    new Date(t).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }) && "11:09 PM";
+  assert.match(
+    signinDoneLine({ answer: "done", answeredBy: "usr_owner", answeredAt: at }, "usr_me", nameOf, whenStub),
+    /^Dana signed in, 11:09/,
+  );
+  assert.match(
+    signinDoneLine({ answer: "cannot", answeredBy: "usr_me", answeredAt: at }, "usr_me", nameOf, whenStub),
+    /^usr_me couldn't sign in, 11:09/,
+  );
+  assert.equal(
+    signinDoneLine({ answer: "done", answeredBy: "usr_owner" }, "usr_me", nameOf, whenStub),
+    "Dana signed in",
+    "no time when the server did not say",
+  );
+  const person = { kind: "person" };
+  assert.equal(isSigninAnswerLine({ body: "Answered: Done, I signed in (done)", author: person }), true);
+  assert.equal(isSigninAnswerLine({ body: "Answered: I can't sign in (cannot)", author: person }), true);
+  assert.equal(
+    isSigninAnswerLine({ body: "Answered: Federal (b)", author: person }),
+    false,
+    "other answers stay as they are",
+  );
+  assert.equal(isSigninAnswerLine({ body: "Answered: Done, I signed in (done)", author: { kind: "agent" } }), false);
+  // the words are the ones lib/signin-card.ts sends
+  const { SIGNIN_OPTIONS } = await import("../../../../../../lib/signin-card.ts");
+  for (const o of SIGNIN_OPTIONS)
+    assert.equal(isSigninAnswerLine({ body: `Answered: ${o.label} (${o.key})`, author: person }), true, o.key);
 });

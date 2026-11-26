@@ -2443,6 +2443,8 @@ export async function askSignin(
 // ---- background jobs (rc.44) ---------------------------------------------------------------------------------------------------------------------------
 
 const MAX_JOB_ENV = 40;
+/** The most background jobs one computer keeps running at once. */
+export const MAX_JOBS = 5;
 const JOB_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const HANDLE_ONLY = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
 
@@ -2502,6 +2504,19 @@ export async function jobStart(
   }
   const agentId = await jobAgent(ctx, input.agentId);
   const jobs = boundWorkspaceJobs()!;
+  // five jobs at a time on one computer: a sixth waits until one ends
+  const alive = (await jobs.list(agentId)).filter(
+    (j) => j.state === "running" || j.state === "restarting" || j.state === "starting",
+  );
+  if (alive.length >= MAX_JOBS)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `This computer already keeps ${MAX_JOBS} jobs running. Stop one before starting another.`,
+      {
+        reason: "too_many_jobs",
+      },
+    );
   const name = (input.name ?? command).trim().replace(/\s+/g, " ").slice(0, 80);
   try {
     const row = await jobs.start(agentId, {
