@@ -170,15 +170,17 @@ test("a purge of one field leaves no value of another field in the rebased rows 
   expire(type, "fa");
   await h.d.hooks!.runPeriodic("schema.trash_purge");
   await settle();
-  const left = hits(A);
-  // the records store and the Space log (where the rebased row of the first purge lives) hold none of it; the search index's journal (modules.db-wal) is reported, not asserted here
-  const store = Object.fromEntries(Object.entries(left).filter(([f]) => /^(space|events)\.db/.test(f)));
+  // the journal of the search index is folded in a moment after the purge (an idle writer): look for up to 20 s
+  let left = hits(A);
+  for (let i = 0; i < 40 && total(left) > 0; i++) {
+    await new Promise((r) => setTimeout(r, 500));
+    left = hits(A);
+  }
   assert.equal(
-    total(store),
+    total(left),
     0,
-    `A is not in the records store or the Space log, the rebased row of the first purge included: ${JSON.stringify(left)}`,
+    `A is in no database file or journal, the rebased row of the first purge included: ${JSON.stringify(left)}`,
   );
-  console.log(`value of a purged field, files left holding it: ${JSON.stringify(left)}`);
 });
 
 /** The longest time the loop went without running a 2 ms timer. */

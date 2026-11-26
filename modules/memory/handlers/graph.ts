@@ -73,6 +73,55 @@ export async function indexGraph(ctx: MemCtx, input: { entity: string; id: strin
   return out;
 }
 
+/**
+ * A field was dropped or retyped: the record nodes of the type are read again, so a title taken from the dropped field and the [[links]] written in it leave the graph. schema.apply rewrites the rows without a
+ * record event, so the graph follows the schema change (the same reason as the search index). Only records that already have a node are read again; a page of 50 at a time, the loop given back between them.
+ */
+export async function followSchemaChange(
+  ctx: MemCtx,
+  e: { type?: string; name?: string; seq: number; payload: Record<string, unknown> },
+): Promise<number> {
+  ensure(ctx.db);
+  const name = e.type ?? e.name ?? "";
+  const p = e.payload;
+  if (name !== "schema.changed" || !Array.isArray(p["ops"])) return 0;
+  const touched = new Set<string>();
+  for (const o of p["ops"] as Array<Record<string, unknown>>)
+    if (
+      (o["op"] === "field.drop" || o["op"] === "field.retype") &&
+      typeof o["type"] === "string" &&
+      (typeof p["type"] !== "string" || p["type"] === o["type"])
+    )
+      touched.add(o["type"] as string);
+  let done = 0;
+  for (const type of touched) {
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 10_000; guard++) {
+      let page: { rows?: Array<{ id?: unknown }>; next?: unknown };
+      try {
+        page = (await ctx.call("records.query", { type, limit: 50, ...(cursor ? { cursor } : {}) })) as typeof page;
+      } catch {
+        break;
+      }
+      for (const r of page.rows ?? []) {
+        const id = typeof r.id === "string" ? r.id : "";
+        if (
+          !id ||
+          rowsOf(ctx.db, "SELECT 1 AS x FROM memory_graph_nodes WHERE node_id = ?", `record:${id}`).length === 0
+        )
+          continue;
+        ctx.db.run("DELETE FROM memory_graph_seen WHERE entity = ? AND ref = ?", `record:${type}`, id);
+        await indexRecord(ctx, type, id);
+        done++;
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      cursor = typeof page.next === "string" ? page.next : undefined;
+      if (!cursor) break;
+    }
+  }
+  return done;
+}
+
 function removeNode(ctx: MemCtx, nodeId: string): void {
   ctx.db.run("DELETE FROM memory_graph_nodes WHERE node_id = ?", nodeId);
   ctx.db.run("DELETE FROM memory_graph_edges WHERE from_id = ?", nodeId);

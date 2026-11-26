@@ -4979,6 +4979,19 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           scrubMany: (type, fields) => scrubSealedFields(type, fields, { vacuum: false }),
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
+      // A passive checkpoint, then a truncating one: tried a few times, a few seconds apart, until the writer is idle (a truncate that finds readers answers busy and is not forced). Each try is a few milliseconds.
+      const settleJournal = (d: { all(sql: string, ...a: unknown[]): unknown[] }, tries = 8): void => {
+        const timer = setTimeout(() => {
+          try {
+            d.all("PRAGMA wal_checkpoint(PASSIVE)");
+            const r = d.all("PRAGMA wal_checkpoint(TRUNCATE)")[0] as { busy?: number } | undefined;
+            if (r?.busy && tries > 1) settleJournal(d, tries - 1);
+          } catch {
+            /* the database is closed or busy: the next write's own checkpoint folds it */
+          }
+        }, 2_000);
+        timer.unref?.();
+      };
       // After a delete that must leave no copy: fold the journal in and hand freed pages back a slice at a time where the file gives pages back by itself (auto_vacuum = incremental). Never a VACUUM of a live file:
       // freed pages are zeroed by secure_delete, and a file that cannot shed them waits for the planned compact.
       const reclaimFreePages = async (d: {
@@ -5086,14 +5099,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
           });
         }
-        // the search index is folded into the journal again once the touches are in: the pages the first pass freed are not left in the journal file
-        if (db && ids.size) {
-          try {
-            db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-          } catch {
-            /* nothing to fold */
-          }
-        }
+        // the search index is folded into the journal again once the touches are in, and again a moment later when the writer is idle: the erased text is not left in the journal file
+        if (db && ids.size) settleJournal(db);
       };
       // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own
       // resolution at this moment (start and end, expiry, ceiling, hidden fields, filter), for the field the handle names; whatever cannot be read is a refusal.
