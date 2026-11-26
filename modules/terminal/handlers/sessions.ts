@@ -5,6 +5,7 @@
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import { DEFAULT_TAIL, keepCmdLog, listCmdLogs, readCmdLog } from "../cmdlog.ts";
+import { signinQuestion } from "../../../lib/signin-card.ts";
 import { randomHex } from "../../../kernel/src/log/hash.ts";
 import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
@@ -2384,6 +2385,32 @@ export async function request(
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
   })) as { blockId: string; messageId: string };
   return { blockId: asked.blockId, messageId: asked.messageId, risk: j.risk };
+}
+
+/**
+ * An agent needs a person to finish a login in its terminal (`gh auth login`, a vendor CLI, an ssh passphrase): the chat gets the one sign-in card (lib/signin-card.ts) where the agent asked. The people who may
+ * take over this computer see Open terminal and Done; everyone else sees who the agent waits for. Done hands the keyboard back and the parked turn carries on. Only an agent asks, and only about its own terminal.
+ */
+export async function askSignin(
+  ctx: TermCtx,
+  input: { threadId: string; terminalId: string; why: string; idempotencyKey?: string },
+) {
+  ensure(ctx.db);
+  const why = input.why.trim();
+  if (why === "") raise(ctx, "validation.bad_input", "Say what the person should sign in to.");
+  if (ctx.principal.kind !== "agent") raise(ctx, "permission.no_grant", "Only an agent asks a person to sign in.");
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  if (x.agentId === undefined || x.host !== "agent_computer" || x.agentId !== ctx.principal.id)
+    raise(ctx, "validation.precondition_failed", "That is not a terminal of your own computer.", {
+      reason: "not_your_terminal",
+    });
+  if (!ctx.call) raise(ctx, "internal.unavailable", "The chat is not reachable from here.");
+  const asked = (await ctx.call("chat.question.ask", {
+    threadId: input.threadId,
+    ...signinQuestion({ surface: "terminal", why, agentId: x.agentId, terminalId: x.terminalId }),
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
+  })) as { blockId: string; messageId: string };
+  return { blockId: asked.blockId, messageId: asked.messageId };
 }
 
 /** The Gate's condition on terminal.run (`terminal.is_danger(input.command)`): red commands are held for a yes. Anything unreadable counts as red. */

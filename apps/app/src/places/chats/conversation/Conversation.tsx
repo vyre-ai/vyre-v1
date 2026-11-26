@@ -1794,6 +1794,17 @@ function ConversationView(): ReactElement {
           },
         }
       : {}),
+    ...(data.terminal || lead
+      ? {
+          signinCard: {
+            call: data.call,
+            me: data.me.id,
+            nameOf: (id: string) => data.nameOf(id),
+            openTerminal: (id: string) => data.nav.openBeside("terminal", id),
+            openComputer: (agentId: string) => data.nav.openBeside("computer", agentId),
+          },
+        }
+      : {}),
     ...(data.mountSheet
       ? { mountCard: { agents: thread.agents.map((a) => ({ id: a.agentId, name: nameOf(a.agentId) })), data } }
       : {}),

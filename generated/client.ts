@@ -572,6 +572,7 @@ export function createClient(transport: Transport) {
     },
     computers: {
       browser: {
+        ask_signin: call("computers.browser.ask_signin", 1),
         give_back: call("computers.browser.give_back", 1),
         my_sign_ins: call("computers.browser.my_sign_ins", 1),
         pause: call("computers.browser.pause", 1),
@@ -3082,6 +3083,7 @@ export function createClient(transport: Transport) {
       save: call("templates.save", 1),
     },
     terminal: {
+      ask_signin: call("terminal.ask_signin", 1),
       attach: call("terminal.attach", 1),
       capture: call("terminal.capture", 1),
       close: call("terminal.close", 1),

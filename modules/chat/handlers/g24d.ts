@@ -543,6 +543,18 @@ export async function questionWithdraw(
   return { withdrawn: true };
 }
 
+/** A card a question carries: a command for the person to run (terminal.request), or a sign-in the person does themselves on the agent's computer (terminal.ask_signin, computers.browser.ask_signin). */
+export interface ChatCard {
+  kind: "terminal" | "signin";
+  command?: string;
+  host?: string;
+  risk?: string;
+  surface?: "terminal" | "browser";
+  terminalId?: string;
+  site?: string;
+  agentId?: string;
+}
+
 export async function questionAsk(
   ctx: ChatCtx,
   input: {
@@ -551,7 +563,7 @@ export async function questionAsk(
     mode: "single" | "multi" | "free";
     options?: Array<{ key: string; label: string; detail?: string }>;
     allowOther?: boolean;
-    card?: { kind: "terminal"; command: string; host?: string; risk?: string };
+    card?: ChatCard;
     idempotencyKey?: string;
   },
 ) {
@@ -568,11 +580,15 @@ export async function questionIn(
     mode: "single" | "multi" | "free";
     options?: Array<{ key: string; label: string; detail?: string }>;
     allowOther?: boolean;
-    card?: { kind: "terminal"; command: string; host?: string; risk?: string };
+    card?: ChatCard;
   },
   by?: { id: string; kind: "agent" | "text"; extra?: Record<string, unknown> },
 ) {
   const prompt = input.prompt.trim();
+  if (input.card?.kind === "terminal" && (input.card.command ?? "") === "")
+    raise(ctx, "validation.bad_input", "A terminal card needs the command to run.");
+  if (input.card?.kind === "signin" && input.card.surface === undefined)
+    raise(ctx, "validation.bad_input", "A sign-in card needs to say where: the terminal or the browser.");
   if (prompt === "" || prompt.length > MAX_PROMPT)
     raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)

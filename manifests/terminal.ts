@@ -494,6 +494,30 @@ export default defineManifest({
         errors: ["permission.role_lacks_permission", "validation.bad_input"],
       },
     ),
+    write(
+      "terminal.ask_signin",
+      "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      {
+        in: {
+          threadId: id.thread,
+          terminalId: id.terminal,
+          why: t.str({ description: "What to sign in to, in a sentence the person understands" }),
+        },
+        out: { blockId: id.block, messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        tool: "terminal",
+        mcpName: "terminal_ask_signin",
+        agent: { planMode: "allowed", blocks: ["question"] },
+        errors: [
+          "permission.no_grant",
+          "permission.role_lacks_permission",
+          "validation.bad_input",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
+      },
+    ),
     read(
       "terminal.risk",
       "What a command can do before it runs: read-only, changes something or destructive, and what your rules say; red always asks",

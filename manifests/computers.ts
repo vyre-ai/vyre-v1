@@ -619,6 +619,24 @@ export default defineManifest({
         errors: ["permission.no_grant", "provider.unavailable", "validation.not_found"],
       },
     ),
+    write(
+      "computers.browser.ask_signin",
+      "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      {
+        in: {
+          threadId: id.thread,
+          why: t.str({ description: "What to sign in to, in a sentence the person understands" }),
+          site: t.opt(t.str({ maxLength: 200, description: "The site, when you know it" })),
+        },
+        out: { blockId: id.block, messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        tool: "computer",
+        mcpName: "chrome_ask_signin",
+        agent: { planMode: "allowed", blocks: ["question"] },
+        errors: ["permission.no_grant", "validation.bad_input", "provider.unavailable"],
+      },
+    ),
     // The Space browser's own rule decides who takes over, gives back and signs out (sbrowser/policy.ts): a personal agent's browser is its owner's, a team agent's its owner's and the admins'. The capability asks
     // only for the right every member holds to watch, so a plain member can take over their own Assistant's browser; computers.take_over (an agent computer) is not theirs and is not asked for here.
     write(

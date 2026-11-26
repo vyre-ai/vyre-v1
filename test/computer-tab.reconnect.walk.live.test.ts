@@ -31,7 +31,9 @@ test(
       await page.getByTestId("browser-picture").click();
       await page.getByTestId("desk-live").waitFor({ timeout: 10_000 });
       const draws = (): Promise<number> => page.evaluate(() => (window as unknown as { __draws: number }).__draws);
-      await page.waitForFunction(() => (window as unknown as { __draws: number }).__draws > 3, undefined, { timeout: 15_000 });
+      await page.waitForFunction(() => (window as unknown as { __draws: number }).__draws > 3, undefined, {
+        timeout: 15_000,
+      });
       assert.equal(await page.getByTestId("browser-live-view-state").count(), 0, "nothing is said while it is live");
       await shoot(page, DIR, "01-live");
 
@@ -43,15 +45,23 @@ test(
       assert.match((await page.getByTestId("browser-live-view-state").textContent()) ?? "", /Reconnecting/);
       await shoot(page, DIR, "02-reconnecting");
       await page.getByTestId("browser-live-view-state").waitFor({ state: "detached", timeout: 30_000 });
-      await page.waitForFunction((n) => (window as unknown as { __draws: number }).__draws > n + 3, before, { timeout: 15_000 });
-      assert.ok(k.socketsOpened.length > socketsBefore, "a new socket was opened with a new address, no one pressed anything");
+      await page.waitForFunction((n) => (window as unknown as { __draws: number }).__draws > n + 3, before, {
+        timeout: 15_000,
+      });
+      assert.ok(
+        k.socketsOpened.length > socketsBefore,
+        "a new socket was opened with a new address, no one pressed anything",
+      );
       await shoot(page, DIR, "03-back");
 
       // a long cut: after the give-up time it says it could not reach the browser, with Try again
       k.outage(120_000);
       await page.getByTestId("browser-live-view-state").waitFor({ timeout: 10_000 });
       await page.getByTestId("browser-live-view-retry").waitFor({ timeout: 60_000 });
-      assert.match((await page.getByTestId("browser-live-view-state").textContent()) ?? "", /Couldn't reach the browser/);
+      assert.match(
+        (await page.getByTestId("browser-live-view-state").textContent()) ?? "",
+        /Couldn't reach the browser/,
+      );
       await shoot(page, DIR, "04-gave-up");
       k.outage(0);
       await page.getByTestId("browser-live-view-retry").click();

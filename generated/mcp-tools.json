@@ -4513,6 +4513,13 @@
           },
           "card": {
             "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
               "command": {
                 "type": "string"
               },
@@ -4526,7 +4533,8 @@
               },
               "kind": {
                 "enum": [
-                  "terminal"
+                  "terminal",
+                  "signin"
                 ],
                 "type": "string"
               },
@@ -4537,11 +4545,28 @@
                   "danger"
                 ],
                 "type": "string"
+              },
+              "site": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "surface": {
+                "enum": [
+                  "terminal",
+                  "browser"
+                ],
+                "type": "string"
+              },
+              "terminalId": {
+                "examples": [
+                  "trm_a1b2c3"
+                ],
+                "pattern": "^trm_[a-z0-9]+$",
+                "type": "string"
               }
             },
             "required": [
-              "kind",
-              "command"
+              "kind"
             ],
             "type": "object"
           },
@@ -13666,6 +13691,44 @@
       },
       "name": "chrome_api",
       "planMode": "blocked",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "question"
+      ],
+      "cap": "computers.browser.ask_signin",
+      "deferred": false,
+      "description": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "site": {
+            "description": "The site, when you know it",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "description": "What to sign in to, in a sentence the person understands",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "chrome_ask_signin",
+      "planMode": "allowed",
       "toolset": "computer",
       "v": 1
     },
@@ -70934,6 +70997,47 @@
       "name": "templates_save",
       "planMode": "blocked",
       "toolset": "sites",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "question"
+      ],
+      "cap": "terminal.ask_signin",
+      "deferred": false,
+      "description": "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "description": "What to sign in to, in a sentence the person understands",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "terminalId",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_ask_signin",
+      "planMode": "allowed",
+      "toolset": "terminal",
       "v": 1
     },
     {

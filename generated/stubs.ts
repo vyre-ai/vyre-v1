@@ -572,6 +572,7 @@ export function stubs(ctx: CallCtx) {
     },
     computers: {
       browser: {
+        ask_signin: call("computers.browser.ask_signin"),
         give_back: call("computers.browser.give_back"),
         my_sign_ins: call("computers.browser.my_sign_ins"),
         pause: call("computers.browser.pause"),
@@ -3082,6 +3083,7 @@ export function stubs(ctx: CallCtx) {
       save: call("templates.save"),
     },
     terminal: {
+      ask_signin: call("terminal.ask_signin"),
       attach: call("terminal.attach"),
       capture: call("terminal.capture"),
       close: call("terminal.close"),

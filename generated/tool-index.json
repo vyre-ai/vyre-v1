@@ -1772,6 +1772,12 @@
     },
     {
       "deferred": false,
+      "name": "chrome_ask_signin",
+      "summary": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "chrome_batch",
       "summary": "Run several Chrome steps in one call; stops at the first held item",
       "toolset": "computer"
@@ -10079,6 +10085,12 @@
       "name": "templates_save",
       "summary": "Save an agent, Automation, Journey, record type, runbook or project as a template",
       "toolset": "sites"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_ask_signin",
+      "summary": "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      "toolset": "terminal"
     },
     {
       "deferred": false,

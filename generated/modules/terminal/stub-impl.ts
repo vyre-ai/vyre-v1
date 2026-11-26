@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "terminal.ask_signin": async () => ({"blockId":"blk_a1b2c3","messageId":"msg_a1b2c3"} as unknown) as never,
   "terminal.attach": async () => ({"expiresAt":1760000000000,"replay":"example","ticket":"example"} as unknown) as never,
   "terminal.capture": async () => ({"cols":1,"cursor":{"x":1,"y":1},"hidden":true,"history":1,"rows":1,"text":"example"} as unknown) as never,
   "terminal.close": async () => ({"closed":true} as unknown) as never,

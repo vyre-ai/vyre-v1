@@ -71,6 +71,7 @@ import { ChromeStepCard, HeldSendCard, isChromeHeld, isChromeStep } from "./chro
 import type { ChromeCardActions } from "./chrome-cards.tsx";
 import { MountCard } from "./mountcard.tsx";
 import { TerminalCard } from "./TerminalCard.tsx";
+import { SigninCard } from "./SigninCard.tsx";
 import { RunCode } from "./RunCode.tsx";
 import { LiveCard } from "./LiveCard.tsx";
 import type { LiveCardConfig } from "./LiveCard.tsx";
@@ -104,6 +105,7 @@ import {
   questionOptions,
   statusView,
   terminalAskOf,
+  signinAskOf,
   workOf,
   NOT_SENT,
   TRY_AGAIN,
@@ -246,6 +248,14 @@ export interface MessageActions {
   liveCard?: LiveCardConfig;
   /** Run on a one-line shell block in a message. Absent: a code block is just the code. */
   runCode?: RunCodeConfig;
+  /** What a sign-in card needs: capabilities as the person, who they are, names, and the two places it opens. Left out where the shell has no Computer. */
+  signinCard?: {
+    call(cap: string, input: unknown): Promise<unknown>;
+    me: string;
+    nameOf(id: string): string;
+    openTerminal(terminalId: string): void;
+    openComputer(agentId: string): void;
+  };
   terminalCard?: {
     deps: { call(cap: string, input: unknown): Promise<unknown>; newKey(): string };
     agentId?: string;
@@ -1702,6 +1712,7 @@ function Theirs({
             options.length > 0 &&
             d["answer"] === undefined &&
             terminalAskOf(d) === null &&
+            signinAskOf(d) === null &&
             mountOffers(options) === null
           ) {
             return (
@@ -1996,6 +2007,7 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
   const options = line.type === "question" ? questionOptions(line.data) : [];
   const offers = line.type === "question" ? mountOffers(options) : null;
   const terminalAsk = line.type === "question" ? terminalAskOf(line.data) : null;
+  const signinAsk = line.type === "question" ? signinAskOf(line.data) : null;
   const answered = line.type === "question" && line.data.answer !== undefined ? String(line.data.answer) : "";
   const steps = line.type === "plan" ? planSteps(line.data) : [];
   if (
@@ -2098,6 +2110,23 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
           answer={actions.answer}
         />
       ) : null}
+      {line.type === "question" && waiting && signinAsk && actions.signinCard ? (
+        <SigninCard
+          id={line.id}
+          why={typeof line.data.prompt === "string" ? line.data.prompt : line.title}
+          surface={signinAsk.surface}
+          agentId={signinAsk.agentId}
+          terminalId={signinAsk.terminalId}
+          site={signinAsk.site}
+          name={actions.signinCard.nameOf(signinAsk.agentId)}
+          call={actions.signinCard.call}
+          me={actions.signinCard.me}
+          nameOf={actions.signinCard.nameOf}
+          openTerminal={actions.signinCard.openTerminal}
+          openComputer={actions.signinCard.openComputer}
+          answer={actions.answer}
+        />
+      ) : null}
       {line.type === "question" && waiting && offers && actions.mountCard ? (
         <MountCard
           id={line.id}
@@ -2112,7 +2141,8 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
       waiting &&
       options.length > 0 &&
       !(offers && actions.mountCard) &&
-      !(terminalAsk && actions.terminalCard) ? (
+      !(terminalAsk && actions.terminalCard) &&
+      !(signinAsk && actions.signinCard) ? (
         <View testID={`options-${line.id}`} accessibilityRole="radiogroup" style={st.cardRow}>
           {collect(options, (o) => (
             <TextButton

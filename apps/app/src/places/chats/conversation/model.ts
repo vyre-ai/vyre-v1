@@ -428,6 +428,22 @@ export function terminalAskOf(
   return { command: c.command, risk, ...(host ? { host } : {}) };
 }
 
+/** The sign-in card a question carries (terminal.ask_signin, computers.browser.ask_signin): where, whose computer, which terminal or site; null for any other question. */
+export function signinAskOf(
+  d: Record<string, unknown>,
+): { surface: "terminal" | "browser"; agentId: string; terminalId?: string; site?: string } | null {
+  const c = d.card;
+  if (!isRec(c) || c.kind !== "signin") return null;
+  const surface = c.surface === "terminal" || c.surface === "browser" ? c.surface : null;
+  if (surface === null || typeof c.agentId !== "string" || c.agentId === "") return null;
+  return {
+    surface,
+    agentId: c.agentId,
+    ...(typeof c.terminalId === "string" && c.terminalId !== "" ? { terminalId: c.terminalId } : {}),
+    ...(typeof c.site === "string" && c.site !== "" ? { site: c.site } : {}),
+  };
+}
+
 export interface PlanStep {
   id: string;
   text: string;

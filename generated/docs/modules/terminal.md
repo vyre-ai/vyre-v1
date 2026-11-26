@@ -4,8 +4,9 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (25)
+## Capabilities (26)
 
+- [terminal.ask_signin](../capabilities/terminal.ask_signin.md): Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
 - [terminal.capture](../capabilities/terminal.capture.md): The screen of a session as tmux draws it, with its colours (escape sequences), the cursor, how much history there is, and whether a program is reading a hidden prompt (secrets already scrubbed)
 - [terminal.close](../capabilities/terminal.close.md): Close a session and kill its tmux session

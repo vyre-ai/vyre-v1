@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "terminal.ask_signin": async (ctx) => { throw new VyreErr(notImplemented("terminal.ask_signin", ctx.trace)); },
   "terminal.attach": async (ctx) => { throw new VyreErr(notImplemented("terminal.attach", ctx.trace)); },
   "terminal.capture": async (ctx) => { throw new VyreErr(notImplemented("terminal.capture", ctx.trace)); },
   "terminal.close": async (ctx) => { throw new VyreErr(notImplemented("terminal.close", ctx.trace)); },

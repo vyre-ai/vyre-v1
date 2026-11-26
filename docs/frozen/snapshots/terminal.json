@@ -1,6 +1,7 @@
 {
   "module": "terminal",
   "capabilities": {
+    "terminal.ask_signin@1": "d1b6256d594504839ca796e52199e66db3a2b0c1b9ca86cda5f5561b8e72c119",
     "terminal.attach@1": "67a2ce89ca8f56e796840e289d2ee3e479c71bef42192cf9a05f4343e39bbdc2",
     "terminal.capture@1": "db9298ef2e7748c72a6f643f13c3357ef92b1d8aab53947ec89046352654565a",
     "terminal.close@1": "ad80a1cb3fc55d0a8fad020ca92fe5124dd2d686f9b793a51f4be395f1ad11e4",
