@@ -2,6 +2,7 @@
 // Built-in role columns come from the permission catalogue. The snapshot is the hot path; access.changed drops it.
 // Durable tables: migrations/0001_access_core.sql. Authorize never reads a module table except through this snapshot.
 import { fail } from "../../host/src/routes/errors.ts";
+import { rawDbOf } from "../../host/src/ctx/db.ts";
 import { registry } from "../../generated/registry.ts";
 import type { PermissionDef } from "../../packages/contracts/src/index.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
@@ -1423,6 +1424,46 @@ export function grantWriter<C extends object, A extends unknown[], R>(
   };
 }
 
+/**
+ * The writer store a folder-follows call left behind (audienceSet), per database, with the write counter as that call left it. The next writer takes it instead of reading the tables again (38,000 resources
+ * is 39 page reads per call, and the folder sweep makes one call per project): it is taken only while the counter stands where the call left it, so nothing else has written since, and it is handed
+ * to one call at a time (taking it removes it; a call that finishes puts it back with keepWarm).
+ */
+const WARM = new WeakMap<object, { store: AccessStore; stamp: number }>();
+function takeWarm(ctx: AccessCtx): AccessStore | null {
+  const raw = rawDbOf(ctx.db);
+  const w = raw ? WARM.get(raw) : undefined;
+  if (!raw || !w) return null;
+  WARM.delete(raw);
+  if (stampNow(ctx.db) !== w.stamp) return null;
+  LOAD_STAMP.set(w.store, w.stamp);
+  return w.store;
+}
+/** What a writer that changed only resources hands to the kept store of access.sync, so it takes the change in place instead of reading the tables again (consumers.ts). */
+export interface ResourceChange {
+  loaded: number;
+  after: number;
+  ids: readonly string[];
+  store: AccessStore;
+}
+let resourceAdopter: ((ctx: GrantCtx, change: ResourceChange) => void) | null = null;
+export function setResourceAdopter(f: (ctx: GrantCtx, change: ResourceChange) => void): void {
+  resourceAdopter = f;
+}
+/**
+ * A handler that changed only the named resources and wrote them (changedResources answered `writes`) keeps its store for the next writer, and the kept store of access.sync takes the same rows in
+ * place, when the write counter shows nothing else wrote since the store was read. Call it last, once the change is complete.
+ */
+export function keepWarm(ctx: AccessCtx, store: AccessStore, writes: number | null, ids: readonly string[]): void {
+  const raw = rawDbOf(ctx.db);
+  const loaded = LOAD_STAMP.get(store);
+  const after = stampNow(ctx.db);
+  if (!raw || writes === null || store.isGrantView || loaded == null || after === null || after !== loaded + writes) return;
+  resourceAdopter?.(ctx, { loaded, after, ids, store });
+  LOAD_STAMP.set(store, after);
+  WARM.set(raw, { store, stamp: after });
+}
+
 export function storeOf(ctx: AccessCtx): AccessStore {
   // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
   if (READERS.has(ctx) && readView) {
@@ -1431,6 +1472,11 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   }
   let s = STORES.get(ctx.db);
   if (s) return s;
+  s = takeWarm(ctx) ?? undefined;
+  if (s) {
+    STORES.set(ctx.db, s);
+    return s;
+  }
   s = loadStore(ctx.db);
   LOAD_STAMP.set(s, stampNow(ctx.db));
   STORES.set(ctx.db, s);
@@ -1444,6 +1490,11 @@ export function storeOf(ctx: AccessCtx): AccessStore {
  */
 export async function primeStore(ctx: AccessCtx): Promise<void> {
   if (READERS.has(ctx) || STORES.has(ctx.db)) return;
+  const warm = takeWarm(ctx);
+  if (warm) {
+    STORES.set(ctx.db, warm);
+    return;
+  }
   const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
   const before = stampNow(ctx.db);
   if (before === null || before === undefined) return;
@@ -1718,11 +1769,13 @@ export function changed(
 }
 
 /** `changed` for a handler that changes only the named resources (see AccessStore.persistChangedResources); falls back to the whole write where the store has no copy of the rows to compare with. */
-export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): void {
+export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): number | null {
   store.bump();
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
   try {
-    if (store.persistChangedResources(ctx.db, ids) === null) store.persist(ctx.db);
+    const writes = store.persistChangedResources(ctx.db, ids);
+    if (writes === null) store.persist(ctx.db);
+    return writes;
   } catch (e) {
     store.bump();
     throw e;

@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader, keepWarm } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -1962,8 +1962,9 @@ export async function audienceSet(
       else delete res.row;
     }
     res.parentId = rec.id;
-    changedResources(ctx, store, [res.id]);
+    const writes = changedResources(ctx, store, [res.id]);
     commit(ctx, store, ss, wasFresh, [res.id], false);
+    keepWarm(ctx as AccessCtx, store, writes, [res.id]);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
   // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from

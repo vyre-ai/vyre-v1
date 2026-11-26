@@ -28,6 +28,7 @@ import {
   setPrivate,
   setDecisionView,
   setGrantAdopter,
+  setResourceAdopter,
   setWriterView,
   setLoadStamp,
   kernelGrant,
@@ -614,6 +615,34 @@ setGrantAdopter((ctx, change) => {
       kept.store.adoptSnapshot(kept.plain);
       if (change.store.isGrantView) change.store.adoptSnapshot(kept.plain);
     }
+  });
+  kept.stamp = change.after;
+});
+
+/**
+ * A writer changed only resource rows (a folder made to follow its record) and the write counter moved by exactly what it wrote: the kept store takes the same rows in place, as it takes a registered
+ * object (applyEvent), and moves its counter to where the writer left it. Any other write in between and the sync reads the tables again on its next run.
+ */
+setResourceAdopter((ctx, change) => {
+  const key = rawDbOf(ctx.db);
+  const kept = key ? SYNCED.get(key) : undefined;
+  if (!kept || kept.stamp !== change.loaded) return;
+  const recs: ResourceRec[] = [];
+  for (const id of change.ids) {
+    const r = change.store.resources.get(id);
+    if (!r) return; // a row removed: the sync reads the tables
+    recs.push(structuredClone(r));
+  }
+  asKeptWriter(() => {
+    for (const r of recs) {
+      kept.store.resources.set(r.id, r);
+      kept.rows.set(r.id, r);
+      kept.snap.putResource(kernelResource(r));
+      kept.plain?.putResource(kernelResource(r));
+    }
+    kept.store.epoch = Math.max(kept.store.epoch, change.store.epoch);
+    kept.store.invalidate();
+    if (kept.plain) kept.store.adoptSnapshot(kept.plain);
   });
   kept.stamp = change.after;
 });

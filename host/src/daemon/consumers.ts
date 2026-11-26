@@ -23,6 +23,13 @@ const PAGE = 200;
 /** After this many ms of work the pass lets the event loop run (requests wait behind a long backlog otherwise). */
 const YIELD_EVERY_MS = 20;
 const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** One time budget for the whole pump turn (every consumer, not one each): when the hook work since the loop last ran reaches it, the loop runs. */
+const turn = { since: 0 };
+const overBudget = (): boolean => performance.now() - turn.since >= YIELD_EVERY_MS;
+const yieldTurn = async (): Promise<void> => {
+  await yieldLoop();
+  turn.since = performance.now();
+};
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;
 export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
@@ -492,7 +499,6 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function passFor(c: ConsumerDef): Promise<void> {
     let at = cursor(c.name);
     if (at === undefined) return; // start() has not run for it yet
-    let since = performance.now();
     for (;;) {
       // the log is asked only for the events this consumer handles, so a consumer of a rare event does not read every event of the Space (a hundred consumers each reading a backlog of 70,000 was most of the
       // server's CPU after a sync); once it has read to the end, it is at the head that was there when it asked
@@ -517,10 +523,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           } // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at); // a delivered event is recorded at once, so a crash repeats at most the one in flight
-          if (performance.now() - since >= YIELD_EVERY_MS) {
-            await yieldLoop();
-            since = performance.now();
-          }
+          if (overBudget()) await yieldTurn();
         } else at = e.seq;
       }
       readPast(c.name, at);
@@ -528,7 +531,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         if (head > at) readPast(c.name, head);
         return;
       }
-      await yieldLoop();
+      await yieldTurn();
     }
   }
 
@@ -541,10 +544,12 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     (async () => {
       try {
         await null; // let `running` be assigned before the first check, even with nothing to run
+        turn.since = performance.now();
         do {
           again = false;
           for (const c of byConsumer.values()) {
             if (closing) break;
+            if (overBudget()) await yieldTurn();
             await passFor(c);
           }
           flush();
