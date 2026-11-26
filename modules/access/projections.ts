@@ -1676,25 +1676,52 @@ class SealedMap<K, V> extends Map<K, V> {
   sealed = false;
   /** Moves on every change, so what is derived from the map (an index of the children of each resource) can be kept while it stands. */
   version = 0;
+  /** The keys changed at versions floor+1 .. version, newest last (bounded): what a holder of an older version has to look at, instead of every entry. (The Map constructor calls `set` before these fields exist: those are not logged.) */
+  private log: K[] = [];
+  private floor = 0;
+  private note(k: K): void {
+    const log = this.log as K[] | undefined;
+    if (!log) return;
+    log.push(k);
+    if (log.length > 4096) {
+      const drop = log.length - 2048;
+      log.splice(0, drop);
+      this.floor += drop;
+    }
+  }
+  /** The keys changed since `version`, or null when that is older than the log goes back (look at everything). */
+  changesSince(version: number): K[] | null {
+    if (version < this.floor || version > this.version) return null;
+    return this.log.slice(version - this.floor);
+  }
   override set(k: K, v: V): this {
     if (this.sealed) {
       mustWrite();
       deepFreeze(v);
     }
     this.version++;
+    this.note(k);
     return super.set(k, v);
   }
   override delete(k: K): boolean {
     if (this.sealed) mustWrite();
     this.version++;
+    this.note(k);
     return super.delete(k);
   }
   override clear(): void {
     if (this.sealed) mustWrite();
     this.version++;
+    this.log = [];
+    this.floor = this.version;
     super.clear();
   }
 }
+/** The version of a sealed resource map, or undefined for a plain Map. */
+export const mapVersion = (m: unknown): number | undefined => (m instanceof SealedMap ? (m as SealedMap<unknown, unknown>).version : undefined);
+/** The keys a sealed map changed since `version`, or null (a plain map, or a version the log no longer reaches). */
+export const mapChangesSince = (m: unknown, version: number): string[] | null =>
+  m instanceof SealedMap ? ((m as SealedMap<string, unknown>).changesSince(version)) : null;
 class SealedSet<T> extends Set<T> {
   sealed = false;
   override add(v: T): this {

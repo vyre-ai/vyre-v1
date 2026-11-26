@@ -8,7 +8,7 @@
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader, keepWarm, peekWarm, stampNow } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader, keepWarm, mapChangesSince, mapVersion, peekWarm, stampNow } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -151,6 +151,9 @@ interface Base {
   rest: string;
   /** each person's own state (the person, the roles given to them, the groups they are in), as text: a difference names the person whose rows must be worked out again */
   people: Map<string, string>;
+  /** The sealed map of resources this base was copied from and its version then: while the store still holds that very map, only the keys it changed since are compared (undefined when the base is not a copy of one). */
+  resMap?: object;
+  resVersion?: number;
 }
 interface Kept {
   /** the store the copy was built from and its epoch: the same store at the same epoch has changed nothing, so nothing is compared */
@@ -232,12 +235,16 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
   return true;
 }
 const sameGrant = (a: GrantRec, b: GrantRec): boolean => a === b || canonical(a) === canonical(b);
-const baseOf = (store: AccessStore): Base => ({
-  resources: new Map(store.resources),
-  grants: new Map(store.grants),
-  rest: restOf(store),
-  people: peopleOf(store),
-});
+const baseOf = (store: AccessStore): Base => {
+  const resVersion = mapVersion(store.resources);
+  return {
+    resources: new Map(store.resources),
+    grants: new Map(store.grants),
+    rest: restOf(store),
+    people: peopleOf(store),
+    ...(resVersion !== undefined ? { resMap: store.resources, resVersion } : {}),
+  };
+};
 
 /** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
 export function changedRoots(base: Base, store: AccessStore): { roots: string[]; who: string[] } | null {
@@ -248,11 +255,22 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   for (const [id, text] of now) if (base.people.get(id) !== text) who.push(id);
   for (const id of base.people.keys()) if (!now.has(id)) who.push(id);
   const roots = new Set<string>();
-  for (const [id, r] of store.resources) {
-    const was = base.resources.get(id);
-    if (!was || !sameResource(was, r)) roots.add(id);
+  // the same sealed map the base was copied from: its change log names the keys that differ, and the other thirty thousand are not looked at
+  const log = base.resMap === store.resources && base.resVersion !== undefined ? mapChangesSince(store.resources, base.resVersion) : null;
+  if (log) {
+    for (const id of new Set(log)) {
+      const was = base.resources.get(id);
+      const r = store.resources.get(id);
+      if (!was && !r) continue;
+      if (!was || !r || !sameResource(was, r)) roots.add(id);
+    }
+  } else {
+    for (const [id, r] of store.resources) {
+      const was = base.resources.get(id);
+      if (!was || !sameResource(was, r)) roots.add(id);
+    }
+    for (const id of base.resources.keys()) if (!store.resources.has(id)) roots.add(id);
   }
-  for (const id of base.resources.keys()) if (!store.resources.has(id)) roots.add(id);
   const grantAt = (g: GrantRec): boolean => {
     const where = g.resource?.id;
     if (typeof where !== "string" || where === "" || where === "*") return false; // a grant on a whole type
@@ -1022,6 +1040,7 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?:
       if (r) from.base.resources.set(id, r);
       else from.base.resources.delete(id);
     }
+    // no map and version here: this base holds the writer's own rows, which the sealed map's log knows nothing of
     base = { resources: from.base.resources, grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store) };
   } else base = baseOf(store);
   KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders, stamp: stampNow(ctx.db) });

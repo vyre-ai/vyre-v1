@@ -4058,6 +4058,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         call: async (events) => {
           // a sync whose kept store is gone (a start, or a handler wrote access rows since) would read the access tables whole, 0.3 to 4 s of blocked loop on a big Space: the module reads them in slices first and keeps what it read
           await hookRunner.call("access.prime", {}).catch(() => false);
+          await loopYield(); // the sync itself (folding, and building the snapshot again when the batch needs it: 40 ms on 38,000 resources) starts in a turn of its own
           return (await hookRunner.call("access.sync", { events })) as AccessSnapshot;
         },
         adopt: (s) => access.adopt(s),

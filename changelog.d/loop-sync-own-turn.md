@@ -1,0 +1,1 @@
+- The access sync starts in a turn of its own, so its snapshot rebuild does not stack on the work before it.
