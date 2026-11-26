@@ -40,6 +40,8 @@ export interface SurfaceDeps<T> {
   expiresAt?(t: T): number | undefined;
   /** The words for a failure that has no better ones. */
   reachWords?: string;
+  /** How long it keeps trying by itself (default RECONNECT_GIVE_UP_MS). */
+  giveUpMs?: number;
 }
 
 export interface Surface {
@@ -88,6 +90,7 @@ export function createSurface<T>(d: SurfaceDeps<T>): Surface {
     cancelStale = null;
   };
   const words = d.reachWords ?? "Could not reach it.";
+  const giveUp = d.giveUpMs ?? RECONNECT_GIVE_UP_MS;
   const open = (): void => {
     const mine = ++round;
     if (state.kind !== "reconnecting") set({ kind: "opening" });
@@ -123,7 +126,7 @@ export function createSurface<T>(d: SurfaceDeps<T>): Surface {
       since = clock.now();
       set({ kind: "reconnecting", attempt, since });
     }
-    if (clock.now() - since >= RECONNECT_GIVE_UP_MS) {
+    if (clock.now() - since >= giveUp) {
       void e;
       set({ kind: "failed", reason: words, retryable: true });
       return;
@@ -132,7 +135,7 @@ export function createSurface<T>(d: SurfaceDeps<T>): Surface {
     cancelWait = clock.set(() => {
       cancelWait = null;
       if (gone) return;
-      if (clock.now() - since >= RECONNECT_GIVE_UP_MS) {
+      if (clock.now() - since >= giveUp) {
         set({ kind: "failed", reason: words, retryable: true });
         return;
       }
@@ -148,8 +151,9 @@ export function createSurface<T>(d: SurfaceDeps<T>): Surface {
     },
     connected() {
       if (gone) return;
-      cancelStale?.();
-      cancelStale = null;
+      // a connection that works ends any waiting to open again
+      clear();
+      ++round;
       attempt = 0;
       if (state.kind !== "ready") set({ kind: "ready" });
     },

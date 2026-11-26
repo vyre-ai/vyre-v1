@@ -2,8 +2,10 @@
 // for Enter, Tab, arrows, Ctrl-C and the like, literal text for letters, a paste as one write. So a command-line sign-in (gh auth login, ssh, a pasted code, a hidden prompt) works as it does in any terminal.
 // What is typed is sent and forgotten here: nothing keeps it, and a hidden prompt does not print it, so no screen draws it.
 import { createElement, useEffect, useRef, useState } from "react";
+import { useSurface } from "./use-surface.ts";
+import { surfaceLine } from "./BrowserLive.tsx";
 import type { ReactElement } from "react";
-import { Platform, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 export type KeyPress = { text: string } | { key: string } | { paste: string };
@@ -305,6 +307,14 @@ export function TmuxScreen({
   onUnsupported?(): void;
 }): ReactElement | null {
   const [shot, setShot] = useState<Capture | null>(null);
+  // the screen reads that fail are not hidden any more (rc.44): twice in a row and the screen says Reconnecting, and after a while that it could not reach the terminal, with Try again; a read that works ends it
+  const surface = useSurface<Capture>(() => Promise.resolve(call("terminal.capture", { terminalId, lines: 2000 })) as Promise<Capture>, terminalId);
+  const surfaceRef = useRef(surface);
+  surfaceRef.current = surface;
+  const fails = useRef(0);
+  useEffect(() => {
+    if (surface.value) setShot((was) => nextShot(was, surface.value));
+  }, [surface.value]);
   // the xterm.js renderer: asked for once, kept off screen until its first frame is drawn, and never needed (the DOM screen below stays) when it cannot load or start
   const [xt, setXt] = useState<typeof import("./XTermView.tsx") | null>(null);
   const [xReady, setXReady] = useState(false);
@@ -401,6 +411,8 @@ export function TmuxScreen({
           drawn.current = n;
           latest.current.show(r);
         }
+        if (fails.current > 0 || surfaceRef.current.state.kind !== "ready") surfaceRef.current.connected();
+        fails.current = 0;
       } catch (e) {
         const code = (e as { code?: unknown } | null)?.code;
         if (live && typeof code === "string" && code.endsWith("precondition_failed")) {
@@ -409,6 +421,8 @@ export function TmuxScreen({
         }
         // the terminal ended: the last screen stays as it was and is not read again
         if (live && code === "validation.not_found") return;
+        // a read that fails again and again is a lost connection, said out loud
+        if (live && ++fails.current >= 2 && surfaceRef.current.state.kind === "ready") surfaceRef.current.lost("the screen could not be read");
       }
       busy = false;
       if (live && again) {
@@ -459,6 +473,7 @@ export function TmuxScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [keys]);
   if (Platform.OS !== "web") return null;
+  const line = surfaceLine(surface.state);
   const lines = (shot?.text ?? "").split("\n");
   const cur = shot?.cursor ?? null;
   const top = Math.max(0, lines.length - (shot?.rows ?? lines.length));
@@ -569,8 +584,44 @@ export function TmuxScreen({
           : []),
         ...(xt !== null && xReady ? [] : rows),
       )}
+      {line ? (
+        <View testID="terminal-screen-state" accessibilityLiveRegion="polite" style={st.state}>
+          <Text style={st.stateText}>{line.text === "Couldn't reach the browser" ? "Couldn't reach the terminal" : line.text}</Text>
+          {line.retry ? (
+            <Pressable
+              testID="terminal-screen-retry"
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              onPress={() => {
+                fails.current = 0;
+                surface.retry();
+              }}
+              style={st.stateBtn}
+            >
+              <Text style={st.stateBtnText}>Try again</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
     </View>
   );
 }
 
-const st = StyleSheet.create({ fill: { flex: 1, minHeight: 0 } });
+const st = StyleSheet.create({
+  fill: { flex: 1, minHeight: 0 },
+  state: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(20,22,26,0.82)" as string,
+  },
+  stateText: { fontSize: 13, color: "#fff" as string },
+  stateBtn: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.18)" as string },
+  stateBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" as string },
+});
