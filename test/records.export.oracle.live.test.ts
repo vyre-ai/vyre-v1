@@ -199,3 +199,42 @@ test("stepping the offset of an export does not count the records left out: the 
   for (const offset of [0, 1, 2]) got.push(has(await fileText(await person(`o${offset}${tag}`), { ...spec, offset })));
   assert.deepEqual(got, ["a", "c", ""], "offset 0, 1, 2 give a, c and nothing: the record left out takes no step");
 });
+
+test("a person can export as often as they like: the second file of the day has a name of its own, and the call never fails over a name", async () => {
+  const tag = `tw${Math.random().toString(36).slice(2, 6)}`;
+  const type = `expo_${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "Line",
+          plural: "Lines",
+          icon: "table",
+          titleField: "name",
+          fields: [{ key: "name", type: "text", title: "name" }],
+        },
+      },
+    ],
+  });
+  await h.owner.call("records.create", { type, fields: { name: `Twice ${tag}` } });
+  const names: string[] = [];
+  const fileIds: string[] = [];
+  for (let i = 0; i < 3; i++) {
+    const out = (await h.owner.call("records.export", { type, format: "csv" })) as { fileId: string };
+    fileIds.push(out.fileId);
+    const got = (await h.owner.call("files.get", { fileId: out.fileId })) as {
+      file?: { name?: string };
+      name?: string;
+    };
+    names.push(String(got.file?.name ?? got.name));
+    const read = (await h.owner.call("files.read", { fileId: out.fileId, as: "text" })) as { text?: string };
+    assert.ok(String(read.text).includes(`Twice ${tag}`), `export ${i + 1} holds the record`);
+  }
+  assert.equal(new Set(fileIds).size, 3, "three exports, three files");
+  assert.equal(new Set(names).size, 3, `three names: ${names.join(" | ")}`);
+  assert.match(names[1]!, /\(2\)\.csv$/, "the second is named with a counter");
+  assert.match(names[2]!, /\(3\)\.csv$/, "and the third");
+});

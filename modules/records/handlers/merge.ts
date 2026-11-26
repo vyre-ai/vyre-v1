@@ -1175,14 +1175,30 @@ function filesPort(
       }
     }
     if (!folder) throw new Error("no folder for the export");
-    const made = (await call("files.create", {
-      folderId: folder,
-      name: f.name,
-      mime: f.mime,
-      content: { base64: Buffer.from(f.bytes).toString("base64") },
-      idempotencyKey: `export:${trace}`,
-    })) as { file: { fileId: string } };
-    return made.file.fileId;
+    // A person may export as often as they like: a second file of the same name in the folder (the name is the table and the day) is saved as "name (2).csv", then "(3)", and the call never fails over a name.
+    const dot = f.name.lastIndexOf(".");
+    const stem = dot > 0 ? f.name.slice(0, dot) : f.name;
+    const ext = dot > 0 ? f.name.slice(dot) : "";
+    const duplicate = (e: unknown): boolean => {
+      const code =
+        (e as { error?: { code?: unknown }; code?: unknown } | null)?.error?.code ??
+        (e as { code?: unknown } | null)?.code;
+      return code === "validation.duplicate";
+    };
+    for (let n = 1; ; n++) {
+      try {
+        const made = (await call("files.create", {
+          folderId: folder,
+          name: n === 1 ? f.name : `${stem} (${n})${ext}`,
+          mime: f.mime,
+          content: { base64: Buffer.from(f.bytes).toString("base64") },
+          idempotencyKey: `export:${trace}:${n}`,
+        })) as { file: { fileId: string } };
+        return made.file.fileId;
+      } catch (e) {
+        if (!duplicate(e) || n >= 1000) throw e;
+      }
+    }
   };
 }
 

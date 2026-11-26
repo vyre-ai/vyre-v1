@@ -923,14 +923,25 @@ export async function graphExport(
   }
   if (!folderId) raise(ctx, "validation.bad_input", "There is no folder to write the export into.");
   const day = new Date(ctx.now()).toISOString().slice(0, 10);
-  const made = (await ctx.call("files.create", {
-    folderId,
-    name: `memory-graph-${input.scope}-${day}.json`,
-    kind: "text",
-    mime: "application/json",
-    content: { text: JSON.stringify(g) },
-    idempotencyKey: `memgraph:${mintId("x", ctx.now())}`,
-  })) as { file: { fileId: string } };
+  // exporting twice in a day must not fail over the name: the second file is "memory-graph-space-2026-11-26 (2).json", then "(3)", and so on
+  let made: { file: { fileId: string } } | undefined;
+  for (let n = 1; !made; n++) {
+    try {
+      made = (await ctx.call("files.create", {
+        folderId,
+        name: `memory-graph-${input.scope}-${day}${n === 1 ? "" : ` (${n})`}.json`,
+        kind: "text",
+        mime: "application/json",
+        content: { text: JSON.stringify(g) },
+        idempotencyKey: `memgraph:${mintId("x", ctx.now())}:${n}`,
+      })) as { file: { fileId: string } };
+    } catch (e) {
+      const code =
+        (e as { error?: { code?: unknown }; code?: unknown } | null)?.error?.code ??
+        (e as { code?: unknown } | null)?.code;
+      if (code !== "validation.duplicate" || n >= 1000) throw e;
+    }
+  }
   return { fileId: made.file.fileId };
 }
 

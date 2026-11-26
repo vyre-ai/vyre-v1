@@ -7,6 +7,7 @@
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { turns } from "../../../lib/yield-loop.ts";
+import { mayReadComputedField } from "./computed-read.ts";
 import { mapError } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { runQuery } from "./query.ts";
@@ -174,11 +175,17 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
             ...(page.next !== undefined ? { next: page.next } : {}),
           };
         const authorize = ctx.authorize!;
+        // a computed field (formula, lookup, rollup) the view names is judged on what it was computed from, not on its name: the caller must be able to read every input, and a record with no value for it is left out
+        const computedKinds = new Set(["formula", "lookup", "rollup"]);
+        const typeDef = await needType(store, input.type);
+        const computedNamed = judged.filter((f) =>
+          computedKinds.has(String(typeDef.fields.find((x) => x.name === f)?.["ftype"] ?? "")),
+        );
         const keeps = (r: { id: string }): boolean =>
           authorize(
             { perm: null, level: "view", ...(judged.length ? { fields: judged } : {}) },
             { type: "record", id: r.id },
-          ).effect === "allow";
+          ).effect === "allow" && computedNamed.every((f) => mayReadComputedField(tx, authorize, input.type, r.id, f));
         // A record left out takes no place in the paging: pages are read one after the other until `limit` records are kept (a page may hold more than `limit`; none is cut or skipped), and the answer never
         // comes short because a record was left out, so stepping the cursor says nothing about the records the caller may not know. The total counts only the records the caller may have (every page is read for it): a count of what the view picked would count the records the caller may not read the field on (the host drops the total for a restricted reader in any case).
         const want = Math.max(1, Math.min(Math.trunc(input.limit ?? 200), 500));
