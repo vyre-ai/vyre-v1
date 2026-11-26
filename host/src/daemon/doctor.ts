@@ -512,6 +512,37 @@ export function purgeOwedCompactFinding(spaceDb: string): Finding {
   }
 }
 
+/** The journal of the search index (modules.db-wal) could not be folded in after a purge, after every try: the removed text may still be in that file until the next start. Read only. */
+export function journalNotFoldedFinding(modulesDb: string): Finding {
+  const key = "host.journal_not_folded";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No modules database yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'host_journal_owed'").length === 0)
+        return { key, state: "healthy", detail: "No journal is waiting to be folded in.", next: OK };
+      const n = Number((db.all("SELECT count(*) AS n FROM host_journal_owed")[0] as { n: number }).n);
+      return n === 0
+        ? { key, state: "healthy", detail: "No journal is waiting to be folded in.", next: OK }
+        : {
+            key,
+            state: "degraded",
+            detail: `${n} times the search index's journal could not be folded in after a purge (the removed text may still be in modules.db-wal).`,
+            next: NEXT.journalNotFolded,
+          };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the modules database could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -663,6 +694,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(hiddenRunDataFinding(paths.modules));
     findings.push(searchRemovedTextFinding(paths.modules));
     findings.push(searchMissingRecordsFinding(paths.modules));
+    findings.push(journalNotFoldedFinding(paths.modules));
     findings.push(purgeOwedCompactFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;

@@ -52,3 +52,19 @@ test("the missing-records finding counts the entries the job put in", async () =
   assert.equal(running.state, "degraded");
   assert.match(running.detail, /12 put in so far/);
 });
+
+test("the journal finding counts the times the search journal could not be folded in", async () => {
+  const { journalNotFoldedFinding } = await import("../src/daemon/doctor.ts");
+  const file = modulesDb(null);
+  const none = journalNotFoldedFinding(file);
+  assert.equal(none.state, "healthy");
+  const db = new DatabaseSync(file);
+  db.exec(
+    "CREATE TABLE host_journal_owed (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER, file TEXT, tries INTEGER)",
+  );
+  db.exec("INSERT INTO host_journal_owed (at, file, tries) VALUES (1, 'modules.db-wal', 8), (2, 'modules.db-wal', 8)");
+  db.close();
+  const f = journalNotFoldedFinding(file);
+  assert.equal(f.state, "degraded");
+  assert.match(f.detail, /2 times the search index's journal could not be folded/);
+});

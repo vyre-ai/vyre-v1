@@ -84,6 +84,19 @@ export async function followSchemaChange(
   ensure(ctx.db);
   const name = e.type ?? e.name ?? "";
   const p = e.payload;
+  if (name === "schema.type_dropped" && typeof p["type"] === "string") {
+    // the nodes of a dropped type's records go (the graph kept which records it read, by type, in memory_graph_seen)
+    const type = p["type"] as string;
+    let gone = 0;
+    for (const r of rowsOf(ctx.db, "SELECT ref FROM memory_graph_seen WHERE entity = ?", `record:${type}`)) {
+      const id = str(r["ref"]);
+      removeNode(ctx, `record:${id}`);
+      ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = 'record' AND source_ref = ?", id);
+      ctx.db.run("DELETE FROM memory_graph_seen WHERE entity = ? AND ref = ?", `record:${type}`, id);
+      gone++;
+    }
+    return gone;
+  }
   if (name !== "schema.changed" || !Array.isArray(p["ops"])) return 0;
   const touched = new Set<string>();
   for (const o of p["ops"] as Array<Record<string, unknown>>)
