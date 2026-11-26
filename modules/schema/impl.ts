@@ -12,6 +12,7 @@ import type { SpaceStoreSeam } from "../../host/src/daemon/store.ts";
 import { createSchemaHandlers, applyOps, planOps } from "./handlers/index.ts";
 import type { SchemaHandlers, SchemaOp } from "./handlers/index.ts";
 import { finishJobs, setSchemaVault } from "./handlers/seal.ts";
+import { purgeAllExpired } from "./handlers/purge.ts";
 import { allDefs, ensureTables, refuse, seedManifestTypes } from "./projections.ts";
 import type { FieldDefT, FieldTypeRow, Registry, SchemaCtx, SchemaDeps, SeedType, ViewKindRow } from "./projections.ts";
 
@@ -313,6 +314,11 @@ export const consumers = {
   },
 };
 export const periodic = {
+  /** A dropped field or type whose 30 days in Trash are over is taken out of every copy for good (handlers/purge.ts). */
+  "schema.trash_purge": {
+    everyMs: 3_600_000,
+    run: async (ctx: unknown): Promise<number> => purgeAllExpired(live(ctx as { db?: unknown }).deps),
+  },
   "schema.seal_resume": {
     everyMs: 60_000,
     immediate: true,
