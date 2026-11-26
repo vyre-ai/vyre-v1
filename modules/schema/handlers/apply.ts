@@ -1028,6 +1028,16 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
         plan.problems.push({ itemKey: `type:${k}`, message: e.message, dup: false });
       }
     }
+    // the last look, over the types as they will be: a cycle through computed fields, however the changes of this apply were ordered, is refused here (checkField looks at one field as it is made)
+    const shapes = new Map<string, TypeShape>();
+    for (const [k, d] of st) shapes.set(k, { key: k, fields: d.fields });
+    const cycle = computedCycle(shapes);
+    if (cycle)
+      plan.problems.push({
+        itemKey: `computed:${cycle[0]}`,
+        message: `computed fields would read themselves (${cycle.join(" > ")})`,
+        dup: false,
+      });
   }
   return plan;
 }

@@ -15,6 +15,10 @@ const recordRow = t.obj({
   updatedAt: t.ts(),
   deletedAt: t.opt(t.ts()),
   holds: t.int(),
+  /** computed fields (formula, lookup, rollup) of this type that are being filled or recomputed now: their value may be missing or old for a moment */
+  updating: t.opt(t.arr(t.str())),
+  /** when each computed value the caller may read was computed, by field */
+  computedAt: t.opt(t.rec()),
 });
 const target = { type: id.recordType, recordId: id.record };
 const valueSource = t.obj({

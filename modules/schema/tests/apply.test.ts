@@ -1097,3 +1097,25 @@ test("computed fields: two formulas that would read each other are refused when 
     (e) => /read itself/.test(JSON.stringify(e)),
   );
 });
+
+test("computed fields: a loop made across several ops of one apply is refused over the final types", async () => {
+  const k = kit();
+  await base(k);
+  const f = (field: string, expr: string): SchemaOp => ({
+    op: "field.add",
+    type: "acme_person",
+    field,
+    def: { type: "formula", title: field, options: { expr } },
+  });
+  // each formula is fine when it is looked at alone against the types before the apply; together they read each other
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [
+        f("ga", "name"),
+        f("gb", "ga"),
+        { op: "field.update", type: "acme_person", field: "ga", def: { options: { expr: "gb" } } },
+      ],
+    }),
+    (e) => /read themselves|read itself/.test(JSON.stringify(e)),
+  );
+});

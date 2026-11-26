@@ -35389,6 +35389,8 @@ export type RecordsAsOfOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsBulkUpsertIn = {
@@ -35571,6 +35573,8 @@ export type RecordsCreateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsDeleteIn = {
@@ -35624,6 +35628,8 @@ export type RecordsGetOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsHistoryIn = {
@@ -35665,6 +35671,8 @@ export type RecordsMergeOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
   undoUntil: number;
 };
@@ -35726,6 +35734,8 @@ export type RecordsQueryOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -35748,6 +35758,8 @@ export type RecordsRelateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRelationsMapIn = {
@@ -35790,6 +35802,8 @@ export type RecordsRestoreOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRestoreVersionIn = {
@@ -35808,6 +35822,8 @@ export type RecordsRestoreVersionOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRevealIn = {
@@ -35835,6 +35851,8 @@ export type RecordsSearchOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -35857,6 +35875,8 @@ export type RecordsUpdateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsUpdateManyIn = {
@@ -35880,6 +35900,8 @@ export type RecordsUpdateManyOut = {
         updatedAt: number;
         deletedAt?: number;
         holds: number;
+        updating?: Array<string>;
+        computedAt?: Record<string, unknown>;
       };
       error?: {
         code: string;
@@ -35942,6 +35964,8 @@ export type RecordsValuesReviewOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsVersionsIn = {
@@ -35989,6 +36013,8 @@ export type RecordsViewOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;

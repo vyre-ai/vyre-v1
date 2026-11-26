@@ -1046,3 +1046,13 @@ Signed: 24 Nov 2026, lead.
 - Snapshots: docs/frozen/snapshots/records.json.
 
 Signed: 24 Nov 2026, lead.
+
+## 26 Nov 2026: a record's answer gains optional `updating` and `computedAt` for computed fields (formula, lookup, rollup) (lane rc44-computed), for the lead to sign
+
+- What changed in contracts, additive: the record shape (`id`, `type`, `version`, `fields`, `label`, `createdAt`, `updatedAt`, `deletedAt`, `holds`) that thirteen capabilities answer with (records.get, records.query, records.search, records.view, records.as_of, records.create, records.update, records.update_many, records.merge, records.relate, records.restore, records.restore_version, records.values.review) gains two optional keys. `updating`: a list of field keys, the computed fields of this record's type that are being filled or recomputed now, so their value may be missing or old for a moment. `computedAt`: an object from field key to a timestamp, when each computed value the caller may read was computed. Both are absent when there is nothing to say. No new capability, no new event, no permission, no change to any input.
+- What it does: the field types formula, lookup and rollup were already declared and accepted by schema.apply; their values are now computed, kept in a side table of the Space store (records_computed, derived, never part of a record's own data, not synced, rebuildable), and returned inside `fields` under the field's own key. They are kept up to date by the records.computed consumer on the host's hook pump (an edit or link change recomputes the record and the records that read it; a new or changed definition fills the whole type in slices of about 15 ms, with its progress as a row). A definition that would read itself, however far round, is refused by schema.apply.
+- What a person may read: a computed value is returned only to a caller who may read everything it was computed from: each field it reads on the record (not hidden by their grant, within their label ceiling), and for a lookup or a rollup the field on every linked record, each of those records visible to them. If one input is hidden, or one linked record is not visible, the value is not in `fields` at all (empty, like a hidden field): never a smaller sum or a shorter list, and no message that names the input. This is applied in host/src/daemon/record-access.ts, in the one place that cuts `fields` for every read in `SCRUBBED`.
+- The tool-token counts do not move (MCP bridge 681,384 and API 565,867 characters, under the limits 689,545 and 575,029); scripts/tool-tokens-baseline.json is unchanged.
+- Snapshots: docs/frozen/snapshots/records.json.
+
+Signed:

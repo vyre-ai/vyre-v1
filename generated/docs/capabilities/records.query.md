@@ -53,6 +53,8 @@ type Out = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -93,6 +95,7 @@ type Out = {
     "next": "example",
     "rows": [
       {
+        "computedAt": {},
         "createdAt": 1760000000000,
         "deletedAt": 1760000000000,
         "fields": {},
@@ -101,6 +104,9 @@ type Out = {
         "label": 1,
         "type": "contact",
         "updatedAt": 1760000000000,
+        "updating": [
+          "example"
+        ],
         "version": 1
       }
     ],

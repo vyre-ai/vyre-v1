@@ -153,6 +153,22 @@ test("a formula added to a type with 9,500 records is filled for all of them in 
     "control: nothing is computed before the field exists",
   );
   await addFormula(type, "total", "qty * price");
+  const probe = ((await h.owner.call("records.query", { type, limit: 1 })) as { rows: Array<{ id: string }> }).rows[0]!
+    .id;
+  const states: Array<{ updating?: string[]; computedAt?: Record<string, number> }> = [];
+  let polling = true;
+  const poller = (async () => {
+    while (polling) {
+      const got = (await h.owner.call("records.get", { type, recordId: probe })) as {
+        record: { updating?: string[]; computedAt?: Record<string, number> };
+      };
+      states.push({
+        ...(got.record.updating ? { updating: got.record.updating } : {}),
+        ...(got.record.computedAt ? { computedAt: got.record.computedAt } : {}),
+      });
+      await new Promise((r) => setTimeout(r, 20));
+    }
+  })();
   const watch = watchLoop();
   const seen: string[] = [];
   const poll = setInterval(() => {
@@ -171,6 +187,8 @@ test("a formula added to a type with 9,500 records is filled for all of them in 
   );
   const took = Math.round(performance.now() - t0);
   clearInterval(poll);
+  polling = false;
+  await poller;
   const longest = await watch.stop();
   const filled = table<{ c: number }>(
     "SELECT count(*) AS c FROM records_computed WHERE type = ? AND field = 'total'",
@@ -190,6 +208,16 @@ test("a formula added to a type with 9,500 records is filled for all of them in 
     `the job was seen running (updating): ${seen.slice(0, 5).join(", ")}`,
   );
   assert.ok(longest < 100, `the longest stretch the loop was held was ${longest} ms (limit 100)`);
+  // the record says so while its field is being filled, and says when each value was computed once it is
+  assert.ok(
+    states.some((x) => x.updating?.includes("total")),
+    `a read during the fill said the field is updating (${states.length} reads)`,
+  );
+  const after = (await h.owner.call("records.get", { type, recordId: probe })) as {
+    record: { updating?: string[]; computedAt?: Record<string, number> };
+  };
+  assert.equal(after.record.updating, undefined, "nothing is updating once the fill is done");
+  assert.equal(typeof after.record.computedAt?.["total"], "number", "the value says when it was computed");
 });
 
 test("a lookup follows the relation and a rollup sums, counts and averages the linked records; both follow link, unlink, change and delete on either end", async () => {

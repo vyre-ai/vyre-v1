@@ -326,13 +326,14 @@ export function createRecordAccess(ports: {
     value: string | null;
     inputs: string;
     kind: string;
+    computed_at?: number;
   }
   const SAFE_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
   const sideOf = (type: string, id: string): Side[] => {
     if (!ports.rows || !SAFE_TYPE.test(type)) return [];
     try {
       return ports.rows.all(
-        "SELECT field, value, inputs, kind FROM records_computed WHERE type = ? AND id = ?",
+        "SELECT field, value, inputs, kind, computed_at FROM records_computed WHERE type = ? AND id = ?",
         type,
         id,
       ) as Side[];
@@ -435,6 +436,31 @@ export function createRecordAccess(ports: {
       out[c.field] = c.value === null ? null : JSON.parse(c.value);
     }
     return out;
+  }
+  /** When each computed value the reader may read was computed, and which of the type's computed fields are being filled now (the app shows those as updating). Empty for a type with none. */
+  function computedMeta(
+    seed: ReadSeed,
+    row: StoredRecord,
+  ): { updating?: string[]; computedAt?: Record<string, number> } {
+    const gate = gateOf(seed, row);
+    if (!gate || !ports.rows || !SAFE_TYPE.test(row.type)) return {};
+    const at: Record<string, number> = {};
+    for (const c of sideOf(row.type, row.id))
+      if (gate(c.field) && typeof c.computed_at === "number" && mayReadComputed(seed, row.type, row.id, c, 0))
+        at[c.field] = c.computed_at;
+    let updating: string[] = [];
+    try {
+      updating = (
+        ports.rows.all("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", row.type) as {
+          field: string;
+        }[]
+      )
+        .map((r) => r.field)
+        .filter((f) => gate(f));
+    } catch {
+      updating = [];
+    }
+    return { ...(updating.length ? { updating } : {}), ...(Object.keys(at).length ? { computedAt: at } : {}) };
   }
   function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
     const gate = gateOf(seed, row);
@@ -695,6 +721,7 @@ export function createRecordAccess(ports: {
                   createdAt: row.created_at,
                   updatedAt: row.updated_at,
                   holds: resource.holds,
+                  ...computedMeta(seed, row),
                 },
               ];
             }),
@@ -776,7 +803,10 @@ export function createRecordAccess(ports: {
               const record = object(item["record"]);
               // a record the caller can no longer see, or one the store does not have, comes back with no fields at all
               const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
-              return { ...item, record: { ...record, fields: visible } };
+              return {
+                ...item,
+                record: { ...record, fields: visible, ...(row && decision(seed, row) ? computedMeta(seed, row) : {}) },
+              };
             }),
           };
         };
@@ -788,7 +818,10 @@ export function createRecordAccess(ports: {
         return async () => {
           seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
           const visible = row && decision(seed, row) ? fields(seed, row, object(record["fields"]), trace) : {};
-          return { ...result, record: { ...record, fields: visible } };
+          return {
+            ...result,
+            record: { ...record, fields: visible, ...(row && decision(seed, row) ? computedMeta(seed, row) : {}) },
+          };
         };
       }
       const originals =
@@ -838,7 +871,7 @@ export function createRecordAccess(ports: {
               const actual = body.match(/[\p{L}\p{N}_]+/gu) ?? [];
               if (!words.length || !words.every((word) => actual.some((item) => item.startsWith(word)))) return [];
             }
-            return [{ ...original, fields: visible }];
+            return [{ ...original, fields: visible, ...computedMeta(seed, row) }];
           });
         // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook, a sync) whose access entry is not in the snapshot yet: the record is visible a little before its access
         // event is folded. Wait for the fold, a bounded while (settle), reading the stored rows afresh each time, before judging the page. After that, a row that is not shown is one that is no longer there or
