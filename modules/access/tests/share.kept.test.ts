@@ -297,6 +297,10 @@ test("incremental: a folder made to follow a record gives the rows a full rebuil
   await same(raw, "fld_1 follows rec_2 (Space-wide access to it, and to what is under it, changes)");
   await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_3" });
   await same(raw, "fld_child follows rec_3 (a record only its owner may open)");
+  const parent = (id: string): unknown => (raw.all("SELECT parent_id FROM access_resources WHERE id = ?", id)[0] as { parent_id: unknown }).parent_id;
+  assert.equal(parent("fld_child"), "rec_3", "the changed row is in the table");
+  assert.equal(parent("fld_1"), "rec_2");
+  assert.equal(parent("rec_4"), "fld_child", "and nothing else moved");
   await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_1" });
   await same(raw, "fld_child follows another record");
   assert.equal(shareKept.built, built, "no follows call rebuilt the whole Space");
