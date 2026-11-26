@@ -551,6 +551,21 @@ export async function recentList(
 
 // ---- Resolve
 
+/**
+ * The text of an indexed item as THIS caller may read it, for what is put in front of a model (Ask the Space): the raw index row passed through the same gates a hit goes through: the agent's view of a file, a
+ * chat cut at the last join, and a record rebuilt from the fields the caller gets (a field a grant hides is not in it). `undefined` when the item is not in the index (a note: only its snippet exists), "" when the caller
+ * may not read it at all. Never the raw body of a record.
+ */
+export async function seenBody(ctx: SearchCtx, kind: Kind, id: string): Promise<string | undefined> {
+  ensure(ctx.db);
+  const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", kind, id)[0];
+  if (!row) return undefined;
+  const raw = docOf(row);
+  const seen = asSeen(raw, agentDocs(ctx, [raw.n]));
+  const doc = seen ? await afterJoin(ctx, seen, new Map()) : null;
+  return doc && (await readable(ctx, doc)) ? doc.body : "";
+}
+
 /** One indexed item by kind and id, as the asker may see it (a record's hit names its record type). Absent when it is not indexed or not visible. */
 export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: string }): Promise<{ hit?: Hit }> {
   ensure(ctx.db);
