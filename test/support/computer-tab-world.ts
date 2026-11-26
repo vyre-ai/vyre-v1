@@ -208,5 +208,5 @@ export async function world(
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, watcher, close, outage, socketsOpened: opened };
+  return { s, w, me, guard, agentId, threadId, browserd, real, dockerName, computerTab, watcher, close, outage, socketsOpened: opened };
 }

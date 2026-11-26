@@ -1318,6 +1318,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
   };
   closers.push(() => computeStream.close());
+  // the live views of browsers and terminals end with the Space, so a viewer sees it go at once and opens again
+  closers.push(() => void browserStream.endAll());
+  closers.push(() => void terminalStream.endAll());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
   const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {

@@ -113,3 +113,21 @@ test("a person who loses access has their views ended at once; a path that is no
   assert.equal(r.ts.claims({ url: "/terminals/not-an-id/ws" } as http.IncomingMessage), false);
   r.close();
 });
+
+test("when the Space stops every view ends at once, so viewers open again instead of waiting for a dead connection", async () => {
+  const r = await rig();
+  const a = r.client();
+  const b = r.client();
+  await a.opened;
+  await b.opened;
+  a.ws.send(JSON.stringify({ t: "hello", ticket: "good" }));
+  await sleep(60);
+  b.ws.send(JSON.stringify({ t: "hello", ticket: "good" }));
+  await sleep(60);
+  assert.equal(r.ts.endAll(), 2);
+  await sleep(80);
+  assert.equal(a.closed(), true);
+  assert.equal(b.closed(), true);
+  assert.equal(r.events.filter((e) => e === "stop").length, 2);
+  r.close();
+});
