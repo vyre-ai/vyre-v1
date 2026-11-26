@@ -34,6 +34,7 @@ async function setup() {
       }
       return {};
     }) as never,
+    recordFieldGate: async () => () => true, // a stand-in for the host rule: here every person sees every field
     now: () => t,
     ...extra,
   });
