@@ -60,3 +60,19 @@ test("a popover or sheet address read at page load lands on the place; any other
     hash: "screen=chats.recording&recordingId=r1",
   });
 });
+
+test("the bar's form of an address (a colon) and the hub's form (escaped) are one address: reading the bar back is not a link", () => {
+  const calls: string[] = [];
+  const hub = {
+    state: () => ({ place: "chats", hash: "subject=thread%3Athr_a" }),
+    go: (place: string, hash: string) => void calls.push(`${place} ${hash}`),
+  } as unknown as ShellHub;
+  readUrlIntoHub(hub, { pathname: "/chat", hash: "#subject=thread:thr_a" });
+  assert.deepEqual(
+    calls,
+    [],
+    "the same address in another escaping is not read as a link (the first press of a cold load did)",
+  );
+  readUrlIntoHub(hub, { pathname: "/chat", hash: "#subject=thread:thr_b" });
+  assert.deepEqual(calls, ["chats subject=thread:thr_b"], "another address still is");
+});

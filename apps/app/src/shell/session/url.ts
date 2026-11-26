@@ -3,6 +3,19 @@ import type { ShellHub } from "../spaces/hub.ts";
 
 const segment = (pathname: string): string => pathname.split("/")[1] ?? "";
 
+/**
+ * Do two hashes name the same address? The bar keeps the form a link was typed in (`subject=thread:t1`) and the hub the form it wrote itself (`subject=thread%3At1`): a difference in escaping alone is
+ * not a different address, and reading it back as a link made the page take its own address again (the first press of a cold load closed the thread it opened).
+ */
+export function sameAddress(a: string, b: string): boolean {
+  if (a === b) return true;
+  try {
+    return new URLSearchParams(a).toString() === new URLSearchParams(b).toString();
+  } catch {
+    return false;
+  }
+}
+
 export function readUrlIntoHub(
   hub: ShellHub,
   location: { pathname: string; hash: string },
@@ -12,7 +25,7 @@ export function readUrlIntoHub(
   const at = segment(location.pathname);
   const place = (SHELL_PLACES.find((p) => p.id === at) ?? SHELL_PLACES.find((p) => p.screens === at))?.screens;
   const hash = (opts.load === true ? loadedHash : (h: string) => h)(location.hash.replace(/^#/, ""));
-  if (place && (place !== hub.state().place || hash !== hub.state().hash))
+  if (place && (place !== hub.state().place || !sameAddress(hash, hub.state().hash)))
     hub.go(place as Parameters<ShellHub["go"]>[0], hash, false, true);
 }
 
