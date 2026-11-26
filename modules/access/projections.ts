@@ -1,6 +1,7 @@
 // Access projections (ARCH 4.5). Roles, groups, grants, resources, policies and the authorize snapshot.
 // Built-in role columns come from the permission catalogue. The snapshot is the hot path; access.changed drops it.
 // Durable tables: migrations/0001_access_core.sql. Authorize never reads a module table except through this snapshot.
+import { loopYield } from "../../lib/loop-budget.ts";
 import { fail } from "../../host/src/routes/errors.ts";
 import { rawDbOf } from "../../host/src/ctx/db.ts";
 import { registry } from "../../generated/registry.ts";
@@ -596,7 +597,36 @@ export class AccessStore {
     return this.build();
   }
 
+  /**
+   * `snapshot()` for a store nobody else holds yet (one just read in slices): the snapshot is built with a turn of the event loop between its steps, and kept for the epoch it was built at. Building it
+   * in one go held the loop for 40 ms to 100 ms on 38,000 resources, the first time each writer needed it.
+   */
+  async snapshotSliced(): Promise<AccessSnapshot> {
+    if (this.snap && this.snapEpoch === this.epoch) return this.snap;
+    const epoch = this.epoch;
+    const steps = this.buildSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) {
+        if (this.epoch === epoch && !(this.snap && this.snapEpoch === epoch)) {
+          this.snap = r.value;
+          this.snapEpoch = epoch;
+        }
+        return this.snap && this.snapEpoch === this.epoch ? this.snap : r.value;
+      }
+      await loopYield();
+    }
+  }
+
   private build(): AccessSnapshot {
+    const steps = this.buildSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
+  }
+
+  private *buildSteps(): Generator<void, AccessSnapshot, void> {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
@@ -626,7 +656,11 @@ export class AccessStore {
     for (const a of this.actors.values())
       if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
-    for (const r of this.resources.values()) snap.putResource(kernelResource(r));
+    let put = 0;
+    for (const r of this.resources.values()) {
+      snap.putResource(kernelResource(r));
+      if (++put % 1000 === 0) yield;
+    }
     for (const k of this.fieldLabels.keys())
       if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
@@ -1521,6 +1555,8 @@ export async function primeStore(ctx: AccessCtx): Promise<void> {
     if (before === null || before === undefined) return;
     const s = await loadStoreSliced(ctx.db, turn);
     if (!s || STORES.has(ctx.db)) return;
+    await s.snapshotSliced();
+    if (STORES.has(ctx.db)) return;
     if (stampNow(ctx.db) !== before) continue;
     LOAD_STAMP.set(s, before);
     STORES.set(ctx.db, s);

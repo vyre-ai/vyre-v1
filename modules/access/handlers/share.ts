@@ -349,16 +349,19 @@ export async function primeShare(ctx: AccessCtx): Promise<void> {
   const st = stateOf(ctx.db);
   if (!st) return;
   const mine: Record<string, unknown>[] = [];
-  for (let after = ""; ; ) {
+  for (let after = 0; ; ) {
     let page: Record<string, unknown>[];
     try {
-      page = ctx.db.all("SELECT * FROM access_my_access WHERE id > ? ORDER BY id LIMIT 2000", after) as Record<string, unknown>[];
+      page = ctx.db.all("SELECT rowid AS _rid, * FROM access_my_access WHERE rowid > ? ORDER BY rowid LIMIT 2000", after) as Record<string, unknown>[];
     } catch {
       return; // a Space from before the table: shareOf reads what there is, as it always did
     }
-    for (const r of page) mine.push(r);
+    for (const r of page) {
+      after = Number(r["_rid"]);
+      delete r["_rid"];
+      mine.push(r);
+    }
     if (page.length < 2000) break;
-    after = String(page[page.length - 1]!["id"]);
     await loopTurn();
   }
   await loopYield();

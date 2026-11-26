@@ -1,0 +1,1 @@
+- The first snapshot a writer or the sync builds after a start is built in slices with a turn of the loop between them.
