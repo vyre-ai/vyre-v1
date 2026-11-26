@@ -1,1 +1,2 @@
 A saved view filtered or sorted by a field a person cannot read no longer picks or places records for them: those records are left out of the view and its total.
+A saved view a person reads no longer gives away records it left out: a page is read on until it holds the number asked for, so it can hold more than the limit and is never short because a record was left out, and a restricted reader gets no total for a view that filters or sorts by a field.
