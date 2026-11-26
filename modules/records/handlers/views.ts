@@ -146,10 +146,35 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
           ...(view.colorRules !== undefined ? { colorRules: view.colorRules } : {}),
           ...(view.config !== undefined ? { config: view.config } : {}),
         };
+        // the view's own filter, sort and group run on the server: a record the caller may not read one of those fields on would be picked or placed by a value they may not know, so it is left out (and the total
+        // stops counting what that value picked)
+        const named = new Set<string>();
+        const walk = (f: unknown): void => {
+          if (!f || typeof f !== "object") return;
+          const o = f as Record<string, unknown>;
+          for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+          if (o["not"] !== undefined) walk(o["not"]);
+          if (typeof o["field"] === "string") named.add(o["field"].split(".")[0]!);
+        };
+        walk(view.filter);
+        for (const k of Array.isArray(view.sort) ? view.sort : [])
+          if (isObj(k) && typeof k["field"] === "string") named.add(k["field"].split(".")[0]!);
+        if (typeof view.group === "string" && view.group) named.add(view.group.split(".")[0]!);
+        const judged = [...named].filter((f) => !["id", "version", "created_at", "updated_at"].includes(f));
+        const rows =
+          ctx.authorize && judged.length
+            ? page.rows.filter((r) =>
+                judged.every(
+                  (f) =>
+                    ctx.authorize!({ perm: null, level: "view", fields: [f] }, { type: "record", id: r.id }).effect ===
+                    "allow",
+                ),
+              )
+            : page.rows;
         return {
           view: def,
-          rows: page.rows,
-          total: page.total,
+          rows,
+          total: rows.length === page.rows.length ? page.total : rows.length,
           ...(page.next !== undefined ? { next: page.next } : {}),
         };
       }),
