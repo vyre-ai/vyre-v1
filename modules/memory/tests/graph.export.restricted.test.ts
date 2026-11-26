@@ -68,6 +68,7 @@ test("memory.graph_export: a context with no authorize writes no file", async ()
 test("memory.graph_export: exporting again the same day makes a file of its own, and never fails over the name", async () => {
   const taken = new Set<string>();
   const h = setup({
+    "files.list": () => ({ files: [...taken].map((name) => ({ name })) }),
     "files.create": (i) => {
       const name = String(i["name"]);
       if (taken.has(name))

@@ -5,6 +5,7 @@
 // DECISION: a note's layer comes from its folder path (Agents/<agent>/memory, Projects/<project>/memory, People/<person>/memory/<agent>, Knowledge/Memory); the agent or project id is found by name.
 // DECISION: graph_export writes its JSON into the agent's folder, or the first Space root for a Space graph, because the contract takes no folder.
 import { headings, frontmatter, links as mdLinks } from "../../../lib/md.ts";
+import { createUnique } from "../../../lib/unique-file-name.ts";
 import { parseLinks, subjectKey } from "../pages.ts";
 import { actorOf, ensure, makeAccess, mintId, num, orNull, raise, rowsOf, sealText, str } from "../projections.ts";
 import type { Layer, MemCtx, Row } from "../projections.ts";
@@ -923,25 +924,26 @@ export async function graphExport(
   }
   if (!folderId) raise(ctx, "validation.bad_input", "There is no folder to write the export into.");
   const day = new Date(ctx.now()).toISOString().slice(0, 10);
-  // exporting twice in a day must not fail over the name: the second file is "memory-graph-space-2026-11-26 (2).json", then "(3)", and so on
-  let made: { file: { fileId: string } } | undefined;
-  for (let n = 1; !made; n++) {
-    try {
-      made = (await ctx.call("files.create", {
+  // exporting twice in a day must not fail over the name: the second file is "memory-graph-space-2026-11-26 (2).json", then "(3)": the first free number among the names the caller can see (the folder is listed once).
+  // For the scope "space" the folder is the shared one, so the number in the name tells how many files of that name exist there; reviewed and accepted.
+  const made = await createUnique(
+    `memory-graph-${input.scope}-${day}.json`,
+    async () =>
+      (
+        (await ctx.call("files.list", { folder: folderId, q: `memory-graph-${input.scope}-${day}`, limit: 500 })) as {
+          files?: { name: string }[];
+        }
+      ).files?.map((x) => x.name) ?? [],
+    async (name, attempt) =>
+      (await ctx.call("files.create", {
         folderId,
-        name: `memory-graph-${input.scope}-${day}${n === 1 ? "" : ` (${n})`}.json`,
+        name,
         kind: "text",
         mime: "application/json",
         content: { text: JSON.stringify(g) },
-        idempotencyKey: `memgraph:${mintId("x", ctx.now())}:${n}`,
-      })) as { file: { fileId: string } };
-    } catch (e) {
-      const code =
-        (e as { error?: { code?: unknown }; code?: unknown } | null)?.error?.code ??
-        (e as { code?: unknown } | null)?.code;
-      if (code !== "validation.duplicate" || n >= 1000) throw e;
-    }
-  }
+        idempotencyKey: `memgraph:${mintId("x", ctx.now())}:${attempt}`,
+      })) as { file: { fileId: string } },
+  );
   return { fileId: made.file.fileId };
 }
 
