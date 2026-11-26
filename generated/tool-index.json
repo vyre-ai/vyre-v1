@@ -7886,6 +7886,12 @@
     },
     {
       "deferred": false,
+      "name": "records_get_many",
+      "summary": "Read up to 200 records of one type by id in one call: each comes back as records.get gives it, with the fields the caller's grant, label and provider allow; an id that does not exist or that the caller may not see is simply not in the answer",
+      "toolset": "records"
+    },
+    {
+      "deferred": false,
       "name": "records_history",
       "summary": "Field history of a record: previous values and merge losers",
       "toolset": "records"

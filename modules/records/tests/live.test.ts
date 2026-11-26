@@ -12,7 +12,7 @@ const mine = registry.capabilities
   .sort();
 
 test("records live: every capability of the manifest has a handler, and no handler is outside it", () => {
-  assert.equal(mine.length, 38);
+  assert.equal(mine.length, 39);
   assert.deepEqual(Object.keys(handlers).sort(), mine);
   for (const name of mine)
     assert.equal(typeof (handlers as Record<string, unknown>)[name], "function", `${name} has a handler function`);

@@ -2146,6 +2146,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       } catch {
         /* a fresh store has no calendars yet */
       }
+      // Files and folders that were put in Trash before the access module kept the Trash mark on its own rows: Files' Trash rows are read at every start and the mark is set where it is missing (idempotent, only the mark)
+      try {
+        const bin = db!.all(`SELECT id, root_id FROM files_trash`) as { id: string; root_id: string }[];
+        for (const t of bin)
+          accessPending.push({
+            seq: -1,
+            type: "resource.created",
+            payload: { id: t.id, trash_root: t.root_id, trash_only: true },
+          });
+      } catch {
+        /* a fresh store has no Files tables yet */
+      }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
@@ -4047,6 +4059,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending = [...es, ...accessPending];
         },
         pending: () => accessPending.length,
+        trashPending: async () => {
+          try {
+            return Number(await hookRunner.call("access.trash_pending", {})) || 0;
+          } catch {
+            return 0;
+          }
+        },
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
         call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,

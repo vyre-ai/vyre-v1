@@ -921,6 +921,47 @@ export class AccessStore {
   }
 
   /**
+   * Write the Trash mark of these resources, which already have a row: only row_json changes, so the rows that now hold the same text are written by one UPDATE for each hundreds of ids (a folder of ten thousand
+   * files is a few dozen statements, not a hundred deletes and inserts). What was written is noted in the comparison `persist` makes, as in persistResources.
+   */
+  persistMarks(db: Db, ids: Iterable<string>): void {
+    if (!this.base && this.raw) {
+      this.base = this.fromRaw();
+      this.raw = null;
+    }
+    const byText = new Map<string | null, ResourceRec[]>();
+    for (const id of new Set(ids)) {
+      const r = this.resources.get(id);
+      if (!r) continue;
+      const text = r.row ? JSON.stringify(r.row) : null;
+      const at = byText.get(text);
+      if (at) at.push(r);
+      else byText.set(text, [r]);
+    }
+    const write = (): void => {
+      for (const [text, rows] of byText)
+        for (let i = 0; i < rows.length; i += 500) {
+          const part = rows.slice(i, i + 500);
+          db.run(
+            `UPDATE access_resources SET row_json = ? WHERE id IN (${part.map(() => "?").join(",")})`,
+            text,
+            ...part.map((r) => r.id),
+          );
+          if (!this.base) continue;
+          let t = this.base.get("access_resources");
+          if (!t) {
+            t = { pk: SHAPES["access_resources"]!.pk, cols: SHAPES["access_resources"]!.cols, vals: new Map() };
+            this.base.set("access_resources", t);
+          }
+          for (const r of part)
+            t.vals.set(JSON.stringify([r.id]), [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, text]);
+        }
+    };
+    if (db.batch) db.batch(write);
+    else write();
+  }
+
+  /**
    * Write just these resources and the cursor of the folded events, for a batch that only registered objects (consumers.ts `apply`): two statements per object instead of the comparison of
    * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
    */
@@ -1122,6 +1163,14 @@ export class AccessStore {
     this.raw = raw;
   }
 }
+
+/**
+ * The Trash mark of a file or folder resource, kept in the resource's own row (row_json, no migration): the id of the file or folder whose move to Trash took this one with it (the same value as the
+ * root_id of Files' own Trash row). The access module folds Files' Trash events into it (consumers.ts trashEvent), so a list reads it with the rows it already has, and asks Files nothing.
+ */
+export const TRASH_KEY = "trashRoot";
+/** Is this resource in Trash (the mark is set)? */
+export const isTrashed = (r: ResourceRec | undefined): boolean => typeof r?.row?.[TRASH_KEY] === "string";
 
 /** A resource as the authorize snapshot holds it. */
 export function kernelResource(r: ResourceRec): ResourceRow {

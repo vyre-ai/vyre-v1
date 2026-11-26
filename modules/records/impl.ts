@@ -261,6 +261,10 @@ export interface ReadHandlers {
     ctx: Pick<WriteCtx, "trace">,
     input: { type: string; recordId: string },
   ): Promise<{ record: RecordRow }>;
+  "records.get_many"(
+    ctx: Pick<WriteCtx, "trace">,
+    input: { type: string; ids: string[] },
+  ): Promise<{ rows: RecordRow[] }>;
   "records.history"(
     ctx: Pick<WriteCtx, "trace">,
     input: { type: string; recordId: string; field?: string },
@@ -769,6 +773,20 @@ export function openRecords(
         return mapError(ctx as WriteCtx, e);
       }
     },
+    // The rows that exist, in the order asked, each once. Which of them the caller may see, and which fields of each, is the host's projection (record-access.ts project, the same gate records.get is read through): an id that is
+    // missing and an id the caller may not see are the same answer here, a row that is not there.
+    async "records.get_many"(ctx, input) {
+      try {
+        const rows: RecordRow[] = [];
+        for (const id of new Set(input.ids)) {
+          const rec = await store.get(input.type, id);
+          if (rec) rows.push(toRow(rec, metaOf(rec.type, rec.id)));
+        }
+        return { rows };
+      } catch (e) {
+        return mapError(ctx as WriteCtx, e);
+      }
+    },
     async "records.history"(ctx, input) {
       try {
         const entries = history(input.type, input.recordId)
@@ -875,6 +893,7 @@ const table: LiveRecordsHandlers = {
   "records.search": (ctx, input) => live(ctx).handlers["records.search"](ctx, input),
   "records.counts": (ctx, input) => live(ctx).handlers["records.counts"](ctx, input),
   "records.get": (ctx, input) => live(ctx).handlers["records.get"](ctx, input),
+  "records.get_many": (ctx, input) => live(ctx as never).handlers["records.get_many"](ctx, input),
   "records.history": (ctx, input) => live(ctx).handlers["records.history"](ctx, input),
   "records.activity": (ctx, input) => more(ctx).history["records.activity"](ctx, input),
   "records.comments.list": (ctx, input) => more(ctx).comments["records.comments.list"](ctx, input),

@@ -54252,6 +54252,44 @@
     },
     {
       "blocks": [],
+      "cap": "records.get_many",
+      "deferred": false,
+      "description": "Read up to 200 records of one type by id in one call: each comes back as records.get gives it, with the fields the caller's grant, label and provider allow; an id that does not exist or that the caller may not see is simply not in the answer",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "ids": {
+            "items": {
+              "examples": [
+                "rec_a1b2c3"
+              ],
+              "pattern": "^rec_[a-z0-9]+$",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "type": "array"
+          },
+          "type": {
+            "examples": [
+              "contact"
+            ],
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "ids"
+        ],
+        "type": "object"
+      },
+      "name": "records_get_many",
+      "planMode": "allowed",
+      "toolset": "records",
+      "v": 1
+    },
+    {
+      "blocks": [],
       "cap": "records.history",
       "deferred": false,
       "description": "Field history of a record: previous values and merge losers",

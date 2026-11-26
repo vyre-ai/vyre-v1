@@ -38,6 +38,7 @@ test("reads: no records read returns a hidden value to the member", async () => 
   const t = "contact";
   const rec = { type: t, recordId: f.rid };
   await probe(f, "", "records.get", rec);
+  await probe(f, "", "records.get_many", { type: t, ids: [f.rid] });
   await probe(f, "at an earlier time", "records.as_of", { ...rec, at: f.at });
   await probe(f, "", "records.history", rec);
   await probe(f, "field email", "records.history", { ...rec, field: "email" });

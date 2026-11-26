@@ -4,7 +4,7 @@ Lane L3. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (38)
+## Capabilities (39)
 
 - [records.activity](../capabilities/records.activity.md): What happened to a record, newest first: created, field edits with who, when and the old and new value, stage moves, links, removals and sync pushes
 - [records.as_of](../capabilities/records.as_of.md): Read a record as it was at a time
@@ -22,6 +22,7 @@ Requires: nothing.
 - [records.export](../capabilities/records.export.md): Export rows as CSV or Excel (permissioned), the whole view or only the picked recordIds
 - [records.gap_check](../capabilities/records.gap_check.md): Run the gap-check rules of a type over one record or all of them: finds missing or stale fields and names the fill route (AI field, agent lookup, teammate task or collection form)
 - [records.get](../capabilities/records.get.md): Read one record by id
+- [records.get_many](../capabilities/records.get_many.md): Read up to 200 records of one type by id in one call: each comes back as records.get gives it, with the fields the caller's grant, label and provider allow; an id that does not exist or that the caller may not see is simply not in the answer
 - [records.history](../capabilities/records.history.md): Field history of a record: previous values and merge losers
 - [records.hold](../capabilities/records.hold.md): Place a hold on a record
 - [records.merge](../capabilities/records.merge.md): Merge records into a survivor with a value picked per field (undoable for 30 days)
