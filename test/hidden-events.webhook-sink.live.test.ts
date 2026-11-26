@@ -78,16 +78,29 @@ test("what a member's webhook sends, and the row the server keeps of it, carry n
   );
   await new Promise((r) => setTimeout(r, 2000));
 
-  const ownerText = sent("/owner").map((s) => s.body).join("\n");
-  assert.ok(ownerText.includes(newEmail), "control: the owner's webhook body carries the new email, so the probe is not empty");
-  const memberText = sent("/member").map((s) => s.body).join("\n");
+  const ownerText = sent("/owner")
+    .map((s) => s.body)
+    .join("\n");
+  assert.ok(
+    ownerText.includes(newEmail),
+    "control: the owner's webhook body carries the new email, so the probe is not empty",
+  );
+  const memberText = sent("/member")
+    .map((s) => s.body)
+    .join("\n");
   assert.ok(memberText.includes("Sink Seen"), "the member's webhook carries what she may see");
-  assert.deepEqual(f.leaks(memberText), [], "no hidden value in the body that left the server for the member's webhook");
+  assert.deepEqual(
+    f.leaks(memberText),
+    [],
+    "no hidden value in the body that left the server for the member's webhook",
+  );
   assert.ok(!memberText.includes(newEmail) && !memberText.includes("555 7777"), "nor the edit's email or phone");
 
   type Row = { body: string | null };
   const rows = (id: string): string =>
-    (h.d.db!.all(`SELECT body FROM events_delivery WHERE webhook_id = ?`, id) as Row[]).map((r) => r.body ?? "").join("\n");
+    (h.d.db!.all(`SELECT body FROM events_delivery WHERE webhook_id = ?`, id) as Row[])
+      .map((r) => r.body ?? "")
+      .join("\n");
   assert.ok(rows(theirs.webhook.id).includes(newEmail), "control: the owner's stored delivery row carries the email");
   assert.deepEqual(f.leaks(rows(mine.webhook.id)), [], "no hidden value in the member's stored delivery rows");
   assert.ok(!rows(mine.webhook.id).includes(newEmail), "nor the edit's email in the stored row");

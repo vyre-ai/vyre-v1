@@ -18,7 +18,9 @@ after(async () => {
 test("a mention on a record tells the member nothing her grant hides", async () => {
   const f = await hiddenMember(h, { hide: ["name", "email", "phone"] });
   const { owner, member } = f;
-  const rec = (await owner.call("records.get", { type: "contact", recordId: f.rid })) as { record: { fields: { name: string } } };
+  const rec = (await owner.call("records.get", { type: "contact", recordId: f.rid })) as {
+    record: { fields: { name: string } };
+  };
   const name = rec.record.fields.name;
   assert.ok(name, "the record has a name");
   const secrets = [name, ...f.hidden];
@@ -33,7 +35,9 @@ test("a mention on a record tells the member nothing her grant hides", async () 
 
   // control: a member whose grant hides only the email reads the name, so her request names the record and the probe is not empty
   const g = await hiddenMember(h, { hide: ["email"] });
-  const gname = ((await owner.call("records.get", { type: "contact", recordId: g.rid })) as { record: { fields: { name: string } } }).record.fields.name;
+  const gname = (
+    (await owner.call("records.get", { type: "contact", recordId: g.rid })) as { record: { fields: { name: string } } }
+  ).record.fields.name;
   await owner.call("records.comments.add", {
     type: "contact",
     recordId: g.rid,
@@ -43,8 +47,15 @@ test("a mention on a record tells the member nothing her grant hides", async () 
   });
   await new Promise((r) => setTimeout(r, 2000));
   const control = JSON.stringify(await g.member.call("tasks.list", { scope: "mine" }));
-  assert.ok(control.includes(`Mentioned on ${gname}`), `control: a member who may read the name is told it: ${control.slice(0, 300)}`);
-  assert.deepEqual([g.values.oldEmail, g.values.newEmail].filter((v) => control.includes(v)), [], "and not the email her grant hides");
+  assert.ok(
+    control.includes(`Mentioned on ${gname}`),
+    `control: a member who may read the name is told it: ${control.slice(0, 300)}`,
+  );
+  assert.deepEqual(
+    [g.values.oldEmail, g.values.newEmail].filter((v) => control.includes(v)),
+    [],
+    "and not the email her grant hides",
+  );
 
   const tasks = JSON.stringify(await member.call("tasks.list", { scope: "mine" }));
   const notes = JSON.stringify(await member.call("notifications.list", {}));
