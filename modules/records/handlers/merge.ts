@@ -1217,7 +1217,6 @@ async function exportRows(
   const first: ViewSpec = {
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
-    ...(input.offset ? { offset: input.offset } : {}),
     limit: MAX_LIMIT,
   };
   const computedNames = new Set(
@@ -1238,6 +1237,8 @@ async function exportRows(
     plain: [...named].filter((f) => !computedNames.has(f) && f !== "id" && byName.has(f)),
     computed: [...named].filter((f) => computedNames.has(f)),
   };
+  // the first `offset` rows are skipped here, among the rows the caller may have (not in the query): an offset the query counted would count the rows left out too, and stepping it would say which they were
+  let toSkip = input.offset ?? 0;
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -1286,6 +1287,10 @@ async function exportRows(
         })
       )
         continue;
+      if (toSkip > 0) {
+        toSkip--;
+        continue;
+      }
       const fieldsOf: Record<string, unknown> = { ...r.fields };
       for (const c of side)
         if (computedNames.has(c.field) && readable(c))

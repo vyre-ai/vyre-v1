@@ -6,6 +6,7 @@
 // a Star. The relationship map walks the relation fields out from one record, at most two hops, and names each edge by its field.
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, StoredRecord } from "../../../kernel/src/store/types.ts";
+import { turns } from "../../../lib/yield-loop.ts";
 import { mapError } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { runQuery } from "./query.ts";
@@ -59,6 +60,8 @@ export interface ViewHandlers {
   ): Promise<PagePrefs>;
 }
 
+/** The most rows a view read looks at for one page (and for its total): past it the page ends where it is and there is no total. */
+const SCAN_ROWS = 5000;
 const PREF_MAX = 200;
 const MAP_MAX_NODES = 100;
 
@@ -146,11 +149,72 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
           ...(view.colorRules !== undefined ? { colorRules: view.colorRules } : {}),
           ...(view.config !== undefined ? { config: view.config } : {}),
         };
+        // the view's own filter, sort and group run on the server: a record the caller may not read one of those fields on would be picked or placed by a value they may not know, so it is left out (and the total
+        // stops counting what that value picked)
+        const named = new Set<string>();
+        const walk = (f: unknown): void => {
+          if (!f || typeof f !== "object") return;
+          const o = f as Record<string, unknown>;
+          for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+          if (o["not"] !== undefined) walk(o["not"]);
+          if (typeof o["field"] === "string") named.add(o["field"].split(".")[0]!);
+        };
+        walk(view.filter);
+        for (const k of Array.isArray(view.sort) ? view.sort : [])
+          if (isObj(k) && typeof k["field"] === "string") named.add(k["field"].split(".")[0]!);
+        if (typeof view.group === "string" && view.group) named.add(view.group.split(".")[0]!);
+        const judged = [...named].filter((f) => !["id", "version", "created_at", "updated_at"].includes(f));
+        // Every caller is judged record by record, as an export is, whatever they hold (a Manage grant can hide a field, a row filter can take a record away): the host cuts a page afterwards, so a page that
+        // came back with records the caller may not have would come back short. Without a way to ask (no authorize here) the page is the page.
+        if (!ctx.authorize)
+          return {
+            view: def,
+            rows: page.rows,
+            total: page.total,
+            ...(page.next !== undefined ? { next: page.next } : {}),
+          };
+        const authorize = ctx.authorize!;
+        const keeps = (r: { id: string }): boolean =>
+          authorize(
+            { perm: null, level: "view", ...(judged.length ? { fields: judged } : {}) },
+            { type: "record", id: r.id },
+          ).effect === "allow";
+        // A record left out takes no place in the paging: pages are read one after the other until `limit` records are kept (a page may hold more than `limit`; none is cut or skipped), and the answer never
+        // comes short because a record was left out, so stepping the cursor says nothing about the records the caller may not know. The total counts only the records the caller may have (every page is read for it): a count of what the view picked would count the records the caller may not read the field on (the host drops the total for a restricted reader in any case).
+        const want = Math.max(1, Math.min(Math.trunc(input.limit ?? 200), 500));
+        const turn = turns();
+        const rows: typeof page.rows = [];
+        let at: { rows: typeof page.rows; next?: string } = page;
+        // bounded by rows read, not pages: after SCAN_ROWS rows the page ends there (possibly short), and there is no total. Exact totals for a big table belong in records.counts.
+        let scanned = 0;
+        for (;;) {
+          scanned += at.rows.length;
+          for (const r of at.rows) if (keeps(r)) rows.push(r);
+          if (rows.length >= want || at.next === undefined || scanned >= SCAN_ROWS) break;
+          await turn();
+          at = runQuery(tx, input.type, { ...spec, cursor: at.next });
+        }
+        // the total counts the records the caller may have, when the count finishes inside the same bound (the host drops it for a restricted reader in any case)
+        let total: number | undefined = 0;
+        const { cursor: _from, ...whole } = spec;
+        let counted = 0;
+        for (let cursor: string | undefined; ; ) {
+          if (counted >= SCAN_ROWS) {
+            total = undefined;
+            break;
+          }
+          const part = runQuery(tx, input.type, { ...whole, limit: 500, ...(cursor ? { cursor } : {}) });
+          counted += part.rows.length;
+          for (const r of part.rows) if (keeps(r)) total++;
+          if (part.next === undefined) break;
+          cursor = part.next;
+          await turn();
+        }
         return {
           view: def,
-          rows: page.rows,
-          total: page.total,
-          ...(page.next !== undefined ? { next: page.next } : {}),
+          rows,
+          ...(total !== undefined ? { total } : {}),
+          ...(at.next !== undefined ? { next: at.next } : {}),
         };
       }),
 
