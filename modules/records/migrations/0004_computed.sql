@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS records_computed_job (
   cursor TEXT,                -- the last record id done
   done INTEGER NOT NULL DEFAULT 0,
   total INTEGER NOT NULL DEFAULT 0,
-  state TEXT NOT NULL,        -- running | done
+  state TEXT NOT NULL,        -- running | failed | done
+  updated_at INTEGER,         -- when it last moved (the doctor says a fill that has not moved for an hour is stuck)
+  error TEXT,
   PRIMARY KEY (type, field)
 );

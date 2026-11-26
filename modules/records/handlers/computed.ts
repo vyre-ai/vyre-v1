@@ -39,7 +39,7 @@ export function ensureComputedTables(tx: Tx): void {
   tx.exec("CREATE INDEX IF NOT EXISTS records_computed_field ON records_computed (type, field, id)");
   tx.exec(`CREATE TABLE IF NOT EXISTS records_computed_job (
     type TEXT NOT NULL, field TEXT NOT NULL, def_hash TEXT NOT NULL, cursor TEXT, done INTEGER NOT NULL DEFAULT 0,
-    total INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, PRIMARY KEY (type, field))`);
+    total INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL, updated_at INTEGER, error TEXT, PRIMARY KEY (type, field))`);
   ready.add(tx);
 }
 export const resetComputedTablesForTest = (): void => {
@@ -333,22 +333,24 @@ export async function backfillType(env: ComputedEnv, type: string): Promise<{ do
     } else {
       cursor = undefined;
       env.tx.run(
-        `INSERT INTO records_computed_job (type, field, def_hash, cursor, done, total, state) VALUES (?, ?, ?, NULL, 0, ?, 'running')
-         ON CONFLICT (type, field) DO UPDATE SET def_hash = excluded.def_hash, cursor = NULL, done = 0, total = excluded.total, state = 'running'`,
+        `INSERT INTO records_computed_job (type, field, def_hash, cursor, done, total, state, updated_at) VALUES (?, ?, ?, NULL, 0, ?, 'running', ?)
+         ON CONFLICT (type, field) DO UPDATE SET def_hash = excluded.def_hash, cursor = NULL, done = 0, total = excluded.total, state = 'running', updated_at = excluded.updated_at, error = NULL`,
         type,
         d.key,
         hashOf(d),
         total,
+        env.now(),
       );
     }
   }
   const progress = (last: string | undefined, count: number, state: "running" | "done"): void => {
     for (const d of need)
       env.tx.run(
-        "UPDATE records_computed_job SET cursor = ?, done = ?, state = ? WHERE type = ? AND field = ? AND def_hash = ?",
+        "UPDATE records_computed_job SET cursor = ?, done = ?, state = ?, updated_at = ?, error = NULL WHERE type = ? AND field = ? AND def_hash = ?",
         last ?? null,
         count,
         state,
+        env.now(),
         type,
         d.key,
         hashOf(d),
@@ -410,4 +412,15 @@ export function updatingFields(tx: Tx, type: string): string[] {
   return tx
     .all<{ field: string }>("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", type)
     .map((r) => r.field);
+}
+
+/** A fill that threw (or the pump gave up on): the job says so, with what went wrong, and stays where it was so the next schema.changed for the type goes on from its cursor. */
+export function markFillFailed(tx: Tx, type: string, error: string, now: number): void {
+  ensureComputedTables(tx);
+  tx.run(
+    "UPDATE records_computed_job SET state = 'failed', error = ?, updated_at = ? WHERE type = ? AND state <> 'done'",
+    error.slice(0, 300),
+    now,
+    type,
+  );
 }

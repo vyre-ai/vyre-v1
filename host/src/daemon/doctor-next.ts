@@ -24,4 +24,6 @@ export const NEXT = {
     "Run the planned compact (vyre-server compact) in a quiet window. Until then the removed values are zeroed in the file but its freed pages stay.",
   journalNotFolded:
     "Restart the server in a quiet moment (vyre-server restart); the journal is folded at the next start. Until then the search index's journal file may still hold text that was removed.",
+  computedFields:
+    "Open the table in Records, Fields, and save the stuck field again without changing it: the fill goes on from where it stopped. If it stays stuck, report the type and field to support.",
 } as const;

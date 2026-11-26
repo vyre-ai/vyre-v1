@@ -332,3 +332,41 @@ test("a lookup follows the relation and a rollup sums, counts and averages the l
   await pumpUntil(() => valueOf(a, acc, "n_invoices") === 0);
   assert.equal(valueOf(a, acc, "billed"), null, "a sum of nothing is empty, not zero");
 });
+
+test("the doctor's remedy works: a fill left failed halfway is finished by saving the field again without changing it", async () => {
+  const type = "linestuck";
+  await makeType(type);
+  for (let i = 0; i < 40; i++)
+    await h.owner.call("records.create", { type, fields: { name: `S${i}`, qty: i, price: 3 } });
+  await addFormula(type, "total", "qty * price");
+  await pumpUntil(
+    () => table<{ state: string }>("SELECT state FROM records_computed_job WHERE type = ?", type)[0]?.state === "done",
+  );
+  assert.equal(table("SELECT 1 FROM records_computed WHERE type = ?", type).length, 40, "control: all 40 are filled");
+  // what a fill the pump gave up on looks like: the job failed with its cursor at the start, and half of the values are missing
+  const db = new DatabaseSync(spaceDb());
+  try {
+    db.prepare(
+      "UPDATE records_computed_job SET state = 'failed', cursor = NULL, done = 0, error = 'boom' WHERE type = ?",
+    ).run(type);
+    db.prepare(
+      "DELETE FROM records_computed WHERE type = ? AND id IN (SELECT id FROM records_computed WHERE type = ? ORDER BY id LIMIT 20)",
+    ).run(type, type);
+  } finally {
+    db.close();
+  }
+  assert.equal(table("SELECT 1 FROM records_computed WHERE type = ?", type).length, 20);
+  // the remedy: save the field again, changing nothing
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `resave-${type}`,
+    ops: [{ op: "field.update", type, field: "total", def: { title: "total" } }],
+  });
+  await pumpUntil(
+    () => table<{ state: string }>("SELECT state FROM records_computed_job WHERE type = ?", type)[0]?.state === "done",
+  );
+  assert.equal(
+    table("SELECT 1 FROM records_computed WHERE type = ?", type).length,
+    40,
+    "every record has its value again",
+  );
+});

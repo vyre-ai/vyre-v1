@@ -46,7 +46,7 @@ import type { ReviewHandlers } from "./handlers/review.ts";
 import { createViewHandlers } from "./handlers/views.ts";
 import type { ViewHandlers } from "./handlers/views.ts";
 import { createPurgeHandlers } from "./handlers/purge.ts";
-import { backfillType, ensureComputedTables, recomputeWithDependents } from "./handlers/computed.ts";
+import { backfillType, ensureComputedTables, markFillFailed, recomputeWithDependents } from "./handlers/computed.ts";
 import type { ComputedDef, ComputedEnv } from "./handlers/computed.ts";
 import type { TypeShape } from "../../lib/computed-fields.ts";
 import type { PurgeHandlers } from "./handlers/purge.ts";
@@ -1035,7 +1035,14 @@ async function runComputed(ctx: CallCtx, event: { name: string; payload: Record<
       : typeof event.payload["type"] === "string"
         ? [event.payload["type"]]
         : [];
-    for (const type of types) await backfillType(env, type);
+    for (const type of types) {
+      try {
+        await backfillType(env, type);
+      } catch (e) {
+        markFillFailed(h.host.tx, type, e instanceof Error ? e.message : String(e), ctx.now());
+        throw e;
+      }
+    }
     return;
   }
   const type = typeof event.payload["type"] === "string" ? event.payload["type"] : "";

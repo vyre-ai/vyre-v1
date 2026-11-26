@@ -289,6 +289,88 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
 }
 
 /**
+ * The records.computed consumer and the fills it makes (computed fields: formula, lookup, rollup). A fill that is not done and has not moved for an hour is stuck (the pump gives up on an event after five tries, so a
+ * fill that keeps failing is left half done and its field keeps showing as updating); the consumer is behind when its cursor trails the head of the log by more than a thousand events. Counts, types and fields,
+ * never a value; read-only.
+ */
+export function computedFieldsFinding(
+  spaceDb: string,
+  modulesDb: string,
+  eventsDb: string,
+  now: number = Date.now(),
+): Finding {
+  const key = "records.computed";
+  const STUCK_MS = 60 * 60_000;
+  const LAG = 1000;
+  if (!fs.existsSync(spaceDb)) return { key, state: "healthy", detail: "No records yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    let jobs: {
+      type: string;
+      field: string;
+      done: number;
+      total: number;
+      state: string;
+      updated_at: number | null;
+      error: string | null;
+    }[] = [];
+    try {
+      const has =
+        db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'records_computed_job'").length > 0;
+      if (has)
+        jobs = db.all(
+          "SELECT type, field, done, total, state, updated_at, error FROM records_computed_job WHERE state <> 'done'",
+        ) as typeof jobs;
+    } finally {
+      db.close();
+    }
+    const stuck = jobs.filter(
+      (j) => j.state === "failed" || j.updated_at === null || now - Number(j.updated_at) > STUCK_MS,
+    );
+    let lag = 0;
+    try {
+      if (fs.existsSync(modulesDb) && fs.existsSync(eventsDb)) {
+        const m = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+        const e = openDb(eventsDb, fs.existsSync(`${eventsDb}-wal`) ? { readOnly: true } : { immutable: true });
+        try {
+          const cur = m.all("SELECT seq FROM host_hook_cursor WHERE name = 'records.computed'")[0] as
+            | { seq: number }
+            | undefined;
+          const head = (e.all("SELECT max(seq) AS s FROM events")[0] as { s: number | null } | undefined)?.s ?? 0;
+          if (cur) lag = Math.max(0, Number(head) - Number(cur.seq));
+        } finally {
+          m.close();
+          e.close();
+        }
+      }
+    } catch {
+      lag = 0;
+    }
+    if (!stuck.length && lag <= LAG)
+      return {
+        key,
+        state: "healthy",
+        detail: jobs.length
+          ? `${jobs.length} computed fields are being filled and moving.`
+          : "Computed fields are up to date.",
+        next: OK,
+      };
+    const parts: string[] = [];
+    if (stuck.length)
+      parts.push(
+        `${stuck.length} computed fields are stuck half filled (${stuck
+          .slice(0, 5)
+          .map((j) => `${j.type}.${j.field} ${j.done} of ${j.total}${j.state === "failed" ? ", failed" : ""}`)
+          .join("; ")}): their values may be missing or old`,
+      );
+    if (lag > LAG) parts.push(`the consumer that keeps computed values is ${lag} events behind`);
+    return { key, state: "degraded", detail: `${parts.join("; ")}.`, next: NEXT.computedFields };
+  } catch (e) {
+    return { key, state: "healthy", detail: `Not checked: ${e instanceof Error ? e.message : String(e)}.`, next: OK };
+  }
+}
+
+/**
  * Runs of Automations on record changes whose kept history may hold a value their person's access hides (24 Nov 2026). Before this release the trigger of such a Run carried the whole record and every
  * step could read it, so a person whose grant hides a field (hiddenFields) could have a Run, its kept trigger and the inputs and outputs of its steps, with that field's value in them; new Runs never keep it.
  * Read-only, counts and ids only, never a value. A person's own grants are read (a grant given through a role or a group is not), so the answer is a lower bound; a field is counted when the kept trigger
@@ -692,6 +774,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
+    findings.push(computedFieldsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.modules, paths.events));
     findings.push(searchRemovedTextFinding(paths.modules));
     findings.push(searchMissingRecordsFinding(paths.modules));
     findings.push(journalNotFoldedFinding(paths.modules));
