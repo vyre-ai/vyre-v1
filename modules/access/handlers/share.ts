@@ -42,6 +42,7 @@ import {
   raise,
   storeOf,
   primeStore,
+  changedResources,
   decisionSnapshot,
 } from "../projections.ts";
 import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
@@ -1904,7 +1905,7 @@ export async function audienceSet(
       else delete res.row;
     }
     res.parentId = rec.id;
-    changed(ctx, store, "assignment");
+    changedResources(ctx, store, [res.id]);
     commit(ctx, store, ss, wasFresh, [res.id], false);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }

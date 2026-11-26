@@ -863,6 +863,55 @@ export class AccessStore {
   }
 
   /**
+   * Write the rows of the named resources that differ from what this store read (or last wrote), and the epoch: nothing else is compared or written. For a handler that changes only those resources
+   * (a folder made to follow a record). `persist` turns every row of every table into text to find the same few rows (0.3 s on 11,000 resources, seconds on a firm's). Answers the rows written (what
+   * the write counter moves by), or null when the store holds no copy of the resource rows to compare with (the caller then uses `persist`).
+   */
+  persistResources(db: Db, ids: readonly string[]): number | null {
+    const shape = SHAPES["access_resources"]!;
+    const rawRows = this.raw?.get("access_resources");
+    const baseVals = this.base?.get("access_resources")?.vals;
+    if (!rawRows && !baseVals) return null;
+    const valsOf = (row: Record<string, unknown>): unknown[] => shape.cols.map((c) => row[c] ?? null);
+    let writes = 0;
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      const key = JSON.stringify([id]);
+      let before: unknown[] | undefined;
+      let at = -1;
+      if (rawRows) {
+        at = rawRows.findIndex((x) => x["id"] === id);
+        if (at >= 0) before = valsOf(rawRows[at]!);
+      } else before = baseVals!.get(key);
+      if (!r) {
+        if (before === undefined) continue;
+        writes += db.run(`DELETE FROM access_resources WHERE "id" = ?`, id).changes;
+        if (rawRows && at >= 0) rawRows.splice(at, 1);
+        else baseVals?.delete(key);
+        continue;
+      }
+      const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
+      if (before !== undefined && JSON.stringify(before) === JSON.stringify(vals)) continue;
+      const cols = shape.cols.map((c) => `"${c}"`).join(",");
+      writes += db.run(
+        `INSERT OR REPLACE INTO access_resources (${cols}) VALUES (${shape.cols.map(() => "?").join(",")})`,
+        ...vals,
+      ).changes;
+      if (rawRows) {
+        const row = Object.fromEntries(shape.cols.map((c, i) => [c, vals[i]]));
+        if (at >= 0) rawRows[at] = row;
+        else rawRows.push(row);
+      } else baseVals!.set(key, vals);
+    }
+    writes += db.run(
+      `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+      "space",
+      this.epoch,
+    ).changes;
+    return writes;
+  }
+
+  /**
    * Write what a grant handler (share, unshare, change a share) changed: the grant rows that differ from the rows this store read, and the epoch. Nothing else is written or compared, so the cost is
    * the number of grants, not the number of rows of the Space (`persist` writes out every row of every table to find what changed: 0.1 s on 20,000 records, seconds on a firm's). Answers how many
    * rows were written (what the tables' write counter moves by), or null when the store holds no copy of the grant rows to compare with (the caller then uses `persist`).
@@ -1574,6 +1623,18 @@ export function changed(
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what, by: ctx.principal.id });
   try {
     store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
+}
+
+/** `changed` for a handler that changes only the named resources (see AccessStore.persistResources); falls back to the whole write where the store has no copy of the rows to compare with. */
+export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): void {
+  store.bump();
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
+  try {
+    if (store.persistResources(ctx.db, ids) === null) store.persist(ctx.db);
   } catch (e) {
     store.bump();
     throw e;
