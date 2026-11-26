@@ -9,6 +9,7 @@ import { applyScoped, handlers as loaderHandlers, openSchema } from "../impl.ts"
 import { convertValue, parseCsv } from "../handlers/apply.ts";
 import { COMPANY, PERSON } from "../fixtures/seed.ts";
 import type { SchemaOp } from "../handlers/index.ts";
+import { setSchemaVault } from "../handlers/seal.ts";
 
 const NOW = 1_800_000_000_000;
 const DAY = 86_400_000;
@@ -1075,4 +1076,45 @@ test("a type has one card face, set by type.update, checked against its own fiel
     ((await k.h["schema.types.get"](k.ctx, { type: "acme_person" })).type as { card?: unknown }).card,
     undefined,
   );
+});
+
+test("a field drop that could not put search right for some records says so in its answer and keeps their ids; a clean one says nothing", async () => {
+  const calls: string[] = [];
+  const ids: string[] = [];
+  setSchemaVault({
+    put: async () => "ref",
+    dropSearchText: async (_type, some, phase) => {
+      calls.push(`${phase}:${some.length}`);
+      return phase === "reindex" ? some.slice(0, 1) : [];
+    },
+  });
+  try {
+    const k = kit();
+    await base(k);
+    ids.push(await person(k, { age: "30" }), await person(k, { age: "31" }), await person(k, {}));
+    const out = await k.h["schema.apply"](k.ctx, {
+      ops: [{ op: "field.drop", type: "acme_person", field: "age" }],
+      confirm: ["field.drop:acme_person.age"],
+    });
+    assert.deepEqual(
+      calls,
+      ["delete:2", "reindex:2"],
+      "the two records that held a value are taken out and touched, in a batch each",
+    );
+    assert.match(out.items[0]!.summary, /search could not be updated for 1 records/);
+    const failed = k.s.deps.tx.all<{ id: string }>("SELECT id FROM sc_reindex_failed");
+    assert.equal(failed.length, 1, "the ids are kept for the doctor");
+    // control: a drop whose touches all succeed has no such sentence
+    setSchemaVault({ put: async () => "ref", dropSearchText: async () => [] });
+    const k2 = kit();
+    await base(k2);
+    await person(k2, { age: "5" });
+    const clean = await k2.h["schema.apply"](k2.ctx, {
+      ops: [{ op: "field.drop", type: "acme_person", field: "age" }],
+      confirm: ["field.drop:acme_person.age"],
+    });
+    assert.doesNotMatch(clean.items[0]!.summary, /search could not/);
+  } finally {
+    setSchemaVault(null);
+  }
 });

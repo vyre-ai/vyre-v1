@@ -15,7 +15,7 @@ export interface RecordsVaultSeam {
   /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
   scrubField(type: string, field: string): Promise<void>;
   /** After a field was dropped from a type: the search documents of the records that held a value in it are taken out of the index now (they are read again once the rows are updated (phase reindex)), so no snippet can carry the dropped text in the meantime. */
-  dropSearchText(type: string, ids: readonly string[], phase: "delete" | "reindex"): Promise<void>;
+  dropSearchText(type: string, ids: readonly string[], phase: "delete" | "reindex"): Promise<string[]>;
 }
 
 export interface RecordsVaultDeps {
@@ -26,7 +26,7 @@ export interface RecordsVaultDeps {
   /** Make the folder a resource in access, as the Vault's folder repair does, so people with the Space role can reach what is in it. */
   registerFolder(folderId: string): Promise<void>;
   scrub(type: string, field: string): Promise<void>;
-  dropSearch(type: string, ids: readonly string[], phase: "delete" | "reindex"): Promise<void>;
+  dropSearch(type: string, ids: readonly string[], phase: "delete" | "reindex"): Promise<string[]>;
 }
 
 export { SEALED_FOLDER };

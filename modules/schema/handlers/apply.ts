@@ -1188,6 +1188,7 @@ async function execute(
     const counts = await writeRefsMany(deps, type, byField);
     for (const [field, n] of counts) openJob(deps, type, field, n, changeId, now);
   }
+  const reindexFailed = new Map<string, Set<string>>();
   for (const k of moved) {
     const effs = plan.effects.filter((e) => e.type === k);
     const kept = new Map<number, Record<string, unknown>>();
@@ -1212,8 +1213,10 @@ async function execute(
         // so no record is left out of search, whatever the index consumer was doing meanwhile
         const ids = part.filter((x) => x.had).map((x) => x.id);
         if (ids.length) {
-          await schemaVault()?.dropSearchText?.(k, ids, "delete");
-          await schemaVault()?.dropSearchText?.(k, ids, "reindex");
+          const failed = new Set(await (schemaVault()?.dropSearchText?.(k, ids, "delete") ?? []));
+          // a record whose old entry could not be removed is touched anyway (it is rebuilt without the field); one whose touch fails is counted
+          for (const id of (await schemaVault()?.dropSearchText?.(k, ids, "reindex")) ?? []) failed.add(id);
+          for (const id of failed) (reindexFailed.get(k) ?? reindexFailed.set(k, new Set()).get(k)!).add(id);
         }
       }
     };
@@ -1252,6 +1255,25 @@ async function execute(
         });
       }
     });
+  }
+  // records the search could not be put right for (the old entry is still there, or the record may be missing from search): the answer says so, and the doctor counts them
+  if (reindexFailed.size) {
+    tx.exec(
+      "CREATE TABLE IF NOT EXISTS sc_reindex_failed (type TEXT NOT NULL, id TEXT NOT NULL, change_id TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (type, id))",
+    );
+    for (const [type, ids] of reindexFailed) {
+      for (const id of ids)
+        tx.run(
+          "INSERT OR REPLACE INTO sc_reindex_failed (type, id, change_id, at) VALUES (?, ?, ?, ?)",
+          type,
+          id,
+          changeId,
+          now,
+        );
+      for (const item of plan.items)
+        if (item.op === "field.drop" && item.type === type)
+          item.summary = `${item.summary} (search could not be updated for ${ids.size} records: it may still show the removed field or miss them until the search index is rebuilt)`;
+    }
   }
   for (const e of plan.effects) {
     if (e.k !== "dropType") continue;

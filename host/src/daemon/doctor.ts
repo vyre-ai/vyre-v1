@@ -288,6 +288,37 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
   }
 }
 
+/** Records whose search entry could not be put right when a field was dropped from their type (the apply says so in its answer and keeps the ids): counts only, read-only. */
+export function droppedFieldSearchFinding(modulesDb: string): Finding {
+  const key = "schema.dropped_field_search";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No schema changes yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      const has =
+        db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'sc_reindex_failed'").length > 0;
+      if (!has) return { key, state: "healthy", detail: "Every dropped field was cleared from search.", next: OK };
+      const n = Number((db.all("SELECT count(*) AS c FROM sc_reindex_failed")[0] as { c: number }).c);
+      if (!n) return { key, state: "healthy", detail: "Every dropped field was cleared from search.", next: OK };
+      return {
+        key,
+        state: "degraded",
+        detail: `${n} records could not be updated in search when a field was removed from their type: search may still show the removed field's text for them, or miss them.`,
+        next: NEXT.droppedFieldSearch,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: ${e instanceof Error ? e.message : String(e)}.`,
+      next: OK,
+    };
+  }
+}
+
 /**
  * Runs of Automations on record changes whose kept history may hold a value their person's access hides (24 Nov 2026). Before this release the trigger of such a Run carried the whole record and every
  * step could read it, so a person whose grant hides a field (hiddenFields) could have a Run, its kept trigger and the inputs and outputs of its steps, with that field's value in them; new Runs never keep it.
@@ -533,6 +564,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
+    findings.push(droppedFieldSearchFinding(paths.modules));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(
