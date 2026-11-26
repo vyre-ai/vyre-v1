@@ -178,7 +178,7 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
     recordId: string,
     fields: Record<string, unknown>,
   ): Promise<string> => {
-    if (!ctx.recordFieldGate) return titleOf(fields, recordId);
+    if (!ctx.recordFieldGate) return recordId; // a context without the host rule cannot judge the recipient: the plain id
     const got = await ctx.recordFieldGate(who, type, recordId).catch(() => null);
     const gate = got === "later" ? null : got; // when in doubt, the plain id
     if (gate === null) return recordId;
