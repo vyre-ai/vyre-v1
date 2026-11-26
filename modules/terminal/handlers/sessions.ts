@@ -953,6 +953,32 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   return { ticket, expiresAt, replay };
 }
 
+/**
+ * The address and ticket of the live stream of a session's screen (host/src/routes/terminal-stream.ts): the same access as attach, the same one-use ticket, but the ticket is sent as the first message of the
+ * WebSocket and not in its address (an address is logged and kept in history), and what comes down are numbered screen changes (watch.ts), not the whole screen every few hundred milliseconds.
+ */
+export async function stream(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
+  const host = await hostFor(ctx, x);
+  if (!host.capture || !host.stream)
+    raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
+  const now = ctx.now();
+  const ticket = ticketSecret();
+  const expiresAt = now + TICKET_MS;
+  ctx.db.run(
+    "INSERT INTO terminal_tickets (ticket_hash, terminal_id, person_id, expires_at, used_at) VALUES (?, ?, ?, ?, NULL)",
+    await sha256(ticket),
+    input.terminalId,
+    actorOf(ctx),
+    expiresAt,
+  );
+  touch(ctx.db, input.terminalId, now);
+  return { ws: `/terminals/${x.terminalId}/ws`, ticket, expiresAt };
+}
+
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
 
 /**
@@ -1318,7 +1344,7 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
 }
 
 /** A screen with its text changed: when rows were taken out (the run's typed line, hidden) the screen keeps its height and the cursor, which sits below them, moves up by as many. */
-function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
+export function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
   const before = r.text.split("\n").length;
   const after = text.split("\n").length;
   if (after >= before) return { ...r, text };

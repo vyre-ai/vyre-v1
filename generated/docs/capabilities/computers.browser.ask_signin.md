@@ -17,7 +17,7 @@ Ask the person to sign in for you in your browser (password, code, CAPTCHA): one
 | Audit | none |
 | Team Space only | no |
 | HTTP | POST /v1/computers/browser/ask_signin |
-| MCP tool | chrome_ask_signin (computer) |
+| MCP tool | browser_ask_signin (computer) |
 | CLI | none |
 | Emits | none |
 

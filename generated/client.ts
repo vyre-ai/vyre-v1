@@ -3111,6 +3111,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      stream: call("terminal.stream", 1),
       take_over: call("terminal.take_over", 1),
       workspace: call("terminal.workspace", 1),
     },

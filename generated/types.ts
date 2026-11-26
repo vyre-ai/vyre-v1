@@ -48511,6 +48511,14 @@ export type TerminalStatusOut = {
       exitCode: number | null;
     }>;
 };
+export type TerminalStreamIn = {
+  terminalId: string;
+};
+export type TerminalStreamOut = {
+  ws: string;
+  ticket: string;
+  expiresAt: number;
+};
 export type TerminalTakeOverIn = {
   terminalId: string;
 };
@@ -54034,6 +54042,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.stream": { in: TerminalStreamIn; out: TerminalStreamOut };
   "terminal.take_over": { in: TerminalTakeOverIn; out: TerminalTakeOverOut };
   "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };

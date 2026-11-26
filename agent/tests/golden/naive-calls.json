@@ -716,6 +716,9 @@
     "lengthMinutes": 5,
     "recordType": "contact"
   },
+  "browser_ask_signin": {
+    "why": "Quarterly planning"
+  },
   "browser_sites_list": {},
   "browser_sites_remove": {
     "siteId": "bsi_a1b2c3"
@@ -1087,9 +1090,6 @@
   "chrome_api": {
     "method": "GET",
     "url": "https://acme.test/plan"
-  },
-  "chrome_ask_signin": {
-    "why": "Quarterly planning"
   },
   "chrome_batch": {
     "steps": [
@@ -5895,6 +5895,9 @@
     "terminalIds": [
       "trm_a1b2c3"
     ]
+  },
+  "terminal_stream": {
+    "terminalId": "trm_a1b2c3"
   },
   "terminal_workspace": {
     "agentId": "agt_a1b2c3"

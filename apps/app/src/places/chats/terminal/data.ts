@@ -37,6 +37,8 @@ export interface TerminalData {
   /** An agent's name for the host list ("Intake's computer"). */
   nameOf?(agentId: string): string;
   newKey(): string;
+  /** Where relative stream addresses start (the Space's own address), for the live stream of a terminal's screen. */
+  spaceUrl?: string;
   clock(): { now: number; offsetMin: number };
   nav: TerminalNav;
 }

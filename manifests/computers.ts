@@ -632,7 +632,7 @@ export default defineManifest({
         on: ["thread", "/threadId"],
         level: "use",
         tool: "computer",
-        mcpName: "chrome_ask_signin",
+        mcpName: "browser_ask_signin",
         agent: { planMode: "allowed", blocks: ["question"] },
         errors: ["permission.no_grant", "validation.bad_input", "provider.unavailable"],
       },

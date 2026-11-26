@@ -9386,6 +9386,44 @@
       "v": 1
     },
     {
+      "blocks": [
+        "question"
+      ],
+      "cap": "computers.browser.ask_signin",
+      "deferred": false,
+      "description": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "site": {
+            "description": "The site, when you know it",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "description": "What to sign in to, in a sentence the person understands",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "browser_ask_signin",
+      "planMode": "allowed",
+      "toolset": "computer",
+      "v": 1
+    },
+    {
       "blocks": [],
       "cap": "browser.sites.list",
       "deferred": false,
@@ -13691,44 +13729,6 @@
       },
       "name": "chrome_api",
       "planMode": "blocked",
-      "toolset": "computer",
-      "v": 1
-    },
-    {
-      "blocks": [
-        "question"
-      ],
-      "cap": "computers.browser.ask_signin",
-      "deferred": false,
-      "description": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
-      "effects": "write",
-      "inputSchema": {
-        "properties": {
-          "site": {
-            "description": "The site, when you know it",
-            "maxLength": 200,
-            "type": "string"
-          },
-          "threadId": {
-            "examples": [
-              "thr_a1b2c3"
-            ],
-            "pattern": "^thr_[a-z0-9]+$",
-            "type": "string"
-          },
-          "why": {
-            "description": "What to sign in to, in a sentence the person understands",
-            "type": "string"
-          }
-        },
-        "required": [
-          "threadId",
-          "why"
-        ],
-        "type": "object"
-      },
-      "name": "chrome_ask_signin",
-      "planMode": "allowed",
       "toolset": "computer",
       "v": 1
     },
@@ -71782,6 +71782,32 @@
       },
       "name": "terminal_status",
       "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.stream",
+      "deferred": false,
+      "description": "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terminalId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_stream",
+      "planMode": "blocked",
       "toolset": "terminal",
       "v": 1
     },

@@ -3111,6 +3111,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      stream: call("terminal.stream"),
       take_over: call("terminal.take_over"),
       workspace: call("terminal.workspace"),
     },

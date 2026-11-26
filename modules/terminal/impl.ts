@@ -20,6 +20,9 @@ import {
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
+import { screenOf } from "./handlers/sessions.ts";
+import { createWatcher } from "./watch.ts";
+import type { Watcher } from "./watch.ts";
 import type { AccessDeps } from "./handlers/sessions.ts";
 import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
@@ -37,6 +40,7 @@ import {
   bindValues,
   bindWorkspaces,
   boundHost,
+  clean,
   hideRunLine,
   redeemTicket,
   scopeOfId,
@@ -908,6 +912,54 @@ export async function openFrames(
       carry = "";
       stop();
     },
+  };
+}
+
+/** One watcher per terminal, for the host that was bound when it was made: a host bound since (a daemon started again in this process) gets a watcher of its own, never the old one's. */
+const watchers = new Map<string, { host: TerminalHost; w: Watcher }>();
+
+/**
+ * The live stream of a session's screen (terminal.stream; host/src/routes/terminal-stream.ts): spends the ticket, joins the terminal's one watcher (watch.ts) and sends every numbered change as a JSON text. `since` is
+ * the number the viewer last had, for a viewer that is coming back. The screen passes through the same scrub as terminal.capture, so a Vault value filled into a command never reaches the viewer. Null when the
+ * ticket is unknown, spent, expired or for another session, or this host draws no screens.
+ */
+export async function openScreen(
+  db: Db,
+  terminalId: string,
+  ticket: string,
+  since: number | undefined,
+  now: number,
+  send: (text: string) => void,
+): Promise<{ terminalId: string; personId: string; stop(): void; resync(): void } | null> {
+  const host = boundHost();
+  if (!host?.capture || !host.stream) return null;
+  const who = await redeemTicket(db, ticket, now);
+  if (!who || who.terminalId !== terminalId) return null;
+  let w = watchers.get(terminalId)?.host === host ? watchers.get(terminalId)!.w : undefined;
+  if (!w) {
+    const scope = scopeOfId(db, terminalId);
+    w = createWatcher({
+      capture: async () => {
+        const r = await host.capture!(terminalId, { lines: 2000 });
+        return screenOf(r, clean(scope, r.text));
+      },
+      frames: (on) => host.stream!(terminalId, () => on()),
+    });
+    watchers.set(terminalId, { host, w });
+  }
+  const sub = await w.subscribe((m) => send(JSON.stringify(m)), since).catch(() => null);
+  if (!sub) {
+    if (w.viewers() === 0 && watchers.get(terminalId)?.w === w) watchers.delete(terminalId);
+    return null;
+  }
+  const mine = w;
+  return {
+    ...who,
+    stop() {
+      sub.stop();
+      if (mine.viewers() === 0 && watchers.get(terminalId)?.w === mine) watchers.delete(terminalId);
+    },
+    resync: () => sub.resync(),
   };
 }
 

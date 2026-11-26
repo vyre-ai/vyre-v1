@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (26)
+## Capabilities (27)
 
 - [terminal.ask_signin](../capabilities/terminal.ask_signin.md): Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
@@ -30,6 +30,7 @@ Requires: nothing.
 - [terminal.rules.set](../capabilities/terminal.rules.set.md): Change your allow, ask and deny rules and the extra folders (a Personal Space terminal is locked to its own folder plus these)
 - [terminal.run](../capabilities/terminal.run.md): Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed
 - [terminal.status](../capabilities/terminal.status.md): Live status of terminals for Home (state and last line read from tmux)
+- [terminal.stream](../capabilities/terminal.stream.md): Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys
 - [terminal.take_over](../capabilities/terminal.take_over.md): Take the keyboard of a terminal: the agent's commands and everyone else's keys are refused until you hand it back. Only the owner of the terminal or an admin can take it from another person
 - [terminal.workspace](../capabilities/terminal.workspace.md): An agent's workspace as the Terminal tab shows it: asleep, running, waiting for room (with the line) or not made yet, where it is, whether you may attach and why not; with no machine to run it, one plain line
 

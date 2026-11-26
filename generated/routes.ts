@@ -41194,6 +41194,25 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/terminal/stream",
+    "cap": "terminal.stream",
+    "v": 1,
+    "module": "terminal",
+    "effects": "write",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "terminal",
+      "id": "/terminalId"
+    },
+    "idempotency": "none",
+    "risk": "medium",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/terminal/take_over",
     "cap": "terminal.take_over",
     "v": 1,

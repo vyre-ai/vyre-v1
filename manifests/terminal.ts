@@ -424,6 +424,24 @@ export default defineManifest({
       },
     ),
     write(
+      "terminal.stream",
+      "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
+      {
+        in: target,
+        out: {
+          ws: t.str({ description: "The Space-relative address of the WebSocket (no ticket in it)" }),
+          ticket: t.str({ description: "Sent as the first message: {t:hello, ticket, rev}. One use, sixty seconds" }),
+          expiresAt: t.ts(),
+        },
+        on: ["terminal", "/terminalId"],
+        level: "view",
+        idem: "none",
+        audit: "none",
+        tool: "terminal",
+        errors: ["validation.not_found", "validation.precondition_failed", "permission.role_lacks_permission"],
+      },
+    ),
+    write(
       "terminal.run",
       "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       {

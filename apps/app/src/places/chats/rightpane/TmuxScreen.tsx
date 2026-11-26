@@ -3,12 +3,29 @@
 // What is typed is sent and forgotten here: nothing keeps it, and a hidden prompt does not print it, so no screen draws it.
 import { createElement, useEffect, useRef, useState } from "react";
 import { useSurface } from "./use-surface.ts";
-import { surfaceLine } from "./BrowserLive.tsx";
+import { SOCKET_DEAD_MS, SOCKET_PING_MS, socketUrl, surfaceLine } from "./BrowserLive.tsx";
+import { EMPTY_FEED, applyFeed, parseFeed } from "./terminal-feed.ts";
+import type { Feed } from "./terminal-feed.ts";
+import { isFinal } from "./surface.ts";
 import type { ReactElement } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 type Call = (cap: string, input: unknown) => Promise<unknown>;
 export type KeyPress = { text: string } | { key: string } | { paste: string };
+/** The answer of terminal.stream: where the socket is, and the ticket that is its first message. */
+export interface StreamOpen {
+  ws: string;
+  ticket: string;
+  expiresAt?: number;
+}
+const isStreamOpen = (v: unknown): v is StreamOpen =>
+  typeof v === "object" &&
+  v !== null &&
+  typeof (v as StreamOpen).ws === "string" &&
+  typeof (v as StreamOpen).ticket === "string";
+/** A ticket is good for a minute and opens once (modules/terminal/projections.ts TICKET_MS). */
+const STREAM_TICKET_MS = 60_000;
+
 export interface Capture {
   text: string;
   cols: number;
@@ -290,6 +307,7 @@ export function TmuxScreen({
   onSaid,
   onHidden,
   onUnsupported,
+  spaceUrl,
 }: {
   call: Call;
   terminalId: string;
@@ -305,16 +323,48 @@ export function TmuxScreen({
   onSaid?(line: string | null): void;
   onHidden?(hidden: boolean): void;
   onUnsupported?(): void;
+  /** Where relative stream addresses start (the Space's address), for the live stream of the screen. */
+  spaceUrl?: string | undefined;
 }): ReactElement | null {
   const [shot, setShot] = useState<Capture | null>(null);
-  // the screen reads that fail are not hidden any more (rc.44): twice in a row and the screen says Reconnecting, and after a while that it could not reach the terminal, with Try again; a read that works ends it
-  const surface = useSurface<Capture>(() => Promise.resolve(call("terminal.capture", { terminalId, lines: 2000 })) as Promise<Capture>, terminalId);
+  // the screen comes on a WebSocket of numbered changes (terminal.stream, rc.44) where the browser has one, and by a short poll of terminal.capture where it has not, or where the Space does not know the stream. One
+  // reconnecting surface (surface.ts) stands for whichever connection it is: it says Reconnecting and then "Couldn't reach the terminal" with Try again, instead of a screen that silently stopped.
+  const [streamOff, setStreamOff] = useState(false);
+  const wantStream =
+    Platform.OS === "web" && typeof (globalThis as { WebSocket?: unknown }).WebSocket === "function" && !streamOff;
+  const streamingRef = useRef(wantStream);
+  streamingRef.current = wantStream;
+  const surface = useSurface<Capture | StreamOpen>(
+    () => {
+      if (!streamingRef.current)
+        return Promise.resolve(call("terminal.capture", { terminalId, lines: 2000 })) as Promise<Capture>;
+      return (
+        Promise.resolve(call("terminal.stream", { terminalId })).then((v) => {
+          // an answer that is no address and ticket is a Space that does not stream: this screen goes on by polling
+          if (!isStreamOpen(v)) {
+            setStreamOff(true);
+            throw Object.assign(new Error("no stream"), { code: "validation.not_found" });
+          }
+          return v;
+        }) as Promise<StreamOpen>
+      ).catch((e: unknown) => {
+        const code = (e as { code?: unknown } | null)?.code;
+        if (typeof code === "string" && code.endsWith("precondition_failed")) onUnsupported?.();
+        // a Space that does not know the stream, or refuses it for good: this screen goes on by polling
+        else if (isFinal(e)) setStreamOff(true);
+        throw e;
+      });
+    },
+    `${terminalId}:${wantStream ? "stream" : "poll"}`,
+    wantStream ? STREAM_TICKET_MS : undefined,
+  );
   const surfaceRef = useRef(surface);
   surfaceRef.current = surface;
-  const fails = useRef(0);
+  const opened = surface.value && isStreamOpen(surface.value) ? surface.value : null;
   useEffect(() => {
-    if (surface.value) setShot((was) => nextShot(was, surface.value));
+    if (surface.value && !isStreamOpen(surface.value)) setShot((was) => nextShot(was, surface.value));
   }, [surface.value]);
+  const fails = useRef(0);
   // the xterm.js renderer: asked for once, kept off screen until its first frame is drawn, and never needed (the DOM screen below stays) when it cannot load or start
   const [xt, setXt] = useState<typeof import("./XTermView.tsx") | null>(null);
   const [xReady, setXReady] = useState(false);
@@ -395,6 +445,11 @@ export function TmuxScreen({
       } else if (!out.screen) kick.current();
     });
   useEffect(() => {
+    // the stream carries the screen: nothing is polled
+    if (wantStream) {
+      kick.current = () => undefined;
+      return undefined;
+    }
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let busy = false;
@@ -422,7 +477,8 @@ export function TmuxScreen({
         // the terminal ended: the last screen stays as it was and is not read again
         if (live && code === "validation.not_found") return;
         // a read that fails again and again is a lost connection, said out loud
-        if (live && ++fails.current >= 2 && surfaceRef.current.state.kind === "ready") surfaceRef.current.lost("the screen could not be read");
+        if (live && ++fails.current >= 2 && surfaceRef.current.state.kind === "ready")
+          surfaceRef.current.lost("the screen could not be read");
       }
       busy = false;
       if (live && again) {
@@ -451,7 +507,96 @@ export function TmuxScreen({
     };
     // the callbacks are read when called
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [call, terminalId]);
+  }, [call, terminalId, wantStream]);
+  // the stream: the ticket is the first message (never in the address); the screen is built from the numbered changes; a socket that closes, errors or goes quiet is a lost connection and the surface opens it again
+  // with a new ticket and the number the screen has, so what was missed comes with it; two refusals in a row and this screen goes on by polling
+  const feed = useRef<Feed>(EMPTY_FEED);
+  const refusals = useRef(0);
+  useEffect(() => {
+    if (!wantStream || opened === null) return undefined;
+    const WS = (globalThis as { WebSocket?: new (u: string) => WebSocket }).WebSocket;
+    if (!WS) return undefined;
+    const ws = new WS(socketUrl(spaceUrl, opened.ws));
+    let over = false;
+    let confirmed = false;
+    let heard = Date.now();
+    const lostIt = (why: string): void => {
+      if (over) return;
+      over = true;
+      surfaceRef.current.lost(why);
+    };
+    ws.onopen = () => {
+      heard = Date.now();
+      ws.send(
+        JSON.stringify({
+          t: "hello",
+          ticket: opened.ticket,
+          ...(feed.current.rev === undefined ? {} : { rev: feed.current.rev }),
+        }),
+      );
+    };
+    ws.onmessage = (e) => {
+      heard = Date.now();
+      if (typeof e.data !== "string") return;
+      const m = parseFeed(e.data);
+      if (m === null) return;
+      const r = applyFeed(feed.current, m);
+      feed.current = r.feed;
+      if (m.t === "screen" || m.t === "ok" || m.t === "diff") {
+        refusals.current = 0;
+        if (!confirmed) {
+          confirmed = true;
+          surfaceRef.current.connected();
+        }
+      }
+      if (r.capture) latest.current.show(r.capture);
+      if (r.resync) ws.send(JSON.stringify({ t: "resync" }));
+      if (r.refused !== undefined) {
+        if (++refusals.current >= 2) setStreamOff(true);
+        else lostIt(r.refused);
+      }
+    };
+    ws.onclose = () => lostIt("the socket closed");
+    ws.onerror = () => lostIt("the socket failed");
+    const beat = setInterval(() => {
+      if (over) return;
+      if (Date.now() - heard >= SOCKET_DEAD_MS) {
+        lostIt("nothing heard");
+        try {
+          ws.close();
+        } catch {
+          /* gone */
+        }
+        return;
+      }
+      try {
+        ws.send(JSON.stringify({ t: "ping", seq: 0 }));
+      } catch {
+        lostIt("the socket could not send");
+      }
+    }, SOCKET_PING_MS);
+    (beat as unknown as { unref?: () => void }).unref?.();
+    return () => {
+      over = true;
+      clearInterval(beat);
+      ws.onopen = null;
+      ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      try {
+        ws.close();
+      } catch {
+        /* gone */
+      }
+    };
+    // the callbacks are read when called
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantStream, opened, spaceUrl]);
+  // a new terminal or a screen that went back to polling starts with no numbers
+  useEffect(() => {
+    feed.current = EMPTY_FEED;
+    refusals.current = 0;
+  }, [terminalId, wantStream]);
   // stay on the last line unless the person scrolled up to read
   useEffect(() => {
     const e = el.current;
@@ -586,7 +731,9 @@ export function TmuxScreen({
       )}
       {line ? (
         <View testID="terminal-screen-state" accessibilityLiveRegion="polite" style={st.state}>
-          <Text style={st.stateText}>{line.text === "Couldn't reach the browser" ? "Couldn't reach the terminal" : line.text}</Text>
+          <Text style={st.stateText}>
+            {line.text === "Couldn't reach the browser" ? "Couldn't reach the terminal" : line.text}
+          </Text>
           {line.retry ? (
             <Pressable
               testID="terminal-screen-retry"
@@ -622,6 +769,11 @@ const st = StyleSheet.create({
     backgroundColor: "rgba(20,22,26,0.82)" as string,
   },
   stateText: { fontSize: 13, color: "#fff" as string },
-  stateBtn: { paddingVertical: 2, paddingHorizontal: 8, borderRadius: 6, backgroundColor: "rgba(255,255,255,0.18)" as string },
+  stateBtn: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.18)" as string,
+  },
   stateBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" as string },
 });

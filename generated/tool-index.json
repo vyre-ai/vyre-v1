@@ -1172,6 +1172,12 @@
     },
     {
       "deferred": false,
+      "name": "browser_ask_signin",
+      "summary": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "browser_sites_list",
       "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
       "toolset": "computer"
@@ -1768,12 +1774,6 @@
       "deferred": false,
       "name": "chrome_api",
       "summary": "Call a site backend with the session of this browser; non-GET calls pass the Gate",
-      "toolset": "computer"
-    },
-    {
-      "deferred": false,
-      "name": "chrome_ask_signin",
-      "summary": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
       "toolset": "computer"
     },
     {
@@ -10204,6 +10204,12 @@
       "deferred": false,
       "name": "terminal_status",
       "summary": "Live status of terminals for Home (state and last line read from tmux)",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_stream",
+      "summary": "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
       "toolset": "terminal"
     },
     {

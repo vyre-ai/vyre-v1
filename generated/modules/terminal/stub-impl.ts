@@ -28,6 +28,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.rules.set": async () => ({"rules":{"allow":["example"],"ask":["example"],"deny":["example"],"folders":["fld_a1b2c3"]}} as unknown) as never,
   "terminal.run": async () => ({"commandId":1,"durationMs":1,"exitCode":1,"output":"example","terminalId":"trm_a1b2c3","truncated":true} as unknown) as never,
   "terminal.status": async () => ({"rows":[{"exitCode":1,"lastCommand":"example","lastLine":"example","state":"running","terminalId":"trm_a1b2c3"}]} as unknown) as never,
+  "terminal.stream": async () => ({"expiresAt":1760000000000,"ticket":"example","ws":"example"} as unknown) as never,
   "terminal.take_over": async () => ({"lease":"example","nextSeq":1,"terminal":{"agentId":"agt_a1b2c3","by":{"kind":"agent","name":"Ember"},"cols":1,"computerId":"cmt_a1b2c3","createdAt":1760000000000,"cwd":"example","deviceId":"dev_a1b2c3","elsewhere":true,"exitCode":1,"heldBy":"usr_a1b2c3","host":"agent_computer","hostTitle":"Intake's computer","lastActiveAt":1760000000000,"name":"build","named":true,"ownerId":"usr_a1b2c3","rows":1,"runId":"run_a1b2c3","state":"running","terminalId":"trm_a1b2c3","threadId":"thr_a1b2c3"}} as unknown) as never,
   "terminal.workspace": async () => ({"canAttach":true,"cannotAttach":"example","host":"space","line":"example","nodeId":"example","ownPlace":true,"projects":["prj_a1b2c3"],"state":"running","takeOver":true} as unknown) as never,
 };
