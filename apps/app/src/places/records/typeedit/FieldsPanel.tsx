@@ -16,6 +16,7 @@ import {
   addableTypes,
   canSeal,
   confirmLine,
+  dropBusyLine,
   connectChoices,
   linkFieldOps,
   namesOf,
@@ -1118,15 +1119,19 @@ function FieldEdit({
       ) : null}
       {staged !== null ? (
         <ConfirmLine
-          text={confirmLine(
-            staged.ops[0]?.op === "field.drop"
-              ? "field.drop"
-              : staged.ops[0]?.toType === "sealed"
-                ? "field.seal"
-                : "field.retype",
-            f.title,
-            staged.rows,
-          )}
+          text={
+            change.busy && staged.ops[0]?.op === "field.drop"
+              ? dropBusyLine(f.title, staged.rows)
+              : confirmLine(
+                  staged.ops[0]?.op === "field.drop"
+                    ? "field.drop"
+                    : staged.ops[0]?.toType === "sealed"
+                      ? "field.seal"
+                      : "field.retype",
+                  f.title,
+                  staged.rows,
+                )
+          }
           busy={change.busy}
           confirmLabel={
             staged.ops[0]?.op === "field.drop" ? "Delete" : staged.ops[0]?.toType === "sealed" ? "Seal" : "Change type"
