@@ -1083,4 +1083,4 @@ Signed: 26 Nov 2026, lead.
 - A health check that fails because the host refuses an unwired service (an `internal.not_implemented` whose details carry `reason: "not_set_up"`, set where the host refuses a service the Space does not have) reads as not set up (healthy, notSetUp) and no longer as down with "The check could not run"; it pauses nothing. Any other failure stays down with its message as the detail and still pauses its areas: `internal.unavailable` (a broken event chain, access being re-checked, approvals not available) and a capability with no handler included.
 - Snapshots: docs/frozen/snapshots/health.json.
 
-Signed:
+Signed: 27 Nov 2026, lead.
