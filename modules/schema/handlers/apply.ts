@@ -476,7 +476,7 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
     case "formula": {
       let names: Set<string>;
       try {
-        names = new Set<string>([...exprNames(parseExpr(String(o["expr"])))].map(String));
+        names = new Set([...exprNames(parseExpr(String(o["expr"])))].map(String));
       } catch (e) {
         return no(`field ${f.key}: the formula does not parse (${e instanceof Error ? e.message : "error"})`);
       }

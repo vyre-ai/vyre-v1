@@ -7,6 +7,7 @@ import {
   ADDABLE,
   canSeal,
   confirmLine,
+  dropBusyLine,
   linkFieldOps,
   sealBlocked,
   sealFieldOps,
@@ -101,4 +102,9 @@ test("sealing: Sealed can be added, only text-like fields can be sealed, and the
   ]);
   assert.match(confirmLine("field.seal", "Tax ID", 50), /50 values move into the Vault\. This cannot be undone/);
   assert.equal(sensitiveKind("id_number"), "an ID number");
+});
+
+test("while a field is being deleted the line says which field and how many records", () => {
+  assert.equal(dropBusyLine("Notes", 9500), "Removing Notes from 9500 records…");
+  assert.equal(dropBusyLine("Notes", 1), "Removing Notes from 1 record…");
 });

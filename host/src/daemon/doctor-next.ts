@@ -18,4 +18,10 @@ export const NEXT = {
     "The records are safe in the Space, but search, sync and Run undo do not see them. Report the count to support.",
   hiddenRunData:
     "Runs made before this release kept the record's fields in their history, among them fields the person's access hides. Nothing is changed by this check. Report the counts to support before anyone clears the history.",
+  searchRemovedText:
+    "The one-time check of the search index reads the records again by itself, a few at a time, and takes the old text out. Run the doctor again in a few minutes; if the count does not go down, report it to support.",
+  purgeOwedCompact:
+    "Run the planned compact (vyre-server compact) in a quiet window. Until then the removed values are zeroed in the file but its freed pages stay.",
+  journalNotFolded:
+    "Restart the server in a quiet moment (vyre-server restart); the journal is folded at the next start. Until then the search index's journal file may still hold text that was removed.",
 } as const;

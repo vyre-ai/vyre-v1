@@ -1,0 +1,1 @@
+- The purge of a dropped field cleans a type in one pass, a page at a time, and writes each page's rows again before it erases their old events, so a stop in the middle never loses a record; a newer drop of the same field is left alone.
