@@ -696,7 +696,7 @@ export class AccessStore {
    * Every row of the durable tables as this store holds it: table, primary key columns, and each row's columns. `persist` compares this with what the store last read or wrote, so it writes
    * only what this store changed. A call holds its own copy of the store (hydrated when the call began), and a whole-table rewrite from an older copy wrote away the rows other calls had added since.
    */
-  private rows(): Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> {
+  private rows(withResources = true): Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> {
     const out: Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> = [];
     const add = (table: string, pk: string[], cols: string[], vals: unknown[]): void => {
       out.push({ table, pk, cols, vals });
@@ -747,13 +747,9 @@ export class AccessStore {
       for (const roleId of roles)
         add("access_assignments", ["holder", "role_id"], ["holder", "role_id"], [holder, roleId]);
     for (const g of this.grants.values()) add("access_grants", ["id"], GRANT_COLS, grantVals(g));
-    for (const r of this.resources.values())
-      add(
-        "access_resources",
-        ["id"],
-        ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"],
-        [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null],
-      );
+    if (withResources)
+      for (const r of this.resources.values())
+        add("access_resources", ["id"], SHAPES["access_resources"]!.cols, resourceVals(r));
     for (const p of this.policies.values())
       add(
         "access_policies",
@@ -787,9 +783,9 @@ export class AccessStore {
   }
 
   /** The rows as they stand now, by table and key, as the comparison `persist` makes next time. */
-  private baseline(): Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> {
+  private baseline(withResources = true): Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> {
     const by = new Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }>();
-    for (const r of this.rows()) {
+    for (const r of this.rows(withResources)) {
       let t = by.get(r.table);
       if (!t) {
         t = { pk: r.pk, cols: r.cols, vals: new Map() };
@@ -801,6 +797,12 @@ export class AccessStore {
   }
 
   private base: Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> | null = null;
+  /**
+   * The resource rows as this store last read or wrote them, field by field (not as JSON): the table that grows with the Space (38,000 rows on a firm's) is not worked out into JSON on every commit to
+   * find the few rows a handler changed. A resource is unchanged when its fields and its `row` object are the ones recorded; handlers replace `row`, they never edit it in place. Null where this store has no
+   * copy of the table to compare with (it was seeded, or not read), and then every resource is written.
+   */
+  private resBase: Map<string, ResourceRec> | null = null;
   /** The rows hydrate read, until the first persist turns them into `base`. Building the comparison only when something is written keeps a read of the store cheap. */
   private raw: Map<string, Record<string, unknown>[]> | null = null;
 
@@ -810,6 +812,7 @@ export class AccessStore {
     for (const [table, rows] of this.raw) {
       const shape = SHAPES[table];
       if (!shape) continue;
+      if (table === "access_resources" && this.resBase) continue;
       const vals = new Map<string, unknown[]>();
       for (const row of rows)
         vals.set(
@@ -823,7 +826,8 @@ export class AccessStore {
 
   /** Write what this store changed since it last read or wrote the tables: a changed or new row is upserted, a row it dropped is deleted, and nothing else is touched. */
   persist(db: Db): void {
-    const now = this.baseline();
+    const byFields = persistMode.resourcesByFields;
+    const now = this.baseline(!byFields);
     const was = this.base ?? this.fromRaw();
     for (const [table, t] of now) {
       const before = was?.get(table)?.vals;
@@ -860,6 +864,45 @@ export class AccessStore {
     }
     this.base = now;
     this.raw = null;
+    if (byFields) this.persistResourceRows(db);
+  }
+
+  /** The resource rows that differ from the rows this store read or wrote: upserted, and deleted where the store dropped them. Costs one comparison of fields per resource, no JSON of the unchanged ones. */
+  private persistResourceRows(db: Db): void {
+    const was = this.resBase;
+    const next = was ?? new Map<string, ResourceRec>();
+    const cols = SHAPES["access_resources"]!.cols;
+    const sql = `INSERT OR REPLACE INTO access_resources (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`;
+    let seen = 0;
+    for (const r of this.resources.values()) {
+      const s = was?.get(r.id);
+      if (s) {
+        seen++;
+        if (
+          s.type === r.type &&
+          s.parentId === r.parentId &&
+          s.label === r.label &&
+          s.ownerId === r.ownerId &&
+          s.holds === r.holds &&
+          s.row === r.row
+        )
+          continue;
+        // the fields moved but the row it would write is the same (a row replaced by an equal one): not written, as before
+        if (JSON.stringify(resourceVals(s)) === JSON.stringify(resourceVals(r))) {
+          next.set(r.id, { ...r });
+          continue;
+        }
+      }
+      db.run(sql, ...resourceVals(r));
+      next.set(r.id, { ...r });
+    }
+    if (was && was.size > seen)
+      for (const id of [...was.keys()])
+        if (!this.resources.has(id)) {
+          db.run(`DELETE FROM access_resources WHERE "id" = ?`, id);
+          was.delete(id);
+        }
+    this.resBase = next;
   }
 
   /**
@@ -933,6 +976,11 @@ export class AccessStore {
       this.raw = null;
     }
     const note = (table: string, key: unknown[], vals: unknown[]): void => {
+      if (table === "access_resources" && this.resBase) {
+        const r = this.resources.get(String(key[0]));
+        if (r) this.resBase.set(r.id, { ...r });
+        return;
+      }
       if (!this.base) return;
       let t = this.base.get(table);
       const shape = SHAPES[table]!;
@@ -947,7 +995,7 @@ export class AccessStore {
       for (const id of new Set(ids)) {
         // an id named twice is written once
         const r = this.resources.get(id);
-        if (r) rows.push([r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
+        if (r) rows.push(resourceVals(r));
       }
       // a hundred objects to a statement: a thousand new objects were two thousand statements, each through the guard and the trigger that moves the write counter
       for (let i = 0; i < rows.length; i += 100) {
@@ -1029,6 +1077,7 @@ export class AccessStore {
     this.assignments.clear();
     this.fieldLabels.clear();
     this.catalogue.clear();
+    const shadow = persistMode.resourcesByFields ? new Map<string, ResourceRec>() : null;
     const meta = read("access_meta") as { epoch: number }[];
     for (const r of read("access_roles") as Record<string, unknown>[]) {
       const permissions = JSON.parse(String(r.permissions)) as string[];
@@ -1113,6 +1162,7 @@ export class AccessStore {
       };
       if (r.row_json) rec.row = JSON.parse(String(r.row_json)) as Record<string, unknown>;
       this.resources.set(rec.id, rec);
+      shadow?.set(rec.id, { ...rec });
     }
     for (const p of read("access_policies") as Record<string, unknown>[]) {
       const rec: PolicyRec = {
@@ -1153,8 +1203,15 @@ export class AccessStore {
     this.snap = null;
     this.snapEpoch = -1;
     this.base = null;
+    if (shadow) raw.delete("access_resources");
+    this.resBase = shadow;
     this.raw = raw;
   }
+}
+
+/** A resource as access_resources holds it, in the order of the table's columns. */
+function resourceVals(r: ResourceRec): unknown[] {
+  return [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
 }
 
 /** A resource as the authorize snapshot holds it. */
@@ -1248,7 +1305,7 @@ export interface GrantChange {
 }
 type GrantCtx = Pick<AccessCtx, "db" | "emit" | "principal">;
 /** For the tests: false makes grant handlers read and write the whole store, as every handler did, to compare the tables the two ways leave. */
-export const persistMode = { targeted: true };
+export const persistMode = { targeted: true, resourcesByFields: true };
 let grantAdopter: ((ctx: GrantCtx, change: GrantChange) => void) | null = null;
 export function setGrantAdopter(f: (ctx: GrantCtx, change: GrantChange) => void): void {
   grantAdopter = f;
@@ -1493,7 +1550,7 @@ export function sealStore(store: AccessStore): AccessStore {
   READ_VIEWS.add(store);
   const rec = store as unknown as Record<string, unknown>;
   for (const [k, v] of Object.entries(rec)) {
-    if (k === "base" || k === "raw") continue; // what persist compares against: the store's own, never read by a capability
+    if (k === "base" || k === "raw" || k === "resBase") continue; // what persist compares against: the store's own, never read by a capability
     if (v instanceof Map) {
       const m = new SealedMap(v);
       for (const x of m.values()) deepFreeze(x);

@@ -1,0 +1,1 @@
+A change to who may see what (a role, a group, a person) no longer turns every one of a Space's resources into text to find the few rows to write: the access store compares each resource field by field with what it last read or wrote, and writes only the rows that differ.
