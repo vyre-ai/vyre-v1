@@ -3092,6 +3092,11 @@ export function stubs(ctx: CallCtx) {
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
+      job: {
+        list: call("terminal.job.list"),
+        start: call("terminal.job.start"),
+        stop: call("terminal.job.stop"),
+      },
       keys: call("terminal.keys"),
       list: call("terminal.list"),
       log: {

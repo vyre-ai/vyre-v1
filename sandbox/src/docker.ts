@@ -310,6 +310,8 @@ export interface ContainerConfig {
     /** A soft memory limit: the container may use up to Memory when the host has room, and gives it back first when the host is busy. */
     MemoryReservation?: number;
     CpuShares?: number;
+    /** Docker brings the container back after a reboot or a crash unless it was stopped on purpose. */
+    RestartPolicy?: { Name: "no" | "unless-stopped"; MaximumRetryCount?: number };
     Init: boolean;
     AutoRemove: boolean;
     Ulimits: Array<{ Name: string; Soft: number; Hard: number }>;

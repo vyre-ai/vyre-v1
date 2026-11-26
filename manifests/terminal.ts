@@ -84,6 +84,18 @@ const listIn = {
   ...pageIn,
 };
 
+const jobRow = t.obj({
+  jobId: t.str({ pattern: "^job_[a-f0-9]{12}$", examples: ["job_a1b2c3d4e5f6"] }),
+  name: t.str(),
+  command: t.str(),
+  state: t.enm("starting", "running", "restarting", "stopped", "done", "failed"),
+  restart: t.enm("on-failure", "always", "never"),
+  startedAt: t.opt(t.ts()),
+  restarts: t.int(),
+  exitCode: t.opt(t.nullable(t.int())),
+  lastLine: t.opt(t.str({ description: "The last line the job printed" })),
+});
+
 export default defineManifest({
   id: "terminal",
   title: "Terminal",
@@ -439,6 +451,76 @@ export default defineManifest({
         audit: "none",
         tool: "terminal",
         errors: ["validation.not_found", "validation.precondition_failed", "permission.role_lacks_permission"],
+      },
+    ),
+    write(
+      "terminal.job.start",
+      "Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run",
+      {
+        in: {
+          command: t.str(),
+          name: t.opt(t.str({ maxLength: 80, description: "What the person sees in the list. Left out: the command" })),
+          cwd: t.opt(t.str()),
+          env: t.opt(t.rec(t.str({ description: "A literal value, never a Vault handle" }))),
+          // when it ends: start it again after a failure (the default), always, or never
+          restart: t.opt(t.enm("on-failure", "always", "never")),
+          agentId: t.opt(id.agent),
+        },
+        out: { job: jobRow },
+        level: "use",
+        perm: "terminal.use",
+        tool: "terminal",
+        mcpName: "terminal_job_start",
+        gate: { act: "approve", when: "terminal.is_danger(input.command)" },
+        agent: { planMode: "blocked", blocks: ["terminal"] },
+        idem: "key",
+        audit: "sensitive",
+        risk: "high",
+        offline: "online",
+        errors: [
+          "permission.needs_approval",
+          "permission.role_lacks_permission",
+          "validation.bad_input",
+          "validation.precondition_failed",
+          "internal.unavailable",
+        ],
+      },
+    ),
+    write(
+      "terminal.job.stop",
+      "Stop a background job of your computer; it stays in the list as stopped, with its log",
+      {
+        in: {
+          jobId: t.str({ pattern: "^job_[a-f0-9]{12}$", examples: ["job_a1b2c3d4e5f6"] }),
+          agentId: t.opt(id.agent),
+        },
+        out: { job: jobRow },
+        level: "use",
+        perm: "terminal.use",
+        tool: "terminal",
+        mcpName: "terminal_job_stop",
+        agent: { planMode: "blocked", blocks: ["terminal"] },
+        idem: "natural",
+        audit: "sensitive",
+        offline: "online",
+        errors: [
+          "permission.role_lacks_permission",
+          "validation.not_found",
+          "validation.precondition_failed",
+          "internal.unavailable",
+        ],
+      },
+    ),
+    read(
+      "terminal.job.list",
+      "The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer",
+      {
+        in: { agentId: t.opt(id.agent) },
+        out: { jobs: t.arr(jobRow) },
+        level: "view",
+        tool: "terminal",
+        mcpName: "terminal_job_list",
+        errors: ["permission.role_lacks_permission", "validation.precondition_failed", "internal.unavailable"],
       },
     ),
     write(

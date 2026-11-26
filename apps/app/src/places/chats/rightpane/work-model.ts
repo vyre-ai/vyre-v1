@@ -27,6 +27,39 @@ export interface WorkspaceSession {
   /** people attached right now; left out when not known */ attached?: number;
   lastActiveAt?: number;
 }
+/** A background job the agent keeps running on its computer (terminal.job.list). */
+export interface JobView {
+  jobId: string;
+  name: string;
+  state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+  restarts: number;
+  exitCode?: number | null | undefined;
+  lastLine?: string | undefined;
+}
+
+/** The two words of a job's row: the line under its name and the state at its right. */
+export function jobWords(j: JobView): { note: string; word: string; dot: "run" | "wait" | "idle" | "dead" } {
+  const again = j.restarts > 0 ? ` Restarted ${j.restarts} ${j.restarts === 1 ? "time" : "times"}.` : "";
+  switch (j.state) {
+    case "running":
+      return { note: `${j.lastLine ?? "Running"}${j.lastLine ? "" : "."}${again}`.trim(), word: "Running", dot: "run" };
+    case "starting":
+      return { note: "Starting.", word: "Starting", dot: "wait" };
+    case "restarting":
+      return { note: `Ended, starting again.${again}`, word: "Restarting", dot: "wait" };
+    case "stopped":
+      return { note: "Stopped. Its log is kept.", word: "Stopped", dot: "idle" };
+    case "done":
+      return { note: "Finished.", word: "Done", dot: "idle" };
+    default:
+      return {
+        note: `Ended with an error${j.exitCode != null ? ` (code ${j.exitCode})` : ""}.`,
+        word: "Failed",
+        dot: "dead",
+      };
+  }
+}
+
 export interface WorkspaceView {
   state: WorkspaceState;
   /** Where it runs: "the Space server", or a compute server's name. */
@@ -37,6 +70,8 @@ export interface WorkspaceView {
   sessions: readonly WorkspaceSession[];
   /** The folders it has beside its own: the projects it is on. */
   projects?: readonly string[];
+  /** The background jobs it keeps running (a server, a watcher, a bot): left out when it has none or is asleep. */
+  jobs?: readonly JobView[];
   /** May this person attach? A person for their own Assistant's workspace; an owner or admin for a team agent's. */
   canAttach: boolean;
   /** This person works in a place of their own on a shared agent's computer: the tab says it is theirs. */ ownPlace?: boolean;
@@ -50,6 +85,8 @@ export interface WorkspaceData {
   watch(agentId: string, on: (v: WorkspaceView) => void): () => void;
   /** Start it when it sleeps. Resolves when it runs; rejects with a sentence. */
   wake(agentId: string): Promise<void>;
+  /** Stop one of its background jobs. Rejects with a sentence. Left out where the host has no jobs. */
+  stopJob?(agentId: string, jobId: string): Promise<void>;
   /** Attach the person's Terminal tab to its tmux sessions (the same sessions the agent uses). Wakes it first. Rejects with a sentence. */
   attach(agentId: string): Promise<void>;
   /** The agent's own terminal is open before anyone asks (13 Nov: nobody presses Attach). Never wakes the computer for a person who may not enter it; resolves with the terminal's id when it is there. */

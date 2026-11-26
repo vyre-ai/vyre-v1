@@ -50,6 +50,7 @@ import {
   touch,
   workspacesFor,
   boundWorkspaceStatus,
+  boundWorkspaceJobs,
   boundChatFolder,
   boundNotes,
   boundPlaceGrant,
@@ -2437,6 +2438,110 @@ export async function askSignin(
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
   })) as { blockId: string; messageId: string };
   return { blockId: asked.blockId, messageId: asked.messageId };
+}
+
+// ---- background jobs (rc.44) ---------------------------------------------------------------------------------------------------------------------------
+
+const MAX_JOB_ENV = 40;
+const JOB_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const HANDLE_ONLY = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+
+/** Whose workspace a job call is about: an agent's own (it may leave the agent out), or the agent a person names whose computer they may enter. */
+async function jobAgent(ctx: TermCtx, agentId: string | undefined): Promise<string> {
+  const id = agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
+  if (id === undefined) raise(ctx, "validation.bad_input", "Name the agent whose computer this is.");
+  if (ctx.principal.kind === "agent" && ctx.principal.id !== id)
+    raise(ctx, "permission.role_lacks_permission", "An agent keeps jobs on its own computer only.", {
+      reason: "not_your_computer",
+    });
+  await needWorkspace(ctx, id);
+  if (boundWorkspaceJobs() === null)
+    raise(ctx, "validation.precondition_failed", isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, {
+      reason: "no_workspace",
+    });
+  return id;
+}
+
+/**
+ * Keep a command running on the agent's computer (27 Nov 2026, rc.44; the owner's pattern: a computer sleeps when idle and wakes fast on any trigger, but a job the agent starts keeps it awake until the job ends).
+ * The workspace's supervisor starts it, starts it again when it dies (`restart`), keeps its log, and starts it again after a restart of the daemon, a sleep and wake, or a reboot of the host. The command goes
+ * through the same Gate as terminal.run (a destructive command is held for a yes). It is the agent's own user, in the agent's home, like any command; no Vault value is filled into it.
+ */
+export async function jobStart(
+  ctx: TermCtx,
+  input: {
+    command: string;
+    name?: string;
+    cwd?: string;
+    env?: Record<string, string>;
+    restart?: "on-failure" | "always" | "never";
+    agentId?: string;
+    idempotencyKey?: string;
+  },
+) {
+  ensure(ctx.db);
+  const command = input.command.trim();
+  if (command === "" || command.length > MAX_COMMAND_CHARS)
+    raise(ctx, "validation.bad_input", "Give the command to keep running, up to 20,000 characters.");
+  const env = input.env ?? {};
+  const names = Object.keys(env);
+  if (names.length > MAX_JOB_ENV || names.some((k) => !JOB_ENV_NAME.test(k)))
+    raise(ctx, "validation.bad_input", "A job takes at most 40 environment variables with plain names.");
+  for (const k of names) {
+    const v = env[k]!;
+    if (v.length > 4000) raise(ctx, "validation.bad_input", `The value of ${k} is too long.`);
+    if (HANDLE_ONLY.test(v))
+      raise(
+        ctx,
+        "validation.bad_input",
+        "A job cannot be given a Vault value yet: put it where the program reads it from.",
+        {
+          reason: "no_handles",
+        },
+      );
+  }
+  const agentId = await jobAgent(ctx, input.agentId);
+  const jobs = boundWorkspaceJobs()!;
+  const name = (input.name ?? command).trim().replace(/\s+/g, " ").slice(0, 80);
+  try {
+    const row = await jobs.start(agentId, {
+      name,
+      command,
+      ...(input.cwd === undefined || input.cwd.trim() === "" ? {} : { cwd: input.cwd.trim().slice(0, 500) }),
+      ...(names.length === 0 ? {} : { env }),
+      restart: input.restart ?? "on-failure",
+    });
+    return { job: scrubbedJob(agentId, row) };
+  } catch (e) {
+    return unexpected(ctx, "start the job", e);
+  }
+}
+
+/** Ask a job to stop. The row as it stands a moment later (stopped, or still stopping). A job that is not there is not found. */
+export async function jobStop(ctx: TermCtx, input: { jobId: string; agentId?: string; idempotencyKey?: string }) {
+  ensure(ctx.db);
+  const agentId = await jobAgent(ctx, input.agentId);
+  try {
+    const row = await boundWorkspaceJobs()!.stop(agentId, input.jobId);
+    if (row === null) raise(ctx, "validation.not_found", "There is no such job.", { jobId: input.jobId });
+    return { job: scrubbedJob(agentId, row) };
+  } catch (e) {
+    if ((e as { error?: { code?: string } } | null)?.error?.code !== undefined) throw e;
+    return unexpected(ctx, "stop the job", e);
+  }
+}
+
+/** What a job printed is scrubbed of Vault values like every other reading of the computer's output. */
+const scrubbedJob = <T extends { lastLine?: string }>(agentId: string, row: T): T =>
+  row.lastLine === undefined
+    ? row
+    : { ...row, lastLine: clean(scopeOf({ terminalId: "", host: "agent_computer", agentId }), row.lastLine) };
+
+/** The agent's jobs, newest first: what is running, what ended and how, and the last line each printed. Never wakes the computer. */
+export async function jobList(ctx: TermCtx, input: { agentId?: string }) {
+  ensure(ctx.db);
+  const agentId = await jobAgent(ctx, input.agentId);
+  return { jobs: (await boundWorkspaceJobs()!.list(agentId)).map((r) => scrubbedJob(agentId, r)) };
 }
 
 /** The Gate's condition on terminal.run (`terminal.is_danger(input.command)`): red commands are held for a yes. Anything unreadable counts as red. */

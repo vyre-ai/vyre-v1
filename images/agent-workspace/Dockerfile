@@ -52,6 +52,11 @@ RUN mkdir -p -m 0711 /people \
 RUN mkdir -p /shared/projects /shared/chats /shared/Vyre \
  && chown -R 10001:10001 /shared && chmod 0711 /shared /shared/projects /shared/chats && chmod 0700 /shared/Vyre
 
+# The job supervisor (rc.44): the container's one program. It starts what the agent asked for as background jobs (~/.vyre/jobs), restarts a job that dies, keeps its log, and, because Docker restarts the container after a
+# reboot, starts them all again. Owned by root and not writable by the agent: the agent changes jobs only through their folders. See supervisor.mjs.
+COPY supervisor.mjs /opt/vyre/supervisor.mjs
+RUN chmod 0644 /opt/vyre/supervisor.mjs
+
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf
 
@@ -62,5 +67,5 @@ ENV HOME=/home/agent \
 
 USER 10001:10001
 WORKDIR /home/agent
-# Created with Init: true, so a process that dies is reaped by Docker's init. The container only has to stay up; every command is a `docker exec`.
-CMD ["sleep", "infinity"]
+# Created with Init: true, so a process that dies is reaped by Docker's init. The supervisor keeps the container up and runs the agent's background jobs; every other command is a `docker exec`.
+CMD ["node", "/opt/vyre/supervisor.mjs"]

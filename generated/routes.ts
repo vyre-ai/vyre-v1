@@ -40917,6 +40917,60 @@ const routes7: Route[] = [
   },
   {
     "method": "POST",
+    "path": "/v1/terminal/job/list",
+    "cap": "terminal.job.list",
+    "v": 1,
+    "module": "terminal",
+    "effects": "read",
+    "permission": null,
+    "level": "view",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "low",
+    "offline": null,
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
+    "path": "/v1/terminal/job/start",
+    "cap": "terminal.job.start",
+    "v": 1,
+    "module": "terminal",
+    "effects": "write",
+    "permission": "terminal.use",
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "key",
+    "risk": "high",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": "approve"
+  },
+  {
+    "method": "POST",
+    "path": "/v1/terminal/job/stop",
+    "cap": "terminal.job.stop",
+    "v": 1,
+    "module": "terminal",
+    "effects": "write",
+    "permission": "terminal.use",
+    "level": "use",
+    "resource": {
+      "type": "space"
+    },
+    "idempotency": "natural",
+    "risk": "medium",
+    "offline": "online",
+    "teamOnly": false,
+    "gate": null
+  },
+  {
+    "method": "POST",
     "path": "/v1/terminal/keys",
     "cap": "terminal.keys",
     "v": 1,

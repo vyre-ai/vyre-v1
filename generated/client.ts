@@ -3092,6 +3092,11 @@ export function createClient(transport: Transport) {
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
+      job: {
+        list: call("terminal.job.list", 1),
+        start: call("terminal.job.start", 1),
+        stop: call("terminal.job.stop", 1),
+      },
       keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
       log: {

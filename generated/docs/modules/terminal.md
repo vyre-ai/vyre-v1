@@ -4,7 +4,7 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: nothing.
 
-## Capabilities (27)
+## Capabilities (30)
 
 - [terminal.ask_signin](../capabilities/terminal.ask_signin.md): Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done
 - [terminal.attach](../capabilities/terminal.attach.md): Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands
@@ -15,6 +15,9 @@ Requires: nothing.
 - [terminal.health](../capabilities/terminal.health.md): Health of tmux and the session relay on the host
 - [terminal.input](../capabilities/terminal.input.md): Send keystrokes to a session (a person typing in the terminal tab; output returns as live frames)
 - [terminal.interrupt](../capabilities/terminal.interrupt.md): Send Ctrl-C to a session
+- [terminal.job.list](../capabilities/terminal.job.list.md): The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer
+- [terminal.job.start](../capabilities/terminal.job.start.md): Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run
+- [terminal.job.stop](../capabilities/terminal.job.stop.md): Stop a background job of your computer; it stays in the list as stopped, with its log
 - [terminal.keys](../capabilities/terminal.keys.md): Press keys in a session as a person at a keyboard does: text, a named key (Enter, Tab, Up, C-c, F5 ...) or a paste as one write, raw through tmux; for a person who holds the keyboard. Never stored or logged: what is typed at a hidden prompt does not reach the stored log, other viewers or the agent
 - [terminal.list](../capabilities/terminal.list.md): List terminal sessions you can see, including named leftover scripts
 - [terminal.log.list](../capabilities/terminal.log.list.md): The commands of a terminal, newest first, and whether the output of each is still kept (a week after it ended)

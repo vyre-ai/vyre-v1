@@ -26,6 +26,8 @@ import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
 
 export const DEFAULT_WORKSPACE_IMAGE = "vyre/agent-workspace:1";
+/** The program a workspace container runs: the job supervisor of its image (images/agent-workspace/supervisor.mjs). */
+export const WORKSPACE_SUPERVISOR = "/opt/vyre/supervisor.mjs";
 export const WORKSPACE_PREFIX = "vyre-ws-";
 export const PROJECT_VOLUME_PREFIX = "vyre-wsproj-";
 export const WORKSPACE_HOME = "/home/agent";
@@ -276,6 +278,12 @@ export interface WorkspaceManager {
   hostVolumes(): Promise<VolumeUse[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
+  /** The agent's background jobs. A look: it never wakes the workspace (asleep, there is nothing running to show). */
+  jobList(agentId: string): Promise<JobRow[]>;
+  /** Keep a command running in the workspace (woken if asleep): the supervisor starts it, starts it again when it dies, and keeps the workspace awake until it ends. */
+  jobStart(agentId: string, spec: JobSpec): Promise<JobRow>;
+  /** Ask a job to stop; the row as it stands after a moment. Null when the workspace has no such job. */
+  jobStop(agentId: string, jobId: string): Promise<JobRow | null>;
   /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
   freshen(agentId: string, ms?: number): Promise<boolean>;
   /** Something changed in Files (the folders and file the event names): the slowed mirrors it touches make their next pass soon. */
@@ -312,11 +320,91 @@ export const BUSY_SCRIPT = [
   '  [ "$1" = Z ] && continue',
   '  [ "$2" = 0 ] || [ "$2" = "$$" ] && continue; case "$t" in *" $2 "*) continue;; esac',
   '  case "$panes" in *" $p "*) continue;; esac',
-  "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
+  "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; [ \"$c\" = 'node /opt/vyre/supervisor.mjs ' ] && continue; fi",
   "  echo \"$p $(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null | cut -c1-80)\"",
   "done",
   "true",
 ].join("\n");
+
+// ---- background jobs ----------------------------------------------------------------------------------------------------------------------------------
+
+/** What an agent asked to keep running, and how it is doing (images/agent-workspace/supervisor.mjs writes the status). */
+export interface JobRow {
+  jobId: string;
+  name: string;
+  command: string;
+  state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+  restart: "on-failure" | "always" | "never";
+  startedAt?: number;
+  restarts: number;
+  exitCode?: number | null;
+  /** The last line the job printed. */
+  lastLine?: string;
+}
+export interface JobSpec {
+  name: string;
+  command: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  restart: "on-failure" | "always" | "never";
+}
+const JOB_ID = /^job_[a-f0-9]{12}$/;
+/** Lists every job of the workspace as one JSON document: its spec, its status and the end of its log. Plain node, no shell. */
+export const JOBS_LIST_SCRIPT =
+  'const fs=require("fs"),p=require("path");const root=p.join(process.env.HOME,".vyre","jobs");const out=[];try{for(const id of fs.readdirSync(root)){const d=p.join(root,id);const rd=(f)=>{try{return JSON.parse(fs.readFileSync(p.join(d,f),"utf8"))}catch{return null}};const spec=rd("spec.json");if(!spec)continue;let tail="";try{const b=fs.readFileSync(p.join(d,"log"));tail=b.subarray(Math.max(0,b.length-1500)).toString("utf8")}catch{}out.push({id,spec,status:rd("status.json"),tail})}}catch{}console.log(JSON.stringify(out))';
+/** Writes a job's spec, from the environment (VYRE_JOB = {id, spec}), atomically: the supervisor looks at the folder every second. */
+export const JOB_WRITE_SCRIPT =
+  'const fs=require("fs"),p=require("path");const j=JSON.parse(process.env.VYRE_JOB);const d=p.join(process.env.HOME,".vyre","jobs",j.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const f=p.join(d,"spec.json");fs.writeFileSync(f+".tmp",JSON.stringify(j.spec));fs.renameSync(f+".tmp",f)';
+/** Asks a job to stop (VYRE_JOB_ID): its spec says desired stopped; the supervisor does the rest. Exits 3 when there is no such job. */
+export const JOB_STOP_SCRIPT =
+  'const fs=require("fs"),p=require("path");const f=p.join(process.env.HOME,".vyre","jobs",process.env.VYRE_JOB_ID,"spec.json");let s;try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{process.exit(3)}s.desired="stopped";s.at=Date.now();fs.writeFileSync(f+".tmp",JSON.stringify(s));fs.renameSync(f+".tmp",f)';
+
+/** One entry of the list script's answer as a row; null for one that is not a job. */
+export function jobRowOf(x: unknown): JobRow | null {
+  const e = x as {
+    id?: unknown;
+    spec?: Record<string, unknown>;
+    status?: Record<string, unknown> | null;
+    tail?: unknown;
+  } | null;
+  if (!e || typeof e.id !== "string" || !JOB_ID.test(e.id) || !e.spec || typeof e.spec["command"] !== "string")
+    return null;
+  const st = e.status ?? null;
+  const want = e.spec["desired"] === "stopped" ? "stopped" : "running";
+  const known = ["running", "restarting", "stopped", "done", "failed"];
+  const state = (
+    st && typeof st["state"] === "string" && known.includes(st["state"])
+      ? st["state"]
+      : want === "stopped"
+        ? "stopped"
+        : "starting"
+  ) as JobRow["state"];
+  const last =
+    typeof e.tail === "string"
+      ? e.tail
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l !== "" && !l.startsWith("[supervisor]"))
+          .pop()
+      : undefined;
+  const restart = e.spec["restart"] === "always" || e.spec["restart"] === "never" ? e.spec["restart"] : "on-failure";
+  return {
+    jobId: e.id,
+    name:
+      typeof e.spec["name"] === "string" && e.spec["name"] !== ""
+        ? e.spec["name"].slice(0, 80)
+        : String(e.spec["command"]).slice(0, 60),
+    command: String(e.spec["command"]).slice(0, 2000),
+    state,
+    restart,
+    restarts: typeof st?.["restarts"] === "number" ? st["restarts"] : 0,
+    ...(typeof st?.["startedAt"] === "number" ? { startedAt: st["startedAt"] } : {}),
+    ...(st && "exitCode" in st && (typeof st["exitCode"] === "number" || st["exitCode"] === null)
+      ? { exitCode: st["exitCode"] as number | null }
+      : {}),
+    ...(last ? { lastLine: last.slice(0, 200) } : {}),
+  };
+}
 
 // ---- the container --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -327,7 +415,14 @@ export interface MountSpec {
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
   sha256Hex(
-    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, s: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
+    JSON.stringify({
+      p: [...m.projects].sort(),
+      h: 1,
+      u: 1,
+      s: 1,
+      j: 1,
+      ...(net === SHARED_NETWORK ? { n: net } : {}),
+    }),
   ).slice(0, 16);
 
 /**
@@ -368,7 +463,7 @@ export function workspaceContainerConfig(
     Hostname: WORKSPACE_HOSTNAME,
     User: `${WORKSPACE_UID}:${WORKSPACE_UID}`,
     WorkingDir: WORKSPACE_HOME,
-    Cmd: ["sleep", "infinity"],
+    Cmd: ["node", WORKSPACE_SUPERVISOR],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
     Labels: {
       "vyre.workspace": agentId,
@@ -400,6 +495,7 @@ export function workspaceContainerConfig(
       NanoCpus: Math.round(limits.cpus * 1e9),
       MemoryReservation: Math.round(limits.reserveMb * 1024 * 1024),
       CpuShares: 256,
+      RestartPolicy: { Name: "unless-stopped" },
       Init: true,
       AutoRemove: false,
       Ulimits: [
@@ -1419,6 +1515,27 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    * Is something working in the workspace: a run Vyre holds, a pane whose foreground command is not a shell, or any process that is not the workspace's own (BUSY_SCRIPT). A workspace that does not
    * answer is taken as busy: nothing is stopped on a guess.
    */
+  /** The jobs of a workspace, from the supervisor's folders; empty when it is asleep (nothing runs) or cannot be asked. Never wakes it, never counts as use. */
+  async function listJobs(agentId: string): Promise<JobRow[]> {
+    if (!AGENT_ID.test(agentId)) return [];
+    try {
+      if (!(await api.containerRunning(workspaceName(agentId)))) return [];
+      const r = await execIn(agentId, ["node", "-e", JOBS_LIST_SCRIPT], undefined);
+      if (r.code !== 0) return [];
+      const rows = (JSON.parse(r.stdout.trim() || "[]") as unknown[])
+        .map(jobRowOf)
+        .filter((x): x is JobRow => x !== null);
+      return rows.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+    } catch {
+      return [];
+    }
+  }
+  /** How many jobs are running or waiting to start again: while one is, the workspace does not sleep and the 12 hour ceiling for other work does not apply. */
+  async function jobsAlive(agentId: string): Promise<number> {
+    return (await listJobs(agentId)).filter(
+      (j) => j.state === "running" || j.state === "restarting" || j.state === "starting",
+    ).length;
+  }
   async function busy(agentId: string): Promise<boolean> {
     return (await work(agentId)) !== null;
   }
@@ -1736,6 +1853,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         const at = lastUsed.get(agentId);
         if (at !== undefined && now() - at < idleMs) return false;
         const doing = await work(agentId);
+        if ((await jobsAlive(agentId)) > 0) {
+          lastUsed.set(agentId, now() - idleMs + 60_000);
+          return false;
+        }
         if (doing !== null) {
           if (!overCeiling(agentId)) {
             lastUsed.set(agentId, now() - idleMs + 60_000);
@@ -1876,6 +1997,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (now() - at < idleMs) continue;
       // never sleeps mid-task: a run Vyre holds, a pane that runs something other than a shell, or any process of the agent's (a script, a job in the background) is work
       // ...but for at most MAX_BUSY_AWAKE_MS after the last command or keystroke: then it sleeps anyway (sleepNow says why to the next command)
+      // a background job the agent asked for keeps its computer awake until it ends: no ceiling (rc.44)
+      if ((await jobsAlive(id)) > 0) {
+        lastUsed.set(id, now() - idleMs + 60_000);
+        continue;
+      }
       if ((await busy(id)) && !overCeiling(id)) {
         lastUsed.set(id, now() - idleMs + 60_000);
         continue;
@@ -1961,6 +2087,54 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       } catch {
         return null;
       }
+    },
+    jobList: (agentId) => listJobs(agentId),
+    async jobStart(agentId, spec) {
+      const id = `job_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      const doc = {
+        id,
+        spec: {
+          id,
+          name: spec.name,
+          command: spec.command,
+          ...(spec.cwd ? { cwd: spec.cwd } : {}),
+          ...(spec.env ? { env: spec.env } : {}),
+          restart: spec.restart,
+          desired: "running",
+          at: now(),
+        },
+      };
+      const w = await exec(agentId, ["node", "-e", JOB_WRITE_SCRIPT], { env: { VYRE_JOB: JSON.stringify(doc) } });
+      if (w.code !== 0) throw wsError("The job could not be written in the workspace.");
+      // the supervisor looks every second: the first answer is the job as it stands a moment later
+      let row: JobRow | null = null;
+      for (let i = 0; i < 8 && row?.state !== "running"; i++) {
+        await sleep(400);
+        row = (await listJobs(agentId)).find((j) => j.jobId === id) ?? null;
+        if (row && row.state !== "starting") break;
+      }
+      return (
+        row ?? {
+          jobId: id,
+          name: spec.name,
+          command: spec.command,
+          state: "starting",
+          restart: spec.restart,
+          restarts: 0,
+        }
+      );
+    },
+    async jobStop(agentId, jobId) {
+      if (!JOB_ID.test(jobId)) return null;
+      const r = await exec(agentId, ["node", "-e", JOB_STOP_SCRIPT], { env: { VYRE_JOB_ID: jobId }, quiet: true });
+      if (r.code === 3) return null;
+      let row: JobRow | null = null;
+      for (let i = 0; i < 12; i++) {
+        await sleep(500);
+        row = (await listJobs(agentId)).find((j) => j.jobId === jobId) ?? null;
+        if (row && row.state !== "running" && row.state !== "restarting" && row.state !== "starting") break;
+      }
+      return row;
     },
     awake: (agentId) =>
       AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),

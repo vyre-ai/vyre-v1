@@ -56,6 +56,8 @@ const TOP_KEYS = new Set([
   "HostConfig",
   "NetworkingConfig",
 ]);
+/** The supervisor program of the workspace image (images/agent-workspace/Dockerfile). */
+export const WS_SUPERVISOR = "/opt/vyre/supervisor.mjs";
 const HOST_KEYS = new Set([
   "Binds",
   "ReadonlyRootfs",
@@ -81,6 +83,7 @@ const HOST_KEYS = new Set([
   "Dns",
   "MemoryReservation",
   "CpuShares",
+  "RestartPolicy",
 ]);
 const emptyish = (v: unknown): boolean =>
   v === undefined ||
@@ -127,8 +130,14 @@ export function workspaceBody(
     return { why: "a workspace's hostname is the word workspace (or, from an older server, its container name)" };
   if (body["User"] !== "10001:10001") return { why: "a workspace runs as 10001:10001" };
   const cmd = Array.isArray(body["Cmd"]) ? (body["Cmd"] as unknown[]) : [];
-  if (cmd.length > 0 && !(cmd.length === 2 && cmd[0] === "sleep" && cmd[1] === "infinity"))
-    return { why: "a workspace container only waits (sleep infinity); every command is an exec" };
+  // the container's one program is the job supervisor of the image (images/agent-workspace/supervisor.mjs; it starts what the agent asked for as jobs, as the agent's own user, which an exec could do as well), or an
+  // older workspace's `sleep infinity`; nothing else
+  const waits = cmd.length === 2 && cmd[0] === "sleep" && cmd[1] === "infinity";
+  const supervises = cmd.length === 2 && cmd[0] === "node" && cmd[1] === WS_SUPERVISOR;
+  if (cmd.length > 0 && !waits && !supervises)
+    return {
+      why: "a workspace container runs only the job supervisor of its image (or waits); every command is an exec",
+    };
   const env = Array.isArray(body["Env"]) ? (body["Env"] as unknown[]) : [];
   for (const e of env)
     if (
@@ -203,6 +212,10 @@ export function workspaceBody(
   if (ul.some((u) => !isObj(u) || (u["Name"] !== "nofile" && u["Name"] !== "core")))
     return { why: "a workspace takes no ulimit but nofile and core" };
   if (h["AutoRemove"] === true) return { why: "a workspace is removed by Vyre, not by Docker" };
+  // a running workspace comes back after a reboot (its jobs with it); one that was put to sleep stays asleep
+  const rp = isObj(h["RestartPolicy"]) ? String(h["RestartPolicy"]["Name"] ?? "") : "";
+  if (!["", "no", "unless-stopped"].includes(rp))
+    return { why: "a workspace restarts only when it was not stopped on purpose (unless-stopped)" };
   const net =
     isObj(body["NetworkingConfig"]) && isObj(body["NetworkingConfig"]["EndpointsConfig"])
       ? Object.keys(body["NetworkingConfig"]["EndpointsConfig"])

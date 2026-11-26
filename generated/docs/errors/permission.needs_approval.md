@@ -20,4 +20,5 @@ HTTP 403. Retryable: no.
 - mail.send
 - telephony.dial
 - telephony.send_sms
+- terminal.job.start
 - terminal.run

@@ -227,6 +227,18 @@ export function bindWorkspaceStatus(f: WorkspaceStatusOf | null): void {
 }
 export const boundWorkspaceStatus = (): WorkspaceStatusOf | null => statusPort;
 
+/** The background jobs of an agent's workspace (the fleet's); null where this host has no workspaces. */
+export interface WorkspaceJobs {
+  list(agentId: string): Promise<import("./workspace.ts").JobRow[]>;
+  start(agentId: string, spec: import("./workspace.ts").JobSpec): Promise<import("./workspace.ts").JobRow>;
+  stop(agentId: string, jobId: string): Promise<import("./workspace.ts").JobRow | null>;
+}
+let jobsPort: WorkspaceJobs | null = null;
+export function bindWorkspaceJobs(f: WorkspaceJobs | null): void {
+  jobsPort = f;
+}
+export const boundWorkspaceJobs = (): WorkspaceJobs | null => jobsPort;
+
 /** Makes the shared folder of a chat on an agent's computer and opens it to the person whose turn it is (asker.ts chatFolderCommand); null where this host has no workspaces. */
 export type ChatFolderOf = (agentId: string, thread: string, place: AskerPlace | undefined) => Promise<void>;
 let chatPort: ChatFolderOf | null = null;

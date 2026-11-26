@@ -48210,6 +48210,61 @@ export type TerminalInterruptIn = {
 export type TerminalInterruptOut = {
   ok: boolean;
 };
+export type TerminalJobListIn = {
+  agentId?: string;
+};
+export type TerminalJobListOut = {
+  jobs: Array<{
+      jobId: string;
+      name: string;
+      command: string;
+      state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+      restart: "on-failure" | "always" | "never";
+      startedAt?: number;
+      restarts: number;
+      exitCode?: number | null;
+      lastLine?: string;
+    }>;
+};
+export type TerminalJobStartIn = {
+  command: string;
+  name?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  restart?: "on-failure" | "always" | "never";
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type TerminalJobStartOut = {
+  job: {
+    jobId: string;
+    name: string;
+    command: string;
+    state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+    restart: "on-failure" | "always" | "never";
+    startedAt?: number;
+    restarts: number;
+    exitCode?: number | null;
+    lastLine?: string;
+  };
+};
+export type TerminalJobStopIn = {
+  jobId: string;
+  agentId?: string;
+};
+export type TerminalJobStopOut = {
+  job: {
+    jobId: string;
+    name: string;
+    command: string;
+    state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+    restart: "on-failure" | "always" | "never";
+    startedAt?: number;
+    restarts: number;
+    exitCode?: number | null;
+    lastLine?: string;
+  };
+};
 export type TerminalKeysIn = {
   terminalId: string;
   keys: Array<{
@@ -54027,6 +54082,9 @@ export interface CapMap {
   "terminal.health": { in: TerminalHealthIn; out: TerminalHealthOut };
   "terminal.input": { in: TerminalInputIn; out: TerminalInputOut };
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
+  "terminal.job.list": { in: TerminalJobListIn; out: TerminalJobListOut };
+  "terminal.job.start": { in: TerminalJobStartIn; out: TerminalJobStartOut };
+  "terminal.job.stop": { in: TerminalJobStopIn; out: TerminalJobStopOut };
   "terminal.keys": { in: TerminalKeysIn; out: TerminalKeysOut };
   "terminal.list": { in: TerminalListIn; out: TerminalListOut };
   "terminal.log.list": { in: TerminalLogListIn; out: TerminalLogListOut };

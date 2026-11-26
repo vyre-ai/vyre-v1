@@ -10124,6 +10124,24 @@
     },
     {
       "deferred": false,
+      "name": "terminal_job_list",
+      "summary": "The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_job_start",
+      "summary": "Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_job_stop",
+      "summary": "Stop a background job of your computer; it stays in the list as stopped, with its log",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "terminal_list",
       "summary": "List terminal sessions you can see, including named leftover scripts",
       "toolset": "terminal"

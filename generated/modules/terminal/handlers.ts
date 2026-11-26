@@ -14,6 +14,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.health": Handler<"terminal.health", X>;
   "terminal.input": Handler<"terminal.input", X>;
   "terminal.interrupt": Handler<"terminal.interrupt", X>;
+  "terminal.job.list": Handler<"terminal.job.list", X>;
+  "terminal.job.start": Handler<"terminal.job.start", X>;
+  "terminal.job.stop": Handler<"terminal.job.stop", X>;
   "terminal.keys": Handler<"terminal.keys", X>;
   "terminal.list": Handler<"terminal.list", X>;
   "terminal.log.list": Handler<"terminal.log.list", X>;

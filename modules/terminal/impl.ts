@@ -27,6 +27,7 @@ import type { AccessDeps } from "./handlers/sessions.ts";
 import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
+  bindWorkspaceJobs,
   bindChatFolder,
   bindNotes,
   bindPlaceGrant,
@@ -1488,6 +1489,15 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
   bindNotes(fleet ? (agentId) => fleet.takeNotes(agentId) : null);
+  bindWorkspaceJobs(
+    fleet
+      ? {
+          list: (agentId) => fleet.jobList(agentId),
+          start: (agentId, spec) => fleet.jobStart(agentId, spec),
+          stop: (agentId, jobId) => fleet.jobStop(agentId, jobId),
+        }
+      : null,
+  );
   bindPlaceGrant(
     fleet
       ? async (agentId, place) => {
