@@ -4303,6 +4303,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               scanned: number;
               total: number;
               types: string[];
+              waiting?: boolean;
+              unreadable?: number;
             };
             if (r.done && first) return; // finished on an earlier start: nothing to say, nothing to do
             const at = performance.now();
@@ -4313,12 +4315,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
                 entriesWithRemovedText: r.before,
                 entriesLeft: r.after,
                 typesLeft: r.types.length,
+                ...(r.unreadable ? { entriesRemovedUnreadable: r.unreadable } : {}),
               });
               lastSaid = at;
             }
             first = false;
             if (r.done) return;
-            await new Promise<void>((resolve) => setImmediate(resolve)); // the loop is given back after every slice
+            // the loop is given back after every slice; after a failed read the next try waits a moment
+            await new Promise<void>((resolve) => (r.waiting ? setTimeout(resolve, 500) : setImmediate(resolve)));
           }
         };
         searchScrub = run()

@@ -119,6 +119,12 @@ test("the one-time scrub takes the removed field's text out of 9,500 entries wit
     }
     await sleep(0);
   }
+  // and some records have lost their entry altogether (a drop's old delete phase left records out of search)
+  const LOST = 287;
+  for (const d of docs.slice(0, LOST)) {
+    db().run("DELETE FROM search_fts WHERE rowid = ?", d.n);
+    db().run("DELETE FROM search_docs WHERE n = ?", d.n);
+  }
   db().run("DELETE FROM search_meta WHERE k = 'scrub:removed_fields'");
   const sample = docs[4_321]!;
   const hit = async (): Promise<unknown[]> =>
@@ -176,13 +182,18 @@ test("the one-time scrub takes the removed field's text out of 9,500 entries wit
   assert.ok(reads > 5 && asked > 2, "the checks ran during the job");
   assert.ok(longest < 100, `the longest stretch the loop was held during the job was ${longest} ms (limit 100)`);
   const s = row();
-  assert.deepEqual([s.state, s.before, s.after, s.total], ["done", N, 0, N], "the count before is N and after is 0");
+  assert.deepEqual(
+    [s.state, s.before, s.after, s.total],
+    ["done", N - LOST, 0, N - LOST],
+    "the count before is N and after is 0",
+  );
+  assert.equal((s as unknown as { added: number }).added, LOST, "the records that had lost their entry are put back");
   assert.equal(one("SELECT count(*) AS c FROM search_docs WHERE body LIKE '%zqold%'"), 0);
   assert.equal(one("SELECT count(*) AS c FROM search_meta WHERE k LIKE 'scrubhide:%' OR k LIKE 'scrubpos:%'"), 0);
   assert.equal((await hit()).length, 0, "the old text is not found afterwards");
   const done = searchRemovedTextFinding(h.d.paths.modules);
   assert.equal(done.state, "healthy");
-  assert.match(done.detail, new RegExp(`removed-field text: 0 \\(the one-time check found ${N}`));
+  assert.match(done.detail, new RegExp(`removed-field text: 0 \\(the one-time check found ${N - LOST}`));
 
   // every record is still found by its name: all of them by the full text index, and a spread of them through search itself
   assert.equal(

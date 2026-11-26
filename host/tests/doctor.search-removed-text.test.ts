@@ -42,3 +42,13 @@ test("while the job runs it says how many it found and how far it has read; when
   assert.equal(left.state, "degraded");
   assert.match(left.detail, /removed-field text: 3 /);
 });
+
+test("the missing-records finding counts the entries the job put in", async () => {
+  const { searchMissingRecordsFinding } = await import("../src/daemon/doctor.ts");
+  const done = searchMissingRecordsFinding(modulesDb({ state: "done", before: 0, after: 0, added: 287 }));
+  assert.equal(done.state, "healthy");
+  assert.match(done.detail, /records without a search entry: 0 \(the one-time check put in 287/);
+  const running = searchMissingRecordsFinding(modulesDb({ state: "running", added: 12 }));
+  assert.equal(running.state, "degraded");
+  assert.match(running.detail, /12 put in so far/);
+});

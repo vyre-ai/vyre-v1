@@ -410,6 +410,8 @@ export function searchRemovedTextFinding(modulesDb: string): Finding {
         after?: number;
         scanned?: number;
         total?: number;
+        unreadable?: number;
+        retry?: { n: number };
       };
       const before = Number(s.before ?? 0),
         after = Number(s.after ?? 0);
@@ -417,13 +419,14 @@ export function searchRemovedTextFinding(modulesDb: string): Finding {
         return {
           key,
           state: "degraded",
-          detail: `search entries carrying removed-field text: ${before} found so far, the one-time check has read ${Number(s.scanned ?? 0)} of ${Number(s.total ?? 0)} entries.`,
+          detail: `search entries carrying removed-field text: ${before} found so far, the one-time check has read ${Number(s.scanned ?? 0)} of ${Number(s.total ?? 0)} entries${s.retry ? `; a record that could not be read is being tried again (try ${s.retry.n})` : ""}${Number(s.unreadable ?? 0) ? `; ${Number(s.unreadable)} removed because their records could not be read` : ""}.`,
           next: NEXT.searchRemovedText,
         };
+      const lost = Number(s.unreadable ?? 0);
       return {
         key,
         state: after === 0 ? "healthy" : "degraded",
-        detail: `search entries carrying removed-field text: ${after} (the one-time check found ${before} and rebuilt them).`,
+        detail: `search entries carrying removed-field text: ${after} (the one-time check found ${before} and rebuilt them${lost ? `; ${lost} were removed because their records could not be read, and come back when the record is next edited` : ""}).`,
         next: after === 0 ? OK : NEXT.searchRemovedText,
       };
     } finally {
@@ -436,6 +439,42 @@ export function searchRemovedTextFinding(modulesDb: string): Finding {
       detail: `Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`,
       next: OK,
     };
+  }
+}
+
+/** Records that exist but had no search entry, put in by the same one-time job (`added` in its row). Read only. */
+export function searchMissingRecordsFinding(modulesDb: string): Finding {
+  const key = "search.missing_records";
+  const none = (detail: string): Finding => ({ key, state: "healthy", detail, next: OK });
+  if (!fs.existsSync(modulesDb)) return none("No search index yet.");
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return none("No search index yet.");
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "records without a search entry: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as { state?: string; added?: number };
+      const added = Number(s.added ?? 0);
+      return s.state === "done"
+        ? none(`records without a search entry: 0 (the one-time check put in ${added} that had none).`)
+        : {
+            key,
+            state: "degraded",
+            detail: `records without a search entry: ${added} put in so far, the one-time check is still running.`,
+            next: NEXT.searchRemovedText,
+          };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return none(`Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`);
   }
 }
 
@@ -589,6 +628,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
     findings.push(searchRemovedTextFinding(paths.modules));
+    findings.push(searchMissingRecordsFinding(paths.modules));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

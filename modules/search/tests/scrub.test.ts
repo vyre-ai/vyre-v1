@@ -63,7 +63,9 @@ const run = async (h: Harness, sliceMs?: number): Promise<number> => {
   let steps = 0;
   for (;;) {
     steps++;
-    if ((await scrubStep(h.ctx, sliceMs)).done) return steps;
+    const r = await scrubStep(h.ctx, sliceMs);
+    if (r.done) return steps;
+    if (r.waiting) h.advance(1_000); // a failed read is tried again after a pause
     assert.ok(steps < 1000, "the job ends");
   }
 };
@@ -108,7 +110,7 @@ test("a stop in the middle resumes where the last slice ended, and a finished jo
   await scrubStep(h.ctx, 0);
   assert.equal(state(h).state, "running");
   const read = h.calls("records.get").length;
-  assert.equal(read, 10);
+  assert.equal(read, 5);
   // the next start: the same database, the job goes on from its row
   await run(h, 0);
   assert.equal(h.calls("records.get").length, 60, "each document was read once, none twice across the stop");
@@ -144,4 +146,99 @@ test("a record that is gone or cannot be read leaves the index instead of keepin
   await run(h, 0);
   assert.equal(Number(h.rows("SELECT count(*) AS c FROM search_docs WHERE record_type = 'matter'")[0]!["c"]), 4);
   assert.equal(state(h).before, 6);
+});
+
+test("a record that exists and has no index entry is put in, across pages, and counted; one that is already indexed is left", async () => {
+  const all = ids(47);
+  const h = harness({
+    respond: {
+      "records.get": (i) => ({
+        record: {
+          id: i["recordId"],
+          type: "matter",
+          label: 1,
+          fields: { name: `Matter ${i["recordId"]}` },
+          updatedAt: 5,
+        },
+      }),
+      "schema.types.get": (i) => ({ type: { key: i["type"], titleField: "name" } }),
+      "schema.changes.list": () => ({ changes: [] }),
+      "schema.map": () => ({
+        nodes: [
+          { type: "matter", rowCount: 47 },
+          { type: "empty", rowCount: 0 },
+        ],
+      }),
+      "records.query": (i) => {
+        const from = i["cursor"] ? Number(i["cursor"]) : 0;
+        const rows = all.slice(from, from + 20).map((id) => ({ id }));
+        return { rows, ...(from + 20 < all.length ? { next: String(from + 20) } : {}) };
+      },
+    },
+  });
+  for (const id of all.slice(0, 5))
+    seed(h, {
+      id,
+      title: `Matter ${id}`,
+      body: "",
+      kind: "record",
+      entity: "record:matter",
+      recordType: "matter",
+      resource: { type: "record", id },
+    });
+  await run(h, 0);
+  assert.equal(Number(h.rows("SELECT count(*) AS c FROM search_docs WHERE record_type = 'matter'")[0]!["c"]), 47);
+  const s = state(h);
+  assert.deepEqual([s.state, s.added], ["done", 42]);
+});
+
+test("a read that fails once is tried again and the document stays; one that fails past the limit is removed and counted; a record that is gone is removed at once", async () => {
+  const { h, list, broken } = world({ n: 5 });
+  let failsLeft = 1;
+  const base = h.respond["records.get"]!;
+  h.respond["records.get"] = (i) => {
+    if (i["recordId"] === list[2] && failsLeft > 0) {
+      failsLeft--;
+      throw new Error("the snapshot is not folded yet");
+    }
+    return base(i);
+  };
+  await run(h, 0);
+  assert.equal(Number(h.rows("SELECT count(*) AS c FROM search_docs WHERE record_type = 'matter'")[0]!["c"]), 5);
+  assert.equal(stale(h), 0, "the document that failed once was read again and rebuilt");
+  assert.equal(state(h).unreadable ?? 0, 0);
+  // fails every time: tried five times, then removed and counted
+  const b = world({ n: 5 });
+  b.broken.add(b.list[3]!);
+  const seen = b.h.calls("records.get");
+  await run(b.h, 0);
+  assert.equal(b.h.calls("records.get").filter((c) => c.input["recordId"] === b.list[3]).length, 5);
+  assert.equal(Number(b.h.rows("SELECT count(*) AS c FROM search_docs WHERE record_type = 'matter'")[0]!["c"]), 4);
+  assert.equal(state(b.h).unreadable, 1);
+  void seen;
+  void broken;
+  // gone: one read, removed at once
+  const g = world({ n: 5 });
+  g.gone.add(g.list[1]!);
+  await run(g.h, 0);
+  assert.equal(g.h.calls("records.get").filter((c) => c.input["recordId"] === g.list[1]).length, 1);
+  assert.equal(Number(g.h.rows("SELECT count(*) AS c FROM search_docs WHERE record_type = 'matter'")[0]!["c"]), 4);
+  assert.equal(state(g.h).unreadable ?? 0, 0);
+});
+
+test("while a read is being tried again the type stays held back and the position does not move past it", async () => {
+  const { h, list } = world({ n: 5 });
+  const base = h.respond["records.get"]!;
+  h.respond["records.get"] = (i) => {
+    if (i["recordId"] === list[3]) throw new Error("busy");
+    return base(i);
+  };
+  const r = await scrubStep(h.ctx, 0);
+  assert.equal(r.waiting, true);
+  assert.equal(h.rows("SELECT k FROM search_meta WHERE k = 'scrubhide:matter'").length, 1, "still held back");
+  const pos = String(h.rows("SELECT v FROM search_meta WHERE k = 'scrubpos:matter'")[0]!["v"]);
+  assert.equal(pos, `record:matter\u0000${list[2]}`);
+  const again = await scrubStep(h.ctx, 0);
+  assert.equal(again.waiting, true, "no new try before the pause is over");
+  assert.equal(h.calls("records.get").length, 4);
 });
