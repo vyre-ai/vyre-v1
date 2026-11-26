@@ -2,7 +2,10 @@
 // 1,000-page mark on the main thread (36 ms at p999, 66 ms at worst in test/loop.guard.live.test.ts). The main connection's wal_autocheckpoint goes to 0 here; if the worker cannot start or dies, it is
 // put back at once, so the log never grows without a checkpointer.
 import { Worker } from "node:worker_threads";
-import type { HostDb } from "./sqlite.ts";
+/** What the checkpointer needs of the main thread's connection: to set its pragma. */
+export interface PragmaDb {
+  exec(sql: string): void;
+}
 
 export interface Checkpointer {
   /** Stops the worker (its connection closed) and, if it never ran or already died, leaves autocheckpoint as it is. */
@@ -12,7 +15,7 @@ export interface Checkpointer {
 /** The log size from which the worker checkpoints: the size SQLite's own 1,000 pages of 4 KiB reach. */
 export const CHECKPOINT_BYTES = 4 * 1024 * 1024;
 
-export function startCheckpointer(db: HostDb, file: string, o: { minBytes?: number; everyMs?: number } = {}): Checkpointer {
+export function startCheckpointer(db: PragmaDb, file: string, o: { minBytes?: number; everyMs?: number } = {}): Checkpointer {
   let live = true;
   let worker: Worker | null = null;
   const giveBack = (): void => {

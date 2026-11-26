@@ -6,6 +6,8 @@
 import path from "node:path";
 import type { ProjectionHost, InlineProjection, Tx } from "../../../kernel/src/store/projection.ts";
 import { openRecordStore } from "../../../kernel/src/store/records.ts";
+import { startCheckpointer } from "./checkpointer.ts";
+import type { Checkpointer } from "./checkpointer.ts";
 import type { Store } from "../../../kernel/src/store/types.ts";
 import type { SeamDriver } from "../seams/index.ts";
 
@@ -47,6 +49,7 @@ export const spaceStorePath = (root: string): string => path.join(root, "space.d
 export function createSpaceStore(o: { path: string; space: string; ours?: (db: unknown) => boolean }): SpaceStore {
   const extras: InlineProjection[] = [];
   let opened: SpaceStoreHandle | null = null;
+  let checkpointer: Checkpointer | null = null;
   let closed = false;
   return {
     path: o.path,
@@ -62,6 +65,8 @@ export function createSpaceStore(o: { path: string; space: string; ours?: (db: u
       if (!opened) {
         const r = openRecordStore({ path: o.path, space: o.space, extra: extras });
         opened = { host: r.host, store: r.store, tx: r.host.tx };
+        // the Space store's log is moved into the file by a worker thread, not by the commit that crosses 1,000 pages on this one
+        if (o.path !== ":memory:") checkpointer = startCheckpointer({ exec: (sql) => r.host.execPragma(sql) }, o.path);
       }
       return opened;
     },
@@ -69,6 +74,8 @@ export function createSpaceStore(o: { path: string; space: string; ours?: (db: u
     close() {
       if (closed) return;
       closed = true;
+      void checkpointer?.stop();
+      checkpointer = null;
       opened?.host.close();
       opened = null;
     },

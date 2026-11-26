@@ -1,0 +1,1 @@
+- logs.db and the Space store are checkpointed by a worker thread too (as modules.db is), not by the commit that crosses 1,000 pages on the main thread.

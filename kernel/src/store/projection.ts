@@ -325,6 +325,11 @@ export class ProjectionHost {
     return out;
   }
 
+  /** Runs one statement on the store's connection (a pragma): for the host's checkpointer, which takes the log's checkpoints off the commit that would run them. */
+  execPragma(sql: string): void {
+    this.raw.exec(sql);
+  }
+
   close(): void {
     this.store.close();
   }
