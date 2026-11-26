@@ -7,8 +7,11 @@ import { TURN_BUDGET_MS } from "./yield-loop.ts";
 let since = performance.now();
 let pending: Promise<void> | null = null;
 
-/** Has the work of the server's loops used the turn's budget since the event loop last ran? */
-export const loopOverBudget = (): boolean => performance.now() - since >= TURN_BUDGET_MS;
+/** The most one unit of pump or start-up work (a hook delivery, a projection step) may run before the next unit waits for the loop: a request's own turn is not delayed by more than a unit. */
+export const UNIT_MS = 5;
+
+/** Has the work of the server's loops used the turn's budget (`ms`, the turn's by default) since the event loop last ran? */
+export const loopOverBudget = (ms: number = TURN_BUDGET_MS): boolean => performance.now() - since >= ms;
 
 /** Give the event loop a turn; one immediate is shared by every caller that asks before it fires. */
 export function loopTurn(): Promise<void> {
@@ -22,7 +25,7 @@ export function loopTurn(): Promise<void> {
   return pending;
 }
 
-/** `await loopTurn()` when the budget is used, else nothing: call at the end of every step of a loop. */
-export async function loopYield(): Promise<void> {
-  if (loopOverBudget()) await loopTurn();
+/** `await loopTurn()` when the budget is used, else nothing: call at the end of every step of a loop. `ms`: a smaller budget, for a loop whose units each take a few milliseconds (UNIT_MS). */
+export async function loopYield(ms: number = TURN_BUDGET_MS): Promise<void> {
+  if (loopOverBudget(ms)) await loopTurn();
 }

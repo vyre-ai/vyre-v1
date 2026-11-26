@@ -9,7 +9,7 @@
 // ctx.emit, ctx.call, ctx.db (the module's own tables) and ctx.log behave as they do in a handler, and what is emitted commits with the same ids, clock and publish. The caller is the
 // host service with `preAuth`: a hook acts as the system, not as a person.
 // The async consumers a module also exports as projections (`mode: "async"`, kernel ProjectionHost) have another shape and are not touched here.
-import { loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
+import { UNIT_MS, loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -23,7 +23,7 @@ export const MAX_TRIES = 5;
 const PAGE = 200;
 /** After this many ms of work the pass lets the event loop run (requests wait behind a long backlog otherwise). */
 /** One time budget for the whole server (lib/loop-budget.ts): the hook pump, the projections pump and the sweeps count their work together. */
-const overBudget = loopOverBudget;
+const overBudget = (): boolean => loopOverBudget(UNIT_MS);
 const yieldTurn = loopTurn;
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;

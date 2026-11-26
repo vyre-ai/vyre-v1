@@ -5,7 +5,7 @@
 //   delivery at least once: the cursor moves after the handler returns, so a crash repeats at most the event in flight; the handlers are idempotent (the contract of AsyncConsumer).
 //   failure  a projection that throws is retried on the next pass; after MAX_TRIES it is skipped and logged so one bad event cannot hold the rest.
 // Passes never overlap; a call made during a pass runs another when it ends.
-import { loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
+import { UNIT_MS, loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { AsyncConsumer, ProjectionDef, Tx } from "../../../kernel/src/store/projection.ts";
 import type { HostDb } from "./sqlite.ts";
@@ -138,7 +138,7 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
           return;
         } // this event is tried again on the next pass, before any later one
         at = e.seq;
-        if (loopOverBudget()) {
+        if (loopOverBudget(UNIT_MS)) {
           store();
           await loopTurn();
         }
