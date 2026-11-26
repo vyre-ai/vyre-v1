@@ -492,368 +492,6 @@ test("search never indexes a computed value: a person who cannot see the linked 
   );
 });
 
-test("sort and filter by a computed field: the owner and a person who may read it sort and filter by the value; a person it is hidden from gets the default order whatever the hidden values are, and a filter on it is refused", async () => {
-  const tag = `so${++seq}`;
-  const type = `sort${tag}`;
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-t`,
-    ops: [
-      {
-        op: "type.create",
-        type,
-        def: {
-          title: "Line",
-          plural: "Lines",
-          icon: "table",
-          titleField: "name",
-          fields: ["name", "qty", "price"].map((key) => ({
-            key,
-            type: key === "name" ? "text" : "number",
-            title: key,
-          })),
-        },
-      },
-    ],
-  });
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-f`,
-    ops: [
-      {
-        op: "field.add",
-        type,
-        field: "total",
-        def: { type: "formula", title: "Total", options: { expr: "qty * price" } },
-      },
-    ],
-  });
-  // names a, b, c, d rise while the totals fall: the order by total is the reverse of the order by name
-  const rows: Array<{ id: string; name: string }> = [];
-  for (const [n, l] of ["a", "b", "c", "d"].entries()) {
-    const name = `Row ${tag} ${l}`;
-    const r = (await h.owner.call("records.create", { type, fields: { name, qty: 1, price: 40 - n * 10 } })) as {
-      record: { id: string };
-    };
-    rows.push({ id: r.record.id, name });
-  }
-  const byName = rows.map((r) => r.id);
-  const mine = new Set(byName);
-  await until(async () => (await fieldsOf(h.owner, type, rows[3]!.id))?.["total"] === 10);
-  const order = async (who: Pick<Person, "attempt">, spec: Record<string, unknown>): Promise<string[] | "refused"> => {
-    const r = await who.attempt("records.query", { type, limit: 100, ...spec });
-    return r.ok
-      ? (r.data as { rows: Array<{ id: string }> }).rows.map((x) => x.id).filter((id) => mine.has(id))
-      : "refused";
-  };
-  // the owner: sorted by the computed value both ways, and a filter on it
-  assert.deepEqual(
-    await order(h.owner, { sort: [{ field: "total", dir: "asc" }] }),
-    byName.slice().reverse(),
-    "the owner's sort by total, ascending",
-  );
-  assert.deepEqual(await order(h.owner, { sort: [{ field: "total", dir: "desc" }] }), byName, "descending");
-  assert.deepEqual(
-    await order(h.owner, { filter: { field: "total", op: "gt", value: 25 } }),
-    [rows[0]!.id, rows[1]!.id].sort(),
-    "the owner's filter total > 25 (40 and 30)",
-  );
-  assert.deepEqual(await order(h.owner, { filter: { field: "total", op: "eq", value: 10 } }), [rows[3]!.id], "equals");
-  // the in-memory path (a filter the SQL cannot take: a value that is an object) carries the same values and the same order
-  const odd = {
-    or: [
-      { field: "name", op: "eq", value: { a: 1 } },
-      { field: "qty", op: "gte", value: 0 },
-    ],
-  };
-  assert.deepEqual(
-    await order(h.owner, { filter: odd, sort: [{ field: "total", dir: "asc" }] }),
-    byName.slice().reverse(),
-    "in memory: the owner's sort by total",
-  );
-  assert.deepEqual(
-    await order(h.owner, { filter: { and: [odd, { field: "total", op: "gt", value: 25 }] } }),
-    [rows[0]!.id, rows[1]!.id].sort(),
-    "in memory: a filter on total",
-  );
-  const memoryRow = (await h.owner.call("records.query", {
-    type,
-    limit: 5,
-    filter: odd,
-    sort: [{ field: "total", dir: "asc" }],
-  })) as { rows: Array<{ fields: Record<string, unknown> }> };
-  assert.equal(
-    memoryRow.rows[0]!.fields["total"],
-    10,
-    "and the row shows its total once, from the side table, not from the comparison copy",
-  );
-  // a person who may read every input (unrestricted on the type): the same
-  const sighted = await newMember(`sighted${tag}`);
-  assert.deepEqual(
-    await order(sighted, { sort: [{ field: "total", dir: "asc" }] }),
-    byName.slice().reverse(),
-    "a person who may read it sorts by it",
-  );
-  assert.deepEqual(await order(sighted, { filter: { field: "total", op: "eq", value: 10 } }), [rows[3]!.id]);
-  // a person whose grants hide price on these records: the field is empty for them
-  const blind = await newMember(`blind${tag}`);
-  for (const r of rows) await grant(r.id, blind, ["price"], `${tag}-g-${r.id}`);
-  const plain = await order(blind, {});
-  assert.ok(Array.isArray(plain) && plain.length === 4, "the person sees all four rows");
-  const probes: Array<Record<string, unknown>> = [
-    { sort: [{ field: "total", dir: "asc" }] },
-    { sort: [{ field: "total", dir: "desc" }] },
-    { group: "total" },
-  ];
-  for (const spec of probes)
-    assert.deepEqual(
-      await order(blind, spec),
-      plain,
-      `${JSON.stringify(spec)}: the hidden total does not order the rows`,
-    );
-  assert.equal(
-    await order(blind, { filter: { field: "total", op: "gt", value: 25 } }),
-    "refused",
-    "a filter on a computed field they cannot read is refused",
-  );
-  // swap: the hidden prices are reversed; the person's orders are identical, the owner's follows the real values
-  for (const [n, r] of rows.entries())
-    await h.owner.call("records.update", { type, recordId: r.id, patch: { price: 10 + n * 10 } });
-  await until(async () => (await fieldsOf(h.owner, type, rows[0]!.id))?.["total"] === 10);
-  assert.deepEqual(
-    await order(h.owner, { sort: [{ field: "total", dir: "asc" }] }),
-    byName,
-    "the owner's order followed the swap",
-  );
-  for (const spec of probes)
-    assert.deepEqual(
-      await order(blind, spec),
-      plain,
-      `after the swap ${JSON.stringify(spec)}: still the default order`,
-    );
-});
-
-test("sorting invoices by a lookup of the account's name: a person who sees every invoice but not every account gets the default order, the owner and a person who sees both get the real one", async () => {
-  const tag = `sl${++seq}`;
-  const a = `acl${tag}`;
-  const i = `inl${tag}`;
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-t`,
-    ops: [
-      {
-        op: "type.create",
-        type: a,
-        def: {
-          title: "Account",
-          plural: "Accounts",
-          icon: "table",
-          titleField: "name",
-          fields: [{ key: "name", type: "text", title: "name" }],
-        },
-      },
-      {
-        op: "type.create",
-        type: i,
-        def: {
-          title: "Invoice",
-          plural: "Invoices",
-          icon: "table",
-          titleField: "name",
-          fields: [{ key: "name", type: "text", title: "name" }],
-        },
-      },
-      { op: "relation.add", type: i, field: "account", def: { to: a, inverse: "invoices" } },
-    ],
-  });
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-c`,
-    ops: [
-      {
-        op: "field.add",
-        type: i,
-        field: "account_name",
-        def: { type: "lookup", title: "Account name", options: { via: "account", field: "name" } },
-      },
-    ],
-  });
-  // invoices a, b, c in this order, lent to accounts named so that the order by account name is c, b, a
-  const accounts = [`Zed ${tag}`, `Mid ${tag}`, `Abe ${tag}`];
-  const invoices: string[] = [];
-  const accountIds: string[] = [];
-  for (const [n, an] of accounts.entries()) {
-    const acc = (
-      (await h.owner.call("records.create", { type: a, fields: { name: an } })) as { record: { id: string } }
-    ).record.id;
-    accountIds.push(acc);
-    const inv = (
-      (await h.owner.call("records.create", { type: i, fields: { name: `Inv ${tag} ${n}` } })) as {
-        record: { id: string };
-      }
-    ).record.id;
-    await h.owner.call("records.relate", { type: i, recordId: inv, field: "account", toId: acc });
-    invoices.push(inv);
-  }
-  await until(
-    async () =>
-      JSON.stringify((await fieldsOf(h.owner, i, invoices[2]!))?.["account_name"]) === JSON.stringify([accounts[2]]),
-  );
-  const mine = new Set(invoices);
-  const order = async (who: Pick<Person, "attempt">, spec: Record<string, unknown>): Promise<string[] | "refused"> => {
-    const r = await who.attempt("records.query", { type: i, limit: 100, ...spec });
-    return r.ok
-      ? (r.data as { rows: Array<{ id: string }> }).rows.map((x) => x.id).filter((id) => mine.has(id))
-      : "refused";
-  };
-  const byAccount = [invoices[2]!, invoices[1]!, invoices[0]!];
-  assert.deepEqual(
-    await order(h.owner, { sort: [{ field: "account_name", dir: "asc" }] }),
-    byAccount,
-    "the owner sorts by the lookup",
-  );
-  const both = await newMember(`both${tag}`);
-  assert.deepEqual(
-    await order(both, { sort: [{ field: "account_name", dir: "asc" }] }),
-    byAccount,
-    "a person who sees every invoice and every account sorts by it too",
-  );
-  // the middle account is for people added, and this person is not one: they see all invoices, but not all accounts
-  const some = await newMember(`some${tag}`);
-  await grant(accountIds[1]!, await newMember(`aown${tag}`), undefined, `${tag}-aown`);
-  const plain = await order(some, {});
-  assert.ok(Array.isArray(plain) && plain.length === 3, "the person sees all three invoices");
-  assert.deepEqual(
-    await order(some, { sort: [{ field: "account_name", dir: "asc" }] }),
-    plain,
-    "the lookup of accounts they cannot all see does not order the invoices",
-  );
-  assert.deepEqual(await order(some, { sort: [{ field: "account_name", dir: "desc" }] }), plain, "descending too");
-  assert.equal(
-    await order(some, { filter: { field: "account_name", op: "contains", value: "Mid" } }),
-    "refused",
-    "and a filter on it is refused",
-  );
-});
-
-test("export and records.search carry computed values by the same rule: the owner and a person who may read every input get them, a person with a hidden input gets no value and no row picked by it", async () => {
-  const tag = `ex${++seq}`;
-  const type = `expo${tag}`;
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-t`,
-    ops: [
-      {
-        op: "type.create",
-        type,
-        def: {
-          title: "Line",
-          plural: "Lines",
-          icon: "table",
-          titleField: "name",
-          fields: ["name", "qty", "price"].map((key) => ({
-            key,
-            type: key === "name" ? "text" : "number",
-            title: key,
-          })),
-        },
-      },
-    ],
-  });
-  await h.owner.call("schema.apply", {
-    idempotencyKey: `${tag}-f`,
-    ops: [
-      {
-        op: "field.add",
-        type,
-        field: "total",
-        def: { type: "formula", title: "Total", options: { expr: "qty * price" } },
-      },
-    ],
-  });
-  const rows: string[] = [];
-  for (const [n, l] of ["a", "b", "c"].entries()) {
-    const r = (await h.owner.call("records.create", {
-      type,
-      fields: { name: `Exp ${tag} ${l}`, qty: 1, price: 4001 + n },
-    })) as { record: { id: string } };
-    rows.push(r.record.id);
-  }
-  await until(async () => (await fieldsOf(h.owner, type, rows[2]!))?.["total"] === 4003);
-  // a role that may export, for both people
-  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
-  const made = (
-    await h.owner.call("access.roles.create", {
-      name: `Exporter ${tag}`,
-      cloneFrom: roles.find((r) => r.name === "Member")!.id,
-    })
-  ).role as { id: string; permissions: string[] };
-  const permissions = [...new Set([...made.permissions, "records.export"])];
-  const prev = await h.owner.call("access.roles.preview", { roleId: made.id, permissions });
-  await h.owner.call("access.roles.apply", { roleId: made.id, permissions, previewHash: prev.previewHash });
-  const exporter = async (name: string): Promise<Person> => {
-    const inv = await h.owner.call("members.invites.create", { role: made.id, email: `${name}@firm.test` });
-    const n = h.person(`Exp ${name}`, name, `${name}@firm.test`, `${name} horse battery staple 9`);
-    await joined(n, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!));
-    return n;
-  };
-  const fileText = async (
-    who: Pick<Person, "call" | "attempt">,
-    input: Record<string, unknown>,
-  ): Promise<string | "refused"> => {
-    const asked = await who.attempt("records.export", { type, format: "csv", ...input });
-    if (!asked.ok) return "refused";
-    const read = (await who.call("files.read", { fileId: (asked.data as { fileId: string }).fileId, as: "text" })) as {
-      text?: string;
-      base64?: string;
-    };
-    return read.text ?? Buffer.from(read.base64 ?? "", "base64").toString("utf8");
-  };
-  // one export each per person and day (a file of the same name in their folder is a duplicate), so each probe is a person of its own
-  const blindOne = async (name: string): Promise<Person> => {
-    const p = await exporter(`${name}${tag}`);
-    for (const id of rows) await grant(id, p, ["price"], `${tag}-${name}-${id}`);
-    return p;
-  };
-  const sighted = await exporter(`sx${tag}`);
-  for (const id of rows) await grant(id, sighted, undefined, `${tag}-s-${id}`);
-  const blind = await blindOne("bx");
-  const ownerFile = String(await fileText(h.owner, { filter: { field: "total", op: "gt", value: 4001 } }));
-  for (const v of ["4002", "4003"])
-    assert.ok(ownerFile.includes(v), `control: the owner's file, filtered by total, has total ${v}`);
-  assert.equal(ownerFile.includes(`Exp ${tag} a`), false, "and the filter left out the row with 4001");
-  const sightedFile = String(await fileText(sighted, {}));
-  assert.ok(
-    sightedFile.includes("4002") && sightedFile.includes("4001"),
-    "control: a person who may read price and qty has the totals in their file",
-  );
-  const blindFile = String(await fileText(blind, {}));
-  assert.ok(blindFile.includes(`Exp ${tag} a`), "the blind person's file has the rows (names)");
-  for (const v of ["4001", "4002", "4003"])
-    assert.equal(blindFile.includes(v), false, `the blind person's file carries ${v}`);
-  // no row picked by a value they cannot read
-  const byTotal = String(await fileText(await blindOne("bt"), { filter: { field: "total", op: "gt", value: 4001 } }));
-  assert.equal(
-    byTotal.includes(`Exp ${tag} b`) || byTotal.includes(`Exp ${tag} c`),
-    false,
-    "a filter on the hidden total picks no row for them",
-  );
-  const byPrice = String(await fileText(await blindOne("bp"), { filter: { field: "price", op: "gt", value: 4001 } }));
-  assert.equal(
-    byPrice.includes(`Exp ${tag} b`) || byPrice.includes(`Exp ${tag} c`),
-    false,
-    "nor does a filter on the hidden price",
-  );
-  // records.search shows the row with its computed value to those who may read it
-  const found = async (who: Pick<Person, "attempt">): Promise<Record<string, unknown> | null> => {
-    const r = await who.attempt("records.search", { type, q: `Exp ${tag} b` });
-    return r.ok
-      ? ((r.data as { rows: Array<{ id: string; fields: Record<string, unknown> }> }).rows.find((x) => x.id === rows[1])
-          ?.fields ?? null)
-      : null;
-  };
-  assert.equal((await found(h.owner))?.["total"], 4002, "control: the owner's search result has the total");
-  assert.equal((await found(sighted))?.["total"], 4002, "control: so has the person who may read it");
-  const seenByBlind = await found(blind);
-  assert.ok(seenByBlind && seenByBlind["name"] === `Exp ${tag} b`, "the blind person finds the row");
-  assert.equal("total" in seenByBlind, false, "without a total");
-});
-
 test("records.get_many carries computed values by the same rule: the owner and a person who may read every input have them, a person with a hidden input has none", async () => {
   const tag = `gm${++seq}`;
   const type = `many${tag}`;
@@ -868,18 +506,32 @@ test("records.get_many carries computed values by the same rule: the owner and a
           plural: "Lines",
           icon: "table",
           titleField: "name",
-          fields: ["name", "qty", "price"].map((key) => ({ key, type: key === "name" ? "text" : "number", title: key })),
+          fields: ["name", "qty", "price"].map((key) => ({
+            key,
+            type: key === "name" ? "text" : "number",
+            title: key,
+          })),
         },
       },
     ],
   });
   await h.owner.call("schema.apply", {
     idempotencyKey: `${tag}-f`,
-    ops: [{ op: "field.add", type, field: "total", def: { type: "formula", title: "Total", options: { expr: "qty * price" } } }],
+    ops: [
+      {
+        op: "field.add",
+        type,
+        field: "total",
+        def: { type: "formula", title: "Total", options: { expr: "qty * price" } },
+      },
+    ],
   });
   const ids: string[] = [];
   for (const n of [0, 1, 2]) {
-    const r = (await h.owner.call("records.create", { type, fields: { name: `Many ${tag} ${n}`, qty: 2, price: 5001 + n } })) as { record: { id: string } };
+    const r = (await h.owner.call("records.create", {
+      type,
+      fields: { name: `Many ${tag} ${n}`, qty: 2, price: 5001 + n },
+    })) as { record: { id: string } };
     ids.push(r.record.id);
   }
   const sighted = await newMember(`gs${tag}`);
@@ -888,14 +540,26 @@ test("records.get_many carries computed values by the same rule: the owner and a
     await grant(id, sighted, undefined, `${tag}-s-${id}`);
     await grant(id, blind, ["price"], `${tag}-b-${id}`);
   }
-  await until(async () => (await fieldsOf(h.owner, type, ids[2]!))?.["total"] === 10004);
-  const many = async (who: Pick<Person, "attempt">): Promise<Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }>> => {
+  await until(async () => (await fieldsOf(h.owner, type, ids[2]!))?.["total"] === 10006);
+  const many = async (
+    who: Pick<Person, "attempt">,
+  ): Promise<Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }>> => {
     const r = await who.attempt("records.get_many", { type, ids });
     assert.ok(r.ok, "get_many was answered");
-    return (r.data as { rows: Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }> }).rows;
+    return (
+      r.data as { rows: Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }> }
+    ).rows;
   };
-  assert.deepEqual((await many(h.owner)).map((r) => r.fields["total"]), [10002, 10004, 10006], "control: the owner has every total");
-  assert.deepEqual((await many(sighted)).map((r) => r.fields["total"]), [10002, 10004, 10006], "control: a person who may read price and qty has them too");
+  assert.deepEqual(
+    (await many(h.owner)).map((r) => r.fields["total"]),
+    [10002, 10004, 10006],
+    "control: the owner has every total",
+  );
+  assert.deepEqual(
+    (await many(sighted)).map((r) => r.fields["total"]),
+    [10002, 10004, 10006],
+    "control: a person who may read price and qty has them too",
+  );
   const rows = await many(blind);
   assert.equal(rows.length, 3, "the blind person has all three rows");
   for (const r of rows) {
@@ -903,5 +567,6 @@ test("records.get_many carries computed values by the same rule: the owner and a
     assert.equal(r.computedAt, undefined, "and no stamp of when it was computed");
   }
   const body = JSON.stringify(rows);
-  for (const frag of ["10002", "10004", "10006", "5001", "5002", "5003"]) assert.equal(body.includes(frag), false, `get_many for the blind person carries "${frag}"`);
+  for (const frag of ["10002", "10004", "10006", "5001", "5002", "5003"])
+    assert.equal(body.includes(frag), false, `get_many for the blind person carries "${frag}"`);
 });
