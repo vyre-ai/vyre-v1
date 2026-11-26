@@ -853,3 +853,55 @@ test("export and records.search carry computed values by the same rule: the owne
   assert.ok(seenByBlind && seenByBlind["name"] === `Exp ${tag} b`, "the blind person finds the row");
   assert.equal("total" in seenByBlind, false, "without a total");
 });
+
+test("records.get_many carries computed values by the same rule: the owner and a person who may read every input have them, a person with a hidden input has none", async () => {
+  const tag = `gm${++seq}`;
+  const type = `many${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "Line",
+          plural: "Lines",
+          icon: "table",
+          titleField: "name",
+          fields: ["name", "qty", "price"].map((key) => ({ key, type: key === "name" ? "text" : "number", title: key })),
+        },
+      },
+    ],
+  });
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-f`,
+    ops: [{ op: "field.add", type, field: "total", def: { type: "formula", title: "Total", options: { expr: "qty * price" } } }],
+  });
+  const ids: string[] = [];
+  for (const n of [0, 1, 2]) {
+    const r = (await h.owner.call("records.create", { type, fields: { name: `Many ${tag} ${n}`, qty: 2, price: 5001 + n } })) as { record: { id: string } };
+    ids.push(r.record.id);
+  }
+  const sighted = await newMember(`gs${tag}`);
+  const blind = await newMember(`gb${tag}`);
+  for (const id of ids) {
+    await grant(id, sighted, undefined, `${tag}-s-${id}`);
+    await grant(id, blind, ["price"], `${tag}-b-${id}`);
+  }
+  await until(async () => (await fieldsOf(h.owner, type, ids[2]!))?.["total"] === 10004);
+  const many = async (who: Pick<Person, "attempt">): Promise<Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }>> => {
+    const r = await who.attempt("records.get_many", { type, ids });
+    assert.ok(r.ok, "get_many was answered");
+    return (r.data as { rows: Array<{ id: string; fields: Record<string, unknown>; computedAt?: Record<string, number> }> }).rows;
+  };
+  assert.deepEqual((await many(h.owner)).map((r) => r.fields["total"]), [10002, 10004, 10006], "control: the owner has every total");
+  assert.deepEqual((await many(sighted)).map((r) => r.fields["total"]), [10002, 10004, 10006], "control: a person who may read price and qty has them too");
+  const rows = await many(blind);
+  assert.equal(rows.length, 3, "the blind person has all three rows");
+  for (const r of rows) {
+    assert.equal("total" in r.fields, false, "no total for the person whose grant hides price");
+    assert.equal(r.computedAt, undefined, "and no stamp of when it was computed");
+  }
+  const body = JSON.stringify(rows);
+  for (const frag of ["10002", "10004", "10006", "5001", "5002", "5003"]) assert.equal(body.includes(frag), false, `get_many for the blind person carries "${frag}"`);
+});
