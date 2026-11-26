@@ -348,48 +348,88 @@ test("a restricted reader's page waits for a record the snapshot has not folded 
   assert.equal(refreshes, 1, "one fold found them");
 });
 
-test("a page of 200 records of a type with no computed field asks the computed side table once, not twice for every record", async () => {
+test("a page of 200 records reads their computed values and rows in a constant number of queries, whatever the type has", async () => {
   const f = fixture();
+  const ids = Array.from({ length: 200 }, (_, i) => `row${i}`);
+  for (const id of ids)
+    f.snapshot.putResource({ id, type: "record", parent_id: "type", label: 0, owner_id: null, holds: 0 });
+  const store = {
+    types: async () => [
+      {
+        name: "type",
+        fields: [
+          { name: "name", kind: "text" },
+          { name: "secret", kind: "text", sensitivity: "restricted" },
+          { name: "double0", kind: "number" },
+          { name: "double1", kind: "number" },
+          { name: "double2", kind: "number" },
+        ],
+      },
+    ],
+    get: async (_t: string, id: string) => ({ ...f.row, id }),
+  } as unknown as Store;
   let asked = 0;
-  const side: { has: boolean } = { has: false };
+  const side: { has: boolean; fields: number } = { has: false, fields: 1 };
   const guard = createRecordAccess({
-    store: () => f.store,
+    store: () => store,
     snapshot: () => f.snapshot,
     now: () => 1,
     fresh: () => true,
     rows: {
-      all: (sql: string) => {
+      all: (sql: string, ...args: unknown[]) => {
         asked++;
         if (/FROM records_computed WHERE type = \? LIMIT 1/.test(sql)) return side.has ? [{ x: 1 }] : [];
         if (/FROM records_computed_job/.test(sql)) return [];
-        if (/FROM records_computed WHERE type = \? AND id = \?/.test(sql))
-          return side.has
-            ? [
-                {
-                  field: "double",
-                  value: "2",
-                  inputs: '["type.name"]',
-                  kind: "formula",
-                  computed_at: 1,
-                  link_ids: null,
-                },
-              ]
-            : [];
+        if (/FROM records_computed WHERE type = \? AND id IN/.test(sql))
+          return (args.slice(1) as string[]).flatMap((id) =>
+            Array.from({ length: side.fields }, (_, n) => ({
+              id,
+              field: `double${n}`,
+              value: "2",
+              inputs: '["type.name"]',
+              kind: "formula",
+              computed_at: 1,
+              link_ids: null,
+            })),
+          );
+        if (/FROM rt_type WHERE deleted_at IS NULL AND id IN/.test(sql))
+          return (args as string[]).map((id) => ({ id, data: JSON.stringify(f.row.data) }));
+        if (/FROM records_computed WHERE type = \? AND id = \?/.test(sql) || /FROM rt_type WHERE id = \?/.test(sql))
+          return ["one query for one record"].map(() => ({}));
         return [];
       },
     },
   });
-  const page = Array.from({ length: 200 }, () => ({ id: "row", fields: f.row.data }));
-  const run = async (): Promise<number> => {
+  const page = ids.map((id) => ({ id, fields: f.row.data }));
+  const run = async (): Promise<{ asked: number; rows: Array<{ fields: Record<string, unknown> }> }> => {
     asked = 0;
     const finish = await guard.project("records.query", { type: "type" }, f.seed, { rows: page }, "trace");
-    await finish();
-    return asked;
+    const out = (await finish()) as { rows: Array<{ fields: Record<string, unknown> }> };
+    return { asked, rows: out.rows };
   };
   const without = await run();
   side.has = true;
-  const withComputed = await run();
-  console.log(`SQL statements for a page of 200 rows: ${without} without computed fields, ${withComputed} with one`);
-  assert.ok(without <= 3, `a type with no computed field costs a constant number of statements (${without})`);
-  assert.ok(withComputed > without, "control: a type with a computed field does read its values");
+  const one = await run();
+  side.fields = 3;
+  const three = await run();
+  console.log(
+    `SQL statements for a page of 200 rows: ${without.asked} with no computed field, ${one.asked} with one, ${three.asked} with three`,
+  );
+  assert.equal(without.rows.length, 200);
+  assert.ok(
+    without.asked <= 2,
+    `a type with no computed field costs a constant number of statements (${without.asked})`,
+  );
+  assert.ok(
+    one.rows.every((r) => r.fields["double0"] === 2),
+    "control: every row has its computed value",
+  );
+  assert.ok(
+    three.rows.every((r) => r.fields["double2"] === 2),
+    "and with three computed fields",
+  );
+  assert.ok(
+    one.asked <= 8 && three.asked <= 8,
+    `a page costs a constant number of statements however many rows and fields (${one.asked}, ${three.asked})`,
+  );
 });

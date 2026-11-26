@@ -557,6 +557,34 @@ test("sort and filter by a computed field: the owner and a person who may read i
     "the owner's filter total > 25 (40 and 30)",
   );
   assert.deepEqual(await order(h.owner, { filter: { field: "total", op: "eq", value: 10 } }), [rows[3]!.id], "equals");
+  // the in-memory path (a filter the SQL cannot take: a value that is an object) carries the same values and the same order
+  const odd = {
+    or: [
+      { field: "name", op: "eq", value: { a: 1 } },
+      { field: "qty", op: "gte", value: 0 },
+    ],
+  };
+  assert.deepEqual(
+    await order(h.owner, { filter: odd, sort: [{ field: "total", dir: "asc" }] }),
+    byName.slice().reverse(),
+    "in memory: the owner's sort by total",
+  );
+  assert.deepEqual(
+    await order(h.owner, { filter: { and: [odd, { field: "total", op: "gt", value: 25 }] } }),
+    [rows[0]!.id, rows[1]!.id].sort(),
+    "in memory: a filter on total",
+  );
+  const memoryRow = (await h.owner.call("records.query", {
+    type,
+    limit: 5,
+    filter: odd,
+    sort: [{ field: "total", dir: "asc" }],
+  })) as { rows: Array<{ fields: Record<string, unknown> }> };
+  assert.equal(
+    memoryRow.rows[0]!.fields["total"],
+    10,
+    "and the row shows its total once, from the side table, not from the comparison copy",
+  );
   // a person who may read every input (unrestricted on the type): the same
   const sighted = await newMember(`sighted${tag}`);
   assert.deepEqual(

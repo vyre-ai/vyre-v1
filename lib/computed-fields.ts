@@ -96,6 +96,8 @@ export interface ComputedSide {
 export interface ComputedReadDeps {
   visibleOn(type: string, id: string, fields: readonly string[]): boolean;
   sideOf(type: string, id: string): readonly ComputedSide[];
+  /** Read what the rule is about to ask of these records in one go (optional). */
+  prefetch?(type: string, ids: readonly string[]): void;
 }
 
 /**
@@ -135,6 +137,7 @@ export function mayReadComputed(d: ComputedReadDeps, type: string, id: string, c
     from = null;
   }
   if (from === null) return false;
+  d.prefetch?.(targetType, from);
   for (const link of from) {
     if (!d.visibleOn(targetType, link, [targetField])) return false;
     const s = d.sideOf(targetType, link).find((x) => x.field === targetField);

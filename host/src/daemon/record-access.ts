@@ -350,6 +350,7 @@ export function createRecordAccess(ports: {
     return yes;
   };
   const typeHas = new WeakMap<object, Map<string, boolean>>();
+  const updatingMemo = new WeakMap<object, Map<string, string[]>>();
   /** The definition of a computed field of a type, as the side table knows it: its kind and what it reads (type.field). Null when the field is not computed. Unknown inputs (a fill that has made no value yet) are null. */
   const computedDefOf = (type: string, field: string): { kind: string; inputs: string[] | null } | null => {
     if (!ports.rows || !SAFE_TYPE.test(type)) return null;
@@ -425,6 +426,42 @@ export function createRecordAccess(ports: {
     return false;
   }
   const sideMemo = new WeakMap<object, Map<string, Side[]>>();
+  const dataMemo = new WeakMap<object, Map<string, Record<string, unknown> | null>>();
+  const SIDE_COLS = "type, id, field, value, inputs, kind, computed_at, link_ids";
+  /**
+   * Read the computed values and the rows they were computed from for a whole page of records of one type in two queries (one for the values, one for the rows), not two for each record. A read of a page asks
+   * this first; a record it did not ask for is read alone, as before.
+   */
+  const prefetch = (seed: ReadSeed, type: string, ids: readonly string[]): void => {
+    if (!ports.rows || !SAFE_TYPE.test(type) || !ids.length) return;
+    const sides = sideMemo.get(seed) ?? sideMemo.set(seed, new Map()).get(seed)!;
+    const datas = dataMemo.get(seed) ?? dataMemo.set(seed, new Map()).get(seed)!;
+    const needSide = [...new Set(ids)].filter((id) => !sides.has(`${type}/${id}`));
+    const needData = [...new Set(ids)].filter((id) => !datas.has(`${type}/${id}`));
+    try {
+      for (let at = 0; at < needSide.length; at += 500) {
+        const part = needSide.slice(at, at + 500);
+        const found = ports.rows.all(
+          `SELECT ${SIDE_COLS} FROM records_computed WHERE type = ? AND id IN (${part.map(() => "?").join(",")})`,
+          type,
+          ...part,
+        ) as Array<Side & { id: string }>;
+        for (const id of part) sides.set(`${type}/${id}`, []);
+        for (const r of found) sides.get(`${type}/${r.id}`)!.push(r);
+      }
+      for (let at = 0; at < needData.length; at += 500) {
+        const part = needData.slice(at, at + 500);
+        const found = ports.rows.all(
+          `SELECT id, data FROM rt_${type} WHERE deleted_at IS NULL AND id IN (${part.map(() => "?").join(",")})`,
+          ...part,
+        ) as Array<{ id: string; data: string }>;
+        for (const id of part) datas.set(`${type}/${id}`, null);
+        for (const r of found) datas.set(`${type}/${r.id}`, JSON.parse(r.data) as Record<string, unknown>);
+      }
+    } catch {
+      /* no side table or no such type here: each record is read alone and finds nothing */
+    }
+  };
   const sideOf = (seed: ReadSeed, type: string, id: string): Side[] => {
     if (!ports.rows || !SAFE_TYPE.test(type)) return [];
     const memo = sideMemo.get(seed) ?? sideMemo.set(seed, new Map()).get(seed)!;
@@ -432,7 +469,7 @@ export function createRecordAccess(ports: {
     if (had) return had;
     try {
       const found = ports.rows.all(
-        "SELECT field, value, inputs, kind, computed_at, link_ids FROM records_computed WHERE type = ? AND id = ?",
+        `SELECT ${SIDE_COLS} FROM records_computed WHERE type = ? AND id = ?`,
         type,
         id,
       ) as Side[];
@@ -442,13 +479,17 @@ export function createRecordAccess(ports: {
       return [];
     }
   };
-  const dataOf = (type: string, id: string): Record<string, unknown> | null => {
+  const dataOf = (seed: ReadSeed, type: string, id: string): Record<string, unknown> | null => {
     if (!ports.rows || !SAFE_TYPE.test(type)) return null;
+    const memo = dataMemo.get(seed) ?? dataMemo.set(seed, new Map()).get(seed)!;
+    if (memo.has(`${type}/${id}`)) return memo.get(`${type}/${id}`) ?? null;
     try {
       const r = ports.rows.all(`SELECT data FROM rt_${type} WHERE id = ? AND deleted_at IS NULL`, id)[0] as
         | { data: string }
         | undefined;
-      return r ? (JSON.parse(r.data) as Record<string, unknown>) : null;
+      const data = r ? (JSON.parse(r.data) as Record<string, unknown>) : null;
+      memo.set(`${type}/${id}`, data);
+      return data;
     } catch {
       return null;
     }
@@ -473,7 +514,7 @@ export function createRecordAccess(ports: {
     const had = memo.get(key);
     if (had !== undefined) return had;
     const snapshot = ports.snapshot();
-    const data = dataOf(type, id);
+    const data = dataOf(seed, type, id);
     const resource = snapshot.resource(id);
     const ok =
       data !== null &&
@@ -496,7 +537,11 @@ export function createRecordAccess(ports: {
   }
   function mayReadComputed(seed: ReadSeed, type: string, id: string, c: Side, depth: number): boolean {
     return sharedMayRead(
-      { visibleOn: (t, i, names) => visibleOn(seed, t, i, names), sideOf: (t, i) => sideOf(seed, t, i) },
+      {
+        visibleOn: (t, i, names) => visibleOn(seed, t, i, names),
+        sideOf: (t, i) => sideOf(seed, t, i),
+        prefetch: (t, ids) => prefetch(seed, t, ids),
+      },
       type,
       id,
       c,
@@ -526,18 +571,22 @@ export function createRecordAccess(ports: {
     for (const c of sideOf(seed, row.type, row.id))
       if (gate(c.field) && typeof c.computed_at === "number" && mayReadComputed(seed, row.type, row.id, c, 0))
         at[c.field] = c.computed_at;
-    let updating: string[] = [];
-    try {
-      updating = (
-        ports.rows!.all("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", row.type) as {
-          field: string;
-        }[]
-      )
-        .map((r) => r.field)
-        .filter((f) => gate(f));
-    } catch {
-      updating = [];
+    // the fields of the type being filled now, asked once per read for the type; each record shows the ones its reader may see
+    const ups = updatingMemo.get(seed) ?? updatingMemo.set(seed, new Map()).get(seed)!;
+    let filling = ups.get(row.type);
+    if (!filling) {
+      try {
+        filling = (
+          ports.rows!.all("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", row.type) as {
+            field: string;
+          }[]
+        ).map((r) => r.field);
+      } catch {
+        filling = [];
+      }
+      ups.set(row.type, filling);
     }
+    const updating = filling.filter((f) => gate(f));
     return { ...(updating.length ? { updating } : {}), ...(Object.keys(at).length ? { computedAt: at } : {}) };
   }
   function fields(
@@ -784,6 +833,12 @@ export function createRecordAccess(ports: {
                 );
               }).length,
             };
+          if (hasComputed(seed, type))
+            prefetch(
+              seed,
+              type,
+              rows.map((r) => r.id),
+            );
           return {
             rows: rows.flatMap((row) => {
               const result = decision(seed, row);
@@ -934,6 +989,12 @@ export function createRecordAccess(ports: {
       );
       return async () => {
         seed = { ...seed, labels: await recordSensitivity(ports.store(), type, trace) };
+        if (hasComputed(seed, type))
+          prefetch(
+            seed,
+            type,
+            stored.flatMap((r) => (r ? [r.id] : [])),
+          );
         const read = () =>
           originals.flatMap((original, index) => {
             const row = stored[index];
