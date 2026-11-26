@@ -2667,19 +2667,19 @@ if ("ok" in o4635) lf(o4635["ok"], p + "/ok", e, L3);
 
 function e301_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7701 = v;
-const g7701 = typeOf(x7701);
-const b7701: string[] = []; lf(x7701, p, b7701, L0); if (b7701.length) e.push(...b7701);
-if (g7701 === "object") {
-if (g7701 === 'object') { const o7701 = x7701 as Record<string, unknown>;
-if (!("routeId" in o7701)) e.push(p + "/routeId" + ': required');
-if (!("domainId" in o7701)) e.push(p + "/domainId" + ': required');
-if (!("localPart" in o7701)) e.push(p + "/localPart" + ': required');
-if (!("mailboxId" in o7701)) e.push(p + "/mailboxId" + ': required');
-if ("routeId" in o7701) lf(o7701["routeId"], p + "/routeId", e, L29);
-if ("domainId" in o7701) lf(o7701["domainId"], p + "/domainId", e, L14);
-if ("localPart" in o7701) lf(o7701["localPart"], p + "/localPart", e, L1);
-if ("mailboxId" in o7701) lf(o7701["mailboxId"], p + "/mailboxId", e, L30);
+const x7704 = v;
+const g7704 = typeOf(x7704);
+const b7704: string[] = []; lf(x7704, p, b7704, L0); if (b7704.length) e.push(...b7704);
+if (g7704 === "object") {
+if (g7704 === 'object') { const o7704 = x7704 as Record<string, unknown>;
+if (!("routeId" in o7704)) e.push(p + "/routeId" + ': required');
+if (!("domainId" in o7704)) e.push(p + "/domainId" + ': required');
+if (!("localPart" in o7704)) e.push(p + "/localPart" + ': required');
+if (!("mailboxId" in o7704)) e.push(p + "/mailboxId" + ': required');
+if ("routeId" in o7704) lf(o7704["routeId"], p + "/routeId", e, L29);
+if ("domainId" in o7704) lf(o7704["domainId"], p + "/domainId", e, L14);
+if ("localPart" in o7704) lf(o7704["localPart"], p + "/localPart", e, L1);
+if ("mailboxId" in o7704) lf(o7704["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 }
@@ -2687,13 +2687,13 @@ if ("mailboxId" in o7701) lf(o7701["mailboxId"], p + "/mailboxId", e, L30);
 
 function e330_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7729 = v;
-const g7729 = typeOf(x7729);
-const b7729: string[] = []; lf(x7729, p, b7729, L0); if (b7729.length) e.push(...b7729);
-if (g7729 === "object") {
-if (g7729 === 'object') { const o7729 = x7729 as Record<string, unknown>;
-if (!("messageId" in o7729)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o7729) lf(o7729["messageId"], p + "/messageId", e, L31);
+const x7732 = v;
+const g7732 = typeOf(x7732);
+const b7732: string[] = []; lf(x7732, p, b7732, L0); if (b7732.length) e.push(...b7732);
+if (g7732 === "object") {
+if (g7732 === 'object') { const o7732 = x7732 as Record<string, unknown>;
+if (!("messageId" in o7732)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o7732) lf(o7732["messageId"], p + "/messageId", e, L31);
 }
 }
 }
@@ -2701,21 +2701,21 @@ if ("messageId" in o7729) lf(o7729["messageId"], p + "/messageId", e, L31);
 
 function e331_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7730 = v;
-const g7730 = typeOf(x7730);
-const b7730: string[] = []; lf(x7730, p, b7730, L0); if (b7730.length) e.push(...b7730);
-if (g7730 === "object") {
-if (g7730 === 'object') { const o7730 = x7730 as Record<string, unknown>;
-if (!("messageId" in o7730)) e.push(p + "/messageId" + ': required');
-if (!("mailboxId" in o7730)) e.push(p + "/mailboxId" + ': required');
-if (!("from" in o7730)) e.push(p + "/from" + ': required');
-if (!("subject" in o7730)) e.push(p + "/subject" + ': required');
-if ("messageId" in o7730) lf(o7730["messageId"], p + "/messageId", e, L31);
-if ("mailboxId" in o7730) lf(o7730["mailboxId"], p + "/mailboxId", e, L30);
-if ("from" in o7730) lf(o7730["from"], p + "/from", e, L6);
-if ("subject" in o7730) lf(o7730["subject"], p + "/subject", e, L1);
-if ("contactId" in o7730) lf(o7730["contactId"], p + "/contactId", e, L34);
-if ("auto" in o7730) lf(o7730["auto"], p + "/auto", e, L3);
+const x7733 = v;
+const g7733 = typeOf(x7733);
+const b7733: string[] = []; lf(x7733, p, b7733, L0); if (b7733.length) e.push(...b7733);
+if (g7733 === "object") {
+if (g7733 === 'object') { const o7733 = x7733 as Record<string, unknown>;
+if (!("messageId" in o7733)) e.push(p + "/messageId" + ': required');
+if (!("mailboxId" in o7733)) e.push(p + "/mailboxId" + ': required');
+if (!("from" in o7733)) e.push(p + "/from" + ': required');
+if (!("subject" in o7733)) e.push(p + "/subject" + ': required');
+if ("messageId" in o7733) lf(o7733["messageId"], p + "/messageId", e, L31);
+if ("mailboxId" in o7733) lf(o7733["mailboxId"], p + "/mailboxId", e, L30);
+if ("from" in o7733) lf(o7733["from"], p + "/from", e, L6);
+if ("subject" in o7733) lf(o7733["subject"], p + "/subject", e, L1);
+if ("contactId" in o7733) lf(o7733["contactId"], p + "/contactId", e, L34);
+if ("auto" in o7733) lf(o7733["auto"], p + "/auto", e, L3);
 }
 }
 }
@@ -2723,13 +2723,13 @@ if ("auto" in o7730) lf(o7730["auto"], p + "/auto", e, L3);
 
 function e332_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7731 = v;
-const g7731 = typeOf(x7731);
-const b7731: string[] = []; lf(x7731, p, b7731, L0); if (b7731.length) e.push(...b7731);
-if (g7731 === "object") {
-if (g7731 === 'object') { const o7731 = x7731 as Record<string, unknown>;
-if (!("draftId" in o7731)) e.push(p + "/draftId" + ': required');
-if ("draftId" in o7731) lf(o7731["draftId"], p + "/draftId", e, L31);
+const x7734 = v;
+const g7734 = typeOf(x7734);
+const b7734: string[] = []; lf(x7734, p, b7734, L0); if (b7734.length) e.push(...b7734);
+if (g7734 === "object") {
+if (g7734 === 'object') { const o7734 = x7734 as Record<string, unknown>;
+if (!("draftId" in o7734)) e.push(p + "/draftId" + ': required');
+if ("draftId" in o7734) lf(o7734["draftId"], p + "/draftId", e, L31);
 }
 }
 }
@@ -2737,17 +2737,17 @@ if ("draftId" in o7731) lf(o7731["draftId"], p + "/draftId", e, L31);
 
 function e333_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7732 = v;
-const g7732 = typeOf(x7732);
-const b7732: string[] = []; lf(x7732, p, b7732, L0); if (b7732.length) e.push(...b7732);
-if (g7732 === "object") {
-if (g7732 === 'object') { const o7732 = x7732 as Record<string, unknown>;
-if (!("draftId" in o7732)) e.push(p + "/draftId" + ': required');
-if (!("mailboxId" in o7732)) e.push(p + "/mailboxId" + ': required');
-if ("draftId" in o7732) lf(o7732["draftId"], p + "/draftId", e, L31);
-if ("mailboxId" in o7732) lf(o7732["mailboxId"], p + "/mailboxId", e, L30);
-if ("byAgent" in o7732) lf(o7732["byAgent"], p + "/byAgent", e, L17);
-if ("contactId" in o7732) lf(o7732["contactId"], p + "/contactId", e, L34);
+const x7735 = v;
+const g7735 = typeOf(x7735);
+const b7735: string[] = []; lf(x7735, p, b7735, L0); if (b7735.length) e.push(...b7735);
+if (g7735 === "object") {
+if (g7735 === 'object') { const o7735 = x7735 as Record<string, unknown>;
+if (!("draftId" in o7735)) e.push(p + "/draftId" + ': required');
+if (!("mailboxId" in o7735)) e.push(p + "/mailboxId" + ': required');
+if ("draftId" in o7735) lf(o7735["draftId"], p + "/draftId", e, L31);
+if ("mailboxId" in o7735) lf(o7735["mailboxId"], p + "/mailboxId", e, L30);
+if ("byAgent" in o7735) lf(o7735["byAgent"], p + "/byAgent", e, L17);
+if ("contactId" in o7735) lf(o7735["contactId"], p + "/contactId", e, L34);
 }
 }
 }
@@ -2755,19 +2755,19 @@ if ("contactId" in o7732) lf(o7732["contactId"], p + "/contactId", e, L34);
 
 function e334_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7733 = v;
-const g7733 = typeOf(x7733);
-const b7733: string[] = []; lf(x7733, p, b7733, L0); if (b7733.length) e.push(...b7733);
-if (g7733 === "object") {
-if (g7733 === 'object') { const o7733 = x7733 as Record<string, unknown>;
-if (!("mailboxId" in o7733)) e.push(p + "/mailboxId" + ': required');
-if (!("provider" in o7733)) e.push(p + "/provider" + ': required');
-if (!("auto" in o7733)) e.push(p + "/auto" + ': required');
-if ("mailboxId" in o7733) lf(o7733["mailboxId"], p + "/mailboxId", e, L30);
-if ("memberId" in o7733) lf(o7733["memberId"], p + "/memberId", e, L22);
-if ("provider" in o7733) lf(o7733["provider"], p + "/provider", e, L387);
-if ("auto" in o7733) lf(o7733["auto"], p + "/auto", e, L3);
-if ("private" in o7733) lf(o7733["private"], p + "/private", e, L3);
+const x7736 = v;
+const g7736 = typeOf(x7736);
+const b7736: string[] = []; lf(x7736, p, b7736, L0); if (b7736.length) e.push(...b7736);
+if (g7736 === "object") {
+if (g7736 === 'object') { const o7736 = x7736 as Record<string, unknown>;
+if (!("mailboxId" in o7736)) e.push(p + "/mailboxId" + ': required');
+if (!("provider" in o7736)) e.push(p + "/provider" + ': required');
+if (!("auto" in o7736)) e.push(p + "/auto" + ': required');
+if ("mailboxId" in o7736) lf(o7736["mailboxId"], p + "/mailboxId", e, L30);
+if ("memberId" in o7736) lf(o7736["memberId"], p + "/memberId", e, L22);
+if ("provider" in o7736) lf(o7736["provider"], p + "/provider", e, L387);
+if ("auto" in o7736) lf(o7736["auto"], p + "/auto", e, L3);
+if ("private" in o7736) lf(o7736["private"], p + "/private", e, L3);
 }
 }
 }
@@ -2775,17 +2775,17 @@ if ("private" in o7733) lf(o7733["private"], p + "/private", e, L3);
 
 function e335_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7734 = v;
-const g7734 = typeOf(x7734);
-const b7734: string[] = []; lf(x7734, p, b7734, L0); if (b7734.length) e.push(...b7734);
-if (g7734 === "object") {
-if (g7734 === 'object') { const o7734 = x7734 as Record<string, unknown>;
-if (!("mailboxId" in o7734)) e.push(p + "/mailboxId" + ': required');
-if (!("kind" in o7734)) e.push(p + "/kind" + ': required');
-if (!("address" in o7734)) e.push(p + "/address" + ': required');
-if ("mailboxId" in o7734) lf(o7734["mailboxId"], p + "/mailboxId", e, L30);
-if ("kind" in o7734) lf(o7734["kind"], p + "/kind", e, L386);
-if ("address" in o7734) lf(o7734["address"], p + "/address", e, L6);
+const x7737 = v;
+const g7737 = typeOf(x7737);
+const b7737: string[] = []; lf(x7737, p, b7737, L0); if (b7737.length) e.push(...b7737);
+if (g7737 === "object") {
+if (g7737 === 'object') { const o7737 = x7737 as Record<string, unknown>;
+if (!("mailboxId" in o7737)) e.push(p + "/mailboxId" + ': required');
+if (!("kind" in o7737)) e.push(p + "/kind" + ': required');
+if (!("address" in o7737)) e.push(p + "/address" + ': required');
+if ("mailboxId" in o7737) lf(o7737["mailboxId"], p + "/mailboxId", e, L30);
+if ("kind" in o7737) lf(o7737["kind"], p + "/kind", e, L386);
+if ("address" in o7737) lf(o7737["address"], p + "/address", e, L6);
 }
 }
 }
@@ -2793,13 +2793,13 @@ if ("address" in o7734) lf(o7734["address"], p + "/address", e, L6);
 
 function e336_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7735 = v;
-const g7735 = typeOf(x7735);
-const b7735: string[] = []; lf(x7735, p, b7735, L0); if (b7735.length) e.push(...b7735);
-if (g7735 === "object") {
-if (g7735 === 'object') { const o7735 = x7735 as Record<string, unknown>;
-if (!("mailboxId" in o7735)) e.push(p + "/mailboxId" + ': required');
-if ("mailboxId" in o7735) lf(o7735["mailboxId"], p + "/mailboxId", e, L30);
+const x7738 = v;
+const g7738 = typeOf(x7738);
+const b7738: string[] = []; lf(x7738, p, b7738, L0); if (b7738.length) e.push(...b7738);
+if (g7738 === "object") {
+if (g7738 === 'object') { const o7738 = x7738 as Record<string, unknown>;
+if (!("mailboxId" in o7738)) e.push(p + "/mailboxId" + ': required');
+if ("mailboxId" in o7738) lf(o7738["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 }
@@ -2807,13 +2807,13 @@ if ("mailboxId" in o7735) lf(o7735["mailboxId"], p + "/mailboxId", e, L30);
 
 function e337_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7736 = v;
-const g7736 = typeOf(x7736);
-const b7736: string[] = []; lf(x7736, p, b7736, L0); if (b7736.length) e.push(...b7736);
-if (g7736 === "object") {
-if (g7736 === 'object') { const o7736 = x7736 as Record<string, unknown>;
-if (!("mailboxId" in o7736)) e.push(p + "/mailboxId" + ': required');
-if ("mailboxId" in o7736) lf(o7736["mailboxId"], p + "/mailboxId", e, L30);
+const x7739 = v;
+const g7739 = typeOf(x7739);
+const b7739: string[] = []; lf(x7739, p, b7739, L0); if (b7739.length) e.push(...b7739);
+if (g7739 === "object") {
+if (g7739 === 'object') { const o7739 = x7739 as Record<string, unknown>;
+if (!("mailboxId" in o7739)) e.push(p + "/mailboxId" + ': required');
+if ("mailboxId" in o7739) lf(o7739["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 }
@@ -2821,13 +2821,13 @@ if ("mailboxId" in o7736) lf(o7736["mailboxId"], p + "/mailboxId", e, L30);
 
 function e339_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7737 = v;
-const g7737 = typeOf(x7737);
-const b7737: string[] = []; lf(x7737, p, b7737, L0); if (b7737.length) e.push(...b7737);
-if (g7737 === "object") {
-if (g7737 === 'object') { const o7737 = x7737 as Record<string, unknown>;
-if (!("mailboxId" in o7737)) e.push(p + "/mailboxId" + ': required');
-if ("mailboxId" in o7737) lf(o7737["mailboxId"], p + "/mailboxId", e, L30);
+const x7740 = v;
+const g7740 = typeOf(x7740);
+const b7740: string[] = []; lf(x7740, p, b7740, L0); if (b7740.length) e.push(...b7740);
+if (g7740 === "object") {
+if (g7740 === 'object') { const o7740 = x7740 as Record<string, unknown>;
+if (!("mailboxId" in o7740)) e.push(p + "/mailboxId" + ': required');
+if ("mailboxId" in o7740) lf(o7740["mailboxId"], p + "/mailboxId", e, L30);
 }
 }
 }
@@ -2835,17 +2835,17 @@ if ("mailboxId" in o7737) lf(o7737["mailboxId"], p + "/mailboxId", e, L30);
 
 function e340_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7738 = v;
-const g7738 = typeOf(x7738);
-const b7738: string[] = []; lf(x7738, p, b7738, L0); if (b7738.length) e.push(...b7738);
-if (g7738 === "object") {
-if (g7738 === 'object') { const o7738 = x7738 as Record<string, unknown>;
-if (!("mailboxId" in o7738)) e.push(p + "/mailboxId" + ': required');
-if (!("received" in o7738)) e.push(p + "/received" + ': required');
-if (!("sent" in o7738)) e.push(p + "/sent" + ': required');
-if ("mailboxId" in o7738) lf(o7738["mailboxId"], p + "/mailboxId", e, L30);
-if ("received" in o7738) lf(o7738["received"], p + "/received", e, L2);
-if ("sent" in o7738) lf(o7738["sent"], p + "/sent", e, L2);
+const x7741 = v;
+const g7741 = typeOf(x7741);
+const b7741: string[] = []; lf(x7741, p, b7741, L0); if (b7741.length) e.push(...b7741);
+if (g7741 === "object") {
+if (g7741 === 'object') { const o7741 = x7741 as Record<string, unknown>;
+if (!("mailboxId" in o7741)) e.push(p + "/mailboxId" + ': required');
+if (!("received" in o7741)) e.push(p + "/received" + ': required');
+if (!("sent" in o7741)) e.push(p + "/sent" + ': required');
+if ("mailboxId" in o7741) lf(o7741["mailboxId"], p + "/mailboxId", e, L30);
+if ("received" in o7741) lf(o7741["received"], p + "/received", e, L2);
+if ("sent" in o7741) lf(o7741["sent"], p + "/sent", e, L2);
 }
 }
 }
@@ -2853,75 +2853,21 @@ if ("sent" in o7738) lf(o7738["sent"], p + "/sent", e, L2);
 
 function e341_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7739 = v;
-const g7739 = typeOf(x7739);
-const b7739: string[] = []; lf(x7739, p, b7739, L0); if (b7739.length) e.push(...b7739);
-if (g7739 === "object") {
-if (g7739 === 'object') { const o7739 = x7739 as Record<string, unknown>;
-if (!("mailboxId" in o7739)) e.push(p + "/mailboxId" + ': required');
-if (!("reason" in o7739)) e.push(p + "/reason" + ': required');
-if ("mailboxId" in o7739) lf(o7739["mailboxId"], p + "/mailboxId", e, L30);
-if ("reason" in o7739) lf(o7739["reason"], p + "/reason", e, L1);
+const x7742 = v;
+const g7742 = typeOf(x7742);
+const b7742: string[] = []; lf(x7742, p, b7742, L0); if (b7742.length) e.push(...b7742);
+if (g7742 === "object") {
+if (g7742 === 'object') { const o7742 = x7742 as Record<string, unknown>;
+if (!("mailboxId" in o7742)) e.push(p + "/mailboxId" + ': required');
+if (!("reason" in o7742)) e.push(p + "/reason" + ': required');
+if ("mailboxId" in o7742) lf(o7742["mailboxId"], p + "/mailboxId", e, L30);
+if ("reason" in o7742) lf(o7742["reason"], p + "/reason", e, L1);
 }
 }
 }
 }
 
 function e390_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7789 = v;
-const g7789 = typeOf(x7789);
-const b7789: string[] = []; lf(x7789, p, b7789, L0); if (b7789.length) e.push(...b7789);
-if (g7789 === "object") {
-if (g7789 === 'object') { const o7789 = x7789 as Record<string, unknown>;
-if (!("messageId" in o7789)) e.push(p + "/messageId" + ': required');
-if (!("channel" in o7789)) e.push(p + "/channel" + ': required');
-if (!("address" in o7789)) e.push(p + "/address" + ': required');
-if (!("kind" in o7789)) e.push(p + "/kind" + ': required');
-if ("messageId" in o7789) lf(o7789["messageId"], p + "/messageId", e, L1);
-if ("channel" in o7789) lf(o7789["channel"], p + "/channel", e, L831);
-if ("address" in o7789) lf(o7789["address"], p + "/address", e, L1);
-if ("kind" in o7789) lf(o7789["kind"], p + "/kind", e, L866);
-if ("reason" in o7789) lf(o7789["reason"], p + "/reason", e, L1);
-}
-}
-}
-}
-
-function e391_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7790 = v;
-const g7790 = typeOf(x7790);
-const b7790: string[] = []; lf(x7790, p, b7790, L0); if (b7790.length) e.push(...b7790);
-if (g7790 === "object") {
-if (g7790 === 'object') { const o7790 = x7790 as Record<string, unknown>;
-if (!("messageId" in o7790)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o7790) lf(o7790["messageId"], p + "/messageId", e, L1);
-if ("url" in o7790) lf(o7790["url"], p + "/url", e, L1);
-}
-}
-}
-}
-
-function e392_payload(v: unknown, p: string, e: string[]): void {
-{
-const x7791 = v;
-const g7791 = typeOf(x7791);
-const b7791: string[] = []; lf(x7791, p, b7791, L0); if (b7791.length) e.push(...b7791);
-if (g7791 === "object") {
-if (g7791 === 'object') { const o7791 = x7791 as Record<string, unknown>;
-if (!("messageId" in o7791)) e.push(p + "/messageId" + ': required');
-if (!("channel" in o7791)) e.push(p + "/channel" + ': required');
-if (!("address" in o7791)) e.push(p + "/address" + ': required');
-if ("messageId" in o7791) lf(o7791["messageId"], p + "/messageId", e, L1);
-if ("channel" in o7791) lf(o7791["channel"], p + "/channel", e, L831);
-if ("address" in o7791) lf(o7791["address"], p + "/address", e, L1);
-}
-}
-}
-}
-
-function e394_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7792 = v;
 const g7792 = typeOf(x7792);
@@ -2930,14 +2876,34 @@ if (g7792 === "object") {
 if (g7792 === 'object') { const o7792 = x7792 as Record<string, unknown>;
 if (!("messageId" in o7792)) e.push(p + "/messageId" + ': required');
 if (!("channel" in o7792)) e.push(p + "/channel" + ': required');
+if (!("address" in o7792)) e.push(p + "/address" + ': required');
+if (!("kind" in o7792)) e.push(p + "/kind" + ': required');
 if ("messageId" in o7792) lf(o7792["messageId"], p + "/messageId", e, L1);
 if ("channel" in o7792) lf(o7792["channel"], p + "/channel", e, L831);
+if ("address" in o7792) lf(o7792["address"], p + "/address", e, L1);
+if ("kind" in o7792) lf(o7792["kind"], p + "/kind", e, L866);
+if ("reason" in o7792) lf(o7792["reason"], p + "/reason", e, L1);
 }
 }
 }
 }
 
-function e397_payload(v: unknown, p: string, e: string[]): void {
+function e391_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7793 = v;
+const g7793 = typeOf(x7793);
+const b7793: string[] = []; lf(x7793, p, b7793, L0); if (b7793.length) e.push(...b7793);
+if (g7793 === "object") {
+if (g7793 === 'object') { const o7793 = x7793 as Record<string, unknown>;
+if (!("messageId" in o7793)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o7793) lf(o7793["messageId"], p + "/messageId", e, L1);
+if ("url" in o7793) lf(o7793["url"], p + "/url", e, L1);
+}
+}
+}
+}
+
+function e392_payload(v: unknown, p: string, e: string[]): void {
 {
 const x7794 = v;
 const g7794 = typeOf(x7794);
@@ -2946,10 +2912,44 @@ if (g7794 === "object") {
 if (g7794 === 'object') { const o7794 = x7794 as Record<string, unknown>;
 if (!("messageId" in o7794)) e.push(p + "/messageId" + ': required');
 if (!("channel" in o7794)) e.push(p + "/channel" + ': required');
-if (!("reason" in o7794)) e.push(p + "/reason" + ': required');
+if (!("address" in o7794)) e.push(p + "/address" + ': required');
 if ("messageId" in o7794) lf(o7794["messageId"], p + "/messageId", e, L1);
 if ("channel" in o7794) lf(o7794["channel"], p + "/channel", e, L831);
-if ("reason" in o7794) lf(o7794["reason"], p + "/reason", e, L1);
+if ("address" in o7794) lf(o7794["address"], p + "/address", e, L1);
+}
+}
+}
+}
+
+function e394_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7795 = v;
+const g7795 = typeOf(x7795);
+const b7795: string[] = []; lf(x7795, p, b7795, L0); if (b7795.length) e.push(...b7795);
+if (g7795 === "object") {
+if (g7795 === 'object') { const o7795 = x7795 as Record<string, unknown>;
+if (!("messageId" in o7795)) e.push(p + "/messageId" + ': required');
+if (!("channel" in o7795)) e.push(p + "/channel" + ': required');
+if ("messageId" in o7795) lf(o7795["messageId"], p + "/messageId", e, L1);
+if ("channel" in o7795) lf(o7795["channel"], p + "/channel", e, L831);
+}
+}
+}
+}
+
+function e397_payload(v: unknown, p: string, e: string[]): void {
+{
+const x7797 = v;
+const g7797 = typeOf(x7797);
+const b7797: string[] = []; lf(x7797, p, b7797, L0); if (b7797.length) e.push(...b7797);
+if (g7797 === "object") {
+if (g7797 === 'object') { const o7797 = x7797 as Record<string, unknown>;
+if (!("messageId" in o7797)) e.push(p + "/messageId" + ': required');
+if (!("channel" in o7797)) e.push(p + "/channel" + ': required');
+if (!("reason" in o7797)) e.push(p + "/reason" + ': required');
+if ("messageId" in o7797) lf(o7797["messageId"], p + "/messageId", e, L1);
+if ("channel" in o7797) lf(o7797["channel"], p + "/channel", e, L831);
+if ("reason" in o7797) lf(o7797["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -2957,13 +2957,13 @@ if ("reason" in o7794) lf(o7794["reason"], p + "/reason", e, L1);
 
 function e399_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7796 = v;
-const g7796 = typeOf(x7796);
-const b7796: string[] = []; lf(x7796, p, b7796, L0); if (b7796.length) e.push(...b7796);
-if (g7796 === "object") {
-if (g7796 === 'object') { const o7796 = x7796 as Record<string, unknown>;
-if (!("messageId" in o7796)) e.push(p + "/messageId" + ': required');
-if ("messageId" in o7796) lf(o7796["messageId"], p + "/messageId", e, L1);
+const x7799 = v;
+const g7799 = typeOf(x7799);
+const b7799: string[] = []; lf(x7799, p, b7799, L0); if (b7799.length) e.push(...b7799);
+if (g7799 === "object") {
+if (g7799 === 'object') { const o7799 = x7799 as Record<string, unknown>;
+if (!("messageId" in o7799)) e.push(p + "/messageId" + ': required');
+if ("messageId" in o7799) lf(o7799["messageId"], p + "/messageId", e, L1);
 }
 }
 }
@@ -2971,17 +2971,17 @@ if ("messageId" in o7796) lf(o7796["messageId"], p + "/messageId", e, L1);
 
 function e403_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7801 = v;
-const g7801 = typeOf(x7801);
-const b7801: string[] = []; lf(x7801, p, b7801, L0); if (b7801.length) e.push(...b7801);
-if (g7801 === "object") {
-if (g7801 === 'object') { const o7801 = x7801 as Record<string, unknown>;
-if (!("messageId" in o7801)) e.push(p + "/messageId" + ': required');
-if (!("channel" in o7801)) e.push(p + "/channel" + ': required');
-if ("messageId" in o7801) lf(o7801["messageId"], p + "/messageId", e, L1);
-if ("channel" in o7801) lf(o7801["channel"], p + "/channel", e, L831);
-if ("mailboxId" in o7801) lf(o7801["mailboxId"], p + "/mailboxId", e, L30);
-if ("contactId" in o7801) lf(o7801["contactId"], p + "/contactId", e, L34);
+const x7804 = v;
+const g7804 = typeOf(x7804);
+const b7804: string[] = []; lf(x7804, p, b7804, L0); if (b7804.length) e.push(...b7804);
+if (g7804 === "object") {
+if (g7804 === 'object') { const o7804 = x7804 as Record<string, unknown>;
+if (!("messageId" in o7804)) e.push(p + "/messageId" + ': required');
+if (!("channel" in o7804)) e.push(p + "/channel" + ': required');
+if ("messageId" in o7804) lf(o7804["messageId"], p + "/messageId", e, L1);
+if ("channel" in o7804) lf(o7804["channel"], p + "/channel", e, L831);
+if ("mailboxId" in o7804) lf(o7804["mailboxId"], p + "/mailboxId", e, L30);
+if ("contactId" in o7804) lf(o7804["contactId"], p + "/contactId", e, L34);
 }
 }
 }
@@ -2989,17 +2989,17 @@ if ("contactId" in o7801) lf(o7801["contactId"], p + "/contactId", e, L34);
 
 function e404_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7802 = v;
-const g7802 = typeOf(x7802);
-const b7802: string[] = []; lf(x7802, p, b7802, L0); if (b7802.length) e.push(...b7802);
-if (g7802 === "object") {
-if (g7802 === 'object') { const o7802 = x7802 as Record<string, unknown>;
-if (!("channel" in o7802)) e.push(p + "/channel" + ': required');
-if (!("address" in o7802)) e.push(p + "/address" + ': required');
-if (!("reason" in o7802)) e.push(p + "/reason" + ': required');
-if ("channel" in o7802) lf(o7802["channel"], p + "/channel", e, L831);
-if ("address" in o7802) lf(o7802["address"], p + "/address", e, L1);
-if ("reason" in o7802) lf(o7802["reason"], p + "/reason", e, L1);
+const x7805 = v;
+const g7805 = typeOf(x7805);
+const b7805: string[] = []; lf(x7805, p, b7805, L0); if (b7805.length) e.push(...b7805);
+if (g7805 === "object") {
+if (g7805 === 'object') { const o7805 = x7805 as Record<string, unknown>;
+if (!("channel" in o7805)) e.push(p + "/channel" + ': required');
+if (!("address" in o7805)) e.push(p + "/address" + ': required');
+if (!("reason" in o7805)) e.push(p + "/reason" + ': required');
+if ("channel" in o7805) lf(o7805["channel"], p + "/channel", e, L831);
+if ("address" in o7805) lf(o7805["address"], p + "/address", e, L1);
+if ("reason" in o7805) lf(o7805["reason"], p + "/reason", e, L1);
 }
 }
 }
@@ -3007,17 +3007,17 @@ if ("reason" in o7802) lf(o7802["reason"], p + "/reason", e, L1);
 
 function e567_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7942 = v;
-const g7942 = typeOf(x7942);
-const b7942: string[] = []; lf(x7942, p, b7942, L0); if (b7942.length) e.push(...b7942);
-if (g7942 === "object") {
-if (g7942 === 'object') { const o7942 = x7942 as Record<string, unknown>;
-if (!("domainId" in o7942)) e.push(p + "/domainId" + ': required');
-if (!("name" in o7942)) e.push(p + "/name" + ': required');
-if (!("provider" in o7942)) e.push(p + "/provider" + ': required');
-if ("domainId" in o7942) lf(o7942["domainId"], p + "/domainId", e, L14);
-if ("name" in o7942) lf(o7942["name"], p + "/name", e, L1);
-if ("provider" in o7942) lf(o7942["provider"], p + "/provider", e, L15);
+const x7945 = v;
+const g7945 = typeOf(x7945);
+const b7945: string[] = []; lf(x7945, p, b7945, L0); if (b7945.length) e.push(...b7945);
+if (g7945 === "object") {
+if (g7945 === 'object') { const o7945 = x7945 as Record<string, unknown>;
+if (!("domainId" in o7945)) e.push(p + "/domainId" + ': required');
+if (!("name" in o7945)) e.push(p + "/name" + ': required');
+if (!("provider" in o7945)) e.push(p + "/provider" + ': required');
+if ("domainId" in o7945) lf(o7945["domainId"], p + "/domainId", e, L14);
+if ("name" in o7945) lf(o7945["name"], p + "/name", e, L1);
+if ("provider" in o7945) lf(o7945["provider"], p + "/provider", e, L15);
 }
 }
 }
@@ -3025,19 +3025,19 @@ if ("provider" in o7942) lf(o7942["provider"], p + "/provider", e, L15);
 
 function e568_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7943 = v;
-const g7943 = typeOf(x7943);
-const b7943: string[] = []; lf(x7943, p, b7943, L0); if (b7943.length) e.push(...b7943);
-if (g7943 === "object") {
-if (g7943 === 'object') { const o7943 = x7943 as Record<string, unknown>;
-if (!("domainId" in o7943)) e.push(p + "/domainId" + ': required');
-if (!("spf" in o7943)) e.push(p + "/spf" + ': required');
-if (!("dkim" in o7943)) e.push(p + "/dkim" + ': required');
-if (!("dmarc" in o7943)) e.push(p + "/dmarc" + ': required');
-if ("domainId" in o7943) lf(o7943["domainId"], p + "/domainId", e, L14);
-if ("spf" in o7943) lf(o7943["spf"], p + "/spf", e, L16);
-if ("dkim" in o7943) lf(o7943["dkim"], p + "/dkim", e, L16);
-if ("dmarc" in o7943) lf(o7943["dmarc"], p + "/dmarc", e, L16);
+const x7946 = v;
+const g7946 = typeOf(x7946);
+const b7946: string[] = []; lf(x7946, p, b7946, L0); if (b7946.length) e.push(...b7946);
+if (g7946 === "object") {
+if (g7946 === 'object') { const o7946 = x7946 as Record<string, unknown>;
+if (!("domainId" in o7946)) e.push(p + "/domainId" + ': required');
+if (!("spf" in o7946)) e.push(p + "/spf" + ': required');
+if (!("dkim" in o7946)) e.push(p + "/dkim" + ': required');
+if (!("dmarc" in o7946)) e.push(p + "/dmarc" + ': required');
+if ("domainId" in o7946) lf(o7946["domainId"], p + "/domainId", e, L14);
+if ("spf" in o7946) lf(o7946["spf"], p + "/spf", e, L16);
+if ("dkim" in o7946) lf(o7946["dkim"], p + "/dkim", e, L16);
+if ("dmarc" in o7946) lf(o7946["dmarc"], p + "/dmarc", e, L16);
 }
 }
 }
@@ -3045,15 +3045,15 @@ if ("dmarc" in o7943) lf(o7943["dmarc"], p + "/dmarc", e, L16);
 
 function e569_payload(v: unknown, p: string, e: string[]): void {
 {
-const x7944 = v;
-const g7944 = typeOf(x7944);
-const b7944: string[] = []; lf(x7944, p, b7944, L0); if (b7944.length) e.push(...b7944);
-if (g7944 === "object") {
-if (g7944 === 'object') { const o7944 = x7944 as Record<string, unknown>;
-if (!("domainId" in o7944)) e.push(p + "/domainId" + ': required');
-if (!("name" in o7944)) e.push(p + "/name" + ': required');
-if ("domainId" in o7944) lf(o7944["domainId"], p + "/domainId", e, L14);
-if ("name" in o7944) lf(o7944["name"], p + "/name", e, L1);
+const x7947 = v;
+const g7947 = typeOf(x7947);
+const b7947: string[] = []; lf(x7947, p, b7947, L0); if (b7947.length) e.push(...b7947);
+if (g7947 === "object") {
+if (g7947 === 'object') { const o7947 = x7947 as Record<string, unknown>;
+if (!("domainId" in o7947)) e.push(p + "/domainId" + ': required');
+if (!("name" in o7947)) e.push(p + "/name" + ': required');
+if ("domainId" in o7947) lf(o7947["domainId"], p + "/domainId", e, L14);
+if ("name" in o7947) lf(o7947["name"], p + "/name", e, L1);
 }
 }
 }

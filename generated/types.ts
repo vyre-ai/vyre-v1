@@ -35632,6 +35632,25 @@ export type RecordsGetOut = {
     computedAt?: Record<string, unknown>;
   };
 };
+export type RecordsGetManyIn = {
+  type: string;
+  ids: Array<string>;
+};
+export type RecordsGetManyOut = {
+  rows: Array<{
+      id: string;
+      type: string;
+      version: number;
+      label: number;
+      fields: Record<string, unknown>;
+      createdAt: number;
+      updatedAt: number;
+      deletedAt?: number;
+      holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
+    }>;
+};
 export type RecordsHistoryIn = {
   type: string;
   recordId: string;
@@ -53475,6 +53494,7 @@ export interface CapMap {
   "records.export": { in: RecordsExportIn; out: RecordsExportOut };
   "records.gap_check": { in: RecordsGapCheckIn; out: RecordsGapCheckOut };
   "records.get": { in: RecordsGetIn; out: RecordsGetOut };
+  "records.get_many": { in: RecordsGetManyIn; out: RecordsGetManyOut };
   "records.history": { in: RecordsHistoryIn; out: RecordsHistoryOut };
   "records.hold": { in: RecordsHoldIn; out: RecordsHoldOut };
   "records.merge": { in: RecordsMergeIn; out: RecordsMergeOut };

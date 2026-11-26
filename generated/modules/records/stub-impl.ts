@@ -20,6 +20,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "records.export": async () => ({"fileId":"fil_a1b2c3"} as unknown) as never,
   "records.gap_check": async () => ({"gaps":[{"field":"example","reason":"missing","recordId":"rec_a1b2c3","route":"ai_field"}]} as unknown) as never,
   "records.get": async () => ({"record":{"computedAt":{},"createdAt":1760000000000,"deletedAt":1760000000000,"fields":{},"holds":1,"id":"rec_a1b2c3","label":1,"type":"contact","updatedAt":1760000000000,"updating":["example"],"version":1}} as unknown) as never,
+  "records.get_many": async () => ({"rows":[{"computedAt":{},"createdAt":1760000000000,"deletedAt":1760000000000,"fields":{},"holds":1,"id":"rec_a1b2c3","label":1,"type":"contact","updatedAt":1760000000000,"updating":["example"],"version":1}]} as unknown) as never,
   "records.history": async () => ({"entries":[{"actor":"example","field":"example","hlc":"example","reason":"example","value":{}}]} as unknown) as never,
   "records.hold": async () => ({"held":true} as unknown) as never,
   "records.merge": async () => ({"record":{"computedAt":{},"createdAt":1760000000000,"deletedAt":1760000000000,"fields":{},"holds":1,"id":"rec_a1b2c3","label":1,"type":"contact","updatedAt":1760000000000,"updating":["example"],"version":1},"undoUntil":1760000000000} as unknown) as never,
