@@ -50,6 +50,7 @@ import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
 import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
 import { networkRoom, networkRoomFinding, siteRoom } from "./netroom.ts";
+import { DEFAULT_SOFT_CAP_MB, volumeFinding } from "./volumes.ts";
 import type { RoomFinding } from "./netroom.ts";
 
 /**
@@ -1473,8 +1474,14 @@ export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
   const subnets = await workspaceManager?.hostSubnets().catch(() => null);
   // while workspaces go on Docker's default network because the shared one cannot be had: one line an admin sees, gone once the network exists (third look T3)
   const note = workspaceManager?.networkNote() ?? null;
+  const vols = await workspaceManager?.hostVolumes().catch(() => null);
+  const capMb =
+    Number(process.env["VYRE_VOLUME_SOFT_CAP_MB"]) > 0
+      ? Number(process.env["VYRE_VOLUME_SOFT_CAP_MB"])
+      : DEFAULT_SOFT_CAP_MB;
   return [
     ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok, siteRoom(subnets))] : []),
+    ...(vols ? [volumeFinding(vols, capMb, ok)] : []),
     ...(note
       ? [
           {

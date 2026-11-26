@@ -200,6 +200,9 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     networkNote() {
       return o.space ? o.space.networkNote() : null;
     },
+    async hostVolumes() {
+      return o.space ? o.space.hostVolumes() : null;
+    },
     async hostSubnets() {
       return o.space ? o.space.hostSubnets() : null;
     },

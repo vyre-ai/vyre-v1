@@ -19,6 +19,8 @@ import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
 import { START_SCRIPT, READ_SCRIPT, STOP_SCRIPT, SWEEP_SCRIPT, parseRead, streamFile } from "./stream-log.ts";
 import { ensureCommand, grantCommand, SQUATTED } from "./asker.ts";
 import type { AskerPlace } from "./asker.ts";
+import { volumesOf } from "./volumes.ts";
+import type { VolumeUse } from "./volumes.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
@@ -64,6 +66,8 @@ export const MAX_BUSY_AWAKE_MS = 12 * 60 * 60_000;
 export const FIRST_MIRROR_MS = 1500;
 /** The longest a look at a container (inspect, running or not) may take before it fails with a plain error. */
 export const READ_MS = 10_000;
+/** How often the volumes' sizes are read for server health. */
+const VOLUME_EVERY_MS = 5 * 60_000;
 /** How often a project change waiting for a busy workspace is looked at again. */
 export const MOUNT_RECHECK_MS = 5000;
 
@@ -268,6 +272,8 @@ export interface WorkspaceManager {
   networkNote(): string | null;
   /** The subnets of every network on this host's Docker (behind the runner: subnets only), for the count of networks it has left; null when Docker does not answer. */
   hostSubnets(): Promise<string[] | null>;
+  /** The sizes of Vyre's volumes on this host (workspace homes, Files mirrors, project folders, browser profiles), biggest first, read at most every few minutes; null when Docker does not answer. */
+  hostVolumes(): Promise<VolumeUse[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
   /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
@@ -536,6 +542,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const http = o.http;
   const image = o.image ?? DEFAULT_WORKSPACE_IMAGE;
   const idleMs = o.idleMs ?? DEFAULT_IDLE_MS;
+  /** What `/system/df` said last: it walks every volume on the disk, so it is asked at most every VOLUME_EVERY_MS. */
+  let volumeCache: { at: number; rows: VolumeUse[] } | null = null;
   const log = o.log ?? (() => undefined);
   const lastUsed = new Map<string, number>();
   const gens = new Map<string, number>();
@@ -1936,6 +1944,20 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         return (JSON.parse(dec.decode(r.body)) as Array<{ IPAM?: { Config?: Array<{ Subnet?: string }> } }>)
           .flatMap((n) => (n.IPAM?.Config ?? []).map((c) => c.Subnet ?? ""))
           .filter(Boolean);
+      } catch {
+        return null;
+      }
+    },
+    hostVolumes: async () => {
+      if (volumeCache && now() - volumeCache.at < VOLUME_EVERY_MS) return volumeCache.rows;
+      const r = await http({ method: "GET", path: "/system/df", query: { type: "volume" }, timeoutMs: 60_000 }).catch(
+        () => null,
+      );
+      if (!r || r.status !== 200) return null;
+      try {
+        const rows = volumesOf(JSON.parse(dec.decode(r.body)));
+        volumeCache = { at: now(), rows };
+        return rows;
       } catch {
         return null;
       }
