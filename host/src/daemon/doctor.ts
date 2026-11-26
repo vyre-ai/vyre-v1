@@ -384,6 +384,61 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
   }
 }
 
+/**
+ * Search entries that carry text of fields a type no longer has: the dropped text stayed findable on a Space that dropped a field before the index followed schema changes. The one-time scrub on the first start of this
+ * build (modules/search/handlers/scrub.ts) reads the records again and keeps its count in search_meta: `before` entries found carrying such text, `after` the ones that still do. Read only.
+ */
+export function searchRemovedTextFinding(modulesDb: string): Finding {
+  const key = "search.removed_field_text";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No search index yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return { key, state: "healthy", detail: "No search index yet.", next: OK };
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "search entries carrying removed-field text: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as {
+        state?: string;
+        before?: number;
+        after?: number;
+        scanned?: number;
+        total?: number;
+      };
+      const before = Number(s.before ?? 0),
+        after = Number(s.after ?? 0);
+      if (s.state !== "done")
+        return {
+          key,
+          state: "degraded",
+          detail: `search entries carrying removed-field text: ${before} found so far, the one-time check has read ${Number(s.scanned ?? 0)} of ${Number(s.total ?? 0)} entries.`,
+          next: NEXT.searchRemovedText,
+        };
+      return {
+        key,
+        state: after === 0 ? "healthy" : "degraded",
+        detail: `search entries carrying removed-field text: ${after} (the one-time check found ${before} and rebuilt them).`,
+        next: after === 0 ? OK : NEXT.searchRemovedText,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -533,6 +588,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
+    findings.push(searchRemovedTextFinding(paths.modules));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

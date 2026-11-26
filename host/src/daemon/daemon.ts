@@ -684,6 +684,8 @@ export interface DaemonOptions {
 export interface Daemon {
   /** Resolves when the work the start leaves running after the daemon serves has finished (today: the Personal calendars of people who have none). Tests that read the log head wait for it. */
   startupWork(): Promise<void>;
+  /** Runs the one-time scrub of search entries that carry text of removed fields now (the start runs it once the daemon serves) and answers when it has finished; a finished job does nothing. */
+  searchScrub(): Promise<void>;
   url: string;
   /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
   claim: { url: string; expiresAt: number } | null;
@@ -1729,6 +1731,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** After a stop between a record and its announcement (host/src/daemon/record-announce.ts): the missing record.created events are made once the daemon serves. */
   let startRecordAnnouncements: (startedAtMs: number) => void = () => {};
   let announceSweep: Promise<void> = Promise.resolve();
+  /** The one-time scrub of search entries that carry text of removed fields (modules/search/handlers/scrub.ts): started once the daemon serves, a slice at a time, and done for good when its row says so. */
+  let startSearchScrub: () => void = () => {};
+  let searchScrub: Promise<void> = Promise.resolve();
   let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
@@ -4278,7 +4283,57 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }),
           );
       };
-      startupWork = () => Promise.all([personalSweep, announceSweep]).then(() => undefined);
+      let scrubStopped = false;
+      let scrubRunning = false;
+      startSearchScrub = () => {
+        if (loaded.serving.get("search") !== "live" || scrubRunning) return;
+        scrubRunning = true;
+        const say = (level: number, msg: string, attrs: Record<string, unknown>): void =>
+          sink.log({ space: spaceId, level, msg, place: "boot", attrs });
+        const run = async (): Promise<void> => {
+          let lastSaid = 0;
+          let first = true;
+          for (;;) {
+            if (scrubStopped) return;
+            const r = (await hookRunner.call("search.scrub_removed_fields", {})) as {
+              done: boolean;
+              state: string;
+              before: number;
+              after: number;
+              scanned: number;
+              total: number;
+              types: string[];
+            };
+            if (r.done && first) return; // finished on an earlier start: nothing to say, nothing to do
+            const at = performance.now();
+            if (first || r.done || at - lastSaid > 5_000) {
+              say(20, r.done ? "search.scrub_removed_fields.done" : "search.scrub_removed_fields.progress", {
+                scanned: r.scanned,
+                total: r.total,
+                entriesWithRemovedText: r.before,
+                entriesLeft: r.after,
+                typesLeft: r.types.length,
+              });
+              lastSaid = at;
+            }
+            first = false;
+            if (r.done) return;
+            await new Promise<void>((resolve) => setImmediate(resolve)); // the loop is given back after every slice
+          }
+        };
+        searchScrub = run()
+          .catch((e: unknown) =>
+            say(40, "search.scrub_removed_fields.failed", { error: e instanceof Error ? e.message : String(e) }),
+          )
+          .finally(() => {
+            scrubRunning = false;
+          });
+      };
+      closers.push(() => {
+        scrubStopped = true;
+        return searchScrub;
+      });
+      startupWork = () => Promise.all([personalSweep, announceSweep, searchScrub]).then(() => undefined);
       closers.push(() => {
         personalStopped = true;
         return personalSweep;
@@ -8276,6 +8331,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     startPersonalCalendars();
     startRecordAnnouncements(startedAt);
+    startSearchScrub();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
@@ -8338,6 +8394,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),
+    searchScrub: () => {
+      startSearchScrub();
+      return searchScrub;
+    },
     stop,
   };
 }

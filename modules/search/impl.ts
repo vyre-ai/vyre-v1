@@ -18,6 +18,7 @@ import {
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
+import { scrubStep } from "./handlers/scrub.ts";
 import { forgetVectors, rowsOf, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
@@ -208,6 +209,8 @@ export const periodic = {
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
+  /** The one-time scrub of text of removed fields: one slice of work, answers where the job stands (handlers/scrub.ts). The host calls it until it is done, on the first start of the build that has it. */
+  "search.scrub_removed_fields": (ctx: EraseCtx): Promise<unknown> => scrubStep(ctx as unknown as SearchCtx),
   "search.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
     if (i.dry === true) return {};
     // the agent's own entry, and what the index kept of anything under its folder
