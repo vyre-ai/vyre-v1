@@ -261,6 +261,13 @@ const everyEvent: Record<string, (tx: Tx, e: StoredEvent) => Promise<void>> = ne
     get: (_t, name) =>
       typeof name === "string"
         ? async (tx: Tx, e: StoredEvent) => {
+            // an announcement a repair made for a record an old build never announced is for the access view and the search index: no webhook is sent for it (the marker is a key of the payload; a value holding the text has its quotes escaped)
+            if (
+              e.type === "record.created" &&
+              e.enc === 0 &&
+              new TextDecoder().decode(e.payload).includes('"repair":true')
+            )
+              return;
             await fanOut(tx, e, runtime.dispatch, Date.now());
           }
         : undefined,

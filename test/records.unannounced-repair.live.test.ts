@@ -7,9 +7,19 @@ import { DatabaseSync } from "node:sqlite";
 import { bootHour } from "./support/member-hour.ts";
 import type { Hour } from "./support/member-hour.ts";
 
+const sink: string[] = [];
 let h: Hour;
 before(async () => {
-  h = await bootHour("announcerepair", { keepDir: true });
+  h = await bootHour("announcerepair", {
+    keepDir: true,
+    seams: {
+      webhookAllow: () => ["hooks.example.com"],
+      postFetch: async (_url: string, init: { body: string }) => {
+        sink.push(init.body);
+        return { status: 200, headers: { get: () => null }, text: async () => "ok" };
+      },
+    },
+  });
 });
 after(async () => {
   await h?.stop();
@@ -52,6 +62,22 @@ test(
       rows: Array.from({ length: 50 }, (_, i) => ({ name: `Kept ${i}`, email: `k${i}@ar.test` })),
     });
     assert.equal(await walkCount(), 50);
+    // a webhook on records and a project that links a contact by a rule: neither may fire for a record the repair announces
+    await h.owner.call("webhooks.create", {
+      name: "All records",
+      url: "https://hooks.example.com/all",
+      eventTypes: ["record.*"],
+      idempotencyKey: "ar-hook",
+    });
+    const project = (await h.owner.call("projects.create", { type: "project", title: "Repair watch" })) as {
+      projectId: string;
+    };
+    await h.owner.call("projects.links.rules.set", {
+      projectId: project.projectId,
+      rules: [{ kind: "record_filter", recordType: "contact", field: "phone", equals: "+1 555 0100" }],
+    });
+    const linked = async (): Promise<string> =>
+      JSON.stringify(await h.owner.call("projects.links.list", { projectId: project.projectId }));
     // an Automation that runs when a record is created: it must not run for the records the repair announces (a control record made afterwards proves it works)
     await h.owner.call("schema.apply", {
       idempotencyKey: "ar-log",
@@ -73,7 +99,7 @@ test(
       idempotencyKey: "ar-aut",
       name: "On a new contact",
       definition: {
-        triggers: [{ key: "record_change" }],
+        triggers: [{ key: "record_change", filter: { type: "contact", op: "created" } }],
         nodes: [{ id: "log", key: "records.create", input: { type: "autolog", fields: { name: "fired" } } }],
       },
     })) as { automation: { id: string } };
@@ -86,6 +112,7 @@ test(
           limit: 50,
         })) as { runs: unknown[] }
       ).runs.length;
+    sink.length = 0;
     const LOST = 40;
     await h.restart(() => {
       // as the old build left it: rows in the record table, no event in either log, so no resource
@@ -101,7 +128,10 @@ test(
             `rec_lost${String(i).padStart(4, "0")}`,
             at,
             at,
-            one.data.replace(/Kept \d+/, `Lost ${i}`).replace(/k\d+@/, `l${i}@`),
+            JSON.stringify({
+              ...JSON.parse(one.data.replace(/Kept \d+/, `Lost ${i}`).replace(/k\d+@/, `l${i}@`)),
+              phone: "+1 555 0100",
+            }),
           );
       } finally {
         db.close();
@@ -124,11 +154,21 @@ test(
       0,
       `no Automation ran for a record the repair announced: ${JSON.stringify(listed.runs).slice(0, 700)}`,
     );
-    await h.owner.call("records.create", {
+    assert.ok(!sink.join("\n").includes("rec_lost"), "no webhook was sent for a record the repair announced");
+    assert.ok(!(await linked()).includes("rec_lost"), "no project rule linked a record the repair announced");
+    const control = (await h.owner.call("records.create", {
       idempotencyKey: "ar-ctl",
       type: "contact",
-      fields: { name: "Control", email: "ctl@ar.test" },
-    });
+      fields: { name: "Control", email: "ctl@ar.test", phone: "+1 555 0100" },
+    })) as { record: { id: string } };
+    for (
+      let t = 0;
+      t < 15 && !(sink.join("\n").includes(control.record.id) && (await linked()).includes(control.record.id));
+      t++
+    )
+      await new Promise((r) => setTimeout(r, 1000));
+    assert.ok(sink.join("\n").includes(control.record.id), "the webhook does fire for a record made now");
+    assert.ok((await linked()).includes(control.record.id), "the project rule does link a record made now");
     let fired = 0;
     for (let t = 0; t < 15 && fired === 0; t++) {
       fired = await runs();
