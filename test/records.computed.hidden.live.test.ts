@@ -250,3 +250,232 @@ test("a lookup and a rollup are there only when every linked record and its fiel
   assert.equal(JSON.stringify(await fieldsOf(n2, i, i1)).includes(`Acme ${tag}`), false);
   void i2;
 });
+
+test("a rollup is judged on the records it was computed FROM: an unseen link removed before the value is recomputed does not hand its amount to a person who could not see it", async () => {
+  const tag = `st${++seq}`;
+  const a = `acs${tag}`;
+  const i = `ins${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type: a,
+        def: {
+          title: "Account",
+          plural: "Accounts",
+          icon: "table",
+          titleField: "name",
+          fields: [{ key: "name", type: "text", title: "name" }],
+        },
+      },
+      {
+        op: "type.create",
+        type: i,
+        def: {
+          title: "Invoice",
+          plural: "Invoices",
+          icon: "table",
+          titleField: "name",
+          fields: [
+            { key: "name", type: "text", title: "name" },
+            { key: "amount", type: "number", title: "amount" },
+          ],
+        },
+      },
+      { op: "relation.add", type: i, field: "account", def: { to: a, inverse: "invoices" } },
+    ],
+  });
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-c`,
+    ops: [
+      {
+        op: "field.add",
+        type: a,
+        field: "billed",
+        def: { type: "rollup", title: "Billed", options: { via: "invoices", field: "amount", fn: "sum" } },
+      },
+    ],
+  });
+  const acc = (
+    (await h.owner.call("records.create", { type: a, fields: { name: `Acme ${tag}` } })) as { record: { id: string } }
+  ).record.id;
+  const mk = async (name: string, amount: number): Promise<string> => {
+    const r = (await h.owner.call("records.create", { type: i, fields: { name, amount } })) as {
+      record: { id: string };
+    };
+    await h.owner.call("records.relate", { type: i, recordId: r.record.id, field: "account", toId: acc });
+    return r.record.id;
+  };
+  await mk(`B ${tag}`, 1000);
+  const hidden = await mk(`R ${tag}`, 7654);
+  const m = await newMember(`st${tag}`);
+  await grant(hidden, await newMember(`own${tag}`), undefined, `${tag}-own`); // only people added see R, and the member is not one of them
+  await until(async () => (await fieldsOf(h.owner, a, acc))?.["billed"] === 8654);
+  assert.equal((await fieldsOf(h.owner, a, acc))?.["billed"], 8654, "control: the owner has the sum of both");
+  assert.equal("billed" in ((await fieldsOf(m, a, acc)) ?? {}), false, "the member cannot see R, so there is no sum");
+  // hold the consumer, take R off the account, and read as the member before anything is recomputed
+  const hooks = h.d.hooks!;
+  const real = hooks.pump.bind(hooks);
+  await real();
+  await new Promise((r) => setTimeout(r, 300));
+  await real();
+  let held = 0;
+  hooks.pump = (async () => {
+    held++;
+  }) as typeof hooks.pump;
+  try {
+    await h.owner.call("records.relate", { type: i, recordId: hidden, field: "account", toId: acc, unlink: true });
+    await new Promise((r) => setTimeout(r, 300));
+    assert.ok(held > 0, "the consumer was held");
+    assert.equal(
+      (await fieldsOf(h.owner, a, acc))?.["billed"],
+      8654,
+      "the stored value is still the old one while the consumer is held (the window is real)",
+    );
+    const seen = JSON.stringify(await fieldsOf(m, a, acc));
+    for (const frag of ["8654", "7654", "1000", "billed"])
+      assert.equal(seen.includes(frag), false, `during the gap the member's read of the account carries "${frag}"`);
+  } finally {
+    hooks.pump = real;
+  }
+  await until(async () => (await fieldsOf(h.owner, a, acc))?.["billed"] === 1000);
+  assert.equal(
+    (await fieldsOf(m, a, acc))?.["billed"],
+    1000,
+    "after the recompute the member sees the new sum, of the one invoice they may see",
+  );
+});
+
+test("a record read as of an earlier time carries no computed value (it would be today's)", async () => {
+  const tag = `ao${++seq}`;
+  const type = `asof${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "L",
+          plural: "Ls",
+          icon: "table",
+          titleField: "name",
+          fields: [
+            { key: "name", type: "text", title: "name" },
+            { key: "qty", type: "number", title: "qty" },
+          ],
+        },
+      },
+    ],
+  });
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-f`,
+    ops: [
+      { op: "field.add", type, field: "twice", def: { type: "formula", title: "Twice", options: { expr: "qty * 2" } } },
+    ],
+  });
+  const id = (
+    (await h.owner.call("records.create", { type, fields: { name: "x", qty: 2 } })) as { record: { id: string } }
+  ).record.id;
+  const then = Date.now();
+  await new Promise((r) => setTimeout(r, 20));
+  await h.owner.call("records.update", { type, recordId: id, patch: { qty: 50 } });
+  await until(async () => (await fieldsOf(h.owner, type, id))?.["twice"] === 100);
+  const past = (await h.owner.call("records.as_of", { type, recordId: id, at: then })) as {
+    record: { fields: Record<string, unknown> };
+  };
+  assert.equal(past.record.fields["qty"], 2, "control: the record as it was");
+  assert.equal(
+    "twice" in past.record.fields,
+    false,
+    "no computed value in a past version (today's value would be wrong for it)",
+  );
+});
+
+test("search never indexes a computed value: a person who cannot see the linked record cannot find the invoice by the account's name that its lookup holds", async () => {
+  const tag = `sx${++seq}`;
+  const a = `acx${tag}`;
+  const i = `inx${tag}`;
+  const WORD = `zqacct${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type: a,
+        def: {
+          title: "Account",
+          plural: "Accounts",
+          icon: "table",
+          titleField: "name",
+          fields: [{ key: "name", type: "text", title: "name" }],
+        },
+      },
+      {
+        op: "type.create",
+        type: i,
+        def: {
+          title: "Invoice",
+          plural: "Invoices",
+          icon: "table",
+          titleField: "name",
+          fields: [{ key: "name", type: "text", title: "name" }],
+        },
+      },
+      { op: "relation.add", type: i, field: "account", def: { to: a, inverse: "invoices" } },
+    ],
+  });
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-c`,
+    ops: [
+      {
+        op: "field.add",
+        type: i,
+        field: "account_name",
+        def: { type: "lookup", title: "Account name", options: { via: "account", field: "name" } },
+      },
+    ],
+  });
+  const acc = (
+    (await h.owner.call("records.create", { type: a, fields: { name: WORD } })) as { record: { id: string } }
+  ).record.id;
+  const inv = (
+    (await h.owner.call("records.create", { type: i, fields: { name: `Invoice ${tag}` } })) as {
+      record: { id: string };
+    }
+  ).record.id;
+  await h.owner.call("records.relate", { type: i, recordId: inv, field: "account", toId: acc });
+  const m = await newMember(`sx${tag}`);
+  await grant(acc, await newMember(`ownsx${tag}`), undefined, `${tag}-own`); // the account is for people added; the member is not one
+  await until(
+    async () => JSON.stringify((await fieldsOf(h.owner, i, inv))?.["account_name"]) === JSON.stringify([WORD]),
+  );
+  // the index folds the record's events (the owner finds the invoice by its own name)
+  await until(async () => JSON.stringify(await h.owner.call("search.query", { q: `Invoice ${tag}` })).includes(inv));
+  assert.equal(
+    "account_name" in ((await fieldsOf(m, i, inv)) ?? {}),
+    false,
+    "control: the member's read has no lookup (the account is not theirs)",
+  );
+  // the value exists now: an edit of the invoice makes the index read it again, with its lookup in hand
+  await h.owner.call("records.update", { type: i, recordId: inv, patch: { name: `Invoice ${tag} second` } });
+  await until(async () => JSON.stringify(await h.owner.call("search.query", { q: `second ${tag}` })).includes(inv));
+  await new Promise((r) => setTimeout(r, 300));
+  await h.d.hooks?.pump?.();
+  const hit = async (who: Pick<Person, "attempt">): Promise<boolean> => {
+    const r = await who.attempt("search.query", { q: WORD });
+    return JSON.stringify(r.data ?? null).includes(inv);
+  };
+  assert.equal(
+    await hit(h.owner),
+    false,
+    "the owner finds the ACCOUNT by its name, not the invoice by the account's name (a lookup is not indexed)",
+  );
+  assert.equal(await hit(m), false, "the member cannot find the invoice by the lookup's text");
+  assert.equal(
+    JSON.stringify((await m.attempt("search.query", { q: `Invoice ${tag}` })).data ?? null).includes(WORD),
+    false,
+    "and no snippet of it carries that text",
+  );
+});

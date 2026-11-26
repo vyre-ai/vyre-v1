@@ -347,3 +347,49 @@ test("a restricted reader's page waits for a record the snapshot has not folded 
   assert.deepEqual(await read(), ["row", "late", "tail"], "no existing record was skipped");
   assert.equal(refreshes, 1, "one fold found them");
 });
+
+test("a page of 200 records of a type with no computed field asks the computed side table once, not twice for every record", async () => {
+  const f = fixture();
+  let asked = 0;
+  const side: { has: boolean } = { has: false };
+  const guard = createRecordAccess({
+    store: () => f.store,
+    snapshot: () => f.snapshot,
+    now: () => 1,
+    fresh: () => true,
+    rows: {
+      all: (sql: string) => {
+        asked++;
+        if (/FROM records_computed WHERE type = \? LIMIT 1/.test(sql)) return side.has ? [{ x: 1 }] : [];
+        if (/FROM records_computed_job/.test(sql)) return [];
+        if (/FROM records_computed WHERE type = \? AND id = \?/.test(sql))
+          return side.has
+            ? [
+                {
+                  field: "double",
+                  value: "2",
+                  inputs: '["type.name"]',
+                  kind: "formula",
+                  computed_at: 1,
+                  link_ids: null,
+                },
+              ]
+            : [];
+        return [];
+      },
+    },
+  });
+  const page = Array.from({ length: 200 }, () => ({ id: "row", fields: f.row.data }));
+  const run = async (): Promise<number> => {
+    asked = 0;
+    const finish = await guard.project("records.query", { type: "type" }, f.seed, { rows: page }, "trace");
+    await finish();
+    return asked;
+  };
+  const without = await run();
+  side.has = true;
+  const withComputed = await run();
+  console.log(`SQL statements for a page of 200 rows: ${without} without computed fields, ${withComputed} with one`);
+  assert.ok(without <= 3, `a type with no computed field costs a constant number of statements (${without})`);
+  assert.ok(withComputed > without, "control: a type with a computed field does read its values");
+});

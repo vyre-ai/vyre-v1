@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS records_computed (
   computed_at INTEGER NOT NULL,
   kind TEXT NOT NULL DEFAULT 'formula', -- formula | lookup | rollup
   inputs TEXT NOT NULL,       -- JSON: the fields it was computed from (type.field), so a read can hide it from a person who may not see one
+  link_ids TEXT,              -- lookup and rollup: JSON, the ids of the records it was computed from; a read judges THESE links, not the record's links as they are later
   links INTEGER,              -- lookup and rollup: how many records it read through the relation (a read compares it with the links the person may see)
   PRIMARY KEY (type, id, field)
 );

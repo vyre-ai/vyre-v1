@@ -35,7 +35,7 @@ export function ensureComputedTables(tx: Tx): void {
   if (ready.has(tx)) return;
   tx.exec(`CREATE TABLE IF NOT EXISTS records_computed (
     type TEXT NOT NULL, id TEXT NOT NULL, field TEXT NOT NULL, value TEXT, computed_at INTEGER NOT NULL,
-    inputs TEXT NOT NULL, links INTEGER, kind TEXT NOT NULL DEFAULT 'formula', PRIMARY KEY (type, id, field))`);
+    inputs TEXT NOT NULL, links INTEGER, kind TEXT NOT NULL DEFAULT 'formula', link_ids TEXT, PRIMARY KEY (type, id, field))`);
   tx.exec("CREATE INDEX IF NOT EXISTS records_computed_field ON records_computed (type, field, id)");
   tx.exec(`CREATE TABLE IF NOT EXISTS records_computed_job (
     type TEXT NOT NULL, field TEXT NOT NULL, def_hash TEXT NOT NULL, cursor TEXT, done INTEGER NOT NULL DEFAULT 0,
@@ -81,10 +81,11 @@ const write = (
   inputs: string[],
   links: number | null,
   kind: string,
+  linkIds: readonly string[] | null,
 ): void => {
   env.tx.run(
-    `INSERT INTO records_computed (type, id, field, value, computed_at, inputs, links, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (type, id, field) DO UPDATE SET value = excluded.value, computed_at = excluded.computed_at, inputs = excluded.inputs, links = excluded.links, kind = excluded.kind`,
+    `INSERT INTO records_computed (type, id, field, value, computed_at, inputs, links, kind, link_ids) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (type, id, field) DO UPDATE SET value = excluded.value, computed_at = excluded.computed_at, inputs = excluded.inputs, links = excluded.links, kind = excluded.kind, link_ids = excluded.link_ids`,
     type,
     id,
     field,
@@ -93,6 +94,7 @@ const write = (
     JSON.stringify(inputs),
     links,
     kind,
+    linkIds === null ? null : JSON.stringify(linkIds),
   );
 };
 
@@ -179,6 +181,8 @@ export async function recomputeRecord(
     const inputs = inputsOf(shapes, type, { key: d.key, type: d.type, options: d.options });
     let v: unknown = null;
     let links: number | null = null;
+    // the records this value was computed from (the ones that exist and are not in Trash): a reader is judged on THESE, not on the record's links as they are by the time they read
+    const readIds: string[] = [];
     if (d.type === "formula") v = computeFormula(String(d.options["expr"] ?? ""), values, env.now());
     else {
       const via = shapes.get(type)?.fields.find((x) => x.key === d.options["via"]);
@@ -191,6 +195,7 @@ export async function recomputeRecord(
         const found: unknown[] = [];
         let count = 0;
         for await (const t of linked(env, target, ids)) {
+          readIds.push(t.id);
           count++;
           found.push(fieldOf(env, targetDefs, target, t, field));
         }
@@ -219,7 +224,7 @@ export async function recomputeRecord(
     values[d.key] = v;
     const text = v === null || v === undefined ? null : canonical(v);
     if (was.get(d.key) !== text || !was.has(d.key)) changed.push(d.key);
-    write(env, type, id, d.key, v, inputs, links, d.type);
+    write(env, type, id, d.key, v, inputs, links, d.type, d.type === "formula" ? null : readIds);
   }
   env.tx.run(
     `DELETE FROM records_computed WHERE type = ? AND id = ? AND field NOT IN (${defs.map(() => "?").join(",")})`,
@@ -301,7 +306,6 @@ export async function backfillType(env: ComputedEnv, type: string): Promise<{ do
     ...keep,
   );
   let ran = false;
-  let doneRows = 0;
   const need = defs.filter((d) => {
     const job = env.tx.get<{ def_hash: string; state: string }>(
       "SELECT def_hash, state FROM records_computed_job WHERE type = ? AND field = ?",
@@ -316,14 +320,17 @@ export async function backfillType(env: ComputedEnv, type: string): Promise<{ do
   );
   // a changed definition starts again; an unchanged unfinished one keeps its cursor
   let cursor: string | undefined;
+  let resumedDone = 0;
   for (const d of need) {
-    const job = env.tx.get<{ def_hash: string; cursor: string | null }>(
-      "SELECT def_hash, cursor FROM records_computed_job WHERE type = ? AND field = ?",
+    const job = env.tx.get<{ def_hash: string; cursor: string | null; done: number }>(
+      "SELECT def_hash, cursor, done FROM records_computed_job WHERE type = ? AND field = ?",
       type,
       d.key,
     );
-    if (job && job.def_hash === hashOf(d) && job.cursor) cursor = !cursor || job.cursor < cursor ? job.cursor : cursor;
-    else {
+    if (job && job.def_hash === hashOf(d) && job.cursor) {
+      cursor = !cursor || job.cursor < cursor ? job.cursor : cursor;
+      resumedDone = Math.max(resumedDone, job.done);
+    } else {
       cursor = undefined;
       env.tx.run(
         `INSERT INTO records_computed_job (type, field, def_hash, cursor, done, total, state) VALUES (?, ?, ?, NULL, 0, ?, 'running')
@@ -347,6 +354,7 @@ export async function backfillType(env: ComputedEnv, type: string): Promise<{ do
         hashOf(d),
       );
   };
+  let doneRows = resumedDone;
   // the definitions are read once for the whole pass, not once per record
   const defsNow = defs;
   const shapesNow = await env.shapes();

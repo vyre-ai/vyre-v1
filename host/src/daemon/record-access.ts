@@ -327,16 +327,41 @@ export function createRecordAccess(ports: {
     inputs: string;
     kind: string;
     computed_at?: number;
+    link_ids?: string | null;
   }
   const SAFE_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
-  const sideOf = (type: string, id: string): Side[] => {
-    if (!ports.rows || !SAFE_TYPE.test(type)) return [];
+  /** Does this type have any computed value or fill? Asked once per read (per seed) for a type, so a page of records of a type with none costs one query, not two per record. */
+  const hasComputed = (seed: ReadSeed, type: string): boolean => {
+    if (!ports.rows || !SAFE_TYPE.test(type)) return false;
+    const memo = typeHas.get(seed) ?? typeHas.set(seed, new Map()).get(seed)!;
+    const had = memo.get(type);
+    if (had !== undefined) return had;
+    let yes = false;
     try {
-      return ports.rows.all(
-        "SELECT field, value, inputs, kind, computed_at FROM records_computed WHERE type = ? AND id = ?",
+      yes =
+        ports.rows.all("SELECT 1 AS x FROM records_computed WHERE type = ? LIMIT 1", type).length > 0 ||
+        ports.rows.all("SELECT 1 AS x FROM records_computed_job WHERE type = ? LIMIT 1", type).length > 0;
+    } catch {
+      yes = false;
+    }
+    memo.set(type, yes);
+    return yes;
+  };
+  const typeHas = new WeakMap<object, Map<string, boolean>>();
+  const sideMemo = new WeakMap<object, Map<string, Side[]>>();
+  const sideOf = (seed: ReadSeed, type: string, id: string): Side[] => {
+    if (!ports.rows || !SAFE_TYPE.test(type)) return [];
+    const memo = sideMemo.get(seed) ?? sideMemo.set(seed, new Map()).get(seed)!;
+    const had = memo.get(`${type}/${id}`);
+    if (had) return had;
+    try {
+      const found = ports.rows.all(
+        "SELECT field, value, inputs, kind, computed_at, link_ids FROM records_computed WHERE type = ? AND id = ?",
         type,
         id,
       ) as Side[];
+      memo.set(`${type}/${id}`, found);
+      return found;
     } catch {
       return [];
     }
@@ -402,7 +427,7 @@ export function createRecordAccess(ports: {
       return false;
     }
     const prefix = `${type}.`;
-    const side = sideOf(type, id);
+    const side = sideOf(seed, type, id);
     if (c.kind === "formula") {
       const own = inputs.filter((x) => x.startsWith(prefix)).map((x) => x.slice(prefix.length));
       if (!visibleOn(seed, type, id, [...own, c.field])) return false;
@@ -418,11 +443,17 @@ export function createRecordAccess(ports: {
     if (!via || !target || target.length !== 2) return false;
     const [targetType, targetField] = target as [string, string];
     if (!visibleOn(seed, type, id, [via, c.field])) return false;
-    const data = dataOf(type, id);
-    if (!data) return false;
-    for (const link of linkIds(data[via])) {
+    // judged on the records the value was computed FROM (kept with it), never on the record's links as they are now: the record may have changed since, and the value not yet recomputed
+    let from: string[] | null = null;
+    try {
+      from = c.link_ids == null ? null : (JSON.parse(c.link_ids) as string[]);
+    } catch {
+      from = null;
+    }
+    if (from === null) return false;
+    for (const link of from) {
       if (!visibleOn(seed, targetType, link, [targetField])) return false;
-      const s = sideOf(targetType, link).find((x) => x.field === targetField);
+      const s = sideOf(seed, targetType, link).find((x) => x.field === targetField);
       if (s && !mayReadComputed(seed, targetType, link, s, depth + 1)) return false;
     }
     return true;
@@ -430,7 +461,8 @@ export function createRecordAccess(ports: {
   /** The computed values of one record this reader may read, as fields (gate: the rule for the record's own field names). */
   function computedFields(seed: ReadSeed, row: StoredRecord, gate: (key: string) => boolean): Record<string, unknown> {
     const out: Record<string, unknown> = {};
-    for (const c of sideOf(row.type, row.id)) {
+    if (!hasComputed(seed, row.type)) return out;
+    for (const c of sideOf(seed, row.type, row.id)) {
       if (!gate(c.field)) continue;
       if (!mayReadComputed(seed, row.type, row.id, c, 0)) continue;
       out[c.field] = c.value === null ? null : JSON.parse(c.value);
@@ -442,16 +474,17 @@ export function createRecordAccess(ports: {
     seed: ReadSeed,
     row: StoredRecord,
   ): { updating?: string[]; computedAt?: Record<string, number> } {
+    if (!hasComputed(seed, row.type)) return {};
     const gate = gateOf(seed, row);
-    if (!gate || !ports.rows || !SAFE_TYPE.test(row.type)) return {};
+    if (!gate) return {};
     const at: Record<string, number> = {};
-    for (const c of sideOf(row.type, row.id))
+    for (const c of sideOf(seed, row.type, row.id))
       if (gate(c.field) && typeof c.computed_at === "number" && mayReadComputed(seed, row.type, row.id, c, 0))
         at[c.field] = c.computed_at;
     let updating: string[] = [];
     try {
       updating = (
-        ports.rows.all("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", row.type) as {
+        ports.rows!.all("SELECT field FROM records_computed_job WHERE type = ? AND state <> 'done'", row.type) as {
           field: string;
         }[]
       )
@@ -462,7 +495,13 @@ export function createRecordAccess(ports: {
     }
     return { ...(updating.length ? { updating } : {}), ...(Object.keys(at).length ? { computedAt: at } : {}) };
   }
-  function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
+  function fields(
+    seed: ReadSeed,
+    row: StoredRecord,
+    original: Record<string, unknown>,
+    trace: string,
+    withComputed = true,
+  ) {
     const gate = gateOf(seed, row);
     if (!gate) throw fail("permission.no_grant", trace);
     return {
@@ -471,7 +510,7 @@ export function createRecordAccess(ports: {
           .filter(([key]) => gate(key))
           .map(([key, value]) => [key, seeable(seed, value)]),
       ),
-      ...computedFields(seed, row, gate),
+      ...(withComputed ? computedFields(seed, row, gate) : {}),
     };
   }
   return {
@@ -841,7 +880,7 @@ export function createRecordAccess(ports: {
           originals.flatMap((original, index) => {
             const row = stored[index];
             if (!row || !decision(seed, row)) return [];
-            const visible = fields(seed, row, object(original["fields"]), trace);
+            const visible = fields(seed, row, object(original["fields"]), trace, cap !== "records.as_of");
             if (cap === "records.query") {
               const touched = [
                 ...references(value["filter"]),
@@ -871,7 +910,7 @@ export function createRecordAccess(ports: {
               const actual = body.match(/[\p{L}\p{N}_]+/gu) ?? [];
               if (!words.length || !words.every((word) => actual.some((item) => item.startsWith(word)))) return [];
             }
-            return [{ ...original, fields: visible, ...computedMeta(seed, row) }];
+            return [{ ...original, fields: visible, ...(cap === "records.as_of" ? {} : computedMeta(seed, row)) }];
           });
         // A row the read returned may belong to a record this Space wrote a moment ago (a run, a hook, a sync) whose access entry is not in the snapshot yet: the record is visible a little before its access
         // event is folded. Wait for the fold, a bounded while (settle), reading the stored rows afresh each time, before judging the page. After that, a row that is not shown is one that is no longer there or
