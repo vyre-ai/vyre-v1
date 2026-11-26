@@ -37,7 +37,6 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { inTurn, markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
-import { warmBrowser } from "./sbrowser/warm.ts";
 import { dropPausesOfAgent } from "./sbrowser/pause.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
@@ -1056,8 +1055,8 @@ export const consumers = {
       if (event.name === "turn.started") {
         if (typeof a === "string") {
           turnStarted(ctx.space, a, t, ctx.now());
-          // warm before asked (sbrowser/warm.ts): in the background, so the turn and the events behind it never wait for a browser to start; it never raises
-          setTimeout(() => void warmBrowser(ctx, a), 0);
+          // no warm start here since rc.44 (owner ruling 13 Nov: the browser is asleep by default; the agent wakes it, a person wakes it by pressing the picture): a turn does not say whether it will browse,
+          // and a start for every turn kept Chromium running for agents that never opened a page. sbrowser/warm.ts stays for an explicit computers.browser.warm ask.
         }
         return;
       }

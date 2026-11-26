@@ -44,10 +44,10 @@ test("frames are shown in order, a repeat is skipped, a failure keeps going, hid
   assert.deepEqual(shown, ["data:image/png;base64,AAA", "data:image/png;base64,BBB"]);
   assert.ok(asked.every((x) => x === "computers.browser.preview agt_x"));
   assert.equal(asked.length, 5, "five reads, none while hidden (ticks 5 and 6)");
-  assert.deepEqual(warmed, ["agt_x"], "the browser is asked to warm once, when the pane is first seen");
+  assert.deepEqual(warmed, [], "looking at the pane never asks the browser to start: asleep is the default (rc.44)");
 });
 
-test("a failed warm ask, and a pane that starts hidden, change nothing: frames still come, a hidden start asks nothing", async () => {
+test("a pane that is seen or hidden never asks the browser to start: frames still come, and nothing is asked while hidden", async () => {
   const shown: string[] = [];
   const warmedHidden: string[] = [];
   const stopA = pullFrames(

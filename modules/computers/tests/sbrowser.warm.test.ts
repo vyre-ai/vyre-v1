@@ -276,7 +276,7 @@ test("two turns that start together warm once, and one that follows within secon
   }
 });
 
-test("the turn.started event warms in the background and never waits for it: a service that hangs does not hold the event", async () => {
+test("the turn.started event starts no browser (rc.44: asleep by default), and a service that hangs does not hold the event", async () => {
   const f = fake({ warmHangs: true });
   const h = agent();
   try {
@@ -284,7 +284,8 @@ test("the turn.started event warms in the background and never waits for it: a s
     const t0 = Date.now();
     await run(h.ctx, { name: "turn.started", payload: { agentId: "agt_dex", turnId: "trn_1" } });
     assert.ok(Date.now() - t0 < 500, "the event is handled at once");
-    assert.equal(f.warmed.length, 0);
+    await new Promise((x) => setTimeout(x, 30));
+    assert.equal(f.warmed.length, 0, "nothing was asked to start, not even later");
   } finally {
     clean();
   }
