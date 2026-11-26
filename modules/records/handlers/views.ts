@@ -161,12 +161,9 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
           if (isObj(k) && typeof k["field"] === "string") named.add(k["field"].split(".")[0]!);
         if (typeof view.group === "string" && view.group) named.add(view.group.split(".")[0]!);
         const judged = [...named].filter((f) => !["id", "version", "created_at", "updated_at"].includes(f));
-        // Someone who manages the type sees every record whole: the page is the page. Anyone else is judged record by record on the fields the view names (a grant can hide one on some records and not on others).
-        const everything =
-          !ctx.authorize ||
-          !judged.length ||
-          ctx.authorize({ perm: null, level: "manage" }, { type: "record_type", id: input.type }).effect === "allow";
-        if (everything)
+        // Every caller is judged record by record, as an export is, whatever they hold (a Manage grant can hide a field, a row filter can take a record away): the host cuts a page afterwards, so a page that
+        // came back with records the caller may not have would come back short. Without a way to ask (no authorize here) the page is the page.
+        if (!ctx.authorize)
           return {
             view: def,
             rows: page.rows,
@@ -175,21 +172,39 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
           };
         const authorize = ctx.authorize!;
         const keeps = (r: { id: string }): boolean =>
-          judged.every(
-            (f) =>
-              authorize({ perm: null, level: "view", fields: [f] }, { type: "record", id: r.id }).effect === "allow",
-          );
+          authorize(
+            { perm: null, level: "view", ...(judged.length ? { fields: judged } : {}) },
+            { type: "record", id: r.id },
+          ).effect === "allow";
         // A record left out takes no place in the paging: pages are read one after the other until `limit` records are kept (a page may hold more than `limit`; none is cut or skipped), and the answer never
-        // comes short because a record was left out, so stepping the cursor says nothing about the records the caller may not know. There is no total: a count of what the view picked would count the records the caller may not read the field on (the host drops the total for a restricted reader in any case).
+        // comes short because a record was left out, so stepping the cursor says nothing about the records the caller may not know. The total counts only the records the caller may have (every page is read for it): a count of what the view picked would count the records the caller may not read the field on (the host drops the total for a restricted reader in any case).
         const want = Math.max(1, Math.min(Math.trunc(input.limit ?? 200), 500));
         const rows: typeof page.rows = [];
         let at: { rows: typeof page.rows; next?: string } = page;
         for (let guard = 0; ; guard++) {
           for (const r of at.rows) if (keeps(r)) rows.push(r);
-          if (rows.length >= want || at.next === undefined || guard > 1000) break;
+          if (rows.length >= want || at.next === undefined || guard >= 1000) break; // after 1,000 pages read the page ends there, possibly short
           at = runQuery(tx, input.type, { ...spec, cursor: at.next });
         }
-        return { view: def, rows, ...(at.next !== undefined ? { next: at.next } : {}) };
+        // the total counts the records the caller may have, read from the first page to the last (the host drops it for a restricted reader in any case); past 1,000 pages there is none
+        let total: number | undefined = 0;
+        const { cursor: _from, ...whole } = spec;
+        for (let cursor: string | undefined, guard = 0; ; guard++) {
+          if (guard >= 1000) {
+            total = undefined;
+            break;
+          }
+          const part = runQuery(tx, input.type, { ...whole, limit: 500, ...(cursor ? { cursor } : {}) });
+          for (const r of part.rows) if (keeps(r)) total++;
+          if (part.next === undefined) break;
+          cursor = part.next;
+        }
+        return {
+          view: def,
+          rows,
+          ...(total !== undefined ? { total } : {}),
+          ...(at.next !== undefined ? { next: at.next } : {}),
+        };
       }),
 
     "records.relations_map": (ctx, input) =>

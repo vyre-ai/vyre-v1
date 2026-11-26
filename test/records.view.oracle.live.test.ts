@@ -152,3 +152,142 @@ test("paging a view and its total say nothing about the records left out: the pa
     "control: the owner's view has all four",
   );
 });
+
+test("a Manage grant on the type that hides a field, and a record grant with a row filter on a view that names no field, are judged record by record like anyone: the page sequence is the one of a table without the records they may not have", async () => {
+  const tag = `vm${Math.random().toString(36).slice(2, 6)}`;
+  const type = `vw_${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "Line",
+          plural: "Lines",
+          icon: "table",
+          titleField: "name",
+          fields: ["name", "email"].map((key) => ({ key, type: "text", title: key })),
+        },
+      },
+    ],
+  });
+  // email is tagged on every record; c is the one in the middle of the order by name
+  const names = ["a", "b", "c", "d"].map((l) => `Mg ${tag} ${l}`);
+  const id: Record<string, string> = {};
+  for (const [n, name] of names.entries()) {
+    const r = (await h.owner.call("records.create", {
+      type,
+      fields: { name, email: `${n === 2 ? "hidden" : "shown"}-${tag}@probe-mail.test` },
+    })) as { record: { id: string } };
+    id[name] = r.record.id;
+  }
+  const [a, b, c, d] = names.map((n) => id[n]!);
+  const person = async (
+    name: string,
+  ): Promise<{
+    attempt: (cap: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown }>;
+    personId: string;
+  }> => {
+    const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+    const inv = await h.owner.call("members.invites.create", {
+      role: roles.find((r) => r.name === "Member")!.id,
+      email: `${name}@firm.test`,
+    });
+    const p = h.person(`V ${name}`, name, `${name}@firm.test`, `${name} horse battery staple 9`);
+    for (let tries = 0; ; tries++) {
+      try {
+        await join(h, p, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
+        break;
+      } catch (e) {
+        if (tries >= 8 || !/rate_limit/.test(String(e))) throw e;
+        await new Promise((r) => setTimeout(r, 8_000));
+      }
+    }
+    return p as never;
+  };
+  const view = async (title: string, spec: Record<string, unknown>): Promise<string> => {
+    const saved = (await h.owner.call("views.save", {
+      type,
+      kind: "table",
+      title: `${title} ${tag}`,
+      idempotencyKey: `vm-${title}-${tag}`,
+      ...spec,
+    })) as { view: { viewId: string } };
+    await h.owner.call("views.publish", { viewId: saved.view.viewId, shared: true });
+    return saved.view.viewId;
+  };
+  const pagesOf = async (
+    p: { attempt: (cap: string, input?: Record<string, unknown>) => Promise<{ ok: boolean; data?: unknown }> },
+    viewId: string,
+  ): Promise<string[][]> => {
+    const out: string[][] = [];
+    let cursor: string | undefined;
+    for (let i = 0; i < 8; i++) {
+      const r = await p.attempt("records.view", { type, viewId, limit: 1, ...(cursor ? { cursor } : {}) });
+      assert.ok(r.ok, `the view was answered: ${JSON.stringify(r.ok ? "" : r).slice(0, 200)}`);
+      const page = r.data as { rows: Array<{ id: string }>; next?: string; total?: number };
+      assert.equal(page.total, undefined, "no total for them");
+      out.push(page.rows.map((x) => x.id));
+      cursor = page.next;
+      if (!cursor) break;
+    }
+    return out;
+  };
+  // (2) grants on the records one by one, with a row filter on c's that takes c away, and a view that names no field at all
+  const filtered = await person(`rf${tag}`);
+  for (const rid of [a, b, c, d]) {
+    await h.owner.call("access.audience_set", { resource: { type: "record", id: rid }, audience: "added" });
+    await h.owner.call("access.share", {
+      resource: { type: "record", id: rid },
+      subject: { kind: "person", id: filtered.personId },
+      level: "view",
+      ...(rid === c ? { conditions: { rowFilter: { op: "eq", field: "name", value: "nothing has this name" } } } : {}),
+      idempotencyKey: `${tag}-r-${rid}`,
+    });
+  }
+  const plain = await view("plain", { sort: [{ field: "name", dir: "asc" }] });
+  const pages = await pagesOf(filtered, plain);
+  assert.deepEqual(pages.flat(), [a, b, d], "a row filter takes c away: the pages hold a, b, d");
+  assert.ok(
+    pages.slice(0, 3).every((p) => p.length >= 1),
+    "and no page before the last came short because c was cut",
+  );
+  // (1) Manage on the whole type, with email hidden (the table is open to people added only, so the grant is the whole of their access): a view by email must not pick or place c by it
+  await h.owner.call("access.audience_set", { resource: { type: "record_type", id: type }, audience: "added" });
+  const manager = await person(`mg${tag}`);
+  await h.owner.call("access.share", {
+    resource: { type: "record_type", id: type },
+    subject: { kind: "person", id: manager.personId },
+    level: "manage",
+    conditions: { hiddenFields: ["email"] },
+    idempotencyKey: `${tag}-m`,
+  });
+  const byHidden = await view("by hidden", {
+    filter: { field: "email", op: "contains", value: "hidden" },
+    sort: [{ field: "name", dir: "asc" }],
+  });
+  assert.deepEqual(
+    (await pagesOf(manager, byHidden)).flat(),
+    [],
+    "a Manage grant that hides email: the view picked by 'hidden' picks nothing for them",
+  );
+  const byTag = await view("by tag", {
+    filter: { field: "email", op: "contains", value: tag },
+    sort: [{ field: "name", dir: "asc" }],
+  });
+  assert.deepEqual(
+    (await pagesOf(manager, byTag)).flat(),
+    [],
+    "and a view that matches every record by the hidden email places and picks none of them for a person who may not read it",
+  );
+  // control: the owner's view picks c
+  const own = (await h.owner.call("records.view", { type, viewId: byHidden, limit: 10 })) as {
+    rows: Array<{ id: string }>;
+  };
+  assert.deepEqual(
+    own.rows.map((r) => r.id),
+    [c],
+    "control: the owner's view by 'hidden' picks c",
+  );
+});
