@@ -1218,6 +1218,20 @@ async function exportRows(
     ...(input.offset ? { offset: input.offset } : {}),
     limit: MAX_LIMIT,
   };
+  // the fields the filter and the sort name (the first segment of each path); the record's own columns are not fields a grant can hide
+  const named = (() => {
+    const out = new Set<string>();
+    const walk = (f: unknown): void => {
+      if (!f || typeof f !== "object") return;
+      const o = f as Record<string, unknown>;
+      for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+      if (o["not"] !== undefined) walk(o["not"]);
+      if (typeof o["field"] === "string") out.add(o["field"].split(".")[0]!);
+    };
+    walk(input.filter);
+    for (const k of input.sort ?? []) out.add(k.field.split(".")[0]!);
+    return [...out].filter((f) => byName.has(f));
+  })();
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -1226,6 +1240,14 @@ async function exportRows(
       if (picked !== null && !picked.has(r.id)) continue;
       // only what the caller may read goes into the file, picked or not
       if (ctx.authorize({ perm: null, level: "view" }, { type: "record", id: r.id }).effect !== "allow") continue;
+      // a filter or a sort that names a field the caller may not read on THIS record would pick the record, or place it, by a value they may not know: the record is left out
+      if (
+        named.some(
+          (f) =>
+            ctx.authorize!({ perm: null, level: "view", fields: [f] }, { type: "record", id: r.id }).effect !== "allow",
+        )
+      )
+        continue;
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       // and only the columns the caller may read: a grant can hide a field (and a label can lift it out of reach), and a file cannot be filtered after it is written. Asked for every column at once (the common case: nothing
