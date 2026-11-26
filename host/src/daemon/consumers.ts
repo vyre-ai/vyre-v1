@@ -106,6 +106,8 @@ export interface HookEvent {
   device?: string;
   /** the person who caused it has no standing in the Space (a guest): decided by the kernel's snapshot when the event is handed over, never by a call the consumer makes */
   outsider?: boolean;
+  /** True once the server is stopping: a long consumer looks at it between its slices and throws the kept error (routes/errors.ts keptForRestart), so the stop does not wait for the whole job and the next start hands it the same event again. */
+  stopping?: () => boolean;
 }
 
 export interface ConsumerDef {
@@ -320,7 +322,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const n = capName("consumer", c.name);
     caps.push(base(n, c.module));
     moduleOf.set(n, c.module);
-    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, input.event);
+    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, { ...input.event, stopping: () => closing });
   }
   for (const p of periodic) {
     if (byPeriodic.has(p.name)) {

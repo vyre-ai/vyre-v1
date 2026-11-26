@@ -8,6 +8,7 @@ import type { FieldShape, TypeShape } from "../../../lib/computed-fields.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import type { Store, StoredRecord } from "../../../kernel/src/store/types.ts";
 import { refIds } from "./review.ts";
+import { keptForRestart } from "../../../host/src/routes/errors.ts";
 
 /** The computed fields of one record type, as the schema module defines them. */
 export interface ComputedDef {
@@ -22,6 +23,8 @@ export interface ComputedEnv {
   now(): number;
   /** the computed fields of a type (empty when it has none or is not known) */
   defsOf(type: string): Promise<ComputedDef[]>;
+  /** True when the server is stopping: a fill checks it between slices and throws the host's kept error, so the event is delivered again at the next start and the fill goes on from its cursor. */
+  stopping?(): boolean;
   /** the type shapes the inputs of a lookup or rollup are named from */
   shapes(): Promise<ReadonlyMap<string, TypeShape>>;
 }
@@ -371,6 +374,12 @@ export async function backfillType(env: ComputedEnv, type: string): Promise<{ do
     if (!page.length) break;
     let at = 0;
     while (at < page.length) {
+      // the server is stopping: stop at this slice boundary (the slices done are written, the cursor says where), and the event is kept for the next start
+      if (env.stopping?.())
+        throw keptForRestart(
+          "0".repeat(32),
+          "The server is stopping, so this fill is kept and goes on when it is back.",
+        );
       // one slice: as many records as fit in SLICE_MS, written in one transaction, then the loop is given back
       const start = performance.now();
       env.tx.exec("SAVEPOINT computed_slice");

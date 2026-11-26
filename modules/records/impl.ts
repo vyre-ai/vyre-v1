@@ -46,6 +46,7 @@ import type { ReviewHandlers } from "./handlers/review.ts";
 import { createViewHandlers } from "./handlers/views.ts";
 import type { ViewHandlers } from "./handlers/views.ts";
 import { createPurgeHandlers } from "./handlers/purge.ts";
+import { isKeptForRestart } from "../../host/src/routes/errors.ts";
 import { backfillType, ensureComputedTables, markFillFailed, recomputeWithDependents } from "./handlers/computed.ts";
 import type { ComputedDef, ComputedEnv } from "./handlers/computed.ts";
 import type { TypeShape } from "../../lib/computed-fields.ts";
@@ -989,13 +990,14 @@ const inverseName = (v: unknown): string | null =>
       ? (v as { name: string }).name
       : null;
 type CallCtx = { db?: unknown; now(): number; call(cap: string, input: unknown): Promise<unknown> };
-function computedEnv(ctx: CallCtx): ComputedEnv {
+function computedEnv(ctx: CallCtx, stopping?: () => boolean): ComputedEnv {
   const h = live(ctx);
   const memo = computedMemo.get(h) ?? computedMemo.set(h, { defs: new Map(), shapes: null }).get(h)!;
   return {
     tx: h.host.tx,
     store: h.store,
     now: () => ctx.now(),
+    ...(stopping ? { stopping } : {}),
     async defsOf(type) {
       const had = memo.defs.get(type);
       if (had) return had;
@@ -1043,12 +1045,15 @@ function computedEnv(ctx: CallCtx): ComputedEnv {
  * them (records_computed_job holds the progress, so a restart goes on). It runs on the host's hook pump, as every consumer does.
  */
 const COMPUTED_EVENTS = ["record.created", "record.updated", "record.restored", "record.deleted", "schema.changed"];
-async function runComputed(ctx: CallCtx, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+async function runComputed(
+  ctx: CallCtx,
+  event: { name: string; payload: Record<string, unknown>; stopping?: () => boolean },
+): Promise<void> {
   const h = live(ctx);
   ensureComputedTables(h.host.tx);
   if (event.name === "schema.changed") {
     computedMemo.delete(h);
-    const env = computedEnv(ctx);
+    const env = computedEnv(ctx, event.stopping);
     const types = Array.isArray(event.payload["types"])
       ? (event.payload["types"] as unknown[]).filter((x): x is string => typeof x === "string")
       : typeof event.payload["type"] === "string"
@@ -1058,7 +1063,9 @@ async function runComputed(ctx: CallCtx, event: { name: string; payload: Record<
       try {
         await backfillType(env, type);
       } catch (e) {
-        markFillFailed(h.host.tx, type, e instanceof Error ? e.message : String(e), ctx.now());
+        // a stop is not a failure: the fill stays "running" at its cursor and the next start hands the event over again
+        if (!isKeptForRestart(e))
+          markFillFailed(h.host.tx, type, e instanceof Error ? e.message : String(e), ctx.now());
         throw e;
       }
     }
@@ -1079,8 +1086,10 @@ async function runComputed(ctx: CallCtx, event: { name: string; payload: Record<
 export const consumers = {
   "records.computed": {
     on: COMPUTED_EVENTS,
-    run: (ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> =>
-      runComputed(ctx as CallCtx, event),
+    run: (
+      ctx: unknown,
+      event: { name: string; payload: Record<string, unknown>; stopping?: () => boolean },
+    ): Promise<void> => runComputed(ctx as CallCtx, event),
   },
   "records.site_tables": {
     on: ["site.table_created", "site.table_promoted"],
