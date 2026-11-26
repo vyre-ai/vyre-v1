@@ -43,6 +43,7 @@ type Out = {
       restarts: number;
       exitCode?: number | null;
       lastLine?: string;
+      loop?: boolean;
     }>;
 };
 ```
@@ -72,6 +73,7 @@ type Out = {
         "exitCode": 1,
         "jobId": "job_a1b2c3d4e5f6",
         "lastLine": "example",
+        "loop": true,
         "name": "example",
         "restart": "on-failure",
         "restarts": 1,

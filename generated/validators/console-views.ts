@@ -5,25 +5,25 @@ import type { Check } from './core.ts';
 
 function d_s_4c3990d0f8(v: unknown, p: string, e: string[]): void {
 {
-const x409 = v;
-const g409 = typeOf(x409);
-const b409: string[] = []; lf(x409, p, b409, L4); if (b409.length) e.push(...b409);
-if (g409 === "array") {
-if (g409 === 'array') { const a409 = x409 as unknown[];
-for (let i409 = 0; i409 < a409.length; i409++) {
+const x412 = v;
+const g412 = typeOf(x412);
+const b412: string[] = []; lf(x412, p, b412, L4); if (b412.length) e.push(...b412);
+if (g412 === "array") {
+if (g412 === 'array') { const a412 = x412 as unknown[];
+for (let i412 = 0; i412 < a412.length; i412++) {
 {
-const x410 = a409[i409];
-const g410 = typeOf(x410);
-const b410: string[] = []; lf(x410, p + '/' + i409, b410, L0); if (b410.length) e.push(...b410);
-if (g410 === "object") {
-if (g410 === 'object') { const o410 = x410 as Record<string, unknown>;
-if (!("at" in o410)) e.push(p + '/' + i409 + "/at" + ': required');
-if (!("actor" in o410)) e.push(p + '/' + i409 + "/actor" + ': required');
-if (!("action" in o410)) e.push(p + '/' + i409 + "/action" + ': required');
-if ("at" in o410) lf(o410["at"], p + '/' + i409 + "/at", e, L11);
-if ("actor" in o410) lf(o410["actor"], p + '/' + i409 + "/actor", e, L1);
-if ("action" in o410) lf(o410["action"], p + '/' + i409 + "/action", e, L1);
-if ("resource" in o410) lf(o410["resource"], p + '/' + i409 + "/resource", e, L1);
+const x413 = a412[i412];
+const g413 = typeOf(x413);
+const b413: string[] = []; lf(x413, p + '/' + i412, b413, L0); if (b413.length) e.push(...b413);
+if (g413 === "object") {
+if (g413 === 'object') { const o413 = x413 as Record<string, unknown>;
+if (!("at" in o413)) e.push(p + '/' + i412 + "/at" + ': required');
+if (!("actor" in o413)) e.push(p + '/' + i412 + "/actor" + ': required');
+if (!("action" in o413)) e.push(p + '/' + i412 + "/action" + ': required');
+if ("at" in o413) lf(o413["at"], p + '/' + i412 + "/at", e, L11);
+if ("actor" in o413) lf(o413["actor"], p + '/' + i412 + "/actor", e, L1);
+if ("action" in o413) lf(o413["action"], p + '/' + i412 + "/action", e, L1);
+if ("resource" in o413) lf(o413["resource"], p + '/' + i412 + "/resource", e, L1);
 }
 }
 }

@@ -1,0 +1,1 @@
+- A computer keeps at most five background jobs at once, and a job that keeps crashing (more than 20 restarts in an hour) is stopped for good, shown as failed, and its owner gets a task about it, so a crash loop does not keep a computer awake for ever.

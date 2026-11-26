@@ -1,0 +1,1 @@
+- The sign-in card's Open terminal opens that terminal full screen, an answered card reads "Olivia signed in, 11:09 PM" (or "couldn't sign in"), and the line the agent is sent is no longer shown as a chat message.

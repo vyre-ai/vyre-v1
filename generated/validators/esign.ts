@@ -5,14 +5,14 @@ import type { Check } from './core.ts';
 
 function d_s_785f48c110(v: unknown, p: string, e: string[]): void {
 {
-const x648 = v;
-const g648 = typeOf(x648);
-const b648: string[] = []; lf(x648, p, b648, L0); if (b648.length) e.push(...b648);
-if (g648 === "object") {
-if (g648 === 'object') { const o648 = x648 as Record<string, unknown>;
-if (!("envelopeId" in o648)) e.push(p + "/envelopeId" + ': required');
-if ("envelopeId" in o648) lf(o648["envelopeId"], p + "/envelopeId", e, L309);
-if ("recordId" in o648) lf(o648["recordId"], p + "/recordId", e, L34);
+const x649 = v;
+const g649 = typeOf(x649);
+const b649: string[] = []; lf(x649, p, b649, L0); if (b649.length) e.push(...b649);
+if (g649 === "object") {
+if (g649 === 'object') { const o649 = x649 as Record<string, unknown>;
+if (!("envelopeId" in o649)) e.push(p + "/envelopeId" + ': required');
+if ("envelopeId" in o649) lf(o649["envelopeId"], p + "/envelopeId", e, L309);
+if ("recordId" in o649) lf(o649["recordId"], p + "/recordId", e, L34);
 }
 }
 }

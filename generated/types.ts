@@ -48224,6 +48224,7 @@ export type TerminalJobListOut = {
       restarts: number;
       exitCode?: number | null;
       lastLine?: string;
+      loop?: boolean;
     }>;
 };
 export type TerminalJobStartIn = {
@@ -48246,6 +48247,7 @@ export type TerminalJobStartOut = {
     restarts: number;
     exitCode?: number | null;
     lastLine?: string;
+    loop?: boolean;
   };
 };
 export type TerminalJobStopIn = {
@@ -48263,6 +48265,7 @@ export type TerminalJobStopOut = {
     restarts: number;
     exitCode?: number | null;
     lastLine?: string;
+    loop?: boolean;
   };
 };
 export type TerminalKeysIn = {

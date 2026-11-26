@@ -5,22 +5,22 @@ import type { Check } from './core.ts';
 
 function d_s_72d7e2d7dd(v: unknown, p: string, e: string[]): void {
 {
-const x627 = v;
-const g627 = typeOf(x627);
-const b627: string[] = []; lf(x627, p, b627, L4); if (b627.length) e.push(...b627);
-if (g627 === "array") {
-if (g627 === 'array') { const a627 = x627 as unknown[];
-for (let i627 = 0; i627 < a627.length; i627++) {
-{
-const x628 = a627[i627];
+const x628 = v;
 const g628 = typeOf(x628);
-const b628: string[] = []; lf(x628, p + '/' + i627, b628, L0); if (b628.length) e.push(...b628);
-if (g628 === "object") {
-if (g628 === 'object') { const o628 = x628 as Record<string, unknown>;
-if (!("agentId" in o628)) e.push(p + '/' + i627 + "/agentId" + ': required');
-if (!("right" in o628)) e.push(p + '/' + i627 + "/right" + ': required');
-if ("agentId" in o628) lf(o628["agentId"], p + '/' + i627 + "/agentId", e, L17);
-if ("right" in o628) lf(o628["right"], p + '/' + i627 + "/right", e, L302);
+const b628: string[] = []; lf(x628, p, b628, L4); if (b628.length) e.push(...b628);
+if (g628 === "array") {
+if (g628 === 'array') { const a628 = x628 as unknown[];
+for (let i628 = 0; i628 < a628.length; i628++) {
+{
+const x629 = a628[i628];
+const g629 = typeOf(x629);
+const b629: string[] = []; lf(x629, p + '/' + i628, b629, L0); if (b629.length) e.push(...b629);
+if (g629 === "object") {
+if (g629 === 'object') { const o629 = x629 as Record<string, unknown>;
+if (!("agentId" in o629)) e.push(p + '/' + i628 + "/agentId" + ': required');
+if (!("right" in o629)) e.push(p + '/' + i628 + "/right" + ': required');
+if ("agentId" in o629) lf(o629["agentId"], p + '/' + i628 + "/agentId", e, L17);
+if ("right" in o629) lf(o629["right"], p + '/' + i628 + "/right", e, L302);
 }
 }
 }
