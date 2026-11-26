@@ -1,0 +1,1 @@
+- A writer or reader that finds the kept share state published at the access tables' current write count takes it as it is, without comparing every resource of one store with the other.

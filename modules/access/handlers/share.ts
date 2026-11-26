@@ -8,7 +8,7 @@
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader, keepWarm, peekWarm } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader, keepWarm, peekWarm, stampNow } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -161,6 +161,8 @@ interface Kept {
   /** the counters of access_local_my_state when this copy was published: a row of my_access or of the folder tables written by anyone since makes it untrustworthy */
   rows: number;
   folders: number;
+  /** The write counter of the access tables (migrations/0006) when this copy was published: while it stands, no access row was written since, so any store of this database holds what the copy was built from. */
+  stamp: number | null;
 }
 const KEPT = new WeakMap<object, Kept>();
 const stateOf = (db: Db): { rows: number; folders: number } | null => {
@@ -313,7 +315,9 @@ export function shareOf(ctx: AccessCtx): ShareStore {
           ? null
           : kept.store === store && kept.epoch === store.epoch
             ? { roots: [], who: [] }
-            : changedRoots(kept.base, store);
+            : kept.stamp !== null && stampNow(ctx.db) === kept.stamp
+              ? { roots: [], who: [] } // another store of the same tables (the sync's view, a writer's): nothing was written since, so nothing differs, and every resource is not compared to find that out
+              : changedRoots(kept.base, store);
       if (changes) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
@@ -1020,7 +1024,7 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?:
     }
     base = { resources: from.base.resources, grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store) };
   } else base = baseOf(store);
-  KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders });
+  KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders, stamp: stampNow(ctx.db) });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {

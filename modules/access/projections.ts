@@ -1413,7 +1413,7 @@ export function pkey(key: string, scope: string): string {
 const STORES = new WeakMap<Db, AccessStore>();
 
 /** The tables' write counter (migrations/0006_local_stamp.sql), or null where there is none. */
-function stampNow(db: Db): number | null {
+export function stampNow(db: Db): number | null {
   try {
     const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
     return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
