@@ -1558,18 +1558,25 @@ let resourceAdopter: ((ctx: GrantCtx, change: ResourceChange) => void) | null = 
 export function setResourceAdopter(f: (ctx: GrantCtx, change: ResourceChange) => void): void {
   resourceAdopter = f;
 }
+/** What changedResources saw of the write counter inside the transaction that wrote the rows: where it stood when the transaction began (it holds the write lock from there), the rows it wrote, where it stood after. */
+const WRITTEN = new WeakMap<AccessStore, { before: number | null; after: number | null; writes: number }>();
 /**
- * A handler that changed only the named resources and wrote them (changedResources answered `writes`) keeps its store for the next writer, and the kept store of access.sync takes the same rows in
- * place, when the write counter shows nothing else wrote since the store was read. Call it last, once the change is complete.
+ * A handler that changed only the named resources and wrote them keeps its store for the next writer, and the kept store of access.sync takes the same rows in place. It is kept only when the counter
+ * (maintained by the tables' triggers) stood, at the start of the very transaction that wrote the rows, exactly where the store was read: nothing was written to the access tables in between, by anyone.
+ * The rows counted against the counter's move are only a second look that can refuse (a write that fired no trigger or an uncounted one): it never accepts. Call it last, once the change is complete.
  */
 export function keepWarm(ctx: AccessCtx, store: AccessStore, writes: number | null, ids: readonly string[]): void {
   const raw = rawDbOf(ctx.db);
   const loaded = LOAD_STAMP.get(store);
-  const after = stampNow(ctx.db);
-  if (!raw || writes === null || store.isGrantView || loaded == null || after === null || after !== loaded + writes) return;
-  resourceAdopter?.(ctx, { loaded, after, ids, store });
-  LOAD_STAMP.set(store, after);
-  WARM.set(raw, { store, stamp: after });
+  const w = WRITTEN.get(store);
+  WRITTEN.delete(store);
+  if (!raw || writes === null || !w || store.isGrantView || loaded == null) return;
+  if (w.before === null || w.after === null || w.before !== loaded) return; // the tables moved since the store was read: not kept
+  if (w.after !== w.before + w.writes || w.writes !== writes) return; // a write the rows do not account for: not kept
+  if (stampNow(ctx.db) !== w.after) return;
+  resourceAdopter?.(ctx, { loaded, after: w.after, ids, store });
+  LOAD_STAMP.set(store, w.after);
+  WARM.set(raw, { store, stamp: w.after });
 }
 
 export function storeOf(ctx: AccessCtx): AccessStore {
@@ -1942,9 +1949,14 @@ export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readon
   store.bumpResources(ids);
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
   try {
-    const writes = store.persistChangedResources(ctx.db, ids);
-    if (writes === null) store.persist(ctx.db);
-    return writes;
+    const run = (): number | null => {
+      const before = stampNow(ctx.db);
+      const writes = store.persistChangedResources(ctx.db, ids);
+      if (writes === null) store.persist(ctx.db);
+      else WRITTEN.set(store, { before, after: stampNow(ctx.db), writes });
+      return writes;
+    };
+    return ctx.db.batch ? ctx.db.batch(run) : run();
   } catch (e) {
     store.bump();
     throw e;

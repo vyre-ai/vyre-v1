@@ -172,7 +172,7 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0 };
+export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0, settleSkips: 0, stampShared: 0, logCompared: 0 };
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -263,6 +263,7 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   // the same sealed map the base was copied from: its change log names the keys that differ, and the other thirty thousand are not looked at
   const log = base.resMap === store.resources && base.resVersion !== undefined ? mapChangesSince(store.resources, base.resVersion) : null;
   if (log) {
+    shareKept.logCompared++;
     for (const id of new Set(log)) {
       const was = base.resources.get(id);
       const r = store.resources.get(id);
@@ -339,7 +340,7 @@ export function shareOf(ctx: AccessCtx): ShareStore {
           : kept.store === store && kept.epoch === store.epoch
             ? { roots: [], who: [] }
             : kept.stamp !== null && stampNow(ctx.db) === kept.stamp
-              ? { roots: [], who: [] } // another store of the same tables (the sync's view, a writer's): nothing was written since, so nothing differs, and every resource is not compared to find that out
+              ? (shareKept.stampShared++, { roots: [], who: [] }) // another store of the same tables (the sync's view, a writer's): nothing was written since, so nothing differs, and every resource is not compared to find that out
               : changedRoots(kept.base, store);
       if (changes) {
         if (!reader) KEPT.delete(raw);
@@ -963,7 +964,10 @@ export async function settleForWriter(ctx: AccessCtx): Promise<void> {
   const kept = raw ? KEPT.get(raw) : undefined;
   if (warm && kept && kept.store === warm && kept.epoch === warm.epoch && kept.ss.fresh >= 0 && ctx.now() < kept.ss.until) {
     const st = stateOf(ctx.db);
-    if (st && st.rows === kept.rows && st.folders === kept.folders) return;
+    if (st && st.rows === kept.rows && st.folders === kept.folders) {
+      shareKept.settleSkips++;
+      return;
+    }
   }
   await primeShare(ctx);
   try {
