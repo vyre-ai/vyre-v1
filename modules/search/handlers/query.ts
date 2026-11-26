@@ -564,7 +564,7 @@ export async function seenBody(ctx: SearchCtx, kind: Kind, id: string): Promise<
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", kind, id)[0];
   if (!row) return undefined;
   const raw = docOf(row);
-  const seen = asSeen(raw, agentDocs(ctx, [raw.n]));
+  const seen = asSeen(ctx, raw, agentDocs(ctx, [raw.n]));
   const doc = seen ? await afterJoin(ctx, seen, new Map()) : null;
   return doc && (await readable(ctx, doc)) ? doc.body : "";
 }
