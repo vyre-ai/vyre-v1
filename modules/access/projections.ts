@@ -438,7 +438,7 @@ const grantVals = (g: GrantRec): unknown[] => [
 ];
 
 /** How many rows a sliced hydrate reads and turns into records between two yields (a test sets it low to force many). */
-export const hydrateTuning = { page: 1000 };
+export const hydrateTuning = { page: 250 };
 
 export class AccessStore {
   epoch = 0;
