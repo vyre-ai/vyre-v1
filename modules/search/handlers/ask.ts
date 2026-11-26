@@ -3,10 +3,10 @@
 // else's folder), and the text of a source comes from the same indexed row that passed it. Memory (the private profile) is never asked for: it is not a source of a shared answer. With nothing to
 // read the answer is the fixed "no access" line and no model is called, so there is nothing to leak. Otherwise the numbered sources go to one model request on the asker's own AI account
 // (engine.complete as the asker: a Mine account first, else the Space's shared account they may use), never anyone else's. Citations the model writes that name no source are dropped.
-import { askerOf, docOf, ensure, rowsOf } from "../projections.ts";
+import { askerOf, ensure } from "../projections.ts";
 import type { Kind, SearchCtx } from "../projections.ts";
 import { agentBound } from "../../../lib/redact.ts";
-import { query } from "./query.ts";
+import { query, seenBody } from "./query.ts";
 import type { Hit } from "./query.ts";
 
 /** What a shared answer may be made from (a channel hit is only its name; its text is the chat hit). Not `memory` (the private profile), people, agents, settings, apps or automations: none of those say what happened. */
@@ -60,16 +60,14 @@ const SYSTEM = [
 const clip = (s: string): string => (s.length > PER_SOURCE ? `${s.slice(0, PER_SOURCE)}...` : s);
 
 /**
- * The text of a source as an agent may read it: the index row the query just passed, and for a file with a redaction layer the agent's view of it (search_agent_docs: [REDACTED] where a part is
- * hidden), never the whole text a person sees. Else the snippet the query gave. Notes are answered by notes.search as the asker and are not indexed: their snippet is all there is.
+ * The text of a source as the asker's AI may read it: the index row passed through the gates a hit goes through (seenBody in query.ts): the agent's view of a file ([REDACTED] where a part is hidden), a chat from the
+ * last join on, and a record rebuilt from the fields the asker gets, so a field their grant hides is never in the prompt. Never the raw row (that holds the words of every field). Else the snippet the query gave, which was
+ * built from the same rebuilt document. Notes are answered by notes.search as the asker and are not indexed: their snippet is all there is.
  */
-function textOf(ctx: SearchCtx, h: Hit): string {
-  const r = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", h.kind, h.id)[0];
-  const doc = r ? docOf(r) : null;
-  const view = doc ? rowsOf(ctx.db, "SELECT * FROM search_agent_docs WHERE n = ?", doc.n)[0] : undefined;
-  if (view && Number(view["withheld"]) === 1) return "";
-  const body = view ? String(view["body"] ?? "") : (doc?.body ?? "");
-  return clip((body || h.snippet || "").replace(/\[|\]/g, ""));
+async function textOf(ctx: SearchCtx, h: Hit): Promise<string> {
+  const body = await seenBody(asAgent(ctx), h.kind, h.id);
+  if (body === "") return "";
+  return clip(((body ?? "") || h.snippet || "").replace(/\[|\]/g, ""));
 }
 
 /** An AI reads what this search returns, so the question is searched as an agent would search (Redaction for AI): the agent's view of a file, not the person's whole text, though the answer is for the person. */
@@ -166,7 +164,8 @@ export async function ask(ctx: SearchCtx, input: { q: string }): Promise<AskOut>
   };
   const account = pickAccount(list.accounts ?? []);
   if (!account) return { state: "no_account", sources, cited: [] };
-  const prompt = `Question: ${q}\n\nSources:\n${sources.map((s) => `[${s.n}] ${s.where}: ${s.title}${s.path ? ` (${s.path})` : ""}\n${textOf(ctx, s)}`).join("\n\n")}`;
+  const texts = await Promise.all(sources.map((s) => textOf(ctx, s)));
+  const prompt = `Question: ${q}\n\nSources:\n${sources.map((s, i) => `[${s.n}] ${s.where}: ${s.title}${s.path ? ` (${s.path})` : ""}\n${texts[i]}`).join("\n\n")}`;
   const who = { title: account.name ?? account.title, mine: account.mine };
   let text: string;
   try {
