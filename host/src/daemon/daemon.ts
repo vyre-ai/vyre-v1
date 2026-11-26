@@ -1,4 +1,5 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { startCheckpointer } from "./checkpointer.ts";
 import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
@@ -2044,6 +2045,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
       db = openDb(paths.modules);
       closers.push(() => db?.close());
+      // modules.db is checkpointed by a worker thread, not by the commit that crosses 1,000 pages on this one (pushed after the close, so it stops first: the closers run in reverse)
+      const checkpointer = startCheckpointer(db, paths.modules);
+      closers.push(() => checkpointer.stop());
       migrate(db, codeRoot, now);
       if (!space) throw new Error("this data directory has no Space yet: pass --space <id> to create one");
       log = await LogClient.open({ path: paths.events, space });
