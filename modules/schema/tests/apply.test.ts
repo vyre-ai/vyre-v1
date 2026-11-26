@@ -1076,3 +1076,24 @@ test("a type has one card face, set by type.update, checked against its own fiel
     undefined,
   );
 });
+
+test("computed fields: two formulas that would read each other are refused when the second is made, and a chain that does not come back is fine", async () => {
+  const k = kit();
+  await base(k);
+  const add = (field: string, expr: string): SchemaOp => ({
+    op: "field.add",
+    type: "acme_person",
+    field,
+    def: { type: "formula", title: field.toUpperCase(), options: { expr } },
+  });
+  await k.h["schema.apply"](k.ctx, { ops: [add("fa", "name")] });
+  await k.h["schema.apply"](k.ctx, { ops: [add("fb", "fa")] });
+  const chain = await k.h["schema.apply"](k.ctx, { ops: [add("fc", "fb")] });
+  assert.equal(chain.applied, 1, "a chain of formulas over formulas is allowed");
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [{ op: "field.update", type: "acme_person", field: "fa", def: { options: { expr: "fc" } } }],
+    }),
+    (e) => /read itself/.test(JSON.stringify(e)),
+  );
+});
