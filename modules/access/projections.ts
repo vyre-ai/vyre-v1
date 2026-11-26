@@ -1492,6 +1492,12 @@ function takeWarm(ctx: AccessCtx): AccessStore | null {
   LOAD_STAMP.set(w.store, w.stamp);
   return w.store;
 }
+/** The warm writer store, looked at and not taken: null unless the tables still stand where its last call left them. */
+export function peekWarm(ctx: AccessCtx): AccessStore | null {
+  const raw = rawDbOf(ctx.db);
+  const w = raw ? WARM.get(raw) : undefined;
+  return w && stampNow(ctx.db) === w.stamp ? w.store : null;
+}
 /** What a writer that changed only resources hands to the kept store of access.sync, so it takes the change in place instead of reading the tables again (consumers.ts). */
 export interface ResourceChange {
   loaded: number;

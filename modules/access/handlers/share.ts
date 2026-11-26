@@ -8,7 +8,7 @@
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader, keepWarm } from "../projections.ts";
+import { NeedFullStore, asReader, changedGrants, isReader, keepWarm, peekWarm } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -115,6 +115,8 @@ export class ShareStore {
   pendingWho: string[] = [];
   /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
   byRes: Map<string, Set<string>> | null = null;
+  /** The kept copy this state was taken from (its store, epoch and base), so a writer that changes only a few resources brings the base up to date for those instead of copying every resource again (publish). */
+  from: { store: AccessStore; epoch: number; base: Base } | null = null;
 }
 
 const SHARES = new WeakMap<Db, ShareStore>();
@@ -315,6 +317,7 @@ export function shareOf(ctx: AccessCtx): ShareStore {
       if (changes) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
+        ss.from = { store: kept.store, epoch: kept.epoch, base: kept.base };
         ss.pending = changes.roots;
         ss.pendingWho = changes.who;
         ss.fresh = store.epoch;
@@ -926,6 +929,15 @@ async function buildSliced(
 export async function settleForWriter(ctx: AccessCtx): Promise<void> {
   if (isReader(ctx)) return settleView(ctx);
   if (SHARES.has(ctx.db)) return;
+  // the store this call will work on is the one the last call kept warm, and the share state kept with it was built for that very store at its epoch, from the tables as they stand: nothing to settle
+  // (settling reads the kept view of the sync, a different store, and works out what changed between the two over every resource)
+  const warm = peekWarm(ctx);
+  const raw = rawDbOf(ctx.db);
+  const kept = raw ? KEPT.get(raw) : undefined;
+  if (warm && kept && kept.store === warm && kept.epoch === warm.epoch && kept.ss.fresh >= 0 && ctx.now() < kept.ss.until) {
+    const st = stateOf(ctx.db);
+    if (st && st.rows === kept.rows && st.folders === kept.folders) return;
+  }
   await primeShare(ctx);
   try {
     await settleView(asReader(ctx));
@@ -992,11 +1004,23 @@ function isFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): boolean {
 }
 
 /** Keep what this call built for the next call (a reader after its read, a writer once its change is committed), with the counters it was built against. */
-function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
+function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?: readonly string[]): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
   if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length || ss.pendingWho.length) return;
-  KEPT.set(raw, { store, epoch: store.epoch, ss, base: baseOf(store), rows: st.rows, folders: st.folders });
+  // a change to these resources only, on the store the kept copy was built for, one epoch on: the base of that copy is brought up to date for them (a copy of 38,000 resources took 10 ms to 20 ms per call)
+  const from = ss.from;
+  ss.from = null;
+  let base: Base;
+  if (resources && from && from.store === store && from.epoch + 1 === store.epoch) {
+    for (const id of resources) {
+      const r = store.resources.get(id);
+      if (r) from.base.resources.set(id, r);
+      else from.base.resources.delete(id);
+    }
+    base = { resources: from.base.resources, grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store) };
+  } else base = baseOf(store);
+  KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
@@ -1027,6 +1051,7 @@ function commit(
   wasFresh: boolean,
   roots: readonly string[],
   persistFolderTables: boolean,
+  resourcesOnly = false,
 ): void {
   if (persistFolderTables) persistFolders(ctx, ss);
   const pending = ss.pending;
@@ -1035,7 +1060,7 @@ function commit(
   ss.pendingWho = [];
   rebuild(ctx, store, ss, wasFresh ? [...new Set([...roots, ...pending])] : "all");
   if (wasFresh && who.length) rebuild(ctx, store, ss, "all", who);
-  if (!isReader(ctx)) publish(ctx, store, ss);
+  if (!isReader(ctx)) publish(ctx, store, ss, resourcesOnly ? [...new Set([...roots, ...pending])] : undefined);
 }
 
 // ---- access.share, access.unshare, access.shares_of -------------------------------------------------------------------
@@ -2004,7 +2029,7 @@ export async function audienceSet(
     }
     res.parentId = rec.id;
     const writes = changedResources(ctx, store, [res.id]);
-    commit(ctx, store, ss, wasFresh, [res.id], false);
+    commit(ctx, store, ss, wasFresh, [res.id], false, true);
     keepWarm(ctx as AccessCtx, store, writes, [res.id]);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
