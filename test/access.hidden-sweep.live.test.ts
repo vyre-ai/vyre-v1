@@ -197,3 +197,88 @@ test("export: a person whose role may export, and whose grant hides a field, get
     ).text ?? "";
   assert.ok(f.leaks(ownBytes).length >= 2, `the owner's export carries the hidden values: ${ownBytes.slice(0, 200)}`);
 });
+
+test("export and views: a filter or sort on a field the grant hides picks no row and places none for the person, in a file and in a saved view, and the owner's own pick the record", async () => {
+  const f = await hiddenMember(h, { extraPermissions: ["records.export"] });
+  const text = async (
+    who: { call(cap: string, input?: Record<string, unknown>): Promise<any> },
+    input: Record<string, unknown>,
+  ): Promise<string> => {
+    const out = await who.call("records.export", { type: "contact", format: "csv", ...input });
+    const read = (await who.call("files.read", { fileId: (out as { fileId: string }).fileId, as: "text" })) as {
+      text?: string;
+      base64?: string;
+    };
+    return read.text ?? Buffer.from(read.base64 ?? "", "base64").toString("utf8");
+  };
+  const name = String(
+    (
+      (await f.owner.call("records.get", { type: "contact", recordId: f.rid })) as {
+        record: { fields: Record<string, unknown> };
+      }
+    ).record.fields["name"],
+  );
+  // control: a person who may export and whose grant hides nothing has the contact picked by its email (one export a day per person, so this is another person with a contact of their own)
+  const open = await hiddenMember(h, { hide: [], extraPermissions: ["records.export"] });
+  const openName = String(
+    (
+      (await open.owner.call("records.get", { type: "contact", recordId: open.rid })) as {
+        record: { fields: Record<string, unknown> };
+      }
+    ).record.fields["name"],
+  );
+  const openFile = await text(open.member, { filter: { field: "email", op: "eq", value: open.values.newEmail } });
+  assert.ok(openFile.includes(openName), "control: a person who may read the email has the contact picked by it");
+  // the probes: the person's export filtered or sorted by the hidden email picks and places nothing, and carries no hidden value
+  const bytes = await text(f.member, { filter: { field: "email", op: "eq", value: f.values.newEmail } }).catch(
+    () => "",
+  );
+  assert.equal(bytes.includes(name), false, "a filter on the hidden email picks no row for them");
+  assert.deepEqual(f.leaks(bytes), [], "and nothing hidden is in the file");
+  // the same for a saved view the owner shared
+  const save = async (title: string, spec: Record<string, unknown>): Promise<string> => {
+    const r = (await f.owner.call("views.save", {
+      type: "contact",
+      kind: "table",
+      title: `${title} ${f.rid.slice(-6)}`,
+      idempotencyKey: `sw-${title}-${f.rid}`,
+      ...spec,
+    })) as { view: { viewId: string } };
+    await f.owner.call("views.publish", { viewId: r.view.viewId, shared: true });
+    return r.view.viewId;
+  };
+  const byEmail = await save("sweep by email", { filter: { field: "email", op: "eq", value: f.values.newEmail } });
+  const bySort = await save("sweep sorted", { sort: [{ field: "email", dir: "asc" }] });
+  const ids = async (
+    who: { attempt(cap: string, input?: Record<string, unknown>): Promise<{ ok: boolean; data?: unknown }> },
+    viewId: string,
+  ): Promise<string[]> => {
+    const r = await who.attempt("records.view", { type: "contact", viewId, limit: 50 });
+    return r.ok ? (r.data as { rows: Array<{ id: string }> }).rows.map((x) => x.id) : [];
+  };
+  assert.ok((await ids(f.owner, byEmail)).includes(f.rid), "control: the owner's view by the email picks the contact");
+  assert.equal(
+    (await ids(f.member, byEmail)).includes(f.rid),
+    false,
+    "a view filtered by the hidden email picks nothing for the person",
+  );
+  assert.equal(
+    (await ids(f.member, bySort)).includes(f.rid),
+    false,
+    "a view sorted by the hidden email places nothing for the person",
+  );
+  for (const [label, viewId] of [
+    ["by email", byEmail],
+    ["sorted", bySort],
+  ] as const) {
+    // the rows only: the view's own definition holds the filter its owner wrote, which is the owner's words and not a record's value
+    const body = JSON.stringify(
+      (
+        (await f.member.attempt("records.view", { type: "contact", viewId, limit: 50 })).data as
+          | { rows?: unknown }
+          | undefined
+      )?.rows ?? null,
+    );
+    assert.deepEqual(f.leaks(body), [], `the view ${label} rows carry no hidden value for the person`);
+  }
+});
