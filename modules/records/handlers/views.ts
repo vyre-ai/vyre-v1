@@ -6,6 +6,7 @@
 // a Star. The relationship map walks the relation fields out from one record, at most two hops, and names each edge by its field.
 import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { FieldDef, StoredRecord } from "../../../kernel/src/store/types.ts";
+import { turns } from "../../../lib/yield-loop.ts";
 import { mapError } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
 import { runQuery } from "./query.ts";
@@ -59,6 +60,8 @@ export interface ViewHandlers {
   ): Promise<PagePrefs>;
 }
 
+/** The most rows a view read looks at for one page (and for its total): past it the page ends where it is and there is no total. */
+const SCAN_ROWS = 5000;
 const PREF_MAX = 200;
 const MAP_MAX_NODES = 100;
 
@@ -179,25 +182,33 @@ export function createViewHandlers(deps: RvDeps): ViewHandlers {
         // A record left out takes no place in the paging: pages are read one after the other until `limit` records are kept (a page may hold more than `limit`; none is cut or skipped), and the answer never
         // comes short because a record was left out, so stepping the cursor says nothing about the records the caller may not know. The total counts only the records the caller may have (every page is read for it): a count of what the view picked would count the records the caller may not read the field on (the host drops the total for a restricted reader in any case).
         const want = Math.max(1, Math.min(Math.trunc(input.limit ?? 200), 500));
+        const turn = turns();
         const rows: typeof page.rows = [];
         let at: { rows: typeof page.rows; next?: string } = page;
-        for (let guard = 0; ; guard++) {
+        // bounded by rows read, not pages: after SCAN_ROWS rows the page ends there (possibly short), and there is no total. Exact totals for a big table belong in records.counts.
+        let scanned = 0;
+        for (;;) {
+          scanned += at.rows.length;
           for (const r of at.rows) if (keeps(r)) rows.push(r);
-          if (rows.length >= want || at.next === undefined || guard >= 1000) break; // after 1,000 pages read the page ends there, possibly short
+          if (rows.length >= want || at.next === undefined || scanned >= SCAN_ROWS) break;
+          await turn();
           at = runQuery(tx, input.type, { ...spec, cursor: at.next });
         }
-        // the total counts the records the caller may have, read from the first page to the last (the host drops it for a restricted reader in any case); past 1,000 pages there is none
+        // the total counts the records the caller may have, when the count finishes inside the same bound (the host drops it for a restricted reader in any case)
         let total: number | undefined = 0;
         const { cursor: _from, ...whole } = spec;
-        for (let cursor: string | undefined, guard = 0; ; guard++) {
-          if (guard >= 1000) {
+        let counted = 0;
+        for (let cursor: string | undefined; ; ) {
+          if (counted >= SCAN_ROWS) {
             total = undefined;
             break;
           }
           const part = runQuery(tx, input.type, { ...whole, limit: 500, ...(cursor ? { cursor } : {}) });
+          counted += part.rows.length;
           for (const r of part.rows) if (keeps(r)) total++;
           if (part.next === undefined) break;
           cursor = part.next;
+          await turn();
         }
         return {
           view: def,

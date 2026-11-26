@@ -291,3 +291,141 @@ test("a Manage grant on the type that hides a field, and a record grant with a r
     "control: the owner's view by 'hidden' picks c",
   );
 });
+
+test("control for probe 1, on the contact table as it is (open to the Member role): a Manage grant that hides email takes nothing away, because the role still gives email; the view picks the contact legitimately", async () => {
+  const tag = `p1${Math.random().toString(36).slice(2, 6)}`;
+  const mk = async (name: string, email: string): Promise<string> =>
+    (
+      (await h.owner.call("records.create", { type: "contact", fields: { name: `P1 ${tag} ${name}`, email } })) as {
+        record: { id: string };
+      }
+    ).record.id;
+  const a = await mk("a", `a-${tag}@other.test`);
+  const x = await mk("b", `x-${tag}@probe.test`);
+  await mk("c", `c-${tag}@other.test`);
+  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  const inv = await h.owner.call("members.invites.create", {
+    role: roles.find((r) => r.name === "Member")!.id,
+    email: `p1${tag}@firm.test`,
+  });
+  const p = h.person(`P1 ${tag}`, `p1${tag}`, `p1${tag}@firm.test`, `p1${tag} horse battery staple 9`);
+  for (let tries = 0; ; tries++) {
+    try {
+      await join(h, p, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
+      break;
+    } catch (e) {
+      if (tries >= 8 || !/rate_limit/.test(String(e))) throw e;
+      await new Promise((r) => setTimeout(r, 8_000));
+    }
+  }
+  const shared = await h.owner.attempt("access.share", {
+    resource: { type: "record_type", id: "contact" },
+    subject: { kind: "person", id: p.personId },
+    level: "manage",
+    conditions: { hiddenFields: ["email"] },
+    idempotencyKey: `${tag}-m`,
+  });
+  const saved = (await h.owner.call("views.save", {
+    type: "contact",
+    kind: "table",
+    title: `Probe ${tag}`,
+    idempotencyKey: `p1-${tag}`,
+    filter: { field: "email", op: "contains", value: `x-${tag}@probe.test` },
+    sort: [{ field: "name", dir: "asc" }],
+  })) as { view: { viewId: string } };
+  await h.owner.call("views.publish", { viewId: saved.view.viewId, shared: true });
+  const r = await p.attempt("records.view", { type: "contact", viewId: saved.view.viewId, limit: 1 });
+  const picked = r.ok ? (r.data as { rows: Array<{ id: string }> }).rows.map((q) => q.id) : [];
+  console.log(
+    `PROBE1 share ${shared.ok ? "accepted" : `refused ${JSON.stringify(shared.error).slice(0, 120)}`}; the member's view by hidden email answered ${r.ok ? "rows " + picked.length : "refused"}; picks the contact: ${picked.includes(x)}; a: ${picked.includes(a)}`,
+  );
+  const own = (await h.owner.call("records.view", { type: "contact", viewId: saved.view.viewId, limit: 10 })) as {
+    rows: Array<{ id: string }>;
+  };
+  assert.deepEqual(
+    own.rows.map((q) => q.id),
+    [x],
+    "control: the owner's view picks the one contact",
+  );
+  assert.equal(shared.ok, true, "the grant is accepted");
+  assert.equal(
+    picked.includes(x),
+    true,
+    "the Member role gives them email on every contact (grants add up), so the view picks the contact for them, as it should; narrowing is the other test, on a table open to people added only",
+  );
+});
+
+test("control for probe 2, on the contact table as it is (open to the Member role): a type grant with a row filter on owner takes nothing away; the pages are all four, none short", async () => {
+  const tag = `p2${Math.random().toString(36).slice(2, 6)}`;
+  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  const inv = await h.owner.call("members.invites.create", {
+    role: roles.find((r) => r.name === "Member")!.id,
+    email: `p2${tag}@firm.test`,
+  });
+  const p = h.person(`P2 ${tag}`, `p2${tag}`, `p2${tag}@firm.test`, `p2${tag} horse battery staple 9`);
+  for (let tries = 0; ; tries++) {
+    try {
+      await join(h, p, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!), { device: "web" });
+      break;
+    } catch (e) {
+      if (tries >= 8 || !/rate_limit/.test(String(e))) throw e;
+      await new Promise((r) => setTimeout(r, 8_000));
+    }
+  }
+  const mk = async (
+    who: { call: (cap: string, input?: Record<string, unknown>) => Promise<any> },
+    name: string,
+  ): Promise<string> =>
+    (
+      (await who.call("records.create", { type: "contact", fields: { name: `P2 ${tag} ${name}` } })) as {
+        record: { id: string };
+      }
+    ).record.id;
+  const ids: string[] = [];
+  for (const [who, n] of [
+    [p, "a"],
+    [h.owner, "b"],
+    [p, "c"],
+    [h.owner, "d"],
+  ] as const)
+    ids.push(await mk(who, n));
+  const shared = await h.owner.attempt("access.share", {
+    resource: { type: "record_type", id: "contact" },
+    subject: { kind: "person", id: p.personId },
+    level: "view",
+    conditions: { rowFilter: { op: "eq", field: "owner_id", value: p.personId } },
+    idempotencyKey: `${tag}-rf`,
+  });
+  const saved = (await h.owner.call("views.save", {
+    type: "contact",
+    kind: "table",
+    title: `Probe2 ${tag}`,
+    idempotencyKey: `p2-${tag}`,
+    filter: { field: "name", op: "contains", value: `P2 ${tag}` },
+  })) as { view: { viewId: string } };
+  await h.owner.call("views.publish", { viewId: saved.view.viewId, shared: true });
+  const pages: string[][] = [];
+  let cursor: string | undefined;
+  for (let i = 0; i < 8; i++) {
+    const r = await p.attempt("records.view", {
+      type: "contact",
+      viewId: saved.view.viewId,
+      limit: 1,
+      ...(cursor ? { cursor } : {}),
+    });
+    if (!r.ok) break;
+    const page = r.data as { rows: Array<{ id: string }>; next?: string };
+    pages.push(page.rows.map((q) => q.id).filter((id) => ids.includes(id)));
+    cursor = page.next;
+    if (!cursor) break;
+  }
+  console.log(
+    `PROBE2 share ${shared.ok ? "accepted" : `refused ${JSON.stringify(shared.error).slice(0, 120)}`}; pages ${JSON.stringify(pages.map((q) => q.map((id) => "abcd"[ids.indexOf(id)])))}`,
+  );
+  assert.equal(shared.ok, true, "the grant is accepted");
+  assert.deepEqual(
+    pages.flat().map((id) => "abcd"[ids.indexOf(id)]),
+    ["a", "b", "c", "d"],
+    "the Member role gives them every contact, so all four are theirs, in order, none short",
+  );
+});
