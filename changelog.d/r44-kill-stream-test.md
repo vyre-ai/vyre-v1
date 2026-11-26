@@ -1,0 +1,1 @@
+- A heavy test kills the daemon with SIGKILL as a child process under an open terminal stream and proves the stream comes back by itself on a new process with the screen as it was and the typing that follows.
