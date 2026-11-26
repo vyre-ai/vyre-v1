@@ -10,8 +10,10 @@ import {
   handlers as table,
   indexApply,
   indexDropFolder,
+  noteFieldChange,
   noteTitleChange,
   notePrivate,
+  reindexAll,
   retitleRun,
   setLister,
   DEFAULT_SOURCES,
@@ -169,9 +171,12 @@ export const consumers = {
       for (const t of targetsOf(e)) if (!alreadyIndexed(ctx, e, t)) await indexApply(ctx, t);
     },
   },
-  /** A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). */
+  /**
+   * A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). A field dropped, retyped or restored, or a type dropped, rewrites rows that announce
+   * nothing to the Space log (schema.apply writes the records store directly), so the documents of the type are read again here, a page at a time (reindexAll), or leave with the type.
+   */
   "search.titles": {
-    on: ["schema.changed"],
+    on: ["schema.changed", "schema.field_restored", "schema.type_dropped"],
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
       const e = indexEventOf(event);
       const types = Array.isArray(e.payload["types"])
@@ -179,7 +184,8 @@ export const consumers = {
         : typeof e.payload["type"] === "string"
           ? [e.payload["type"]]
           : [];
-      if (types.length > 0) await noteTitleChange(ctx, types, e.seq);
+      if (e.type === "schema.changed" && types.length > 0) await noteTitleChange(ctx, types, e.seq);
+      if (noteFieldChange(ctx, e) > 0) await reindexAll(ctx);
     },
   },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */

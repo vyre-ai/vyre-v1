@@ -1,0 +1,1 @@
+- Search no longer finds the text of a field that was dropped, retyped or restored, or the records of a type that was deleted: the index reads those records again when the schema change is announced, a page at a time.
