@@ -23,6 +23,8 @@ import type {
   DefineResult,
   ExportChunk,
   FieldDef,
+  FieldValue,
+  Filter,
   Page,
   QuerySpec,
   SearchHit,
@@ -408,6 +410,27 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
     table(t.name);
   };
 
+  const COMPUTED_KINDS = new Set(["formula", "lookup", "rollup"]);
+  /** The computed fields of a type that a spec's filter, sort or group names. */
+  const computedNamed = (type: string, spec: QuerySpec): string[] => {
+    const def = defOf(type);
+    const computed = new Set(
+      (def?.fields ?? []).filter((f) => COMPUTED_KINDS.has(String(f["ftype"] ?? ""))).map((f) => f.name),
+    );
+    if (!computed.size) return [];
+    const out = new Set<string>();
+    const walk = (f: Filter | undefined): void => {
+      if (!f) return;
+      if ("and" in f) f.and.forEach(walk);
+      else if ("or" in f) f.or.forEach(walk);
+      else if ("not" in f) walk(f.not);
+      else if (computed.has(f.field.split(".")[0]!)) out.add(f.field.split(".")[0]!);
+    };
+    walk(spec.filter);
+    for (const k of spec.sort ?? []) if (computed.has(k.field.split(".")[0]!)) out.add(k.field.split(".")[0]!);
+    return [...out];
+  };
+
   const store: Store = {
     async define(diff: DefineDiff): Promise<DefineResult> {
       const set: TypeDef[] = [],
@@ -470,6 +493,37 @@ export function createRecordStore(host: ProjectionHost, o: RecordStoreOptions = 
       // (a pass over a 100,000-record type decoded every record once per page of 500, about 200 times over, and held the server for seconds).
       const fast = keyset(type, spec);
       if (fast) return fast;
+      // A sort or filter that names a computed field (formula, lookup, rollup) reads its value from the records_computed side table: the value is put in the row for the comparison and taken out again of every row
+      // returned, so a computed value only ever leaves through the host's read rule. A field nobody has computed yet is empty.
+      const named = computedNamed(type, spec);
+      if (named.length) {
+        const vals = new Map<string, Record<string, FieldValue>>();
+        try {
+          for (const r of tx.all<{ id: string; field: string; value: string | null }>(
+            `SELECT id, field, value FROM records_computed WHERE type = ? AND field IN (${named.map(() => "?").join(",")})`,
+            type,
+            ...named,
+          )) {
+            const row = vals.get(r.id) ?? vals.set(r.id, {}).get(r.id)!;
+            row[r.field] = (r.value === null ? null : JSON.parse(r.value)) as FieldValue;
+          }
+        } catch {
+          /* nothing computed on this store yet */
+        }
+        const original = new Map<string, StoredRecord>();
+        function* augmented(): Generator<StoredRecord> {
+          for (const r of rows(type, !spec.include_deleted)) {
+            original.set(r.id, r);
+            yield {
+              ...r,
+              data: { ...Object.fromEntries(named.map((f) => [f, null])), ...r.data, ...(vals.get(r.id) ?? {}) },
+            };
+          }
+        }
+        const q = page(augmented(), spec);
+        if ("error" in q) throw fail("invalid", q.error);
+        return { ...q, rows: q.rows.map((r) => original.get(r.id) ?? r) };
+      }
       const p = page(rows(type, !spec.include_deleted), spec);
       if ("error" in p) throw fail("invalid", p.error);
       return p;

@@ -7,6 +7,8 @@ import { eraseWhere, tryAll, tryRun } from "../../lib/erase-agent.ts";
 import type { EraseInput, Footprint } from "../../lib/erase-agent.ts";
 type EraseDb = { run(sql: string, ...a: unknown[]): { changes: number }; all(sql: string, ...a: unknown[]): unknown[] };
 import { handlers as table } from "./handlers/index.ts";
+import { followSchemaChange } from "./handlers/graph.ts";
+import type { MemCtx } from "./projections.ts";
 import { setCaptureExtractor, heuristicExtract } from "./handlers/facts.ts";
 import { configureMeaning } from "./meaning.ts";
 import type { MeaningHost } from "./meaning.ts";
@@ -27,6 +29,18 @@ export { setLearnSeams, shouldLearn } from "./handlers/learn.ts";
 export type { LearnSeams, LearnThread } from "./handlers/learn.ts";
 export type { UpkeepAction, UpkeepModel, UpkeepRequest, UpkeepResult, UpkeepScope } from "./handlers/upkeep.ts";
 export { periodic } from "./hooks.ts";
+/** A field dropped or retyped rewrites rows without a record event: the graph reads the type's record nodes again (handlers/graph.ts followSchemaChange). */
+export const consumers = {
+  "memory.graph_schema": {
+    on: ["schema.changed", "schema.type_dropped"],
+    run: async (
+      ctx: unknown,
+      event: { name?: string; type?: string; seq: number; payload: Record<string, unknown> },
+    ) => {
+      await followSchemaChange(ctx as MemCtx, event);
+    },
+  },
+};
 export { setMemoryKeyPort } from "./personal.ts";
 export type { MemoryKeyPort } from "./personal.ts";
 

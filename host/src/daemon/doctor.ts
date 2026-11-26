@@ -289,6 +289,88 @@ export function recordEventsFinding(spaceDb: string, eventsDb: string, now: numb
 }
 
 /**
+ * The records.computed consumer and the fills it makes (computed fields: formula, lookup, rollup). A fill that is not done and has not moved for an hour is stuck (the pump gives up on an event after five tries, so a
+ * fill that keeps failing is left half done and its field keeps showing as updating); the consumer is behind when its cursor trails the head of the log by more than a thousand events. Counts, types and fields,
+ * never a value; read-only.
+ */
+export function computedFieldsFinding(
+  spaceDb: string,
+  modulesDb: string,
+  eventsDb: string,
+  now: number = Date.now(),
+): Finding {
+  const key = "records.computed";
+  const STUCK_MS = 60 * 60_000;
+  const LAG = 1000;
+  if (!fs.existsSync(spaceDb)) return { key, state: "healthy", detail: "No records yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    let jobs: {
+      type: string;
+      field: string;
+      done: number;
+      total: number;
+      state: string;
+      updated_at: number | null;
+      error: string | null;
+    }[] = [];
+    try {
+      const has =
+        db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'records_computed_job'").length > 0;
+      if (has)
+        jobs = db.all(
+          "SELECT type, field, done, total, state, updated_at, error FROM records_computed_job WHERE state <> 'done'",
+        ) as typeof jobs;
+    } finally {
+      db.close();
+    }
+    const stuck = jobs.filter(
+      (j) => j.state === "failed" || j.updated_at === null || now - Number(j.updated_at) > STUCK_MS,
+    );
+    let lag = 0;
+    try {
+      if (fs.existsSync(modulesDb) && fs.existsSync(eventsDb)) {
+        const m = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+        const e = openDb(eventsDb, fs.existsSync(`${eventsDb}-wal`) ? { readOnly: true } : { immutable: true });
+        try {
+          const cur = m.all("SELECT seq FROM host_hook_cursor WHERE name = 'records.computed'")[0] as
+            | { seq: number }
+            | undefined;
+          const head = (e.all("SELECT max(seq) AS s FROM events")[0] as { s: number | null } | undefined)?.s ?? 0;
+          if (cur) lag = Math.max(0, Number(head) - Number(cur.seq));
+        } finally {
+          m.close();
+          e.close();
+        }
+      }
+    } catch {
+      lag = 0;
+    }
+    if (!stuck.length && lag <= LAG)
+      return {
+        key,
+        state: "healthy",
+        detail: jobs.length
+          ? `${jobs.length} computed fields are being filled and moving.`
+          : "Computed fields are up to date.",
+        next: OK,
+      };
+    const parts: string[] = [];
+    if (stuck.length)
+      parts.push(
+        `${stuck.length} computed fields are stuck half filled (${stuck
+          .slice(0, 5)
+          .map((j) => `${j.type}.${j.field} ${j.done} of ${j.total}${j.state === "failed" ? ", failed" : ""}`)
+          .join("; ")}): their values may be missing or old`,
+      );
+    if (lag > LAG) parts.push(`the consumer that keeps computed values is ${lag} events behind`);
+    return { key, state: "degraded", detail: `${parts.join("; ")}.`, next: NEXT.computedFields };
+  } catch (e) {
+    return { key, state: "healthy", detail: `Not checked: ${e instanceof Error ? e.message : String(e)}.`, next: OK };
+  }
+}
+
+/**
  * Runs of Automations on record changes whose kept history may hold a value their person's access hides (24 Nov 2026). Before this release the trigger of such a Run carried the whole record and every
  * step could read it, so a person whose grant hides a field (hiddenFields) could have a Run, its kept trigger and the inputs and outputs of its steps, with that field's value in them; new Runs never keep it.
  * Read-only, counts and ids only, never a value. A person's own grants are read (a grant given through a role or a group is not), so the answer is a lower bound; a field is counted when the kept trigger
@@ -379,6 +461,165 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
       key,
       state: "healthy",
       detail: `Not checked: the kept Runs could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
+/**
+ * Search entries that carry text of fields a type no longer has: the dropped text stayed findable on a Space that dropped a field before the index followed schema changes. The one-time scrub on the first start of this
+ * build (modules/search/handlers/scrub.ts) reads the records again and keeps its count in search_meta: `before` entries found carrying such text, `after` the ones that still do. Read only.
+ */
+export function searchRemovedTextFinding(modulesDb: string): Finding {
+  const key = "search.removed_field_text";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No search index yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return { key, state: "healthy", detail: "No search index yet.", next: OK };
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "search entries carrying removed-field text: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as {
+        state?: string;
+        before?: number;
+        after?: number;
+        scanned?: number;
+        total?: number;
+        unreadable?: number;
+        retry?: { n: number };
+      };
+      const before = Number(s.before ?? 0),
+        after = Number(s.after ?? 0);
+      if (s.state !== "done")
+        return {
+          key,
+          state: "degraded",
+          detail: `search entries carrying removed-field text: ${before} found so far, the one-time check has read ${Number(s.scanned ?? 0)} of ${Number(s.total ?? 0)} entries${s.retry ? `; a record that could not be read is being tried again (try ${s.retry.n})` : ""}${Number(s.unreadable ?? 0) ? `; ${Number(s.unreadable)} removed because their records could not be read` : ""}.`,
+          next: NEXT.searchRemovedText,
+        };
+      const lost = Number(s.unreadable ?? 0);
+      return {
+        key,
+        state: after === 0 ? "healthy" : "degraded",
+        detail: `search entries carrying removed-field text: ${after} (the one-time check found ${before} and rebuilt them${lost ? `; ${lost} were removed because their records could not be read, and come back when the record is next edited` : ""}).`,
+        next: after === 0 ? OK : NEXT.searchRemovedText,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
+/** Records that exist but had no search entry, put in by the same one-time job (`added` in its row). Read only. */
+export function searchMissingRecordsFinding(modulesDb: string): Finding {
+  const key = "search.missing_records";
+  const none = (detail: string): Finding => ({ key, state: "healthy", detail, next: OK });
+  if (!fs.existsSync(modulesDb)) return none("No search index yet.");
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return none("No search index yet.");
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "records without a search entry: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as { state?: string; added?: number };
+      const added = Number(s.added ?? 0);
+      return s.state === "done"
+        ? none(`records without a search entry: 0 (the one-time check put in ${added} that had none).`)
+        : {
+            key,
+            state: "degraded",
+            detail: `records without a search entry: ${added} put in so far, the one-time check is still running.`,
+            next: NEXT.searchRemovedText,
+          };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return none(`Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`);
+  }
+}
+
+/** A field or type was purged for good but the Space file could not hand its freed pages back (an older file without incremental vacuum): the values are zeroed, the pages stay until the planned compact. Read only. */
+export function purgeOwedCompactFinding(spaceDb: string): Finding {
+  const key = "schema.purge_owed_compact";
+  if (!fs.existsSync(spaceDb)) return { key, state: "healthy", detail: "No Space file yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'sc_purge_owed'").length === 0)
+        return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      const r = db.all("SELECT count(*) AS n, max(bytes) AS b, max(at) AS at FROM sc_purge_owed")[0] as {
+        n: number;
+        b: number | null;
+        at: number | null;
+      };
+      if (!r.n) return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      return {
+        key,
+        state: "degraded",
+        detail: `${r.n} purged fields or types left freed pages in the Space file (${Math.round((r.b ?? 0) / 1048576)} MB): their values are zeroed, the pages are handed back by the planned compact.`,
+        next: NEXT.purgeOwedCompact,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the Space file could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
+/** The journal of the search index (modules.db-wal) could not be folded in after a purge, after every try: the removed text may still be in that file until the next start. Read only. */
+export function journalNotFoldedFinding(modulesDb: string): Finding {
+  const key = "host.journal_not_folded";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No modules database yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'host_journal_owed'").length === 0)
+        return { key, state: "healthy", detail: "No journal is waiting to be folded in.", next: OK };
+      const n = Number((db.all("SELECT count(*) AS n FROM host_journal_owed")[0] as { n: number }).n);
+      return n === 0
+        ? { key, state: "healthy", detail: "No journal is waiting to be folded in.", next: OK }
+        : {
+            key,
+            state: "degraded",
+            detail: `${n} times the search index's journal could not be folded in after a purge (the removed text may still be in modules.db-wal).`,
+            next: NEXT.journalNotFolded,
+          };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the modules database could not be read (${e instanceof Error ? e.message : String(e)}).`,
       next: OK,
     };
   }
@@ -533,6 +774,11 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
+    findings.push(computedFieldsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.modules, paths.events));
+    findings.push(searchRemovedTextFinding(paths.modules));
+    findings.push(searchMissingRecordsFinding(paths.modules));
+    findings.push(journalNotFoldedFinding(paths.modules));
+    findings.push(purgeOwedCompactFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

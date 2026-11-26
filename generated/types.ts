@@ -22202,7 +22202,10 @@ export type HealthDoctorOut = {
   ok: boolean;
   findings: Array<{
       key: string;
+      title: string;
       state: "healthy" | "degraded" | "down";
+      detail?: string;
+      notSetUp?: boolean;
       next: string;
     }>;
 };
@@ -35389,6 +35392,8 @@ export type RecordsAsOfOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsBulkUpsertIn = {
@@ -35571,6 +35576,8 @@ export type RecordsCreateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsDeleteIn = {
@@ -35624,7 +35631,28 @@ export type RecordsGetOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
+};
+export type RecordsGetManyIn = {
+  type: string;
+  ids: Array<string>;
+};
+export type RecordsGetManyOut = {
+  rows: Array<{
+      id: string;
+      type: string;
+      version: number;
+      label: number;
+      fields: Record<string, unknown>;
+      createdAt: number;
+      updatedAt: number;
+      deletedAt?: number;
+      holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
+    }>;
 };
 export type RecordsHistoryIn = {
   type: string;
@@ -35665,6 +35693,8 @@ export type RecordsMergeOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
   undoUntil: number;
 };
@@ -35726,6 +35756,8 @@ export type RecordsQueryOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -35748,6 +35780,8 @@ export type RecordsRelateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRelationsMapIn = {
@@ -35790,6 +35824,8 @@ export type RecordsRestoreOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRestoreVersionIn = {
@@ -35808,6 +35844,8 @@ export type RecordsRestoreVersionOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsRevealIn = {
@@ -35835,6 +35873,8 @@ export type RecordsSearchOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -35857,6 +35897,8 @@ export type RecordsUpdateOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsUpdateManyIn = {
@@ -35880,6 +35922,8 @@ export type RecordsUpdateManyOut = {
         updatedAt: number;
         deletedAt?: number;
         holds: number;
+        updating?: Array<string>;
+        computedAt?: Record<string, unknown>;
       };
       error?: {
         code: string;
@@ -35942,6 +35986,8 @@ export type RecordsValuesReviewOut = {
     updatedAt: number;
     deletedAt?: number;
     holds: number;
+    updating?: Array<string>;
+    computedAt?: Record<string, unknown>;
   };
 };
 export type RecordsVersionsIn = {
@@ -35989,6 +36035,8 @@ export type RecordsViewOut = {
       updatedAt: number;
       deletedAt?: number;
       holds: number;
+      updating?: Array<string>;
+      computedAt?: Record<string, unknown>;
     }>;
   next?: string;
   total?: number;
@@ -53449,6 +53497,7 @@ export interface CapMap {
   "records.export": { in: RecordsExportIn; out: RecordsExportOut };
   "records.gap_check": { in: RecordsGapCheckIn; out: RecordsGapCheckOut };
   "records.get": { in: RecordsGetIn; out: RecordsGetOut };
+  "records.get_many": { in: RecordsGetManyIn; out: RecordsGetManyOut };
   "records.history": { in: RecordsHistoryIn; out: RecordsHistoryOut };
   "records.hold": { in: RecordsHoldIn; out: RecordsHoldOut };
   "records.merge": { in: RecordsMergeIn; out: RecordsMergeOut };

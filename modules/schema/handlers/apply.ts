@@ -4,6 +4,8 @@
 //   3. write a copy of every dropped or retyped value to Trash for 30 days, 4. define the final type, 5. save the definitions, log the change, emit events.
 import { canonical } from "../../../lib/canonical.ts";
 import { parseExpr, exprNames } from "../../../lib/expr/expr.ts";
+import { computedCycle, isComputed } from "../../../lib/computed-fields.ts";
+import type { TypeShape } from "../../../lib/computed-fields.ts";
 import { sha256Hex } from "../../../kernel/src/log/hash.ts";
 import type { StoredRecord, TypeDef } from "../../../kernel/src/store/types.ts";
 import {
@@ -410,6 +412,16 @@ function dependents(st: Map<string, TypeDefT>, type: string, field: string): str
   return out;
 }
 
+/** A computed field that would read itself, however far round (a formula over a formula over itself, a lookup and a rollup on two types that follow each other), is refused here, so the consumer that keeps the values never loops. */
+function refuseCycle(st: Map<string, TypeDefT>, t: TypeDefT, f: FieldDefT): void {
+  if (!isComputed(f)) return;
+  const shapes = new Map<string, TypeShape>();
+  for (const [k, d] of st) shapes.set(k, { key: k, fields: d.fields });
+  shapes.set(t.key, { key: t.key, fields: [...t.fields.filter((x) => x.key !== f.key), f] });
+  const c = computedCycle(shapes);
+  if (c) no(`field ${f.key}: it would read itself (${c.join(" > ")})`);
+}
+
 function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f: FieldDefT): void {
   if (!FIELD_KEY.test(f.key) || f.key.length > 63)
     no(`${f.key || "(empty)"} is not a field key: lowercase letters, digits and underscores, starting with a letter`);
@@ -458,18 +470,20 @@ function checkField(deps: SchemaDeps, st: Map<string, TypeDefT>, t: TypeDefT, f:
       const target = st.get(String(via!.options?.["target"]));
       if (!target || !target.fields.some((x) => x.key === o["field"]))
         no(`field ${f.key}: ${String(o["field"])} is not a field of ${String(via!.options?.["target"])}`);
+      refuseCycle(st, t, f);
       break;
     }
     case "formula": {
       let names: Set<string>;
       try {
-        names = exprNames(parseExpr(String(o["expr"])));
+        names = new Set([...exprNames(parseExpr(String(o["expr"])))].map(String));
       } catch (e) {
         return no(`field ${f.key}: the formula does not parse (${e instanceof Error ? e.message : "error"})`);
       }
       for (const n of names)
         if (!own.has(n) || n === f.key)
           no(`field ${f.key}: the formula reads ${n}, which is not another field of ${t.key}`);
+      refuseCycle(st, t, f);
       break;
     }
     case "choice":
@@ -1014,6 +1028,16 @@ export async function planOps(deps: SchemaDeps, ops: SchemaOp[]): Promise<Plan> 
         plan.problems.push({ itemKey: `type:${k}`, message: e.message, dup: false });
       }
     }
+    // the last look, over the types as they will be: a cycle through computed fields, however the changes of this apply were ordered, is refused here (checkField looks at one field as it is made)
+    const shapes = new Map<string, TypeShape>();
+    for (const [k, d] of st) shapes.set(k, { key: k, fields: d.fields });
+    const cycle = computedCycle(shapes);
+    if (cycle)
+      plan.problems.push({
+        itemKey: `computed:${cycle[0]}`,
+        message: `computed fields would read themselves (${cycle.join(" > ")})`,
+        dup: false,
+      });
   }
   return plan;
 }

@@ -355,6 +355,98 @@ test("Back remembers the reports issued before it: a late draw of that report ke
   }
 });
 
+test("a report the press led to on its own (a channel opening on its main thread) after Back, with no press or key between, keeps the list; the next report after an input opens the body", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    let live = 0;
+    const draw = async (o: { hash: string; reports: number }): Promise<string> => {
+      await act(async () => {
+        r.render(
+          <SidebarSlotProvider
+            {...props}
+            epoch={1}
+            compact
+            hash={o.hash}
+            links={0}
+            reports={o.reports}
+            liveReports={() => live}
+            liveOwnHash={() => o.hash}
+            initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
+          >
+            <Probe />
+          </SidebarSlotProvider>,
+        );
+      });
+      await flush();
+      return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+    };
+    assert.equal(await draw({ hash: "", reports: 0 }), "list");
+    live = 1;
+    await act(async () => {
+      slotNow!.openBody(); // a row press: the place reports the channel at once
+    });
+    assert.equal(await draw({ hash: "subject=thread:chn_1", reports: 1 }), "body");
+    await act(async () => {
+      slotNow!.back();
+    });
+    await flush();
+    live = 2; // the channel then settles on its main thread: a second own report, issued after Back, nobody pressed anything
+    assert.equal(
+      await draw({ hash: "subject=thread:main_1", reports: 2 }),
+      "list",
+      "the follow-on report of the pressed row does not reopen the body",
+    );
+    noteInputForTests(); // the person acts again
+    live = 3;
+    assert.equal(await draw({ hash: "subject=thread:t3", reports: 3 }), "body", "a report after an input opens it");
+  } finally {
+    restore();
+  }
+});
+
+test("only the address the place reported itself is its late report: an address that came from a tab switch or Back (a different address than the own report) opens the body", async () => {
+  const restore = installDom();
+  try {
+    const r = createRoot();
+    let own = "";
+    const draw = async (o: { hash: string; reports: number }): Promise<string> => {
+      await act(async () => {
+        r.render(
+          <SidebarSlotProvider
+            {...props}
+            epoch={1}
+            compact
+            hash={o.hash}
+            links={0}
+            reports={o.reports}
+            liveReports={() => 1}
+            liveOwnHash={() => own}
+            initialEntry={{ title: "Chats", searchPlaceholder: "Search chats" }}
+          >
+            <Probe />
+          </SidebarSlotProvider>,
+        );
+      });
+      await flush();
+      return (find(r.container as unknown as Parameters<typeof find>[0], "view")?.children ?? []).join("");
+    };
+    assert.equal(await draw({ hash: "", reports: 0 }), "list");
+    await act(async () => {
+      slotNow!.openBody();
+    });
+    await act(async () => {
+      slotNow!.back(); // Back before the report is drawn; the hub counted 1
+    });
+    await flush();
+    // the hub's own-report claim was ended by a tab switch: the address now drawn is not that report
+    own = "\u0000";
+    assert.equal(await draw({ hash: "subject=thread:t1", reports: 1 }), "body", "not the place's own report: it opens");
+  } finally {
+    restore();
+  }
+});
+
 test("a new goal, a created record opened, and the Notes row each open the body on a phone from their own report, with no row press and after an earlier Back", async () => {
   for (const hash of ["subject=goal:gol_new", "subject=record:rec_new", "screen=chats.notes"]) {
     const restore = installDom();
@@ -439,7 +531,8 @@ test("Back before the press's own report is even issued (the place reports after
       "list",
       "the late report of the press Back dismissed keeps the list",
     );
-    // an item the place opens by its own report afterwards (New chat, a search pick) opens the body
+    // an item the person opens afterwards (New chat, a search pick: each is a press or a key) opens the body
+    noteInputForTests();
     live = 2;
     assert.equal(await draw({ hash: "subject=thread:t2", reports: 2 }), "body", "the next report opens the body");
     // and a press that never reports, Back, a keypress, then another item's report: the body opens (the keypress ends the wait for the press's report)

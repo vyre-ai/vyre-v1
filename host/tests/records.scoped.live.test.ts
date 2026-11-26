@@ -191,15 +191,17 @@ test("HTTP conditional record grants enforce hidden fields and row filters", asy
     );
     assert.equal(history.status, 200, JSON.stringify(history.body));
     assert.ok(history.body.data.entries.every((entry: { field: string }) => entry.field !== "secret"));
+    // lead ruling 26 Nov: a sort by a hidden field is not refused, the field counts as empty (the order never follows its values); no value or cursor carries it
+    const sorted = await post(
+      "records.query",
+      { type: "rt_company", sort: [{ field: "secret", dir: "asc" }] },
+      joined.body.data.token as string,
+    );
+    assert.equal(sorted.status, 200, JSON.stringify(sorted.body));
+    assert.equal(sorted.body.data.rows[0]?.fields.secret, undefined);
     assert.equal(
-      (
-        await post(
-          "records.query",
-          { type: "rt_company", sort: [{ field: "secret", dir: "asc" }] },
-          joined.body.data.token as string,
-        )
-      ).status,
-      403,
+      JSON.stringify(sorted.body).includes("private payroll"),
+      false,
       "hidden values never appear inside sort cursors",
     );
     assert.equal(
@@ -245,15 +247,23 @@ test("HTTP conditional record grants enforce hidden fields and row filters", asy
     for (const input of [
       { filter: { field: "secret", op: "eq", value: "private payroll" } },
       { filter: { field: "secret", op: "eq", value: "no matching value" } },
-      { sort: [{ field: "secret", dir: "asc" }] },
-      { group: "secret" },
-      { sort: [{ field: "classified", dir: "asc" }] },
     ])
       assert.equal(
         (await post("records.query", { type: "rt_company", ...input }, joined.body.data.token as string)).status,
         403,
         "conditional grant field eligibility is enforced even when parent authorization has no scope or no rows match",
       );
+    // a sort or group by a field the reader may not see is answered with the field as empty, never refused and never ordered by it (lead ruling 26 Nov)
+    for (const input of [
+      { sort: [{ field: "secret", dir: "asc" }] },
+      { group: "secret" },
+      { sort: [{ field: "classified", dir: "asc" }] },
+    ]) {
+      const got = await post("records.query", { type: "rt_company", ...input }, joined.body.data.token as string);
+      assert.equal(got.status, 200, JSON.stringify(got.body));
+      assert.equal(got.body.data.rows.length, 1, "the row the grant allows is still there");
+      assert.equal(JSON.stringify(got.body).includes("private payroll"), false);
+    }
     assert.equal(
       (
         await post(

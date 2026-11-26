@@ -686,6 +686,8 @@ export interface DaemonOptions {
 export interface Daemon {
   /** Resolves when the work the start leaves running after the daemon serves has finished (today: the Personal calendars of people who have none). Tests that read the log head wait for it. */
   startupWork(): Promise<void>;
+  /** Runs the one-time scrub of search entries that carry text of removed fields now (the start runs it once the daemon serves) and answers when it has finished; a finished job does nothing. */
+  searchScrub(): Promise<void>;
   url: string;
   /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
   claim: { url: string; expiresAt: number } | null;
@@ -1731,6 +1733,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** After a stop between a record and its announcement (host/src/daemon/record-announce.ts): the missing record.created events are made once the daemon serves. */
   let startRecordAnnouncements: (startedAtMs: number) => void = () => {};
   let announceSweep: Promise<void> = Promise.resolve();
+  /** The one-time scrub of search entries that carry text of removed fields (modules/search/handlers/scrub.ts): started once the daemon serves, a slice at a time, and done for good when its row says so. */
+  let startSearchScrub: () => void = () => {};
+  let searchScrub: Promise<void> = Promise.resolve();
   let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
@@ -2149,6 +2154,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending.push({ seq: -1, type: "resource.created", payload: { id, outside_only: true } });
       } catch {
         /* a fresh store has no calendars yet */
+      }
+      // Files and folders that were put in Trash before the access module kept the Trash mark on its own rows: Files' Trash rows are read at every start and the mark is set where it is missing (idempotent, only the mark)
+      try {
+        const bin = db!.all(`SELECT id, root_id FROM files_trash`) as { id: string; root_id: string }[];
+        for (const t of bin)
+          accessPending.push({
+            seq: -1,
+            type: "resource.created",
+            payload: { id: t.id, trash_root: t.root_id, trash_only: true },
+          });
+      } catch {
+        /* a fresh store has no Files tables yet */
       }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
@@ -3466,6 +3483,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           now,
           fresh: () => !accessStale,
           refresh: () => syncAccess(true),
+          rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
           warn: (info) =>
             sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } }),
         }),
@@ -4053,6 +4071,13 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending = [...es, ...accessPending];
         },
         pending: () => accessPending.length,
+        trashPending: async () => {
+          try {
+            return Number(await hookRunner.call("access.trash_pending", {})) || 0;
+          } catch {
+            return 0;
+          }
+        },
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
         call: async (events) => {
@@ -4260,6 +4285,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           spaceDb: spaceStorePath(paths.root),
           eventsDb: paths.events,
           markFile: path.join(paths.root, "records-announced.seq"),
+          repairFile: path.join(paths.root, "records-announce-repair.v1"),
           startedAt: startedAtMs,
           exists: (id) => access.snap.info(id) !== null,
           spaceOwner: () => access.owner() ?? null,
@@ -4295,7 +4321,61 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }),
           );
       };
-      startupWork = () => Promise.all([personalSweep, announceSweep]).then(() => undefined);
+      let scrubStopped = false;
+      let scrubRunning = false;
+      startSearchScrub = () => {
+        if (loaded.serving.get("search") !== "live" || scrubRunning) return;
+        scrubRunning = true;
+        const say = (level: number, msg: string, attrs: Record<string, unknown>): void =>
+          sink.log({ space: spaceId, level, msg, place: "boot", attrs });
+        const run = async (): Promise<void> => {
+          let lastSaid = 0;
+          let first = true;
+          for (;;) {
+            if (scrubStopped) return;
+            const r = (await hookRunner.call("search.scrub_removed_fields", {})) as {
+              done: boolean;
+              state: string;
+              before: number;
+              after: number;
+              scanned: number;
+              total: number;
+              types: string[];
+              waiting?: boolean;
+              unreadable?: number;
+            };
+            if (r.done && first) return; // finished on an earlier start: nothing to say, nothing to do
+            const at = performance.now();
+            if (first || r.done || at - lastSaid > 5_000) {
+              say(20, r.done ? "search.scrub_removed_fields.done" : "search.scrub_removed_fields.progress", {
+                scanned: r.scanned,
+                total: r.total,
+                entriesWithRemovedText: r.before,
+                entriesLeft: r.after,
+                typesLeft: r.types.length,
+                ...(r.unreadable ? { entriesRemovedUnreadable: r.unreadable } : {}),
+              });
+              lastSaid = at;
+            }
+            first = false;
+            if (r.done) return;
+            // the loop is given back after every slice; after a failed read the next try waits a moment
+            await new Promise<void>((resolve) => (r.waiting ? setTimeout(resolve, 500) : setImmediate(resolve)));
+          }
+        };
+        searchScrub = run()
+          .catch((e: unknown) =>
+            say(40, "search.scrub_removed_fields.failed", { error: e instanceof Error ? e.message : String(e) }),
+          )
+          .finally(() => {
+            scrubRunning = false;
+          });
+      };
+      closers.push(() => {
+        scrubStopped = true;
+        return searchScrub;
+      });
+      startupWork = () => Promise.all([personalSweep, announceSweep, searchScrub]).then(() => undefined);
       closers.push(() => {
         personalStopped = true;
         return personalSweep;
@@ -4608,6 +4688,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         snapshot: () => access.snap,
         now,
         fresh: () => !accessStale,
+        rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
       });
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
@@ -4933,10 +5014,69 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               (r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))),
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
-          scrub: (type, field) => scrubSealedField(type, field),
+          scrub: (type, field) => scrubSealedFields(type, [field]),
+          scrubMany: (type, fields) => scrubSealedFields(type, fields, { vacuum: false }),
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
-      const scrubSealedField = async (type: string, field: string): Promise<void> => {
+      // A passive checkpoint, then a truncating one: tried a few times, a few seconds apart, until the writer is idle (a truncate that finds readers answers busy and is not forced). Each try is a few milliseconds.
+      const settleJournal = (
+        d: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown },
+        tries = 8,
+      ): void => {
+        const timer = setTimeout(() => {
+          try {
+            d.all("PRAGMA wal_checkpoint(PASSIVE)");
+            const r = d.all("PRAGMA wal_checkpoint(TRUNCATE)")[0] as { busy?: number } | undefined;
+            if (!r?.busy) return;
+            if (tries > 1) return settleJournal(d, tries - 1);
+            // the journal could not be folded after every try: the host says so in its log and counts it for the doctor (host_journal_owed in the modules database)
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "journal.not_folded",
+              place: "boot",
+              attrs: { file: "modules.db-wal", tries: 8 },
+            });
+            d.run?.(
+              `CREATE TABLE IF NOT EXISTS host_journal_owed (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, file TEXT NOT NULL, tries INTEGER NOT NULL)`,
+            );
+            d.run?.(
+              "INSERT INTO host_journal_owed (at, file, tries) VALUES (?, ?, ?)",
+              Date.now(),
+              "modules.db-wal",
+              8,
+            );
+          } catch {
+            /* the database is closed: the next start folds it */
+          }
+        }, 2_000);
+        timer.unref?.();
+      };
+      // After a delete that must leave no copy: fold the journal in and hand freed pages back a slice at a time where the file gives pages back by itself (auto_vacuum = incremental). Never a VACUUM of a live file:
+      // freed pages are zeroed by secure_delete, and a file that cannot shed them waits for the planned compact.
+      const reclaimFreePages = async (d: {
+        exec(sql: string): unknown;
+        all(sql: string, ...a: unknown[]): unknown[];
+      }): Promise<void> => {
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        const mode = Number((d.all("PRAGMA auto_vacuum")[0] as { auto_vacuum?: number } | undefined)?.auto_vacuum ?? 0);
+        if (mode !== 2) return;
+        for (let guard = 0; guard < 10_000; guard++) {
+          d.exec("PRAGMA incremental_vacuum(256)");
+          const free = Number(
+            (d.all("PRAGMA freelist_count")[0] as { freelist_count?: number } | undefined)?.freelist_count ?? 0,
+          );
+          if (free === 0) break;
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      };
+      // `vacuum`: a seal vacuums the modules database whole (its tests hold every byte to be gone); a purge of a possibly big type never does (it would hold the loop), and relies on secure_delete and the planned compact
+      const scrubSealedFields = async (
+        type: string,
+        fields: readonly string[],
+        o: { vacuum: boolean } = { vacuum: true },
+      ): Promise<void> => {
         const dec = new TextDecoder();
         const seqs: number[] = [];
         const ids = new Set<string>();
@@ -4945,7 +5085,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           v !== null &&
           !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
         for (let after = 0; ; ) {
-          const page = await spaceLog.read({ after, limit: 2000 });
+          // a page of 250 events (about 20 ms of parsing), the loop given back between pages
+          const page = await spaceLog.read({ after, limit: 250 });
+          await new Promise<void>((resolve) => setImmediate(resolve));
           for (const e of page) {
             if (!e.type.startsWith("record.") || isErased(e)) continue;
             let p: Record<string, unknown>;
@@ -4958,33 +5100,47 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (
               ["fields", "prev", "data", "before"].some((k) => {
                 const part = p[k];
-                return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]);
+                return (
+                  !!part && typeof part === "object" && fields.some((f) => plain((part as Record<string, unknown>)[f]))
+                );
               })
             ) {
               seqs.push(e.seq);
               if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
             }
           }
-          if (page.length < 2000) break;
+          if (page.length < 250) break;
           after = page[page.length - 1]!.seq;
         }
-        if (seqs.length) await spaceLog.compactSeqs(seqs);
-        await spaceLog.forgetField(type, field);
+        // the log's own worker does these two; they are asked for in parts of 400 events so each part is short
+        for (let i = 0; i < seqs.length; i += 400) await spaceLog.compactSeqs(seqs.slice(i, i + 400));
+        for (const field of fields) await spaceLog.forgetField(type, field);
         if (db && ids.size) {
           const mine = db;
           try {
             mine.exec("PRAGMA secure_delete = ON");
-            for (const id of ids) {
+            // the documents leave in slices of at most 15 ms, the loop given back between them
+            const idList = [...ids];
+            let since = performance.now();
+            for (const id of idList) {
               mine.run(
                 "DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)",
                 `record:${type}`,
                 id,
               );
               mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
+              if (performance.now() - since > 15) {
+                await new Promise<void>((resolve) => setImmediate(resolve));
+                since = performance.now();
+              }
             }
-            mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
-            mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-            mine.exec("VACUUM");
+            // the full text index merges its segments a few pages at a time (never one whole optimize), then the journal is folded in and freed pages are handed back by the incremental path where the file allows it
+            for (let step = 0; step < 40; step++) {
+              mine.exec("INSERT INTO search_fts(search_fts, rank) VALUES('merge', 32)");
+              await new Promise<void>((resolve) => setImmediate(resolve));
+            }
+            await reclaimFreePages(mine);
+            if (o.vacuum) mine.exec("VACUUM");
           } catch {
             /* a Space without the search index has nothing to clear */
           }
@@ -4992,7 +5148,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the records are read again by search: the touch is an ordinary record.updated, with no values in it
         for (const id of ids) {
           await spaceLog.appendResult({
-            id: `evt_seal_${type}_${field}_${id}`.slice(0, 120),
+            id: `evt_seal_${type}_${fields.length === 1 ? fields[0] : `${fields.length}f`}_${id}`.slice(0, 120),
             type: "record.updated",
             sv: 1,
             trace_id: "5e".repeat(16),
@@ -5003,6 +5159,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
           });
         }
+        // the search index is folded into the journal again once the touches are in, and again a moment later when the writer is idle: the erased text is not left in the journal file
+        if (db && ids.size) settleJournal(db);
       };
       // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own
       // resolution at this moment (start and end, expiry, ceiling, hidden fields, filter), for the field the handle names; whatever cannot be read is a refusal.
@@ -8293,6 +8451,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     startPersonalCalendars();
     startRecordAnnouncements(startedAt);
+    startSearchScrub();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
@@ -8355,6 +8514,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),
+    searchScrub: () => {
+      startSearchScrub();
+      return searchScrub;
+    },
     stop,
   };
 }

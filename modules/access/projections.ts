@@ -1100,6 +1100,47 @@ export class AccessStore {
   }
 
   /**
+   * Write the Trash mark of these resources, which already have a row: only row_json changes, so the rows that now hold the same text are written by one UPDATE for each hundreds of ids (a folder of ten thousand
+   * files is a few dozen statements, not a hundred deletes and inserts). What was written is noted in the comparison `persist` makes, as in persistResources.
+   */
+  persistMarks(db: Db, ids: Iterable<string>): void {
+    if (!this.base && this.raw) {
+      this.base = this.fromRaw();
+      this.raw = null;
+    }
+    const byText = new Map<string | null, ResourceRec[]>();
+    for (const id of new Set(ids)) {
+      const r = this.resources.get(id);
+      if (!r) continue;
+      const text = r.row ? JSON.stringify(r.row) : null;
+      const at = byText.get(text);
+      if (at) at.push(r);
+      else byText.set(text, [r]);
+    }
+    const write = (): void => {
+      for (const [text, rows] of byText)
+        for (let i = 0; i < rows.length; i += 500) {
+          const part = rows.slice(i, i + 500);
+          db.run(
+            `UPDATE access_resources SET row_json = ? WHERE id IN (${part.map(() => "?").join(",")})`,
+            text,
+            ...part.map((r) => r.id),
+          );
+          if (!this.base) continue;
+          let t = this.base.get("access_resources");
+          if (!t) {
+            t = { pk: SHAPES["access_resources"]!.pk, cols: SHAPES["access_resources"]!.cols, vals: new Map() };
+            this.base.set("access_resources", t);
+          }
+          for (const r of part)
+            t.vals.set(JSON.stringify([r.id]), [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, text]);
+        }
+    };
+    if (db.batch) db.batch(write);
+    else write();
+  }
+
+  /**
    * Write just these resources and the cursor of the folded events, for a batch that only registered objects (consumers.ts `apply`): two statements per object instead of the comparison of
    * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
    */
@@ -1347,6 +1388,14 @@ function resourceVals(r: ResourceRec): unknown[] {
   return [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
 }
 
+/**
+ * The Trash mark of a file or folder resource, kept in the resource's own row (row_json, no migration): the id of the file or folder whose move to Trash took this one with it (the same value as the
+ * root_id of Files' own Trash row). The access module folds Files' Trash events into it (consumers.ts trashEvent), so a list reads it with the rows it already has, and asks Files nothing.
+ */
+export const TRASH_KEY = "trashRoot";
+/** Is this resource in Trash (the mark is set)? */
+export const isTrashed = (r: ResourceRec | undefined): boolean => typeof r?.row?.[TRASH_KEY] === "string";
+
 /** A resource as the authorize snapshot holds it. */
 export function kernelResource(r: ResourceRec): ResourceRow {
   // Only people added and Only me cut a resource off from its container (the record from its type, the type from the Space); the row keeps the natural parent, so a seed that re-registers it cannot undo the cut
@@ -1531,14 +1580,25 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   }
   let s = STORES.get(ctx.db);
   if (s) return s;
-  s = takeWarm(ctx) ?? undefined;
-  if (s) {
-    STORES.set(ctx.db, s);
-    return s;
+  // a read never writes: on empty tables a reader answers from the seed in memory, writes nothing (a write here could race the owner's claim on a fresh Space) and keeps nothing, so the writer's first
+  const reader = READERS.has(ctx);
+  if (!reader) {
+    const warm = takeWarm(ctx);
+    if (warm) {
+      STORES.set(ctx.db, warm);
+      return warm;
+    }
   }
-  s = loadStore(ctx.db);
+  let kept = true;
+  s = loadStore(
+    ctx.db,
+    (ok) => {
+      if (!ok && reader) kept = false;
+    },
+    !reader,
+  );
   LOAD_STAMP.set(s, stampNow(ctx.db));
-  STORES.set(ctx.db, s);
+  if (kept) STORES.set(ctx.db, s);
   return s;
 }
 
@@ -1570,8 +1630,8 @@ export async function primeStore(ctx: AccessCtx): Promise<void> {
   }
 }
 
-/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
-export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
+/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once (`persist` false: seeded in memory only, for a read). */
+export function loadStore(db: Db, written?: (ok: boolean) => void, persist = true): AccessStore {
   const s = new AccessStore();
   let rows: unknown[] = [];
   try {
@@ -1588,6 +1648,10 @@ export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore 
       /* a Space from before migration 0004 */
     }
     s.seed();
+    if (!persist) {
+      written?.(false); // the seed stays in memory: the caller must not keep this store as if the tables held it
+      return s;
+    }
     // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
     try {
       s.persist(db);

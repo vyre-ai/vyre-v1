@@ -1,0 +1,1 @@
+- A comment that mentions someone on a record no longer tells them a name their grant hides: the request they get ("Mentioned on ...") is titled from the fields they may see, and a mention of someone who cannot see the record names only its id. Probes for webhooks (the body sent and the stored delivery row) and mentions are kept as tests.

@@ -222,7 +222,7 @@ export function matchText(q: string): string | null {
   return w.length === 0 ? null : w.map((x) => `"${x.replaceAll('"', "")}"*`).join(" ");
 }
 
-const BODY_CAP = 20_000;
+export const BODY_CAP = 20_000;
 
 /** Put a document in the index, replacing the one it supersedes. Its rowid is new, so rowid order is recency. Returns the new rowid. */
 export function putDoc(db: Db, space: string, d: IndexDoc, now: number): number {
@@ -278,6 +278,11 @@ export function removeDoc(db: Db, space: string, entity: string, id: string): bo
   db.run("DELETE FROM search_agent_docs WHERE n = ?", n);
   dropVector(db, space, n);
   return true;
+}
+
+/** True while the one-time scrub of text of removed fields holds back the documents of a record type (handlers/scrub.ts): every way an item is shown skips them. */
+export function scrubHidden(db: Db, recordType: string): boolean {
+  return rowsOf(db, "SELECT 1 AS x FROM search_meta WHERE k = ?", `scrubhide:${recordType}`).length > 0;
 }
 
 // ---- the embedding model seam

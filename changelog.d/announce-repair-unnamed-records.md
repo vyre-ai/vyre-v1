@@ -1,0 +1,1 @@
+- Records that an older build left with no announcement (a sync stopped by an update before it committed) are announced at the next start, so they are resources and the owner sees them all; the full repair runs once, and again only when a record is found short (Meier, dv_event 986 of 4,267).

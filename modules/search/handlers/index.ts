@@ -76,25 +76,35 @@ const labelOf = (v: unknown): number => Math.max(0, Math.min(3, Math.trunc(num(v
 // A record type's title field, asked of the schema once in a while and not for each record: schema.types.get returns the whole type (578 fields of a firm's matter), and a bulk write of ten thousand records
 // asked it ten thousand times (a third of the time the full-text consumer spent on a record). A change of the title field reaches the documents indexed after this window; one reindex puts the rest right.
 const TITLE_FIELD_TTL_MS = 10_000;
-const titleFields = new Map<string, { at: number; field: string }>();
+const titleFields = new Map<string, { at: number; field: string; keys: Set<string> }>();
 /** The cached title field of a type is forgotten (its schema changed). */
 export function dropTitleField(space: string, type: string): void {
   titleFields.delete(`${space}\u0000${type}`);
 }
 
 async function titleFieldOf(ctx: SearchCtx, type: string): Promise<string> {
+  return (await typeInfoOf(ctx, type, false)).field;
+}
+
+/** The keys of the type's fields as its schema holds them now; empty when the schema cannot be read (then nothing is left out). */
+async function typeInfoOf(ctx: SearchCtx, type: string, fresh: boolean): Promise<{ field: string; keys: Set<string> }> {
   const key = `${ctx.space}\u0000${type}`;
   const have = titleFields.get(key);
   const now = ctx.now();
-  if (have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have.field;
+  if (!fresh && have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have;
   const t = await read<{ type?: Record<string, unknown> }>(ctx, "schema.types.get", { type });
   const field = text(t?.type?.["titleField"]);
+  const keys = new Set<string>(
+    (Array.isArray(t?.type?.["fields"]) ? (t!.type!["fields"] as unknown[]) : [])
+      .map((f) => text(rec(f)["key"]))
+      .filter((k) => k !== ""),
+  );
   if (t) {
-    titleFields.set(key, { at: now, field });
+    titleFields.set(key, { at: now, field, keys });
     // what the documents of this type were titled by: noted once, at the first one; a change of the title field moves it only when the documents have been titled again (retitleRun)
     ctx.db.run("INSERT OR IGNORE INTO search_meta (k, v) VALUES (?, ?)", `tf:${type}`, field);
   }
-  return field;
+  return { field, keys };
 }
 
 /**
@@ -130,6 +140,144 @@ export async function noteTitleChange(ctx: SearchCtx, types: readonly string[], 
   return marked;
 }
 
+// ---- a change of a type's fields that rewrites its records without an event of their own
+
+/**
+ * schema.apply writes the rows of a type straight to the records store: a dropped field's value is patched to null, a retyped field's values are converted, a restored field's values are put back. Those writes are
+ * announced in the records store's own log and not in the Space log the index reads, so no record.updated reaches the index and every document of the type kept the text it had (22 Nov 2026: a dropped field's
+ * text was found by search for good, to a person whose access hides it). The schema change is announced (schema.changed, schema.field_restored, schema.type_dropped), so the index follows that: the type's
+ * documents are read again, a page at a time, from where the last page stopped (a job kept in search_meta, so a stop in the middle resumes), and the documents of a dropped type leave.
+ */
+const FIELD_TEXT_OPS = new Set(["field.drop", "field.retype"]);
+const REINDEX_PAGE = 100;
+
+/** The types an event of the schema changed the text of, and the types it removed. */
+export function typesOfFieldChange(e: { type: string; payload: Record<string, unknown> }): {
+  reindex: string[];
+  dropped: string[];
+} {
+  const reindex = new Set<string>();
+  const dropped: string[] = [];
+  const p = e.payload;
+  if (e.type === "schema.changed" && Array.isArray(p["ops"]))
+    for (const o of p["ops"] as unknown[]) {
+      const op = rec(o);
+      // one schema.changed is sent for each type the change touched, each with all the ops: a type is read for its own event
+      if (
+        FIELD_TEXT_OPS.has(text(op["op"])) &&
+        text(op["type"]) &&
+        (!text(p["type"]) || text(p["type"]) === text(op["type"]))
+      )
+        reindex.add(text(op["type"]));
+    }
+  if (e.type === "schema.field_restored" && text(p["type"])) reindex.add(text(p["type"]));
+  if (e.type === "schema.type_dropped" && text(p["type"])) dropped.push(text(p["type"]));
+  return { reindex: [...reindex], dropped };
+}
+
+/** Queue the types whose records were rewritten, and take the documents of the dropped types out of the index. Returns how many types were queued. */
+export function noteFieldChange(
+  ctx: SearchCtx,
+  e: { type: string; seq: number; payload: Record<string, unknown> },
+): number {
+  ensure(ctx.db);
+  const { reindex, dropped } = typesOfFieldChange(e);
+  for (const type of dropped) {
+    ctx.db.run("DELETE FROM search_meta WHERE k = ?", `reindex:${type}`);
+    ctx.db.run(
+      "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+      `unindex:${type}`,
+      JSON.stringify({ seq: e.seq }),
+    );
+  }
+  // a change that arrives while the type is being read again starts it over: the pages before it were read before the change
+  for (const type of reindex)
+    ctx.db.run(
+      "INSERT INTO search_meta (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = excluded.v",
+      `reindex:${type}`,
+      JSON.stringify({ after: "", seq: e.seq }),
+    );
+  return reindex.length + dropped.length;
+}
+
+/** One page of each pending job of the above: documents of the type read again (indexApply, forced), or the documents of a dropped type removed. Returns how many documents it did. */
+export async function reindexRun(ctx: SearchCtx): Promise<number> {
+  ensure(ctx.db);
+  let done = 0;
+  const turn = turns(15);
+  for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'unindex:%'")) {
+    const type = str(m["k"]).slice("unindex:".length);
+    const docs = rowsOf(
+      ctx.db,
+      "SELECT entity, id FROM search_docs WHERE record_type = ? AND res_type = 'record' ORDER BY n LIMIT ?",
+      type,
+      REINDEX_PAGE,
+    );
+    for (const d of docs) {
+      removeDoc(ctx.db, ctx.space, str(d["entity"]), str(d["id"]));
+      await turn();
+      done++;
+    }
+    if (docs.length < REINDEX_PAGE) ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
+  }
+  for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'reindex:%'")) {
+    const type = str(m["k"]).slice("reindex:".length);
+    let p: { after: string; seq: number };
+    try {
+      p = JSON.parse(str(m["v"])) as typeof p;
+    } catch {
+      ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
+      continue;
+    }
+    const [afterEntity, afterId] = p.after.includes("\u0000") ? p.after.split("\u0000") : ["", ""];
+    const docs = rowsOf(
+      ctx.db,
+      "SELECT entity, id FROM search_docs WHERE record_type = ? AND res_type = 'record' AND (entity > ? OR (entity = ? AND id > ?)) ORDER BY entity, id LIMIT ?",
+      type,
+      afterEntity,
+      afterEntity,
+      afterId,
+      REINDEX_PAGE,
+    );
+    for (const d of docs) {
+      const entity = str(d["entity"]),
+        id = str(d["id"]);
+      try {
+        await indexApply(ctx, { entity, id, op: "upsert", seq: seenOf(ctx, entity, id) ?? p.seq, force: true });
+      } catch {
+        /* the next change of the record reads it again; one record never holds the page */
+      }
+      await turn();
+      done++;
+    }
+    if (docs.length < REINDEX_PAGE) {
+      // a change that came in while the last page ran reset the job: only the job as this run read it is finished
+      const now = rowsOf(ctx.db, "SELECT v FROM search_meta WHERE k = ?", str(m["k"]))[0]?.["v"];
+      if (str(now) === str(m["v"])) ctx.db.run("DELETE FROM search_meta WHERE k = ?", str(m["k"]));
+    } else if (docs.length > 0) {
+      const last = docs[docs.length - 1]!;
+      ctx.db.run(
+        "UPDATE search_meta SET v = ? WHERE k = ? AND v = ?",
+        JSON.stringify({ ...p, after: `${str(last["entity"])}\u0000${str(last["id"])}` }),
+        str(m["k"]),
+        str(m["v"]),
+      );
+    }
+  }
+  return done;
+}
+
+/** A job runs to its end in the consumer that queued it, a page at a time with the loop given back between documents. */
+export async function reindexAll(ctx: SearchCtx): Promise<number> {
+  let total = 0;
+  for (let guard = 0; guard < 10_000; guard++) {
+    const n = await reindexRun(ctx);
+    total += n;
+    if (n === 0) break;
+  }
+  return total;
+}
+
 /**
  * The first start after the update that brought re-titling: documents indexed before it have no recorded title field, so a title field that changed earlier is in none of them. Every record type that has
  * documents is queued once for the same paged re-titling (which then records the field for all); `retitled_all` says it was done.
@@ -155,7 +303,8 @@ const RETITLE_PAGE = 100;
 export async function retitleRun(ctx: SearchCtx): Promise<number> {
   ensure(ctx.db);
   queueAllRetitles(ctx);
-  let done = 0;
+  let done = await reindexRun(ctx); // a field change's job that a stop left half done goes on here
+
   for (const m of rowsOf(ctx.db, "SELECT k, v FROM search_meta WHERE k LIKE 'retitle:%'")) {
     const type = str(m["k"]).slice("retitle:".length);
     let p: { to: string; after: string | number; seq: number };
@@ -229,9 +378,16 @@ const recordSource: Source = async (ctx, id, sub) => {
   const label = labelOf(r["label"]);
   if (label >= 3) return e2e;
   const type = text(r["type"]) || sub || "";
-  const fields = rec(r["fields"]);
+  let fields = rec(r["fields"]);
   let titleField = "";
-  if (type) titleField = await titleFieldOf(ctx, type);
+  if (type) {
+    let info = await typeInfoOf(ctx, type, false);
+    // a row may still hold a key its type no longer has (a field being dropped, its rows not yet rewritten): the words of such a key are never the record's. A key the cached schema lacks is checked against a fresh read first (a field just added).
+    if (info.keys.size > 0 && Object.keys(fields).some((k) => !info.keys.has(k)))
+      info = await typeInfoOf(ctx, type, true);
+    titleField = info.field;
+    if (info.keys.size > 0) fields = Object.fromEntries(Object.entries(fields).filter(([k]) => info.keys.has(k)));
+  }
   const first = Object.entries(fields).find(([, v]) => typeof v === "string" && v.length > 0);
   const title = (
     titleField && typeof fields[titleField] === "string"

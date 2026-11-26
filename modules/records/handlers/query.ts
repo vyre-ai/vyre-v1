@@ -13,6 +13,7 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { mapError } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
+import { ensureComputedTables } from "./computed.ts";
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const SEG = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
@@ -90,13 +91,17 @@ function typeDef(tx: Tx, type: string): TypeDef {
 
 // ---- expressions ----
 
+const COMPUTED_FTYPES: ReadonlySet<string> = new Set(["formula", "lookup", "rollup"]);
 /** SQL for a (possibly dotted) field of a row aliased r. The head must be a field of the type, every segment is a plain name, so the literal is safe. */
 function expr(def: TypeDef, field: string, alias = "r."): string {
   if (COLUMNS.has(field)) return `${alias}${field}`;
   const parts = field.split(".");
   if (!parts.every((p) => SEG.test(p))) throw new StoreError("invalid", `bad field name ${field}`);
-  if (!def.fields.some((f) => f.name === parts[0]))
-    throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
+  const head = def.fields.find((f) => f.name === parts[0]);
+  if (!head) throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
+  // a computed field (formula, lookup, rollup) is read from the side table, one value per record; empty when it has none
+  if (parts.length === 1 && COMPUTED_FTYPES.has(String(head["ftype"] ?? "")))
+    return `(SELECT json_extract(c.value, '$') FROM records_computed c WHERE c.type = '${def.name}' AND c.id = ${alias}id AND c.field = '${field}')`;
   return `json_extract(${alias}data, '$.${parts.map((p) => `"${p}"`).join(".")}')`;
 }
 
@@ -203,6 +208,15 @@ function fnv(s: string): string {
 /** Make sure the partial index of this sort exists. Cheap when it does: one catalogue lookup of a name. */
 export function ensureSortIndex(tx: Tx, def: TypeDef, keys: readonly Sort[]): void {
   const cols = keys.filter((k) => k.field !== "id");
+  // a computed field is read from another table: an index on the row cannot hold it, so a sort by one is a scan (the table is made here so the query can name it)
+  if (
+    cols.some((k) =>
+      COMPUTED_FTYPES.has(String(def.fields.find((f) => f.name === k.field.split(".")[0])?.["ftype"] ?? "")),
+    )
+  ) {
+    ensureComputedTables(tx);
+    return;
+  }
   const body = [...cols.map((k) => `${expr(def, k.field, "")} ${k.dir === "desc" ? "DESC" : "ASC"}`), "id ASC"];
   const name = `qx_${def.name}_${fnv(body.join(","))}`;
   if (tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'index' AND name = ?", name)) return;
@@ -366,6 +380,7 @@ function pageOf(
   counted: boolean,
 ): { rows: RecordRow[]; next?: string; total?: number } {
   ensureBase(tx);
+  ensureComputedTables(tx);
   const def = typeDef(tx, type);
   const sort = effectiveSort(def, spec);
   const keys: Sort[] = [...sort, { field: "id", dir: "asc" }];
@@ -401,6 +416,23 @@ function pageOf(
   return { rows: out, ...(next !== undefined ? { next } : {}), ...(total !== undefined ? { total } : {}) };
 }
 
+/** The computed fields of a type that a spec's filter, sort or group names. */
+function namedComputed(def: TypeDef, spec: ViewSpec, sort: readonly Sort[]): string[] {
+  const computed = new Set(def.fields.filter((f) => COMPUTED_FTYPES.has(String(f["ftype"] ?? ""))).map((f) => f.name));
+  if (!computed.size) return [];
+  const out = new Set<string>();
+  const walk = (f: unknown): void => {
+    if (!f || typeof f !== "object") return;
+    const o = f as Record<string, unknown>;
+    for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+    if (o["not"] !== undefined) walk(o["not"]);
+    if (typeof o["field"] === "string" && computed.has(o["field"].split(".")[0]!)) out.add(o["field"].split(".")[0]!);
+  };
+  walk(spec.filter);
+  for (const k of sort) if (computed.has(k.field.split(".")[0]!)) out.add(k.field.split(".")[0]!);
+  return [...out];
+}
+
 function fallback(
   tx: Tx,
   def: TypeDef,
@@ -420,9 +452,32 @@ function fallback(
       }>("SELECT id, label, holds FROM records_row_meta WHERE type = ?", def.name)
       .map((m) => [m.id, m]),
   );
+  // a sort or filter that names a computed field compares its stored value (empty when none): the value is in the row for the comparison and never in a row that is returned
+  const computedNamed = namedComputed(def, spec, sort);
+  const values = new Map<string, Record<string, unknown>>();
+  if (computedNamed.length) {
+    ensureComputedTables(tx);
+    for (const c of tx.all<{ id: string; field: string; value: string | null }>(
+      `SELECT id, field, value FROM records_computed WHERE type = ? AND field IN (${computedNamed.map(() => "?").join(",")})`,
+      def.name,
+      ...computedNamed,
+    )) {
+      const row = values.get(c.id) ?? values.set(c.id, {}).get(c.id)!;
+      row[c.field] = c.value === null ? null : JSON.parse(c.value);
+    }
+  }
   const live = (function* () {
-    for (const r of tx.all<Raw>(`SELECT * FROM rt_${def.name} WHERE deleted_at IS NULL`))
-      yield { ...r, type: def.name, data: JSON.parse(r.data) as Record<string, unknown> };
+    for (const r of tx.all<Raw>(`SELECT * FROM rt_${def.name} WHERE deleted_at IS NULL`)) {
+      const data = JSON.parse(r.data) as Record<string, unknown>;
+      yield {
+        ...r,
+        type: def.name,
+        data: computedNamed.length
+          ? { ...Object.fromEntries(computedNamed.map((f) => [f, null])), ...data, ...(values.get(r.id) ?? {}) }
+          : data,
+        shown: data,
+      };
+    }
   })();
   const res = page(live, {
     ...(spec.filter !== undefined ? { filter: spec.filter as Filter } : {}),
@@ -439,11 +494,12 @@ function fallback(
       updated_at: number;
       deleted_at: number | null;
       data: Record<string, unknown>;
+      shown: Record<string, unknown>;
     }) => {
       const m = meta.get(r.id);
       return toRow(
         def.name,
-        { ...r, data: JSON.stringify(r.data), label: m?.label ?? 0, holds: m?.holds ?? 0 },
+        { ...r, data: JSON.stringify(r.shown), label: m?.label ?? 0, holds: m?.holds ?? 0 },
         fields,
       );
     },

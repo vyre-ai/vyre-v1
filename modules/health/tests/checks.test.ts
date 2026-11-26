@@ -92,7 +92,70 @@ test("contract tests for next: every failing check returns a next step", async (
   answerAll(fine, defs, healthy);
   const all = await run(fine.ctx, {});
   assert.ok(all.checks.every((c) => c.state === "healthy"));
-  assert.deepEqual(await doctorRun(fine.ctx, {}), { ok: true, findings: [] });
+  const fineDoc = await doctorRun(fine.ctx, {});
+  assert.equal(fineDoc.ok, true);
+  assert.equal(fineDoc.findings.length, defs.length, "the doctor lists the checks that are fine too");
+  assert.ok(fineDoc.findings.every((f) => f.state === "healthy" && f.title.length > 0 && f.next.length >= 15));
+});
+
+test("the doctor says what each check found, and a service that is not set up says so and is not a failure", async () => {
+  const defs = [def("a.fine"), def("b.slow"), def("c.stripe"), def("d.unwired")];
+  use(defs);
+  const h = harness();
+  h.answer("probe.a.fine", { state: "healthy" });
+  h.answer("probe.b.slow", { state: "degraded", detail: "Three jobs are late." });
+  h.answer("probe.c.stripe", { state: "healthy", detail: "Stripe is not set up yet." });
+  h.answer("probe.d.unwired", () => {
+    throw fail("internal.not_implemented", TRACE, { details: { service: "vault", reason: "not_set_up" } });
+  });
+  const doc = await doctorRun(h.ctx, {});
+  const by = new Map(doc.findings.map((f) => [f.key, f]));
+  assert.deepEqual(
+    [...by.keys()],
+    defs.map((d) => d.key),
+    "every check is listed",
+  );
+  assert.equal(doc.ok, false);
+  assert.equal(by.get("a.fine")!.detail, undefined);
+  assert.equal(by.get("b.slow")!.detail, "Three jobs are late.");
+  assert.equal(by.get("b.slow")!.notSetUp, undefined);
+  assert.deepEqual(
+    [by.get("c.stripe")!.state, by.get("c.stripe")!.notSetUp, by.get("c.stripe")!.detail],
+    ["healthy", true, "Stripe is not set up yet."],
+  );
+  assert.deepEqual(
+    [by.get("d.unwired")!.state, by.get("d.unwired")!.notSetUp, by.get("d.unwired")!.detail],
+    ["healthy", true, "Title d.unwired is not set up."],
+    "a service that is not wired is not set up, not down",
+  );
+  setDefsProvider(null);
+});
+
+test("a check that fails with internal.unavailable is down and pauses its areas; a service the host says is not set up reads so and pauses nothing; a capability with no handler stays down", async () => {
+  use([def("e.chain", { pauses: ["automations"] }), def("f.unwired", { pauses: ["sync"] })]);
+  const h = harness();
+  h.answer("probe.e.chain", () => {
+    throw {
+      error: {
+        code: "internal.unavailable",
+        message: "The event log failed verification, so this server is not accepting changes.",
+      },
+    };
+  });
+  h.answer("probe.f.unwired", () => {
+    throw fail("internal.not_implemented", TRACE, { details: { service: "vault", reason: "not_set_up" } });
+  });
+  const doc = await doctorRun(h.ctx, {});
+  const by = new Map(doc.findings.map((f) => [f.key, f]));
+  assert.deepEqual([by.get("e.chain")!.state, by.get("e.chain")!.notSetUp], ["down", undefined]);
+  assert.equal(by.get("f.unwired")!.notSetUp, true);
+  assert.equal(by.get("f.unwired")!.state, "healthy");
+  assert.deepEqual(
+    pausedOf(h.ctx).map((p) => p.key),
+    ["e.chain"],
+    "the outage pauses its area; the service that is not set up pauses nothing",
+  );
+  setDefsProvider(null);
 });
 
 test("definitions run after the checks they depend on", () => {

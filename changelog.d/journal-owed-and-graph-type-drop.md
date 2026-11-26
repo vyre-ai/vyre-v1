@@ -1,0 +1,1 @@
+- When the search index journal cannot be folded in after a purge, the host logs it and the doctor counts it; the memory graph also drops the nodes of a deleted record type.

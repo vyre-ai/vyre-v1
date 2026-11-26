@@ -108,12 +108,16 @@ export interface HookEvent {
   device?: string;
   /** the person who caused it has no standing in the Space (a guest): decided by the kernel's snapshot when the event is handed over, never by a call the consumer makes */
   outsider?: boolean;
+  /** True once the server is stopping: a long consumer looks at it between its slices and throws the kept error (routes/errors.ts keptForRestart), so the stop does not wait for the whole job and the next start hands it the same event again. */
+  stopping?: () => boolean;
 }
 
 export interface ConsumerDef {
   name: string;
   module: string;
   on: readonly string[];
+  /** Takes an announcement made by a repair (payload.repair: a record an old build never announced): only a consumer that keeps derived data of the record asks for it. Every other consumer is not told, so an Automation, a webhook, a notification or a watcher never fires for a repair. */
+  takesRepair?: boolean;
   run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown;
 }
 export interface PeriodicDef {
@@ -154,6 +158,7 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
         name,
         module,
         on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"),
+        ...(def["takesRepair"] === true ? { takesRepair: true } : {}),
         run: (ctx, event) => run(ctx, event),
       });
     }
@@ -322,7 +327,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const n = capName("consumer", c.name);
     caps.push(base(n, c.module));
     moduleOf.set(n, c.module);
-    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, input.event);
+    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, { ...input.event, stopping: () => closing });
   }
   for (const p of periodic) {
     if (byPeriodic.has(p.name)) {
@@ -445,6 +450,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
     const ev = toHookEvent(e);
     if (d.outsiderOf?.(e.actor) === true) ev.outsider = true;
+    // an announcement a repair made for a record an old build never announced is for the access view, the search index and the replicas (they fold it as a projection) and for a consumer that asked for it: nobody else is told
+    if (ev.payload["repair"] === true && c.takesRepair !== true) return true;
     inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
       await d.invoke(
