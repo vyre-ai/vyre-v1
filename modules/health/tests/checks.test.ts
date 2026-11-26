@@ -106,7 +106,7 @@ test("the doctor says what each check found, and a service that is not set up sa
   h.answer("probe.b.slow", { state: "degraded", detail: "Three jobs are late." });
   h.answer("probe.c.stripe", { state: "healthy", detail: "Stripe is not set up yet." });
   h.answer("probe.d.unwired", () => {
-    throw { error: { code: "internal.unavailable", message: "no service" } };
+    throw fail("internal.not_implemented", TRACE, { details: { service: "vault", reason: "not_set_up" } });
   });
   const doc = await doctorRun(h.ctx, {});
   const by = new Map(doc.findings.map((f) => [f.key, f]));
@@ -127,6 +127,33 @@ test("the doctor says what each check found, and a service that is not set up sa
     [by.get("d.unwired")!.state, by.get("d.unwired")!.notSetUp, by.get("d.unwired")!.detail],
     ["healthy", true, "Title d.unwired is not set up."],
     "a service that is not wired is not set up, not down",
+  );
+  setDefsProvider(null);
+});
+
+test("a check that fails with internal.unavailable is down and pauses its areas; a service the host says is not set up reads so and pauses nothing; a capability with no handler stays down", async () => {
+  use([def("e.chain", { pauses: ["automations"] }), def("f.unwired", { pauses: ["sync"] })]);
+  const h = harness();
+  h.answer("probe.e.chain", () => {
+    throw {
+      error: {
+        code: "internal.unavailable",
+        message: "The event log failed verification, so this server is not accepting changes.",
+      },
+    };
+  });
+  h.answer("probe.f.unwired", () => {
+    throw fail("internal.not_implemented", TRACE, { details: { service: "vault", reason: "not_set_up" } });
+  });
+  const doc = await doctorRun(h.ctx, {});
+  const by = new Map(doc.findings.map((f) => [f.key, f]));
+  assert.deepEqual([by.get("e.chain")!.state, by.get("e.chain")!.notSetUp], ["down", undefined]);
+  assert.equal(by.get("f.unwired")!.notSetUp, true);
+  assert.equal(by.get("f.unwired")!.state, "healthy");
+  assert.deepEqual(
+    pausedOf(h.ctx).map((p) => p.key),
+    ["e.chain"],
+    "the outage pauses its area; the service that is not set up pauses nothing",
   );
   setDefsProvider(null);
 });

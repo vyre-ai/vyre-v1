@@ -322,6 +322,11 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function reasonOf(e: unknown): string | undefined {
+  const reason = asRow(asRow(asRow(e)?.["error"])?.["details"])?.["reason"];
+  return typeof reason === "string" ? reason : undefined;
+}
+
 function codeOf(e: unknown): string {
   if (e instanceof TimeoutError) return "timeout";
   const err = asRow(e)?.["error"];
@@ -352,8 +357,9 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   try {
     answer = await withTimeout(Promise.resolve(ctx.call(def.cap as CapName, {})), def.timeoutMs);
   } catch (e) {
-    // a module whose service is not wired in this Space (no connection, no key) answers unavailable: that is "not set up", the way each module's own check says it, and not a failure
-    if (codeOf(e) === "internal.unavailable")
+    // a service the Space does not have wired says so itself (details.reason "not_set_up", set where the host refuses an unwired service): that is not set up and not a failure. Any other failure, internal.unavailable
+    // included (a broken event chain, access being re-checked) and a capability with no handler, is down.
+    if (reasonOf(e) === "not_set_up")
       return { state: "healthy", detail: `${def.title} is not set up.`, latencyMs: Math.round(performance.now() - t0) };
     return {
       state: "down",
