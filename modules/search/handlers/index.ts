@@ -76,25 +76,35 @@ const labelOf = (v: unknown): number => Math.max(0, Math.min(3, Math.trunc(num(v
 // A record type's title field, asked of the schema once in a while and not for each record: schema.types.get returns the whole type (578 fields of a firm's matter), and a bulk write of ten thousand records
 // asked it ten thousand times (a third of the time the full-text consumer spent on a record). A change of the title field reaches the documents indexed after this window; one reindex puts the rest right.
 const TITLE_FIELD_TTL_MS = 10_000;
-const titleFields = new Map<string, { at: number; field: string }>();
+const titleFields = new Map<string, { at: number; field: string; keys: Set<string> }>();
 /** The cached title field of a type is forgotten (its schema changed). */
 export function dropTitleField(space: string, type: string): void {
   titleFields.delete(`${space}\u0000${type}`);
 }
 
 async function titleFieldOf(ctx: SearchCtx, type: string): Promise<string> {
+  return (await typeInfoOf(ctx, type, false)).field;
+}
+
+/** The keys of the type's fields as its schema holds them now; empty when the schema cannot be read (then nothing is left out). */
+async function typeInfoOf(ctx: SearchCtx, type: string, fresh: boolean): Promise<{ field: string; keys: Set<string> }> {
   const key = `${ctx.space}\u0000${type}`;
   const have = titleFields.get(key);
   const now = ctx.now();
-  if (have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have.field;
+  if (!fresh && have && now >= have.at && now - have.at < TITLE_FIELD_TTL_MS) return have;
   const t = await read<{ type?: Record<string, unknown> }>(ctx, "schema.types.get", { type });
   const field = text(t?.type?.["titleField"]);
+  const keys = new Set<string>(
+    (Array.isArray(t?.type?.["fields"]) ? (t!.type!["fields"] as unknown[]) : [])
+      .map((f) => text(rec(f)["key"]))
+      .filter((k) => k !== ""),
+  );
   if (t) {
-    titleFields.set(key, { at: now, field });
+    titleFields.set(key, { at: now, field, keys });
     // what the documents of this type were titled by: noted once, at the first one; a change of the title field moves it only when the documents have been titled again (retitleRun)
     ctx.db.run("INSERT OR IGNORE INTO search_meta (k, v) VALUES (?, ?)", `tf:${type}`, field);
   }
-  return field;
+  return { field, keys };
 }
 
 /**
@@ -368,9 +378,16 @@ const recordSource: Source = async (ctx, id, sub) => {
   const label = labelOf(r["label"]);
   if (label >= 3) return e2e;
   const type = text(r["type"]) || sub || "";
-  const fields = rec(r["fields"]);
+  let fields = rec(r["fields"]);
   let titleField = "";
-  if (type) titleField = await titleFieldOf(ctx, type);
+  if (type) {
+    let info = await typeInfoOf(ctx, type, false);
+    // a row may still hold a key its type no longer has (a field being dropped, its rows not yet rewritten): the words of such a key are never the record's. A key the cached schema lacks is checked against a fresh read first (a field just added).
+    if (info.keys.size > 0 && Object.keys(fields).some((k) => !info.keys.has(k)))
+      info = await typeInfoOf(ctx, type, true);
+    titleField = info.field;
+    if (info.keys.size > 0) fields = Object.fromEntries(Object.entries(fields).filter(([k]) => info.keys.has(k)));
+  }
   const first = Object.entries(fields).find(([, v]) => typeof v === "string" && v.length > 0);
   const title = (
     titleField && typeof fields[titleField] === "string"

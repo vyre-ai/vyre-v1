@@ -99,3 +99,27 @@ test("an event for a field that is only renamed or added queues nothing", async 
   });
   assert.deepEqual(h.rows("SELECT k FROM search_meta WHERE k LIKE 'reindex:%'"), []);
 });
+
+test("a record whose data still holds a key its type no longer has is indexed without the words of that key", async () => {
+  const h = harness({
+    respond: {
+      "records.get": (i) => ({
+        record: {
+          id: i["recordId"],
+          type: "matter",
+          label: 1,
+          fields: { name: "Kept name", note: "zqretiredtext", fresh: "zqfreshtext" },
+          updatedAt: 5,
+        },
+      }),
+      "schema.types.get": (i) => ({
+        type: { key: i["type"], titleField: "name", fields: [{ key: "name" }, { key: "fresh" }] },
+      }),
+    },
+  });
+  await indexApply(h.ctx, { entity: "record:matter", id: "rec_r", op: "upsert", seq: 1 });
+  const body = String(h.rows("SELECT body FROM search_docs WHERE id = 'rec_r'")[0]!["body"]);
+  assert.doesNotMatch(body, /zqretiredtext/);
+  assert.match(body, /zqfreshtext/);
+  assert.deepEqual(await hitsFor(h, "zqretiredtext"), []);
+});
