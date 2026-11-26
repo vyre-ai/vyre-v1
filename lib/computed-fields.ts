@@ -20,7 +20,7 @@ export function inputsOf(types: ReadonlyMap<string, TypeShape>, type: string, f:
   const o = f.options ?? {};
   if (f.type === "formula") {
     try {
-      return [...exprNames(parseExpr(String(o["expr"] ?? "")))].map((n) => node(type, n));
+      return [...exprNames(parseExpr(String(o["expr"] ?? "")))].map((n) => node(type, String(n)));
     } catch {
       return [];
     }
