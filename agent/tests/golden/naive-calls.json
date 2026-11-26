@@ -4401,6 +4401,12 @@
     "type": "contact",
     "recordId": "rec_a1b2c3"
   },
+  "records_get_many": {
+    "type": "contact",
+    "ids": [
+      "rec_a1b2c3"
+    ]
+  },
   "records_history": {
     "type": "contact",
     "recordId": "rec_a1b2c3"

@@ -2419,6 +2419,7 @@ export function stubs(ctx: CallCtx) {
       export: call("records.export"),
       gap_check: call("records.gap_check"),
       get: call("records.get"),
+      get_many: call("records.get_many"),
       history: call("records.history"),
       hold: call("records.hold"),
       merge: call("records.merge"),

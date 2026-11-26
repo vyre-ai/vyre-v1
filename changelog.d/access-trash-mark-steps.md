@@ -1,0 +1,1 @@
+- Putting a folder with thousands of files in Trash, bringing it back, or deleting it for good no longer holds the server for a tenth of a second or more: its files are marked in steps of 2,000, and a bulk delete of a thousand folders takes a few milliseconds a call instead of nearly a second.

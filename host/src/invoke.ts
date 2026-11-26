@@ -344,6 +344,7 @@ const ASK_STOPS: ReadonlySet<string> = new Set([
 ]);
 const SCOPED_RECORD_READS = new Set([
   "records.get",
+  "records.get_many",
   "records.as_of",
   "records.query",
   "records.search",

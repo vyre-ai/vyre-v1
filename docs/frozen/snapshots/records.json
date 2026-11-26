@@ -17,6 +17,7 @@
     "records.export@1": "2ed5b79241a258108c8bb992f326978cab71c3be75e2d7ebe3b9837607fbb3f4",
     "records.gap_check@1": "7fbb3c9362119ce368c1d99f561bb616abcaf5a3752d505370f4332c84f4ccf5",
     "records.get@1": "8c6aa2e129d5c7291439a375fc5ef0ba9d64e5909087ba0ae0c5bc3ae85eddd1",
+    "records.get_many@1": "22ce7f5989b3f8a378c3bb5bf5bc9931d9ca066f5dc1f3f552085e4d0e40f1c6",
     "records.history@1": "eecd946caac006cf53ec301ea963214ed5d01fc05e6a3854022b0bd70f75c688",
     "records.hold@1": "23df3326420cf31938b7b3be523da4e00914d68beb46d34b34c8b8f5e8435e81",
     "records.merge@1": "abca9df3971d077f11b768f0eacce0d49bd3447bd183484e804a8eb0572c1105",

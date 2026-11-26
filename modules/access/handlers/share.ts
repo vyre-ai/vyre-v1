@@ -7,7 +7,7 @@
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader } from "../projections.ts";
+import { NeedFullStore, TRASH_KEY, asReader, changedGrants, isReader, isTrashed } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -190,10 +190,15 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
     return false;
   if (a.row === b.row) return true;
   if (!a.row || !b.row) return false;
-  const ka = Object.keys(a.row);
-  if (ka.length !== Object.keys(b.row).length) return false;
+  // the Trash mark (projections.ts TRASH_KEY) is not part of who may see a thing, so a resource that only gained or lost it needs none of its rows worked out again
+  let na = 0,
+    nb = 0;
+  for (const k in a.row) if (k !== TRASH_KEY) na++;
+  for (const k in b.row) if (k !== TRASH_KEY) nb++;
+  if (na !== nb) return false;
   // one value at a time, by identity first: a row of plain values is compared without writing it out as text
-  for (const k of ka) {
+  for (const k in a.row) {
+    if (k === TRASH_KEY) continue;
     const x = a.row[k],
       y = b.row[k];
     if (x !== y && (typeof x !== "object" || typeof y !== "object" || canonical(x) !== canonical(y))) return false;
@@ -2487,7 +2492,8 @@ export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: 
       (f) =>
         f.type === input.type &&
         (!input.scope || f.scope === input.scope) &&
-        ss.access.has(ak(ctx.principal.id, "folder", f.id)),
+        ss.access.has(ak(ctx.principal.id, "folder", f.id)) &&
+        !isTrashed(store.resources.get(f.id)),
     )
     .sort((a, b) =>
       a.name.toLowerCase() < b.name.toLowerCase()
@@ -2509,7 +2515,10 @@ export async function lists(
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;
-  const rows = mine(ctx, store, ss, person, input.type);
+  // a file or folder that Files put in Trash is not listed: the mark is on the resource row (see TRASH_KEY), read here with the rows, no call to Files
+  const all = mine(ctx, store, ss, person, input.type);
+  const rows =
+    input.type === "file" || input.type === "folder" ? all.filter((r) => !isTrashed(store.resources.get(r.id))) : all;
   const marks = ctx.marks?.(person, input.type);
   const starred = marks?.starred ?? new Set<string>();
   const following = marks?.following ?? new Set<string>();

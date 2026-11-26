@@ -1,0 +1,1 @@
+- A new read, `records.get_many`: up to 200 records of one type by id in one call, instead of one call each. Each record comes back cut exactly as `records.get` cuts it (hidden fields, label ceiling, provider ceiling); an id that is gone or that you may not see is left out of the answer, with no error that names it.
