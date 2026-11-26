@@ -32,7 +32,7 @@ export { periodic } from "./hooks.ts";
 /** A field dropped or retyped rewrites rows without a record event: the graph reads the type's record nodes again (handlers/graph.ts followSchemaChange). */
 export const consumers = {
   "memory.graph_schema": {
-    on: ["schema.changed"],
+    on: ["schema.changed", "schema.type_dropped"],
     run: async (
       ctx: unknown,
       event: { name?: string; type?: string; seq: number; payload: Record<string, unknown> },

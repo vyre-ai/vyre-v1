@@ -52,3 +52,25 @@ test("a schema change that drops no field reads nothing again", async () => {
   });
   assert.equal(h.calls("records.query").length, 0);
 });
+
+test("a dropped type's record nodes, their mentions and the record of having read them leave the graph; another type's stay", async () => {
+  const h = harness({
+    respond: {
+      "records.get": (i) => ({
+        record: {
+          id: i["recordId"],
+          type: i["type"],
+          createdAt: 1,
+          fields: { name: `Node ${i["recordId"]} [[ZqPage]]` },
+        },
+      }),
+    },
+  });
+  await indexGraph(h.ctx, { entity: "record:gone", id: "rec_g", seq: 1 });
+  await indexGraph(h.ctx, { entity: "record:kept", id: "rec_k", seq: 1 });
+  await consumers["memory.graph_schema"].run(h.ctx, { type: "schema.type_dropped", seq: 2, payload: { type: "gone" } });
+  assert.equal(h.rows("SELECT 1 FROM memory_graph_nodes WHERE node_id = 'record:rec_g'").length, 0);
+  assert.equal(h.rows("SELECT 1 FROM memory_mentions WHERE source_ref = 'rec_g'").length, 0);
+  assert.equal(h.rows("SELECT 1 FROM memory_graph_seen WHERE ref = 'rec_g'").length, 0);
+  assert.equal(h.rows("SELECT 1 FROM memory_graph_nodes WHERE node_id = 'record:rec_k'").length, 1);
+});

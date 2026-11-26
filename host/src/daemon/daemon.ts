@@ -4980,14 +4980,35 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
       // A passive checkpoint, then a truncating one: tried a few times, a few seconds apart, until the writer is idle (a truncate that finds readers answers busy and is not forced). Each try is a few milliseconds.
-      const settleJournal = (d: { all(sql: string, ...a: unknown[]): unknown[] }, tries = 8): void => {
+      const settleJournal = (
+        d: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown },
+        tries = 8,
+      ): void => {
         const timer = setTimeout(() => {
           try {
             d.all("PRAGMA wal_checkpoint(PASSIVE)");
             const r = d.all("PRAGMA wal_checkpoint(TRUNCATE)")[0] as { busy?: number } | undefined;
-            if (r?.busy && tries > 1) settleJournal(d, tries - 1);
+            if (!r?.busy) return;
+            if (tries > 1) return settleJournal(d, tries - 1);
+            // the journal could not be folded after every try: the host says so in its log and counts it for the doctor (host_journal_owed in the modules database)
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "journal.not_folded",
+              place: "boot",
+              attrs: { file: "modules.db-wal", tries: 8 },
+            });
+            d.run?.(
+              `CREATE TABLE IF NOT EXISTS host_journal_owed (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, file TEXT NOT NULL, tries INTEGER NOT NULL)`,
+            );
+            d.run?.(
+              "INSERT INTO host_journal_owed (at, file, tries) VALUES (?, ?, ?)",
+              Date.now(),
+              "modules.db-wal",
+              8,
+            );
           } catch {
-            /* the database is closed or busy: the next write's own checkpoint folds it */
+            /* the database is closed: the next start folds it */
           }
         }, 2_000);
         timer.unref?.();
