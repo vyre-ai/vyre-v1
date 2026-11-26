@@ -3454,6 +3454,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           now,
           fresh: () => !accessStale,
           refresh: () => syncAccess(true),
+          rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
           warn: (info) =>
             sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } }),
         }),
@@ -4591,6 +4592,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         snapshot: () => access.snap,
         now,
         fresh: () => !accessStale,
+        rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
       });
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create

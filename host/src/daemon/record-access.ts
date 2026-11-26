@@ -40,6 +40,8 @@ export function createRecordAccess(ports: {
   now(): number;
   fresh(): boolean;
   refresh?(): Promise<void>;
+  /** Read-only SQL on the Space store, for the computed values a record carries (records_computed) and the rows they were computed from. Absent: no computed value is added to a record. */
+  rows?: { all(sql: string, ...args: unknown[]): unknown[] };
   /** The waits between folds (ms) when a read finds rows the snapshot does not know yet; tests shorten them. */
   settleMs?: readonly number[];
   warn?(info: {
@@ -315,14 +317,136 @@ export function createRecordAccess(ports: {
       snapshot.fieldLabel(row.type, key) <= ceiling &&
       snapshot.fieldLabel("record", key) <= ceiling;
   }
+  // ---- computed values (formula, lookup, rollup) ----
+  // A computed value is kept in records_computed, never in the record. A reader gets it only when they may read EVERYTHING it was computed from: each field it reads on the record (not hidden by their grant, labelled
+  // within their ceiling), and for a lookup or a rollup, the field it reads on EVERY record linked through the relation, each of those records visible to them. One link they cannot see, or one field they cannot read,
+  // and the value is not there (empty, like a hidden field), never a smaller sum or a shorter list. A computed field read through another computed field is judged on that one's inputs too, a few hops deep.
+  interface Side {
+    field: string;
+    value: string | null;
+    inputs: string;
+    kind: string;
+  }
+  const SAFE_TYPE = /^[a-z][a-z0-9_]{0,62}$/;
+  const sideOf = (type: string, id: string): Side[] => {
+    if (!ports.rows || !SAFE_TYPE.test(type)) return [];
+    try {
+      return ports.rows.all(
+        "SELECT field, value, inputs, kind FROM records_computed WHERE type = ? AND id = ?",
+        type,
+        id,
+      ) as Side[];
+    } catch {
+      return [];
+    }
+  };
+  const dataOf = (type: string, id: string): Record<string, unknown> | null => {
+    if (!ports.rows || !SAFE_TYPE.test(type)) return null;
+    try {
+      const r = ports.rows.all(`SELECT data FROM rt_${type} WHERE id = ? AND deleted_at IS NULL`, id)[0] as
+        | { data: string }
+        | undefined;
+      return r ? (JSON.parse(r.data) as Record<string, unknown>) : null;
+    } catch {
+      return null;
+    }
+  };
+  const linkIds = (value: unknown): string[] => {
+    const items = Array.isArray(value) ? value : value === null || value === undefined ? [] : [value];
+    const out: string[] = [];
+    for (const item of items) {
+      if (typeof item === "string") out.push(item);
+      else if (item && typeof item === "object" && typeof (item as Record<string, unknown>)["urn"] === "string") {
+        const part = ((item as Record<string, unknown>)["urn"] as string).slice(7).split("/");
+        if (part.length >= 3 && part[2]) out.push(part[2]);
+      }
+    }
+    return out;
+  };
+  const visibleMemo = new WeakMap<object, Map<string, boolean>>();
+  /** May this reader see these fields of this record (the kernel's own question: the record, its row filter, the fields their grant hides, the label ceiling). */
+  function visibleOn(seed: ReadSeed, type: string, id: string, names: readonly string[]): boolean {
+    const memo = visibleMemo.get(seed) ?? visibleMemo.set(seed, new Map()).get(seed)!;
+    const key = `${type}/${id}/${names.join(",")}`;
+    const had = memo.get(key);
+    if (had !== undefined) return had;
+    const snapshot = ports.snapshot();
+    const data = dataOf(type, id);
+    const resource = snapshot.resource(id);
+    const ok =
+      data !== null &&
+      !!resource &&
+      resource.type === "record" &&
+      authorize(snapshot, {
+        principal: seed.principal.id,
+        actingFor: seed.actingFor,
+        provider: seed.provider,
+        cap: seed.readCap,
+        input: seed.readInput,
+        action: { perm: null, level: "view" },
+        resource: { type: "record", id },
+        fields: [...names],
+        row: { ...data, id, owner_id: resource.owner_id },
+        now: ports.now(),
+      }).effect === "allow";
+    memo.set(key, ok);
+    return ok;
+  }
+  function mayReadComputed(seed: ReadSeed, type: string, id: string, c: Side, depth: number): boolean {
+    if (depth > 4) return false;
+    let inputs: string[];
+    try {
+      inputs = JSON.parse(c.inputs) as string[];
+    } catch {
+      return false;
+    }
+    const prefix = `${type}.`;
+    const side = sideOf(type, id);
+    if (c.kind === "formula") {
+      const own = inputs.filter((x) => x.startsWith(prefix)).map((x) => x.slice(prefix.length));
+      if (!visibleOn(seed, type, id, [...own, c.field])) return false;
+      for (const f of own) {
+        const s = side.find((x) => x.field === f);
+        if (s && !mayReadComputed(seed, type, id, s, depth + 1)) return false;
+      }
+      return true;
+    }
+    // lookup or rollup: inputs are [type.via, targetType.field]
+    const via = inputs[0]?.slice(prefix.length);
+    const target = inputs[1]?.split(".");
+    if (!via || !target || target.length !== 2) return false;
+    const [targetType, targetField] = target as [string, string];
+    if (!visibleOn(seed, type, id, [via, c.field])) return false;
+    const data = dataOf(type, id);
+    if (!data) return false;
+    for (const link of linkIds(data[via])) {
+      if (!visibleOn(seed, targetType, link, [targetField])) return false;
+      const s = sideOf(targetType, link).find((x) => x.field === targetField);
+      if (s && !mayReadComputed(seed, targetType, link, s, depth + 1)) return false;
+    }
+    return true;
+  }
+  /** The computed values of one record this reader may read, as fields (gate: the rule for the record's own field names). */
+  function computedFields(seed: ReadSeed, row: StoredRecord, gate: (key: string) => boolean): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const c of sideOf(row.type, row.id)) {
+      if (!gate(c.field)) continue;
+      if (!mayReadComputed(seed, row.type, row.id, c, 0)) continue;
+      out[c.field] = c.value === null ? null : JSON.parse(c.value);
+    }
+    return out;
+  }
   function fields(seed: ReadSeed, row: StoredRecord, original: Record<string, unknown>, trace: string) {
     const gate = gateOf(seed, row);
     if (!gate) throw fail("permission.no_grant", trace);
-    return Object.fromEntries(
-      Object.entries(original)
-        .filter(([key]) => gate(key))
-        .map(([key, value]) => [key, seeable(seed, value)]),
-    );
+    return {
+      ...Object.fromEntries(
+        Object.entries(original)
+          .filter(([key]) => gate(key))
+          .map(([key, value]) => [key, seeable(seed, value)]),
+      ),
+      ...computedFields(seed, row, gate),
+    };
   }
   return {
     /**
