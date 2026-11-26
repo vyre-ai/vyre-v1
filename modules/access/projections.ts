@@ -910,7 +910,8 @@ export class AccessStore {
    * (a folder made to follow a record). `persist` turns every row of every table into text to find the same few rows (0.3 s on 11,000 resources, seconds on a firm's). Answers the rows written (what
    * the write counter moves by), or null when the store holds no copy of the resource rows to compare with (the caller then uses `persist`).
    */
-  persistResources(db: Db, ids: readonly string[]): number | null {
+  persistChangedResources(db: Db, ids: readonly string[]): number | null {
+    if (this.resBase) return this.persistResourcesByFields(db, ids);
     const shape = SHAPES["access_resources"]!;
     const rawRows = this.raw?.get("access_resources");
     const baseVals = this.base?.get("access_resources")?.vals;
@@ -945,6 +946,35 @@ export class AccessStore {
         if (at >= 0) rawRows[at] = row;
         else rawRows.push(row);
       } else baseVals!.set(key, vals);
+    }
+    writes += db.run(
+      `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+      "space",
+      this.epoch,
+    ).changes;
+    return writes;
+  }
+
+  /** `persistChangedResources` where the store keeps the rows it read as fields (`resBase`): one comparison of fields per named resource, no JSON of an unchanged one. */
+  private persistResourcesByFields(db: Db, ids: readonly string[]): number {
+    const was = this.resBase!;
+    const cols = SHAPES["access_resources"]!.cols;
+    let writes = 0;
+    for (const id of new Set(ids)) {
+      const r = this.resources.get(id);
+      const s = was.get(id);
+      if (!r) {
+        if (!s) continue;
+        writes += db.run(`DELETE FROM access_resources WHERE "id" = ?`, id).changes;
+        was.delete(id);
+        continue;
+      }
+      if (s && JSON.stringify(resourceVals(s)) === JSON.stringify(resourceVals(r))) continue;
+      writes += db.run(
+        `INSERT OR REPLACE INTO access_resources (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`,
+        ...resourceVals(r),
+      ).changes;
+      was.set(id, { ...r });
     }
     writes += db.run(
       `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
@@ -1618,6 +1648,7 @@ export function sealStore(store: AccessStore): AccessStore {
     "hydrate",
     "persist",
     "persistResources",
+    "persistChangedResources",
     "persistGrants",
     "setRoles",
     "adoptSnapshot",
@@ -1686,12 +1717,12 @@ export function changed(
   }
 }
 
-/** `changed` for a handler that changes only the named resources (see AccessStore.persistResources); falls back to the whole write where the store has no copy of the rows to compare with. */
+/** `changed` for a handler that changes only the named resources (see AccessStore.persistChangedResources); falls back to the whole write where the store has no copy of the rows to compare with. */
 export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): void {
   store.bump();
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
   try {
-    if (store.persistResources(ctx.db, ids) === null) store.persist(ctx.db);
+    if (store.persistChangedResources(ctx.db, ids) === null) store.persist(ctx.db);
   } catch (e) {
     store.bump();
     throw e;
