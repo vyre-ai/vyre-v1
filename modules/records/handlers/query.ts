@@ -13,6 +13,7 @@ import { StoreError } from "../../../kernel/src/store/types.ts";
 import type { Tx } from "../../../kernel/src/store/projection.ts";
 import { mapError } from "./write.ts";
 import type { RecordRow, WriteCtx } from "./write.ts";
+import { ensureComputedTables } from "./computed.ts";
 
 const NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const SEG = /^[A-Za-z][A-Za-z0-9_]{0,62}$/;
@@ -90,13 +91,17 @@ function typeDef(tx: Tx, type: string): TypeDef {
 
 // ---- expressions ----
 
+const COMPUTED_FTYPES: ReadonlySet<string> = new Set(["formula", "lookup", "rollup"]);
 /** SQL for a (possibly dotted) field of a row aliased r. The head must be a field of the type, every segment is a plain name, so the literal is safe. */
 function expr(def: TypeDef, field: string, alias = "r."): string {
   if (COLUMNS.has(field)) return `${alias}${field}`;
   const parts = field.split(".");
   if (!parts.every((p) => SEG.test(p))) throw new StoreError("invalid", `bad field name ${field}`);
-  if (!def.fields.some((f) => f.name === parts[0]))
-    throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
+  const head = def.fields.find((f) => f.name === parts[0]);
+  if (!head) throw new StoreError("unknown_field", `${def.name} has no field ${parts[0]}`);
+  // a computed field (formula, lookup, rollup) is read from the side table, one value per record; empty when it has none
+  if (parts.length === 1 && COMPUTED_FTYPES.has(String(head["ftype"] ?? "")))
+    return `(SELECT json_extract(c.value, '$') FROM records_computed c WHERE c.type = '${def.name}' AND c.id = ${alias}id AND c.field = '${field}')`;
   return `json_extract(${alias}data, '$.${parts.map((p) => `"${p}"`).join(".")}')`;
 }
 
@@ -203,6 +208,15 @@ function fnv(s: string): string {
 /** Make sure the partial index of this sort exists. Cheap when it does: one catalogue lookup of a name. */
 export function ensureSortIndex(tx: Tx, def: TypeDef, keys: readonly Sort[]): void {
   const cols = keys.filter((k) => k.field !== "id");
+  // a computed field is read from another table: an index on the row cannot hold it, so a sort by one is a scan (the table is made here so the query can name it)
+  if (
+    cols.some((k) =>
+      COMPUTED_FTYPES.has(String(def.fields.find((f) => f.name === k.field.split(".")[0])?.["ftype"] ?? "")),
+    )
+  ) {
+    ensureComputedTables(tx);
+    return;
+  }
   const body = [...cols.map((k) => `${expr(def, k.field, "")} ${k.dir === "desc" ? "DESC" : "ASC"}`), "id ASC"];
   const name = `qx_${def.name}_${fnv(body.join(","))}`;
   if (tx.get("SELECT 1 AS x FROM sqlite_master WHERE type = 'index' AND name = ?", name)) return;
@@ -366,6 +380,7 @@ function pageOf(
   counted: boolean,
 ): { rows: RecordRow[]; next?: string; total?: number } {
   ensureBase(tx);
+  ensureComputedTables(tx);
   const def = typeDef(tx, type);
   const sort = effectiveSort(def, spec);
   const keys: Sort[] = [...sort, { field: "id", dir: "asc" }];

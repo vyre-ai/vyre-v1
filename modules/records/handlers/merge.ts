@@ -13,6 +13,8 @@
 //
 // Export: CSV (RFC 4180, UTF-8 BOM, formula-safe) or XLSX (inline strings, stored zip). Sealed values are masked. The bytes go to the files module through deps.putFile.
 import { turns } from "../../../lib/yield-loop.ts";
+import { mayReadComputed } from "../../../lib/computed-fields.ts";
+import type { ComputedSide } from "../../../lib/computed-fields.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -1218,6 +1220,24 @@ async function exportRows(
     ...(input.offset ? { offset: input.offset } : {}),
     limit: MAX_LIMIT,
   };
+  const computedNames = new Set(
+    def.fields.filter((f) => ["formula", "lookup", "rollup"].includes(String(f["ftype"] ?? ""))).map((f) => f.name),
+  );
+  // the fields the filter and the sort name, split into plain and computed ones
+  const named = new Set<string>();
+  const walk = (f: unknown): void => {
+    if (!f || typeof f !== "object") return;
+    const o = f as Record<string, unknown>;
+    for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+    if (o["not"] !== undefined) walk(o["not"]);
+    if (typeof o["field"] === "string") named.add(o["field"].split(".")[0]!);
+  };
+  walk(input.filter);
+  for (const k of input.sort ?? []) named.add(k.field.split(".")[0]!);
+  const judged = {
+    plain: [...named].filter((f) => !computedNames.has(f) && f !== "id" && byName.has(f)),
+    computed: [...named].filter((f) => computedNames.has(f)),
+  };
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -1232,13 +1252,52 @@ async function exportRows(
       // is hidden), then column by column for a row where something is
       const names = columns.map((c) => c.name);
       const at = { type: "record", id: r.id };
-      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow") rows.push(r.fields);
+      // computed values (formula, lookup, rollup) come from the side table, and only when the caller may read everything they were computed from: the same rule a read applies
+      const sideOf = (type: string, id: string): readonly ComputedSide[] => {
+        try {
+          return tx.all<ComputedSide>(
+            "SELECT field, value, inputs, kind, computed_at, link_ids FROM records_computed WHERE type = ? AND id = ?",
+            type,
+            id,
+          );
+        } catch {
+          return [];
+        }
+      };
+      const side = sideOf(input.type, r.id);
+      const readable = (c: ComputedSide): boolean =>
+        mayReadComputed(
+          {
+            visibleOn: (t, i, fs) =>
+              ctx.authorize!({ perm: null, level: "view", fields: [...fs] }, { type: "record", id: i }).effect ===
+              "allow",
+            sideOf,
+          },
+          input.type,
+          r.id,
+          c,
+        );
+      // a filter or sort that names a field the caller cannot read on this record would pick or place the record by a value they may not know: the record is left out
+      if (
+        judged.plain.some((f) => ctx.authorize!({ perm: null, level: "view", fields: [f] }, at).effect !== "allow") ||
+        judged.computed.some((f) => {
+          const c = side.find((x) => x.field === f);
+          return !c || !readable(c);
+        })
+      )
+        continue;
+      const fieldsOf: Record<string, unknown> = { ...r.fields };
+      for (const c of side)
+        if (computedNames.has(c.field) && readable(c))
+          fieldsOf[c.field] = c.value === null ? null : JSON.parse(c.value);
+      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow")
+        rows.push(Object.fromEntries(columns.map((c) => [c.name, fieldsOf[c.name]])));
       else
         rows.push(
           Object.fromEntries(
             columns
               .filter((c) => ctx.authorize!({ perm: null, level: "view", fields: [c.name] }, at).effect === "allow")
-              .map((c) => [c.name, r.fields[c.name]]),
+              .map((c) => [c.name, fieldsOf[c.name]]),
           ),
         );
     }

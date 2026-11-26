@@ -1,0 +1,1 @@
+A list can be sorted and filtered by a formula, lookup or rollup field. A person it is hidden from, or who does not see every record it reads, gets the default order and no filter on it. A file exported from a table has the computed values the person may read, and a filter or sort on a field they cannot read leaves a row out instead of picking it.

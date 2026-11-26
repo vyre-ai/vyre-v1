@@ -82,3 +82,63 @@ export function computeFormula(expr: string, values: Record<string, unknown>, no
     return null;
   }
 }
+
+/** One row of records_computed, as a reader sees it. */
+export interface ComputedSide {
+  field: string;
+  value: string | null;
+  inputs: string;
+  kind: string;
+  computed_at?: number;
+  link_ids?: string | null;
+}
+/** What the rule below asks of whoever applies it: may the reader see these fields of this record, and what values are kept for a record. */
+export interface ComputedReadDeps {
+  visibleOn(type: string, id: string, fields: readonly string[]): boolean;
+  sideOf(type: string, id: string): readonly ComputedSide[];
+}
+
+/**
+ * May this reader read this computed value? Only when they may read everything it was computed from: each field it reads on the record, and for a lookup or a rollup the field on every record it was computed FROM
+ * (the ids kept with the value, never the record's links as they are later), each of those records visible to them. A value computed from other computed values is judged on those too, a few hops deep. Used by
+ * the host's read rule (host/src/daemon/record-access.ts) and by export, so a computed value leaves by one rule.
+ */
+export function mayReadComputed(d: ComputedReadDeps, type: string, id: string, c: ComputedSide, depth = 0): boolean {
+  if (depth > 4) return false;
+  let inputs: string[];
+  try {
+    inputs = JSON.parse(c.inputs) as string[];
+  } catch {
+    return false;
+  }
+  const prefix = `${type}.`;
+  const side = d.sideOf(type, id);
+  if (c.kind === "formula") {
+    const own = inputs.filter((x) => x.startsWith(prefix)).map((x) => x.slice(prefix.length));
+    if (!d.visibleOn(type, id, [...own, c.field])) return false;
+    for (const f of own) {
+      const s = side.find((x) => x.field === f);
+      if (s && !mayReadComputed(d, type, id, s, depth + 1)) return false;
+    }
+    return true;
+  }
+  // lookup or rollup: inputs are [type.via, targetType.field]
+  const via = inputs[0]?.slice(prefix.length);
+  const target = inputs[1]?.split(".");
+  if (!via || !target || target.length !== 2) return false;
+  const [targetType, targetField] = target as [string, string];
+  if (!d.visibleOn(type, id, [via, c.field])) return false;
+  let from: string[] | null = null;
+  try {
+    from = c.link_ids == null ? null : (JSON.parse(c.link_ids) as string[]);
+  } catch {
+    from = null;
+  }
+  if (from === null) return false;
+  for (const link of from) {
+    if (!d.visibleOn(targetType, link, [targetField])) return false;
+    const s = d.sideOf(targetType, link).find((x) => x.field === targetField);
+    if (s && !mayReadComputed(d, targetType, link, s, depth + 1)) return false;
+  }
+  return true;
+}

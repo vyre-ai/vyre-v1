@@ -4,6 +4,7 @@ import type { CtxSeed } from "../invoke.ts";
 import { fail } from "../routes/errors.ts";
 import { recordSensitivity } from "./record-sensitivity.ts";
 import { canonical } from "../../../lib/canonical.ts";
+import { mayReadComputed as sharedMayRead } from "../../../lib/computed-fields.ts";
 import type { Filter, Sort } from "../../../kernel/src/store/types.ts";
 
 type ReadSeed = CtxSeed & { readCap?: string; readInput?: unknown; labels?: Readonly<Record<string, number>> };
@@ -124,6 +125,7 @@ export function createRecordAccess(ports: {
           if (policy.kind === "provider_label") ceiling = Math.min(ceiling, providerMax(policy, req.provider));
       for (const field of roots)
         if (
+          computedDefOf(type, field) !== null ||
           hidden.has(field) ||
           (!["id", "version", "created_at", "updated_at"].includes(field) && labels[field] === undefined) ||
           (labels[field] ?? 0) > ceiling ||
@@ -348,6 +350,80 @@ export function createRecordAccess(ports: {
     return yes;
   };
   const typeHas = new WeakMap<object, Map<string, boolean>>();
+  /** The definition of a computed field of a type, as the side table knows it: its kind and what it reads (type.field). Null when the field is not computed. Unknown inputs (a fill that has made no value yet) are null. */
+  const computedDefOf = (type: string, field: string): { kind: string; inputs: string[] | null } | null => {
+    if (!ports.rows || !SAFE_TYPE.test(type)) return null;
+    try {
+      const r = ports.rows.all(
+        "SELECT kind, inputs FROM records_computed WHERE type = ? AND field = ? LIMIT 1",
+        type,
+        field,
+      )[0] as { kind: string; inputs: string } | undefined;
+      if (r) return { kind: r.kind, inputs: JSON.parse(r.inputs) as string[] };
+      return ports.rows.all("SELECT 1 AS x FROM records_computed_job WHERE type = ? AND field = ? LIMIT 1", type, field)
+        .length
+        ? { kind: "unknown", inputs: null }
+        : null;
+    } catch {
+      return null;
+    }
+  };
+  /** Does this reader see everything of a type: every record, every field, within the label ceiling of their grant (the test that lets a read take the plain indexed path)? */
+  async function unrestrictedOn(req: Req, type: string, trace: string): Promise<boolean> {
+    const snapshot = ports.snapshot();
+    const parent = authorize(snapshot, { ...req, resource: { type: "record_type", id: type } });
+    const scope = parent.scope;
+    if (
+      parent.effect !== "allow" ||
+      !scope ||
+      scope.rowFilter ||
+      scope.hiddenFields.length ||
+      snapshot.cutFrom(type) > 0 ||
+      req.provider
+    )
+      return false;
+    if (scope.labelCeiling >= 3) return true;
+    if (
+      [...snapshot.allResources()].some(
+        (r) => r.type === "record" && inType(snapshot, r, type) && r.label > scope.labelCeiling,
+      )
+    )
+      return false;
+    const definition = await ports.store().describe(type);
+    const labels = await recordSensitivity(ports.store(), type, trace);
+    return (
+      !!definition &&
+      definition.fields.every(
+        (field) =>
+          (labels[field.name] ?? 0) <= scope.labelCeiling &&
+          snapshot.fieldLabel(type, field.name) <= scope.labelCeiling &&
+          snapshot.fieldLabel("record", field.name) <= scope.labelCeiling,
+      )
+    );
+  }
+  /**
+   * Does a sort, group or filter name a computed field this reader cannot be trusted to order or select by: one that reads another type they do not see in full, or whose inputs are not known yet? Decided from the
+   * definition and their grants, never from the data. Such a read takes the restricted path, where the field counts as empty for sorting and a filter on it is refused.
+   */
+  async function computedNeedsScope(
+    req: Req,
+    type: string,
+    names: readonly string[],
+    trace: string,
+    depth = 0,
+  ): Promise<boolean> {
+    for (const field of names) {
+      const def = computedDefOf(type, field);
+      if (!def) continue;
+      if (def.inputs === null || depth > 3) return true;
+      for (const input of def.inputs) {
+        const [t, f] = input.split(".") as [string, string];
+        if (t !== type && !(await unrestrictedOn(req, t, trace))) return true;
+        if (await computedNeedsScope(req, t, [f], trace, depth + 1)) return true;
+      }
+    }
+    return false;
+  }
   const sideMemo = new WeakMap<object, Map<string, Side[]>>();
   const sideOf = (seed: ReadSeed, type: string, id: string): Side[] => {
     if (!ports.rows || !SAFE_TYPE.test(type)) return [];
@@ -419,44 +495,13 @@ export function createRecordAccess(ports: {
     return ok;
   }
   function mayReadComputed(seed: ReadSeed, type: string, id: string, c: Side, depth: number): boolean {
-    if (depth > 4) return false;
-    let inputs: string[];
-    try {
-      inputs = JSON.parse(c.inputs) as string[];
-    } catch {
-      return false;
-    }
-    const prefix = `${type}.`;
-    const side = sideOf(seed, type, id);
-    if (c.kind === "formula") {
-      const own = inputs.filter((x) => x.startsWith(prefix)).map((x) => x.slice(prefix.length));
-      if (!visibleOn(seed, type, id, [...own, c.field])) return false;
-      for (const f of own) {
-        const s = side.find((x) => x.field === f);
-        if (s && !mayReadComputed(seed, type, id, s, depth + 1)) return false;
-      }
-      return true;
-    }
-    // lookup or rollup: inputs are [type.via, targetType.field]
-    const via = inputs[0]?.slice(prefix.length);
-    const target = inputs[1]?.split(".");
-    if (!via || !target || target.length !== 2) return false;
-    const [targetType, targetField] = target as [string, string];
-    if (!visibleOn(seed, type, id, [via, c.field])) return false;
-    // judged on the records the value was computed FROM (kept with it), never on the record's links as they are now: the record may have changed since, and the value not yet recomputed
-    let from: string[] | null = null;
-    try {
-      from = c.link_ids == null ? null : (JSON.parse(c.link_ids) as string[]);
-    } catch {
-      from = null;
-    }
-    if (from === null) return false;
-    for (const link of from) {
-      if (!visibleOn(seed, targetType, link, [targetField])) return false;
-      const s = sideOf(seed, targetType, link).find((x) => x.field === targetField);
-      if (s && !mayReadComputed(seed, targetType, link, s, depth + 1)) return false;
-    }
-    return true;
+    return sharedMayRead(
+      { visibleOn: (t, i, names) => visibleOn(seed, t, i, names), sideOf: (t, i) => sideOf(seed, t, i) },
+      type,
+      id,
+      c,
+      depth,
+    );
   }
   /** The computed values of one record this reader may read, as fields (gate: the rule for the record's own field names). */
   function computedFields(seed: ReadSeed, row: StoredRecord, gate: (key: string) => boolean): Record<string, unknown> {
@@ -569,7 +614,15 @@ export function createRecordAccess(ports: {
         scope = parent.scope;
       if (parent.effect === "hold") throw fail("permission.needs_approval", trace);
       const cut = snapshot.cutFrom(type) > 0;
+      const namedRoots = [
+        ...references(value["filter"]),
+        ...(Array.isArray(value["sort"]) ? (value["sort"] as Sort[]).map((row) => row.field) : []),
+        ...(typeof value["group"] === "string" ? [value["group"]] : []),
+      ].map((field) => field.split(".")[0]!);
+      // a sort or filter by a computed field that reads a type this reader does not see in full goes the restricted way (the field is empty for sorting, a filter is refused)
+      const computedRestricted = await computedNeedsScope(req, type, namedRoots, trace);
       if (
+        !computedRestricted &&
         parent.effect === "allow" &&
         scope &&
         !scope.rowFilter &&
@@ -585,6 +638,7 @@ export function createRecordAccess(ports: {
       // Keep the existing indexed query/FTS path for unrestricted callers. The
       // scoped path below pages authorized rows, rather than filtering a raw page.
       if (
+        !computedRestricted &&
         !seed.provider &&
         !cut &&
         parent.effect === "allow" &&
@@ -635,6 +689,10 @@ export function createRecordAccess(ports: {
       if (typeof value["group"] === "string" && !askedSort.some((row) => row.field === value["group"]))
         askedSort.unshift({ field: value["group"], dir: "asc" });
       const touched = references(value["filter"]).map((field) => field.split(".")[0]!);
+      if (touched.some((field) => computedDefOf(type, field) !== null))
+        throw fail("permission.no_grant", trace, {
+          message: "Filtering by a computed field is not available with the access you have to this table.",
+        });
       const sortRoots = (): string[] => askedSort.map((row) => row.field.split(".")[0]!);
       if (!saved0) for (const field of sortBlocked(req, type, seed.labels ?? {}, sortRoots())) drop.add(field);
       const sort = askedSort.filter((row) => !drop.has(row.field.split(".")[0]!));
