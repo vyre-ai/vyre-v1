@@ -36,6 +36,8 @@ export interface PendingAnnouncement {
 const dec = new TextDecoder();
 const TYPE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const PAGE = 500;
+/** Ids read per step by the repair's scan: a step is short, and the loop is given back between steps. */
+const ID_PAGE = 1000;
 
 export const readMark = (file: string): number | null => {
   try {
@@ -186,7 +188,7 @@ export async function orphanAnnouncements(a: {
     const heard = new Set<string>();
     for (let after = 0; ; ) {
       const rows = log.all(
-        "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 5000",
+        "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 1000",
         after,
       ) as { seq: number; entity_id: string | null }[];
       if (!rows.length) break;
@@ -199,17 +201,18 @@ export async function orphanAnnouncements(a: {
       if (!TYPE_NAME.test(type)) continue;
       for (let after = ""; ; ) {
         const rows = space.all(
-          `SELECT id, data FROM "${t}" WHERE deleted_at IS NULL AND created_at < ? AND id > ? ORDER BY id LIMIT ${PAGE}`,
+          `SELECT id FROM "${t}" WHERE deleted_at IS NULL AND created_at < ? AND id > ? ORDER BY id LIMIT ${ID_PAGE}`,
           a.before,
           after,
-        ) as { id: string; data: string }[];
+        ) as { id: string }[];
         if (!rows.length) break;
         for (const r of rows) {
           after = r.id;
           if (heard.has(r.id)) continue;
           let data: Record<string, unknown> = {};
           try {
-            data = JSON.parse(r.data) as Record<string, unknown>;
+            const row = space.all(`SELECT data FROM "${t}" WHERE id = ?`, r.id)[0] as { data: string } | undefined;
+            data = row ? (JSON.parse(row.data) as Record<string, unknown>) : {};
           } catch {
             /* a row that cannot be read is announced with no fields: it still becomes a resource */
           }
