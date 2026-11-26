@@ -1,0 +1,1 @@
+- The start-up scans of the log decode each event payload once and share the result, instead of decoding it again in every scan.

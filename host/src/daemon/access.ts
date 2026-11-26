@@ -1,5 +1,6 @@
 // The daemon's access snapshot: the event log folded into the kernel's AccessSnapshot so `authorize` answers for the live Space. Booting reads the whole log once; every commit folds its own events.
 // Only the access event types matter here (the same six the seeded Spaces use); the access module's own projections (L7a) can replace this fold without touching the daemon's callers.
+import { decodePayload } from "../../../lib/decode-payload.ts";
 import { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import type {
   GrantRow,
@@ -16,7 +17,7 @@ export interface FoldableEvent {
 
 function body<T>(e: FoldableEvent): T {
   const p = e.payload;
-  if (p instanceof Uint8Array) return JSON.parse(new TextDecoder().decode(p)) as T;
+  if (p instanceof Uint8Array) return decodePayload(p) as T;
   return p as T;
 }
 
