@@ -69,7 +69,19 @@ export default defineManifest({
       tool: "engineer",
     }),
     read("health.doctor", "Doctor results: each check with a plain next step; same output as `vyre-server doctor`", {
-      out: { ok: t.bool(), findings: t.arr(t.obj({ key: t.str(), state, next: t.str() })) },
+      out: {
+        ok: t.bool(),
+        findings: t.arr(
+          t.obj({
+            key: t.str(),
+            title: t.str(),
+            state,
+            detail: t.opt(t.str()),
+            notSetUp: t.opt(t.bool()),
+            next: t.str(),
+          }),
+        ),
+      },
       perm: "console.access",
       tool: "engineer",
       cli: "vyre doctor",

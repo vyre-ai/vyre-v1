@@ -1075,3 +1075,12 @@ Signed: 25 Nov 2026, lead.
 - Snapshots: docs/frozen/snapshots/records.json.
 
 Signed: 26 Nov 2026, lead.
+
+## 27 Nov 2026: health.doctor lists every check, with its title and what it found, and names a service that is not set up (lane rc44-integration, Meier), for the lead to sign
+
+- What changed in contracts, additive in shape: the answer of health.doctor, `{ ok, findings }`. Each finding was `{ key, state, next }` and only for a check that was not healthy; it is now `{ key, title, state, detail?, notSetUp?, next }` and the list holds every check, the ones that are fine too. `detail` is what the check reported in words (absent when it said nothing). `notSetUp` is true on a finding whose service is not set up (its check answers healthy with "not set up" in its detail, or its capability is not wired in the Space). `ok` is true when no check is degraded or down. No new capability, no event, no permission, no change to any input.
+- Why: on Meier rc.42 the doctor showed 32 findings with an empty detail, many for services that are not set up, and listed nothing that was fine. A person could not tell a failure from a service that was never turned on.
+- A capability that answers `internal.unavailable` to a health check now reads as not set up (healthy, notSetUp) and no longer as down with "The check could not run"; a down check still pauses its areas, a not set up one pauses nothing.
+- Snapshots: docs/frozen/snapshots/health.json.
+
+Signed:

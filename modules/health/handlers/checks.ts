@@ -352,6 +352,9 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   try {
     answer = await withTimeout(Promise.resolve(ctx.call(def.cap as CapName, {})), def.timeoutMs);
   } catch (e) {
+    // a module whose service is not wired in this Space (no connection, no key) answers unavailable: that is "not set up", the way each module's own check says it, and not a failure
+    if (codeOf(e) === "internal.unavailable")
+      return { state: "healthy", detail: `${def.title} is not set up.`, latencyMs: Math.round(performance.now() - t0) };
     return {
       state: "down",
       detail: `The check could not run (${codeOf(e)}).`,
@@ -584,12 +587,31 @@ export function pausedOf(ctx: HealthCtx): { area: Area; key: string; reason: str
   return out;
 }
 
-/** Run every check now and list the ones that are not healthy, each with its next step: the output of `vyre-server doctor`. */
+/** A service that is not set up reads healthy, with this in its detail (the convention of every module's check): the doctor says so in words and does not count it as a failure. */
+const NOT_SET_UP = /\bnot set up\b/i;
+
+export interface Finding {
+  key: string;
+  title: string;
+  state: State;
+  detail?: string;
+  notSetUp?: boolean;
+  next: string;
+}
+
+/** Run every check now and list each one with its state, what it found and its next step: the output of `vyre-server doctor`. A check that is fine is listed too; `ok` is true when none is degraded or down. */
 export async function doctor(
   ctx: HealthCtx,
   defs: readonly HealthDef[],
-): Promise<{ ok: boolean; findings: { key: string; state: State; next: string }[] }> {
+): Promise<{ ok: boolean; findings: Finding[] }> {
   const { rows } = await runChecks(ctx, defs);
-  const findings = rows.filter((r) => r.state !== "healthy").map((r) => ({ key: r.key, state: r.state, next: r.next }));
-  return { ok: findings.length === 0, findings };
+  const findings = rows.map((r) => ({
+    key: r.key,
+    title: r.title,
+    state: r.state,
+    ...(r.detail ? { detail: r.detail } : {}),
+    ...(r.state === "healthy" && r.detail && NOT_SET_UP.test(r.detail) ? { notSetUp: true } : {}),
+    next: r.next,
+  }));
+  return { ok: findings.every((f) => f.state === "healthy"), findings };
 }

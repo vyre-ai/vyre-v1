@@ -5,7 +5,7 @@
     "health.disk_encrypted@1": "d1405d0ae7ef75dfe864db74b9527f5faae8d67d992ea975292bc749ff37ce34",
     "health.disk_space@1": "811a9c83f0d73c84fe3d9ad5e5146610083e2573591345b3a87ee7ca7d46fdb7",
     "health.docker@1": "ee5bff7b9a4088ab5b406a941920bcfb889e7269fe8e07053d7fad7c27f4126c",
-    "health.doctor@1": "3a156258d3534cea0b66e0f27978270d5de684ee32f2b2bd211ed046c33c2911",
+    "health.doctor@1": "9e8096578c650e952fd3a53b970e95a0b4181d170ebd9ac76d5d583533e63123",
     "health.events_db@1": "da89f2bed49f7cb5eff4440f466688d923ffe5a0b433a28dcc4454ac2906a8c2",
     "health.history@1": "a99892df164d7a50855f82cd1d7d4ce6307d0093e93aadfb48a6f6da382f5269",
     "health.index_db@1": "ea6ba2a251efed53eb949933e246ad09c00529f8714406a1b9cfdf1c6dfd66af",

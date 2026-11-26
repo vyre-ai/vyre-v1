@@ -34,7 +34,10 @@ type Out = {
   ok: boolean;
   findings: Array<{
       key: string;
+      title: string;
       state: "healthy" | "degraded" | "down";
+      detail?: string;
+      notSetUp?: boolean;
       next: string;
     }>;
 };
@@ -57,9 +60,12 @@ type Out = {
   "output": {
     "findings": [
       {
+        "detail": "example",
         "key": "example",
         "next": "example",
-        "state": "healthy"
+        "notSetUp": true,
+        "state": "healthy",
+        "title": "example"
       }
     ],
     "ok": true

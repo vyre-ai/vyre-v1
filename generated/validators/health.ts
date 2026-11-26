@@ -131,10 +131,14 @@ const b4039: string[] = []; lf(x4039, p + "/findings" + '/' + i4038, b4039, L0);
 if (g4039 === "object") {
 if (g4039 === 'object') { const o4039 = x4039 as Record<string, unknown>;
 if (!("key" in o4039)) e.push(p + "/findings" + '/' + i4038 + "/key" + ': required');
+if (!("title" in o4039)) e.push(p + "/findings" + '/' + i4038 + "/title" + ': required');
 if (!("state" in o4039)) e.push(p + "/findings" + '/' + i4038 + "/state" + ': required');
 if (!("next" in o4039)) e.push(p + "/findings" + '/' + i4038 + "/next" + ': required');
 if ("key" in o4039) lf(o4039["key"], p + "/findings" + '/' + i4038 + "/key", e, L1);
+if ("title" in o4039) lf(o4039["title"], p + "/findings" + '/' + i4038 + "/title", e, L1);
 if ("state" in o4039) lf(o4039["state"], p + "/findings" + '/' + i4038 + "/state", e, L49);
+if ("detail" in o4039) lf(o4039["detail"], p + "/findings" + '/' + i4038 + "/detail", e, L1);
+if ("notSetUp" in o4039) lf(o4039["notSetUp"], p + "/findings" + '/' + i4038 + "/notSetUp", e, L3);
 if ("next" in o4039) lf(o4039["next"], p + "/findings" + '/' + i4038 + "/next", e, L1);
 }
 }

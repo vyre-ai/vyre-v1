@@ -1,0 +1,1 @@
+- health.doctor and `vyre-server doctor` list every check, the ones that are fine too, each with its title and what it found, and say "not set up" for a service that is not set up (it no longer counts as degraded or down).
