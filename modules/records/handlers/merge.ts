@@ -1215,7 +1215,6 @@ async function exportRows(
   const first: ViewSpec = {
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
-    ...(input.offset ? { offset: input.offset } : {}),
     limit: MAX_LIMIT,
   };
   // the fields the filter and the sort name (the first segment of each path); the record's own columns are not fields a grant can hide
@@ -1232,6 +1231,8 @@ async function exportRows(
     for (const k of input.sort ?? []) out.add(k.field.split(".")[0]!);
     return [...out].filter((f) => byName.has(f));
   })();
+  // the first `offset` rows are skipped here, among the rows the caller may have (not in the query): an offset the query counted would count the rows left out too, and stepping it would say which they were
+  let toSkip = input.offset ?? 0;
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -1248,6 +1249,10 @@ async function exportRows(
         )
       )
         continue;
+      if (toSkip > 0) {
+        toSkip--;
+        continue;
+      }
       if (rows.length >= want) break;
       if (rows.length >= cap) bad(ctx, "Excel holds at most 1,048,575 data rows: export CSV or narrow the view");
       // and only the columns the caller may read: a grant can hide a field (and a label can lift it out of reach), and a file cannot be filtered after it is written. Asked for every column at once (the common case: nothing

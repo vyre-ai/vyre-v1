@@ -123,3 +123,79 @@ test("a filter or a sort on a field the caller cannot read leaves the record out
   for (const l of ["a", "b", "c"])
     assert.equal(sorted.includes(`Exp ${tag} ${l}`), false, `a sort by the hidden price places no row (${l}) for them`);
 });
+
+test("stepping the offset of an export does not count the records left out: the file at every offset is the file of the records the caller may have", async () => {
+  const tag = `eoff${Math.random().toString(36).slice(2, 6)}`;
+  const type = `expo_${tag}`;
+  await h.owner.call("schema.apply", {
+    idempotencyKey: `${tag}-t`,
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "Line",
+          plural: "Lines",
+          icon: "table",
+          titleField: "name",
+          fields: ["name", "price"].map((key) => ({ key, type: key === "name" ? "text" : "number", title: key })),
+        },
+      },
+    ],
+  });
+  // three records in the order of their names; the price is readable on a and c and hidden on b, and every price matches the filter
+  const ids: string[] = [];
+  for (const [n, l] of ["a", "b", "c"].entries()) {
+    const r = (await h.owner.call("records.create", { type, fields: { name: `Off ${tag} ${l}`, price: 100 + n } })) as {
+      record: { id: string };
+    };
+    ids.push(r.record.id);
+  }
+  const roles = (await h.owner.call("access.roles.list")).roles as Array<{ id: string; name: string }>;
+  const made = (
+    await h.owner.call("access.roles.create", {
+      name: `Exporter ${tag}`,
+      cloneFrom: roles.find((r) => r.name === "Member")!.id,
+    })
+  ).role as {
+    id: string;
+    permissions: string[];
+  };
+  const permissions = [...new Set([...made.permissions, "records.export"])];
+  const prev = await h.owner.call("access.roles.preview", { roleId: made.id, permissions });
+  await h.owner.call("access.roles.apply", { roleId: made.id, permissions, previewHash: prev.previewHash });
+  const person = async (name: string): Promise<Person> => {
+    const inv = await h.owner.call("members.invites.create", { role: made.id, email: `${name}@firm.test` });
+    const n = h.person(`E ${name}`, name, `${name}@firm.test`, `${name} horse battery staple 9`);
+    await joined(n, decodeURIComponent(new URL(String(inv.link)).pathname.split("/").pop()!));
+    for (const [at, id] of ids.entries()) {
+      await h.owner.call("access.audience_set", { resource: { type: "record", id }, audience: "added" });
+      await h.owner.call("access.share", {
+        resource: { type: "record", id },
+        subject: { kind: "person", id: n.personId },
+        level: "view",
+        ...(at === 1 ? { conditions: { hiddenFields: ["price"] } } : {}),
+        idempotencyKey: `${tag}-${name}-${id}`,
+      });
+    }
+    return n;
+  };
+  const fileText = async (who: Pick<Person, "call" | "attempt">, input: Record<string, unknown>): Promise<string> => {
+    const asked = await who.attempt("records.export", { type, format: "csv", ...input });
+    assert.ok(asked.ok, `the export was answered: ${JSON.stringify(asked.ok ? "" : asked.error).slice(0, 200)}`);
+    const read = (await who.call("files.read", { fileId: (asked.data as { fileId: string }).fileId, as: "text" })) as {
+      text?: string;
+      base64?: string;
+    };
+    return read.text ?? Buffer.from(read.base64 ?? "", "base64").toString("utf8");
+  };
+  const spec = { filter: { field: "price", op: "gte", value: 100 }, sort: [{ field: "name", dir: "asc" }], limit: 1 };
+  const has = (text: string): string => ["a", "b", "c"].filter((l) => text.includes(`Off ${tag} ${l}`)).join("");
+  // control: the owner steps through all three, one at a time
+  const owner0 = await fileText(h.owner, { ...spec, offset: 0 });
+  assert.equal(has(owner0), "a", "control: the owner's first step is a");
+  // the person may have a and c (b is hidden by price on b, and the filter names price): offset 0, 1, 2 give a, c, nothing, exactly as if b did not exist
+  const got: string[] = [];
+  for (const offset of [0, 1, 2]) got.push(has(await fileText(await person(`o${offset}${tag}`), { ...spec, offset })));
+  assert.deepEqual(got, ["a", "c", ""], "offset 0, 1, 2 give a, c and nothing: the record left out takes no step");
+});
