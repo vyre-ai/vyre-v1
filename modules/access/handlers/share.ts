@@ -110,6 +110,8 @@ export class ShareStore {
   idem = new Map<string, unknown>();
   /** The objects whose rows must be worked out again before this cache is current (what the access tables did since it was built): taken from the kept copy by `shareOf`, worked off by `ensureFresh` or `commit`. */
   pending: string[] = [];
+  /** The people whose rows must be worked out again, over every resource, before this cache is current (a role given, a group joined, a person added or suspended): worked off like `pending`. */
+  pendingWho: string[] = [];
   /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
   byRes: Map<string, Set<string>> | null = null;
 }
@@ -142,8 +144,10 @@ function tryAll(db: Db, sql: string): Record<string, unknown>[] {
 interface Base {
   resources: Map<string, ResourceRec>;
   grants: Map<string, GrantRec>;
-  /** everything else the store holds, as text: small, and compared whole */
+  /** everything else the store holds but what is each person's own, as text: small, and compared whole */
   rest: string;
+  /** each person's own state (the person, the roles given to them, the groups they are in), as text: a difference names the person whose rows must be worked out again */
+  people: Map<string, string>;
 }
 interface Kept {
   /** the store the copy was built from and its epoch: the same store at the same epoch has changed nothing, so nothing is compared */
@@ -166,17 +170,37 @@ export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discard
 function restOf(store: AccessStore): string {
   const sorted = <K, V>(m: Iterable<[K, V]>): [K, V][] =>
     [...m].sort((a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0));
+  const person = (id: string): boolean => store.principals.get(id)?.kind === "person";
   return canonical([
     [...store.catalogue].sort(),
     sorted(store.roles),
     sorted(store.roleChanges),
-    sorted(store.groups),
-    sorted(store.principals),
+    // a group without the people in it (who is in it is each person's own state, see peopleOf)
+    sorted([...store.groups].map(([k, g]) => [k, { ...g, members: g.members.filter((m) => !person(m.id)) }] as const)),
+    sorted([...store.principals].filter(([, p]) => p.kind !== "person")),
     sorted(store.policies),
     sorted(store.actors),
-    sorted(store.assignments),
+    sorted([...store.assignments].filter(([holder]) => !person(holder))),
     sorted([...store.fieldLabels].filter(([k]) => k !== CURSOR_KEY)),
   ]);
+}
+
+/** What belongs to each person alone: their record, the roles given to them, the groups they are in. A change to one of these changes that person's rows and nobody else's. */
+function peopleOf(store: AccessStore): Map<string, string> {
+  const inGroups = new Map<string, string[]>();
+  for (const g of store.groups.values())
+    for (const m of g.members) {
+      const l = inGroups.get(m.id) ?? [];
+      l.push(g.id);
+      inGroups.set(m.id, l);
+    }
+  const out = new Map<string, string>();
+  for (const p of store.principals.values()) {
+    if (p.kind !== "person") continue;
+    out.set(p.id, canonical([p, [...(store.assignments.get(p.id) ?? [])].sort(), (inGroups.get(p.id) ?? []).sort()]));
+  }
+  // a holder or a member that is no principal of kind person yet still is somebody's: it is named by its id
+  return out;
 }
 /** The same resource, field by field (a store loaded again holds new objects for the same rows). */
 function sameResource(a: ResourceRec, b: ResourceRec): boolean {
@@ -207,11 +231,17 @@ const baseOf = (store: AccessStore): Base => ({
   resources: new Map(store.resources),
   grants: new Map(store.grants),
   rest: restOf(store),
+  people: peopleOf(store),
 });
 
 /** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
-export function changedRoots(base: Base, store: AccessStore): string[] | null {
+export function changedRoots(base: Base, store: AccessStore): { roots: string[]; who: string[] } | null {
   if (restOf(store) !== base.rest) return null;
+  const now = peopleOf(store);
+  // the people whose own state differs, or who are new or gone: their rows are worked out again over every resource, and nobody else's are
+  const who: string[] = [];
+  for (const [id, text] of now) if (base.people.get(id) !== text) who.push(id);
+  for (const id of base.people.keys()) if (!now.has(id)) who.push(id);
   const roots = new Set<string>();
   for (const [id, r] of store.resources) {
     const was = base.resources.get(id);
@@ -231,7 +261,7 @@ export function changedRoots(base: Base, store: AccessStore): string[] | null {
     if (!grantAt(g) || (was && !grantAt(was))) return null;
   }
   for (const [id, g] of base.grants) if (!store.grants.has(id) && !grantAt(g)) return null;
-  return [...roots];
+  return { roots: [...roots], who };
 }
 
 /** The share state as the tables hold it: folders, placement, and the my_access rows. */
@@ -275,19 +305,20 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     const st = kept ? stateOf(ctx.db) : null;
     if (kept && st && st.rows === kept.rows && st.folders === kept.folders && kept.ss.fresh >= 0) {
       const store = storeOf(ctx);
-      const roots =
+      const changes =
         ctx.now() >= kept.ss.until
           ? null
           : kept.store === store && kept.epoch === store.epoch
-            ? []
+            ? { roots: [], who: [] }
             : changedRoots(kept.base, store);
-      if (roots) {
+      if (changes) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
-        ss.pending = roots;
+        ss.pending = changes.roots;
+        ss.pendingWho = changes.who;
         ss.fresh = store.epoch;
         ss.idem = new Map(); // what a call remembered of its own idempotency keys is that call's, not the next call's
-        if (!roots.length) shareKept.hits++;
+        if (!changes.roots.length && !changes.who.length) shareKept.hits++;
         SHARES.set(ctx.db, ss);
         return ss;
       }
@@ -634,6 +665,9 @@ function snapshotForRows(store: AccessStore): AccessSnapshot {
 }
 const activePeople = (store: AccessStore): string[] =>
   [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+/** The people whose rows are worked out: those named (when any are), and active. A person named who is gone or suspended is worked out as nobody, so the rows they had are dropped. */
+const peopleToWork = (store: AccessStore, who: readonly string[] | null): string[] =>
+  who ? who.filter((id) => store.principals.get(id)?.kind === "person" && store.principals.get(id)?.status === "active") : activePeople(store);
 
 /** Put `next` (the rows worked out for `scope`) into the cache in memory, and say which rows to delete from and write to the table. Writes nothing to the table. */
 function applyRows(
@@ -644,11 +678,13 @@ function applyRows(
   scope: Set<string> | null,
   next: Map<string, AccessRow>,
   now: number,
+  who: ReadonlySet<string> | null = null,
 ): { gone: AccessRow[]; touched: AccessRow[] } {
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
   const dropIfGone = (key: string): void => {
     const old = ss.access.get(key);
+    if (who && old && !who.has(old.person)) return; // somebody this rebuild was not asked about
     if (old && !next.get(key)) {
       dropRow(ss, key);
       gone.push(old);
@@ -708,12 +744,18 @@ function writeFailed(ctx: AccessCtx, ss: ShareStore, e: unknown): never {
 }
 
 /** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
-function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
+function rebuild(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  who: readonly string[] | null = null,
+): void {
   const snap = snapshotForRows(store);
   const now = ctx.now();
   const scope = roots === "all" ? null : descendants(store, roots);
-  const next = computeRows(ss, store, snap, activePeople(store), scope, now);
-  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
+  const next = computeRows(ss, store, snap, peopleToWork(store, who), scope, now);
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now, who ? new Set(who) : null);
   try {
     // the rows of one rebuild are one transaction: each statement was a commit of its own, and a change to a hundred files (an export of a connector) paid for a few hundred commits, each dearer on a bigger database
     const write = (): void => {
@@ -779,6 +821,7 @@ async function buildSliced(
   ss: ShareStore,
   roots: readonly string[] | "all",
   scope: Set<string> | null,
+  who: readonly string[] | null = null,
 ): Promise<boolean> {
   shareKept.sliced++;
   const turn = turns();
@@ -793,7 +836,7 @@ async function buildSliced(
     ss,
     store,
     snap,
-    activePeople(store),
+    peopleToWork(store, who),
     scope,
     now,
     turn,
@@ -803,8 +846,9 @@ async function buildSliced(
     shareKept.discarded++;
     return false;
   }
-  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
-  ss.pending = [];
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now, who ? new Set(who) : null);
+  if (who) ss.pendingWho = [];
+  else ss.pending = [];
   // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
   let clean = true;
   let seen = stateOf(ctx.db)?.rows;
@@ -858,15 +902,20 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
   if (!isReader(ctx)) return;
   const raw = rawDbOf(ctx.db);
   if (!raw) return;
-  for (let tries = 0; tries < 2; tries++) {
+  for (let tries = 0; tries < 3; tries++) {
     const store = storeOf(ctx);
     const ss = shareOf(ctx);
     // stale for the whole Space (the first read after a start, or the world moved too far), or fresh but with many resources to work out again (a sync that added thousands of records): either way the same work, in slices
     const fresh = isFresh(ctx, store, ss);
-    if (fresh && !ss.pending.length) return;
-    const roots: readonly string[] | "all" = fresh ? [...ss.pending] : "all";
+    if (fresh && !ss.pending.length && !ss.pendingWho.length) return;
+    // fresh: the resources to work out again (for everyone) first, then the people (over every resource); stale: everything
+    const roots: readonly string[] | "all" = fresh && ss.pending.length ? [...ss.pending] : "all";
+    const who: readonly string[] | null = fresh && !ss.pending.length ? [...ss.pendingWho] : null;
     const scope = roots === "all" ? null : descendants(store, roots);
-    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < sliceTuning.from)
+    if (
+      (scope ? scope.size : store.resources.size) * Math.max(1, who ? peopleToWork(store, who).length : activePeople(store).length) <
+      sliceTuning.from
+    )
       return;
     const under = BUILDING.get(raw);
     if (under) {
@@ -874,7 +923,7 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
       dropShare(ctx.db);
       continue;
     }
-    const build = buildSliced(ctx, store, ss, roots, scope);
+    const build = buildSliced(ctx, store, ss, roots, scope, who);
     BUILDING.set(
       raw,
       build.then(
@@ -887,11 +936,12 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
       applied = await build;
     } finally {
       BUILDING.delete(raw);
-      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with
-      dropShare(ctx.db);
+      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with. Where the build did one part of the work (the resources
+      // changed, the people changed are still to do) this call's own state is kept: it is what the next part is worked out on, and nothing is published until both are done
+      if (!applied || !(ss.pending.length || ss.pendingWho.length)) dropShare(ctx.db);
     }
     // the store moved on while it was worked out: nothing was applied, and the view is looked at again as it is now
-    if (applied) return;
+    if (applied && !(ss.pending.length || ss.pendingWho.length)) return;
   }
 }
 
@@ -904,20 +954,24 @@ function isFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): boolean {
 function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
-  if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length) return;
+  if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length || ss.pendingWho.length) return;
   KEPT.set(raw, { store, epoch: store.epoch, ss, base: baseOf(store), rows: st.rows, folders: st.folders });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const reader = isReader(ctx);
   if (isFresh(ctx, store, ss)) {
-    if (!ss.pending.length) return;
+    if (!ss.pending.length && !ss.pendingWho.length) return;
     const roots = ss.pending;
+    const who = ss.pendingWho;
     ss.pending = [];
-    rebuild(ctx, store, ss, roots);
+    ss.pendingWho = [];
+    if (roots.length) rebuild(ctx, store, ss, roots);
+    if (who.length) rebuild(ctx, store, ss, "all", who);
     shareKept.incremental++;
   } else {
     ss.pending = [];
+    ss.pendingWho = [];
     rebuild(ctx, store, ss, "all");
     shareKept.built++;
   }
@@ -935,8 +989,11 @@ function commit(
 ): void {
   if (persistFolderTables) persistFolders(ctx, ss);
   const pending = ss.pending;
+  const who = ss.pendingWho;
   ss.pending = [];
+  ss.pendingWho = [];
   rebuild(ctx, store, ss, wasFresh ? [...new Set([...roots, ...pending])] : "all");
+  if (wasFresh && who.length) rebuild(ctx, store, ss, "all", who);
   if (!isReader(ctx)) publish(ctx, store, ss);
 }
 
