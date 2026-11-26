@@ -232,7 +232,8 @@ export function createDockerApi(http_: DockerHttp): DockerApi {
       if (r.status !== 204 && r.status !== 404) fail("container remove", r);
     },
     async containerRunning(id) {
-      const r = await http_({ method: "GET", path: `/containers/${id}/json` });
+      // a look, not a job: 10 s (the engine's default of 60 s kept every call for the agent waiting behind a stuck one)
+      const r = await http_({ method: "GET", path: `/containers/${id}/json`, timeoutMs: 10_000 });
       return r.status === 200 && json(r).State?.Running === true;
     },
     async exec(id, a) {

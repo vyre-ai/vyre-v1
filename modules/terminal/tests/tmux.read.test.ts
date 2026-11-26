@@ -148,6 +148,40 @@ test("a tab left open neither wakes a sleeping workspace nor keeps it awake: its
   m.close();
 });
 
+test("the pane's status poll is not use either (rc.44): asking every row's state for eleven minutes does not keep the workspace awake, and asking an asleep one does not wake it", async () => {
+  const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } } });
+  const clock = { t: 1_000_000 };
+  const m = createWorkspaceManager({
+    api: createDockerApi(dk.http),
+    http: dk.http,
+    idleMs: 600_000,
+    now: () => clock.t,
+  });
+  const h = createWorkspaceTerminalHost({ manager: m, sleep: async () => undefined });
+  await h.open({
+    terminalId: "w1",
+    target: { host: "agent_computer", agentId: "agt_dex" },
+    name: "agent",
+    cols: 80,
+    rows: 24,
+    folders: [],
+  });
+  await h.run("w1", { command: "echo hi", env: {}, timeoutMs: 5000 });
+  for (let i = 0; i < (11 * 60_000) / 5000; i += 4) {
+    clock.t += 5000 * 4;
+    const st = await h.status(["w1"]);
+    assert.equal(st[0]?.state, "idle");
+  }
+  assert.deepEqual(await m.sweep(), ["agt_dex"], "a page that only asks for the status lets it sleep");
+  const name = workspaceName("agt_dex");
+  const execs = dk.ops("exec").length;
+  const st = await h.status(["w1"]);
+  assert.equal(st[0]?.state, "idle", "asleep, the row is idle");
+  assert.equal(dk.box(name).running, false, "and asking did not wake it");
+  assert.equal(dk.ops("exec").length, execs, "nothing ran in it");
+  m.close();
+});
+
 test("keys typed one at a time reach the shell as typed, a lone semicolon and a chunk ending in one, or in a backslash and one, included (tmux reads a trailing semicolon as the end of a command)", async () => {
   const tm = fakeTmux();
   const host = createTmuxHost({ exec: tm.exec });

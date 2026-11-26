@@ -60,6 +60,10 @@ export const DEFAULT_IDLE_MS = 10 * 60_000;
  * server) would otherwise hold it and its room forever. Then it sleeps anyway, and the next command says so once.
  */
 export const MAX_BUSY_AWAKE_MS = 12 * 60 * 60_000;
+/** The longest a wake waits for the first pass of the Files mirrors before it hands the shell over (the passes go on in the background). */
+export const FIRST_MIRROR_MS = 1500;
+/** The longest a look at a container (inspect, running or not) may take before it fails with a plain error. */
+export const READ_MS = 10_000;
 /** How often a project change waiting for a busy workspace is looked at again. */
 export const MOUNT_RECHECK_MS = 5000;
 
@@ -142,6 +146,8 @@ export interface WorkspaceOptions {
   projectKickMs?: number;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
+  /** The longest a wake waits for the first Files mirror pass. Default FIRST_MIRROR_MS. */
+  firstMirrorMs?: number;
   /** The Space this manager works for: its workspaces carry it (label vyre.space), and it only ever sleeps, removes or gives back the room of those. Omitted: every workspace on the engine (tests). */
   owner?: string;
   /** Does this Space know the agent (a container made before the Space label is ours only then). */
@@ -666,7 +672,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function inspect(
     name: string,
   ): Promise<{ running: boolean; labels: Record<string, string>; projects: string[]; network: string } | null> {
-    const r = await http({ method: "GET", path: `/containers/${name}/json` });
+    // a look at the container is a short question: 10 s, then a plain error (rc.44; the default was 60 s with the agent's whole queue waiting behind it)
+    const r = await http({ method: "GET", path: `/containers/${name}/json`, timeoutMs: READ_MS }).catch(
+      (e: unknown) => {
+        throw wsError(
+          `Docker did not answer in ${READ_MS / 1000} seconds for the workspace (${e instanceof Error ? e.message.slice(0, 120) : "no reason"}).`,
+        );
+      },
+    );
     if (r.status === 404) return null;
     if (r.status !== 200) throw wsError(`Docker did not answer for the workspace (${r.status}: ${bodyText(r.body)}).`);
     const j = JSON.parse(dec.decode(r.body)) as {
@@ -1579,12 +1592,22 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
-    // Files down into ~/Vyre before the first command, then every few seconds while it is awake
-    await homePass(agentId);
+    // Files down into ~/Vyre, then every few seconds while it is awake. The first prompt does not wait for the whole folder (27 Nov, rc.44: a big Files folder made the first screen slow and held every other
+    // call for the agent behind this wake): the passes are started and waited for at most FIRST_MIRROR_MS; what is not done by then goes on in the background (the same shared pass, so a command that
+    // needs a file still freshens it first, `freshen`).
+    const first = homePass(agentId);
     startHome(agentId);
     mounted.set(agentId, want.projects);
     startProjects(agentId, want.projects);
-    for (const p of want.projects) await projectPass(p);
+    const passes = [first, ...want.projects.map((p) => projectPass(p))];
+    await Promise.race([
+      Promise.all(passes),
+      new Promise<void>((done) => {
+        const t = setTimeout(done, o.firstMirrorMs ?? FIRST_MIRROR_MS) as unknown as { unref?: () => void };
+        t.unref?.();
+      }),
+    ]);
+    for (const p of passes) void p.catch(() => undefined);
     startTimer();
     log("info", info ? "workspace.woke" : "workspace.created", { agent: agentId });
     return info ? "woke" : "created";

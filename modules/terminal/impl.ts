@@ -796,15 +796,23 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async status(ids) {
       const out: Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }> = [];
+      // a status read is quiet (rc.44): the pane asks every few seconds for every row, and it must neither wait behind a wake (the serial chain), nor count as use (a page left open kept the workspace awake for
+      // ever), nor start the container; where the host has no quiet way it is the ordinary one
+      const q = o.quietExec ?? o.exec;
+      const qt = async (args: readonly string[]): Promise<string> => {
+        const r = await q(["tmux", ...args]);
+        if (r.code !== 0) throw new Error(`tmux ${args[0] ?? ""} failed: ${r.stderr.trim().slice(0, 200)}`);
+        return r.stdout;
+      };
       for (const terminalId of ids) {
         const session = nameOf(terminalId);
-        const has = await o.exec(["tmux", "has-session", "-t", session]);
+        const has = await q(["tmux", "has-session", "-t", session]);
         if (has.code !== 0) {
           out.push({ terminalId, state: "exited", exitCode: null });
           continue;
         }
-        const cmd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
-        const last = (await capture(session, 5))
+        const cmd = tidy(await qt(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
+        const last = tidy(await qt(["capture-pane", "-p", "-J", "-t", session, "-S", "-5"]))
           .split("\n")
           .filter((l) => l.trim() !== "")
           .pop();
