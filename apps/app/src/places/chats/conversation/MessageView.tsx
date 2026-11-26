@@ -253,7 +253,6 @@ export interface MessageActions {
     call(cap: string, input: unknown): Promise<unknown>;
     me: string;
     nameOf(id: string): string;
-    openTerminal(terminalId: string): void;
     openComputer(agentId: string): void;
   };
   terminalCard?: {
@@ -1708,6 +1707,28 @@ function Theirs({
         if (b.type === "question" && b.state === "waiting") {
           const d = (b.data ?? {}) as Record<string, unknown>;
           const options = questionOptions(d);
+          // the sign-in hand-off (rc.44): its own card, whichever way the message is drawn
+          const sign = signinAskOf(d);
+          if (sign !== null && d["answer"] === undefined && actions.signinCard)
+            return (
+              <SigninCard
+                key={b.id}
+                id={b.id}
+                why={
+                  typeof d["prompt"] === "string" && d["prompt"] !== "" ? (d["prompt"] as string) : cardLine(b).title
+                }
+                surface={sign.surface}
+                agentId={sign.agentId}
+                terminalId={sign.terminalId}
+                site={sign.site}
+                name={actions.signinCard.nameOf(sign.agentId)}
+                call={actions.signinCard.call}
+                me={actions.signinCard.me}
+                nameOf={actions.signinCard.nameOf}
+                openComputer={actions.signinCard.openComputer}
+                answer={actions.answer}
+              />
+            );
           if (
             options.length > 0 &&
             d["answer"] === undefined &&
@@ -2122,7 +2143,6 @@ function Card({ line, actions }: { line: CardLine; actions: MessageActions }): R
           call={actions.signinCard.call}
           me={actions.signinCard.me}
           nameOf={actions.signinCard.nameOf}
-          openTerminal={actions.signinCard.openTerminal}
           openComputer={actions.signinCard.openComputer}
           answer={actions.answer}
         />

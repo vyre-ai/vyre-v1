@@ -73,7 +73,6 @@ function card(r: ReturnType<typeof rig>, extra: Partial<Parameters<typeof Signin
       call={r.call}
       me="usr_me"
       nameOf={nameOf}
-      openTerminal={(id) => void opened.push(`terminal ${id}`)}
       openComputer={(id) => void opened.push(`computer ${id}`)}
       answer={(id, a) => void answers.push([id, a])}
       {...extra}
@@ -82,7 +81,7 @@ function card(r: ReturnType<typeof rig>, extra: Partial<Parameters<typeof Signin
   return { el, answers, opened };
 }
 
-test("someone who may take over sees Open terminal, Done and I can't; Open terminal opens that terminal; Done answers and collapses", async () => {
+test("someone who may take over sees Open terminal, Done and I can't; Open terminal opens the agent's computer; Done answers and collapses", async () => {
   const r = rig({ access: "owner" });
   const c = card(r);
   const root = await mount(createRoot, c.el);
@@ -90,7 +89,11 @@ test("someone who may take over sees Open terminal, Done and I can't; Open termi
   assert.match(textOf(find(root, "signin-card-blk_1")), /Dex needs you to sign in/);
   assert.match(textOf(find(root, "signin-card-why-blk_1")), /GitHub/);
   await press(find(root, "signin-card-open-blk_1"));
-  assert.deepEqual(c.opened, ["terminal trm_1"]);
+  assert.deepEqual(
+    c.opened,
+    ["computer agt_1"],
+    "Open terminal opens the agent's Computer tab, where its terminals are",
+  );
   await press(find(root, "signin-card-done-btn-blk_1"));
   assert.deepEqual(c.answers, [["blk_1", "done"]]);
   assert.match(textOf(find(root, "signin-card-done-blk_1")), /Signed in/);
@@ -118,4 +121,24 @@ test("someone who may not take over sees who the agent waits for and no button a
   assert.equal(find(root, "signin-card-open-blk_1"), null);
   assert.equal(find(root, "signin-card-done-btn-blk_1"), null);
   assert.equal(find(root, "signin-card-cannot-blk_1"), null);
+});
+
+test("a sign-in card is never in the dock above the composer, where anyone in the chat would be offered the answer", async () => {
+  const { openQuestions } = await import("./island.ts");
+  const msg = (card: unknown) =>
+    ({
+      id: "msg_1",
+      author: { kind: "agent", id: "agt_1" },
+      createdAt: 1,
+      blocks: [
+        {
+          id: "blk_1",
+          type: "question",
+          state: "waiting",
+          data: { prompt: "Sign in to GitHub", mode: "single", options: [{ key: "done", label: "Done" }], card },
+        },
+      ],
+    }) as never;
+  assert.equal(openQuestions([msg({ kind: "signin", surface: "terminal", agentId: "agt_1" })]).length, 0);
+  assert.equal(openQuestions([msg(undefined)]).length, 1, "an ordinary question still is");
 });

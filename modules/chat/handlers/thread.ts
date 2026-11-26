@@ -36,6 +36,7 @@ import type { ChatCtx, Mode, PlanStep, ThreadRec } from "../projections.ts";
 import { canSpeak, deliver, isDirect } from "./post.ts";
 import { privateFork } from "./g27.ts";
 import { ALREADY_DECIDED, tellAgent } from "./waiting.ts";
+import { takeoverPeople } from "./g24d.ts";
 
 type Row = Record<string, unknown>;
 const MAX_AGENTS = 20;
@@ -510,6 +511,16 @@ export async function answerBlock(ctx: ChatCtx, input: { threadId: string; block
   }
   const given = canonicalAnswer(String((block.data as Record<string, unknown>)["mode"] ?? "free"), input.answer);
   if (!answerFits(block.data, given)) raise(ctx, "validation.bad_input", "That answer does not fit the question.");
+  // a sign-in card is answered by the people who may take that computer over, not by whoever else is in the chat (rc.44)
+  const card = (block.data as { card?: { kind?: unknown; agentId?: unknown } }).card;
+  if (
+    card?.kind === "signin" &&
+    typeof card.agentId === "string" &&
+    !(await takeoverPeople(ctx, card.agentId)).includes(askerOf(ctx) ?? "")
+  )
+    raise(ctx, "permission.no_grant", "Only people who may take over this computer can answer this.", {
+      reason: "not_a_taker",
+    });
 
   const by = askerOf(ctx);
   ctx.db.run(

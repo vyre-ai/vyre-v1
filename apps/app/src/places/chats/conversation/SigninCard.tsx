@@ -1,5 +1,5 @@
 // The sign-in hand-off in a chat (rc.44; terminal.ask_signin and computers.browser.ask_signin, one card for both). An agent needs a person to finish a login in its terminal or its browser (a device code, a
-// password, a CAPTCHA). The people who may take over that computer see Open terminal or Open browser and the two answers; everyone else sees who the agent waits for, and no button. Done hands the computer back and the
+// password, a CAPTCHA). The people who may take over that computer see Open terminal or Open browser (both open the agent's Computer tab, where its terminals and its browser are one press away and Take over is the button there) and the two answers; everyone else sees who the agent waits for, and no button. Done hands the computer back and the
 // agent carries on; I can't says so. The sign-in itself is the take-over that already exists (the terminal's Take over, the browser's): nothing typed there passes through this card.
 import { useEffect, useState } from "react";
 import type { ReactElement } from "react";
@@ -19,7 +19,6 @@ export interface SigninCardProps {
   call(cap: string, input: unknown): Promise<unknown>;
   me: string;
   nameOf(id: string): string;
-  openTerminal(terminalId: string): void;
   openComputer(agentId: string): void;
   answer(id: string, answer: unknown): void;
 }
@@ -100,8 +99,7 @@ export function SigninCard(p: SigninCardProps): ReactElement {
           ]}
           primary={{
             label: p.surface === "terminal" ? "Open terminal" : "Open browser",
-            onPress: () =>
-              p.surface === "terminal" && p.terminalId ? p.openTerminal(p.terminalId) : p.openComputer(p.agentId),
+            onPress: () => p.openComputer(p.agentId),
             testID: `signin-card-open-${p.id}`,
           }}
         />
