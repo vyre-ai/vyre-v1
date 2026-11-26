@@ -19,6 +19,12 @@ export interface CommentsCtx {
     action: { perm: string | null; level: "view" | "use" | "edit" | "manage" },
     resource: { type: string; id: string | null },
   ) => { effect: "allow" | "deny" | "hold"; reason: string };
+  /** the host field rule for a person and a record (ctx.recordFieldGate): which fields that person may see, null when they may not see the record; a hand-built ctx has none */
+  recordFieldGate?: (
+    person: string,
+    type: string,
+    recordId: string,
+  ) => Promise<((field: string) => boolean) | null | "later">;
   now?: () => number;
   log?: { warn(msg: string, attrs?: Record<string, unknown>): void };
 }
@@ -163,6 +169,20 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
       if (typeof v === "string" && v.trim() !== "") return v.trim();
     }
     return fallback;
+  };
+  /** The title the mentioned one may read: a record's name is a field a grant can hide, so what is said to them (a request, an agent's prompt) is built from their own view of it, never the commenter's. */
+  const titleFor = async (
+    ctx: CommentsCtx,
+    who: string,
+    type: string,
+    recordId: string,
+    fields: Record<string, unknown>,
+  ): Promise<string> => {
+    if (!ctx.recordFieldGate) return titleOf(fields, recordId);
+    const got = await ctx.recordFieldGate(who, type, recordId).catch(() => null);
+    const gate = got === "later" ? null : got; // when in doubt, the plain id
+    if (gate === null) return recordId;
+    return titleOf(Object.fromEntries(Object.entries(fields).filter(([k]) => gate(k))), recordId);
   };
   const cleanMentions = (ctx: CommentsCtx, raw: readonly Mention[] | undefined): Mention[] => {
     const seen = new Set<string>();
@@ -334,9 +354,9 @@ export function createCommentsHandlers(deps: CommentsDeps): CommentsHandlers {
         ...(root ? { parentId: root.id } : {}),
         mentions,
       });
-      const title = titleOf(fields, input.recordId);
       for (const m of mentions) {
         if (m.id === ctx.principal.id) continue;
+        const title = await titleFor(ctx, m.id, input.type, input.recordId, fields);
         if (m.kind === "person") await notifyPerson(ctx, row, m.id, title);
         else if (ctx.principal.kind === "person") await runAgent(ctx, row, root ?? row, m.id, title);
       }

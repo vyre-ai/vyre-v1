@@ -429,6 +429,13 @@ export async function bootHour(prefix: string, extra: Record<string, unknown> = 
   };
   // the fake provider behind the Space AI key: a model list on this machine (member-key-kit vendor), reached as any provider is
   const models = await vendor();
+  const standInFetch = async (
+    url: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
+  ) => {
+    const r = { method: init?.method ?? "GET", url, headers: init?.headers ?? {}, body: init?.body };
+    return reply((await idp.api(r)) ?? gg.seam(r));
+  };
   const d = await startDaemon({
     config: loadConfig(
       ["--data-dir", dir, "--port", "0", "--space", "spc_7d1e0c2b9a4f5e6d8c3b2a19", "--address", ADDRESS],
@@ -451,18 +458,11 @@ export async function bootHour(prefix: string, extra: Record<string, unknown> = 
       url.startsWith(models.base)
         ? fetch(url, init as RequestInit)
         : reply(gg.api({ method: init?.method ?? "GET", url, headers: init?.headers ?? {} }))) as never,
-    seams: {
-      fetch: async (
-        url: string,
-        init?: { method?: string; headers?: Record<string, string>; body?: string | Uint8Array },
-      ) => {
-        const r = { method: init?.method ?? "GET", url, headers: init?.headers ?? {}, body: init?.body };
-        return reply((await idp.api(r)) ?? gg.seam(r));
-      },
-    } as never,
     engineOpenSession: model,
     intervals: { fast: 3_600_000, slow: 3_600_000, encryption: 3_600_000, commands: 3_600_000, hooks: 3_600_000 },
     ...(extra as object),
+    // a test may add seam ports (postFetch, webhookAllow) without losing the stand-in fetch above
+    seams: { fetch: standInFetch, ...((extra as { seams?: object }).seams ?? {}) } as never,
   });
 
   const edge = (seen?: Answered[]): typeof fetch =>
