@@ -1106,4 +1106,4 @@ Signed: 26 Nov 2026, lead.
 
 - What changed, behaviour and one optional field: a computer keeps at most five background jobs running at once (starting, running or restarting); `terminal.job.start` for a sixth is refused with `validation.precondition_failed`, reason `too_many_jobs`, and an ended job does not count. A job that ends and is started again more than 20 times in an hour is stopped for good by its supervisor (its spec says stopped, so a reboot does not start it again, and it no longer keeps the computer awake): its row is `failed` with the new optional `loop: true`. The daemon tells the agent's owner once, as a task in their Needs you with its notification, within a minute of seeing it (periodic `terminal.jobs_watch`; table `terminal_job_loops` remembers who was told). `terminal.job.list` and the job row gain optional `loop`; no new code.
 - Declared errors: unchanged (`validation.precondition_failed` was already declared on `terminal.job.start`). Snapshot: docs/frozen/snapshots/terminal.json.
-- Signed: (not signed; waiting for the lead's review)
+- Signed: 27 Nov 2026, lead.
