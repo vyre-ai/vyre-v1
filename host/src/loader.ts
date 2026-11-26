@@ -179,7 +179,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     domains.set(c.module, [...(domains.get(c.module) ?? []), ...(c.domains ?? [])]);
   const capModule = new Map([...caps].map(([k, c]) => [k, c.module]));
   const refuse = (what: string) => (): never => {
-    throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what } });
+    throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what, reason: "not_set_up" } });
   };
 
   return {

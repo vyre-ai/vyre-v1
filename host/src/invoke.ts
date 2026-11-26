@@ -1488,7 +1488,9 @@ export function createInvoke(deps: InvokeDeps): Invoke {
   ): Ctx {
     const svc = deps.services?.(seed, c) ?? {};
     const unavailable = (what: string) => (): never => {
-      throw fail("internal.not_implemented", trace.traceId, { details: { service: what, cap: c.name } });
+      throw fail("internal.not_implemented", trace.traceId, {
+        details: { service: what, cap: c.name, reason: "not_set_up" },
+      });
     };
     const ctx: Ctx = {
       space: seed.space,

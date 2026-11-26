@@ -22202,7 +22202,10 @@ export type HealthDoctorOut = {
   ok: boolean;
   findings: Array<{
       key: string;
+      title: string;
       state: "healthy" | "degraded" | "down";
+      detail?: string;
+      notSetUp?: boolean;
       next: string;
     }>;
 };
