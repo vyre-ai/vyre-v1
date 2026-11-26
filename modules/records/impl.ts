@@ -46,6 +46,9 @@ import type { ReviewHandlers } from "./handlers/review.ts";
 import { createViewHandlers } from "./handlers/views.ts";
 import type { ViewHandlers } from "./handlers/views.ts";
 import { createPurgeHandlers } from "./handlers/purge.ts";
+import { backfillType, ensureComputedTables, recomputeWithDependents } from "./handlers/computed.ts";
+import type { ComputedDef, ComputedEnv } from "./handlers/computed.ts";
+import type { TypeShape } from "../../lib/computed-fields.ts";
 import type { PurgeHandlers } from "./handlers/purge.ts";
 import { createSiteTableHandlers } from "./handlers/site-tables.ts";
 import type { SiteTableEvent, SiteTableHandlers } from "./handlers/site-tables.ts";
@@ -955,8 +958,104 @@ export const periodic = {
   },
 };
 
+// ---- computed fields (formula, lookup, rollup): the consumer that keeps records_computed ----
+
+/** What the consumer has learned of the schema; forgotten whenever the schema changes. */
+const computedMemo = new WeakMap<object, { defs: Map<string, ComputedDef[]>; shapes: Map<string, TypeShape> | null }>();
+/** The store keeps a relation's other end as { name }; a plain name is read too. */
+const inverseName = (v: unknown): string | null =>
+  typeof v === "string"
+    ? v
+    : v && typeof v === "object" && typeof (v as { name?: unknown }).name === "string"
+      ? (v as { name: string }).name
+      : null;
+type CallCtx = { db?: unknown; now(): number; call(cap: string, input: unknown): Promise<unknown> };
+function computedEnv(ctx: CallCtx): ComputedEnv {
+  const h = live(ctx);
+  const memo = computedMemo.get(h) ?? computedMemo.set(h, { defs: new Map(), shapes: null }).get(h)!;
+  return {
+    tx: h.host.tx,
+    store: h.store,
+    now: () => ctx.now(),
+    async defsOf(type) {
+      const had = memo.defs.get(type);
+      if (had) return had;
+      let defs: ComputedDef[] = [];
+      try {
+        const got = (await ctx.call("schema.types.get", { type })) as {
+          type?: { fields?: Array<{ key: string; type: string; options?: Record<string, unknown> }> };
+        };
+        defs = (got.type?.fields ?? [])
+          .filter((f) => f.type === "formula" || f.type === "lookup" || f.type === "rollup")
+          .map((f) => ({ key: f.key, type: f.type as ComputedDef["type"], options: f.options ?? {} }));
+      } catch {
+        defs = [];
+      }
+      memo.defs.set(type, defs);
+      return defs;
+    },
+    async shapes() {
+      if (memo.shapes) return memo.shapes;
+      const out = new Map<string, TypeShape>();
+      for (const t of await h.store.types())
+        out.set(t.name, {
+          key: t.name,
+          fields: t.fields.map((f) => ({
+            key: f.name,
+            type: typeof f["ftype"] === "string" ? (f["ftype"] as string) : f.kind,
+            options:
+              typeof f.to === "string"
+                ? {
+                    target: f.to,
+                    many: f.many === true,
+                    ...(inverseName(f["inverse"]) ? { inverse: inverseName(f["inverse"]) } : {}),
+                  }
+                : {},
+          })),
+        });
+      memo.shapes = out;
+      return out;
+    },
+  };
+}
+
+/**
+ * Computed values: a record that is created, changed, restored or removed has its values recomputed (or dropped), and a schema change fills a whole type in slices of about 15 ms with the loop given back between
+ * them (records_computed_job holds the progress, so a restart goes on). It runs on the host's hook pump, as every consumer does.
+ */
+const COMPUTED_EVENTS = ["record.created", "record.updated", "record.restored", "record.deleted", "schema.changed"];
+async function runComputed(ctx: CallCtx, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
+  const h = live(ctx);
+  ensureComputedTables(h.host.tx);
+  if (event.name === "schema.changed") {
+    computedMemo.delete(h);
+    const env = computedEnv(ctx);
+    const types = Array.isArray(event.payload["types"])
+      ? (event.payload["types"] as unknown[]).filter((x): x is string => typeof x === "string")
+      : typeof event.payload["type"] === "string"
+        ? [event.payload["type"]]
+        : [];
+    for (const type of types) await backfillType(env, type);
+    return;
+  }
+  const type = typeof event.payload["type"] === "string" ? event.payload["type"] : "";
+  const id =
+    typeof event.payload["recordId"] === "string"
+      ? event.payload["recordId"]
+      : typeof event.payload["id"] === "string"
+        ? event.payload["id"]
+        : "";
+  if (type === "" || id === "") return;
+  await recomputeWithDependents(computedEnv(ctx), type, id);
+}
+
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
 export const consumers = {
+  "records.computed": {
+    on: COMPUTED_EVENTS,
+    run: (ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> =>
+      runComputed(ctx as CallCtx, event),
+  },
   "records.site_tables": {
     on: ["site.table_created", "site.table_promoted"],
     async run(ctx: unknown, event: { name: string; payload: Record<string, unknown> }): Promise<void> {
