@@ -1082,7 +1082,7 @@ Signed: 26 Nov 2026, lead.
 - Why: an agent that needs a person to finish a login in its terminal (a device code for `gh auth login`, a vendor CLI) or in its browser (a password, a code, a CAPTCHA) had no way to say so: the owner's rulings of 13 Nov ask for a sign-in hand-off card in the chat where the agent asked. One card, one answer shape for both surfaces (lib/signin-card.ts): the answers are `done` ("Done, I signed in") and `cannot` ("I can't sign in").
 - Who sees what: the card is drawn from the question block. The people who may take over that agent's computer see Open terminal or Open browser and the two answers; everyone else sees "Waiting for <name> to sign in" and no buttons. Only an agent calls either capability, and `terminal.ask_signin` only about a terminal of its own computer (another agent's tab is refused with `permission.role_lacks_permission`, a terminal that is not on an agent computer with `validation.precondition_failed`, reason `not_your_terminal`); a person calling either is refused with `permission.no_grant`. Nothing the person types in the terminal or the browser passes through the card: the sign-in itself is the take-over that already exists (terminal.take_over and its lease, computers.browser.take_over), and the answer `done` hands control back.
 - Declared errors: `terminal.ask_signin`: `permission.no_grant`, `permission.role_lacks_permission` (a terminal of another agent), `validation.bad_input`, `validation.not_found`, `validation.precondition_failed`. `computers.browser.ask_signin`: `permission.no_grant`, `validation.bad_input`, `provider.unavailable`. `chat.question.ask`: no new codes. Snapshots: docs/frozen/snapshots/terminal.json, computers.json and chat.json.
-- Signed: 27 Nov 2026, lead.
+- Signed: 27 Nov 2026, lead (again, after the agent tool rename to browser_ask_signin).
 
 ## 27 Nov 2026: terminal.stream, the live stream of a terminal's screen (lane r44-computer-stable)
 
@@ -1091,4 +1091,4 @@ Signed: 26 Nov 2026, lead.
 - Why: the terminal screen was a poll of `terminal.capture` four times a second, each answer the whole screen (120 KB with a full scrollback, measured), which kept the workspace awake, cost a Docker exec per look and per viewer, and stopped without a word when the network dropped. The stream looks at the screen only when the terminal prints (one watcher per terminal however many viewers), sends the change, and a lost connection is seen and resumed.
 - Typing does not go through the socket: it is `terminal.keys` with its lease, number and idempotency key, so a repeat never types twice. A person's views end the moment they lose access, as the browser's do (sessions ended, suspended, removed).
 - Declared errors: `terminal.stream`: `validation.not_found`, `validation.precondition_failed`, `permission.role_lacks_permission`. Snapshot: docs/frozen/snapshots/terminal.json.
-- Signed: (not signed; waiting for the lead's review)
+- Signed: 27 Nov 2026, lead.
