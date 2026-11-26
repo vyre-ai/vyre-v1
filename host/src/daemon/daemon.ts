@@ -4976,10 +4976,34 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
           scrub: (type, field) => scrubSealedFields(type, [field]),
-          scrubMany: (type, fields) => scrubSealedFields(type, fields),
+          scrubMany: (type, fields) => scrubSealedFields(type, fields, { vacuum: false }),
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
-      const scrubSealedFields = async (type: string, fields: readonly string[]): Promise<void> => {
+      // After a delete that must leave no copy: fold the journal in and hand freed pages back a slice at a time where the file gives pages back by itself (auto_vacuum = incremental). Never a VACUUM of a live file:
+      // freed pages are zeroed by secure_delete, and a file that cannot shed them waits for the planned compact.
+      const reclaimFreePages = async (d: {
+        exec(sql: string): unknown;
+        all(sql: string, ...a: unknown[]): unknown[];
+      }): Promise<void> => {
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        const mode = Number((d.all("PRAGMA auto_vacuum")[0] as { auto_vacuum?: number } | undefined)?.auto_vacuum ?? 0);
+        if (mode !== 2) return;
+        for (let guard = 0; guard < 10_000; guard++) {
+          d.exec("PRAGMA incremental_vacuum(256)");
+          const free = Number(
+            (d.all("PRAGMA freelist_count")[0] as { freelist_count?: number } | undefined)?.freelist_count ?? 0,
+          );
+          if (free === 0) break;
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      };
+      // `vacuum`: a seal vacuums the modules database whole (its tests hold every byte to be gone); a purge of a possibly big type never does (it would hold the loop), and relies on secure_delete and the planned compact
+      const scrubSealedFields = async (
+        type: string,
+        fields: readonly string[],
+        o: { vacuum: boolean } = { vacuum: true },
+      ): Promise<void> => {
         const dec = new TextDecoder();
         const seqs: number[] = [];
         const ids = new Set<string>();
@@ -4988,7 +5012,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           v !== null &&
           !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
         for (let after = 0; ; ) {
-          const page = await spaceLog.read({ after, limit: 2000 });
+          // a page of 250 events (about 20 ms of parsing), the loop given back between pages
+          const page = await spaceLog.read({ after, limit: 250 });
+          await new Promise<void>((resolve) => setImmediate(resolve));
           for (const e of page) {
             if (!e.type.startsWith("record.") || isErased(e)) continue;
             let p: Record<string, unknown>;
@@ -5010,26 +5036,38 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
             }
           }
-          if (page.length < 2000) break;
+          if (page.length < 250) break;
           after = page[page.length - 1]!.seq;
         }
-        if (seqs.length) await spaceLog.compactSeqs(seqs);
+        // the log's own worker does these two; they are asked for in parts of 400 events so each part is short
+        for (let i = 0; i < seqs.length; i += 400) await spaceLog.compactSeqs(seqs.slice(i, i + 400));
         for (const field of fields) await spaceLog.forgetField(type, field);
         if (db && ids.size) {
           const mine = db;
           try {
             mine.exec("PRAGMA secure_delete = ON");
-            for (const id of ids) {
+            // the documents leave in slices of at most 15 ms, the loop given back between them
+            const idList = [...ids];
+            let since = performance.now();
+            for (const id of idList) {
               mine.run(
                 "DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)",
                 `record:${type}`,
                 id,
               );
               mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
+              if (performance.now() - since > 15) {
+                await new Promise<void>((resolve) => setImmediate(resolve));
+                since = performance.now();
+              }
             }
-            mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
-            mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-            mine.exec("VACUUM");
+            // the full text index merges its segments a few pages at a time (never one whole optimize), then the journal is folded in and freed pages are handed back by the incremental path where the file allows it
+            for (let step = 0; step < 40; step++) {
+              mine.exec("INSERT INTO search_fts(search_fts, rank) VALUES('merge', 32)");
+              await new Promise<void>((resolve) => setImmediate(resolve));
+            }
+            await reclaimFreePages(mine);
+            if (o.vacuum) mine.exec("VACUUM");
           } catch {
             /* a Space without the search index has nothing to clear */
           }
@@ -5047,6 +5085,14 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             entity_id: id,
             payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
           });
+        }
+        // the search index is folded into the journal again once the touches are in: the pages the first pass freed are not left in the journal file
+        if (db && ids.size) {
+          try {
+            db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+          } catch {
+            /* nothing to fold */
+          }
         }
       };
       // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own

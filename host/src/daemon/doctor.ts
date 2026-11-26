@@ -478,6 +478,40 @@ export function searchMissingRecordsFinding(modulesDb: string): Finding {
   }
 }
 
+/** A field or type was purged for good but the Space file could not hand its freed pages back (an older file without incremental vacuum): the values are zeroed, the pages stay until the planned compact. Read only. */
+export function purgeOwedCompactFinding(spaceDb: string): Finding {
+  const key = "schema.purge_owed_compact";
+  if (!fs.existsSync(spaceDb)) return { key, state: "healthy", detail: "No Space file yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'sc_purge_owed'").length === 0)
+        return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      const r = db.all("SELECT count(*) AS n, max(bytes) AS b, max(at) AS at FROM sc_purge_owed")[0] as {
+        n: number;
+        b: number | null;
+        at: number | null;
+      };
+      if (!r.n) return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      return {
+        key,
+        state: "degraded",
+        detail: `${r.n} purged fields or types left freed pages in the Space file (${Math.round((r.b ?? 0) / 1048576)} MB): their values are zeroed, the pages are handed back by the planned compact.`,
+        next: NEXT.purgeOwedCompact,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the Space file could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -629,6 +663,7 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(hiddenRunDataFinding(paths.modules));
     findings.push(searchRemovedTextFinding(paths.modules));
     findings.push(searchMissingRecordsFinding(paths.modules));
+    findings.push(purgeOwedCompactFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

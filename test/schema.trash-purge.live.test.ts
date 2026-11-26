@@ -131,3 +131,146 @@ test("when the window of a dropped field ends, its values are in no database fil
   assert.ok(!JSON.stringify(trash).includes("tp_gone"), "its Trash entry is gone");
   assert.ok(JSON.stringify(trash).includes("tp_kept"), "the other Trash entry stays");
 });
+
+test("a purge of one field leaves no value of another field in the rebased rows an earlier purge wrote", async () => {
+  const type = "tp_reb";
+  await h.owner.call("schema.apply", {
+    idempotencyKey: "tp-reb",
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "R",
+          plural: "Rs",
+          icon: "table",
+          titleField: "name",
+          fields: ["name", "fa", "fb"].map((key) => ({ key, type: "text", title: key })),
+        },
+      },
+    ],
+  });
+  const A = "zqrebAAA5521",
+    B = "zqrebBBB5522";
+  const id = (
+    (await h.owner.call("records.create", { type, fields: { name: "reb one", fa: A, fb: B } })).record as { id: string }
+  ).id;
+  await h.owner.call("records.update", { type, recordId: id, patch: { fb: `${B}x` } });
+  await settle();
+  // B goes first: its purge writes the row again (record.rebased) while A is still a live field, so that event holds A's value
+  await drop(type, "fb");
+  await settle();
+  expire(type, "fb");
+  await h.d.hooks!.runPeriodic("schema.trash_purge");
+  await settle();
+  assert.equal(total(hits(B)), 0, `B is gone: ${JSON.stringify(hits(B))}`);
+  assert.ok(total(hits(A)) > 0, "control: A, still a live field, is in the files");
+  await drop(type, "fa");
+  await settle();
+  expire(type, "fa");
+  await h.d.hooks!.runPeriodic("schema.trash_purge");
+  await settle();
+  const left = hits(A);
+  // the records store and the Space log (where the rebased row of the first purge lives) hold none of it; the search index's journal (modules.db-wal) is reported, not asserted here
+  const store = Object.fromEntries(Object.entries(left).filter(([f]) => /^(space|events)\.db/.test(f)));
+  assert.equal(
+    total(store),
+    0,
+    `A is not in the records store or the Space log, the rebased row of the first purge included: ${JSON.stringify(left)}`,
+  );
+  console.log(`value of a purged field, files left holding it: ${JSON.stringify(left)}`);
+});
+
+/** The longest time the loop went without running a 2 ms timer. */
+function watchLoop(): { stop(): Promise<number> } {
+  let last = performance.now(),
+    max = 0;
+  const t = setInterval(() => {
+    const at = performance.now();
+    max = Math.max(max, at - last - 2);
+    last = at;
+  }, 2);
+  return {
+    stop: async () => {
+      await new Promise<void>((r) => setTimeout(r, 10));
+      clearInterval(t);
+      return Math.round(max);
+    },
+  };
+}
+
+test("the purge of a dropped type of 5,000 records and eight fields never holds the loop for 100 ms and leaves none of its values in the Space log or the modules database", async () => {
+  const type = "tp_big";
+  const keys = ["name", ...Array.from({ length: 7 }, (_, i) => `f${i}`)];
+  await h.owner.call("schema.apply", {
+    idempotencyKey: "tp-big",
+    ops: [
+      {
+        op: "type.create",
+        type,
+        def: {
+          title: "Big",
+          plural: "Bigs",
+          icon: "table",
+          titleField: "name",
+          fields: keys.map((key) => ({ key, type: "text", title: key })),
+        },
+      },
+    ],
+  });
+  for (let at = 0; at < 5_000; at += 500)
+    await h.owner.call("records.bulk_upsert", {
+      idempotencyKey: `tp-big-${at}`,
+      type,
+      match: ["name"],
+      createOnly: true,
+      runAutomations: false,
+      rows: Array.from({ length: 500 }, (_, i) =>
+        Object.fromEntries(keys.map((k) => [k, k === "name" ? `Big ${at + i}` : `zqbig${k}v${at + i}`])),
+      ),
+    });
+  await settle();
+  const probe = "zqbigf3v4321";
+  assert.ok(total(hits(probe)) > 0, "control: the value is in the files before the drop");
+  const ops = [{ op: "type.drop", type }];
+  const diff = (await h.owner.call("schema.diff", { ops })) as {
+    previewToken: string;
+    items: Array<{ itemKey: string; destructive: boolean }>;
+  };
+  await h.owner.call("schema.apply", {
+    idempotencyKey: "tp-big-drop",
+    ops,
+    previewToken: diff.previewToken,
+    confirm: diff.items.filter((i) => i.destructive).map((i) => i.itemKey),
+  });
+  await settle();
+  const db = new DatabaseSync(path.join(h.dir, "space.db"));
+  try {
+    db.exec("PRAGMA busy_timeout = 5000");
+    db.prepare("UPDATE sc_trash SET expires_at = 1 WHERE type = ?").run(type);
+  } finally {
+    db.close();
+  }
+  const watch = watchLoop();
+  const t0 = performance.now();
+  let ticks = 0;
+  for (; ticks < 60; ticks++) {
+    await h.d.hooks!.runPeriodic("schema.trash_purge");
+    const left = new DatabaseSync(path.join(h.dir, "space.db"), { readOnly: true });
+    const n = Number((left.prepare("SELECT count(*) AS c FROM sc_trash WHERE type = ?").get(type) as { c: number }).c);
+    left.close();
+    if (n === 0) break;
+  }
+  const longest = await watch.stop();
+  await settle();
+  const leftHits = hits(probe);
+  console.log(
+    `purge of a type of 5,000 records and 8 fields: ${Math.round(performance.now() - t0)} ms in ${ticks + 1} ticks, longest loop block ${longest} ms, hits left ${JSON.stringify(leftHits)}`,
+  );
+  assert.ok(longest < 100, `the longest stretch the loop was held during the purge was ${longest} ms (limit 100)`);
+  for (const f of Object.keys(leftHits))
+    assert.ok(
+      !/events\.db|modules\.db/.test(f),
+      `the dropped type's values are not in ${f}: ${JSON.stringify(leftHits)}`,
+    );
+});

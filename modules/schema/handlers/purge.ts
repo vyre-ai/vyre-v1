@@ -31,15 +31,40 @@ function holdsAny(payload: Record<string, unknown>, type: string, fields: Readon
   return false;
 }
 
-/** Fold the journal in, and vacuum the file when it is small: never a VACUUM of a big live file (it holds the one writer). Freed pages are zeroed by secure_delete either way. */
-function scrubFile(db: { exec(sql: string): unknown; prepare(sql: string): { get(): unknown } }): void {
+/**
+ * Fold the journal in and hand freed pages back where the file gives them back by itself (auto_vacuum = incremental), a slice at a time. Never a VACUUM of a live file (it holds the one writer); freed pages are zeroed by
+ * secure_delete. `scrubbed` is false when the file cannot shed its freed pages (an older file): the bytes are zeroed but the pages stay, until the planned compact.
+ */
+function scrubFile(db: { exec(sql: string): unknown; prepare(sql: string): { get(): unknown } }): {
+  scrubbed: boolean;
+  bytes: number;
+} {
   db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-  const pages = Number((db.prepare("PRAGMA page_count").get() as { page_count: number }).page_count);
-  const size = pages * Number((db.prepare("PRAGMA page_size").get() as { page_size: number }).page_size);
-  if (size <= 256 * 1024 * 1024) {
-    db.exec("VACUUM");
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  const bytes =
+    Number((db.prepare("PRAGMA page_count").get() as { page_count: number }).page_count) *
+    Number((db.prepare("PRAGMA page_size").get() as { page_size: number }).page_size);
+  const mode = Number((db.prepare("PRAGMA auto_vacuum").get() as { auto_vacuum: number }).auto_vacuum);
+  if (mode !== 2) return { scrubbed: false, bytes };
+  for (let guard = 0; guard < 100; guard++) {
+    db.exec("PRAGMA incremental_vacuum(256)");
+    if (Number((db.prepare("PRAGMA freelist_count").get() as { freelist_count: number }).freelist_count) === 0) break;
   }
+  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  return { scrubbed: true, bytes };
+}
+
+/** A purge that could not shed the freed pages of the Space file leaves a row here; the doctor shows it (doctor.ts purgeOwedCompactFinding) until the planned compact. */
+function owe(deps: SchemaDeps, type: string, bytes: number, events: number): void {
+  deps.tx.exec(
+    "CREATE TABLE IF NOT EXISTS sc_purge_owed (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, type TEXT NOT NULL, bytes INTEGER NOT NULL, events INTEGER NOT NULL)",
+  );
+  deps.tx.run(
+    "INSERT INTO sc_purge_owed (at, type, bytes, events) VALUES (?, ?, ?, ?)",
+    nowOf(deps),
+    type,
+    bytes,
+    events,
+  );
 }
 
 /** Take the plaintext of `fields` out of every copy the store kept, in one pass. Safe to run twice; what is gone stays gone. `still(f)` says whether a field is still to be cleaned (it may have come back). */
@@ -62,16 +87,19 @@ export async function cleanFields(
     for (let after = 0; ; ) {
       const page = host.store.read({ after, limit: PAGE, entity: type });
       if (page.length === 0) break;
-      const found: Array<{ seq: number; id: string | null }> = [];
+      const found: Array<{ seq: number; id: string | null; p: Record<string, unknown> }> = [];
       for (const e of page) {
-        if ((e.type !== "record.created" && e.type !== "record.updated") || isErased(e)) continue;
+        await turn();
+        // a rebased event holds a whole row as it was when it was written: an old one keeps the values of a field that was live then
+        if ((e.type !== "record.created" && e.type !== "record.updated" && e.type !== "record.rebased") || isErased(e))
+          continue;
         let p: Record<string, unknown>;
         try {
           p = JSON.parse(dec.decode(e.payload)) as Record<string, unknown>;
         } catch {
           continue;
         }
-        if (holdsAny(p, type, live)) found.push({ seq: e.seq, id: typeof p["id"] === "string" ? p["id"] : null });
+        if (holdsAny(p, type, live)) found.push({ seq: e.seq, id: typeof p["id"] === "string" ? p["id"] : null, p });
       }
       // the rows of this page are written again BEFORE their old events go: a stop in between leaves the old events, and the page is read again
       for (const f of found) {
@@ -117,9 +145,12 @@ export async function cleanFields(
       // a field that came back while the pass ran is no longer cleaned (the pages already done kept their rows as they are)
       live = await still();
       if (live.size === 0) break;
+      // only the events that hold a field that is still to be cleaned (one of several may have come back since the page was read)
       for (const f of found) {
+        if (!holdsAny(f.p, type, live)) continue;
         host.store.erase(f.seq);
         erasedSeqs.push(f.seq);
+        await turn();
       }
       after = page[page.length - 1]!.seq;
       await new Promise<void>((resolve) => setImmediate(resolve));
@@ -143,18 +174,35 @@ export async function cleanFields(
     // the change feed keeps what a row was before and after each change
     const paths = names.map((f) => `$.${f}`);
     const marks = paths.map(() => "?").join(", ");
-    tx.run(
-      `UPDATE rs_changes SET before = CASE WHEN before IS NULL THEN NULL ELSE json_remove(before, ${marks}) END, after = CASE WHEN after IS NULL THEN NULL ELSE json_remove(after, ${marks}) END WHERE type = ?`,
-      ...paths,
-      ...paths,
+    // in slices of 300 change rows by cursor, the loop given back between them (one statement over a big type holds it for a long stretch)
+    const range = tx.get<{ lo: number | null; hi: number | null }>(
+      "SELECT min(cursor) AS lo, max(cursor) AS hi FROM rs_changes WHERE type = ?",
       type,
     );
+    if (range && range.lo !== null && range.hi !== null)
+      for (let from = range.lo - 1; from < range.hi; from += 300) {
+        tx.run(
+          `UPDATE rs_changes SET before = CASE WHEN before IS NULL THEN NULL ELSE json_remove(before, ${marks}) END, after = CASE WHEN after IS NULL THEN NULL ELSE json_remove(after, ${marks}) END WHERE type = ? AND cursor > ? AND cursor <= ?`,
+          ...paths,
+          ...paths,
+          type,
+          from,
+          from + 300,
+        );
+        await turn();
+      }
     try {
-      tx.run(
-        `DELETE FROM records_field_history WHERE type = ? AND field IN (${names.map(() => "?").join(",")})`,
-        type,
-        ...names,
-      );
+      // the per-field history of a lost edit, 500 rows at a time
+      const marksN = names.map(() => "?").join(",");
+      for (let guard = 0; guard < 100_000; guard++) {
+        const r = tx.run(
+          `DELETE FROM records_field_history WHERE rowid IN (SELECT rowid FROM records_field_history WHERE type = ? AND field IN (${marksN}) LIMIT 500)`,
+          type,
+          ...names,
+        );
+        if (!r || (r as { changes?: number }).changes === 0 || (r as { changes?: number }).changes === undefined) break;
+        await turn();
+      }
     } catch {
       /* the records tables are not on this store */
     }
@@ -166,7 +214,10 @@ export async function cleanFields(
     if (v?.scrubFields) await v.scrubFields(type, names);
     else for (const f of names) await v?.scrubField?.(type, f);
   }
-  if (host) scrubFile(host.store.db);
+  if (host) {
+    const r = scrubFile(host.store.db);
+    if (!r.scrubbed) owe(deps, type, r.bytes, erasedSeqs.length);
+  }
   return { events: erasedSeqs.length };
 }
 
@@ -220,7 +271,10 @@ export async function purgeExpiredTrash(deps: SchemaDeps): Promise<number> {
   // by id only, and only while the entry is still ours: a newer drop of the same field is another entry, a restore leaves its mark
   tx.run("DELETE FROM sc_trash WHERE id = ? AND restored_at IS NULL", row.id);
   // the Trash entry held the values too: its freed pages are folded in (and vacuumed when the file is small)
-  if (deps.host) scrubFile(deps.host.store.db);
+  if (deps.host) {
+    const r = scrubFile(deps.host.store.db);
+    if (!r.scrubbed) owe(deps, row.type, r.bytes, 0);
+  }
   return 1;
 }
 
