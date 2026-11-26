@@ -61,7 +61,9 @@ test(
       });
       await shoot(page, DIR, "01-live");
       const socks = (): Promise<Array<{ url: string; frames: number; closed: boolean }>> =>
-        page.evaluate(() => (window as unknown as { __socks: Array<{ url: string; frames: number; closed: boolean }> }).__socks);
+        page.evaluate(
+          () => (window as unknown as { __socks: Array<{ url: string; frames: number; closed: boolean }> }).__socks,
+        );
       const nBefore = (await socks()).length;
       const t0 = Date.now();
       execFileSync("docker", ["stop", "-t", "2", k.dockerName], { stdio: "ignore" });
@@ -70,17 +72,26 @@ test(
       await shoot(page, DIR, "02-reconnecting");
       // no press anywhere from here: the view opens a new address, which starts the browser again
       await page.getByTestId("browser-live-view-state").waitFor({ state: "detached", timeout: 90_000 });
-      await page.waitForFunction((n) => {
+      await page.waitForFunction(
+        (n) => {
           const s = (window as unknown as { __socks: Array<{ frames: number }> }).__socks;
           return s.length > n && s[s.length - 1]!.frames > 0;
-        }, nBefore, {
-        timeout: 60_000,
-      });
+        },
+        nBefore,
+        {
+          timeout: 60_000,
+        },
+      );
       const recoveredMs = Date.now() - t0;
       const after = await socks();
-      assert.ok(after.length > nBefore, `a new browser socket was opened by the view (${nBefore} before, ${after.length} after)`);
+      assert.ok(
+        after.length > nBefore,
+        `a new browser socket was opened by the view (${nBefore} before, ${after.length} after)`,
+      );
       assert.ok(after.at(-1)!.frames > 0, "and it carried pictures");
-      console.log(`RECOVERY the Space browser stopped under the open desk: first new frame after ${recoveredMs} ms, no click`);
+      console.log(
+        `RECOVERY the Space browser stopped under the open desk: first new frame after ${recoveredMs} ms, no click`,
+      );
       await shoot(page, DIR, "03-back");
       await k.guard.check();
     } finally {

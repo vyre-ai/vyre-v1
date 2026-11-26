@@ -104,9 +104,9 @@ export async function world(
   browserd.sb.stream = async (a) => {
     if (Date.now() < downUntil) throw new Error("The Space browser did not answer in time.");
     return {
-    transport: "mjpeg",
-    url: `http://127.0.0.1:${port}/live/${a.profileId}?ticket=${++tickets}`,
-    ws: `ws://127.0.0.1:${port}/ws?p=${a.profileId}&ticket=${tickets}`,
+      transport: "mjpeg",
+      url: `http://127.0.0.1:${port}/live/${a.profileId}?ticket=${++tickets}`,
+      ws: `ws://127.0.0.1:${port}/ws?p=${a.profileId}&ticket=${tickets}`,
     };
   };
   const dockerName = `vyre-sbrowser-cw${process.pid}${Math.random().toString(36).slice(2, 6)}`;
@@ -208,5 +208,20 @@ export async function world(
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, real, dockerName, computerTab, watcher, close, outage, socketsOpened: opened };
+  return {
+    s,
+    w,
+    me,
+    guard,
+    agentId,
+    threadId,
+    browserd,
+    real,
+    dockerName,
+    computerTab,
+    watcher,
+    close,
+    outage,
+    socketsOpened: opened,
+  };
 }
