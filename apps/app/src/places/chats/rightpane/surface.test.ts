@@ -47,9 +47,10 @@ function world(opens: Array<"ok" | Error>) {
   const log: SurfaceState[] = [];
   const got: number[] = [];
   let calls = 0;
+  let healed = false;
   const s = createSurface<number>({
     open: async () => {
-      const r = opens[Math.min(calls, opens.length - 1)]!;
+      const r = healed ? "ok" : opens[Math.min(calls, opens.length - 1)]!;
       calls++;
       if (r instanceof Error) throw r;
       return calls;
@@ -58,7 +59,7 @@ function world(opens: Array<"ok" | Error>) {
     onState: (x) => log.push(x),
     clock: { now: c.now, set: c.set },
   });
-  return { c, log, got, s, calls: () => calls };
+  return { c, log, got, s, calls: () => calls, heal: () => void (healed = true) };
 }
 
 test("a good open goes opening, then ready, and opens once", async () => {
@@ -112,10 +113,14 @@ test("back-off grows, is capped, and a Try again after a failure works", async (
   assert.ok(backoffMs(0) < backoffMs(2));
   assert.equal(backoffMs(50), backoffMs(20));
   assert.ok(backoffMs(50) <= 8000);
-  const w = world([new Error("x"), "ok"]);
+  const w = world([new Error("x")]);
   w.s.start();
   await w.c.advance(RECONNECT_GIVE_UP_MS + 5000);
   assert.equal(w.s.state().kind, "failed");
+  w.heal();
+  w.s.retry();
+  await w.c.advance(0);
+  assert.equal(w.s.state().kind, "ready", "Try again opens it");
 });
 
 test("a ticket that was never used is replaced before it expires", async () => {
@@ -148,11 +153,12 @@ test("lost after dispose does nothing, and the window coming back online or visi
   w.s.lost();
   await w.c.advance(10_000);
   assert.equal(w.calls(), 1);
-  const f = world([new Error("down"), "ok"]);
+  const f = world([new Error("down")]);
   f.s.start();
   await f.c.advance(RECONNECT_GIVE_UP_MS + 5000);
   assert.equal(f.s.state().kind, "failed");
+  f.heal();
   f.s.resume();
   await f.c.advance(0);
-  assert.equal(f.s.state().kind === "opening" || f.s.state().kind === "ready", true);
+  assert.equal(f.s.state().kind, "ready");
 });

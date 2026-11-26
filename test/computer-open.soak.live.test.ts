@@ -19,7 +19,6 @@ const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const PRESET = process.env["VYRE_WORKSPACE_TEST_IMAGE"];
 const SB = process.env["VYRE_SPACE_BROWSER_IMAGE"];
 const skip: string | false = ON && PRESET && SB ? false : "needs VYRE_HEAVY_DOCKER=1, VYRE_WORKSPACE_TEST_IMAGE and VYRE_SPACE_BROWSER_IMAGE";
-const IMAGE = PRESET ?? `vyre/agent-workspace:daemon-${process.pid}${Math.random().toString(36).slice(2, 6)}`;
 const KEY = "sk-ant-oat01-TESTsecretVALUE0123456789abcdefXYZ"; // secret-scan: fake
 const KEYS = {
   personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
