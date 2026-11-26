@@ -222,7 +222,7 @@ test("records with no announcement and no marker are announced at the start, qui
       ["rec_orph1", "rec_orph2"],
       "not the announced, the deleted or the live call's",
     );
-    assert.ok(got.every((p) => p.quiet === true && p.actor === "usr_dana" && p.type === "party"));
+    assert.ok(got.every((p) => p.quiet === true && p.repair === true && p.actor === "usr_dana" && p.type === "party"));
     assert.ok(fs.existsSync(repairFile), "the repair is marked done");
     // they are announced now: the next start finds the counts agree and compares nothing
     const log = new DatabaseSync(w.eventsDb);

@@ -52,6 +52,40 @@ test(
       rows: Array.from({ length: 50 }, (_, i) => ({ name: `Kept ${i}`, email: `k${i}@ar.test` })),
     });
     assert.equal(await walkCount(), 50);
+    // an Automation that runs when a record is created: it must not run for the records the repair announces (a control record made afterwards proves it works)
+    await h.owner.call("schema.apply", {
+      idempotencyKey: "ar-log",
+      ops: [
+        {
+          op: "type.create",
+          type: "autolog",
+          def: {
+            title: "Log",
+            plural: "Logs",
+            icon: "table",
+            titleField: "name",
+            fields: [{ key: "name", type: "text", title: "Name" }],
+          },
+        },
+      ],
+    });
+    const made = (await h.owner.call("automations.create", {
+      idempotencyKey: "ar-aut",
+      name: "On a new contact",
+      definition: {
+        triggers: [{ key: "record_change" }],
+        nodes: [{ id: "log", key: "records.create", input: { type: "autolog", fields: { name: "fired" } } }],
+      },
+    })) as { automation: { id: string } };
+    await h.owner.call("automations.set_enabled", { automationId: made.automation.id, enabled: true });
+    const runs = async (): Promise<number> =>
+      (
+        (await h.owner.call("runs.list", {
+          scope: "subject",
+          subject: { type: "automation", id: made.automation.id },
+          limit: 50,
+        })) as { runs: unknown[] }
+      ).runs.length;
     const LOST = 40;
     await h.restart(() => {
       // as the old build left it: rows in the record table, no event in either log, so no resource
@@ -79,5 +113,27 @@ test(
       if (seen < 50 + LOST) await new Promise((r) => setTimeout(r, 1000));
     }
     assert.equal(seen, 50 + LOST, "the owner sees the records the old build left, and every other one");
+    await new Promise((r) => setTimeout(r, 3000)); // the consumers have had their turn
+    const listed = (await h.owner.call("runs.list", {
+      scope: "subject",
+      subject: { type: "automation", id: made.automation.id },
+      limit: 50,
+    })) as { runs: unknown[] };
+    assert.equal(
+      listed.runs.length,
+      0,
+      `no Automation ran for a record the repair announced: ${JSON.stringify(listed.runs).slice(0, 700)}`,
+    );
+    await h.owner.call("records.create", {
+      idempotencyKey: "ar-ctl",
+      type: "contact",
+      fields: { name: "Control", email: "ctl@ar.test" },
+    });
+    let fired = 0;
+    for (let t = 0; t < 15 && fired === 0; t++) {
+      fired = await runs();
+      if (fired === 0) await new Promise((r) => setTimeout(r, 1000));
+    }
+    assert.ok(fired >= 1, "the Automation does run for a record made now");
   },
 );

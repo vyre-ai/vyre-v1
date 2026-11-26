@@ -26,6 +26,8 @@ export interface PendingAnnouncement {
   runId?: string;
   traceId: string;
   quiet: boolean;
+  /** Made by the repair of records no announcement named: the event says so (payload.repair), and only the consumers that keep derived data take it. */
+  repair?: boolean;
   depth?: number;
   origin?: string;
   seq: number;
@@ -237,6 +239,7 @@ export async function orphanAnnouncements(a: {
             traceId:
               typeof env.trace_id === "string" && /^[0-9a-f]{32}$/.test(env.trace_id) ? env.trace_id : "0".repeat(32),
             quiet: true,
+            repair: true,
             seq,
           });
         }
@@ -261,7 +264,13 @@ export function announcementSpec(p: PendingAnnouncement): {
     name: "record.created",
     subject: `record/${p.id}`,
     id: `evt_${p.id.replace(/^rec_/, "a")}`,
-    payload: { recordId: p.id, type: p.type, fields: { ...p.data }, ...(p.quiet ? { quiet: true } : {}) },
+    payload: {
+      recordId: p.id,
+      type: p.type,
+      fields: { ...p.data },
+      ...(p.quiet ? { quiet: true } : {}),
+      ...(p.repair ? { repair: true } : {}),
+    },
   };
 }
 
@@ -341,7 +350,10 @@ async function repairOrphans(a: Parameters<typeof replayAnnouncements>[0]): Prom
   });
   let made = 0;
   let failed = 0;
+  // each announcement is a commit through the pipeline: the loop is given back between steps (lib/yield-loop, about 15 ms of work per turn), so thousands of them never hold the start of the server
+  const turn = turns();
   for (const p of pending) {
+    await turn();
     const owner = a.spaceOwner();
     const who = p.actor
       ? replayActors(p, a.exists, owner)
