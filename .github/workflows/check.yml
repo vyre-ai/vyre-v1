@@ -518,8 +518,29 @@ jobs:
           npx playwright-core install chromium
           node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
+  loop-guard:
+    # The event-loop guard (test/loop.guard.live.test.ts, 24 Nov 2026, the Mac-hosted freeze): a Meier-sized Space is started and driven through its start-up, everyday requests and two scheduler ticks, and
+    # the main thread must never be held for more than 100 ms. It runs alone on the pinned perf host (timing), straight under node --test so the file's own timeout (25 minutes) applies, not a shard's
+    # cap. Gates `check`. The report (every block with the jobs, requests and SQL in it) is kept as an artifact either way.
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Disk lock (a timing job runs alone on the disk)
+        run: bash scripts/ci-iolock.sh exclusive
+      - name: The main thread is never held over 100 ms on a Meier-sized Space
+        env:
+          VYRE_TEST_CAPTURE_DIR: ${{ github.workspace }}/loop-guard-out
+        run: node --test --test-timeout=1500000 test/loop.guard.live.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loop-guard-report
+          path: loop-guard-out/loop-guard/
+          if-no-files-found: ignore
   check:
-    needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle]
+    needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle, loop-guard]
     if: always()
     runs-on: [self-hosted, linux, v1]
     timeout-minutes: 5
@@ -532,11 +553,13 @@ jobs:
           TYPECHECK: ${{ needs.typecheck.result }}
           CHROME: ${{ needs.chrome-real.result }}
           COMPUTER: ${{ needs.computer-lifecycle.result }}
+          LOOPGUARD: ${{ needs.loop-guard.result }}
         run: |
           [ "$GATES" = "success" ] || { echo "gates (ownership, boundaries, lint, package typecheck): $GATES"; exit 1; }
           [ "$TYPECHECK" = "success" ] || { echo "typecheck (the apps/app and ui ratchet): $TYPECHECK"; exit 1; }
           [ "$SELECT" = "success" ] || { echo "select: $SELECT"; exit 1; }
           [ "$CHROME" = "success" ] || { echo "chrome-real (the extension against a real Chromium): $CHROME"; exit 1; }
+          [ "$LOOPGUARD" = "success" ] || { echo "loop-guard (the main thread held over 100 ms on a Meier-sized Space): $LOOPGUARD"; exit 1; }
           [ "$COMPUTER" = "success" ] || { echo "computer-lifecycle (the agent Computer on real Docker): $COMPUTER"; exit 1; }
           case "$SHARDS" in success|skipped) ;; *) echo "shards: $SHARDS"; exit 1;; esac
   # The golden flows run in three shards (scripts/golden.ts --shard i/n) so each job has real headroom under its 5 minute cap. The `golden` job below is the required check: it passes only when all three shards passed.

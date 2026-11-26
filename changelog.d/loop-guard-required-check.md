@@ -1,0 +1,1 @@
+- The event-loop guard (a Meier-sized Space started and driven through its start-up and two scheduler ticks; no block of the main thread over 100 ms) runs on the pinned perf host in the check workflow and gates the check job.
