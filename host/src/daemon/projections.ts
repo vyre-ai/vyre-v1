@@ -5,6 +5,7 @@
 //   delivery at least once: the cursor moves after the handler returns, so a crash repeats at most the event in flight; the handlers are idempotent (the contract of AsyncConsumer).
 //   failure  a projection that throws is retried on the next pass; after MAX_TRIES it is skipped and logged so one bad event cannot hold the rest.
 // Passes never overlap; a call made during a pass runs another when it ends.
+import { loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { AsyncConsumer, ProjectionDef, Tx } from "../../../kernel/src/store/projection.ts";
 import type { HostDb } from "./sqlite.ts";
@@ -13,8 +14,6 @@ import type { LogReader } from "./consumers.ts";
 export const MAX_PROJECTION_TRIES = 5;
 const PAGE = 200;
 /** After this many ms of synchronous work a pass lets the event loop run: a page of 200 heavy events held the loop for seconds on a large Space (Meier, Nov 2026). */
-const YIELD_EVERY_MS = 20;
-const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isAsync = (p: unknown): p is AsyncConsumer =>
@@ -122,7 +121,7 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
     if (!c) return; // start() has not run for it yet
     let at = c.seq,
       stored = c.seq;
-    // The cursor is written when the pass lets the loop run (at most every YIELD_EVERY_MS of work), when a page ends and when an event is kept for the next try, not after every event: one write for
+    // The cursor is written when the pass lets the loop run (at most once per turn budget of work), when a page ends and when an event is kept for the next try, not after every event: one write for
     // each event, on a Space that makes hundreds of thousands of them, was a third of this pass's time and a commit each. A crash repeats the events since the last write; a projection is idempotent
     // (the contract of AsyncConsumer), as it already is for the one event in flight.
     const store = (): void => {
@@ -130,7 +129,6 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
       stored = at;
     };
     const size = p.batch ?? PAGE;
-    let since = performance.now();
     for (;;) {
       const page = await d.log.read({ after: at, limit: size });
       if (!page.length) return;
@@ -140,15 +138,14 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
           return;
         } // this event is tried again on the next pass, before any later one
         at = e.seq;
-        if (performance.now() - since >= YIELD_EVERY_MS) {
+        if (loopOverBudget()) {
           store();
-          await yieldLoop();
-          since = performance.now();
+          await loopTurn();
         }
       }
       store();
       if (page.length < size) return;
-      await yieldLoop();
+      await loopTurn();
     }
   }
 
