@@ -18,6 +18,7 @@ import {
   LABEL_RANK,
   changed,
   clearMadeBy,
+  freezeSliced,
   kernelResource,
   labelOf,
   loadStore,
@@ -487,6 +488,7 @@ async function primeKept(ctx: AccessCtx, key: object): Promise<void> {
       syncCounts.empty++;
       return;
     }
+    await freezeSliced(store); // sealing below finds the records frozen already
     await store.snapshotSliced(); // the snapshot is built with turns of the loop between its steps; sealing and keeping it below then find it built
     if (stampOf(ctx.db) !== before) continue; // another writer moved the tables while they were read: look again
     asKeptWriter(() => {

@@ -3,6 +3,7 @@
 // Secrets arrive through deps.resolveSecret (the Vault, resolved server side at call time); this module stores only handles. Standalone (tests, the loader entry below) it opens a kernel
 // store for a database handle; the host passes the Space's tx when it builds the handle.
 import { readFileSync } from "node:fs";
+import { registry } from "../../generated/registry.ts";
 import { openRecordStore } from "../../kernel/src/store/records.ts";
 import type { ProjectionHost, Tx } from "../../kernel/src/store/projection.ts";
 import type { SeamSetters } from "../../host/src/seams/index.ts";
@@ -35,7 +36,9 @@ function carriesCredential(
   return Object.keys(headers).some((h) => h.toLowerCase() === own || /authorization|api[-_]?key|token|secret/i.test(h));
 }
 
-export function loadBuiltins(path: URL = new URL("../../generated/registry.json", import.meta.url)): BuiltinRow[] {
+export function loadBuiltins(path?: URL): BuiltinRow[] {
+  // the registry the host already read (4 MB of JSON: reading and parsing it again held the loop for 40 ms the first time a connector job ran)
+  if (!path) return (registry as unknown as { connectors: BuiltinRow[] }).connectors;
   return (JSON.parse(readFileSync(path, "utf8")) as { connectors: BuiltinRow[] }).connectors;
 }
 

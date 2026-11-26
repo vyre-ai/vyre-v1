@@ -1742,6 +1742,18 @@ function sealFields(o: object, methods: readonly string[]): void {
 
 /** Seal a store for the read view (called once, as the writer, on the store access.sync keeps). */
 const READ_VIEWS = new WeakSet<AccessStore>();
+/** The records of a store frozen a slice at a time, with a turn of the event loop between slices: sealStore (one pass over every record, 40 ms on 38,000) then finds them frozen already. */
+export async function freezeSliced(store: AccessStore): Promise<void> {
+  for (const v of Object.values(store as unknown as Record<string, unknown>)) {
+    if (!(v instanceof Map)) continue;
+    let n = 0;
+    for (const x of v.values()) {
+      deepFreeze(x);
+      if (++n % 1000 === 0) await loopYield();
+    }
+  }
+}
+
 export function sealStore(store: AccessStore): AccessStore {
   READ_VIEWS.add(store);
   const rec = store as unknown as Record<string, unknown>;

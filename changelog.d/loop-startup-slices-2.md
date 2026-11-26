@@ -1,0 +1,1 @@
+- The first access view the sync keeps after a start freezes its records in slices, the connector catalogue is not read and parsed a second time, and the agent files are restored with a turn of the loop between agents.
