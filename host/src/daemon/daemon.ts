@@ -1,4 +1,5 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
@@ -2084,7 +2085,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
       for (let after = 0; ; ) {
         const page = await log.read({ after, limit: 5000, types: bootFoldTypes });
+        let folded = 0;
         for (const e of page) {
+          if (++folded % 200 === 0) await loopYield();
           if (
             e.type === "resource.created" ||
             e.type === "principal.created" ||
@@ -2111,6 +2114,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (first.ok && first.seq > accessFedTo) accessFedTo = first.seq;
       // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
       // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
+      await loopTurn(); // each scan over the folded events is one step: the loop serves a request between them
       const marks = hostOwnedMarks(ownedScan, space)
         .filter((m) => {
           if (m.type !== "vault_folder") return true;
@@ -2167,6 +2171,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
           return repaired;
         };
+        await loopTurn();
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
           const repaired = await appendRepair({
             id: `evt_res_${row.id}`,
@@ -2344,6 +2349,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         // Prototype/import logs predate both registrars.  The immutable agent.created
         // payload, not a subsequent host event, is the authority for every repair.
+        await loopTurn();
         for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
           const repaired = await appendRepair({
             id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
@@ -2388,6 +2394,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               r.folderId !== null &&
               access.snap.resource(r.folderId) !== undefined,
           );
+          await loopTurn();
           for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
             const repaired = await appendRepair({
               id: `evt_agent_home_${e.id}`,

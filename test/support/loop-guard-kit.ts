@@ -29,6 +29,8 @@ export interface Guard {
   worst(): { name: string; ms: number }[];
   report(): string;
   stop(): void;
+  /** performance.now() when the guard started: a block's `at` is relative to it (to line a block up with a CPU profile). */
+  t0: number;
 }
 
 const SQL_KEEP_MS = 15;
@@ -125,6 +127,7 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
   const wrapped = new WeakSet<object>();
   return {
     blocks,
+    t0,
     phase: (l) => void (phaseNow = l),
     async request(name, run) {
       const start = performance.now();

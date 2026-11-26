@@ -491,6 +491,25 @@ export class AccessStore {
     this.epoch++;
     this.snap = null;
   }
+  /**
+   * `bump` for a change to the named resources only: the snapshot this store holds is changed in place for those rows (as access.sync does for a registered object) and kept, not built again from
+   * every resource (that was 0.1 s to 0.3 s on 38,000 resources, for each folder the sweep made follow its record). Without a current snapshot there is nothing to change and it is dropped, as `bump` does.
+   */
+  bumpResources(ids: readonly string[]): void {
+    const held = this.snap !== null && this.snapEpoch === this.epoch ? this.snap : null;
+    this.epoch++;
+    this.snap = null;
+    if (!held) return;
+    const recs: ResourceRec[] = [];
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      if (!r) return; // a row removed: built again when asked
+      recs.push(r);
+    }
+    for (const r of recs) held.putResource(kernelResource(r));
+    this.snap = held;
+    this.snapEpoch = this.epoch;
+  }
   invalidate(): void {
     this.snap = null;
   }
@@ -1496,12 +1515,17 @@ export async function primeStore(ctx: AccessCtx): Promise<void> {
     return;
   }
   const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
-  const before = stampNow(ctx.db);
-  if (before === null || before === undefined) return;
-  const s = await loadStoreSliced(ctx.db, turn);
-  if (!s || STORES.has(ctx.db) || stampNow(ctx.db) !== before) return;
-  LOAD_STAMP.set(s, before);
-  STORES.set(ctx.db, s);
+  // another writer may move the counter while the tables are read in slices: the read is made again (a few times) before storeOf is left to read them whole, which holds the loop for the whole read
+  for (let tries = 0; tries < 4; tries++) {
+    const before = stampNow(ctx.db);
+    if (before === null || before === undefined) return;
+    const s = await loadStoreSliced(ctx.db, turn);
+    if (!s || STORES.has(ctx.db)) return;
+    if (stampNow(ctx.db) !== before) continue;
+    LOAD_STAMP.set(s, before);
+    STORES.set(ctx.db, s);
+    return;
+  }
 }
 
 /** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
@@ -1770,7 +1794,7 @@ export function changed(
 
 /** `changed` for a handler that changes only the named resources (see AccessStore.persistChangedResources); falls back to the whole write where the store has no copy of the rows to compare with. */
 export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): number | null {
-  store.bump();
+  store.bumpResources(ids);
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
   try {
     const writes = store.persistChangedResources(ctx.db, ids);

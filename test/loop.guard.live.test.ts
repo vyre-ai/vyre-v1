@@ -121,6 +121,7 @@ test(
         .map((x) => `${x.name} ${x.ms} ms`)
         .join(", ")}\n${g.report()}\n`;
       fs.writeFileSync(`${out}/loop-guard/report.txt`, text);
+      fs.writeFileSync(`${out}/loop-guard/t0.txt`, String(g.t0));
       process.stderr.write(`[guard] ${text}`);
       assert.equal(g.blocks.length, 0, text.slice(0, 6000));
     } finally {

@@ -6,6 +6,7 @@
 // Project roles reuse the 0.6 idea in kernel/gateway/project-members.js@dbd2dfb: a team role is a grant tagged with source 'project:<id>' and
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
+import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
 import { NeedFullStore, asReader, changedGrants, isReader, keepWarm } from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
@@ -264,8 +265,8 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   return { roots: [...roots], who };
 }
 
-/** The share state as the tables hold it: folders, placement, and the my_access rows. */
-function loadShare(ctx: AccessCtx): ShareStore {
+/** The share state as the tables hold it: folders, placement, and the my_access rows (`mine`: the my_access rows already read, in pages, by primeShare). */
+function loadShare(ctx: AccessCtx, mine?: Record<string, unknown>[]): ShareStore {
   const ss = new ShareStore();
   for (const f of tryAll(ctx.db, "SELECT * FROM access_folders")) {
     ss.folders.set(String(f.id), {
@@ -282,7 +283,7 @@ function loadShare(ctx: AccessCtx): ShareStore {
     ss.placement.set(pk(String(p.resourceType), String(p.resourceId)), String(p.folderId));
   for (const p of tryAll(ctx.db, "SELECT * FROM access_placement_prev"))
     ss.prev.set(pk(String(p.resourceType), String(p.resourceId)), p.prevParent == null ? null : String(p.prevParent));
-  for (const a of tryAll(ctx.db, "SELECT * FROM access_my_access")) {
+  for (const a of mine ?? tryAll(ctx.db, "SELECT * FROM access_my_access")) {
     const row: AccessRow = {
       person: String(a.person),
       type: String(a.resourceType),
@@ -326,9 +327,44 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     if (!reader) KEPT.delete(raw);
   }
   storeOf(ctx);
-  const ss = loadShare(ctx);
+  const primed = raw ? PRIMED.get(raw) : undefined;
+  if (raw) PRIMED.delete(raw);
+  const now = primed ? stateOf(ctx.db) : null;
+  const ss = primed && now && now.rows === primed.rows && now.folders === primed.folders ? primed.ss : loadShare(ctx);
   SHARES.set(ctx.db, ss);
   return ss;
+}
+
+/** A share state read ahead in pages by primeShare, with the counters it was read at: used by the next shareOf only while the tables stand where they did. */
+const PRIMED = new WeakMap<object, { ss: ShareStore; rows: number; folders: number }>();
+/**
+ * Reads the my_access rows in pages with a turn of the event loop between them (one read of every row held the loop for 90 ms on a Space of 38,000 records), before the first call that needs them.
+ * Nothing is kept unless the counters of the tables did not move while it read.
+ */
+export async function primeShare(ctx: AccessCtx): Promise<void> {
+  const raw = rawDbOf(ctx.db);
+  if (!raw || SHARES.has(ctx.db) || PRIMED.has(raw)) return;
+  const kept = KEPT.get(raw);
+  if (kept && kept.ss.fresh >= 0) return;
+  const st = stateOf(ctx.db);
+  if (!st) return;
+  const mine: Record<string, unknown>[] = [];
+  for (let after = ""; ; ) {
+    let page: Record<string, unknown>[];
+    try {
+      page = ctx.db.all("SELECT * FROM access_my_access WHERE id > ? ORDER BY id LIMIT 2000", after) as Record<string, unknown>[];
+    } catch {
+      return; // a Space from before the table: shareOf reads what there is, as it always did
+    }
+    for (const r of page) mine.push(r);
+    if (page.length < 2000) break;
+    after = String(page[page.length - 1]!["id"]);
+    await loopTurn();
+  }
+  await loopYield();
+  const now = stateOf(ctx.db);
+  if (!now || now.rows !== st.rows || now.folders !== st.folders) return;
+  PRIMED.set(raw, { ss: loadShare(ctx, mine), rows: st.rows, folders: st.folders });
 }
 
 function persistFolders(ctx: AccessCtx, ss: ShareStore): void {
@@ -887,6 +923,7 @@ async function buildSliced(
 export async function settleForWriter(ctx: AccessCtx): Promise<void> {
   if (isReader(ctx)) return settleView(ctx);
   if (SHARES.has(ctx.db)) return;
+  await primeShare(ctx);
   try {
     await settleView(asReader(ctx));
   } finally {
@@ -902,6 +939,7 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
   if (!isReader(ctx)) return;
   const raw = rawDbOf(ctx.db);
   if (!raw) return;
+  await primeShare(ctx);
   for (let tries = 0; tries < 3; tries++) {
     const store = storeOf(ctx);
     const ss = shareOf(ctx);
