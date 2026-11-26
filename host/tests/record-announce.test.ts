@@ -200,3 +200,69 @@ test("the replay never runs as a principal that is gone: the person it acted for
   );
   assert.equal(replayActors(p({}), alive(), "usr_owner"), null, "nobody left");
 });
+
+// 26 Nov 2026 (Meier, rc.42): dv_event had 4,267 records and the owner saw 986. A sync pass that an update stopped before its call committed left records no announcement ever named and no marker in their own
+// event to say one was owed; the marker replay cannot find them, and a record the log never heard of is not a resource, so nobody sees it. The repair announces them at the next start.
+test("records with no announcement and no marker are announced at the start, quietly, for the actor their own event names; the repair is not repeated while the counts agree", async () => {
+  const w = world([
+    { id: "rec_seen1", at: 100, announced: true },
+    { id: "rec_orph1", at: 200 },
+    { id: "rec_orph2", at: 300 },
+    { id: "rec_gone", at: 400, deleted: true },
+    { id: "rec_live", at: 20_000 },
+  ]);
+  try {
+    fs.writeFileSync(w.markFile, "5\n"); // the marker replay has been through them: it looks for the marker, and these have none
+    const repairFile = path.join(w.dir, "repair");
+    const got: PendingAnnouncement[] = [];
+    const run = (): Promise<number> => replayAnnouncements({ ...base(w, async (p) => void got.push(p)), repairFile });
+    assert.equal(await run(), 2);
+    assert.deepEqual(
+      got.map((p) => p.id).sort(),
+      ["rec_orph1", "rec_orph2"],
+      "not the announced, the deleted or the live call's",
+    );
+    assert.ok(got.every((p) => p.quiet === true && p.repair === true && p.actor === "usr_dana" && p.type === "party"));
+    assert.ok(fs.existsSync(repairFile), "the repair is marked done");
+    // they are announced now: the next start finds the counts agree and compares nothing
+    const log = new DatabaseSync(w.eventsDb);
+    let seq = 100;
+    for (const p of got)
+      log
+        .prepare("INSERT INTO events (seq, event, payload) VALUES (?, ?, x'7b7d')")
+        .run(
+          seq++,
+          JSON.stringify({ id: `evt_r${seq}`, type: "record.created", at: 1, entity: "record", entity_id: p.id }),
+        );
+    log.close();
+    got.length = 0;
+    assert.equal(await run(), 0);
+    // a record made later is short again (the counts leave room for it): found even though the repair was done
+    const space = new DatabaseSync(w.spaceDb);
+    space.prepare("INSERT INTO rt_party VALUES ('rec_late', 1, 500, 500, NULL, '{}')").run();
+    space.close();
+    assert.equal(await run(), 1);
+    assert.deepEqual(
+      got.map((p) => p.id),
+      ["rec_late"],
+    );
+    assert.equal(got[0]!.actor, "", "no event of its own: the replay runs it as the Space owner");
+  } finally {
+    fs.rmSync(w.dir, { recursive: true, force: true });
+  }
+});
+
+test("a repair that fails for one record is not marked done, so the next start looks again", async () => {
+  const w = world([{ id: "rec_orph", at: 200 }]);
+  try {
+    fs.writeFileSync(w.markFile, "1\n");
+    const repairFile = path.join(w.dir, "repair");
+    assert.equal(
+      await replayAnnouncements({ ...base(w, async () => Promise.reject(new Error("busy"))), repairFile }),
+      0,
+    );
+    assert.ok(!fs.existsSync(repairFile));
+  } finally {
+    fs.rmSync(w.dir, { recursive: true, force: true });
+  }
+});

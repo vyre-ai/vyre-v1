@@ -1086,6 +1086,7 @@ async function runComputed(
 export const consumers = {
   "records.computed": {
     on: COMPUTED_EVENTS,
+    takesRepair: true, // a record a repair announced still needs its computed values
     run: (
       ctx: unknown,
       event: { name: string; payload: Record<string, unknown>; stopping?: () => boolean },
