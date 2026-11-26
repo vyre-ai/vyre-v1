@@ -1,0 +1,1 @@
+- A server run from source remembers for a minute that vyre-server is not installed, instead of starting a child process every time the machines job asks.

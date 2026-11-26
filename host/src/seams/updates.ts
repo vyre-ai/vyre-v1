@@ -119,6 +119,7 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
   const read = d.readText ?? defaultRead;
   const dir = d.dir ?? process.env["VYRE_DIR"] ?? "/srv/vyre";
   const server = (...args: string[]): Promise<RunResult> => run(["vyre-server", ...args]);
+  let missingAt = Number.NEGATIVE_INFINITY;
 
   return {
     // An all-zero key verifies nothing: with no key compiled in, every manifest fails the module's signature check instead of any being trusted.
@@ -137,9 +138,15 @@ export function createUpdatesHost(d: UpdatesHostDeps = {}): UpdatesDrivers {
     installer: {
       running: () => d.version,
       async current() {
+        // a server run from source has no vyre-server, and every minute the machines job asks: the answer that it is not there is kept for a minute, since looking is a child process (15 ms to 26 ms of the loop)
+        const notThere = (): Error =>
+          Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
+        if (performance.now() - missingAt < 60_000) throw notThere();
         const r = await server("version");
-        if (r.code === 127)
-          throw Object.assign(new Error("vyre-server is not installed on this server"), { code: "ENOENT" });
+        if (r.code === 127) {
+          missingAt = performance.now();
+          throw notThere();
+        }
         if (r.code !== 0 || r.stdout.trim() === "")
           throw new Error("vyre-server could not say which version is running");
         return r.stdout.trim();
