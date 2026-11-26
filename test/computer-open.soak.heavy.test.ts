@@ -253,9 +253,19 @@ test(
     );
     await group(
       "browser from asleep",
-      async () => void (await docker(["stop", "-t", "2", bname], 60_000)),
-      async () => (await frame()).frame,
-      3000,
+      async () => {
+        // really cold: the Space browser's container is stopped and read back as stopped before the open is timed
+        await docker(["stop", "-t", "2", bname], 60_000);
+        const state = (await docker(["inspect", "-f", "{{.State.Running}}", bname], 20_000)).out;
+        if (state.includes("true")) throw new Error("the Space browser container did not stop");
+      },
+      async () => {
+        const a = Date.now();
+        const r = await frame();
+        // the whole open, from the call to the first frame: the cold start is in the call
+        return ms(a) + 0 * r.frame;
+      },
+      6000,
     );
     await group(
       "browser awake",
