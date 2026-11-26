@@ -114,7 +114,12 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
     const cut = at - 60_000;
     for (const xs of [jobs, requests] as Span[][]) while (xs.length && xs[0]!.end < cut) xs.shift();
     while (statements.length && statements[0]!.end < cut) statements.shift();
-    while (every.length && every[0]!.end < cut) every.shift();
+    // every statement is kept only a short while (and the list is capped): a long list made this timer itself the thing that blocked the loop
+    const cutEvery = at - 10_000;
+    let drop = 0;
+    while (drop < every.length && every[drop]!.end < cutEvery) drop++;
+    if (every.length - drop > 100_000) drop = every.length - 100_000;
+    if (drop) every.splice(0, drop);
   }, sampleMs);
 
   const wrapped = new WeakSet<object>();
