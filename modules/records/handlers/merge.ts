@@ -1145,7 +1145,7 @@ export async function toXlsx(
 }
 
 /** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
-function filesPort(
+export function filesPort(
   call: (cap: string, input: unknown) => Promise<unknown>,
   trace: string,
 ): (f: { name: string; mime: string; bytes: Uint8Array }) => Promise<string> {
@@ -1186,14 +1186,15 @@ function filesPort(
         (
           (await call("files.list", { folder, q: stem.slice(0, 200), limit: 500 })) as { files?: { name: string }[] }
         ).files?.map((x) => x.name) ?? [],
-      async (name, attempt) =>
+      async (name) =>
         (
           (await call("files.create", {
             folderId: folder,
             name,
             mime: f.mime,
             content: { base64: Buffer.from(f.bytes).toString("base64") },
-            idempotencyKey: `export:${trace}:${attempt}`,
+            // the key names the file asked for: the same name replays the same file (an outer layer that runs the call again with the same trace), a different name is a new key
+            idempotencyKey: `export:${trace}:${name}`,
           })) as { file: { fileId: string } }
         ).file.fileId,
     );
