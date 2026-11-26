@@ -4975,10 +4975,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               (r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))),
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
-          scrub: (type, field) => scrubSealedField(type, field),
+          scrub: (type, field) => scrubSealedFields(type, [field]),
+          scrubMany: (type, fields) => scrubSealedFields(type, fields),
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
-      const scrubSealedField = async (type: string, field: string): Promise<void> => {
+      const scrubSealedFields = async (type: string, fields: readonly string[]): Promise<void> => {
         const dec = new TextDecoder();
         const seqs: number[] = [];
         const ids = new Set<string>();
@@ -5000,7 +5001,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (
               ["fields", "prev", "data", "before"].some((k) => {
                 const part = p[k];
-                return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]);
+                return (
+                  !!part && typeof part === "object" && fields.some((f) => plain((part as Record<string, unknown>)[f]))
+                );
               })
             ) {
               seqs.push(e.seq);
@@ -5011,7 +5014,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           after = page[page.length - 1]!.seq;
         }
         if (seqs.length) await spaceLog.compactSeqs(seqs);
-        await spaceLog.forgetField(type, field);
+        for (const field of fields) await spaceLog.forgetField(type, field);
         if (db && ids.size) {
           const mine = db;
           try {
@@ -5034,7 +5037,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the records are read again by search: the touch is an ordinary record.updated, with no values in it
         for (const id of ids) {
           await spaceLog.appendResult({
-            id: `evt_seal_${type}_${field}_${id}`.slice(0, 120),
+            id: `evt_seal_${type}_${fields.length === 1 ? fields[0] : `${fields.length}f`}_${id}`.slice(0, 120),
             type: "record.updated",
             sv: 1,
             trace_id: "5e".repeat(16),
