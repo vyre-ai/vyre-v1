@@ -384,6 +384,134 @@ export function hiddenRunDataFinding(modulesDb: string): Finding {
   }
 }
 
+/**
+ * Search entries that carry text of fields a type no longer has: the dropped text stayed findable on a Space that dropped a field before the index followed schema changes. The one-time scrub on the first start of this
+ * build (modules/search/handlers/scrub.ts) reads the records again and keeps its count in search_meta: `before` entries found carrying such text, `after` the ones that still do. Read only.
+ */
+export function searchRemovedTextFinding(modulesDb: string): Finding {
+  const key = "search.removed_field_text";
+  if (!fs.existsSync(modulesDb)) return { key, state: "healthy", detail: "No search index yet.", next: OK };
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return { key, state: "healthy", detail: "No search index yet.", next: OK };
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "search entries carrying removed-field text: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as {
+        state?: string;
+        before?: number;
+        after?: number;
+        scanned?: number;
+        total?: number;
+        unreadable?: number;
+        retry?: { n: number };
+      };
+      const before = Number(s.before ?? 0),
+        after = Number(s.after ?? 0);
+      if (s.state !== "done")
+        return {
+          key,
+          state: "degraded",
+          detail: `search entries carrying removed-field text: ${before} found so far, the one-time check has read ${Number(s.scanned ?? 0)} of ${Number(s.total ?? 0)} entries${s.retry ? `; a record that could not be read is being tried again (try ${s.retry.n})` : ""}${Number(s.unreadable ?? 0) ? `; ${Number(s.unreadable)} removed because their records could not be read` : ""}.`,
+          next: NEXT.searchRemovedText,
+        };
+      const lost = Number(s.unreadable ?? 0);
+      return {
+        key,
+        state: after === 0 ? "healthy" : "degraded",
+        detail: `search entries carrying removed-field text: ${after} (the one-time check found ${before} and rebuilt them${lost ? `; ${lost} were removed because their records could not be read, and come back when the record is next edited` : ""}).`,
+        next: after === 0 ? OK : NEXT.searchRemovedText,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
+/** Records that exist but had no search entry, put in by the same one-time job (`added` in its row). Read only. */
+export function searchMissingRecordsFinding(modulesDb: string): Finding {
+  const key = "search.missing_records";
+  const none = (detail: string): Finding => ({ key, state: "healthy", detail, next: OK });
+  if (!fs.existsSync(modulesDb)) return none("No search index yet.");
+  try {
+    const db = openDb(modulesDb, fs.existsSync(`${modulesDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'search_meta'").length === 0)
+        return none("No search index yet.");
+      const row = db.all("SELECT v FROM search_meta WHERE k = 'scrub:removed_fields'")[0] as { v: string } | undefined;
+      if (!row)
+        return {
+          key,
+          state: "degraded",
+          detail: "records without a search entry: not counted yet, the one-time check has not run.",
+          next: NEXT.searchRemovedText,
+        };
+      const s = JSON.parse(row.v) as { state?: string; added?: number };
+      const added = Number(s.added ?? 0);
+      return s.state === "done"
+        ? none(`records without a search entry: 0 (the one-time check put in ${added} that had none).`)
+        : {
+            key,
+            state: "degraded",
+            detail: `records without a search entry: ${added} put in so far, the one-time check is still running.`,
+            next: NEXT.searchRemovedText,
+          };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return none(`Not checked: the search index could not be read (${e instanceof Error ? e.message : String(e)}).`);
+  }
+}
+
+/** A field or type was purged for good but the Space file could not hand its freed pages back (an older file without incremental vacuum): the values are zeroed, the pages stay until the planned compact. Read only. */
+export function purgeOwedCompactFinding(spaceDb: string): Finding {
+  const key = "schema.purge_owed_compact";
+  if (!fs.existsSync(spaceDb)) return { key, state: "healthy", detail: "No Space file yet.", next: OK };
+  try {
+    const db = openDb(spaceDb, fs.existsSync(`${spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+    try {
+      if (db.all("SELECT 1 AS x FROM sqlite_master WHERE type = 'table' AND name = 'sc_purge_owed'").length === 0)
+        return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      const r = db.all("SELECT count(*) AS n, max(bytes) AS b, max(at) AS at FROM sc_purge_owed")[0] as {
+        n: number;
+        b: number | null;
+        at: number | null;
+      };
+      if (!r.n) return { key, state: "healthy", detail: "No purge is waiting for a compact.", next: OK };
+      return {
+        key,
+        state: "degraded",
+        detail: `${r.n} purged fields or types left freed pages in the Space file (${Math.round((r.b ?? 0) / 1048576)} MB): their values are zeroed, the pages are handed back by the planned compact.`,
+        next: NEXT.purgeOwedCompact,
+      };
+    } finally {
+      db.close();
+    }
+  } catch (e) {
+    return {
+      key,
+      state: "healthy",
+      detail: `Not checked: the Space file could not be read (${e instanceof Error ? e.message : String(e)}).`,
+      next: OK,
+    };
+  }
+}
+
 function logsFinding(file: string, now: number): Finding {
   if (!fs.existsSync(file)) return { key: "logs.errors", state: "healthy", detail: "No log file yet.", next: OK };
   try {
@@ -533,6 +661,9 @@ export async function runDoctor(o: DoctorOptions): Promise<DoctorReport> {
     findings.push(eventsFinding(paths.events, o.chainTail));
     findings.push(recordEventsFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`, paths.events));
     findings.push(hiddenRunDataFinding(paths.modules));
+    findings.push(searchRemovedTextFinding(paths.modules));
+    findings.push(searchMissingRecordsFinding(paths.modules));
+    findings.push(purgeOwedCompactFinding(`${o.dataDir.replace(/\/$/, "")}/space.db`));
     findings.push(finding("host.docker", await probes.docker(platform), NEXT.docker));
     const f = o.fetch === undefined ? (typeof fetch === "function" ? (fetch as unknown as FetchFn) : null) : o.fetch;
     findings.push(

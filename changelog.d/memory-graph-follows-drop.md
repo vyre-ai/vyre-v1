@@ -1,0 +1,1 @@
+- The memory graph reads a type's record nodes again when a field is dropped, so a title or a [[link]] taken from the dropped field leaves it; the search index journal is folded in a moment after a purge.

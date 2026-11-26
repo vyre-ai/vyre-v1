@@ -1,0 +1,1 @@
+- Search no longer indexes the text of a key a record still holds after its field was dropped from the type.

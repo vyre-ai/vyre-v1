@@ -10,12 +10,15 @@ import {
   handlers as table,
   indexApply,
   indexDropFolder,
+  noteFieldChange,
   noteTitleChange,
   notePrivate,
+  reindexAll,
   retitleRun,
   setLister,
   DEFAULT_SOURCES,
 } from "./handlers/index.ts";
+import { scrubStep } from "./handlers/scrub.ts";
 import { forgetVectors, rowsOf, setEmbedder, setSource } from "./projections.ts";
 import type { Embedder, Source, SearchCtx } from "./projections.ts";
 
@@ -169,9 +172,12 @@ export const consumers = {
       for (const t of targetsOf(e)) if (!alreadyIndexed(ctx, e, t)) await indexApply(ctx, t);
     },
   },
-  /** A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). */
+  /**
+   * A type's schema changed: if its title field did, its documents are marked to be titled again (see search.retitle). A field dropped, retyped or restored, or a type dropped, rewrites rows that announce
+   * nothing to the Space log (schema.apply writes the records store directly), so the documents of the type are read again here, a page at a time (reindexAll), or leave with the type.
+   */
   "search.titles": {
-    on: ["schema.changed"],
+    on: ["schema.changed", "schema.field_restored", "schema.type_dropped"],
     run: async (ctx: SearchCtx, event: IndexEvent | HostEvent): Promise<void> => {
       const e = indexEventOf(event);
       const types = Array.isArray(e.payload["types"])
@@ -179,7 +185,8 @@ export const consumers = {
         : typeof e.payload["type"] === "string"
           ? [e.payload["type"]]
           : [];
-      if (types.length > 0) await noteTitleChange(ctx, types, e.seq);
+      if (e.type === "schema.changed" && types.length > 0) await noteTitleChange(ctx, types, e.seq);
+      if (noteFieldChange(ctx, e) > 0) await reindexAll(ctx);
     },
   },
   /** What changed gets its vector within seconds: the newest documents without one are embedded in a small batch. */
@@ -202,6 +209,8 @@ export const periodic = {
 
 /** Delete an agent for good (F77): what this module holds of it is cleared when the agents module asks (lib/erase-agent.ts). */
 export const hostCalls = {
+  /** The one-time scrub of text of removed fields: one slice of work, answers where the job stands (handlers/scrub.ts). The host calls it until it is done, on the first start of the build that has it. */
+  "search.scrub_removed_fields": (ctx: EraseCtx): Promise<unknown> => scrubStep(ctx as unknown as SearchCtx),
   "search.erase_agent": (ctx: EraseCtx, i: EraseIn): Footprint => {
     if (i.dry === true) return {};
     // the agent's own entry, and what the index kept of anything under its folder
