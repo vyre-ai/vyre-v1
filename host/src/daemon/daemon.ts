@@ -1,4 +1,5 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { truncateWal } from "../../../lib/wal.ts";
 import { bootBegin, bootMark } from "./boot-timing.ts";
 import { startCheckpointer } from "./checkpointer.ts";
 import { UNIT_MS, loopTurn, loopYield } from "../../../lib/loop-budget.ts";
@@ -4094,7 +4095,6 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         call: async (events) => {
           // a sync whose kept store is gone (a start, or a handler wrote access rows since) would read the access tables whole, 0.3 to 4 s of blocked loop on a big Space: the module reads them in slices first and keeps what it read
           await hookRunner.call("access.prime", {}).catch(() => false);
-          await loopYield(); // the sync itself (folding, and building the snapshot again when the batch needs it: 40 ms on 38,000 resources) starts in a turn of its own
           return (await hookRunner.call("access.sync", { events })) as AccessSnapshot;
         },
         adopt: (s) => access.adopt(s),
@@ -5504,7 +5504,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               return fn();
             } finally {
               try {
-                db!.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+                truncateWal(db!);
               } catch {
                 /* a reader holds the log: the next checkpoint takes it */
               }
@@ -5586,7 +5586,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               // the rows are deleted: the write-ahead log still holds their old pages until it is checkpointed away, so it is, here, and the modules database is told to overwrite what it frees from now on
               try {
                 db?.exec("PRAGMA secure_delete = ON");
-                db?.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+                if (db) truncateWal(db);
               } catch {
                 /* a busy database is checkpointed by the next write */
               }

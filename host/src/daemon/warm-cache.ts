@@ -16,7 +16,19 @@ try {
   /* a platform that does not allow it runs at the normal priority */
 }
 const root = fileURLToPath(new URL("../../../", import.meta.url));
+/** Is the server that started this still there? A warm-up outlives nothing: it stops at once when its parent is gone (a kill of the server, a crash), before it writes anything more. */
+const parent = process.ppid;
+const parentGone = (): boolean => {
+  if (process.env["VYRE_WARM_NO_EXIT"]) return false; // the test starts it with no parent to follow
+  try {
+    process.kill(parent, 0);
+    return false;
+  } catch {
+    return true;
+  }
+};
 const load = async (file: string): Promise<void> => {
+  if (parentGone()) process.exit(0);
   try {
     await import(pathToFileURL(file).href);
   } catch {

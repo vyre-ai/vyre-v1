@@ -5,6 +5,7 @@
 //   clean    after the apply committed: the plaintext is taken out of every copy the Space kept. The payloads of the old record events (their commitments and the chain stay, as in events.compact),
 //            the change feed, the per-field history, and Trash entries of the field. A job row (sc_seal_jobs) says it is still owed, so a boot after a crash finishes it.
 // The Vault is the host's (setSchemaVault, the same driver Records uses).
+import { truncateWal } from "../../../lib/wal.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredRecord } from "../../../kernel/src/store/types.ts";
@@ -251,9 +252,9 @@ export async function cleanField(deps: SchemaDeps, type: string, field: string):
   if (host) {
     // scrub the file every time a job runs, not only when it erased something: a try that stopped before this point left the freed pages behind
     const db = host.store.db;
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    truncateWal(db);
     db.exec("VACUUM");
-    db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    truncateWal(db);
   }
   return { events: erasedSeqs.length };
 }

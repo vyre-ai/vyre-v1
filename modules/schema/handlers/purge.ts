@@ -3,6 +3,7 @@
 // each one cleans the copies of ALL the fields of the entry in ONE pass over the type's log: a page at a time, the rows of the page are written again first (record.rebased) and only then are the page's old events
 // erased, so a stop between the two repeats the page and never leaves an erased event without its row state; the loop is given back between pages. The host then scrubs the Space log, the kept answers and the search
 // index once for the whole set. A field that is back in the type (restored, or added again under the same key) is not cleaned: its values are live; only the old Trash entry goes.
+import { truncateWal } from "../../../lib/wal.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import { isSealedRef } from "../../../kernel/src/store/values.ts";
 import { turns } from "../../../lib/yield-loop.ts";
@@ -39,7 +40,7 @@ function scrubFile(db: { exec(sql: string): unknown; prepare(sql: string): { get
   scrubbed: boolean;
   bytes: number;
 } {
-  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  truncateWal(db);
   const bytes =
     Number((db.prepare("PRAGMA page_count").get() as { page_count: number }).page_count) *
     Number((db.prepare("PRAGMA page_size").get() as { page_size: number }).page_size);
@@ -49,7 +50,7 @@ function scrubFile(db: { exec(sql: string): unknown; prepare(sql: string): { get
     db.exec("PRAGMA incremental_vacuum(256)");
     if (Number((db.prepare("PRAGMA freelist_count").get() as { freelist_count: number }).freelist_count) === 0) break;
   }
-  db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+  truncateWal(db);
   return { scrubbed: true, bytes };
 }
 

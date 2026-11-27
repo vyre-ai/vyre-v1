@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { bootReport } from "./boot-timing.ts";
 import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
 import { fileURLToPath } from "node:url";
@@ -232,6 +233,7 @@ export async function run(announce: (d: Daemon) => void): Promise<number> {
   process.stderr.write(`vyred ${bootReport()}\n`);
   // a start with no compile cache fills it for the next one, in a process of its own at the lowest priority (main.ts, warm-cache.ts)
   const warm = process.env["VYRE_COMPILE_CACHE_WARM"];
+  let warmer: ChildProcess | undefined;
   if (warm) {
     // one warm-up at a time for a cache folder: a lock file made exclusively (two daemons of one data directory never fill the cache together); one older than five minutes is a warm-up that died, and is taken over
     const lock = path.join(warm, ".warming");
@@ -246,13 +248,14 @@ export async function run(announce: (d: Daemon) => void): Promise<number> {
         process.execPath,
         [...process.execArgv, fileURLToPath(new URL("./warm-cache.ts", import.meta.url))],
         {
-          detached: true,
+          // not detached: the warm-up ends with this server (it is killed below when the server stops, and it looks for its parent between its steps), so nothing of it is still writing into the data directory when that is removed
           stdio: "ignore",
           env: { ...process.env, NODE_COMPILE_CACHE: warm, VYRE_COMPILE_CACHE_WARM: "", VYRE_COMPILE_CACHE_LOCK: lock },
         },
       );
       child.once("error", () => fs.rmSync(lock, { force: true }));
       child.unref();
+      warmer = child;
     } catch {
       /* the lock is held, or the next start is slow once more */
     }
@@ -274,5 +277,11 @@ export async function run(announce: (d: Daemon) => void): Promise<number> {
       if (process.platform === "win32") process.once("SIGBREAK", stop);
     }),
   ]);
+  // the warm-up of the compile cache ends with the server: a process still writing into the data directory after the stop would keep it from being removed (an update, an uninstall, a test)
+  if (warmer && warmer.exitCode === null) {
+    const ended = new Promise<void>((r) => warmer!.once("exit", () => r()));
+    warmer.kill();
+    await Promise.race([ended, new Promise<void>((r) => setTimeout(r, 3_000))]);
+  }
   return 0;
 }
