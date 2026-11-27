@@ -62,12 +62,22 @@ test(
     assert.equal(lines.filter((l: string) => l === "one").length, 1, "and it ran once");
     assert.ok(!text.includes("XX"), "the refused batch typed nothing");
 
-    // a second person watching sees who is typing, and cannot type
+    // a second person who works in a place of their own is told that the terminal is there and nothing of what it holds (rc.30, F30: a person's own terminal is theirs alone): not its name, not its folder, not
+    // who has the keyboard (an earlier version of this walk expected heldBy here); and cannot type
     const listed = await watcher("terminal.list", { host: "agent_computer" });
-    const row = (listed.data.terminals as Array<{ terminalId: string; heldBy?: string }>).find(
-      (x) => x.terminalId === id,
-    );
-    assert.equal(row?.heldBy, w.owner.id, "the watcher sees who has the keyboard");
+    const row = (
+      listed.data.terminals as Array<{
+        terminalId: string;
+        heldBy?: string;
+        elsewhere?: boolean;
+        name?: string;
+        cwd?: string;
+      }>
+    ).find((x) => x.terminalId === id);
+    assert.equal(row?.elsewhere, true, "the watcher is told it is someone else's");
+    assert.equal(row?.heldBy, undefined, "and not who has the keyboard");
+    assert.equal(row?.name, "Someone else's terminal");
+    assert.equal(row?.cwd, "");
     const hijack = await watcher("terminal.keys", {
       terminalId: id,
       lease,
