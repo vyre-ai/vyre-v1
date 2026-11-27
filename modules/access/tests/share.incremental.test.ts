@@ -489,7 +489,14 @@ test("a role change on a Space of 1,500 resources does not turn every resource i
     seedSpace(raw);
     sync(ctxOf(raw), {
       events: Array.from({ length: 1500 }, (_, i) =>
-        ev("resource.created", { id: `fil_big${i}`, type: "file", parent_id: "fld_b", label: 0, owner_id: "usr_mia", holds: 0 }),
+        ev("resource.created", {
+          id: `fil_big${i}`,
+          type: "file",
+          parent_id: "fld_b",
+          label: 0,
+          owner_id: "usr_mia",
+          holds: 0,
+        }),
       ),
     });
     persistMode.resourcesByFields = byFields;
@@ -500,7 +507,10 @@ test("a role change on a Space of 1,500 resources does not turn every resource i
       return was(...a);
     }) as typeof JSON.stringify;
     try {
-      await call(raw, "usr_owner", "access.roles.assign", { subject: { kind: "person", id: "usr_noor" }, roleId: "rol_developer" });
+      await call(raw, "usr_owner", "access.roles.assign", {
+        subject: { kind: "person", id: "usr_noor" },
+        roleId: "rol_developer",
+      });
     } finally {
       JSON.stringify = was;
       persistMode.resourcesByFields = true;

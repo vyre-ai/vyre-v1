@@ -167,6 +167,7 @@ export class LogSink implements SpanSink {
   private tallies = new Map<string, Tally>();
   private prunedAt = 0;
   private checkpointer: Checkpointer | null = null;
+  private spansLast = false;
   /** Over the size cap: pruning goes on until the rows take three quarters of it. */
   private over = false;
 
@@ -505,8 +506,12 @@ export class LogSink implements SpanSink {
       if (this.observe()) this.scheduleSoon();
       return;
     }
-    const rows = this.rows.splice(0, FLUSH_BATCH),
-      spans = this.spans.splice(0, FLUSH_BATCH);
+    // rows and spans take turns when both are waiting: a flush of 100 of each was 200 inserts in one stretch
+    const both = this.rows.length > 0 && this.spans.length > 0 && this.rows.length + this.spans.length > FLUSH_BATCH;
+    const rowsTurn = !both || this.spansLast;
+    const rows = rowsTurn ? this.rows.splice(0, FLUSH_BATCH) : [],
+      spans = !both || !rowsTurn ? this.spans.splice(0, FLUSH_BATCH) : [];
+    this.spansLast = !rowsTurn;
     const { insLog, insSpan, seq: readSeq, setSeq } = this.statements();
     this.db.exec("BEGIN");
     try {

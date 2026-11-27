@@ -1,10 +1,17 @@
 // The scheduler (ARCH 1.2): the daemon's clock. Jobs run on an interval or once a day at a fixed time; a job never overlaps itself; a failing job is counted and reported, never fatal.
 // The scheduler stamps `lastTickAt` on every tick: the `scheduler` host probe reads it, so a stalled event loop shows up in health. Automations and Journeys have their own
 // schedules in their modules; this one runs the host's chores (probes, command queues, idempotency purge, log retention).
+import { loopTurn } from "../../../lib/loop-budget.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 
 export type Schedule =
-  | { everyMs: number; /** run once as soon as the scheduler starts */ immediate?: boolean }
+  | {
+      everyMs: number;
+      /** run once as soon as the scheduler starts */
+      immediate?: boolean;
+      /** never given a stagger phase: the job has to run at its boundary (the schedule tick of the automations: a cron minute is not allowed to fire up to a minute late) */
+      exact?: boolean;
+    }
   | { daily: { hour: number; minute: number }; utc?: boolean };
 
 export interface JobSpec {
@@ -114,7 +121,10 @@ export class Scheduler {
     const s = spec.schedule;
     if ("everyMs" in s && !(s.everyMs >= 1)) throw new Error(`job ${spec.name}: everyMs must be at least 1`);
     const t = this.now();
-    const phase = this.stagger && "everyMs" in s && !s.immediate ? nameHash(spec.name) % Math.min(s.everyMs, STAGGER_MS) : 0;
+    const phase =
+      this.stagger && "everyMs" in s && !s.immediate && !s.exact
+        ? nameHash(spec.name) % Math.min(s.everyMs, STAGGER_MS)
+        : 0;
     const nextAt =
       "everyMs" in s
         ? s.immediate
@@ -186,7 +196,7 @@ export class Scheduler {
       }
       j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
       // a turn of the event loop between two jobs that start in the same tick: a request that arrived meanwhile is answered between them, not after all of them
-      if (started.length) await new Promise<void>((done) => setImmediate(done));
+      if (started.length) await loopTurn(); // the server's shared turn: the pumps and the sweeps count their work from the same one
       started.push(this.runJob(j));
     }
     await Promise.all(started);

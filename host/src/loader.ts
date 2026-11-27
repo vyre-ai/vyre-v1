@@ -3,6 +3,7 @@
 // (generated stub-impl while the module is `status:'stub'` in host/modules.json, its own impl once `live`), indexes the route table, and builds the per-call services (ctx.db scoped to the module, ctx.http limited to its connector's domains).
 // Only the host builds a ctx (boundary B2); modules never see the raw database or fetch.
 import { UNIT_MS, loopYield } from "../../lib/loop-budget.ts";
+import { sliceImport } from "./daemon/slice-import.ts";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { fail } from "./routes/errors.ts";
@@ -69,7 +70,9 @@ export interface LoadedHost {
 export function fileImporter(root: string): Importer {
   return async (id, kind) => {
     const rel = kind === "stub" ? `generated/modules/${id}/stub-impl.ts` : `modules/${id}/impl.ts`;
-    const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`).href)) as { handlers?: HandlerMap };
+    const href = pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`);
+    await sliceImport(href, 4); // the module's own graph in pieces, a turn of the loop between them
+    const m = (await import(href.href)) as { handlers?: HandlerMap };
     if (!m.handlers) throw new Error(`${rel} exports no handlers`);
     return m.handlers;
   };

@@ -21,7 +21,10 @@ test("with stagger fifty jobs of one interval fall due over the minute after it,
   assert.ok(a.every((p) => p >= 0 && p < STAGGER_MS));
   const seconds = new Set(a.map((p) => Math.floor(p / 1000)));
   assert.ok(seconds.size >= 25, `spread over ${seconds.size} different seconds`);
-  assert.ok(Math.max(...Object.values(Object.groupBy(a, (p) => Math.floor(p / 1000))).map((g) => g?.length ?? 0)) <= 4, "no second holds more than four of them");
+  assert.ok(
+    Math.max(...Object.values(Object.groupBy(a, (p) => Math.floor(p / 1000))).map((g) => g?.length ?? 0)) <= 4,
+    "no second holds more than four of them",
+  );
   assert.equal(nameHash("x") === nameHash("x"), true);
 });
 
@@ -50,4 +53,14 @@ test("a tick that starts several jobs gives the event loop a turn between them",
   await s.tick();
   assert.deepEqual(order, ["a", "b", "c"]);
   assert.ok(turns >= 2, `the loop turned ${turns} times during the tick`);
+});
+
+test("an exact job is never given a phase: a cron minute runs at its boundary, not up to a minute after it", () => {
+  const t = 1_000_000;
+  const s = new Scheduler({ now: () => t, stagger: true });
+  for (const n of NAMES) s.add({ name: n, schedule: { everyMs: 60_000, exact: true }, run: () => undefined });
+  assert.ok(
+    s.status().every((j) => j.nextAt === t + 60_000),
+    "every exact job is due at exactly now + everyMs",
+  );
 });

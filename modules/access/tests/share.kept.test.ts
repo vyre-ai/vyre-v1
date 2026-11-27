@@ -204,7 +204,9 @@ test("incremental: each kind of change gives the rows a full rebuild gives, and 
   assert.ok(shareKept.incremental >= people + 4, "those were worked out for the people they name");
   assert.equal(shareKept.built, built, "and none of them rebuilt the whole Space");
   // a change it cannot scope to people or objects (what a role holds) is a full rebuild, and still equal
-  sync(ctxOf(raw), { events: [ev("role.defined", { id: "rol_extra", name: "Extra", perms: ["files.read"], clearance: 0 })] });
+  sync(ctxOf(raw), {
+    events: [ev("role.defined", { id: "rol_extra", name: "Extra", perms: ["files.read"], clearance: 0 })],
+  });
   await same(raw, "a role defined");
   assert.ok(shareKept.built >= built + 1, "that was a full rebuild");
   raw.run("DELETE FROM access_grants WHERE id = ?", "gr_i2"); // plain SQL
@@ -331,7 +333,8 @@ test("incremental: a folder made to follow a record gives the rows a full rebuil
   await same(raw, "fld_1 follows rec_2 (Space-wide access to it, and to what is under it, changes)");
   await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_3" });
   await same(raw, "fld_child follows rec_3 (a record only its owner may open)");
-  const parent = (id: string): unknown => (raw.all("SELECT parent_id FROM access_resources WHERE id = ?", id)[0] as { parent_id: unknown }).parent_id;
+  const parent = (id: string): unknown =>
+    (raw.all("SELECT parent_id FROM access_resources WHERE id = ?", id)[0] as { parent_id: unknown }).parent_id;
   assert.equal(parent("fld_child"), "rec_3", "the changed row is in the table");
   assert.equal(parent("fld_1"), "rec_2");
   assert.equal(parent("rec_4"), "fld_child", "and nothing else moved");

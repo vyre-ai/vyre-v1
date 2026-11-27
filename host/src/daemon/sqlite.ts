@@ -30,7 +30,9 @@ export function openDb(file: string, o: OpenDbOptions = {}): HostDb {
     ? new DatabaseSync(immutableUri(file), { readOnly: true })
     : new DatabaseSync(file, o.readOnly ? { readOnly: true } : {});
   if (!o.readOnly && !o.immutable)
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = FAST;");
+    db.exec(
+      "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = FAST;",
+    );
   else db.exec("PRAGMA busy_timeout = 2000;");
   let depth = 0;
   // Prepared statements, kept by their SQL text (most of the host's and the modules' statements repeat on every call: preparing one was about a tenth of a write). Bounded: the oldest is

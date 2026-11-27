@@ -7,7 +7,7 @@
 //   access    for a record with no projects row, the folder gets the record's own grants (who may see or edit the project may see or edit the folder), plus the lead (and the maker, with a source of its own) at Manage.
 //             The grants carry the source `projfolder:<recordId>` so they are replaced as a set. A project with a projects row already has its roles written on the folder (applyRole).
 //             In a Personal Space the owner sees everything and no grant is written.
-import { loopYield } from "../../../lib/loop-budget.ts";
+import { UNIT_MS, loopYield } from "../../../lib/loop-budget.ts";
 import { call, codeOf, ensure, followRecord, projectByRecord, tolerant } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 import { makeProject, projectsRoot } from "./project.ts";
@@ -324,7 +324,10 @@ export async function followRecords(ctx: ProjectsCtx): Promise<void> {
     `SELECT "recordId", "folderId" FROM projects_project WHERE "folderId" IS NOT NULL`,
   ) as Array<{ recordId: string; folderId: string }>)
     pairs.push({ folder: r.folderId, record: r.recordId });
-  for (const x of pairs) await followRecord(ctx, x.folder, x.record, { sweep: true });
+  for (const x of pairs) {
+    await loopYield(UNIT_MS); // one folder at a time: the loop is given back when the work since it last ran has used a unit
+    await followRecord(ctx, x.folder, x.record, { sweep: true });
+  }
   FOLLOWED.add(ctx.db);
 }
 
@@ -463,7 +466,7 @@ export async function backfill(realCtx: ProjectsCtx): Promise<number> {
       }>(ctx, "records.query", { type, limit: 200, ...(cursor ? { cursor } : {}) });
       for (const row of page.rows ?? []) {
         // bounded slices: the sweep counts its work with the pumps' (lib/loop-budget.ts), then the event loop runs
-        await loopYield();
+        await loopYield(UNIT_MS);
         const fields = row.fields ?? row.data ?? {};
         const had = fstr(fields["folder"]);
         try {

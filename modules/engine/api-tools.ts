@@ -12,10 +12,10 @@ import { createToolSession } from "../../agent/src/tools/call.ts";
 import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
 import type { ModePair } from "../../agent/src/tools/local.ts";
-import { buildCatalog, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
+import { generatedCatalog, warmGeneratedCatalog } from "../../agent/src/tools/generated-catalog.ts";
 import { placeTools } from "./place-tools.ts";
 import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
-import type { AgentToolRow, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
+import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { Invoke } from "../../host/src/invoke.ts";
 import type { AgentRules, Level, ThreadFacts } from "../../agent/src/tools/types.ts";
 import type { CallHooks, DynamicTools } from "../../agent/src/tools/call.ts";
@@ -46,7 +46,7 @@ export interface EngineApiToolsDeps {
   plugins?: { extra(ctx: ToolCtx): Promise<ToolDef[]>; dynamic: DynamicTools; hooks: CallHooks };
 }
 
-let catalog: ReturnType<typeof buildCatalog> | null = null;
+let catalog: Catalog | null = null;
 let defaults: Set<string> | null = null;
 /** Listed for every turn: an agent sees who is in and can message a teammate for its person (lane l-agentdm). */
 import { ROOM_TOOLS, isRoom } from "./room-pack.ts";
@@ -82,13 +82,16 @@ export const SEQUENTIAL_READS: ReadonlySet<string> = new Set([
  */
 export function warmApiToolCatalog(): void {
   if (catalog && defaults) return;
-  const reg = JSON.parse(read("generated/registry.json")) as {
-    capabilities: RegistryCapRow[];
-    agentTools: AgentToolRow[];
-  };
-  const tools = (JSON.parse(read("generated/mcp-tools.json")) as { tools: McpToolRow[] }).tools;
-  catalog = offerable(buildCatalog(reg.capabilities, tools, reg.agentTools), (cap) => DEFERRED_CAPS.has(cap));
-  defaults = parseDefaultTools(read("docs/frozen/agent-tools.md"));
+  const g = generatedCatalog();
+  catalog = g.catalog;
+  defaults = g.defaults;
+}
+/** The same, built with a turn of the loop between its steps (the first idle tick after the module loads: the one catalog the MCP runtime shares, agent/src/tools/generated-catalog.ts). */
+export async function warmApiToolCatalogSliced(): Promise<void> {
+  if (catalog && defaults) return;
+  const g = await warmGeneratedCatalog(() => new Promise<void>((done) => setImmediate(done)));
+  catalog ??= g.catalog;
+  defaults ??= g.defaults;
 }
 /** Has the catalog been built (a turn would not pay for it)? */
 export const apiToolCatalogWarm = (): boolean => catalog !== null && defaults !== null;

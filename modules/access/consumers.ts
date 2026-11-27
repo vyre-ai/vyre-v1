@@ -712,7 +712,11 @@ async function primeKept(ctx: AccessCtx, key: object): Promise<void> {
     if (before === null) return;
     const kept = SYNCED.get(key);
     if (kept && kept.stamp === before) return;
-    const read: Db = { all: (sql, ...args) => ctx.db.all(sql, ...args), run: () => ({ changes: 0 }), batch: <T>(fn: () => T): T => fn() };
+    const read: Db = {
+      all: (sql, ...args) => ctx.db.all(sql, ...args),
+      run: () => ({ changes: 0 }),
+      batch: <T>(fn: () => T): T => fn(),
+    };
     const store = await loadStoreSliced(read, turn);
     if (!store) {
       syncCounts.empty++;

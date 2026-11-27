@@ -47,7 +47,11 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
   const sp = StatementSync.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
   const dp = DatabaseSync.prototype as unknown as Record<string, (...a: unknown[]) => unknown>;
   const restore: (() => void)[] = [];
-  const norm = (s: string): string => s.replace(/\s+/g, " ").replace(/\b\d{3,}\b/g, "N").slice(0, 160);
+  const norm = (s: string): string =>
+    s
+      .replace(/\s+/g, " ")
+      .replace(/\b\d{3,}\b/g, "N")
+      .slice(0, 160);
   for (const m of ["run", "all", "get"]) {
     const orig = sp[m]!;
     sp[m] = function (this: { sourceSQL?: string }, ...a: unknown[]) {
@@ -80,11 +84,14 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
     const lag = at - last - sampleMs;
     if (lag > boundMs) {
       const from = last;
-      const over = <T extends { start: number; end: number }>(xs: T[]): T[] => xs.filter((x) => x.start < at && x.end > from);
+      const over = <T extends { start: number; end: number }>(xs: T[]): T[] =>
+        xs.filter((x) => x.start < at && x.end > from);
       blocks.push({
         at: Math.round(at - t0),
         ms: Math.round(lag),
-        jobs: over(jobs).map((j) => (Number.isFinite(j.end) ? `${j.name} (${Math.round(j.end - j.start)} ms)` : `${j.name} (still running)`)),
+        jobs: over(jobs).map((j) =>
+          Number.isFinite(j.end) ? `${j.name} (${Math.round(j.end - j.start)} ms)` : `${j.name} (still running)`,
+        ),
         requests: over(requests).map((r) => `${r.name} (${Math.round(r.end - r.start)} ms)`),
         statements: over(statements)
           .sort((a, b) => b.ms - a.ms)
@@ -105,7 +112,10 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
           return {
             count: mine.length,
             ms: Math.round(total),
-            top: [...by.entries()].sort((a, b) => b[1].ms - a[1].ms).slice(0, 3).map(([k, v]) => `${v.n}x ${Math.round(v.ms)} ms ${k}`),
+            top: [...by.entries()]
+              .sort((a, b) => b[1].ms - a[1].ms)
+              .slice(0, 3)
+              .map(([k, v]) => `${v.n}x ${Math.round(v.ms)} ms ${k}`),
           };
         })(),
         phase: phaseNow,
@@ -159,7 +169,9 @@ export function startGuard(boundMs = 100, sampleMs = 10): Guard {
     },
     worst() {
       const by = new Map<string, number>();
-      for (const b of blocks) for (const n of [...b.jobs, ...b.requests]) by.set(n.replace(/ \(\d+ ms\)$/, ""), Math.max(by.get(n.replace(/ \(\d+ ms\)$/, "")) ?? 0, b.ms));
+      for (const b of blocks)
+        for (const n of [...b.jobs, ...b.requests])
+          by.set(n.replace(/ \(\d+ ms\)$/, ""), Math.max(by.get(n.replace(/ \(\d+ ms\)$/, "")) ?? 0, b.ms));
       return [...by.entries()].map(([name, ms]) => ({ name, ms })).sort((a, b) => b.ms - a.ms);
     },
     report() {

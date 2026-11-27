@@ -23,7 +23,9 @@ export function bootMark(name: string): void {
 export function bootReport(): string {
   const now = performance.now();
   const total = Math.round(now);
-  const phases = [...marks, ["after listen", now - last] as [string, number]].map(([n, ms]) => `${n} ${Math.round(ms)}`).join(", ");
+  const phases = [...marks, ["after listen", now - last] as [string, number]]
+    .map(([n, ms]) => `${n} ${Math.round(ms)}`)
+    .join(", ");
   return `boot ${total} ms: imports ${Math.round(first)}, ${phases}`;
 }
 /** The phases, longest first (tests, and the console's doctor). */

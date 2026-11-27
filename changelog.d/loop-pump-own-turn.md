@@ -1,0 +1,1 @@
+- A hook pass or a projection pass started by a request's commit begins in a turn of its own, and the scheduler's tick gives the loop back between jobs through the shared turn, so a request is never carried into hook work.

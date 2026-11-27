@@ -125,6 +125,8 @@ export interface PeriodicDef {
   module: string;
   everyMs: number;
   /** run once as soon as the scheduler starts (a boot check), then every everyMs */ immediate?: boolean;
+  /** not spread over the minute with the other jobs (the scheduler's stagger): it runs at its boundary */
+  exact?: boolean;
   run(ctx: Ctx): Promise<unknown> | unknown;
 }
 /** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
@@ -178,6 +180,7 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
         module,
         everyMs: def["everyMs"],
         ...(def["immediate"] === true ? { immediate: true } : {}),
+        ...(def["exact"] === true ? { exact: true } : {}),
         run: (ctx) => run(ctx),
       });
     }
@@ -545,7 +548,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   const run = (): Promise<void> =>
     (async () => {
       try {
-        await null; // let `running` be assigned before the first check, even with nothing to run
+        // a macrotask of its own before the first delivery: the pump is started by the commit of a request, and its first deliveries must not run in that request's turn; it also lets `running` be assigned before the first check, even with nothing to run
+        await loopTurn();
         do {
           again = false;
           for (const c of byConsumer.values()) {

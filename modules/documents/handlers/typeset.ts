@@ -4,7 +4,6 @@
 // page from its top left), so nobody places a signature by hand.
 // The standard fonts draw Western European letters only. A letter they cannot draw stops the document and names itself rather than printing a wrong one.
 
-import { PDFDocument, StandardFonts, rgb } from "@cantoo/pdf-lib";
 import type { PDFFont, PDFPage } from "@cantoo/pdf-lib";
 import type { Block, Run, SignColumn } from "./vdoc.ts";
 
@@ -44,8 +43,6 @@ const SIZES: Record<Paper, [number, number]> = { letter: [612, 792], a4: [595.28
 const MARGIN = 72;
 const BODY = 11.5;
 const LEAD = 16.5;
-const GREY = rgb(0.42, 0.42, 0.45);
-const RULE = rgb(0.75, 0.75, 0.78);
 /** One date for the file's own metadata, so the same input is the same bytes. */
 const FIXED = new Date(Date.UTC(2000, 0, 1, 0, 0, 0));
 
@@ -68,6 +65,10 @@ interface Word {
 }
 
 export async function typeset(blocks: readonly Block[], o: { title?: string; paper?: Paper } = {}): Promise<Typeset> {
+  // the PDF library is loaded when the first document is typeset, not when the server starts (it is 200 ms of compiling and evaluating in one stretch)
+  const { PDFDocument, StandardFonts, rgb } = await import("@cantoo/pdf-lib");
+  const GREY = rgb(0.42, 0.42, 0.45);
+  const RULE = rgb(0.75, 0.75, 0.78);
   const doc = await PDFDocument.create();
   doc.setTitle(o.title ?? "Document");
   doc.setProducer("Vyre");

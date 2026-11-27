@@ -154,13 +154,42 @@ export function buildCatalog(
   tools: readonly McpToolRow[],
   agentTools: readonly AgentToolRow[] = [],
 ): Catalog {
+  const steps = buildCatalogSteps(caps, tools, agentTools);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** `buildCatalog` with a turn of the loop between its steps (every `every` tools, and before the shared fragments are worked out): the first build of the 700-tool catalog was 180 ms to 250 ms in one stretch. */
+export async function buildCatalogSliced(
+  caps: readonly RegistryCapRow[],
+  tools: readonly McpToolRow[],
+  agentTools: readonly AgentToolRow[],
+  turn: () => Promise<void>,
+): Promise<Catalog> {
+  const steps = buildCatalogSteps(caps, tools, agentTools);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+    await turn();
+  }
+}
+
+function* buildCatalogSteps(
+  caps: readonly RegistryCapRow[],
+  tools: readonly McpToolRow[],
+  agentTools: readonly AgentToolRow[],
+): Generator<void, Catalog, void> {
   const capBy = new Map(caps.map((c) => [`${c.name}@${c.v}`, c] as const));
   const localBy = new Map(
     agentTools.filter((a) => a.local !== undefined).map((a) => [a.name, a.local as string] as const),
   );
   const defs: ToolDef[] = [];
   const seen = new Set<string>();
+  let built = 0;
   for (const t of tools) {
+    if (++built % 25 === 0) yield;
     if (t.cap === null) throw new Error(`tool ${t.name} has no capability: every tool is backed by one`);
     if (seen.has(t.name)) throw new Error(`duplicate tool name ${t.name}`);
     seen.add(t.name);
@@ -191,7 +220,10 @@ export function buildCatalog(
     });
   }
   // a large object several tools take (a SyncSpec) is shown in full by the first and pointed at by the rest; then any other large fragment several tools carry word for word is shown once
-  const all = shareFragments(shareRepeats(defs));
+  yield;
+  const shared = shareRepeats(defs);
+  yield;
+  const all = shareFragments(shared);
   const byName = new Map(all.map((d) => [d.name, d] as const));
   return { all, byName: (n) => byName.get(n) };
 }

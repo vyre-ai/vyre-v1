@@ -1,0 +1,1 @@
+- A second event-loop guard starts the real server (main.ts, a child process) on the Meier-sized Space, seeded outside it, and watches its loop from the first instant of the process, with a cold and a warm compile cache; host/src/daemon/loop-monitor.ts is what runs inside the child when VYRE_LOOP_MONITOR is set.

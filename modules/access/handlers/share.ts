@@ -8,7 +8,19 @@
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
 import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, TRASH_KEY, asReader, changedGrants, isReader, isTrashed, keepWarm, mapChangesSince, mapVersion, peekWarm, stampNow } from "../projections.ts";
+import {
+  NeedFullStore,
+  TRASH_KEY,
+  asReader,
+  changedGrants,
+  isReader,
+  isTrashed,
+  keepWarm,
+  mapChangesSince,
+  mapVersion,
+  peekWarm,
+  stampNow,
+} from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -172,7 +184,16 @@ const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0, settleSkips: 0, stampShared: 0, logCompared: 0 };
+export const shareKept = {
+  hits: 0,
+  built: 0,
+  incremental: 0,
+  sliced: 0,
+  discarded: 0,
+  settleSkips: 0,
+  stampShared: 0,
+  logCompared: 0,
+};
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
@@ -261,7 +282,10 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   for (const id of base.people.keys()) if (!now.has(id)) who.push(id);
   const roots = new Set<string>();
   // the same sealed map the base was copied from: its change log names the keys that differ, and the other thirty thousand are not looked at
-  const log = base.resMap === store.resources && base.resVersion !== undefined ? mapChangesSince(store.resources, base.resVersion) : null;
+  const log =
+    base.resMap === store.resources && base.resVersion !== undefined
+      ? mapChangesSince(store.resources, base.resVersion)
+      : null;
   if (log) {
     shareKept.logCompared++;
     for (const id of new Set(log)) {
@@ -388,7 +412,10 @@ export async function primeShare(ctx: AccessCtx): Promise<void> {
   for (let after = 0; ; ) {
     let page: Record<string, unknown>[];
     try {
-      page = ctx.db.all("SELECT rowid AS _rid, * FROM access_my_access WHERE rowid > ? ORDER BY rowid LIMIT 2000", after) as Record<string, unknown>[];
+      page = ctx.db.all(
+        "SELECT rowid AS _rid, * FROM access_my_access WHERE rowid > ? ORDER BY rowid LIMIT 2000",
+        after,
+      ) as Record<string, unknown>[];
     } catch {
       return; // a Space from before the table: shareOf reads what there is, as it always did
     }
@@ -742,7 +769,9 @@ const activePeople = (store: AccessStore): string[] =>
   [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
 /** The people whose rows are worked out: those named (when any are), and active. A person named who is gone or suspended is worked out as nobody, so the rows they had are dropped. */
 const peopleToWork = (store: AccessStore, who: readonly string[] | null): string[] =>
-  who ? who.filter((id) => store.principals.get(id)?.kind === "person" && store.principals.get(id)?.status === "active") : activePeople(store);
+  who
+    ? who.filter((id) => store.principals.get(id)?.kind === "person" && store.principals.get(id)?.status === "active")
+    : activePeople(store);
 
 /** Put `next` (the rows worked out for `scope`) into the cache in memory, and say which rows to delete from and write to the table. Writes nothing to the table. */
 function applyRows(
@@ -967,7 +996,14 @@ export async function settleForWriter(ctx: AccessCtx): Promise<void> {
   const warm = peekWarm(ctx);
   const raw = rawDbOf(ctx.db);
   const kept = raw ? KEPT.get(raw) : undefined;
-  if (warm && kept && kept.store === warm && kept.epoch === warm.epoch && kept.ss.fresh >= 0 && ctx.now() < kept.ss.until) {
+  if (
+    warm &&
+    kept &&
+    kept.store === warm &&
+    kept.epoch === warm.epoch &&
+    kept.ss.fresh >= 0 &&
+    ctx.now() < kept.ss.until
+  ) {
     const st = stateOf(ctx.db);
     if (st && st.rows === kept.rows && st.folders === kept.folders) {
       shareKept.settleSkips++;
@@ -1002,7 +1038,8 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
     const who: readonly string[] | null = fresh && !ss.pending.length ? [...ss.pendingWho] : null;
     const scope = roots === "all" ? null : descendants(store, roots);
     if (
-      (scope ? scope.size : store.resources.size) * Math.max(1, who ? peopleToWork(store, who).length : activePeople(store).length) <
+      (scope ? scope.size : store.resources.size) *
+        Math.max(1, who ? peopleToWork(store, who).length : activePeople(store).length) <
       sliceTuning.from
     )
       return;
@@ -1055,7 +1092,12 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?:
       else from.base.resources.delete(id);
     }
     // no map and version here: this base holds the writer's own rows, which the sealed map's log knows nothing of
-    base = { resources: from.base.resources, grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store) };
+    base = {
+      resources: from.base.resources,
+      grants: new Map(store.grants),
+      rest: restOf(store),
+      people: peopleOf(store),
+    };
   } else base = baseOf(store);
   KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders, stamp: stampNow(ctx.db) });
 }
