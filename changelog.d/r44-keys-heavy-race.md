@@ -1,0 +1,1 @@
+- The hidden-prompt heavy test waits for the program's own "ok-N" line, not for the typed command line that contains it, which made it fail about once in ten runs.

@@ -189,7 +189,8 @@ test(
       const mid = await host.capture!(id, { lines: 5000 });
       assert.ok(!mid.text.includes("s3cret"), `run ${n}: not on the screen while typed`);
       await host.keys!(id, [{ key: "Enter" }]);
-      await until(`run ${n} finished`, async () => (await screen(id)).includes(`ok-${n}`));
+      // the program's own line: the typed command line ("... echo ok-N") is on the screen from the start, so a plain substring matched it before the program had written its file (a 1 in 10 flake)
+      await until(`run ${n} finished`, async () => (await screen(id)).split("\n").some((l) => l.trim() === `ok-${n}`));
       assert.equal(fs.readFileSync(got, "utf8"), SECRET, `run ${n}: the program got it`);
       const after = await host.capture!(id, { lines: 5000 });
       assert.ok(!after.text.includes("s3cret"), `run ${n}: not in the capture`);
