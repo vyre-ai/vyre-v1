@@ -656,11 +656,16 @@ export class AccessStore {
     for (const a of this.actors.values())
       if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
-    let put = 0;
+    let batch: ResourceRow[] = [];
     for (const r of this.resources.values()) {
-      snap.putResource(kernelResource(r));
-      if (++put % 1000 === 0) yield;
+      batch.push(kernelResource(r));
+      if (batch.length >= 1000) {
+        snap.putResources(batch);
+        batch = [];
+        yield;
+      }
     }
+    snap.putResources(batch);
     for (const k of this.fieldLabels.keys())
       if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
@@ -1894,6 +1899,7 @@ const SNAP_MUTATORS = [
   "putGrant",
   "revokeGrant",
   "putResource",
+  "putResources",
   "setFieldLabel",
   "setPolicies",
   "changed",
