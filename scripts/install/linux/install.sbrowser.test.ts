@@ -179,9 +179,13 @@ test("vyre-server stop also stops the Space browser container; the update's own 
     installFixture(dir);
     const shim = path.join(dir, "shim");
     fs.mkdirSync(shim);
-    fs.writeFileSync(path.join(shim, "docker"), `#!/bin/sh\necho "docker $*" >> "${dir}/docker.log"\n`, {
-      mode: 0o755,
-    });
+    fs.writeFileSync(
+      path.join(shim, "docker"),
+      `#!/bin/sh\necho "docker $*" >> "${dir}/docker.log"\n[ "$1" = ps ] && echo own123\nexit 0\n`,
+      {
+        mode: 0o755,
+      },
+    );
     const r = sh(SERVER, 'dc() { echo "dc $*" >> "$VYRE_DIR/docker.log"; }; cmd_stop', {
       VYRE_DIR: dir,
       PATH: `${shim}:${process.env.PATH ?? ""}`,
@@ -190,6 +194,12 @@ test("vyre-server stop also stops the Space browser container; the update's own 
     const log = read(path.join(dir, "docker.log"));
     assert.match(log, /^dc stop$/m);
     assert.match(log, /^docker stop -t 10 vyre-sbrowser$/m, "the browser container stops with the server");
+    assert.match(
+      log,
+      /^docker ps -q --filter label=vyre\.sbrowser=1$/m,
+      "the Spaces' own browser containers are found by their label",
+    );
+    assert.match(log, /^docker stop -t 10 own123$/m, "and each is stopped, whatever its name");
     const text = read(SERVER);
     assert.ok(
       !/cmd_update\(\) \{[\s\S]*?\n\}/.exec(text)![0].includes("cmd_stop"),

@@ -944,6 +944,7 @@ purge_browser() {
     docker rm -f "vyre-sbrowser-$sid" >/dev/null 2>&1 || true
     docker volume rm -f "vyre-sbrowser-$sid-data" >/dev/null 2>&1 || true
     docker network rm "vyre-sbrowser-${sid}net" >/dev/null 2>&1 || true
+    for c in $(docker ps -aq --filter "label=vyre.sbrowser-migrate=$sid" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
   fi
   if ! docker inspect "$SBROWSER" >/dev/null 2>&1; then
     # no container: its volume holds profiles nobody can sort by Space now; it goes only when no other install is here

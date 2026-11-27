@@ -1,0 +1,1 @@
+- Stopping the server stops every Space's own browser container by its label, not by a fixed name, and a purge also removes a leftover one-shot migration container of that Space.
