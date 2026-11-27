@@ -2,8 +2,8 @@
 // stamp each signer's signature and date flat on it, and append the audit page. Pure functions over bytes; no file, no database, no network.
 // Nothing a signer sends is ever drawn as anything but text in a standard font or a PNG whose header was checked; a PDF a person sent is only parsed, never run.
 
-import { PDFDocument, StandardFonts, rgb } from "@cantoo/pdf-lib";
-import type { PDFFont, PDFPage } from "@cantoo/pdf-lib";
+import type { PDFDocument, PDFFont, PDFPage } from "@cantoo/pdf-lib";
+import { lib, loadPdfLib } from "./pdflib.ts";
 import { addSealField } from "./pdfseal.ts";
 
 export const MAX_PAGES = 200;
@@ -64,8 +64,9 @@ export interface Audit {
 
 /** Does the PDF library really take this picture? A PNG can pass every header check and still fail to decode (a palette image with no palette); this finds out before anyone is asked to depend on it. */
 export async function embeds(png: Uint8Array): Promise<boolean> {
+  await loadPdfLib();
   try {
-    await (await PDFDocument.create()).embedPng(png);
+    await (await lib().PDFDocument.create()).embedPng(png);
     return true;
   } catch {
     return false;
@@ -119,8 +120,9 @@ export function pngSize(png: Uint8Array): { w: number; h: number } | null {
 }
 
 async function load(pdf: Uint8Array): Promise<PDFDocument> {
+  await loadPdfLib();
   try {
-    return await PDFDocument.load(pdf, { updateMetadata: false });
+    return await lib().PDFDocument.load(pdf, { updateMetadata: false });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
     if (/encrypt/i.test(msg))
@@ -161,8 +163,8 @@ export async function prepare(
       if (!places.some((p) => p.signer === i && p.kind === "signature"))
         throw new PdfError(`${signers[i]!.name} has no place to sign.`);
   } else {
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const bold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const font = await doc.embedFont(lib().StandardFonts.Helvetica);
+    const bold = await doc.embedFont(lib().StandardFonts.HelveticaBold);
     const W = 612;
     const H = 792;
     const perPage = 4;
@@ -178,7 +180,13 @@ export async function prepare(
           size: 22,
           font: bold,
         });
-        page.drawText(safe(title).slice(0, 90), { x: 60, y: H - 104, size: 11, font, color: rgb(0.35, 0.35, 0.35) });
+        page.drawText(safe(title).slice(0, 90), {
+          x: 60,
+          y: H - 104,
+          size: 11,
+          font,
+          color: lib().rgb(0.35, 0.35, 0.35),
+        });
       } else page = doc.getPage(doc.getPageCount() - 1);
       const top = 140 + slot * block; // from the top of the page
       page.drawText(safe(signers[i]!.name).slice(0, 80), { x: 60, y: H - top - 12, size: 12, font: bold });
@@ -188,19 +196,19 @@ export async function prepare(
         y: H - boxY - 70,
         width: 300,
         height: 70,
-        borderColor: rgb(0.6, 0.6, 0.6),
+        borderColor: lib().rgb(0.6, 0.6, 0.6),
         borderWidth: 0.75,
       });
-      page.drawText("Signature", { x: 60, y: H - boxY - 82, size: 8, font, color: rgb(0.45, 0.45, 0.45) });
+      page.drawText("Signature", { x: 60, y: H - boxY - 82, size: 8, font, color: lib().rgb(0.45, 0.45, 0.45) });
       page.drawRectangle({
         x: 390,
         y: H - boxY - 70,
         width: 160,
         height: 70,
-        borderColor: rgb(0.6, 0.6, 0.6),
+        borderColor: lib().rgb(0.6, 0.6, 0.6),
         borderWidth: 0.75,
       });
-      page.drawText("Date", { x: 390, y: H - boxY - 82, size: 8, font, color: rgb(0.45, 0.45, 0.45) });
+      page.drawText("Date", { x: 390, y: H - boxY - 82, size: 8, font, color: lib().rgb(0.45, 0.45, 0.45) });
       const pageNo = doc.getPageCount();
       places.push({
         signer: i,
@@ -269,7 +277,7 @@ async function fit(
     y: box.y + (box.h - sz) / 2,
     size: sz,
     font: italic,
-    color: rgb(0.05, 0.1, 0.45),
+    color: lib().rgb(0.05, 0.1, 0.45),
   });
 }
 
@@ -300,10 +308,10 @@ function wrap(font: PDFFont, text: string, size: number, width: number): string[
 /** The signed document: every signer's signature and date flat on the sent file, then the audit page. */
 export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[], audit: Audit): Promise<Uint8Array> {
   const doc = await load(sent);
-  const italic = await doc.embedFont(StandardFonts.HelveticaOblique);
-  const font = await doc.embedFont(StandardFonts.Helvetica);
-  const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const mono = await doc.embedFont(StandardFonts.Courier);
+  const italic = await doc.embedFont(lib().StandardFonts.HelveticaOblique);
+  const font = await doc.embedFont(lib().StandardFonts.Helvetica);
+  const bold = await doc.embedFont(lib().StandardFonts.HelveticaBold);
+  const mono = await doc.embedFont(lib().StandardFonts.Courier);
   for (const s of stamps) {
     for (const p of places.filter((x) => x.signer === s.signer)) {
       const page = doc.getPage(p.page - 1);
@@ -311,7 +319,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       if (p.kind === "signature") {
         await fit(doc, italic, page, s.mark, b);
         const cap = safe(`Signed by ${s.name}`).slice(0, 60);
-        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 22, 2), size: 7, font, color: rgb(0.4, 0.4, 0.4) });
+        page.drawText(cap, { x: b.x + 2, y: Math.max(b.y - 22, 2), size: 7, font, color: lib().rgb(0.4, 0.4, 0.4) });
       } else {
         const t = formatAt(s.signedAt, audit.zone);
         let sz = 11;
@@ -335,7 +343,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
   };
   const line = (
     text: string,
-    o: { size?: number; f?: PDFFont; gap?: number; color?: ReturnType<typeof rgb> } = {},
+    o: { size?: number; f?: PDFFont; gap?: number; color?: ReturnType<typeof import("@cantoo/pdf-lib").rgb> } = {},
   ): void => {
     const size = o.size ?? 10;
     const f = o.f ?? font;
@@ -369,7 +377,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
       { size: 9 },
     );
     line(`Signed from ${s.signedIp ?? "unknown address"}`, { size: 9 });
-    if (s.signedUa) line(`Browser: ${s.signedUa.slice(0, 160)}`, { size: 8, color: rgb(0.4, 0.4, 0.4) });
+    if (s.signedUa) line(`Browser: ${s.signedUa.slice(0, 160)}`, { size: 8, color: lib().rgb(0.4, 0.4, 0.4) });
     y -= 6;
   }
   need(60);
@@ -377,7 +385,7 @@ export async function finalize(sent: Uint8Array, places: Place[], stamps: Stamp[
     "This page records who signed and when. The signed file's own SHA-256 is kept with the envelope in the Space it was sent from.",
     {
       size: 8,
-      color: rgb(0.4, 0.4, 0.4),
+      color: lib().rgb(0.4, 0.4, 0.4),
     },
   );
   if (audit.seal) {

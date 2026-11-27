@@ -1,8 +1,8 @@
 // esign: the PDF side of the seal. A signature field with a reserved /Contents and a /ByteRange to fill in, written by the one final save of the document (no rewrite after signing), then the signature dropped
 // into the reserved hole. `inspect` reads a file back the way a validator does: the byte ranges, the signature, and whether the ranges cover the whole file.
 
-import { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } from "@cantoo/pdf-lib";
 import type { PDFDocument } from "@cantoo/pdf-lib";
+import { lib } from "./pdflib.ts";
 import { signDetached, verifyDetached } from "./seal.ts";
 import type { CmsCheck, SealMaterial } from "./seal.ts";
 
@@ -13,6 +13,7 @@ const ZEROS = "0".repeat(SIG_BYTES * 2);
 
 /** Adds the signature field to the document, on its first page. Call before the one final save. */
 export function addSealField(doc: PDFDocument, spaceName: string, signedAt: Date): void {
+  const { PDFArray, PDFDict, PDFHexString, PDFName, PDFNumber, PDFString } = lib(); // loaded by the caller (pdf.ts finalize reads the PDF first)
   const ctx = doc.context;
   const sig = ctx.register(
     ctx.obj({

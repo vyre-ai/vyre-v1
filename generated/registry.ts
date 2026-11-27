@@ -3,5 +3,8 @@
 import { readFileSync } from 'node:fs';
 import type { Registry } from '../packages/contracts/src/registry.ts';
 
+import { parseSliced } from '../lib/json-sliced.ts';
+
+// Parsed in pieces with a turn of the event loop between them (lib/json-sliced.ts): 4.3 MB in one JSON.parse held the loop for 70 to 130 ms at the start of every process.
 const text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');
-export const registry = JSON.parse(text) as Registry;
+export const registry = (await parseSliced(text)) as Registry;

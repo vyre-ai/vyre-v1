@@ -83,7 +83,7 @@ export function emitAll(reg: Registry): Files {
   );
   put(
     "registry.ts",
-    `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it holds no crypto import. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = JSON.parse(text) as Registry;\n`,
+    `${HEADER}// Loads registry.json at runtime (no JSON module inference in the compiler). The registry hash is not exported here: this file reaches clients and the web bundle, so it holds no crypto import. Tools hash registry.json themselves.\nimport { readFileSync } from 'node:fs';\nimport type { Registry } from '../packages/contracts/src/registry.ts';\n\nimport { parseSliced } from '../lib/json-sliced.ts';\n\n// Parsed in pieces with a turn of the event loop between them (lib/json-sliced.ts): 4.3 MB in one JSON.parse held the loop for 70 to 130 ms at the start of every process.\nconst text = readFileSync(new URL('./registry.json', import.meta.url), 'utf8');\nexport const registry = (await parseSliced(text)) as Registry;\n`,
   );
 
   // ---- types.ts: every input, output and event payload type

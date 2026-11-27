@@ -1,0 +1,1 @@
+- The PDF library, pkijs and asn1js are loaded at the first document read, signed or sealed, not when the server starts (esign), and generated/registry.ts parses the 4.3 MB registry in pieces with a turn of the event loop between them (lib/json-sliced.ts), so neither holds the start of the process for 100 ms or more.

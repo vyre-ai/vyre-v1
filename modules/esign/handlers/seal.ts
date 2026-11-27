@@ -6,8 +6,8 @@
 // is opened for the one signature and dropped. No timestamp service is called; `timestamp` is the seam (unset: none).
 // @reads ../migrations/0003_esign_seal.sql
 
-import * as asn1js from "asn1js";
-import * as pkijs from "pkijs";
+import type * as Asn1 from "asn1js";
+import type * as Pkijs from "pkijs";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
 import { secretOf } from "./providers.ts";
 
@@ -22,6 +22,10 @@ const SUBJECT_O = "2.5.4.10";
 export const SEAL_UNIT = "Vyre document seal";
 const RSA = { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" } as const;
 
+/** pkijs and asn1js, loaded when the first certificate is made, signed or checked: importing them when the server starts was 200 ms in one stretch. */
+let pki: { pkijs: typeof Pkijs; asn1js: typeof Asn1 } | null = null;
+const pkiLibs = async (): Promise<{ pkijs: typeof Pkijs; asn1js: typeof Asn1 }> =>
+  (pki ??= { pkijs: await import("pkijs"), asn1js: await import("asn1js") });
 const subtle = (): SubtleCrypto => globalThis.crypto.subtle;
 const hex = (b: ArrayBuffer | Uint8Array): string =>
   Array.from(b instanceof Uint8Array ? b : new Uint8Array(b), (x) => x.toString(16).padStart(2, "0")).join("");
@@ -46,12 +50,13 @@ export const fingerprintOf = async (cert: Uint8Array): Promise<string> =>
 // ---- the Space's own certificate ----------------------------------------------------------------------------
 
 async function makeCertificate(spaceName: string, keys: CryptoKeyPair, years = 10): Promise<Uint8Array> {
+  const { pkijs, asn1js } = await pkiLibs();
   const cert = new pkijs.Certificate();
   cert.version = 2;
   const serial = globalThis.crypto.getRandomValues(new Uint8Array(16));
   serial[0] = (serial[0] as number) & 0x7f;
   cert.serialNumber = new asn1js.Integer({ valueHex: ab(serial) });
-  const name = (list: pkijs.RelativeDistinguishedNames): void => {
+  const name = (list: Pkijs.RelativeDistinguishedNames): void => {
     list.typesAndValues.push(
       new pkijs.AttributeTypeAndValue({
         type: SUBJECT_O,
@@ -141,6 +146,7 @@ export async function signDetached(
   m: SealMaterial,
   timestamp?: (signature: Uint8Array) => Promise<Uint8Array | null>,
 ): Promise<Uint8Array> {
+  const { pkijs, asn1js } = await pkiLibs();
   const cert = pkijs.Certificate.fromBER(ab(m.cert));
   const digest = await subtle().digest("SHA-256", ab(content));
   const signed = new pkijs.SignedData({
@@ -191,12 +197,13 @@ export interface CmsCheck {
 /** Does this CMS blob verify over `content`; and which certificate and time does it carry. Never throws: anything unreadable is not ok. */
 export async function verifyDetached(cms: Uint8Array, content: Uint8Array): Promise<CmsCheck> {
   try {
+    const { pkijs, asn1js } = await pkiLibs();
     const parsed = asn1js.fromBER(ab(cms));
     if (parsed.offset === -1) return { ok: false, cert: null, signedAt: null };
     const info = new pkijs.ContentInfo({ schema: parsed.result });
     if (info.contentType !== OID_SIGNED) return { ok: false, cert: null, signedAt: null };
     const signed = new pkijs.SignedData({ schema: info.content });
-    const first = signed.certificates?.[0] as pkijs.Certificate | undefined;
+    const first = signed.certificates?.[0] as Pkijs.Certificate | undefined;
     const cert = first ? new Uint8Array(first.toSchema(true).toBER(false)) : null;
     let signedAt: number | null = null;
     const attr = signed.signerInfos[0]?.signedAttrs?.attributes.find((a) => a.type === OID_TIME);
