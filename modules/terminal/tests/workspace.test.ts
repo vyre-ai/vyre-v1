@@ -36,6 +36,7 @@ function rig(
     runner?: boolean;
     home?: WorkspaceOptions["home"];
     image?: string;
+    firstMirrorMs?: number;
   } = {},
 ) {
   const dk = fakeDocker({ tmux: { scripts: { "echo hi": { out: "hi", code: 0 } } }, ...o.docker });
@@ -53,6 +54,7 @@ function rig(
     ...(o.runner ? { runner: true } : {}),
     ...(o.home ? { home: o.home } : {}),
     ...(o.image ? { image: o.image } : {}),
+    ...(o.firstMirrorMs !== undefined ? { firstMirrorMs: o.firstMirrorMs } : {}),
   });
   return { dk, mgr, clock };
 }
@@ -647,6 +649,32 @@ test("the Files folder is mirrored: once the workspace is up and before the firs
   assert.equal(fh.passes.length, n3, "closing the manager stops the passes");
 });
 
+test("a wake does not wait for a slow Files mirror: the shell is handed over at the first-pass limit and the pass finishes in the background (rc.44)", async () => {
+  let release: () => void = () => undefined;
+  let done = false;
+  const slow: NonNullable<WorkspaceOptions["home"]> = {
+    ...fakeHome(() => rg).home,
+    sync: () => ({
+      async pass() {
+        await new Promise<void>((x) => {
+          release = x;
+        });
+        done = true;
+        return { failed: 0 };
+      },
+    }),
+  };
+  let rg: ReturnType<typeof rig> = rig({ home: slow, firstMirrorMs: 40 });
+  const t0 = Date.now();
+  assert.equal(await rg.mgr.ensure(AGENT), "created");
+  assert.ok(Date.now() - t0 < 1500, `ensure came back at the limit, not when the pass ended (${Date.now() - t0} ms)`);
+  assert.equal(done, false, "the pass is still running");
+  release();
+  await later(20);
+  assert.equal(done, true, "and it finishes in the background");
+  rg.mgr.close();
+});
+
 test("a mirror that fails does not stop the workspace from starting, sleeping or waking", async () => {
   let rg: ReturnType<typeof rig>;
   const fh = fakeHome(() => rg, { fail: true });
@@ -1016,7 +1044,7 @@ test("F33: the host name a person reads in the shell prompt is a word, never the
   assert.deepEqual(reviewWorkspaceConfig({ ...good, Hostname: NAME }, AGENT), ["is not this agent's workspace"]);
   // the label an unchanged workspace carries (made before the host name was part of it) differs from the new one, so such a workspace is made again once, when quiet
   const old = sha256Hex(JSON.stringify({ p: [], n: SHARED_NETWORK })).slice(0, 16);
-  const now = sha256Hex(JSON.stringify({ p: [], h: 1, u: 1, s: 1, n: SHARED_NETWORK })).slice(0, 16);
+  const now = sha256Hex(JSON.stringify({ p: [], h: 1, u: 1, s: 1, j: 1, n: SHARED_NETWORK })).slice(0, 16);
   assert.equal(good.Labels["vyre.mounts"], now);
   assert.notEqual(good.Labels["vyre.mounts"], old);
 });

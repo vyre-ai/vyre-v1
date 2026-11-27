@@ -5,6 +5,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Served while the module is a stub and no example answer is wanted: every capability fails with a typed error carrying the trace id. */
 export const handlers: Handlers<HandlerCtx> = {
+  "terminal.ask_signin": async (ctx) => { throw new VyreErr(notImplemented("terminal.ask_signin", ctx.trace)); },
   "terminal.attach": async (ctx) => { throw new VyreErr(notImplemented("terminal.attach", ctx.trace)); },
   "terminal.capture": async (ctx) => { throw new VyreErr(notImplemented("terminal.capture", ctx.trace)); },
   "terminal.close": async (ctx) => { throw new VyreErr(notImplemented("terminal.close", ctx.trace)); },
@@ -13,6 +14,9 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.health": async (ctx) => { throw new VyreErr(notImplemented("terminal.health", ctx.trace)); },
   "terminal.input": async (ctx) => { throw new VyreErr(notImplemented("terminal.input", ctx.trace)); },
   "terminal.interrupt": async (ctx) => { throw new VyreErr(notImplemented("terminal.interrupt", ctx.trace)); },
+  "terminal.job.list": async (ctx) => { throw new VyreErr(notImplemented("terminal.job.list", ctx.trace)); },
+  "terminal.job.start": async (ctx) => { throw new VyreErr(notImplemented("terminal.job.start", ctx.trace)); },
+  "terminal.job.stop": async (ctx) => { throw new VyreErr(notImplemented("terminal.job.stop", ctx.trace)); },
   "terminal.keys": async (ctx) => { throw new VyreErr(notImplemented("terminal.keys", ctx.trace)); },
   "terminal.list": async (ctx) => { throw new VyreErr(notImplemented("terminal.list", ctx.trace)); },
   "terminal.log.list": async (ctx) => { throw new VyreErr(notImplemented("terminal.log.list", ctx.trace)); },
@@ -28,6 +32,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "terminal.rules.set": async (ctx) => { throw new VyreErr(notImplemented("terminal.rules.set", ctx.trace)); },
   "terminal.run": async (ctx) => { throw new VyreErr(notImplemented("terminal.run", ctx.trace)); },
   "terminal.status": async (ctx) => { throw new VyreErr(notImplemented("terminal.status", ctx.trace)); },
+  "terminal.stream": async (ctx) => { throw new VyreErr(notImplemented("terminal.stream", ctx.trace)); },
   "terminal.take_over": async (ctx) => { throw new VyreErr(notImplemented("terminal.take_over", ctx.trace)); },
   "terminal.workspace": async (ctx) => { throw new VyreErr(notImplemented("terminal.workspace", ctx.trace)); },
 };

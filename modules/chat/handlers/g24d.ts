@@ -38,7 +38,7 @@ import type { ChatCtx, Db, PlanStep, ThreadRec } from "../projections.ts";
 import { mayRecall } from "./history.ts";
 import { canSpeak, deliver } from "./post.ts";
 import { touch } from "./g24a.ts";
-import { ALREADY_DECIDED, openAsk, tellAgent } from "./waiting.ts";
+import { ALREADY_DECIDED, openAsk, openAskFor, personFor, tellAgent } from "./waiting.ts";
 
 type Row = Record<string, unknown>;
 
@@ -543,6 +543,18 @@ export async function questionWithdraw(
   return { withdrawn: true };
 }
 
+/** A card a question carries: a command for the person to run (terminal.request), or a sign-in the person does themselves on the agent's computer (terminal.ask_signin, computers.browser.ask_signin). */
+export interface ChatCard {
+  kind: "terminal" | "signin";
+  command?: string;
+  host?: string;
+  risk?: string;
+  surface?: "terminal" | "browser";
+  terminalId?: string;
+  site?: string;
+  agentId?: string;
+}
+
 export async function questionAsk(
   ctx: ChatCtx,
   input: {
@@ -551,7 +563,7 @@ export async function questionAsk(
     mode: "single" | "multi" | "free";
     options?: Array<{ key: string; label: string; detail?: string }>;
     allowOther?: boolean;
-    card?: { kind: "terminal"; command: string; host?: string; risk?: string };
+    card?: ChatCard;
     idempotencyKey?: string;
   },
 ) {
@@ -568,11 +580,15 @@ export async function questionIn(
     mode: "single" | "multi" | "free";
     options?: Array<{ key: string; label: string; detail?: string }>;
     allowOther?: boolean;
-    card?: { kind: "terminal"; command: string; host?: string; risk?: string };
+    card?: ChatCard;
   },
   by?: { id: string; kind: "agent" | "text"; extra?: Record<string, unknown> },
 ) {
   const prompt = input.prompt.trim();
+  if (input.card?.kind === "terminal" && (input.card.command ?? "") === "")
+    raise(ctx, "validation.bad_input", "A terminal card needs the command to run.");
+  if (input.card?.kind === "signin" && input.card.surface === undefined)
+    raise(ctx, "validation.bad_input", "A sign-in card needs to say where: the terminal or the browser.");
   if (prompt === "" || prompt.length > MAX_PROMPT)
     raise(ctx, "validation.bad_input", `A question needs words, at most ${MAX_PROMPT} characters.`);
   // a question is a card and a task on a person's list: it needs a real question, not a probe ("test", "hi", one word)
@@ -615,6 +631,9 @@ export async function questionIn(
     summary: prompt,
   });
   if (taskId !== undefined) data["taskId"] = taskId;
+  // a sign-in card reaches every person who may take that computer over, not only whoever the chat has: a routine at 03:00 has nobody reading it
+  if (input.card?.kind === "signin" && input.card.agentId !== undefined)
+    await signinTasks(ctx, t, input.card.agentId, { blockId, title: prompt, data });
   const m = insertMessage(ctx, t.id, {
     author: by?.id ?? ctx.principal.id,
     kind: by?.kind ?? authorKind(ctx),
@@ -625,6 +644,55 @@ export async function questionIn(
   deliver(ctx, t, m, [], by ? { kind: "agent", id: by.id } : author(ctx), { notify: false });
   ctx.emit("block.waiting", t.id, { threadId: t.id, blockId, blockType: "question" });
   return { blockId, messageId: m.id };
+}
+
+/** Who may take over an agent's computer: its owner, and the Space's owners and admins when the agent is shared with the Space or by name (the Space browser's own rule, modules/computers/sbrowser/policy.ts). */
+export async function takeoverPeople(ctx: ChatCtx, agentId: string): Promise<string[]> {
+  if (!ctx.call) return [];
+  const out = new Set<string>();
+  try {
+    const cls = (await ctx.call("agents.share_class", { agentId })) as { class?: string; ownerId?: string };
+    if (typeof cls.ownerId === "string") out.add(cls.ownerId);
+    if (cls.class === "shared" || cls.class === "space") {
+      const got = (await ctx.call("access.deciders", { resource: { type: "space", id: ctx.space } })) as {
+        people?: unknown;
+      };
+      for (const p of Array.isArray(got.people) ? got.people : [])
+        if (typeof p === "string" && p.startsWith("usr_")) out.add(p);
+    }
+  } catch (e) {
+    ctx.log.warn("sign-in card: who may take over could not be read", {
+      agentId,
+      error: e instanceof Error ? e.message : String(e),
+    });
+  }
+  return [...out].sort();
+}
+
+/** The sign-in card's task for each person who may take the computer over, except the one the chat's own task already went to. */
+async function signinTasks(
+  ctx: ChatCtx,
+  t: ThreadRec,
+  agentId: string,
+  a: { blockId: string; title: string; data: Record<string, unknown> },
+): Promise<void> {
+  const already = personFor(ctx, t);
+  for (const person of await takeoverPeople(ctx, agentId)) {
+    if (person === already) continue;
+    await openAskFor(
+      ctx,
+      t,
+      person,
+      {
+        kind: "answer",
+        blockId: a.blockId,
+        block: { type: "question", data: a.data },
+        title: a.title,
+        summary: a.title,
+      },
+      `signin:${a.blockId}:${person}`,
+    );
+  }
 }
 
 export async function planPropose(

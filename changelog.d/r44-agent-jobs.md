@@ -1,0 +1,1 @@
+- An agent can keep a command running as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart or a reboot, keeps its log, keeps the agent's computer awake until it ends (no 12 hour limit), and shows in the Computer tab with Stop. Computers that are idle still sleep, and wake on any trigger.

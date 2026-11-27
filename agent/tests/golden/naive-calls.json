@@ -716,6 +716,9 @@
     "lengthMinutes": 5,
     "recordType": "contact"
   },
+  "browser_ask_signin": {
+    "why": "Quarterly planning"
+  },
   "browser_sites_list": {},
   "browser_sites_remove": {
     "siteId": "bsi_a1b2c3"
@@ -5818,6 +5821,10 @@
     "ref": "main",
     "title": "Quarterly planning"
   },
+  "terminal_ask_signin": {
+    "terminalId": "trm_a1b2c3",
+    "why": "Quarterly planning"
+  },
   "terminal_attach": {
     "terminalId": "trm_a1b2c3"
   },
@@ -5833,6 +5840,13 @@
   },
   "terminal_interrupt": {
     "terminalId": "trm_a1b2c3"
+  },
+  "terminal_job_list": {},
+  "terminal_job_start": {
+    "command": "ls"
+  },
+  "terminal_job_stop": {
+    "jobId": "job_a1b2c3d4e5f6"
   },
   "terminal_list": {},
   "terminal_log_list": {
@@ -5888,6 +5902,9 @@
     "terminalIds": [
       "trm_a1b2c3"
     ]
+  },
+  "terminal_stream": {
+    "terminalId": "trm_a1b2c3"
   },
   "terminal_workspace": {
     "agentId": "agt_a1b2c3"

@@ -572,6 +572,7 @@ export function stubs(ctx: CallCtx) {
     },
     computers: {
       browser: {
+        ask_signin: call("computers.browser.ask_signin"),
         give_back: call("computers.browser.give_back"),
         my_sign_ins: call("computers.browser.my_sign_ins"),
         pause: call("computers.browser.pause"),
@@ -3082,6 +3083,7 @@ export function stubs(ctx: CallCtx) {
       save: call("templates.save"),
     },
     terminal: {
+      ask_signin: call("terminal.ask_signin"),
       attach: call("terminal.attach"),
       capture: call("terminal.capture"),
       close: call("terminal.close"),
@@ -3090,6 +3092,11 @@ export function stubs(ctx: CallCtx) {
       health: call("terminal.health"),
       input: call("terminal.input"),
       interrupt: call("terminal.interrupt"),
+      job: {
+        list: call("terminal.job.list"),
+        start: call("terminal.job.start"),
+        stop: call("terminal.job.stop"),
+      },
       keys: call("terminal.keys"),
       list: call("terminal.list"),
       log: {
@@ -3109,6 +3116,7 @@ export function stubs(ctx: CallCtx) {
       },
       run: call("terminal.run"),
       status: call("terminal.status"),
+      stream: call("terminal.stream"),
       take_over: call("terminal.take_over"),
       workspace: call("terminal.workspace"),
     },

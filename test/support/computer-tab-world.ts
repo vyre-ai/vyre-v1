@@ -11,6 +11,8 @@ import { bindSpaceBrowser } from "../../modules/computers/sbrowser/port.ts";
 import { createDockerSpaceBrowser } from "../../modules/computers/sbrowser/docker.ts";
 import { createDockerApi, unixSocketHttp } from "../../sandbox/src/docker.ts";
 import { bindHost as bindComputers } from "../../modules/computers/projections.ts";
+import { acceptPeer } from "../../host/src/ws.ts";
+import type { Peer } from "../../host/src/ws.ts";
 import { realTmuxHost, stopRealTmux } from "./real-tmux.ts";
 
 /** A team world with one agent, one chat, a workspace that runs with one terminal of a person's, and a Space browser that is open. The chat's right pane is on its Computer tab. */
@@ -52,14 +54,61 @@ export async function world(
     r.writeHead(200, { "content-type": "image/png", "cache-control": "no-store" });
     r.end(PNG);
   });
+  // the live view's frames come on a WebSocket since rc.44 (watchers as well as the person in control): the stand-in sends the picture a few times a second and answers the view's pings, and `outage` cuts every
+  // socket and refuses new ones and new addresses for a while, the way a daemon that is killed and started again does
+  // a real JPEG (the view decodes what comes on the socket as a JPEG frame, as browserd sends them)
+  const JPEG = Buffer.from(
+    "/9j/4AAQSkZJRgABAQAAAQABAAD/4gHYSUNDX1BST0ZJTEUAAQEAAAHIAAAAAAQwAABtbnRyUkdCIFhZWiAH4AABAAEAAAAAAABhY3NwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAA9tYAAQAAAADTLQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAlkZXNjAAAA8AAAACRyWFlaAAABFAAAABRnWFlaAAABKAAAABRiWFlaAAABPAAAABR3dHB0AAABUAAAABRyVFJDAAABZAAAAChnVFJDAAABZAAAAChiVFJDAAABZAAAAChjcHJ0AAABjAAAADxtbHVjAAAAAAAAAAEAAAAMZW5VUwAAAAgAAAAcAHMAUgBHAEJYWVogAAAAAAAAb6IAADj1AAADkFhZWiAAAAAAAABimQAAt4UAABjaWFlaIAAAAAAAACSgAAAPhAAAts9YWVogAAAAAAAA9tYAAQAAAADTLXBhcmEAAAAAAAQAAAACZmYAAPKnAAANWQAAE9AAAApbAAAAAAAAAABtbHVjAAAAAAAAAAEAAAAMZW5VUwAAACAAAAAcAEcAbwBvAGcAbABlACAASQBuAGMALgAgADIAMAAxADb/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAKABADASIAAhEBAxEB/8QAFwAAAwEAAAAAAAAAAAAAAAAAAAUGB//EACMQAAADBwUBAAAAAAAAAAAAAAAVMgEEBhESEyEWIjE1UjP/xAAVAQEBAAAAAAAAAAAAAAAAAAADBP/EACARAAEDAgcAAAAAAAAAAAAAAAECAxEAEgQTIUFhkbH/2gAMAwEAAhEDEQA/ANQijXR68kPW7bXw8sqVlU+RVQuZkTsfdluup9NpThMuA1ALncVmNJasSIjUCCYG595oEtWqKpJnqv/Z",
+    "base64",
+  );
+  const peers = new Set<Peer>();
+  let downUntil = 0;
+  const sockets = new Set<import("node:net").Socket>();
+  const opened: string[] = [];
+  picture.on("connection", (c) => {
+    sockets.add(c);
+    c.on("close", () => sockets.delete(c));
+  });
+  picture.on("upgrade", (req, socket, head) => {
+    if (Date.now() < downUntil) {
+      socket.destroy();
+      return;
+    }
+    const peer = acceptPeer(req, socket, head, 1 << 20);
+    if (!peer) return;
+    opened.push(String(req.url));
+    peers.add(peer);
+    peer.onClose(() => peers.delete(peer));
+    peer.onMessage((data) => {
+      try {
+        const m = JSON.parse(data.toString("utf8")) as { t?: string; seq?: number };
+        if (m.t === "ping") peer.send(JSON.stringify({ t: "pong", seq: m.seq ?? 0 }));
+      } catch {
+        /* not JSON */
+      }
+    });
+    const tick = setInterval(() => {
+      if (!peer.open) clearInterval(tick);
+      else peer.send(JPEG);
+    }, 150);
+    tick.unref();
+  });
+  const outage = (ms: number): void => {
+    downUntil = Date.now() + ms;
+    for (const c of sockets) c.destroy();
+    peers.clear();
+  };
   await new Promise<void>((done) => picture.listen(0, "127.0.0.1", done));
   const port = (picture.address() as { port: number }).port;
   // a ticket is one address for one viewer: every stream call hands out a new one, as the real service does
-  browserd.sb.stream = async (a) => ({
-    transport: "mjpeg",
-    url: `http://127.0.0.1:${port}/live/${a.profileId}?ticket=${++tickets}`,
-    ws: `ws://127.0.0.1:${port}/ws?p=${a.profileId}&ticket=${tickets}`,
-  });
+  browserd.sb.stream = async (a) => {
+    if (Date.now() < downUntil) throw new Error("The Space browser did not answer in time.");
+    return {
+      transport: "mjpeg",
+      url: `http://127.0.0.1:${port}/live/${a.profileId}?ticket=${++tickets}`,
+      ws: `ws://127.0.0.1:${port}/ws?p=${a.profileId}&ticket=${tickets}`,
+    };
+  };
   const dockerName = `vyre-sbrowser-cw${process.pid}${Math.random().toString(36).slice(2, 6)}`;
   const dockerHttp = unixSocketHttp();
   const dockerApi = createDockerApi(dockerHttp);
@@ -159,5 +208,20 @@ export async function world(
     if (o.tmux === true) await stopRealTmux();
     await s.close();
   };
-  return { s, w, me, guard, agentId, threadId, browserd, real, computerTab, watcher, close };
+  return {
+    s,
+    w,
+    me,
+    guard,
+    agentId,
+    threadId,
+    browserd,
+    real,
+    dockerName,
+    computerTab,
+    watcher,
+    close,
+    outage,
+    socketsOpened: opened,
+  };
 }

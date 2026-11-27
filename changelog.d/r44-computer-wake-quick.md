@@ -1,0 +1,1 @@
+- A sleeping agent computer hands over its terminal without waiting for the whole Files folder to copy in, a look at a container gives up after 10 seconds with a plain sentence, and the pane's terminal status check no longer keeps the computer awake or waits behind its start.

@@ -1,6 +1,7 @@
 {
   "module": "terminal",
   "capabilities": {
+    "terminal.ask_signin@1": "d1b6256d594504839ca796e52199e66db3a2b0c1b9ca86cda5f5561b8e72c119",
     "terminal.attach@1": "67a2ce89ca8f56e796840e289d2ee3e479c71bef42192cf9a05f4343e39bbdc2",
     "terminal.capture@1": "db9298ef2e7748c72a6f643f13c3357ef92b1d8aab53947ec89046352654565a",
     "terminal.close@1": "ad80a1cb3fc55d0a8fad020ca92fe5124dd2d686f9b793a51f4be395f1ad11e4",
@@ -9,6 +10,9 @@
     "terminal.health@1": "7aacc600b8082edd76ebf98e6e6f26472b85e1b413d5482e8142f22ad8b96e6a",
     "terminal.input@1": "2e1d433fe469b778dea9e7dad288243d72a21fe859d5d0c637340ab66f00d9b6",
     "terminal.interrupt@1": "ae8e08f6e3f7acbaa4b4ff6c939e1b31bbcfffe41ac32fe2f47ee3d2eebd8e4a",
+    "terminal.job.list@1": "46b42aae98b9fb20f09e2de93cfe10a0ff8d76a6528eaf409c9c1d867f5d8f01",
+    "terminal.job.start@1": "7933ddae5ec96b753d8640af2504375aaadf247bc4115d0aaf3f5fa91944c8e0",
+    "terminal.job.stop@1": "51fb6cc7ecae2e13afba6df53c2a5c2bb1c63575ea769afb8369d5762c564746",
     "terminal.keys@1": "6d0ca0b5c13dc0d3c56dbc6771b6a6dbb97db0ef8950e428389f85f30b3f5448",
     "terminal.list@1": "e9aef9e00c064fde1f040b189e811e15d4415f1d07beec9a60a11fc81a00b3d5",
     "terminal.log.list@1": "a21570beef34be9595732bfe2e9da5b0ce34e4687fdf3d826162f0a889d00e88",
@@ -24,6 +28,7 @@
     "terminal.rules.set@1": "e0a20e7c7c00a8da22a52da7d628949298ae4ef6217a4f4217adb80c7647271f",
     "terminal.run@1": "1f9197da62d2b65d772ca0fc41504bd3932adbc5fc76b6415d5c1b885b9b8085",
     "terminal.status@1": "27b1ae87b73087fa225289f63756f940e77bcbee95189340a844114ef2cdb14b",
+    "terminal.stream@1": "8abdd7d188df9298fa5f0ec591418e28f70fd7e9031b668d695ae672d31f4300",
     "terminal.take_over@1": "ae82c15491d6d958faf0c5f912c60fb554d9dcdf397a0c8282bfb936bdd40f58",
     "terminal.workspace@1": "5e6afb1a7b992a7f2a71d21c6a27df34f29b6a9e4caf489799becf7a37d59cb4"
   },

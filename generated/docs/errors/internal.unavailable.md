@@ -15,3 +15,6 @@ HTTP 503. Retryable: yes.
 - sync_specs.sample
 - sync_specs.survey
 - sync_specs.validate
+- terminal.job.list
+- terminal.job.start
+- terminal.job.stop

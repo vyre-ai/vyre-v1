@@ -1812,10 +1812,15 @@ export default defineManifest({
           allowOther: t.opt(t.bool()),
           card: t.opt(
             t.obj({
-              kind: t.enm("terminal"),
-              command: t.str(),
+              kind: t.enm("terminal", "signin"),
+              // kind terminal: the command to run. kind signin (terminal.ask_signin, computers.browser.ask_signin): the person signs in themselves on the agent's computer
+              command: t.opt(t.str()),
               host: t.opt(t.enm("agent_computer", "space_server", "device")),
               risk: t.opt(t.enm("read", "change", "danger")),
+              surface: t.opt(t.enm("terminal", "browser")),
+              terminalId: t.opt(id.terminal),
+              site: t.opt(t.str({ maxLength: 200 })),
+              agentId: t.opt(id.agent),
             }),
           ),
         },

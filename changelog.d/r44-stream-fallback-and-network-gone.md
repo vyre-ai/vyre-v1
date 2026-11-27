@@ -1,0 +1,1 @@
+- A terminal on a host that draws a screen but does not stream one (a terminal of this computer's own tmux) keeps its screen and is polled, instead of turning into the plain line terminal. A stopped Space browser container whose network was removed (for example by a Docker network prune) is made again on a new network and started, with its volume and profiles untouched.

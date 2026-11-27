@@ -30,9 +30,7 @@ export function pullFrames(
       }));
   let live = true;
   let last = "";
-  // the pane is seen: the agent's browser starts in the background if it has one to start (nothing is started for an agent that never browsed); a failed ask changes nothing
-  if (!(o.hidden?.() ?? false))
-    void Promise.resolve(call("computers.browser.warm", { agentId })).catch(() => undefined);
+  // asleep is the default (owner ruling 13 Nov, restored in rc.44): looking at the pane never starts the browser; a person starts it by pressing the picture (the desk wakes it), the agent by using it
   void (async () => {
     while (live) {
       if (!(o.hidden?.() ?? false)) {

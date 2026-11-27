@@ -16,6 +16,7 @@ import { needRoom, roomWaitLine, waitingForRoom, waitingProfiles } from "./room.
 import { signInSites } from "./sites.ts";
 import { fitPngOffLoop } from "../png-fit.ts";
 import { warmAnswer, warmBrowser } from "./warm.ts";
+import { signinQuestion } from "../../../lib/signin-card.ts";
 import { dropPause, pausedBy, setPause } from "./pause.ts";
 
 const TICKET_MS = 5 * 60_000;
@@ -670,11 +671,37 @@ export async function pointer(ctx: CompCtx, input: { agentId: string }) {
   }
 }
 
+/**
+ * An agent needs a person to sign in for it in its own browser: the chat gets the one sign-in card (lib/signin-card.ts) where the agent asked. Who may take over that browser sees Open browser and Done;
+ * everyone else sees who the agent waits for. Only an agent asks, about its own profile.
+ */
+async function askSignin(
+  ctx: CompCtx,
+  input: { threadId: string; why: string; site?: string; idempotencyKey?: string },
+) {
+  ensure(ctx.db);
+  const why = input.why.trim();
+  if (why === "") raise(ctx, "validation.bad_input", "Say what the person should sign in to.");
+  if (ctx.principal.kind !== "agent") raise(ctx, "permission.no_grant", "Only an agent asks a person to sign in.");
+  const asked = (await ctx.call("chat.question.ask", {
+    threadId: input.threadId,
+    ...signinQuestion({
+      surface: "browser",
+      why,
+      agentId: ctx.principal.id,
+      ...(input.site === undefined ? {} : { site: input.site }),
+    }),
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
+  })) as { blockId: string; messageId: string };
+  return { blockId: asked.blockId, messageId: asked.messageId };
+}
+
 export const sbrowserHandlers = {
   "computers.browser.pointer": pointer,
   "computers.browser.pause": pause,
   "computers.browser.resume": resume,
   "computers.browser.warm": warm,
+  "computers.browser.ask_signin": askSignin,
   "computers.browser.sessions": sessions,
   "computers.browser.my_sign_ins": mySignIns,
   "computers.browser.sign_out": signOut,
