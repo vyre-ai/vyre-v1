@@ -1,0 +1,1 @@
+- Heavy and walk tests that failed on environment or on old rules now follow the product: the terminal-keys walk reads the colour palette of the skin it runs on, the tmux heavy tests use the workspace image's history limit and a pid file of their own, and the agent-computer stream test finds the extension folder in the repository.

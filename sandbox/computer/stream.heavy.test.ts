@@ -158,7 +158,8 @@ const p95 = (xs: number[]): number =>
 before(async () => {
   if (!ON) return;
   assert.equal(await api.ping(), true, "the Docker daemon answers");
-  const ext = process.env["VYRE_CHROME_EXT_DIR"];
+  // the extension folder defaults to this repository's own (a run that names none is a run of this tree, not a failure of the setup)
+  const ext = process.env["VYRE_CHROME_EXT_DIR"] ?? path.join(ROOT, "apps/chrome");
   assert.ok(
     ext && fs.existsSync(path.join(ext, "manifest.json")),
     "VYRE_CHROME_EXT_DIR names the Vyre for Chrome folder (apps/chrome manifest.json and src): the agent computer ships with it",
