@@ -1,0 +1,1 @@
+- A second connection to logs.db waits for the file (busy timeout set before its first pragma) instead of failing with "database is locked" when the checkpoint worker or an earlier sink holds it.

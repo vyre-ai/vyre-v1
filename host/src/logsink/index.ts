@@ -224,6 +224,8 @@ export class LogSink implements SpanSink {
    */
   private open(file: boolean): string {
     if (file) {
+      // first of all: a second connection to this file (the checkpoint worker has one, so has the sink of an earlier run) holds the file now and then, and a pragma that needs a lock waits for it instead of failing with "database is locked"
+      this.db.exec("PRAGMA busy_timeout = 2000");
       this.db.exec("PRAGMA auto_vacuum = INCREMENTAL");
       this.db.exec(
         "PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA journal_size_limit = 4194304; PRAGMA busy_timeout = 2000",
