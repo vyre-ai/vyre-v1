@@ -7,6 +7,8 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const IMPORT = /^\s*(?:import|export)\s+(?!type\b)[^;'"]*?from\s+["'](\.{1,2}\/[^"']+\.(?:ts|js|mjs))["']|^\s*import\s+["'](\.{1,2}\/[^"']+\.(?:ts|js|mjs))["']/gm;
+/** VYRE_SLICE_TRACE=1 writes the files whose own piece took 40 ms or more (to say which piece of the graph is the long one). */
+const TRACE = process.env["VYRE_SLICE_TRACE"] === "1";
 const turn = (): Promise<void> => new Promise((r) => setImmediate(r));
 
 /** The relative files `file` imports (not type-only imports), as absolute paths. */
@@ -34,8 +36,10 @@ export async function sliceImport(entry: URL, depth = 3): Promise<void> {
     if (done.has(file)) return;
     done.add(file);
     if (levels > 0) for (const dep of importsOf(file)) await load(dep, levels - 1);
+    const t0 = performance.now();
     try {
       await import(pathToFileURL(file).href);
+      if (TRACE && performance.now() - t0 >= 40) process.stderr.write(`slice-import: ${Math.round(performance.now() - t0)} ms ${path.relative(process.cwd(), file)}\n`);
     } catch {
       /* a failure belongs to the plain import that follows, which reports it as it always did */
     }

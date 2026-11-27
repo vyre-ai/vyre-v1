@@ -1,0 +1,1 @@
+- The PDF library is loaded when the first document is typeset, not when the server starts, and each module's code is loaded in smaller pieces.

@@ -71,7 +71,7 @@ export function fileImporter(root: string): Importer {
   return async (id, kind) => {
     const rel = kind === "stub" ? `generated/modules/${id}/stub-impl.ts` : `modules/${id}/impl.ts`;
     const href = pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`);
-    await sliceImport(href, 2); // the module's own graph in pieces, a turn of the loop between them
+    await sliceImport(href, 4); // the module's own graph in pieces, a turn of the loop between them
     const m = (await import(href.href)) as { handlers?: HandlerMap };
     if (!m.handlers) throw new Error(`${rel} exports no handlers`);
     return m.handlers;
