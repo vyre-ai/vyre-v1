@@ -2,10 +2,10 @@
 // after the server listened (175 ms), each reading and parsing the 4 MB registry again. Here it is one: the registry the host already parsed, the tool list, the frozen default set, built with a turn of the loop
 // between steps when the caller can wait (`warmGeneratedCatalog`), or in one go for a caller that cannot (`generatedCatalog`, as before). Whichever comes first is kept for both.
 import { readFileSync } from "node:fs";
-import { registry } from "../../generated/registry.ts";
-import { buildCatalog, buildCatalogSliced, offerable, parseDefaultTools } from "../../agent/src/tools/catalog.ts";
-import { DEFERRED_CAPS } from "./routes/deferred.ts";
-import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
+import { registry } from "../../../generated/registry.ts";
+import { buildCatalog, buildCatalogSliced, offerable, parseDefaultTools } from "./catalog.ts";
+import { DEFERRED_CAPS } from "../../../host/src/routes/deferred.ts";
+import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "./types.ts";
 
 export interface Generated {
   catalog: Catalog;
@@ -13,7 +13,7 @@ export interface Generated {
 }
 let built: Generated | null = null;
 let building: Promise<Generated> | null = null;
-const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, import.meta.url), "utf8");
+const read = (rel: string): string => readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8");
 
 const inputs = (): { caps: RegistryCapRow[]; agentTools: AgentToolRow[]; tools: McpToolRow[]; defaults: Set<string> } => {
   const reg = registry as unknown as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };

@@ -12,7 +12,7 @@ import { createToolSession } from "../../agent/src/tools/call.ts";
 import { decideLocal, dialFor, modePair } from "../../agent/src/tools/local.ts";
 import { localFacts } from "../../agent/src/tools/local-facts.ts";
 import type { ModePair } from "../../agent/src/tools/local.ts";
-import { generatedCatalog, warmGeneratedCatalog } from "../../host/src/generated-catalog.ts";
+import { generatedCatalog, warmGeneratedCatalog } from "../../agent/src/tools/generated-catalog.ts";
 import { placeTools } from "./place-tools.ts";
 import { DEFERRED_CAPS } from "../../host/src/routes/deferred.ts";
 import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
@@ -86,7 +86,7 @@ export function warmApiToolCatalog(): void {
   catalog = g.catalog;
   defaults = g.defaults;
 }
-/** The same, built with a turn of the loop between its steps (the first idle tick after the module loads: the one catalog the MCP runtime shares, host/src/generated-catalog.ts). */
+/** The same, built with a turn of the loop between its steps (the first idle tick after the module loads: the one catalog the MCP runtime shares, agent/src/tools/generated-catalog.ts). */
 export async function warmApiToolCatalogSliced(): Promise<void> {
   if (catalog && defaults) return;
   const g = await warmGeneratedCatalog(() => new Promise<void>((done) => setImmediate(done)));

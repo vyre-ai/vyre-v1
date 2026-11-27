@@ -8,7 +8,7 @@ import { fail } from "../../host/src/routes/errors.ts";
 import { mintUuid } from "../../lib/ids.ts";
 import type { ErrorCode, EventName } from "../../packages/contracts/src/types.ts";
 import { OUTSIDE_PROVIDER } from "../../kernel/src/authorize/index.ts";
-import { generatedCatalog } from "../../host/src/generated-catalog.ts";
+import { generatedCatalog } from "../../agent/src/tools/generated-catalog.ts";
 import type { AgentToolRow, Catalog, McpToolRow, RegistryCapRow } from "../../agent/src/tools/types.ts";
 import type { McpCaller, McpServer } from "../../agent/src/mcp/types.ts";
 
@@ -289,7 +289,7 @@ const read = (rel: string): string => readFileSync(new URL(`../../${rel}`, impor
 /** The tool list the generator wrote, joined with the registry, and the frozen default listed set. Read once. */
 export function loadGenerated(): Generated {
   if (generated) return generated;
-  generated = generatedCatalog(); // the one the engine module builds, or built here if this comes first (host/src/generated-catalog.ts)
+  generated = generatedCatalog(); // the one the engine module builds, or built here if this comes first (agent/src/tools/generated-catalog.ts)
   return generated;
 }
 
