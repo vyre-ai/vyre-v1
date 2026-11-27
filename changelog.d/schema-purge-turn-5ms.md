@@ -1,0 +1,1 @@
+- The purge of a dropped type gives the event loop a turn every 5 ms of work instead of 15 ms.
