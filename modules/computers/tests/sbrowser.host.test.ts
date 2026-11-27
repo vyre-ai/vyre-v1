@@ -4,7 +4,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ContainerConfig, DockerApi } from "../../../sandbox/src/docker.ts";
 import { reviewComputerConfig } from "../impl.ts";
-import { BROWSERD_CTL, browserContainerConfig, createDockerSpaceBrowser } from "../sbrowser/docker.ts";
+import {
+  BROWSERD_CTL,
+  browserContainerConfig,
+  createDockerSpaceBrowser,
+  migrationContainerConfig,
+  migrationName,
+} from "../sbrowser/docker.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 
 type Exec = { exitCode: number | null; stdout: string; stderr: string };
@@ -745,26 +751,68 @@ test("health says how many saved sign-in profiles were not copied from the old s
   assert.match(h.detail ?? "", /3 saved browser sign-in profiles from the old shared browser were not copied/);
 });
 
-test("a Space's own container mounts the old volume read-only and tells browserd whose profiles to take, only while the old container is there", () => {
-  const cfg = browserContainerConfig({
-    api: {} as DockerApi,
-    name: "vyre-sbrowser-spc_one",
-    adopt: { space: "spc_one", all: true },
-    mountOld: true,
-  });
-  assert.deepEqual(cfg.HostConfig.Binds, ["vyre-sbrowser-spc_one-data:/data:rw", "vyre-sbrowser-data:/old-data:ro"]);
-  assert.ok(cfg.Env.includes("VYRE_BROWSER_ADOPT_SPACE=spc_one") && cfg.Env.includes("VYRE_BROWSER_ADOPT_ALL=1"));
-  const none = browserContainerConfig({
-    api: {} as DockerApi,
-    name: "vyre-sbrowser-spc_one",
-    adopt: { space: "spc_one", all: false },
-  });
-  assert.deepEqual(none.HostConfig.Binds, ["vyre-sbrowser-spc_one-data:/data:rw"]);
-  assert.ok(!none.Env.some((x) => x.startsWith("VYRE_BROWSER_ADOPT")));
-  const shared = browserContainerConfig({ api: {} as DockerApi, mountOld: true });
+test("a Space's long-running browser container mounts only its own volume, never the old shared one; the copy is a one-shot container that mounts the old one read-only", () => {
+  const o = { api: {} as DockerApi, name: "vyre-sbrowser-spc_one", adopt: { space: "spc_one", all: true } };
+  const run = browserContainerConfig(o);
   assert.deepEqual(
-    shared.HostConfig.Binds,
-    ["vyre-sbrowser-data:/data:rw"],
-    "the shared container never mounts itself again",
+    run.HostConfig.Binds,
+    ["vyre-sbrowser-spc_one-data:/data:rw"],
+    "no other volume, not even read-only",
   );
+  assert.ok(!run.Env.some((x) => x.startsWith("VYRE_BROWSER_ADOPT") || x.startsWith("VYRE_ADOPT")));
+  const mig = migrationContainerConfig(o);
+  assert.deepEqual(mig.HostConfig.Binds, ["vyre-sbrowser-data:/old-data:ro", "vyre-sbrowser-spc_one-data:/data:rw"]);
+  assert.equal(mig.HostConfig.NetworkMode, "none");
+  assert.deepEqual(mig.Cmd, ["node", "/opt/browserd/adopt-run.ts"]);
+  assert.deepEqual(mig.Env, ["VYRE_ADOPT_SPACE=spc_one", "VYRE_ADOPT_ALL=1"]);
+  assert.equal(migrationName("spc_one"), "vyre-sbmig-spc_one");
+});
+
+test("the browser waits for the copy of saved sign-ins when the old shared container is there: the one-shot container runs and is removed, and a copy that failed stops the browser from starting", async () => {
+  for (const exit of [0, 3]) {
+    const e = engine((action) => (action === "status" ? ok({ profiles: [] }) : ok({})));
+    const made: string[] = [];
+    const real = e.api.containerCreate;
+    e.api.containerCreate = async (n, c) => {
+      made.push(n);
+      return real(n, c);
+    };
+    const removed: string[] = [];
+    const rm = e.api.containerRemove;
+    e.api.containerRemove = async (n) => {
+      removed.push(n);
+      return rm(n);
+    };
+    const sb = createDockerSpaceBrowser({
+      api: e.api,
+      user: { uid: 10001, gid: 10001 },
+      sleep: async () => {},
+      name: "vyre-sbrowser-spc_one",
+      adopt: { space: "spc_one", all: false },
+      http: async (r: { method: string; path: string }) =>
+        r.path === "/containers/vyre-sbrowser/json"
+          ? { status: 200, body: new TextEncoder().encode("{}") }
+          : r.path.endsWith("/wait")
+            ? { status: 200, body: new TextEncoder().encode(JSON.stringify({ StatusCode: exit })) }
+            : r.path === "/networks/create"
+              ? { status: 201, body: new Uint8Array() }
+              : r.path.startsWith("/networks/")
+                ? {
+                    status: 200,
+                    body: new TextEncoder().encode(
+                      JSON.stringify({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }),
+                    ),
+                  }
+                : { status: 404, body: new TextEncoder().encode("{}") },
+    } as never);
+    const go = sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+    if (exit === 0) {
+      await go;
+      assert.deepEqual(made, ["vyre-sbmig-spc_one", "vyre-sbrowser-spc_one"], "the copy first, then the browser");
+    } else {
+      await assert.rejects(go, /waiting to move this Space's saved sign-ins/);
+      assert.ok(!made.includes("vyre-sbrowser-spc_one"), "no browser container while a copy is unfinished");
+    }
+    assert.ok(removed.includes("vyre-sbmig-spc_one"), "the one-shot container is removed either way");
+  }
 });

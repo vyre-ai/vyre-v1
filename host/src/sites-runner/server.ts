@@ -23,7 +23,10 @@ import {
   computerNetworkBody,
   computerOf,
   helperBody,
+  SBMIG_NAME_RE,
   isSbrowserName,
+  sbmigrationAllows,
+  sbmigrationBody,
   isSbrowserNet,
   sbrowserAllows,
   sbrowserBody,
@@ -223,17 +226,19 @@ export function createSitesRunner(o: RunnerOptions): {
       const nm = v.path as string;
       const c = HELPER_NAME_RE.test(nm)
         ? helperBody(nm, parsed)
-        : isSbrowserName(nm)
-          ? sbrowserBody(nm, parsed)
-          : CONV_NAME.test(nm)
-            ? converterBody(nm, parsed)
-            : WS_INIT_NAME.test(nm)
-              ? workspaceInitBody(nm, parsed)
-              : nm.startsWith("vyre-ws-")
-                ? workspaceBody(nm, parsed, wsNetOk)
-                : nm.startsWith("vyre-comp-")
-                  ? computerBody(nm, parsed)
-                  : containerBody(nm, parsed);
+        : SBMIG_NAME_RE.test(nm)
+          ? sbmigrationBody(nm, parsed)
+          : isSbrowserName(nm)
+            ? sbrowserBody(nm, parsed)
+            : CONV_NAME.test(nm)
+              ? converterBody(nm, parsed)
+              : WS_INIT_NAME.test(nm)
+                ? workspaceInitBody(nm, parsed)
+                : nm.startsWith("vyre-ws-")
+                  ? workspaceBody(nm, parsed, wsNetOk)
+                  : nm.startsWith("vyre-comp-")
+                    ? computerBody(nm, parsed)
+                    : containerBody(nm, parsed);
       if ("why" in c) {
         say(`refused create ${v.path}: ${c.why}`);
         refuse(res, 403, `Refused by the sites runner: ${c.why}.`);
@@ -260,8 +265,9 @@ export function createSitesRunner(o: RunnerOptions): {
       const ws = workspaceOf(labels);
       const wsHelper = workspaceHelperOf(labels);
       const sbr = sbrowserOf(labels);
+      const mig = SBMIG_NAME_RE.test(`vyre-sbmig-${labels["vyre.sbrowser-migrate"] ?? ""}`);
       const conv = converterOf(labels);
-      if (!isSite && !comp && !ws && !wsHelper && !sbr && !conv) {
+      if (!isSite && !comp && !ws && !wsHelper && !sbr && !mig && !conv) {
         say(`refused ${label}: not a site, computer, workspace, Space browser or converter container`);
         refuse(
           res,
@@ -274,11 +280,13 @@ export function createSitesRunner(o: RunnerOptions): {
         ? siteAllows(v.action, method, url.searchParams)
         : conv
           ? converterAllows(v.action, method, url.searchParams)
-          : sbr
-            ? sbrowserAllows(v.action, method, url.searchParams)
-            : ws || wsHelper
-              ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams)
-              : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
+          : mig
+            ? sbmigrationAllows(v.action)
+            : sbr
+              ? sbrowserAllows(v.action, method, url.searchParams)
+              : ws || wsHelper
+                ? workspaceAllows(v.action, wsHelper !== null, method, url.searchParams)
+                : computerAllows(v.action, method, url.searchParams, labels["vyre.helper"] === "home-rm");
       if (!allowed) {
         say(`refused ${label}: ${v.action} not allowed here`);
         refuse(

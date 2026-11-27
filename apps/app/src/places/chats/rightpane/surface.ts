@@ -15,9 +15,9 @@ export type SurfaceState =
 export const RECONNECT_GIVE_UP_MS = 30_000;
 /** A ticket that has not been used is replaced this long before it runs out. */
 export const TICKET_SPARE_MS = 8_000;
-const STEPS = [250, 500, 1000, 2000, 4000, 8000];
+const STEPS = [250, 500, 1000, 2000];
 
-/** The wait before the next try, by how many have failed already: 250 ms growing to 8 s. */
+/** The wait before the next try, by how many have failed already: 250 ms growing to 2 s (the give-up at 30 s stays). */
 export const backoffMs = (attempt: number): number => STEPS[Math.min(Math.max(0, attempt), STEPS.length - 1)]!;
 
 /** Refusals that another try will not change. */
@@ -103,10 +103,13 @@ export function createSurface<T>(d: SurfaceDeps<T>): Surface {
         if (at !== undefined) {
           cancelStale?.();
           // nobody has connected with this ticket and it is about to run out: ask for another
-          cancelStale = clock.set(() => {
-            cancelStale = null;
-            if (!gone && mine === round) open();
-          }, Math.max(0, at - clock.now() - TICKET_SPARE_MS));
+          cancelStale = clock.set(
+            () => {
+              cancelStale = null;
+              if (!gone && mine === round) open();
+            },
+            Math.max(0, at - clock.now() - TICKET_SPARE_MS),
+          );
         }
       },
       (e: unknown) => {

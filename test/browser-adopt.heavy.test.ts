@@ -54,7 +54,7 @@ test(
   { skip, timeout: 600_000 },
   async (t) => {
     t.after(async () => {
-      await docker(["rm", "-f", "-v", OLD, NEW]);
+      await docker(["rm", "-f", "-v", OLD, NEW, `vyre-sbmig-${SPACE}`]);
       await docker(["volume", "rm", "-f", `${OLD}-data`, `${NEW}-data`]);
       await docker(["network", "rm", `${OLD}net`, `${NEW}net`]);
     });
@@ -124,12 +124,16 @@ test(
     assert.match(JSON.stringify(read), new RegExp(`signed_in=${AGENT}`), "and the cookie itself is there");
 
     // 3. what must not have happened
+    // the running container holds its own volume and no other: the old shared volume holds every Space's cookies
     const mounts = await docker(["inspect", "-f", "{{range .Mounts}}{{.Name}}:{{.Destination}}:{{.RW}} {{end}}", NEW]);
-    assert.match(
-      mounts.out,
-      new RegExp(`${OLD}-data:/old-data:false`),
-      `the old volume is mounted read-only: ${mounts.out}`,
+    assert.equal(
+      mounts.out.trim(),
+      `${NEW}-data:/data:true`,
+      `the running per-Space container mounts only its own volume: ${mounts.out}`,
     );
+    assert.doesNotMatch(mounts.out, new RegExp(OLD), "never the old volume, not even read-only");
+    const mig = await docker(["ps", "-a", "-q", "--filter", `name=vyre-sbmig-${SPACE}`]);
+    assert.equal(mig.out.trim(), "", "the one-shot migration container is gone");
     assert.equal(await fingerprint(`${OLD}-data`), before, "the old volume is byte for byte as it was");
     assert.equal(
       (await docker(["inspect", "-f", "{{.State.Running}}", OLD])).out.trim().startsWith("false"),

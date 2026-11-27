@@ -8,6 +8,7 @@ import {
   COMPUTER_NET,
   HELPER_NAME_RE,
   PROFILE_VOLUME,
+  SBMIG_NAME_RE,
   isSbrowserName,
   isSbrowserNet,
   isSbrowserVolume,
@@ -337,7 +338,8 @@ export function judge(
       WS_NAME.test(name) ||
       WS_INIT_NAME.test(name) ||
       CONV_NAME.test(name) ||
-      isSbrowserName(name)
+      isSbrowserName(name) ||
+      SBMIG_NAME_RE.test(name)
       ? { ok: true, kind: "body", path: name }
       : no(
           "a site container is named vyre-site-..., a computer's vyre-comp-..., a workspace's vyre-ws-... and a converter's vyre-conv-<16 hex>",

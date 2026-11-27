@@ -112,7 +112,7 @@ test("a refusal that will not change (no permission, not found) fails at once an
 test("back-off grows, is capped, and a Try again after a failure works", async () => {
   assert.ok(backoffMs(0) < backoffMs(2));
   assert.equal(backoffMs(50), backoffMs(20));
-  assert.ok(backoffMs(50) <= 8000);
+  assert.ok(backoffMs(50) <= 2000, "a wait never grows past 2 s");
   const w = world([new Error("x")]);
   w.s.start();
   await w.c.advance(RECONNECT_GIVE_UP_MS + 5000);

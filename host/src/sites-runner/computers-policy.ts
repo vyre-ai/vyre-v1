@@ -277,8 +277,10 @@ export function archiveOk(method: string, query: URLSearchParams): boolean {
 export const SBROWSER_NAME = "vyre-sbrowser";
 export const SBROWSER_NET = "vyre-sbrowsernet";
 export const SBROWSER_VOLUME = "vyre-sbrowser-data";
-/** Where the old shared volume is mounted, read-only, in a Space's own browser container (its saved sign-ins are copied from there). */
+/** Where the old shared volume is mounted, read-only, in a Space's one-shot migration container (never in a browser container: it holds every Space's cookies). */
 export const SBROWSER_OLD_GUEST = "/old-data";
+/** A Space's one-shot migration container: `vyre-sbmig-<space id>`. */
+export const SBMIG_NAME_RE = /^vyre-sbmig-([A-Za-z0-9][A-Za-z0-9_-]{2,60})$/;
 /** The Space browser container: the shared one every Space of a host used before (`vyre-sbrowser`), or a Space's own, `vyre-sbrowser-<space id>`. */
 export const SBROWSER_NAME_RE = /^vyre-sbrowser(?:-[A-Za-z0-9][A-Za-z0-9_-]{2,60})?$/;
 export const isSbrowserName = (n: string): boolean => SBROWSER_NAME_RE.test(n);
@@ -354,12 +356,7 @@ export function sbrowserBody(
   for (const e of env)
     if (
       typeof e !== "string" ||
-      !(
-        /^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS|ORPHAN_MINUTES)=[0-9.]{1,8}$/.test(e) ||
-        // the move of a Space's saved sign-ins from the old shared volume (browserd adopt.ts): whose, and whether the host has one Space only
-        /^VYRE_BROWSER_ADOPT_SPACE=[A-Za-z0-9_-]{3,80}$/.test(e) ||
-        e === "VYRE_BROWSER_ADOPT_ALL=1"
-      )
+      !/^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS|ORPHAN_MINUTES)=[0-9.]{1,8}$/.test(e)
     )
       return { why: "the Space browser's environment is its limits and idle time" };
   const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
@@ -404,14 +401,10 @@ export function sbrowserBody(
   }
   if (!seccomp) return { why: "the Space browser container needs its seccomp profile" };
   const binds = Array.isArray(h["Binds"]) ? (h["Binds"] as unknown[]) : [];
+  // a browser container mounts its own volume and nothing else: the old shared volume holds every Space's cookies, so no browser container mounts it, not even read-only (the copy runs in sbmigrationBody's one-shot container)
   const own = sbrowserVolumeOf(name);
   for (const b of binds)
-    if (
-      b !== `${own}:${SBROWSER_DATA_GUEST}:rw` &&
-      b !== `${own}:${SBROWSER_DATA_GUEST}` &&
-      // a Space's own container may also hold the old shared volume, read-only, to copy its saved sign-ins from; never writable, never in the shared container itself
-      !(name !== SBROWSER_NAME && b === `${SBROWSER_VOLUME}:${SBROWSER_OLD_GUEST}:ro`)
-    )
+    if (b !== `${own}:${SBROWSER_DATA_GUEST}:rw` && b !== `${own}:${SBROWSER_DATA_GUEST}`)
       return { why: "host folders are refused: the Space browser mounts only its own profile volume" };
   const tmpfs = isObj(h["Tmpfs"]) ? h["Tmpfs"] : {};
   if (Object.keys(tmpfs).some((k) => k !== "/tmp" && k !== "/dev/shm"))
@@ -441,6 +434,79 @@ export function sbrowserBody(
   return {
     body: { ...body, HostConfig: { ...h, CapAdd: [], Privileged: false, LogConfig: LOGS, Devices: [], PidMode: "" } },
   };
+}
+
+/**
+ * The one-shot container that copies a Space's saved sign-ins from the old shared volume into its own (browserd adopt-run.ts): the browser image, the fixed command, the old shared volume read-only at /old-data and
+ * that Space's own volume read-write at /data and nothing else, no network, no capability, small caps. Waited for, then removed.
+ */
+export function sbmigrationBody(name: string, body: unknown): { body: Record<string, unknown> } | { why: string } {
+  const m = SBMIG_NAME_RE.exec(name);
+  if (!m) return { why: "the migration container is named vyre-sbmig-<space id>" };
+  if (!isObj(body)) return { why: "the container config is not an object" };
+  const space = m[1] as string;
+  const labels = isObj(body["Labels"]) ? body["Labels"] : {};
+  if (labels["vyre.sbrowser-migrate"] !== space || Object.keys(labels).length !== 1)
+    return { why: "the migration container carries only vyre.sbrowser-migrate=<its Space id>" };
+  if (!isSbrowserImage(String(body["Image"] ?? "")))
+    return { why: "the migration container runs the Space browser image" };
+  const cmd = Array.isArray(body["Cmd"]) ? (body["Cmd"] as unknown[]) : [];
+  if (cmd.length !== 2 || cmd[0] !== "node" || cmd[1] !== "/opt/browserd/adopt-run.ts")
+    return { why: "the migration container runs only the adopt program" };
+  const env = Array.isArray(body["Env"]) ? (body["Env"] as unknown[]) : [];
+  for (const e of env)
+    if (e !== `VYRE_ADOPT_SPACE=${space}` && e !== "VYRE_ADOPT_ALL=1")
+      return { why: "the migration container's environment is its Space id and one flag" };
+  for (const k of Object.keys(body))
+    if (!TOP_KEYS.has(k) && !emptyish(body[k])) return { why: `the migration container may not set ${k}` };
+  const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
+  if (!h) return { why: "the migration container needs its limits" };
+  if (h["Privileged"] === true) return { why: "privileged containers are refused" };
+  for (const k of Object.keys(h))
+    if (!HOST_KEYS.has(k) && !emptyish(h[k])) return { why: `the migration container may not set HostConfig.${k}` };
+  if (h["NetworkMode"] !== "none") return { why: "the migration container has no network" };
+  if (!emptyish(h["PidMode"]) || !emptyish(h["UsernsMode"]) || !emptyish(h["Devices"]) || !emptyish(h["CapAdd"]))
+    return { why: "the migration container takes no host namespace, device or capability" };
+  if (!Array.isArray(h["CapDrop"]) || !(h["CapDrop"] as unknown[]).includes("ALL"))
+    return { why: "every capability must be dropped" };
+  const sec = Array.isArray(h["SecurityOpt"]) ? (h["SecurityOpt"] as unknown[]) : [];
+  if (!sec.includes("no-new-privileges:true")) return { why: "new privileges must be off" };
+  const binds = Array.isArray(h["Binds"]) ? (h["Binds"] as unknown[]) : [];
+  const want = [
+    `${SBROWSER_VOLUME}:${SBROWSER_OLD_GUEST}:ro`,
+    `${sbrowserVolumeOf(`vyre-sbrowser-${space}`)}:${SBROWSER_DATA_GUEST}:rw`,
+  ];
+  if (binds.length !== 2 || !want.every((w) => binds.includes(w)))
+    return {
+      why: "the migration container mounts the old shared volume read-only and that Space's own volume, nothing else",
+    };
+  const mem = Number(h["Memory"]);
+  if (!(mem > 0 && mem <= 1024 * 1024 * 1024) || Number(h["MemorySwap"]) !== mem)
+    return { why: "the migration container needs a memory cap of at most 1 GB and no swap" };
+  if (!(Number(h["PidsLimit"]) > 0 && Number(h["PidsLimit"]) <= 256))
+    return { why: "the migration container needs a process cap" };
+  if (!(Number(h["NanoCpus"]) > 0 && Number(h["NanoCpus"]) <= 2e9))
+    return { why: "the migration container needs a CPU cap of at most 2" };
+  if (h["AutoRemove"] === true) return { why: "the migration container is removed by Vyre, not by Docker" };
+  return {
+    body: {
+      ...body,
+      HostConfig: {
+        ...h,
+        CapAdd: [],
+        Privileged: false,
+        LogConfig: LOGS,
+        Devices: [],
+        PidMode: "",
+        NetworkMode: "none",
+      },
+    },
+  };
+}
+
+/** What the migration container may be asked: read, start, wait, read its log, remove. Never exec, never an archive. */
+export function sbmigrationAllows(action: string): boolean {
+  return ["json", "logs", "start", "wait", "remove", "stop"].includes(action);
 }
 
 /** The Space browser's network: a plain bridge with its label. Only it and the ingress join. */

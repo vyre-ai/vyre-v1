@@ -17,6 +17,8 @@ import {
   isSbrowserImage,
   sbrowserAllows,
   sbrowserBody,
+  sbmigrationBody,
+  sbmigrationAllows,
   sbrowserNetOf,
   sbrowserNetworkBody,
   isSbrowserVolume,
@@ -473,24 +475,17 @@ test("a Space's own browser container (vyre-sbrowser-<space id>) is accepted wit
   assert.ok("why" in sbrowserBody(OWN, ownBody({ Hostname: "vyre-sbrowser" })), "its hostname is its own name");
 });
 
-test("the old shared volume may be mounted read-only in a Space's own container, to copy sign-ins from, and never writable, never in the shared one", () => {
-  const ro = [`${OWN}-data:/data:rw`, `${SBROWSER_VOLUME}:/old-data:ro`];
-  assert.ok("body" in sbrowserBody(OWN, ownBody({}, { Binds: ro })));
+test("no browser container mounts the old shared volume, read-only or not: it holds every Space's cookies", () => {
+  for (const mode of [":ro", ":rw", ""]) {
+    for (const at of ["/old-data", "/data2", "/data"]) {
+      const r = sbrowserBody(OWN, ownBody({}, { Binds: [`${OWN}-data:/data:rw`, `${SBROWSER_VOLUME}:${at}${mode}`] }));
+      assert.ok("why" in r, `${at}${mode} of the old volume in a Space's own container`);
+    }
+  }
   assert.ok(
-    "why" in sbrowserBody(OWN, ownBody({}, { Binds: [ro[0]!, `${SBROWSER_VOLUME}:/old-data:rw`] })),
-    "writable",
-  );
-  assert.ok(
-    "why" in sbrowserBody(OWN, ownBody({}, { Binds: [ro[0]!, `${SBROWSER_VOLUME}:/old-data`] })),
-    "no mode means writable",
-  );
-  assert.ok(
-    "why" in sbrowserBody(OWN, ownBody({}, { Binds: [ro[0]!, `${SBROWSER_VOLUME}:/data2:ro`] })),
-    "only at /old-data",
-  );
-  assert.ok(
-    "why" in sbrowserBody(OWN, ownBody({}, { Binds: [ro[0]!, "vyre-sbrowser-spc_other-data:/old-data:ro"] })),
-    "not another Space's volume",
+    "why" in
+      sbrowserBody(OWN, ownBody({}, { Binds: [`${OWN}-data:/data:rw`, "vyre-sbrowser-spc_other-data:/other:ro"] })),
+    "nor another Space's volume",
   );
   assert.ok(
     "why" in
@@ -498,20 +493,81 @@ test("the old shared volume may be mounted read-only in a Space's own container,
         SBROWSER_NAME,
         good({}, { Binds: [`${SBROWSER_VOLUME}:/data:rw`, `${SBROWSER_VOLUME}:/old-data:ro`] }),
       ),
-    "not in the shared container itself",
+  );
+  assert.ok(
+    "why" in sbrowserBody(OWN, ownBody({ Env: ["VYRE_BROWSER_ADOPT_SPACE=spc_01abc"] })),
+    "and no move setting in a browser container",
   );
 });
 
-test("the move's two settings are the only environment beyond the limits: the Space id as written, and one flag", () => {
-  const env = (e: string[]) => sbrowserBody(OWN, ownBody({ Env: e }));
-  assert.ok(
-    "body" in
-      env(["VYRE_BROWSER_ADOPT_SPACE=spc_01abc", "VYRE_BROWSER_ADOPT_ALL=1", "VYRE_BROWSER_ORPHAN_MINUTES=720"]),
+const migBody = (space = "spc_01abc", over: Record<string, unknown> = {}, h: Record<string, unknown> = {}) => ({
+  Image: "vyre/space-browser:1",
+  Hostname: `vyre-sbmig-${space}`,
+  User: "",
+  WorkingDir: "/home/browser",
+  Cmd: ["node", "/opt/browserd/adopt-run.ts"],
+  Env: [`VYRE_ADOPT_SPACE=${space}`, "VYRE_ADOPT_ALL=1"],
+  Labels: { "vyre.sbrowser-migrate": space },
+  StopTimeout: 10,
+  ...over,
+  HostConfig: {
+    Binds: [`${SBROWSER_VOLUME}:/old-data:ro`, `vyre-sbrowser-${space}-data:/data:rw`],
+    ReadonlyRootfs: false,
+    Tmpfs: { "/tmp": "rw,size=64m" },
+    CapDrop: ["ALL"],
+    CapAdd: [],
+    SecurityOpt: ["no-new-privileges:true", `seccomp=${SECCOMP}`],
+    Privileged: false,
+    NetworkMode: "none",
+    PidMode: "",
+    IpcMode: "private",
+    UsernsMode: "",
+    Devices: [],
+    PidsLimit: 128,
+    Memory: 512 * 1024 ** 2,
+    MemorySwap: 512 * 1024 ** 2,
+    NanoCpus: 1e9,
+    Init: true,
+    AutoRemove: false,
+    Ulimits: [{ Name: "nofile", Soft: 4096, Hard: 8192 }],
+    ExtraHosts: [],
+    Dns: [],
+    ...h,
+  },
+});
+
+test("the one-shot migration container mounts the old volume read-only and that Space's own volume and nothing else, with no network", () => {
+  assert.ok("body" in sbmigrationBody("vyre-sbmig-spc_01abc", migBody()));
+  const no = (name: string, b: unknown) => assert.ok("why" in sbmigrationBody(name, b));
+  no(
+    "vyre-sbmig-spc_01abc",
+    migBody("spc_01abc", {}, { Binds: [`${SBROWSER_VOLUME}:/old-data:rw`, "vyre-sbrowser-spc_01abc-data:/data:rw"] }),
   );
-  assert.ok("why" in env(["VYRE_BROWSER_ADOPT_SPACE=../etc"]));
-  assert.ok("why" in env(["VYRE_BROWSER_ADOPT_SPACE=a b c"]));
-  assert.ok("why" in env(["VYRE_BROWSER_ADOPT_ALL=0"]));
-  assert.ok("why" in env(["VYRE_BROWSER_OLD_ROOT=/"]), "browserd's own paths are not settable from the daemon's side");
+  no(
+    "vyre-sbmig-spc_01abc",
+    migBody("spc_01abc", {}, { Binds: [`${SBROWSER_VOLUME}:/old-data:ro`, "vyre-sbrowser-spc_other-data:/data:rw"] }),
+  );
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", {}, { Binds: [`${SBROWSER_VOLUME}:/old-data:ro`] }));
+  no(
+    "vyre-sbmig-spc_01abc",
+    migBody(
+      "spc_01abc",
+      {},
+      { Binds: [`${SBROWSER_VOLUME}:/old-data:ro`, "vyre-sbrowser-spc_01abc-data:/data:rw", "/etc:/e:ro"] },
+    ),
+  );
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", {}, { NetworkMode: "bridge" }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", { Cmd: ["sh", "-c", "cat /old-data/*"] }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", { Env: ["VYRE_ADOPT_SPACE=spc_other"] }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", { Labels: { "vyre.sbrowser-migrate": "spc_other" } }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", { Image: "alpine" }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", {}, { Privileged: true }));
+  no("vyre-sbmig-spc_01abc", migBody("spc_01abc", {}, { Memory: 4 * 1024 ** 3, MemorySwap: 4 * 1024 ** 3 }));
+  no("vyre-sbrowser-spc_01abc", migBody());
+  no("vyre-sbmig-x", migBody("x"));
+  assert.equal(sbmigrationAllows("exec"), false);
+  assert.equal(sbmigrationAllows("archive"), false);
+  assert.equal(sbmigrationAllows("wait"), true);
 });
 
 test("a Space's own network and volume are the runner's to make and remove by name, and no other name is", () => {
