@@ -869,3 +869,32 @@ test("profiles the copy could not finish are named in the doctor line by agent, 
   );
   report = { copied: ["agt_a", "agt_bad"], unproven: [], failed: [] } as never;
 });
+
+test("a stopped container whose network was removed is made again on the new network and started: no Space is left without a browser by a network prune, and its volume is not touched", async () => {
+  const e = engine((action) => (action === "status" ? ok({ profiles: [] }) : ok({})));
+  let starts = 0;
+  const made: string[] = [];
+  const removed: string[] = [];
+  const api = e.api;
+  const realStart = api.containerStart;
+  api.containerStart = async (id) => {
+    if (++starts === 1)
+      throw new Error("container start failed (404): failed to set up container networking: network abc123 not found");
+    return realStart(id);
+  };
+  const create = api.containerCreate;
+  api.containerCreate = async (n, c) => {
+    made.push(n);
+    return create(n, c);
+  };
+  const rm = api.containerRemove;
+  api.containerRemove = async (n) => {
+    removed.push(n);
+    return rm(n);
+  };
+  const sb = createDockerSpaceBrowser({ api, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  assert.deepEqual(removed, ["vyre-sbrowser"]);
+  assert.equal(made.length, 2, "made, then made again");
+  assert.equal(starts, 2);
+});

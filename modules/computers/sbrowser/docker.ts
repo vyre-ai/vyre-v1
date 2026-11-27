@@ -674,7 +674,28 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       }
       await engineStep("move its saved sign-ins", () => migrate());
       await engineStep("make its container", () => o.api.containerCreate(name, full), EXISTS);
-      await engineStep("start its container", () => o.api.containerStart(name), STARTED);
+      try {
+        await o.api.containerStart(name);
+      } catch (e) {
+        const said = e instanceof Error ? e.message : String(e);
+        if (STARTED.test(said)) {
+          /* already running */
+        } else if (/network .* not found|no such network/i.test(said)) {
+          // the network the stopped container was made on is gone (a `docker network prune` removes one nothing runs on): the container is made again on the network just made; its volume, with every profile, stays
+          log(
+            "the container's network was removed while it was stopped: the container is made again on a new one (its profiles stay)",
+          );
+          await engineStep("remove its container", () => o.api.containerRemove(name), GONE);
+          await engineStep("make its container", () => o.api.containerCreate(name, full), EXISTS);
+          await engineStep("start its container", () => o.api.containerStart(name), STARTED);
+        } else {
+          log(`could not start its container: ${said.replace(/\s+/g, " ").slice(0, 300)}`);
+          throw new ToolError(
+            "unavailable",
+            "The Space browser could not start its container. It will be tried again on the next call.",
+          );
+        }
+      }
       // a new container is a new browserd: it holds no key and may be of a release that has the open line
       chan = null;
       restUntil = 0;

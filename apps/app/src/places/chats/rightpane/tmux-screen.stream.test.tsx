@@ -41,13 +41,15 @@ function install() {
   };
 }
 
-function rig(o: { stream?: "ok" | "none" | "refuse" } = {}) {
+function rig(o: { stream?: "ok" | "none" | "refuse" | "no_stream" } = {}) {
   const calls: string[] = [];
   let tickets = 0;
   const call = async (cap: string): Promise<unknown> => {
     calls.push(cap);
     if (cap === "terminal.stream") {
       if (o.stream === "none") return {};
+      if (o.stream === "no_stream")
+        throw Object.assign(new Error("no screen"), { code: "validation.precondition_failed" });
       return { ws: "/terminals/trm_1/ws", ticket: `tk${++tickets}`, expiresAt: Date.now() + 60_000 };
     }
     // the poll answers once and then says the terminal ended, so its loop stops and the test process can end
@@ -141,6 +143,34 @@ test("a diff that does not follow asks for the whole screen; a Space that does n
     await flush();
     assert.ok(none.calls.includes("terminal.capture"), "it polls");
     assert.match(textOf(find(root2, "terminal-screen")), /polled screen/);
+  } finally {
+    back();
+    restore();
+  }
+});
+
+test("a host that captures a screen but does not stream one keeps the screen and polls it: a refused stream is not a terminal without a screen", async () => {
+  const restore = installDom();
+  const back = install();
+  try {
+    const r = rig({ stream: "no_stream" });
+    let unsupported = 0;
+    const root = await mount(
+      createRoot,
+      <TmuxScreen
+        call={r.call}
+        terminalId="trm_3"
+        keys={false}
+        spaceUrl="http://s"
+        onUnsupported={() => unsupported++}
+      />,
+    );
+    await flush();
+    await sleep(300);
+    await flush();
+    assert.equal(unsupported, 0, "the screen is not given up for the line terminal");
+    assert.ok(r.calls.includes("terminal.capture"), "it polls");
+    assert.match(textOf(find(root, "terminal-screen")), /polled screen/);
   } finally {
     back();
     restore();

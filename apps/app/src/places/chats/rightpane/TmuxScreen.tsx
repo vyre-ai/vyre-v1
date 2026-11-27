@@ -348,10 +348,14 @@ export function TmuxScreen({
           return v;
         }) as Promise<StreamOpen>
       ).catch((e: unknown) => {
-        const code = (e as { code?: unknown } | null)?.code;
-        if (typeof code === "string" && code.endsWith("precondition_failed")) onUnsupported?.();
-        // a Space that does not know the stream, or refuses it for good: this screen goes on by polling
-        else if (isFinal(e)) setStreamOff(true);
+        // a host that draws a screen but streams none (a terminal of this computer's own tmux), a Space that does not know the stream, or one that refuses it for good: this screen goes on by polling. Whether the terminal
+        // has a screen at all is the poll's own answer (terminal.capture's precondition_failed below), never the stream's: a stream refused with precondition_failed does not turn the screen into a line terminal.
+        if (
+          isFinal(e) ||
+          (typeof (e as { code?: unknown } | null)?.code === "string" &&
+            String((e as { code: string }).code).endsWith("precondition_failed"))
+        )
+          setStreamOff(true);
         throw e;
       });
     },
