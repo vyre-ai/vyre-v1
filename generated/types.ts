@@ -9520,10 +9520,14 @@ export type ChatQuestionAskIn = {
     }>;
   allowOther?: boolean;
   card?: {
-    kind: "terminal";
-    command: string;
+    kind: "terminal" | "signin";
+    command?: string;
     host?: "agent_computer" | "space_server" | "device";
     risk?: "read" | "change" | "danger";
+    surface?: "terminal" | "browser";
+    terminalId?: string;
+    site?: string;
+    agentId?: string;
   };
 };
 export type ChatQuestionAskOut = {
@@ -10651,6 +10655,15 @@ export type CompanySweepOut = {
   checked: number;
   gone: Array<string>;
   held?: string;
+};
+export type ComputersBrowserAskSigninIn = {
+  threadId: string;
+  why: string;
+  site?: string;
+};
+export type ComputersBrowserAskSigninOut = {
+  blockId: string;
+  messageId: string;
 };
 export type ComputersBrowserGiveBackIn = {
   agentId: string;
@@ -48080,6 +48093,15 @@ export type TemplatesSaveOut = {
     adds: Array<string>;
   };
 };
+export type TerminalAskSigninIn = {
+  threadId: string;
+  terminalId: string;
+  why: string;
+};
+export type TerminalAskSigninOut = {
+  blockId: string;
+  messageId: string;
+};
 export type TerminalAttachIn = {
   terminalId: string;
 };
@@ -48190,6 +48212,64 @@ export type TerminalInterruptIn = {
 };
 export type TerminalInterruptOut = {
   ok: boolean;
+};
+export type TerminalJobListIn = {
+  agentId?: string;
+};
+export type TerminalJobListOut = {
+  jobs: Array<{
+      jobId: string;
+      name: string;
+      command: string;
+      state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+      restart: "on-failure" | "always" | "never";
+      startedAt?: number;
+      restarts: number;
+      exitCode?: number | null;
+      lastLine?: string;
+      loop?: boolean;
+    }>;
+};
+export type TerminalJobStartIn = {
+  command: string;
+  name?: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  restart?: "on-failure" | "always" | "never";
+  agentId?: string;
+  idempotencyKey: string;
+};
+export type TerminalJobStartOut = {
+  job: {
+    jobId: string;
+    name: string;
+    command: string;
+    state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+    restart: "on-failure" | "always" | "never";
+    startedAt?: number;
+    restarts: number;
+    exitCode?: number | null;
+    lastLine?: string;
+    loop?: boolean;
+  };
+};
+export type TerminalJobStopIn = {
+  jobId: string;
+  agentId?: string;
+};
+export type TerminalJobStopOut = {
+  job: {
+    jobId: string;
+    name: string;
+    command: string;
+    state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+    restart: "on-failure" | "always" | "never";
+    startedAt?: number;
+    restarts: number;
+    exitCode?: number | null;
+    lastLine?: string;
+    loop?: boolean;
+  };
 };
 export type TerminalKeysIn = {
   terminalId: string;
@@ -48491,6 +48571,14 @@ export type TerminalStatusOut = {
       lastCommand?: string;
       exitCode: number | null;
     }>;
+};
+export type TerminalStreamIn = {
+  terminalId: string;
+};
+export type TerminalStreamOut = {
+  ws: string;
+  ticket: string;
+  expiresAt: number;
 };
 export type TerminalTakeOverIn = {
   terminalId: string;
@@ -52163,6 +52251,7 @@ export interface CapMap {
   "company.start": { in: CompanyStartIn; out: CompanyStartOut };
   "company.status": { in: CompanyStatusIn; out: CompanyStatusOut };
   "company.sweep": { in: CompanySweepIn; out: CompanySweepOut };
+  "computers.browser.ask_signin": { in: ComputersBrowserAskSigninIn; out: ComputersBrowserAskSigninOut };
   "computers.browser.give_back": { in: ComputersBrowserGiveBackIn; out: ComputersBrowserGiveBackOut };
   "computers.browser.my_sign_ins": { in: ComputersBrowserMySignInsIn; out: ComputersBrowserMySignInsOut };
   "computers.browser.pause": { in: ComputersBrowserPauseIn; out: ComputersBrowserPauseOut };
@@ -53990,6 +54079,7 @@ export interface CapMap {
   "templates.preview": { in: TemplatesPreviewIn; out: TemplatesPreviewOut };
   "templates.project_starters": { in: TemplatesProjectStartersIn; out: TemplatesProjectStartersOut };
   "templates.save": { in: TemplatesSaveIn; out: TemplatesSaveOut };
+  "terminal.ask_signin": { in: TerminalAskSigninIn; out: TerminalAskSigninOut };
   "terminal.attach": { in: TerminalAttachIn; out: TerminalAttachOut };
   "terminal.capture": { in: TerminalCaptureIn; out: TerminalCaptureOut };
   "terminal.close": { in: TerminalCloseIn; out: TerminalCloseOut };
@@ -53998,6 +54088,9 @@ export interface CapMap {
   "terminal.health": { in: TerminalHealthIn; out: TerminalHealthOut };
   "terminal.input": { in: TerminalInputIn; out: TerminalInputOut };
   "terminal.interrupt": { in: TerminalInterruptIn; out: TerminalInterruptOut };
+  "terminal.job.list": { in: TerminalJobListIn; out: TerminalJobListOut };
+  "terminal.job.start": { in: TerminalJobStartIn; out: TerminalJobStartOut };
+  "terminal.job.stop": { in: TerminalJobStopIn; out: TerminalJobStopOut };
   "terminal.keys": { in: TerminalKeysIn; out: TerminalKeysOut };
   "terminal.list": { in: TerminalListIn; out: TerminalListOut };
   "terminal.log.list": { in: TerminalLogListIn; out: TerminalLogListOut };
@@ -54013,6 +54106,7 @@ export interface CapMap {
   "terminal.rules.set": { in: TerminalRulesSetIn; out: TerminalRulesSetOut };
   "terminal.run": { in: TerminalRunIn; out: TerminalRunOut };
   "terminal.status": { in: TerminalStatusIn; out: TerminalStatusOut };
+  "terminal.stream": { in: TerminalStreamIn; out: TerminalStreamOut };
   "terminal.take_over": { in: TerminalTakeOverIn; out: TerminalTakeOverOut };
   "terminal.workspace": { in: TerminalWorkspaceIn; out: TerminalWorkspaceOut };
   "threads.add_agent": { in: ThreadsAddAgentIn; out: ThreadsAddAgentOut };
