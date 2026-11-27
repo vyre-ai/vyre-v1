@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { world } from "./support/sync-live.ts";
@@ -143,7 +143,7 @@ test(
     for (const variant of ["cold", "warm"] as const) {
       // 2. each variant starts from its own copy of the seeded Space, with no compile cache of any earlier start
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vyre-guard-${variant}-`));
-      fs.cpSync(w.dir, dir, { recursive: true });
+      execFileSync("cp", ["-a", `${w.dir}/.`, dir]);
       fs.rmSync(path.join(dir, "compile-cache"), { recursive: true, force: true });
       if (variant === "warm") {
         // the start that fills the cache (its warm-up ends before the measured start): no monitor, then stopped
