@@ -18,9 +18,11 @@ import {
   LABEL_RANK,
   changed,
   clearMadeBy,
+  freezeSliced,
   kernelResource,
   labelOf,
   loadStore,
+  loadStoreSliced,
   rowOfResource,
   sealSnapshot,
   sealStore,
@@ -28,6 +30,7 @@ import {
   TRASH_KEY,
   setDecisionView,
   setGrantAdopter,
+  setResourceAdopter,
   setWriterView,
   setLoadStamp,
   kernelGrant,
@@ -653,7 +656,7 @@ const SYNCED = new WeakMap<object, Synced>();
 /** The snapshot the host decides with that goes with each kept store (it is changed in place beside the store). */
 const KEPT_BY_STORE = new WeakMap<AccessStore, AccessSnapshot>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
-export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
+export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0, sliced: 0, cold: 0, moved: 0, empty: 0 };
 
 /** The tables migration 0006 gives a counter trigger. The sync counts its own writes against the counter, so a write to any other table would count a change no trigger saw. */
 export const TRIGGERED: ReadonlySet<string> = new Set([
@@ -698,6 +701,38 @@ function build(store: AccessStore, space: string): { snap: AccessSnapshot; rows:
 }
 
 /**
+ * The first sync after a start (or after another writer moved the write counter) has no kept store, and reading the access tables whole held the event loop for seconds on a Space of 38,000 records.
+ * Here the store is read in slices with a turn of the event loop between them, and kept (as syncKept would have kept it) when the write counter did not move meanwhile; syncKept then finds it and only
+ * folds the events. If the counter moved, or the tables hold no roles yet (the seed path), nothing is kept and syncKept reads the tables as it always did.
+ */
+async function primeKept(ctx: AccessCtx, key: object): Promise<void> {
+  const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
+  for (let tries = 0; tries < 2; tries++) {
+    const before = stampOf(ctx.db);
+    if (before === null) return;
+    const kept = SYNCED.get(key);
+    if (kept && kept.stamp === before) return;
+    const read: Db = { all: (sql, ...args) => ctx.db.all(sql, ...args), run: () => ({ changes: 0 }), batch: <T>(fn: () => T): T => fn() };
+    const store = await loadStoreSliced(read, turn);
+    if (!store) {
+      syncCounts.empty++;
+      return;
+    }
+    await freezeSliced(store); // sealing below finds the records frozen already
+    await store.snapshotSliced(); // the snapshot is built with turns of the loop between its steps; sealing and keeping it below then find it built
+    if (stampOf(ctx.db) !== before) continue; // another writer moved the tables while they were read: look again
+    asKeptWriter(() => {
+      const sealed = sealStore(store);
+      const { snap, rows } = build(sealed, ctx.space);
+      sealed.invalidate();
+      syncCounts.sliced++;
+      SYNCED.set(key, { store: sealed, snap, rows, stamp: before, plain: null });
+    });
+    return;
+  }
+}
+
+/**
  * access.sync on a daemon database. The kept store and snapshot are used only while the write counter stands exactly where this path's own last write left it: then nothing else (a
  * handler, a copy from another computer, plain SQL) has written an access row since, and the kept store holds what the tables hold. Otherwise the tables are read again, as every call did
  * before. The kept store is this path's alone: a handler's change that is not yet written (and may never be) cannot reach it. A batch that only registered objects puts those resources
@@ -718,7 +753,11 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);
-    if (kept && kept.stamp !== before) kept = undefined;
+    if (!kept) syncCounts.cold++;
+    if (kept && kept.stamp !== before) {
+      syncCounts.moved++;
+      kept = undefined;
+    }
     SYNCED.delete(key); // put back only once this call has written everything and checked the counter
     let complete = true;
     const store =
@@ -819,6 +858,34 @@ setGrantAdopter((ctx, change) => {
 });
 
 /**
+ * A writer changed only resource rows (a folder made to follow its record) and the write counter moved by exactly what it wrote: the kept store takes the same rows in place, as it takes a registered
+ * object (applyEvent), and moves its counter to where the writer left it. Any other write in between and the sync reads the tables again on its next run.
+ */
+setResourceAdopter((ctx, change) => {
+  const key = rawDbOf(ctx.db);
+  const kept = key ? SYNCED.get(key) : undefined;
+  if (!kept || kept.stamp !== change.loaded) return;
+  const recs: ResourceRec[] = [];
+  for (const id of change.ids) {
+    const r = change.store.resources.get(id);
+    if (!r) return; // a row removed: the sync reads the tables
+    recs.push(structuredClone(r));
+  }
+  asKeptWriter(() => {
+    for (const r of recs) {
+      kept.store.resources.set(r.id, r);
+      kept.rows.set(r.id, r);
+      kept.snap.putResource(kernelResource(r));
+      kept.plain?.putResource(kernelResource(r));
+    }
+    kept.store.epoch = Math.max(kept.store.epoch, change.store.epoch);
+    kept.store.invalidate();
+    if (kept.plain) kept.store.adoptSnapshot(kept.plain);
+  });
+  kept.stamp = change.after;
+});
+
+/**
  * The store a grant handler works on: a view of the kept store (see AccessStore.grantView), brought up to the tables first when anything else wrote since, with the reader snapshot of the kept store as
  * its snapshot. Null where there is no kept store (a test's own db, or a writer that wrote while this one ran): the handler then reads the tables, as before.
  */
@@ -900,6 +967,14 @@ export const hostCalls = {
     return actor ? { actorId: actor.id } : null;
   },
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
+  /** Read the kept store in slices ahead of the first access.sync (the host asks before it), so that sync only folds events. Answers whether it kept one. */
+  "access.prime": async (ctx: Ctx): Promise<boolean> => {
+    const actx = ctx as unknown as AccessCtx;
+    const key = rawDbOf(actx.db);
+    if (!key) return false;
+    await primeKept(actx, key);
+    return SYNCED.has(key);
+  },
   /** How many Trash marks are still queued (a folder of many thousand files is marked in steps): the host calls access.sync with no events until it is 0. */
   "access.trash_pending": (ctx: Ctx): number => {
     const key = rawDbOf((ctx as unknown as AccessCtx).db);

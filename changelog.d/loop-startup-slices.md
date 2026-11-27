@@ -1,0 +1,1 @@
+- The server start-up folds its events with a turn of the event loop between steps, reads the share state in pages, and reads the access tables again in slices when another writer moves them, so none of these holds the server.

@@ -1,0 +1,1 @@
+- The kept share state compares only the resources a sealed view changed since it was copied (the view keeps a log of its changes), not all of them, each time a request finds the access tables moved.

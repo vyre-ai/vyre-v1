@@ -1,0 +1,1 @@
+- The server hands the event loop back after 20 ms of hook work across all the hooks together, not 20 ms for each one, so a start-up with a hundred hooks no longer holds it for a second.

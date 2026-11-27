@@ -1,5 +1,7 @@
 // logs.db (ARCH 4.10): structured rows written in batches by a sink, read by trace id. No content goes in a row: `msg` is a fixed template key, `attrs` holds ids and counts, and a redaction pass drops
 // any attr whose key names content (body, text, subject, value, secret, ...) and any string equal to a secret the process knows.
+import { startCheckpointer } from "../daemon/checkpointer.ts";
+import type { Checkpointer } from "../daemon/checkpointer.ts";
 import { DatabaseSync } from "node:sqlite";
 import type { TelemetryBatch, TelemetryPosition } from "../../../lib/telemetry.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
@@ -164,6 +166,7 @@ export class LogSink implements SpanSink {
   private rollupMs: number;
   private tallies = new Map<string, Tally>();
   private prunedAt = 0;
+  private checkpointer: Checkpointer | null = null;
   /** Over the size cap: pruning goes on until the rows take three quarters of it. */
   private over = false;
 
@@ -178,6 +181,8 @@ export class LogSink implements SpanSink {
     this.rollupMs = o.rollupMs ?? ROLLUP_MS;
     try {
       this.sourceId = this.open(o.path !== undefined && o.path !== ":memory:");
+      // logs.db's log is moved into the file by a worker thread, not by the commit that crosses 1,000 pages on the main thread (a 135 ms COMMIT in the guard)
+      if (o.path !== undefined && o.path !== ":memory:") this.checkpointer = startCheckpointer(this.db, o.path);
     } catch (e) {
       if (own)
         try {
@@ -655,6 +660,8 @@ export class LogSink implements SpanSink {
         this.soon = null;
       }
       this.stmts = undefined;
+      void this.checkpointer?.stop();
+      this.checkpointer = null;
       this.db.close();
     }
   }

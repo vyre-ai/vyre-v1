@@ -1289,9 +1289,12 @@ export function createLocalHost(
         return v;
       }));
   // a host that starts removes what a run of this daemon left on this computer's tmux server before it died (review 12 Nov, 3b)
-  void hasTmux()
-    .then((on) => (on ? tmux.sweep() : undefined))
-    .catch(() => undefined);
+  // in a turn of its own: starting the probe (a child process) costs 30 ms to 50 ms, and the start of the server has other steps of that size around it
+  setTimeout(() => {
+    void hasTmux()
+      .then((on) => (on ? tmux.sweep() : undefined))
+      .catch(() => undefined);
+  }, 400).unref();
   const owner = new Map<string, TerminalHost>();
   /** Sessions whose row this process has been told about (adopt), so a session is looked for and made again at most once per process. */
   const adopted = new Set<string>();

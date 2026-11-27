@@ -4,6 +4,7 @@
 // same events as for a seeded agent: principal.created, principal.role_set (the Member role) and an edit grant on the Space. The grant is the reach of the agent itself; an agent still acts for its asker, so the
 // reach of a call is the intersection of the two (ARCH 4.5 rule 5).
 // The agent is never above the person who made it: its role is Member only when its maker may edit the Space, else Guest, and its Space grant is the maker's own level (edit, view, or none).
+import { decodePayload } from "../../../lib/decode-payload.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 
 export interface PrincipalEvent {
@@ -66,7 +67,7 @@ type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {
   if (value instanceof Uint8Array) {
     try {
-      return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>;
+      return decodePayload(value) as Record<string, unknown>;
     } catch {
       return {};
     }

@@ -88,7 +88,7 @@ export class LogStore {
     this.space = o.space;
     this.db = o.db;
     this.clock = o.clock ?? Date.now;
-    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000;");
+    this.db.exec("PRAGMA journal_mode = WAL; PRAGMA synchronous = NORMAL; PRAGMA busy_timeout = 5000; PRAGMA secure_delete = FAST;");
     this.db.exec(SCHEMA);
     const meta = this.db.prepare("SELECT value FROM log_meta WHERE key = 'space'").get() as
       | { value: string }

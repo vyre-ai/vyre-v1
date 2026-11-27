@@ -1,0 +1,1 @@
+- A folder the sweep makes follow its record changes the access snapshot for that one row instead of building it again from every resource.

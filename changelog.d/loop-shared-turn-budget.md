@@ -1,0 +1,1 @@
+- The hook pump, the projections pump and the project-folder sweep share one 15 ms turn budget (lib/loop-budget.ts), so together they hold the server for no more than one budget plus one step before it serves a request.

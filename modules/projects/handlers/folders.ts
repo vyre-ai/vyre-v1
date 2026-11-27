@@ -7,6 +7,7 @@
 //   access    for a record with no projects row, the folder gets the record's own grants (who may see or edit the project may see or edit the folder), plus the lead (and the maker, with a source of its own) at Manage.
 //             The grants carry the source `projfolder:<recordId>` so they are replaced as a set. A project with a projects row already has its roles written on the folder (applyRole).
 //             In a Personal Space the owner sees everything and no grant is written.
+import { loopYield } from "../../../lib/loop-budget.ts";
 import { call, codeOf, ensure, followRecord, projectByRecord, tolerant } from "../projections.ts";
 import type { ProjectsCtx } from "../projections.ts";
 import { makeProject, projectsRoot } from "./project.ts";
@@ -444,7 +445,6 @@ export async function backfill(realCtx: ProjectsCtx): Promise<number> {
         : (realCtx.emit as (n: string, ...r: unknown[]) => unknown)(name, ...rest)) as ProjectsCtx["emit"],
   };
   await followRecords(ctx);
-  let since = performance.now();
   const described = await tolerant<{ types?: Array<{ name?: string; key?: string; template?: string }> }>(
     ctx,
     "schema.describe",
@@ -462,11 +462,8 @@ export async function backfill(realCtx: ProjectsCtx): Promise<number> {
         next?: string;
       }>(ctx, "records.query", { type, limit: 200, ...(cursor ? { cursor } : {}) });
       for (const row of page.rows ?? []) {
-        // bounded slices: at most 20 ms of this sweep's own work, then the event loop runs
-        if (performance.now() - since >= 20) {
-          await new Promise<void>((r) => setImmediate(r));
-          since = performance.now();
-        }
+        // bounded slices: the sweep counts its work with the pumps' (lib/loop-budget.ts), then the event loop runs
+        await loopYield();
         const fields = row.fields ?? row.data ?? {};
         const had = fstr(fields["folder"]);
         try {

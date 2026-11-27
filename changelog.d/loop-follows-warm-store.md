@@ -1,0 +1,1 @@
+- A folder made to follow its record (the sweep of project folders) keeps the access store it worked on for the next call, and the kept view of the sync takes the same rows in place, so the sweep reads the access tables once instead of twice per project.

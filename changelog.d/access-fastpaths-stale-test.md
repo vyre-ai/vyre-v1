@@ -1,0 +1,1 @@
+- The access fast paths (the writer settle skip, the shared stamp, the sealed map change log, the warm store) are tested against a revoke, a member removal, a role change and a fold lag between two calls, each red with its check removed; the warm store is kept only when the trigger counter stood where it was read at the start of the transaction that wrote.

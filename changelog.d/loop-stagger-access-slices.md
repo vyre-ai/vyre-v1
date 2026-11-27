@@ -1,0 +1,1 @@
+The server no longer freezes for seconds while it reads who can see what: access rows are read in small slices that let other requests through, and the periodic jobs start spread over a minute instead of all in the same second.

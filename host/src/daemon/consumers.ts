@@ -9,6 +9,7 @@
 // ctx.emit, ctx.call, ctx.db (the module's own tables) and ctx.log behave as they do in a handler, and what is emitted commits with the same ids, clock and publish. The caller is the
 // host service with `preAuth`: a hook acts as the system, not as a person.
 // The async consumers a module also exports as projections (`mode: "async"`, kernel ProjectionHost) have another shape and are not touched here.
+import { UNIT_MS, loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -21,8 +22,9 @@ import { ERASE_CALL, ERASE_CALLERS } from "../../../lib/erase-agent.ts";
 export const MAX_TRIES = 5;
 const PAGE = 200;
 /** After this many ms of work the pass lets the event loop run (requests wait behind a long backlog otherwise). */
-const YIELD_EVERY_MS = 20;
-const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** One time budget for the whole server (lib/loop-budget.ts): the hook pump, the projections pump and the sweeps count their work together. */
+const overBudget = (): boolean => loopOverBudget(UNIT_MS);
+const yieldTurn = loopTurn;
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;
 export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
@@ -499,7 +501,6 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function passFor(c: ConsumerDef): Promise<void> {
     let at = cursor(c.name);
     if (at === undefined) return; // start() has not run for it yet
-    let since = performance.now();
     for (;;) {
       // the log is asked only for the events this consumer handles, so a consumer of a rare event does not read every event of the Space (a hundred consumers each reading a backlog of 70,000 was most of the
       // server's CPU after a sync); once it has read to the end, it is at the head that was there when it asked
@@ -524,10 +525,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           } // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at); // a delivered event is recorded at once, so a crash repeats at most the one in flight
-          if (performance.now() - since >= YIELD_EVERY_MS) {
-            await yieldLoop();
-            since = performance.now();
-          }
+          if (overBudget()) await yieldTurn();
         } else at = e.seq;
       }
       readPast(c.name, at);
@@ -535,7 +533,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         if (head > at) readPast(c.name, head);
         return;
       }
-      await yieldLoop();
+      await yieldTurn();
     }
   }
 
@@ -552,6 +550,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           again = false;
           for (const c of byConsumer.values()) {
             if (closing) break;
+            if (overBudget()) await yieldTurn();
             await passFor(c);
           }
           flush();

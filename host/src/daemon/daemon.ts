@@ -1,4 +1,6 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { startCheckpointer } from "./checkpointer.ts";
+import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
@@ -2030,6 +2032,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   });
   const scheduler = new Scheduler({
     now,
+    stagger: true,
     tickMs: o.intervals?.tick ?? 1000,
     log: sink.logger({ space: space ?? "-", place: "scheduler" }),
     onRun: jobRanLog(sink, () => space ?? "-"),
@@ -2047,6 +2050,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
       db = openDb(paths.modules);
       closers.push(() => db?.close());
+      // modules.db is checkpointed by a worker thread, not by the commit that crosses 1,000 pages on this one (pushed after the close, so it stops first: the closers run in reverse)
+      const checkpointer = startCheckpointer(db, paths.modules);
+      closers.push(() => checkpointer.stop());
       migrate(db, codeRoot, now);
       if (!space) throw new Error("this data directory has no Space yet: pass --space <id> to create one");
       log = await LogClient.open({ path: paths.events, space });
@@ -2088,7 +2094,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
       for (let after = 0; ; ) {
         const page = await log.read({ after, limit: 5000, types: bootFoldTypes });
+        let folded = 0;
         for (const e of page) {
+          if (++folded % 200 === 0) await loopYield();
           if (
             e.type === "resource.created" ||
             e.type === "principal.created" ||
@@ -2115,6 +2123,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (first.ok && first.seq > accessFedTo) accessFedTo = first.seq;
       // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
       // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
+      await loopTurn(); // each scan over the folded events is one step: the loop serves a request between them
       const marks = hostOwnedMarks(ownedScan, space)
         .filter((m) => {
           if (m.type !== "vault_folder") return true;
@@ -2183,6 +2192,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
           return repaired;
         };
+        await loopTurn();
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
           const repaired = await appendRepair({
             id: `evt_res_${row.id}`,
@@ -2360,6 +2370,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         // Prototype/import logs predate both registrars.  The immutable agent.created
         // payload, not a subsequent host event, is the authority for every repair.
+        await loopTurn();
         for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
           const repaired = await appendRepair({
             id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
@@ -2404,6 +2415,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               r.folderId !== null &&
               access.snap.resource(r.folderId) !== undefined,
           );
+          await loopTurn();
           for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
             const repaired = await appendRepair({
               id: `evt_agent_home_${e.id}`,
@@ -4068,7 +4080,12 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         },
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
-        call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
+        call: async (events) => {
+          // a sync whose kept store is gone (a start, or a handler wrote access rows since) would read the access tables whole, 0.3 to 4 s of blocked loop on a big Space: the module reads them in slices first and keeps what it read
+          await hookRunner.call("access.prime", {}).catch(() => false);
+          await loopYield(); // the sync itself (folding, and building the snapshot again when the batch needs it: 40 ms on 38,000 resources) starts in a turn of its own
+          return (await hookRunner.call("access.sync", { events })) as AccessSnapshot;
+        },
         adopt: (s) => access.adopt(s),
         adopted: () => access.adopted(),
         stale: {
