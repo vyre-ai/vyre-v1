@@ -206,7 +206,9 @@ async function main(): Promise<number> {
   });
   let d: Daemon;
   try {
-    d = await startDaemon({ config, onStopped: resolveStopped, engineInstall: true });
+    const guard = process.env["VYRE_LOOP_MONITOR"] ? await import("./loop-monitor.ts") : null;
+    d = await startDaemon({ config, onStopped: resolveStopped, engineInstall: true, ...(guard ? { now: guard.now } : {}) });
+    guard?.attachLoopMonitor(d);
   } catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
     // shell that started it would wait out its timeout instead of showing this line. A damaged database is named, with the way back (damaged-db.ts), and exits 3.

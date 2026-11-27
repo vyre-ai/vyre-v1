@@ -9,6 +9,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+// the real-server guard (test/loop.guard.server.live.test.ts) asks for a loop monitor from the very start of the process; the product never sets this
+if (process.env["VYRE_LOOP_MONITOR"]) (await import("./loop-monitor.ts")).startLoopMonitor();
+
 const version = process.env["VYRE_VERSION"] ?? "0.0.0-dev";
 const flag = (name: string): string | undefined => {
   const at = process.argv.indexOf(`--${name}`);
