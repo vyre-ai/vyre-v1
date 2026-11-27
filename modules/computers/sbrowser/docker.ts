@@ -552,6 +552,9 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
    * Copy this Space's saved sign-ins from the old shared volume, when the old shared container is there: it is stopped (not removed) so no Chromium writes while the copy reads, the one-shot container runs and is
    * removed. A copy that could not finish (the container would not run, or a profile did not copy) stops the browser from starting and says so: a profile the agent used in the meantime would no longer be copied.
    */
+  let migFails = 0;
+  const MIG_TRIES = 3;
+  let retriedThisLife = false;
   async function migrate(): Promise<void> {
     const old = o.adopt?.from ?? BROWSER_CONTAINER;
     if (!o.adopt || !o.http || name === old) return;
@@ -575,11 +578,21 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     } finally {
       await o.api.containerRemove(mig).catch(() => undefined);
     }
-    if (code !== 0)
+    if (code === 0) {
+      migFails = 0;
+      return;
+    }
+    // a copy that cannot finish does not leave a Space without a browser for ever (one corrupt profile would stop every agent): after three tries the browser starts with the profiles that did copy; the ones that did not
+    // stay on the old volume, untouched, are named in the doctor line, and are tried again (below, at the next pass of a running service and at every later start)
+    migFails += 1;
+    if (migFails < MIG_TRIES)
       throw new ToolError(
         "unavailable",
         "The Space browser is waiting to move this Space's saved sign-ins to its own storage (it could not finish yet: for example the disk is full). The browser starts as soon as it has, so none is lost. It will be tried again.",
       );
+    log(
+      `the move of saved sign-ins did not finish after ${MIG_TRIES} tries: the browser starts with the profiles that copied; the others stay on the old volume and are tried again later`,
+    );
   }
 
   function ensureUp(): Promise<void> {
@@ -850,7 +863,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       if (clock() - lastKeep < KEEP_MS) return;
       if (!(await o.api.containerRunning(name))) return;
       lastKeep = clock();
-      await exec("status", {});
+      const st = await exec("status", {});
+      // profiles the move could not copy are tried again once per daemon life, beside the running service (a profile already in its own volume is never overwritten)
+      const ad = st["adopt"] as { failed?: unknown[] } | undefined;
+      if (!retriedThisLife && o.adopt && (ad?.failed?.length ?? 0) > 0) {
+        retriedThisLife = true;
+        await migrate().catch(() => undefined);
+      }
     },
     async markSpace(space, profileIds) {
       // not up: -1, asked again at the next pass
@@ -1004,11 +1023,12 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         const st = await exec("status", {});
         // the move of saved sign-ins from the old shared browser (browserd adopt.ts): what could not be copied or shown to be this Space's is said, and stays on the old volume
         const ad = st["adopt"] as { unproven?: unknown[]; failed?: unknown[] } | undefined;
-        const left = (ad?.unproven?.length ?? 0) + (ad?.failed?.length ?? 0);
+        const ids = [...(ad?.unproven ?? []), ...(ad?.failed ?? []).map((f) => (f as { id?: unknown }).id)].map(String);
+        const left = ids.length;
         if (left > 0)
           return {
             ok: true,
-            detail: `${left} saved browser sign-in profile${left === 1 ? "" : "s"} from the old shared browser ${left === 1 ? "was" : "were"} not copied to this Space (not provably this Space's, or the copy failed and will be tried again at the next start). ${left === 1 ? "It stays" : "They stay"} on the old volume, untouched.`,
+            detail: `${left} saved browser sign-in profile${left === 1 ? "" : "s"} from the old shared browser ${left === 1 ? "was" : "were"} not copied to this Space (not provably this Space's, or the copy failed and will be tried again at the next start). ${left === 1 ? "It stays" : "They stay"} on the old volume, untouched. Agents: ${ids.slice(0, 5).join(", ")}${ids.length > 5 ? " and more" : ""}.`,
           };
         return { ok: true };
       } catch (e) {

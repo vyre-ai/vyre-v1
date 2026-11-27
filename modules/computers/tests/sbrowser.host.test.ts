@@ -810,9 +810,62 @@ test("the browser waits for the copy of saved sign-ins when the old shared conta
       await go;
       assert.deepEqual(made, ["vyre-sbmig-spc_one", "vyre-sbrowser-spc_one"], "the copy first, then the browser");
     } else {
+      // a copy that fails waits twice (the browser is not made), and the third try starts the browser with the profiles that did copy: one corrupt profile never leaves a Space without a browser
       await assert.rejects(go, /waiting to move this Space's saved sign-ins/);
       assert.ok(!made.includes("vyre-sbrowser-spc_one"), "no browser container while a copy is unfinished");
+      await assert.rejects(
+        sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 }),
+        /waiting/,
+      );
+      assert.ok(!made.includes("vyre-sbrowser-spc_one"), "still not the second time");
+      await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+      assert.ok(made.includes("vyre-sbrowser-spc_one"), "the third try starts it");
+      assert.equal(made.filter((n) => n === "vyre-sbmig-spc_one").length, 3, "each try ran the copy");
     }
     assert.ok(removed.includes("vyre-sbmig-spc_one"), "the one-shot container is removed either way");
   }
+});
+
+test("profiles the copy could not finish are named in the doctor line by agent, and are tried again once beside the running service", async () => {
+  let report = { copied: ["agt_a"], unproven: ["agt_u"], failed: [{ id: "agt_bad", why: "unreadable" }] };
+  const e = engine((action) => (action === "status" ? ok({ profiles: [], adopt: report }) : ok({})));
+  const made: string[] = [];
+  const real = e.api.containerCreate;
+  e.api.containerCreate = async (n, c) => {
+    made.push(n);
+    return real(n, c);
+  };
+  const sb = createDockerSpaceBrowser({
+    api: e.api,
+    user: { uid: 10001, gid: 10001 },
+    sleep: async () => {},
+    name: "vyre-sbrowser-spc_one",
+    adopt: { space: "spc_one", all: false },
+    http: async (r: { method: string; path: string }) =>
+      r.path === "/containers/vyre-sbrowser/json"
+        ? { status: 200, body: new TextEncoder().encode("{}") }
+        : r.path.endsWith("/wait")
+          ? { status: 200, body: new TextEncoder().encode(JSON.stringify({ StatusCode: 0 })) }
+          : r.path === "/networks/create"
+            ? { status: 201, body: new Uint8Array() }
+            : r.path.startsWith("/networks/")
+              ? {
+                  status: 200,
+                  body: new TextEncoder().encode(
+                    JSON.stringify({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }),
+                  ),
+                }
+              : { status: 404, body: new TextEncoder().encode("{}") },
+  } as never);
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const before = made.filter((n) => n === "vyre-sbmig-spc_one").length;
+  const h = await sb.health();
+  assert.match(h.detail ?? "", /2 saved browser sign-in profiles.*Agents: agt_u, agt_bad/);
+  await sb.keepAlive!();
+  assert.equal(
+    made.filter((n) => n === "vyre-sbmig-spc_one").length,
+    before + 1,
+    "the failed ones are tried again by the running service's pass",
+  );
+  report = { copied: ["agt_a", "agt_bad"], unproven: [], failed: [] } as never;
 });

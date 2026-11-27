@@ -53,10 +53,20 @@ test(
   "the Space's own container has the agent's saved sign-in from the old shared one; the old volume is untouched",
   { skip, timeout: 600_000 },
   async (t) => {
+    // what this test creates is recorded and removed by its own id or exact unique name, never by a pattern (standing rule: remove only what you made)
+    const made = {
+      containers: new Set<string>([OLD, NEW, `vyre-sbmig-${SPACE}`]),
+      volumes: new Set<string>([`${OLD}-data`, `${NEW}-data`]),
+      networks: new Set<string>([`${OLD}net`, `${NEW}net`]),
+    };
+    const track = async (name: string): Promise<void> => {
+      const r = await docker(["inspect", "-f", "{{.Id}}", name]);
+      if (r.code === 0 && /^[0-9a-f]{64}/.test(r.out.trim())) made.containers.add(r.out.trim().slice(0, 64));
+    };
     t.after(async () => {
-      await docker(["rm", "-f", "-v", OLD, NEW, `vyre-sbmig-${SPACE}`]);
-      await docker(["volume", "rm", "-f", `${OLD}-data`, `${NEW}-data`]);
-      await docker(["network", "rm", `${OLD}net`, `${NEW}net`]);
+      for (const c of made.containers) await docker(["rm", "-f", "-v", c]);
+      for (const v of made.volumes) await docker(["volume", "rm", "-f", v]);
+      for (const n of made.networks) await docker(["network", "rm", n]);
     });
     const make = (name: string, adopt?: { space: string; all: boolean; from?: string }) =>
       createDockerSpaceBrowser({
@@ -95,6 +105,7 @@ test(
     // the proof of whose they are: this Space's profile is marked with it, the other is marked with another Space
     assert.equal(await old.markSpace!(SPACE, [AGENT]), 1);
     assert.equal(await old.markSpace!("spc_adopt_two", [OTHER]), 1);
+    await track(OLD);
     await docker(["stop", "-t", "10", OLD]);
     const before = await fingerprint(`${OLD}-data`);
     assert.match(before, /Cookies/, "the old volume holds the agent's cookie file");
@@ -123,6 +134,7 @@ test(
     };
     assert.match(JSON.stringify(read), new RegExp(`signed_in=${AGENT}`), "and the cookie itself is there");
 
+    await track(NEW);
     // 3. what must not have happened
     // the running container holds its own volume and no other: the old shared volume holds every Space's cookies
     const mounts = await docker(["inspect", "-f", "{{range .Mounts}}{{.Name}}:{{.Destination}}:{{.RW}} {{end}}", NEW]);
