@@ -1,0 +1,1 @@
+- The kept share state of a sealed view is a version of that view, not a copy of its 38,000 resources: publishing it costs nothing and a later compare looks only at the resources the view changed.
