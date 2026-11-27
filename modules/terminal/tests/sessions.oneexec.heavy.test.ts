@@ -82,17 +82,6 @@ test(
     ]) {
       const x = await run(a, "trm_loop", command);
       const y = await run(b, "trm_script", command);
-      // a command that moves the cursor back up rewrites a line and leaves the one under it: whether that line is in the answer depends on the moment the screen is read (the polling loop and the script were seen to
-      // answer "two-over" and "two-over\ntwo" in either order across runs of the same command), so for that one command both must carry the rewritten line first and the same exit code; for every other
-      // command the two answers are equal
-      if (command.includes("two-over")) {
-        assert.equal(y.exitCode, x.exitCode, command);
-        assert.ok(
-          y.output.startsWith("two-over") && x.output.startsWith("two-over"),
-          `${command}: ${JSON.stringify([x.output, y.output])}`,
-        );
-        continue;
-      }
       assert.deepEqual(
         { exitCode: y.exitCode, output: y.output, truncated: y.truncated },
         { exitCode: x.exitCode, output: x.output, truncated: x.truncated },

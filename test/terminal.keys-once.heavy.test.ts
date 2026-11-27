@@ -133,7 +133,7 @@ test(
 );
 
 test(
-  "a manager takes the owner's agent's terminal: the owner reads both lines in their chat and nobody else does; a member cannot type into, read or take the owner's own tab; a suspended holder gives the keyboard back",
+  "a manager who uses the owner's agent from a place of their own is shown its terminal only as there and refused every door into it (F30, owner decision 27 Nov), and nothing is said in the chat; nobody else can type into, read or take the owner's own tab; a suspended holder gives the keyboard back (unit: keys.once.test.ts)",
   { skip, timeout: 900_000 },
   async (t) => {
     const w = await world();
@@ -146,34 +146,52 @@ test(
     const chat = await ada.call("chat.start", { kind: "chat", agentIds: [w.agent], title: "Desk work" });
     assert.equal(chat.status, 200, JSON.stringify(chat.data));
     const threadId = chat.data.thread.threadId as string;
+    // a manager (an Admin who uses the agent and so has a place of their own) is told that the agent's terminal is there and nothing of what it holds, and is refused every door into it: the agent's own terminals are
+    // not theirs to look into whatever they manage (owner decision 27 Nov 2026, the wall of 15 Nov, F30; asker.test.ts pins the same). An admin who needs to step in stops or restarts the computer from the Console.
     const listed = (await manager("terminal.list", { host: "agent_computer" })).data.terminals as Array<{
       terminalId: string;
       agentId?: string;
       name: string;
-      by?: { kind: string };
+      elsewhere?: boolean;
+      by?: unknown;
     }>;
-    const agentTerm = listed.find((x) => x.agentId === w.agent && x.by?.kind === "agent")!;
+    const agentTerm = listed.find((x) => x.agentId === w.agent)!;
     assert.ok(agentTerm, JSON.stringify(listed));
-    const took = await manager("terminal.take_over", { terminalId: agentTerm.terminalId });
-    assert.equal(took.status, 200, JSON.stringify(took.data));
-    const back = await manager("terminal.give_back", { terminalId: agentTerm.terminalId });
-    assert.equal(back.status, 200, JSON.stringify(back.data));
+    assert.equal(agentTerm.elsewhere, true, "told only that it is there");
+    assert.equal(agentTerm.name, "Someone else's terminal");
+    assert.equal(agentTerm.by, undefined, "not who opened it");
+    for (const [cap, input] of [
+      ["terminal.take_over", {}],
+      ["terminal.keys", { lease: "lse_x", seq: 1, idempotencyKey: "mgr-keys", keys: [{ text: "echo no" }] }],
+      ["terminal.input", { data: "echo no\n" }],
+      ["terminal.capture", {}],
+      ["terminal.stream", {}],
+      ["terminal.attach", {}],
+    ] as const) {
+      const r = await manager(cap, { terminalId: agentTerm.terminalId, ...input });
+      assert.notEqual(r.status, 200, `${cap}: ${JSON.stringify(r.data).slice(0, 200)}`);
+      assert.equal(
+        (r.data as { error?: { details?: { reason?: string } } }).error?.details?.reason,
+        "not_yours",
+        `${cap} is refused as not theirs`,
+      );
+    }
+    await w.d.hooks?.pump?.();
+    await new Promise((r) => setTimeout(r, 500));
     await w.d.hooks?.pump?.();
     const lines = async (who: typeof ada.call): Promise<string[]> => {
       const r = await who("chat.messages.list", { threadId });
       return r.status === 200 ? (r.data.messages as Array<{ body?: string }>).map((m) => String(m.body ?? "")) : [];
     };
-    await new Promise((r) => setTimeout(r, 500));
-    await w.d.hooks?.pump?.();
-    const mine = (await lines(ada.call)).filter((b) => /keyboard/.test(b));
-    assert.deepEqual(mine, [
-      "\u201cWes Wu\u201d took the keyboard of the terminal of \u201cDex\u201d.",
-      "\u201cWes Wu\u201d gave back the keyboard of the terminal of \u201cDex\u201d.",
-    ]);
+    assert.deepEqual(
+      (await lines(ada.call)).filter((b) => /keyboard/.test(b)),
+      [],
+      "nothing was taken, nothing is said",
+    );
     assert.deepEqual(
       (await lines(w.ben.call)).filter((b) => /keyboard/.test(b)),
       [],
-      "nobody else reads them",
+      "nobody else reads any",
     );
 
     // item 6 probe: a person's own terminal, by its id
@@ -200,20 +218,6 @@ test(
     const shot = String((await ada.call("terminal.capture", { terminalId: ownTab })).data.text);
     assert.ok(!shot.includes("hijack"), "nothing was typed into it");
 
-    // a suspended holder gives the keyboard back at once
-    await manager("terminal.take_over", { terminalId: agentTerm.terminalId });
-    const sus = await ada.call("members.suspend", { personId: wes.id });
-    console.log("SUSPEND", sus.status, JSON.stringify(sus.data).slice(0, 120));
-    await w.d.hooks?.pump?.();
-    await new Promise((r) => setTimeout(r, 500));
-    await w.d.hooks?.pump?.();
-    const row = (
-      (await ada.call("terminal.list", { host: "agent_computer" })).data.terminals as Array<{
-        terminalId: string;
-        heldBy?: string;
-      }>
-    ).find((x) => x.terminalId === agentTerm.terminalId);
-    assert.equal(row?.heldBy, undefined, "the hold ended with its holder");
     const agent = await w.turn(ada, "own-agent-after", [{ cmd: "echo agent-after" }]);
     assert.equal(agent[0]!.text, "agent-after");
   },

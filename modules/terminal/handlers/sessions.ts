@@ -739,7 +739,7 @@ export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: str
 
 /**
  * A terminal of someone else's place on an agent's computer, or the agent's own one to a person who only uses it, is shown to the caller as a row that says it is there and nothing of what it holds: no
- * folder, no chat, no name, no one at the keyboard (F30). The person it belongs to, and whoever manages the agent for the agent's own terminals, see the whole row.
+ * folder, no chat, no name, no one at the keyboard (F30). Only the person it belongs to sees the whole row (for the agent's own terminals, the agent's owner, who has no place of their own); a manager who uses the agent from a place of their own is shown the same hint and refused every call that enters it (not_yours).
  */
 async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
   if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return false;
@@ -1029,16 +1029,20 @@ async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
     if (me !== x.owner) refuse();
     return;
   }
-  // a terminal in no one's place is in the agent's own home: its owner and those who manage the agent enter it (an agent's turn for them too). A person who may only use the agent, or an agent acting for
-  // one, has a place of their own and no more.
+  // a terminal in no one's place is in the agent's own home: its owner enters it, and so does an agent acting for nobody. A person who uses the agent from a place of their own, whatever they manage, is shown
+  // that terminal as "someone else's" (foreign() above) and is refused every call that would enter it, with the reason not_yours (owner decision, 27 Nov 2026, the wall of 15 Nov, F30). An admin who needs to step in
+  // stops or restarts the agent's computer from the Console, which stays available.
   if (x.owner === me) return;
   const mine = await askerPlaceFor(ctx, x.agentId, me);
   if (mine === undefined) return;
-  if (
-    ctx.principal.kind === "agent" ||
-    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
-  )
-    refuse();
+  // an agent working for such a person is told, as before, that it is not in their place
+  if (ctx.principal.kind === "agent") refuse();
+  raise(
+    ctx,
+    "permission.role_lacks_permission",
+    "That is the agent's own terminal. Only its owner can use it; to step in, stop or restart the agent's computer from the Console.",
+    { reason: "not_yours", terminalId: x.terminalId },
+  );
 }
 
 /**
