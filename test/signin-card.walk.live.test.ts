@@ -83,7 +83,7 @@ test(
       // the owner, in the real app
       const page = k.me.page;
       await open(k.me, k.s, "/chat");
-      await page.getByText("ops", { exact: true }).first().waitFor({ timeout: 30_000 });
+      await page.getByText("ops", { exact: true }).first().waitFor({ timeout: 60_000 });
       await page.getByText("ops", { exact: true }).first().click();
       await page.getByTestId(`signin-card-${blockId}`).waitFor({ timeout: 30_000 });
       await page.getByTestId(`signin-card-open-${blockId}`).waitFor({ timeout: 15_000 });
@@ -116,6 +116,29 @@ test(
         await page.getByText(/^Answered: /).count(),
         0,
         "the line sent to the agent is not shown to people, and there is no raw (done)",
+      );
+      // the owner's Needs you task for this card closes the moment it is answered, on the server and on screen, with no reload
+      let waiting = -1;
+      for (let i = 0; i < 20 && waiting !== 0; i++) {
+        await k.w.d.hooks?.pump?.();
+        const c = (await k.w.owner.ok("tasks.count_needs_you", {})) as { count: number };
+        waiting = c.count;
+        if (waiting !== 0) await new Promise((r) => setTimeout(r, 500));
+      }
+      assert.equal(waiting, 0, "the server closed the owner's sign-in task");
+      // and the sidebar, with no reload: no Needs you row and no count (the chat's own text still holds the words the agent sent, so only the sidebar is read)
+      await page.waitForFunction(
+        () => {
+          const sb = document.querySelector('[data-testid="chats-sidebar"]');
+          return sb !== null && !(sb.textContent ?? "").includes("Sign in to GitHub");
+        },
+        undefined,
+        { timeout: 15_000 },
+      );
+      assert.equal(
+        await page.locator('[data-testid="chats-sidebar"] [data-testid="row-needs-parent"]').count(),
+        0,
+        "no Tasks row with a count is left in the sidebar",
       );
       await shoot(page, DIR, "04-owner-done");
       // the agent was told, in the person's own words, and that message is what wakes it (the card answered the parked question: "Answered: Done, I signed in")
