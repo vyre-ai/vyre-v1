@@ -1,5 +1,7 @@
 // `vyred`'s start (the entry point is main.ts, which turns the compile cache on and then imports this file): node host/src/daemon/main.ts --role space --data-dir D [--space spc_x] [--port 8420] [--host 127.0.0.1]
 // The installer's launchd and systemd units, the Tauri sidecar and `vyre server start` all run this file. SIGTERM, SIGINT and Windows SIGBREAK stop it cleanly.
+import fs from "node:fs";
+import path from "node:path";
 import { spawn } from "node:child_process";
 import { bootReport } from "./boot-timing.ts";
 import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
@@ -223,14 +225,24 @@ async function main(): Promise<number> {
   // a start with no compile cache fills it for the next one, in a process of its own at the lowest priority (main.ts, warm-cache.ts)
   const warm = process.env["VYRE_COMPILE_CACHE_WARM"];
   if (warm) {
+    // one warm-up at a time for a cache folder: a lock file made exclusively (two daemons of one data directory never fill the cache together); one older than five minutes is a warm-up that died, and is taken over
+    const lock = path.join(warm, ".warming");
     try {
-      spawn(process.execPath, [...process.execArgv, fileURLToPath(new URL("./warm-cache.ts", import.meta.url))], {
+      try {
+        if (Date.now() - fs.statSync(lock).mtimeMs > 5 * 60_000) fs.rmSync(lock, { force: true });
+      } catch {
+        /* no lock */
+      }
+      fs.closeSync(fs.openSync(lock, "wx"));
+      const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(new URL("./warm-cache.ts", import.meta.url))], {
         detached: true,
         stdio: "ignore",
-        env: { ...process.env, NODE_COMPILE_CACHE: warm, VYRE_COMPILE_CACHE_WARM: "" },
-      }).unref();
+        env: { ...process.env, NODE_COMPILE_CACHE: warm, VYRE_COMPILE_CACHE_WARM: "", VYRE_COMPILE_CACHE_LOCK: lock },
+      });
+      child.once("error", () => fs.rmSync(lock, { force: true }));
+      child.unref();
     } catch {
-      /* the next start is slow once more */
+      /* the lock is held, or the next start is slow once more */
     }
   }
   if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);

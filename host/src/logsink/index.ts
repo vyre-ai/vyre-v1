@@ -21,7 +21,7 @@ const PRUNE_EVERY_MS = 60_000;
  * One flush writes at most this many rows and spans in one short transaction, and one look for the mirror reads at most this many of each: the event loop is held for a batch, not for a thousand rows
  * (r39: the flush and the mirror's write held it 643 ms and 365 ms in a minute on the firm's server). What is left goes on at the next turn of the loop, in order.
  */
-export const FLUSH_BATCH = 200;
+export const FLUSH_BATCH = 100;
 const PRUNE_BATCH = 2_000;
 const PRUNE_ROUNDS = 20;
 /** Keys that carry content. A lint forbids them in attrs; the sink drops them as a second line. */

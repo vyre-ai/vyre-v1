@@ -1,10 +1,15 @@
 // Fills the compile cache (main.ts) for the next start, in a process of its own at the lowest priority, after the server that started it is listening: it imports what a start imports (the daemon and every
-// module's handlers, live or stub), and exits; Node writes the cache of what it compiled when the process ends. It changes nothing of the server's.
+// module's handlers, live or stub), and exits; it opens no database, starts nothing and writes nothing outside the cache (host/tests/warm-cache.test.ts proves it); Node writes the cache of what it compiled when the process ends. It changes nothing of the server's.
 import os from "node:os";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+// the lock file the server that started this made in the cache folder is removed when it ends, however it ends
+const lock = process.env["VYRE_COMPILE_CACHE_LOCK"];
+process.on("exit", () => {
+  if (lock) fs.rmSync(lock, { force: true });
+});
 try {
   os.setPriority(19);
 } catch {
@@ -26,4 +31,5 @@ for (const dir of ["modules", "generated/modules"]) {
     await load(path.join(base, id, dir === "modules" ? "impl.ts" : "stub-impl.ts"));
   }
 }
-process.exit(0);
+// the process ends by itself when nothing it imported left a timer, a socket or a handle open (the test sets this to prove it); the server's warm-up ends it at once
+if (!process.env["VYRE_WARM_NO_EXIT"]) process.exit(0);
