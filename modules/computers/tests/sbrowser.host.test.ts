@@ -728,3 +728,43 @@ test("keepAlive asks a running service now and then and never starts one", async
   await sb.keepAlive!();
   assert.equal(e.execs.length, before + 1, "and not again within a few minutes");
 });
+
+test("health says how many saved sign-in profiles were not copied from the old shared browser, and that they stay there", async () => {
+  const e = engine((action) =>
+    action === "status"
+      ? ok({
+          profiles: [],
+          adopt: { copied: ["agt_a"], unproven: ["agt_b", "agt_c"], failed: [{ id: "agt_d", why: "disk full" }] },
+        })
+      : ok({}),
+  );
+  const sb = createDockerSpaceBrowser({ api: e.api, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const h = await sb.health();
+  assert.equal(h.ok, true);
+  assert.match(h.detail ?? "", /3 saved browser sign-in profiles from the old shared browser were not copied/);
+});
+
+test("a Space's own container mounts the old volume read-only and tells browserd whose profiles to take, only while the old container is there", () => {
+  const cfg = browserContainerConfig({
+    api: {} as DockerApi,
+    name: "vyre-sbrowser-spc_one",
+    adopt: { space: "spc_one", all: true },
+    mountOld: true,
+  });
+  assert.deepEqual(cfg.HostConfig.Binds, ["vyre-sbrowser-spc_one-data:/data:rw", "vyre-sbrowser-data:/old-data:ro"]);
+  assert.ok(cfg.Env.includes("VYRE_BROWSER_ADOPT_SPACE=spc_one") && cfg.Env.includes("VYRE_BROWSER_ADOPT_ALL=1"));
+  const none = browserContainerConfig({
+    api: {} as DockerApi,
+    name: "vyre-sbrowser-spc_one",
+    adopt: { space: "spc_one", all: false },
+  });
+  assert.deepEqual(none.HostConfig.Binds, ["vyre-sbrowser-spc_one-data:/data:rw"]);
+  assert.ok(!none.Env.some((x) => x.startsWith("VYRE_BROWSER_ADOPT")));
+  const shared = browserContainerConfig({ api: {} as DockerApi, mountOld: true });
+  assert.deepEqual(
+    shared.HostConfig.Binds,
+    ["vyre-sbrowser-data:/data:rw"],
+    "the shared container never mounts itself again",
+  );
+});

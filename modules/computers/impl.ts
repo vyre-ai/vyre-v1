@@ -57,6 +57,7 @@ import "./sbrowser/room.ts";
 import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
+import { browserNameFor } from "./sbrowser/names.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -912,7 +913,7 @@ export interface ComputersHostConfig {
   /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
   browserImage?: string;
   /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
-  browser?: { maxRunning?: number; idleMinutes?: number; name?: string };
+  browser?: { maxRunning?: number; idleMinutes?: number; name?: string; space?: string; adoptAll?: boolean };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
@@ -1013,6 +1014,10 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
     // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
     ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
+    // a Space's own container and volume (rc.44), and the move of its saved sign-ins from the old shared one: a test's own name keeps the old behaviour
+    ...(c.browser?.name === undefined && c.browser?.space !== undefined
+      ? { name: browserNameFor(c.browser.space), adopt: { space: c.browser.space, all: c.browser.adoptAll === true } }
+      : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
     // calls go to browserd's own port, not one `docker exec` each (131 ms a call before); `ctl` stays as the way back wherever the port cannot be reached
     channel: true,

@@ -24,6 +24,8 @@ import type { StartServer } from "./start.ts";
 import { createControl, refusalOf } from "./control.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
+import { adoptProfiles } from "./adopt.ts";
+import type { AdoptReport } from "./adopt.ts";
 import { createProfileManager, checkProfileId, memoryLimitMb, pidsLimit, slotsFor } from "./profiles.ts";
 import { createCdpInput, createScreencastHub, startViewServer } from "./view.ts";
 import type { Hub, ViewOf } from "./view.ts";
@@ -235,6 +237,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         }),
         maxRunning: MAX_RUNNING,
         viewers: views.viewers(),
+        ...(adoptReport ? { adopt: adoptReport } : {}),
       };
     case "channel":
       return { key: control.mint(), address: address(), port: PORT };
@@ -440,9 +443,27 @@ function serve(c: Socket): void {
   });
 }
 
+/** Where the old shared volume is mounted (read-only) in a per-Space container; its saved sign-ins are copied from there (adopt.ts). */
+const OLD_ROOT = env["VYRE_BROWSER_OLD_ROOT"] ?? "/old-data";
+let adoptReport: AdoptReport | null = null;
+
 async function main(): Promise<void> {
   rmSync(SOCKET, { force: true });
   mkdirSync(`${ROOT}/profiles`, { recursive: true });
+  // before the control socket exists, so before any call is served and before any Chromium of this volume starts: saved sign-ins of this Space's profiles on the old shared volume are copied in (never moved)
+  const adoptSpace = env["VYRE_BROWSER_ADOPT_SPACE"];
+  if (adoptSpace && existsSync(OLD_ROOT)) {
+    adoptReport = adoptProfiles({
+      from: OLD_ROOT,
+      to: ROOT,
+      spaceId: adoptSpace,
+      adoptAll: env["VYRE_BROWSER_ADOPT_ALL"] === "1",
+      log,
+    });
+    log(
+      `adopt: ${adoptReport.copied.length} copied, ${adoptReport.already.length} already here, ${adoptReport.unproven.length} not provably this Space's, ${adoptReport.other.length} another Space's, ${adoptReport.failed.length} failed`,
+    );
+  }
   starts = await startStartServer({
     port: Number(env["VYRE_START_PORT"] ?? 7004) || 7004,
     data: (id) => {

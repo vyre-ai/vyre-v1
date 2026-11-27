@@ -23,8 +23,8 @@ import {
   computerNetworkBody,
   computerOf,
   helperBody,
-  SBROWSER_NAME,
-  SBROWSER_NET,
+  isSbrowserName,
+  isSbrowserNet,
   sbrowserAllows,
   sbrowserBody,
   sbrowserNetworkBody,
@@ -223,7 +223,7 @@ export function createSitesRunner(o: RunnerOptions): {
       const nm = v.path as string;
       const c = HELPER_NAME_RE.test(nm)
         ? helperBody(nm, parsed)
-        : nm === SBROWSER_NAME
+        : isSbrowserName(nm)
           ? sbrowserBody(nm, parsed)
           : CONV_NAME.test(nm)
             ? converterBody(nm, parsed)
@@ -466,7 +466,7 @@ export function createSitesRunner(o: RunnerOptions): {
           labels !== null &&
           ((SITE_ID.test(labels["vyre.site"] ?? "") && networkOf(labels["vyre.site"] as string) === v.network) ||
             (comp !== null && labels["vyre.helper"] === undefined && computerNet(comp) === v.network) ||
-            (sbrowserOf(labels) && v.network === SBROWSER_NET));
+            (sbrowserOf(labels) && isSbrowserNet(v.network)));
         if (!labels || !(own || labels["vyre.ingress"] === "1")) {
           say(`refused joining ${v.network}`);
           refuse(res, 403, "Refused by the sites runner: only a network's own containers and the ingress join it.");

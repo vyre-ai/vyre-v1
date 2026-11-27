@@ -6095,6 +6095,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           createComputersHost({
             dataDir: paths.root,
             version: cfg.version,
+            space: { id: spaceId, personal: cfg.spaceKind === "personal" },
             ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
             // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
             ...(o.computersSocketPath === undefined && computersRunnerSocket()

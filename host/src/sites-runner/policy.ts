@@ -8,8 +8,9 @@ import {
   COMPUTER_NET,
   HELPER_NAME_RE,
   PROFILE_VOLUME,
-  SBROWSER_NAME,
-  SBROWSER_NET,
+  isSbrowserName,
+  isSbrowserNet,
+  isSbrowserVolume,
   SBROWSER_VOLUME,
   archiveOk,
   isComputerImage,
@@ -336,7 +337,7 @@ export function judge(
       WS_NAME.test(name) ||
       WS_INIT_NAME.test(name) ||
       CONV_NAME.test(name) ||
-      name === SBROWSER_NAME
+      isSbrowserName(name)
       ? { ok: true, kind: "body", path: name }
       : no(
           "a site container is named vyre-site-..., a computer's vyre-comp-..., a workspace's vyre-ws-... and a converter's vyre-conv-<16 hex>",
@@ -395,7 +396,7 @@ export function judge(
     (NET_NAME.test(net[1] as string) ||
       COMPUTER_NET.test(net[1] as string) ||
       WS_NET.test(net[1] as string) ||
-      net[1] === SBROWSER_NET)
+      isSbrowserNet(net[1] as string))
   ) {
     if (m === "GET" && !net[2]) return { ok: true, kind: "plain" };
     if (m === "DELETE" && !net[2]) return { ok: true, kind: "plain" };
@@ -406,7 +407,9 @@ export function judge(
   if (m === "DELETE" && /^\/volumes\/vyre-site-[a-z0-9]{1,12}-(postgres|redis)-data$/.test(p))
     return { ok: true, kind: "plain" };
   if (m === "DELETE" && PROFILE_VOLUME.test(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
-  if (m === "DELETE" && p === `/volumes/${SBROWSER_VOLUME}`) return { ok: true, kind: "plain" };
+  if (m === "DELETE" && isSbrowserVolume(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
+  // the old shared volume may be read (whether it is there), never written or removed from a Space's own container's side
+  if (m === "GET" && p === `/volumes/${SBROWSER_VOLUME}`) return { ok: true, kind: "plain" };
   if (m === "DELETE" && WS_VOLUME.test(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
   if (m === "GET" && WS_PROJECT_VOLUME.test(p.replace(/^\/volumes\//, ""))) return { ok: true, kind: "plain" };
   if (m === "POST" && p === "/volumes/create") return { ok: true, kind: "volume-create" };

@@ -19,6 +19,8 @@ import type { BrowserAnswer, BrowserPointer, BrowserToolCall, ProfileRow, SpaceB
 export const DEFAULT_BROWSER_IMAGE = "vyre/space-browser:1";
 export const BROWSERD_CTL = "/opt/browserd/ctl";
 export const BROWSER_DATA_GUEST = "/data";
+/** Where the old shared volume is mounted, read-only, in a per-Space container (browserd adopt.ts reads it from there). */
+export const OLD_DATA_GUEST = "/old-data";
 import { BROWSER_CONTAINER } from "./names.ts";
 export { BROWSER_CONTAINER };
 export const BROWSER_NETWORK = "vyre-sbrowsernet";
@@ -143,6 +145,13 @@ export function channelAddressOk(address: unknown, port: unknown, subnet: string
 export interface DockerSpaceBrowserOptions {
   api: DockerApi;
   image?: string;
+  /**
+   * Move saved sign-ins from the old shared container's volume into this one's (rc.44, browserd adopt.ts): this Space's id, and whether every profile on the old volume that names no Space is this Space's (a host with
+   * one Space). Set only for a per-Space container. When the old container exists it is stopped (so no Chromium writes while the copy reads) and its volume is mounted read-only at /old-data.
+   */
+  adopt?: { space: string; all: boolean; from?: string };
+  /** Mount the old volume (set by the adapter itself when the old container is there and `adopt` is asked for). */
+  mountOld?: boolean;
   /** Container name. Default `vyre-sbrowser`; the volume is `<name>-data`. */
   name?: string;
   cmd?: readonly string[];
@@ -217,6 +226,9 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
     Cmd: [...(o.cmd ?? [])],
     Env: [
       ...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []),
+      ...(o.mountOld === true && o.adopt
+        ? [`VYRE_BROWSER_ADOPT_SPACE=${o.adopt.space}`, ...(o.adopt.all ? ["VYRE_BROWSER_ADOPT_ALL=1"] : [])]
+        : []),
       `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`,
       ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : []),
       // the service stays up while its daemon is (the daemon asks it every few minutes, keepAlive below); it ends itself only after this long with nobody asking, so a daemon that is gone for good does not leave it running for ever
@@ -225,7 +237,12 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
     Labels: { "vyre.sbrowser": "1" },
     StopTimeout: 10,
     HostConfig: {
-      Binds: [`${name}-data:${BROWSER_DATA_GUEST}:rw`],
+      Binds: [
+        `${name}-data:${BROWSER_DATA_GUEST}:rw`,
+        ...(o.mountOld === true && name !== (o.adopt?.from ?? BROWSER_CONTAINER)
+          ? [`${o.adopt?.from ?? BROWSER_CONTAINER}-data:${OLD_DATA_GUEST}:ro`]
+          : []),
+      ],
       ReadonlyRootfs: false,
       Tmpfs: {
         "/tmp": `rw,nosuid,nodev,noexec,size=512m,uid=${uid},gid=${gid},mode=1777`,
@@ -504,8 +521,16 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         if (subnet === null) await learnNetwork();
         return;
       }
+      // a per-Space container made while the old shared container is still there mounts its volume read-only, for browserd to copy this Space's saved sign-ins from (never moved)
+      const old = o.adopt?.from ?? BROWSER_CONTAINER;
+      const mountOld =
+        o.adopt !== undefined &&
+        o.http !== undefined &&
+        name !== old &&
+        (await o.http({ method: "GET", path: `/containers/${old}/json` }).catch(() => null))?.status === 200;
+      const oo: DockerSpaceBrowserOptions = { ...o, mountOld };
       // the image first (it does not depend on the network): a server without it makes nothing
-      const config = browserContainerConfig(o);
+      const config = browserContainerConfig(oo);
       if (!(await engineStep("look for its image", () => o.api.imageExists(config.Image)))) {
         // a server that has never run one fetches the image itself (the runner allows only this image)
         let why = "";
@@ -535,7 +560,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
           );
       }
       const net = await engineStep("make its network", () => makeNetwork());
-      const full = browserContainerConfig(o, net);
+      const full = browserContainerConfig(oo, net);
       const wrong = reviewComputerConfig(full);
       if (wrong.length > 0)
         throw new ToolError(
@@ -573,13 +598,22 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         if (subnet === null) await learnNetwork();
         return;
       }
+      if (mountOld) {
+        // no Chromium of the old container may write while the copy reads it; the old container and its volume stay as they are
+        log(
+          "this Space's browser has a container of its own now: the old shared one is stopped (not removed) while its saved sign-ins are copied",
+        );
+        await o.api.containerStop(old, 10).catch(() => undefined);
+      }
       await engineStep("make its container", () => o.api.containerCreate(name, full), EXISTS);
       await engineStep("start its container", () => o.api.containerStart(name), STARTED);
       // a new container is a new browserd: it holds no key and may be of a release that has the open line
       chan = null;
       restUntil = 0;
       failsInARow = 0;
-      const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
+      // the copy of saved sign-ins runs before browserd answers: a big profile can take minutes
+      const deadline =
+        Date.now() + (mountOld ? Math.max(o.startTimeoutMs ?? 30_000, 10 * 60_000) : (o.startTimeoutMs ?? 30_000));
       // browserd answers a moment after the container starts: ask again soon and a little less often each time (a flat 400 ms wait added up to 0.4 s to every cold open)
       let wait = 25;
       for (;;) {
@@ -914,7 +948,15 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         if (!(await o.api.ping())) return { ok: false, detail: "The container runtime did not answer." };
         if (!(await o.api.containerRunning(name)))
           return { ok: true, detail: "The Space browser is not running; it starts with the first browser tool." };
-        await exec("status", {});
+        const st = await exec("status", {});
+        // the move of saved sign-ins from the old shared browser (browserd adopt.ts): what could not be copied or shown to be this Space's is said, and stays on the old volume
+        const ad = st["adopt"] as { unproven?: unknown[]; failed?: unknown[] } | undefined;
+        const left = (ad?.unproven?.length ?? 0) + (ad?.failed?.length ?? 0);
+        if (left > 0)
+          return {
+            ok: true,
+            detail: `${left} saved browser sign-in profile${left === 1 ? "" : "s"} from the old shared browser ${left === 1 ? "was" : "were"} not copied to this Space (not provably this Space's, or the copy failed and will be tried again at the next start). ${left === 1 ? "It stays" : "They stay"} on the old volume, untouched.`,
+          };
         return { ok: true };
       } catch (e) {
         return { ok: false, detail: e instanceof Error ? e.message.slice(0, 200) : "unknown" };

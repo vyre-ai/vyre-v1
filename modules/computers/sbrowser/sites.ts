@@ -11,7 +11,8 @@ const OWN_NAMES: ReadonlySet<string> = new Set([
   "vyred",
   "sites-runner",
 ]);
-const OWN_PATTERN = /^vyre-sbrowser-test-[a-z0-9-]{1,40}$/;
+// a Space's own container is `vyre-sbrowser-<space id>` (a test's is `vyre-sbrowser-test-...`, which this covers)
+const OWN_PATTERN = /^vyre-sbrowser-[A-Za-z0-9][A-Za-z0-9_-]{2,60}$/;
 
 /** The host as written, lower case, without a leading or trailing dot, brackets or a `:port`. */
 export function hostOf(site: string): string {

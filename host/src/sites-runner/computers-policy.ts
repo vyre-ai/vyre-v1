@@ -277,6 +277,18 @@ export function archiveOk(method: string, query: URLSearchParams): boolean {
 export const SBROWSER_NAME = "vyre-sbrowser";
 export const SBROWSER_NET = "vyre-sbrowsernet";
 export const SBROWSER_VOLUME = "vyre-sbrowser-data";
+/** Where the old shared volume is mounted, read-only, in a Space's own browser container (its saved sign-ins are copied from there). */
+export const SBROWSER_OLD_GUEST = "/old-data";
+/** The Space browser container: the shared one every Space of a host used before (`vyre-sbrowser`), or a Space's own, `vyre-sbrowser-<space id>`. */
+export const SBROWSER_NAME_RE = /^vyre-sbrowser(?:-[A-Za-z0-9][A-Za-z0-9_-]{2,60})?$/;
+export const isSbrowserName = (n: string): boolean => SBROWSER_NAME_RE.test(n);
+/** A container's own network and volume: the shared names for the shared one, `<name>net` and `<name>-data` for a Space's own. */
+export const sbrowserNetOf = (name: string): string => (name === SBROWSER_NAME ? SBROWSER_NET : `${name}net`);
+export const sbrowserVolumeOf = (name: string): string => `${name}-data`;
+/** A Space browser network or volume by name (the runner makes, reads and removes these only). */
+export const isSbrowserNet = (n: string): boolean =>
+  n === SBROWSER_NET || (n.endsWith("net") && isSbrowserName(n.slice(0, -3)));
+export const isSbrowserVolume = (n: string): boolean => n.endsWith("-data") && isSbrowserName(n.slice(0, -5));
 export const SBROWSER_DATA_GUEST = "/data";
 
 /** The Space browser image and its tag: the default, or the registry copy. More can be named for a server in VYRE_SBROWSER_IMAGES (comma separated repositories). */
@@ -329,7 +341,8 @@ export function sbrowserBody(
   if (!isObj(body)) return { why: "the container config is not an object" };
   for (const k of Object.keys(body))
     if (!TOP_KEYS.has(k) && !emptyish(body[k])) return { why: `the Space browser container may not set ${k}` };
-  if (name !== SBROWSER_NAME) return { why: "the Space browser container is named vyre-sbrowser" };
+  if (!isSbrowserName(name))
+    return { why: "the Space browser container is named vyre-sbrowser or vyre-sbrowser-<space id>" };
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   if (labels["vyre.sbrowser"] !== "1") return { why: "the Space browser container must carry vyre.sbrowser=1" };
   for (const k of Object.keys(labels))
@@ -341,7 +354,12 @@ export function sbrowserBody(
   for (const e of env)
     if (
       typeof e !== "string" ||
-      !/^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS|ORPHAN_MINUTES)=[0-9.]{1,8}$/.test(e)
+      !(
+        /^VYRE_BROWSER_(MAX_RUNNING|IDLE_MINUTES|SWEEP_SECONDS|ORPHAN_MINUTES)=[0-9.]{1,8}$/.test(e) ||
+        // the move of a Space's saved sign-ins from the old shared volume (browserd adopt.ts): whose, and whether the host has one Space only
+        /^VYRE_BROWSER_ADOPT_SPACE=[A-Za-z0-9_-]{3,80}$/.test(e) ||
+        e === "VYRE_BROWSER_ADOPT_ALL=1"
+      )
     )
       return { why: "the Space browser's environment is its limits and idle time" };
   const h = isObj(body["HostConfig"]) ? body["HostConfig"] : null;
@@ -349,7 +367,7 @@ export function sbrowserBody(
   if (h["Privileged"] === true) return { why: "privileged containers are refused" };
   for (const k of Object.keys(h))
     if (!HOST_KEYS.has(k) && !emptyish(h[k])) return { why: `the Space browser container may not set HostConfig.${k}` };
-  if (h["NetworkMode"] !== SBROWSER_NET) return { why: "the Space browser is on its own network only" };
+  if (h["NetworkMode"] !== sbrowserNetOf(name)) return { why: "the Space browser is on its own network only" };
   if (!emptyish(h["PidMode"])) return { why: "the host pid namespace is refused (PidMode)" };
   if (h["IpcMode"] !== undefined && h["IpcMode"] !== "private")
     return { why: "the Space browser's ipc namespace is private" };
@@ -386,8 +404,14 @@ export function sbrowserBody(
   }
   if (!seccomp) return { why: "the Space browser container needs its seccomp profile" };
   const binds = Array.isArray(h["Binds"]) ? (h["Binds"] as unknown[]) : [];
+  const own = sbrowserVolumeOf(name);
   for (const b of binds)
-    if (b !== `${SBROWSER_VOLUME}:${SBROWSER_DATA_GUEST}:rw` && b !== `${SBROWSER_VOLUME}:${SBROWSER_DATA_GUEST}`)
+    if (
+      b !== `${own}:${SBROWSER_DATA_GUEST}:rw` &&
+      b !== `${own}:${SBROWSER_DATA_GUEST}` &&
+      // a Space's own container may also hold the old shared volume, read-only, to copy its saved sign-ins from; never writable, never in the shared container itself
+      !(name !== SBROWSER_NAME && b === `${SBROWSER_VOLUME}:${SBROWSER_OLD_GUEST}:ro`)
+    )
       return { why: "host folders are refused: the Space browser mounts only its own profile volume" };
   const tmpfs = isObj(h["Tmpfs"]) ? h["Tmpfs"] : {};
   if (Object.keys(tmpfs).some((k) => k !== "/tmp" && k !== "/dev/shm"))
@@ -413,7 +437,7 @@ export function sbrowserBody(
     isObj(body["NetworkingConfig"]) && isObj(body["NetworkingConfig"]["EndpointsConfig"])
       ? Object.keys(body["NetworkingConfig"]["EndpointsConfig"])
       : [];
-  if (net.some((n) => n !== SBROWSER_NET)) return { why: "the Space browser joins its own network only" };
+  if (net.some((n) => n !== sbrowserNetOf(name))) return { why: "the Space browser joins its own network only" };
   return {
     body: { ...body, HostConfig: { ...h, CapAdd: [], Privileged: false, LogConfig: LOGS, Devices: [], PidMode: "" } },
   };
@@ -427,14 +451,15 @@ export function sbrowserNetworkBody(body: unknown): { body: Record<string, unkno
       return { why: `the Space browser network may not set ${k}` };
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   if (labels["vyre.sbrowser"] !== "1") return { why: "the Space browser network carries vyre.sbrowser=1" };
-  if (body["Name"] !== SBROWSER_NET) return { why: "the Space browser network is named vyre-sbrowsernet" };
+  if (typeof body["Name"] !== "string" || !isSbrowserNet(body["Name"]))
+    return { why: "the Space browser network is named vyre-sbrowsernet or vyre-sbrowser-<space id>net" };
   if (body["Driver"] !== undefined && body["Driver"] !== "bridge")
     return { why: "the Space browser network is a bridge" };
   if (isObj(body["Options"]) && Object.keys(body["Options"]).some((k) => k !== "com.docker.network.bridge.enable_icc"))
     return { why: "the Space browser network takes no driver options" };
   return {
     body: {
-      Name: SBROWSER_NET,
+      Name: body["Name"],
       Driver: "bridge",
       CheckDuplicate: true,
       Labels: { "vyre.sbrowser": "1" },
