@@ -35,8 +35,14 @@ function rig(failOpensAfter = Infinity) {
     calls.push(cap);
     if (cap !== "computers.browser.stream") return {};
     n++;
-    if (n > failOpensAfter) throw Object.assign(new Error("The Space browser did not answer in time"), { code: "internal.unexpected" });
-    return { transport: "mjpeg", url: `/browsers/a/stream?ticket=t${n}`, ws: `/browsers/a/ws?ticket=t${n}`, expiresAt: Date.now() + 60_000 };
+    if (n > failOpensAfter)
+      throw Object.assign(new Error("The Space browser did not answer in time"), { code: "internal.unexpected" });
+    return {
+      transport: "mjpeg",
+      url: `/browsers/a/stream?ticket=t${n}`,
+      ws: `/browsers/a/ws?ticket=t${n}`,
+      expiresAt: Date.now() + 60_000,
+    };
   };
   return { call, calls, opens: () => n };
 }
@@ -86,7 +92,10 @@ test("when it cannot be reached it says so and Try again opens it once more", as
   const back = install();
   try {
     const r = rig(1);
-    const root = await mount(createRoot, <BrowserLive agentId="a" control={false} call={r.call} spaceUrl="http://s" giveUpMs={500} />);
+    const root = await mount(
+      createRoot,
+      <BrowserLive agentId="a" control={false} call={r.call} spaceUrl="http://s" giveUpMs={500} />,
+    );
     await flush();
     await sleep(20);
     FakeSocket.all[0]!.onclose?.();

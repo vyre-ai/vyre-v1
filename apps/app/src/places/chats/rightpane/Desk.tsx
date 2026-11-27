@@ -202,14 +202,12 @@ export function Desk({
     if (!known || view.state !== "closed") return undefined;
     let live = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    data
-      .open(agentId)
-      .catch((e: unknown) => {
-        if (!live) return;
-        session.note(e instanceof Error && e.message ? e.message : "The browser did not start.");
-        if (wakeTry + 1 >= WAKE_TRIES) setWakeGaveUp(true);
-        else timer = setTimeout(() => setWakeTry((n) => n + 1), backoffMs(wakeTry));
-      });
+    data.open(agentId).catch((e: unknown) => {
+      if (!live) return;
+      session.note(e instanceof Error && e.message ? e.message : "The browser did not start.");
+      if (wakeTry + 1 >= WAKE_TRIES) setWakeGaveUp(true);
+      else timer = setTimeout(() => setWakeTry((n) => n + 1), backoffMs(wakeTry));
+    });
     return () => {
       live = false;
       if (timer) clearTimeout(timer);

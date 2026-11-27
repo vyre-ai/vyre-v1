@@ -17,8 +17,7 @@ import { CODE_ROOT } from "../host/src/daemon/daemon.ts";
 
 const ON = process.env["VYRE_HEAVY_DOCKER"] === "1";
 const PRESET = process.env["VYRE_WORKSPACE_TEST_IMAGE"];
-const skip: string | false =
-  ON && PRESET ? false : "needs VYRE_HEAVY_DOCKER=1 and VYRE_WORKSPACE_TEST_IMAGE";
+const skip: string | false = ON && PRESET ? false : "needs VYRE_HEAVY_DOCKER=1 and VYRE_WORKSPACE_TEST_IMAGE";
 const KEYS = {
   personKeyByPassword: "cGVyc29uLWJ5LXBhc3N3b3Jk",
   publicKey: "cHVibGljLWtleQ==",
