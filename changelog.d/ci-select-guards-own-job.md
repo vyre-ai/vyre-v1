@@ -1,0 +1,1 @@
+- The two event-loop guard tests are never put in a CI shard: they run alone in their own job, and a shard held them to its 120 s cap.

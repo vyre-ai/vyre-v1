@@ -32,6 +32,8 @@ export function manifestEdges(changed: string[], tracked: Set<string>): string[]
 /** A change here always runs every frozen-* test (lead requirement), whatever the import walk says. */
 export const FROZEN_TRIGGER = /^(manifests\/|packages\/contracts\/|tools\/gen\/|generated\/|docs\/frozen\/)/;
 export const FROZEN_TEST = /(^|\/)frozen-[^/]*\.test\.[cm]?[jt]s$/;
+/** Tests that run in a job of their own and never in a shard: the event-loop guards (check.yml, loop-guard) measure the loop on the pinned perf host with their own timeout. */
+export const OWN_JOB = /^test\/loop\.guard(\.server)?\.live\.test\.ts$/;
 
 /** The unit a path belongs to: modules/<m>/, packages/<p>/, or a whole top-level host, kernel, sync or agent tree. Null for anything else. */
 export function unitOf(f: string): string | null {
@@ -218,8 +220,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === self) {
         : process.argv.includes("--no-perf")
           ? picked.filter((f) => !perf.has(f))
           : picked;
+    // the event-loop guards run alone on the pinned perf host in their own job (check.yml, loop-guard): a slow shard would hold them to its 120 s cap and fail them for being slow, not for a block
     const files = dropUnaffectedPerf(
-      picked2,
+      picked2.filter((f) => !OWN_JOB.test(f)),
       changedPaths,
       perf,
       tracked,
