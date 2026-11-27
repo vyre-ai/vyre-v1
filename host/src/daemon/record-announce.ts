@@ -150,13 +150,16 @@ export async function pendingAnnouncements(a: {
 export interface RepairMark {
   v: 2;
   at: number;
+  /** The version of the server that looked: after an update (when rows an older build left appear) the whole Space is looked at again. */
+  ver?: string;
   tables: Record<string, number>;
 }
 const MARK_MAX_AGE_MS = 7 * 86_400_000;
-export function readRepairMark(file: string, now: number): RepairMark | null {
+export function readRepairMark(file: string, now: number, ver?: string): RepairMark | null {
   try {
     const m = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<RepairMark>;
     if (m.v !== 2 || typeof m.at !== "number" || !m.tables || typeof m.tables !== "object") return null;
+    if (m.ver !== ver) return null; // another version of the server: a whole look
     return now - m.at > MARK_MAX_AGE_MS ? null : (m as RepairMark);
   } catch {
     return null; // no file, a file of the first version (a timestamp), or one that cannot be read: a whole look
@@ -175,9 +178,15 @@ export async function orphanAnnouncements(a: {
   before: number;
   mark: RepairMark | null;
   now?: number;
+  version?: string;
 }): Promise<{ pending: PendingAnnouncement[]; mark: RepairMark }> {
   const out: PendingAnnouncement[] = [];
-  const next: RepairMark = { v: 2, at: a.now ?? Date.now(), tables: {} };
+  const next: RepairMark = {
+    v: 2,
+    at: a.now ?? Date.now(),
+    ...(a.version !== undefined ? { ver: a.version } : {}),
+    tables: {},
+  };
   if (!fs.existsSync(a.spaceDb) || !fs.existsSync(a.eventsDb)) return { pending: out, mark: next };
   const space = openDb(a.spaceDb, fs.existsSync(`${a.spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
   const log = openDb(a.eventsDb, fs.existsSync(`${a.eventsDb}-wal`) ? { readOnly: true } : { immutable: true });
@@ -359,6 +368,8 @@ export async function replayAnnouncements(a: {
   say?: (msg: string, attrs: Record<string, unknown>) => void;
   /** Turns the repair of records no announcement ever named on. The file says the full repair was done (once per version); it holds what was looked at, so a start looks only at records made since. */
   repairFile?: string;
+  /** The server's version: a repair mark made by another version is not trusted. */
+  version?: string;
 }): Promise<number> {
   const marked = await replayMarked(a);
   const repaired = a.repairFile === undefined ? 0 : await repairOrphans(a);
@@ -372,8 +383,9 @@ async function repairOrphans(a: Parameters<typeof replayAnnouncements>[0]): Prom
     spaceDb: a.spaceDb,
     eventsDb: a.eventsDb,
     before: a.startedAt,
-    mark: readRepairMark(a.repairFile!, now),
+    mark: readRepairMark(a.repairFile!, now, a.version),
     now,
+    ...(a.version !== undefined ? { version: a.version } : {}),
   });
   let made = 0;
   let failed = 0;

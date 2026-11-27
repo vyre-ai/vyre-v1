@@ -4269,6 +4269,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           eventsDb: paths.events,
           markFile: path.join(paths.root, "records-announced.seq"),
           repairFile: path.join(paths.root, "records-announce-repair.v1"),
+          version: cfg.version,
           startedAt: startedAtMs,
           exists: (id) => access.snap.info(id) !== null,
           spaceOwner: () => access.owner() ?? null,
