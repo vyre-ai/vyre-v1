@@ -143,19 +143,51 @@ export async function pendingAnnouncements(a: {
 }
 
 /**
+ * What the repair has already looked at: for each record table, the highest rowid checked, and when. A start looks only at rows past it (a record that was made after the last look is the only one that
+ * can be missing an announcement now), by the rowid, so a start costs a few reads whatever the size of the Space (a count over a table of 9,400 records took 120 ms on a Meier-sized Space). A table the
+ * mark does not name, or a mark older than a week (a rowid freed by a delete is reused), is looked at whole, in steps.
+ */
+export interface RepairMark {
+  v: 2;
+  at: number;
+  /** The version of the server that looked: after an update (when rows an older build left appear) the whole Space is looked at again. */
+  ver?: string;
+  tables: Record<string, number>;
+}
+const MARK_MAX_AGE_MS = 7 * 86_400_000;
+export function readRepairMark(file: string, now: number, ver?: string): RepairMark | null {
+  try {
+    const m = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<RepairMark>;
+    if (m.v !== 2 || typeof m.at !== "number" || !m.tables || typeof m.tables !== "object") return null;
+    if (m.ver !== ver) return null; // another version of the server: a whole look
+    return now - m.at > MARK_MAX_AGE_MS ? null : (m as RepairMark);
+  } catch {
+    return null; // no file, a file of the first version (a timestamp), or one that cannot be read: a whole look
+  }
+}
+
+/**
  * Records that exist with no `record.created` in the Space log and no marker in their own event to say one was owed: the ones an older build made (a sync pass that was stopped by an update before its call
- * committed its announcements, 26 Nov 2026: Meier's dv_event had 4,267 records and the owner saw 986), or any whose own event predates the marker. A record the log never heard of is not a resource, so nobody can see it.
- * Each is announced as the call that made it would have (quiet: no automation runs for a repair), for the actor its own event names, else the Space owner. Records younger than `before` only.
- * Cheap when nothing is wrong: the live records are counted against the announcements first, and the ids are compared only when the counts leave room for a missing one (or when `force` asks, once per repair version).
+ * committed its announcements, 26 Nov 2026: Meier's dv_event had 4,267 records and the owner saw 986), or any whose own event predates the marker. A record the log never heard of is not a resource, so nobody
+ * can see it. Each is announced as the call that made it would have (quiet: no automation runs for a repair), for the actor its own event names, else the Space owner. Records younger than `before` only.
+ * With a `mark` only the rows past it are looked at; every step is short and the loop is given back between steps.
  */
 export async function orphanAnnouncements(a: {
   spaceDb: string;
   eventsDb: string;
   before: number;
-  force: boolean;
-}): Promise<PendingAnnouncement[]> {
+  mark: RepairMark | null;
+  now?: number;
+  version?: string;
+}): Promise<{ pending: PendingAnnouncement[]; mark: RepairMark }> {
   const out: PendingAnnouncement[] = [];
-  if (!fs.existsSync(a.spaceDb) || !fs.existsSync(a.eventsDb)) return out;
+  const next: RepairMark = {
+    v: 2,
+    at: a.now ?? Date.now(),
+    ...(a.version !== undefined ? { ver: a.version } : {}),
+    tables: {},
+  };
+  if (!fs.existsSync(a.spaceDb) || !fs.existsSync(a.eventsDb)) return { pending: out, mark: next };
   const space = openDb(a.spaceDb, fs.existsSync(`${a.spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
   const log = openDb(a.eventsDb, fs.existsSync(`${a.eventsDb}-wal`) ? { readOnly: true } : { immutable: true });
   const turn = turns();
@@ -165,50 +197,50 @@ export async function orphanAnnouncements(a: {
         "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
       ) as { name: string }[]
     ).map((t) => t.name);
-    if (!tables.length) return out;
-    if (!a.force) {
-      let live = 0;
-      for (const t of tables)
-        live += Number(
-          (
-            space.all(`SELECT count(*) AS n FROM "${t}" WHERE deleted_at IS NULL AND created_at < ?`, a.before)[0] as {
-              n: number;
-            }
-          ).n,
-        );
-      const heard = Number(
-        (
-          log.all("SELECT count(*) AS n FROM events WHERE type = 'record.created' AND entity = 'record'")[0] as {
-            n: number;
-          }
-        ).n,
-      );
-      if (heard >= live) return out;
-    }
-    const heard = new Set<string>();
-    for (let after = 0; ; ) {
-      const rows = log.all(
-        "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 1000",
-        after,
-      ) as { seq: number; entity_id: string | null }[];
-      if (!rows.length) break;
-      for (const r of rows) if (typeof r.entity_id === "string") heard.add(r.entity_id);
-      after = rows[rows.length - 1]!.seq;
-      await turn();
-    }
+    // the ids the log has heard of, read whole and only when some table has no mark
+    let heard: Set<string> | null = null;
+    const heardWhole = async (): Promise<Set<string>> => {
+      if (heard) return heard;
+      heard = new Set<string>();
+      for (let after = 0; ; ) {
+        const rows = log.all(
+          "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 1000",
+          after,
+        ) as { seq: number; entity_id: string | null }[];
+        if (!rows.length) break;
+        for (const r of rows) if (typeof r.entity_id === "string") heard.add(r.entity_id);
+        after = rows[rows.length - 1]!.seq;
+        await turn();
+      }
+      return heard;
+    };
+    const known = (id: string): boolean =>
+      log.all(
+        "SELECT 1 AS x FROM events INDEXED BY ev_entity WHERE entity = 'record' AND entity_id = ? AND type = 'record.created' LIMIT 1",
+        id,
+      ).length > 0;
     for (const t of tables) {
       const type = t.slice(3);
       if (!TYPE_NAME.test(type)) continue;
-      for (let after = ""; ; ) {
+      const from = a.mark?.tables[t];
+      const whole = from === undefined;
+      const ids = whole ? await heardWhole() : null;
+      // the newest row made before the daemon started: where the next start begins (a younger row belongs to a call that is alive, and is looked at then)
+      const newest = space.all(
+        `SELECT rowid AS rid FROM "${t}" WHERE created_at < ? ORDER BY rowid DESC LIMIT 1`,
+        a.before,
+      )[0] as { rid: number } | undefined;
+      next.tables[t] = newest ? Number(newest.rid) : (from ?? 0);
+      for (let after = from ?? 0; ; ) {
         const rows = space.all(
-          `SELECT id FROM "${t}" WHERE deleted_at IS NULL AND created_at < ? AND id > ? ORDER BY id LIMIT ${ID_PAGE}`,
-          a.before,
+          `SELECT rowid AS rid, id FROM "${t}" WHERE rowid > ? AND deleted_at IS NULL AND created_at < ? ORDER BY rowid LIMIT ${ID_PAGE}`,
           after,
-        ) as { id: string }[];
+          a.before,
+        ) as { rid: number; id: string }[];
         if (!rows.length) break;
         for (const r of rows) {
-          after = r.id;
-          if (heard.has(r.id)) continue;
+          after = Number(r.rid);
+          if (ids ? ids.has(r.id) : known(r.id)) continue;
           let data: Record<string, unknown> = {};
           try {
             const row = space.all(`SELECT data FROM "${t}" WHERE id = ?`, r.id)[0] as { data: string } | undefined;
@@ -253,7 +285,7 @@ export async function orphanAnnouncements(a: {
     space.close();
     log.close();
   }
-  return out;
+  return { pending: out, mark: next };
 }
 
 /** The event the call would have committed: the same type, subject and payload records.bulk_upsert and records.create give it. The id is fixed by the record, so making it twice writes it once. */
@@ -334,22 +366,26 @@ export async function replayAnnouncements(a: {
   exists: (id: string) => boolean;
   spaceOwner: () => string | null;
   say?: (msg: string, attrs: Record<string, unknown>) => void;
-  /** Turns the repair of records no announcement ever named on. The file says the full repair was done (once per version); with it present the repair runs only when the counts show a record short. */
+  /** Turns the repair of records no announcement ever named on. The file says the full repair was done (once per version); it holds what was looked at, so a start looks only at records made since. */
   repairFile?: string;
+  /** The server's version: a repair mark made by another version is not trusted. */
+  version?: string;
 }): Promise<number> {
   const marked = await replayMarked(a);
   const repaired = a.repairFile === undefined ? 0 : await repairOrphans(a);
   return marked + repaired;
 }
 
-/** The records an older build left without an announcement: announced now, so they are resources and visible. The repair file is written when every one was made. */
+/** The records an older build left without an announcement: announced now, so they are resources and visible. The repair file holds what was looked at; it is written when every one was made. */
 async function repairOrphans(a: Parameters<typeof replayAnnouncements>[0]): Promise<number> {
-  const done = fs.existsSync(a.repairFile!);
-  const pending = await orphanAnnouncements({
+  const now = Date.now();
+  const { pending, mark } = await orphanAnnouncements({
     spaceDb: a.spaceDb,
     eventsDb: a.eventsDb,
     before: a.startedAt,
-    force: !done,
+    mark: readRepairMark(a.repairFile!, now, a.version),
+    now,
+    ...(a.version !== undefined ? { version: a.version } : {}),
   });
   let made = 0;
   let failed = 0;
@@ -377,7 +413,7 @@ async function repairOrphans(a: Parameters<typeof replayAnnouncements>[0]): Prom
     }
   }
   if (made) a.say?.("records.announced_by_repair", { made, of: pending.length });
-  if (!failed && !done) fs.writeFileSync(a.repairFile!, `${Date.now()}\n`);
+  if (!failed) fs.writeFileSync(a.repairFile!, `${JSON.stringify(mark)}\n`);
   return made;
 }
 

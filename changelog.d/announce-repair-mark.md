@@ -1,0 +1,1 @@
+- The start-up repair of records no announcement named reads no count: the first look is whole and in short steps, and every later start looks only at the records made since (a count over a Meier-sized table held the loop 120 ms).
