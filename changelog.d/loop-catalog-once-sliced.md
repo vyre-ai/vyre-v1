@@ -1,0 +1,1 @@
+- The generated tool catalog is built once for the engine and the MCP runtime, with a turn of the loop between steps (it was built twice, 230 ms and 175 ms in one stretch each), and the server loads each module's code in pieces with a turn between them.

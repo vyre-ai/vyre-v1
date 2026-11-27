@@ -27,7 +27,7 @@ import type { Handler } from "../../host/src/invoke.ts";
 import { bridgeConsumers } from "./handlers/bridge.ts";
 import { gateResumeConsumers } from "./handlers/gate-resume.ts";
 import { sweepWaits } from "./crew-waits.ts";
-import { warmApiToolCatalog } from "./api-tools.ts";
+import { warmApiToolCatalogSliced } from "./api-tools.ts";
 import { reconcileAll } from "./handlers/crew.ts";
 import { captureConsumers, capturePeriodic } from "./handlers/capture.ts";
 import { checkGroupAccount } from "./group-account.ts";
@@ -72,11 +72,9 @@ export { bindSandboxStopper } from "./handlers/extra/config.ts";
 
 // The tool catalog (a parse of the generated registry, 176 ms in one stretch) is built in the first idle tick after this module loads, so the first agent turn finds it ready.
 setImmediate(() => {
-  try {
-    warmApiToolCatalog();
-  } catch {
+  warmApiToolCatalogSliced().catch(() => {
     /* a turn builds it, as before */
-  }
+  });
 }).unref();
 
 /** The runtime is built at boot, not at the first message, and recovers threads a dead host left mid-turn. */

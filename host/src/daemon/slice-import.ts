@@ -26,8 +26,10 @@ function importsOf(file: string): string[] {
 }
 
 /** Load `entry` (a file URL) bottom up in pieces, `depth` levels of its imports first, one import per turn of the loop. */
+/** The files already loaded (or asked for) by an earlier call: the loader asks for one module after another, and their graphs share most of their files. */
+const done = new Set<string>();
+
 export async function sliceImport(entry: URL, depth = 3): Promise<void> {
-  const done = new Set<string>();
   const load = async (file: string, levels: number): Promise<void> => {
     if (done.has(file)) return;
     done.add(file);
