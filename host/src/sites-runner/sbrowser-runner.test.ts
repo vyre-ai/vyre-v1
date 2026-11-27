@@ -581,3 +581,34 @@ test("a Space's own network and volume are the runner's to make and remove by na
   assert.equal(isSbrowserVolume("vyre-site-sit_1-postgres-data"), false);
   assert.equal(isSbrowserVolume("vyre-sbrowser-data-data-x"), false);
 });
+
+test("a Space's own network may carry one /28 block of Vyre's range and no other address range; the shared network carries none", () => {
+  const net = (Name: string, IPAM?: unknown) =>
+    sbrowserNetworkBody({
+      Name,
+      Driver: "bridge",
+      Labels: { "vyre.sbrowser": "1" },
+      ...(IPAM === undefined ? {} : { IPAM }),
+    });
+  const block = (Subnet: string, Gateway?: string) => ({
+    Driver: "default",
+    Config: [{ Subnet, ...(Gateway ? { Gateway } : {}) }],
+  });
+  const ok = net("vyre-sbrowser-spc_01abcnet", block("10.213.7.48/28", "10.213.7.49"));
+  assert.ok("body" in ok);
+  assert.deepEqual((ok as { body: { IPAM: unknown } }).body.IPAM, block("10.213.7.48/28", "10.213.7.49"));
+  assert.ok("body" in net("vyre-sbrowser-spc_01abcnet", block("10.213.255.240/28")));
+  for (const bad of [
+    block("10.213.7.48/24"),
+    block("10.213.7.50/28"), // not on a 16-address boundary
+    block("10.214.7.48/28"), // another range
+    block("172.20.0.0/28"),
+    block("10.213.7.48/28", "10.213.7.60"), // not the first address
+    { Driver: "default", Config: [{ Subnet: "10.213.7.48/28" }, { Subnet: "10.213.7.64/28" }] },
+    { Driver: "other", Config: [{ Subnet: "10.213.7.48/28" }] },
+    { Driver: "default", Config: [{ Subnet: "10.213.7.48/28", IPRange: "10.213.7.48/29" }] },
+  ])
+    assert.ok("why" in net("vyre-sbrowser-spc_01abcnet", bad), JSON.stringify(bad));
+  assert.ok("why" in net("vyre-sbrowsernet", block("10.213.7.48/28")), "the shared network takes no block");
+  assert.ok("body" in net("vyre-sbrowsernet"), "and still works without one");
+});

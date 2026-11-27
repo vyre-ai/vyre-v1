@@ -25,6 +25,51 @@ import { BROWSER_CONTAINER } from "./names.ts";
 export { BROWSER_CONTAINER };
 export const BROWSER_NETWORK = "vyre-sbrowsernet";
 /** The network of a Space browser container: `vyre-sbrowsernet` for the usual one, `<name>net` for another (a test's). */
+/**
+ * A Space's own browser network gets an explicit small subnet (rc.44): a /28 out of 10.213.0.0/16, which holds 4,096 of them. Without one Docker takes the next block of its default pools for each network, and
+ * those run out after about 30 networks ("all predefined address pools have been fully subnetted"): a server with 30 Spaces could not start a browser. A /28 holds the browser, the ingress and the gateway. The
+ * block a network takes starts from its name and moves on when Docker says it overlaps another network or a route of the host.
+ */
+export const SPACE_NET_BASE = "10.213";
+export const SPACE_NET_BLOCKS = 4096;
+export function spaceNetSubnet(index: number): { subnet: string; gateway: string } {
+  const i = ((index % SPACE_NET_BLOCKS) + SPACE_NET_BLOCKS) % SPACE_NET_BLOCKS;
+  const third = Math.floor(i / 16);
+  const fourth = (i % 16) * 16;
+  return { subnet: `${SPACE_NET_BASE}.${third}.${fourth}/28`, gateway: `${SPACE_NET_BASE}.${third}.${fourth + 1}` };
+}
+/** Where a name starts looking for its block: spread over the range, the same each time. */
+export function spaceNetStart(name: string): number {
+  let h = 2166136261;
+  for (const c of name) h = Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0;
+  return h % SPACE_NET_BLOCKS;
+}
+/** Make a Space browser network: the shared one (no explicit subnet, as before) or a Space's own with its small block. Safe to call again. */
+export async function makeSpaceBrowserNetwork(http: DockerHttp, name: string): Promise<void> {
+  const shared = name === BROWSER_NETWORK;
+  const start = spaceNetStart(name);
+  for (let k = 0; k < (shared ? 1 : 96); k++) {
+    const block = shared ? null : spaceNetSubnet(start + k);
+    const made = await http({
+      method: "POST",
+      path: "/networks/create",
+      json: {
+        Name: name,
+        Driver: "bridge",
+        CheckDuplicate: true,
+        Labels: { "vyre.sbrowser": "1" },
+        ...(block ? { IPAM: { Driver: "default", Config: [{ Subnet: block.subnet, Gateway: block.gateway }] } } : {}),
+      },
+    });
+    if (made.status === 201 || made.status === 409) return;
+    const said = bodyText(made.body);
+    // this block is taken (another network, or a route of the host): the next one
+    if (!shared && /overlap|already in use|pool/i.test(said) && !/predefined address pools/i.test(said)) continue;
+    throw new ToolError("unavailable", `The Space browser's network was not made (${made.status}: ${said})`);
+  }
+  throw new ToolError("unavailable", "The Space browser's network was not made: no free block was found in its range.");
+}
+
 export const browserNetworkOf = (name: string | undefined): string =>
   name === undefined || name === "vyre-sbrowser" ? BROWSER_NETWORK : `${name}net`;
 const MAX_ARG = 125_000;
@@ -382,16 +427,7 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
   /** The service's own network (behind the runner with the ingress joined): made once, again if it is gone. */
   async function makeNetwork(): Promise<{ gateway?: string } | undefined> {
     if (!o.http) return undefined;
-    const made = await o.http({
-      method: "POST",
-      path: "/networks/create",
-      json: { Name: netName, Driver: "bridge", CheckDuplicate: true, Labels: { "vyre.sbrowser": "1" } },
-    });
-    if (made.status !== 201 && made.status !== 409)
-      throw new ToolError(
-        "unavailable",
-        `The Space browser's network was not made (${made.status}: ${bodyText(made.body)})`,
-      );
+    await makeSpaceBrowserNetwork(o.http, netName);
     if (o.runner?.ingress) {
       const joined = await o.http({
         method: "POST",

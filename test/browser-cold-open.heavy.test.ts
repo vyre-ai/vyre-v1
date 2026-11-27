@@ -104,6 +104,7 @@ test(
       await d.stop().catch(() => undefined);
       await docker(["rm", "-f", "-v", bname], 60_000);
       await docker(["volume", "rm", "-f", `${bname}-data`], 60_000);
+      await docker(["network", "rm", `${bname}net`], 60_000);
       if (wsName) {
         await docker(["rm", "-f", wsName], 60_000);
         await docker(["volume", "rm", "-f", `${wsName}-home`, `${wsName}-files`, `${wsName}-people`], 60_000);

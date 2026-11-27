@@ -513,7 +513,7 @@ export function sbmigrationAllows(action: string): boolean {
 export function sbrowserNetworkBody(body: unknown): { body: Record<string, unknown> } | { why: string } {
   if (!isObj(body)) return { why: "the network config is not an object" };
   for (const k of Object.keys(body))
-    if (!["Name", "Driver", "Labels", "CheckDuplicate", "Internal", "Options"].includes(k))
+    if (!["Name", "Driver", "Labels", "CheckDuplicate", "Internal", "Options", "IPAM"].includes(k))
       return { why: `the Space browser network may not set ${k}` };
   const labels = isObj(body["Labels"]) ? body["Labels"] : {};
   if (labels["vyre.sbrowser"] !== "1") return { why: "the Space browser network carries vyre.sbrowser=1" };
@@ -523,12 +523,34 @@ export function sbrowserNetworkBody(body: unknown): { body: Record<string, unkno
     return { why: "the Space browser network is a bridge" };
   if (isObj(body["Options"]) && Object.keys(body["Options"]).some((k) => k !== "com.docker.network.bridge.enable_icc"))
     return { why: "the Space browser network takes no driver options" };
+  // a Space's own network may carry one small block out of Vyre's range (10.213.0.0/16, a /28 on a 16-address boundary, its gateway the first address after the network's); the shared one carries none. Any other
+  // address range is refused, so a network made here can never take a block that something else owns.
+  let ipam: Record<string, unknown> | undefined;
+  if (body["IPAM"] !== undefined) {
+    if (body["Name"] === SBROWSER_NET) return { why: "the shared Space browser network takes no address block" };
+    const i = body["IPAM"];
+    const cfg = isObj(i) && Array.isArray(i["Config"]) ? (i["Config"] as unknown[]) : [];
+    const c = cfg.length === 1 && isObj(cfg[0]) ? cfg[0] : null;
+    const m = c ? /^10\.213\.(\d{1,3})\.(\d{1,3})\/28$/.exec(String(c["Subnet"] ?? "")) : null;
+    const third = Number(m?.[1]);
+    const fourth = Number(m?.[2]);
+    if (
+      !m ||
+      !(third <= 255 && fourth <= 240 && fourth % 16 === 0) ||
+      (isObj(i) && i["Driver"] !== undefined && i["Driver"] !== "default") ||
+      (c && Object.keys(c).some((k) => k !== "Subnet" && k !== "Gateway")) ||
+      (c && c["Gateway"] !== undefined && c["Gateway"] !== `10.213.${third}.${fourth + 1}`)
+    )
+      return { why: "a Space browser network takes one /28 block out of 10.213.0.0/16 and nothing else" };
+    ipam = { Driver: "default", Config: [{ Subnet: String(c!["Subnet"]), Gateway: `10.213.${third}.${fourth + 1}` }] };
+  }
   return {
     body: {
       Name: body["Name"],
       Driver: "bridge",
       CheckDuplicate: true,
       Labels: { "vyre.sbrowser": "1" },
+      ...(ipam ? { IPAM: ipam } : {}),
       ...(body["Internal"] === true ? { Internal: true } : {}),
     },
   };
