@@ -351,15 +351,13 @@ export interface JobSpec {
   restart: "on-failure" | "always" | "never";
 }
 const JOB_ID = /^job_[a-f0-9]{12}$/;
-/** Lists every job of the workspace as one JSON document: its spec, its status and the end of its log. Plain node, no shell. */
-export const JOBS_LIST_SCRIPT =
-  'const fs=require("fs"),p=require("path");const root=p.join(process.env.HOME,".vyre","jobs");const out=[];try{for(const id of fs.readdirSync(root)){const d=p.join(root,id);const rd=(f)=>{try{return JSON.parse(fs.readFileSync(p.join(d,f),"utf8"))}catch{return null}};const spec=rd("spec.json");if(!spec)continue;let tail="";try{const b=fs.readFileSync(p.join(d,"log"));tail=b.subarray(Math.max(0,b.length-1500)).toString("utf8")}catch{}out.push({id,spec,status:rd("status.json"),tail})}}catch{}console.log(JSON.stringify(out))';
+/** What the daemon runs in a workspace about its jobs: one program of the image (images/agent-workspace/jobs-cli.mjs), plain node, no shell. `list` prints every job's spec, status and log tail as one JSON document. */
+export const JOBS_CLI = "/opt/vyre/jobs-cli.mjs";
+export const JOBS_LIST_CMD = ["node", JOBS_CLI, "list"] as const;
 /** Writes a job's spec, from the environment (VYRE_JOB = {id, spec}), atomically: the supervisor looks at the folder every second. */
-export const JOB_WRITE_SCRIPT =
-  'const fs=require("fs"),p=require("path");const j=JSON.parse(process.env.VYRE_JOB);const d=p.join(process.env.HOME,".vyre","jobs",j.id);fs.mkdirSync(d,{recursive:true,mode:0o700});const f=p.join(d,"spec.json");fs.writeFileSync(f+".tmp",JSON.stringify(j.spec));fs.renameSync(f+".tmp",f)';
+export const JOB_WRITE_CMD = ["node", JOBS_CLI, "write"] as const;
 /** Asks a job to stop (VYRE_JOB_ID): its spec says desired stopped; the supervisor does the rest. Exits 3 when there is no such job. */
-export const JOB_STOP_SCRIPT =
-  'const fs=require("fs"),p=require("path");const f=p.join(process.env.HOME,".vyre","jobs",process.env.VYRE_JOB_ID,"spec.json");let s;try{s=JSON.parse(fs.readFileSync(f,"utf8"))}catch{process.exit(3)}s.desired="stopped";s.at=Date.now();fs.writeFileSync(f+".tmp",JSON.stringify(s));fs.renameSync(f+".tmp",f)';
+export const JOB_STOP_CMD = ["node", JOBS_CLI, "stop"] as const;
 
 /** One entry of the list script's answer as a row; null for one that is not a job. */
 export function jobRowOf(x: unknown): JobRow | null {
@@ -1523,7 +1521,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (!AGENT_ID.test(agentId)) return [];
     try {
       if (!(await api.containerRunning(workspaceName(agentId)))) return [];
-      const r = await execIn(agentId, ["node", "-e", JOBS_LIST_SCRIPT], undefined);
+      const r = await execIn(agentId, [...JOBS_LIST_CMD], undefined);
       if (r.code !== 0) return [];
       const rows = (JSON.parse(r.stdout.trim() || "[]") as unknown[])
         .map(jobRowOf)
@@ -2107,7 +2105,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
           at: now(),
         },
       };
-      const w = await exec(agentId, ["node", "-e", JOB_WRITE_SCRIPT], { env: { VYRE_JOB: JSON.stringify(doc) } });
+      const w = await exec(agentId, [...JOB_WRITE_CMD], { env: { VYRE_JOB: JSON.stringify(doc) } });
       if (w.code !== 0) throw wsError("The job could not be written in the workspace.");
       // the supervisor looks every second: the first answer is the job as it stands a moment later
       let row: JobRow | null = null;
@@ -2129,7 +2127,7 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     },
     async jobStop(agentId, jobId) {
       if (!JOB_ID.test(jobId)) return null;
-      const r = await exec(agentId, ["node", "-e", JOB_STOP_SCRIPT], { env: { VYRE_JOB_ID: jobId }, quiet: true });
+      const r = await exec(agentId, [...JOB_STOP_CMD], { env: { VYRE_JOB_ID: jobId }, quiet: true });
       if (r.code === 3) return null;
       let row: JobRow | null = null;
       for (let i = 0; i < 12; i++) {

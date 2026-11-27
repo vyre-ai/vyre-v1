@@ -4,7 +4,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { sbrowserHandlers } from "../sbrowser/handlers.ts";
 import { codeOf, DANA, harness } from "../fixtures/harness.ts";
-import { contractErrors } from "../../terminal/fixtures/harness.ts";
+import { contractErrors } from "../fixtures/harness.ts";
 
 type Ctx = ReturnType<typeof harness>["ctx"];
 const ask = sbrowserHandlers["computers.browser.ask_signin"] as unknown as (

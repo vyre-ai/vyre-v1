@@ -5,9 +5,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createDockerApi } from "../../../sandbox/src/docker.ts";
 import {
-  JOBS_LIST_SCRIPT,
-  JOB_STOP_SCRIPT,
-  JOB_WRITE_SCRIPT,
+  JOBS_CLI,
   MAX_BUSY_AWAKE_MS,
   WORKSPACE_SUPERVISOR,
   createWorkspaceManager,
@@ -28,9 +26,9 @@ function folders() {
     { spec: Record<string, unknown>; status: Record<string, unknown> | null; tail: string }
   >();
   const onExec = (_box: string, argv: readonly string[], env: readonly string[]) => {
-    if (argv[0] !== "node" || argv[1] !== "-e") return undefined;
+    if (argv[0] !== "node" || argv[1] !== JOBS_CLI) return undefined;
     const e = Object.fromEntries(env.map((x) => [x.slice(0, x.indexOf("=")), x.slice(x.indexOf("=") + 1)]));
-    if (argv[2] === JOB_WRITE_SCRIPT) {
+    if (argv[2] === "write") {
       const j = JSON.parse(e["VYRE_JOB"]!) as { id: string; spec: Record<string, unknown> };
       jobs.set(j.id, {
         spec: j.spec,
@@ -39,14 +37,14 @@ function folders() {
       });
       return { code: 0, stdout: "", stderr: "" };
     }
-    if (argv[2] === JOB_STOP_SCRIPT) {
+    if (argv[2] === "stop") {
       const j = jobs.get(e["VYRE_JOB_ID"]!);
       if (!j) return { code: 3, stdout: "", stderr: "" };
       j.spec["desired"] = "stopped";
       j.status = { state: "stopped", restarts: 0, startedAt: 1000, exitCode: 143 };
       return { code: 0, stdout: "", stderr: "" };
     }
-    if (argv[2] === JOBS_LIST_SCRIPT)
+    if (argv[2] === "list")
       return { code: 0, stdout: JSON.stringify([...jobs].map(([id, j]) => ({ id, ...j }))), stderr: "" };
     return undefined;
   };

@@ -54,8 +54,8 @@ RUN mkdir -p /shared/projects /shared/chats /shared/Vyre \
 
 # The job supervisor (rc.44): the container's one program. It starts what the agent asked for as background jobs (~/.vyre/jobs), restarts a job that dies, keeps its log, and, because Docker restarts the container after a
 # reboot, starts them all again. Owned by root and not writable by the agent: the agent changes jobs only through their folders. See supervisor.mjs.
-COPY supervisor.mjs /opt/vyre/supervisor.mjs
-RUN chmod 0644 /opt/vyre/supervisor.mjs
+COPY supervisor.mjs jobs-cli.mjs /opt/vyre/
+RUN chmod 0644 /opt/vyre/supervisor.mjs /opt/vyre/jobs-cli.mjs
 
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf
