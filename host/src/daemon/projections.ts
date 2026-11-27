@@ -186,7 +186,7 @@ export function createProjectionRunner(d: ProjectionRunnerDeps): ProjectionRunne
   const run = (): Promise<void> =>
     (async () => {
       try {
-        await null; // let `running` be assigned before the first check
+        await loopTurn(); // a macrotask of its own before the first event: the request whose commit started the pass does not carry its work; `running` is assigned before the first check
         do {
           again = false;
           for (const p of list) await passFor(p);

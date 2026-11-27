@@ -1,6 +1,7 @@
 // The scheduler (ARCH 1.2): the daemon's clock. Jobs run on an interval or once a day at a fixed time; a job never overlaps itself; a failing job is counted and reported, never fatal.
 // The scheduler stamps `lastTickAt` on every tick: the `scheduler` host probe reads it, so a stalled event loop shows up in health. Automations and Journeys have their own
 // schedules in their modules; this one runs the host's chores (probes, command queues, idempotency purge, log retention).
+import { loopTurn } from "../../../lib/loop-budget.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 
 export type Schedule =
@@ -186,7 +187,7 @@ export class Scheduler {
       }
       j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
       // a turn of the event loop between two jobs that start in the same tick: a request that arrived meanwhile is answered between them, not after all of them
-      if (started.length) await new Promise<void>((done) => setImmediate(done));
+      if (started.length) await loopTurn(); // the server's shared turn: the pumps and the sweeps count their work from the same one
       started.push(this.runJob(j));
     }
     await Promise.all(started);
