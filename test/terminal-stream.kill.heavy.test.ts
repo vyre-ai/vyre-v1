@@ -251,14 +251,17 @@ test(
       () => first.child.exitCode !== null || first.child.signalCode !== null,
       10_000,
     );
+    const tExit = Date.now();
     const second = await startChild();
     void second;
+    const tListening = Date.now();
     await until(
       "the stream is back by itself and sent a screen",
       () => screens > screensBefore && lastScreenAt > t0,
       90_000,
     );
     const recoveryMs = Date.now() - t0;
+    const split = `kill-to-exit ${tExit - t0} ms, spawn-to-listening ${tListening - tExit} ms, listening-to-first-screen ${Date.now() - tListening} ms`;
     assert.ok(
       text().includes("before-the-kill"),
       "the screen is as it was: what was typed before the kill is still there",
@@ -269,7 +272,7 @@ test(
     await type("echo after-the-kill");
     await until("what is typed after the kill shows on the stream", () => text().includes("after-the-kill"));
     console.log(
-      `KILLRECOVERY SIGKILL of the daemon under an open terminal stream: first screen on the new process after ${recoveryMs} ms, no click; numbering ${revBefore} before, ${feed.rev} after (a new process holds no history, so it sends the whole screen first); states ${states.join(">")}`,
+      `KILLRECOVERY SIGKILL of the daemon under an open terminal stream: first screen on the new process after ${recoveryMs} ms (${split}), no click; numbering ${revBefore} before, ${feed.rev} after (a new process holds no history, so it sends the whole screen first); states ${states.join(">")}`,
     );
     surface.dispose();
     socket?.close();
