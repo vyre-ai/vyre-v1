@@ -4,6 +4,7 @@ import type { Handlers } from './handlers.ts';
 
 /** Example answers: the first example output of each capability (used when the host serves a stub module). */
 export const handlers: Handlers<HandlerCtx> = {
+  "computers.browser.ask_signin": async () => ({"blockId":"blk_a1b2c3","messageId":"msg_a1b2c3"} as unknown) as never,
   "computers.browser.give_back": async () => ({"profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"held":{"count":1,"first":{"holdId":"hld_a1b2c3","mayAnswer":true,"taskId":"tsk_a1b2c3","what":"example"}},"lastActiveAt":1760000000000,"line":"example","paired":true,"pausedBy":"usr_a1b2c3","running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,
   "computers.browser.my_sign_ins": async () => ({"profile":"own","signIns":[{"kind":"browser","lastSeen":1760000000000,"signedInAs":"example","since":1760000000000,"site":"app.example.com"}]} as unknown) as never,
   "computers.browser.pause": async () => ({"profile":{"access":"owner","agentId":"agt_a1b2c3","busy":true,"held":{"count":1,"first":{"holdId":"hld_a1b2c3","mayAnswer":true,"taskId":"tsk_a1b2c3","what":"example"}},"lastActiveAt":1760000000000,"line":"example","paired":true,"pausedBy":"usr_a1b2c3","running":true,"state":"running","tabs":1,"takeoverBy":"usr_a1b2c3","viewers":1}} as unknown) as never,

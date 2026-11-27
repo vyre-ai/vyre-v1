@@ -1,6 +1,7 @@
 {
   "module": "computers",
   "capabilities": {
+    "computers.browser.ask_signin@1": "6720e1309942f14bd8fb0e41cf7018157d0dbf62683f05f7b2af09d0ec0f7544",
     "computers.browser.give_back@1": "66147055f67c1a4c630085a96a9c6e6a7f4bf38e55378aeb0882d7eeee9ec5ce",
     "computers.browser.my_sign_ins@1": "7412094ea8144f521464bdf57f56c3b9475c83d9784dc46fc549fd2d83f79616",
     "computers.browser.pause@1": "1258a02aa32a431a6962196cf7a95d793ab868c457259508c3b61d95fd9f2c2b",

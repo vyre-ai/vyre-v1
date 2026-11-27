@@ -1,0 +1,1 @@
+- The sign-in walk now proves the owner's Needs you task for a sign-in card closes on the server and leaves the sidebar without a reload once the card is answered.

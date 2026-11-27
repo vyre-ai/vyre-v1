@@ -84,6 +84,24 @@ const listIn = {
   ...pageIn,
 };
 
+const jobRow = t.obj({
+  jobId: t.str({ pattern: "^job_[a-f0-9]{12}$", examples: ["job_a1b2c3d4e5f6"] }),
+  name: t.str(),
+  command: t.str(),
+  state: t.enm("starting", "running", "restarting", "stopped", "done", "failed"),
+  restart: t.enm("on-failure", "always", "never"),
+  startedAt: t.opt(t.ts()),
+  restarts: t.int(),
+  exitCode: t.opt(t.nullable(t.int())),
+  lastLine: t.opt(t.str({ description: "The last line the job printed" })),
+  loop: t.opt(
+    t.bool({
+      description:
+        "It kept ending and being started again (more than 20 times in an hour): it was stopped for good and its owner was told",
+    }),
+  ),
+});
+
 export default defineManifest({
   id: "terminal",
   title: "Terminal",
@@ -424,6 +442,94 @@ export default defineManifest({
       },
     ),
     write(
+      "terminal.stream",
+      "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
+      {
+        in: target,
+        out: {
+          ws: t.str({ description: "The Space-relative address of the WebSocket (no ticket in it)" }),
+          ticket: t.str({ description: "Sent as the first message: {t:hello, ticket, rev}. One use, sixty seconds" }),
+          expiresAt: t.ts(),
+        },
+        on: ["terminal", "/terminalId"],
+        level: "view",
+        idem: "none",
+        audit: "none",
+        tool: "terminal",
+        errors: ["validation.not_found", "validation.precondition_failed", "permission.role_lacks_permission"],
+      },
+    ),
+    write(
+      "terminal.job.start",
+      "Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run",
+      {
+        in: {
+          command: t.str(),
+          name: t.opt(t.str({ maxLength: 80, description: "What the person sees in the list. Left out: the command" })),
+          cwd: t.opt(t.str()),
+          env: t.opt(t.rec(t.str({ description: "A literal value, never a Vault handle" }))),
+          // when it ends: start it again after a failure (the default), always, or never
+          restart: t.opt(t.enm("on-failure", "always", "never")),
+          agentId: t.opt(id.agent),
+        },
+        out: { job: jobRow },
+        level: "use",
+        perm: "terminal.use",
+        tool: "terminal",
+        mcpName: "terminal_job_start",
+        gate: { act: "approve", when: "terminal.is_danger(input.command)" },
+        agent: { planMode: "blocked", blocks: ["terminal"] },
+        idem: "key",
+        audit: "sensitive",
+        risk: "high",
+        offline: "online",
+        errors: [
+          "permission.needs_approval",
+          "permission.role_lacks_permission",
+          "validation.bad_input",
+          "validation.precondition_failed",
+          "internal.unavailable",
+        ],
+      },
+    ),
+    write(
+      "terminal.job.stop",
+      "Stop a background job of your computer; it stays in the list as stopped, with its log",
+      {
+        in: {
+          jobId: t.str({ pattern: "^job_[a-f0-9]{12}$", examples: ["job_a1b2c3d4e5f6"] }),
+          agentId: t.opt(id.agent),
+        },
+        out: { job: jobRow },
+        level: "use",
+        perm: "terminal.use",
+        tool: "terminal",
+        mcpName: "terminal_job_stop",
+        agent: { planMode: "blocked", blocks: ["terminal"] },
+        idem: "natural",
+        audit: "sensitive",
+        offline: "online",
+        errors: [
+          "permission.role_lacks_permission",
+          "validation.not_found",
+          "validation.precondition_failed",
+          "internal.unavailable",
+        ],
+      },
+    ),
+    read(
+      "terminal.job.list",
+      "The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer",
+      {
+        in: { agentId: t.opt(id.agent) },
+        out: { jobs: t.arr(jobRow) },
+        level: "view",
+        tool: "terminal",
+        mcpName: "terminal_job_list",
+        errors: ["permission.role_lacks_permission", "validation.precondition_failed", "internal.unavailable"],
+      },
+    ),
+    write(
       "terminal.run",
       "Run a command in a session and wait for it; secrets only as #Handle.field; output is scrubbed",
       {
@@ -492,6 +598,30 @@ export default defineManifest({
         mcpName: "terminal_request",
         agent: { planMode: "allowed", blocks: ["question"] },
         errors: ["permission.role_lacks_permission", "validation.bad_input"],
+      },
+    ),
+    write(
+      "terminal.ask_signin",
+      "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      {
+        in: {
+          threadId: id.thread,
+          terminalId: id.terminal,
+          why: t.str({ description: "What to sign in to, in a sentence the person understands" }),
+        },
+        out: { blockId: id.block, messageId: id.message },
+        on: ["thread", "/threadId"],
+        level: "use",
+        tool: "terminal",
+        mcpName: "terminal_ask_signin",
+        agent: { planMode: "allowed", blocks: ["question"] },
+        errors: [
+          "permission.no_grant",
+          "permission.role_lacks_permission",
+          "validation.bad_input",
+          "validation.not_found",
+          "validation.precondition_failed",
+        ],
       },
     ),
     read(

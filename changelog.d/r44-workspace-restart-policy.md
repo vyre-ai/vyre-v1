@@ -1,0 +1,1 @@
+- An agent's computer that was running comes back by itself after the host reboots (restart policy unless-stopped), with its jobs; one put to sleep stays asleep.

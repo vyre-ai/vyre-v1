@@ -1,0 +1,1 @@
+- A sign-in card from an agent reaches everyone who may take that computer over, as a task in Needs you with the usual notification, even when the chat is one nobody is reading (a routine at night); answering the task answers the card. Only those people can answer it, and anyone else sees "Waiting for <name> to sign in" with no button.

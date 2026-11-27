@@ -1,6 +1,6 @@
 // The question island's model: the open questions agents asked in this chat, oldest first, the newest showing. An open question is a question block still waiting for an answer, with options or in words;
 // a terminal ask and a mount ask have their own cards in the list and are not here. Pure.
-import { questionOptions, terminalAskOf } from "./model.ts";
+import { questionOptions, signinAskOf, terminalAskOf } from "./model.ts";
 import { mountOffers } from "./mountcard.ts";
 import type { Message, QuestionOption } from "./model.ts";
 
@@ -24,7 +24,8 @@ export function openQuestions(messages: readonly Message[]): OpenQuestion[] {
     for (const b of m.blocks) {
       if (b.type !== "question" || b.state !== "waiting") continue;
       const d = (b.data ?? {}) as Record<string, unknown>;
-      if (d["answer"] !== undefined || terminalAskOf(d) !== null) continue;
+      // a sign-in card is its own card in the chat and a task for the people who may answer it: never in the dock, where anyone in the chat would be offered the answer
+      if (d["answer"] !== undefined || terminalAskOf(d) !== null || signinAskOf(d) !== null) continue;
       const options = questionOptions(d);
       if (mountOffers(options) !== null) continue;
       const prompt = text(d["prompt"]) || text(d["title"]);

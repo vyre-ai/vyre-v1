@@ -1172,6 +1172,12 @@
     },
     {
       "deferred": false,
+      "name": "browser_ask_signin",
+      "summary": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "toolset": "computer"
+    },
+    {
+      "deferred": false,
       "name": "browser_sites_list",
       "summary": "The Browser connections: sites agents may use, where each runs, and each agent's right (Read only or Act). A person sees their own; an agent sees the sites that name it",
       "toolset": "computer"
@@ -10082,6 +10088,12 @@
     },
     {
       "deferred": false,
+      "name": "terminal_ask_signin",
+      "summary": "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
       "name": "terminal_attach",
       "summary": "Attach to a session as a live stream; the same session an agent used, so Open terminal shows its commands",
       "toolset": "terminal"
@@ -10108,6 +10120,24 @@
       "deferred": false,
       "name": "terminal_interrupt",
       "summary": "Send Ctrl-C to a session",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_job_list",
+      "summary": "The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_job_start",
+      "summary": "Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_job_stop",
+      "summary": "Stop a background job of your computer; it stays in the list as stopped, with its log",
       "toolset": "terminal"
     },
     {
@@ -10192,6 +10222,12 @@
       "deferred": false,
       "name": "terminal_status",
       "summary": "Live status of terminals for Home (state and last line read from tmux)",
+      "toolset": "terminal"
+    },
+    {
+      "deferred": false,
+      "name": "terminal_stream",
+      "summary": "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
       "toolset": "terminal"
     },
     {

@@ -4,6 +4,7 @@
 // @reads /modules/terminal/migrations/0006_people.sql
 // @reads /modules/terminal/migrations/0007_use.sql
 // @reads /modules/terminal/migrations/0008_cmd_log.sql
+// @reads /modules/terminal/migrations/0009_job_loops.sql
 // Durable rows of the terminal module (sessions, commands, rules, attach tickets), the port to the machine a session lives on, the rule matcher and the per-session secret scrubbers.
 // Every statement names a terminal_* table, which is all ctx.db lets a module touch. The migration file is the one source of the schema.
 import { readFileSync } from "node:fs";
@@ -227,6 +228,18 @@ export function bindWorkspaceStatus(f: WorkspaceStatusOf | null): void {
 }
 export const boundWorkspaceStatus = (): WorkspaceStatusOf | null => statusPort;
 
+/** The background jobs of an agent's workspace (the fleet's); null where this host has no workspaces. */
+export interface WorkspaceJobs {
+  list(agentId: string): Promise<import("./workspace.ts").JobRow[]>;
+  start(agentId: string, spec: import("./workspace.ts").JobSpec): Promise<import("./workspace.ts").JobRow>;
+  stop(agentId: string, jobId: string): Promise<import("./workspace.ts").JobRow | null>;
+}
+let jobsPort: WorkspaceJobs | null = null;
+export function bindWorkspaceJobs(f: WorkspaceJobs | null): void {
+  jobsPort = f;
+}
+export const boundWorkspaceJobs = (): WorkspaceJobs | null => jobsPort;
+
 /** Makes the shared folder of a chat on an agent's computer and opens it to the person whose turn it is (asker.ts chatFolderCommand); null where this host has no workspaces. */
 export type ChatFolderOf = (agentId: string, thread: string, place: AskerPlace | undefined) => Promise<void>;
 let chatPort: ChatFolderOf | null = null;
@@ -316,6 +329,13 @@ const CMDLOG_SCHEMA = readFileSync(new URL("./migrations/0008_cmd_log.sql", impo
   .split(";")
   .map((x) => x.trim())
   .filter((x) => x.length > 0);
+const JOBLOOP_SCHEMA = readFileSync(new URL("./migrations/0009_job_loops.sql", import.meta.url), "utf8")
+  .split("\n")
+  .filter((l) => !l.trimStart().startsWith("--"))
+  .join("\n")
+  .split(";")
+  .map((x) => x.trim())
+  .filter((x) => x.length > 0);
 const ready = new WeakSet<object>();
 
 export function ensure(db: Db): void {
@@ -324,6 +344,12 @@ export function ensure(db: Db): void {
     db.all("SELECT ticket_hash FROM terminal_tickets WHERE terminal_id = ?", "probe");
   } catch {
     for (const stmt of SCHEMA) db.run(stmt);
+  }
+  // a Space made before background jobs has no table of crash loops
+  try {
+    db.all("SELECT job_id FROM terminal_job_loops WHERE agent_id = ?", "probe");
+  } catch {
+    for (const stmt of JOBLOOP_SCHEMA) db.run(stmt);
   }
   // a Space made before tabs has the first schema only
   try {

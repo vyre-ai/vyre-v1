@@ -4,7 +4,13 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import type { ContainerConfig, DockerApi } from "../../../sandbox/src/docker.ts";
 import { reviewComputerConfig } from "../impl.ts";
-import { BROWSERD_CTL, browserContainerConfig, createDockerSpaceBrowser } from "../sbrowser/docker.ts";
+import {
+  BROWSERD_CTL,
+  browserContainerConfig,
+  createDockerSpaceBrowser,
+  migrationContainerConfig,
+  migrationName,
+} from "../sbrowser/docker.ts";
 import { ToolError } from "../handlers/tools/common.ts";
 
 type Exec = { exitCode: number | null; stdout: string; stderr: string };
@@ -249,7 +255,12 @@ test("the container is held to the computer profile: no capability, no new privi
     name: "vyre-sbrowser-x",
   });
   assert.equal(small.HostConfig.Memory, 1024 * 1024 * 1024);
-  assert.deepEqual(small.Env, ["VYRE_BROWSER_MAX_RUNNING=2", "VYRE_BROWSER_IDLE_MINUTES=3"]);
+  // the service stays up while its daemon runs: it ends itself only after half a day with nobody asking
+  assert.deepEqual(small.Env, [
+    "VYRE_BROWSER_MAX_RUNNING=2",
+    "VYRE_BROWSER_IDLE_MINUTES=3",
+    "VYRE_BROWSER_ORPHAN_MINUTES=720",
+  ]);
   assert.deepEqual(small.HostConfig.Binds, ["vyre-sbrowser-x-data:/data:rw"]);
 });
 
@@ -708,4 +719,153 @@ test("the container is replaced only one way: an error is never a difference, an
     0,
     "made since this daemon started (by the other daemon): left alone",
   );
+});
+
+test("keepAlive asks a running service now and then and never starts one", async () => {
+  const e = engine((action) => ok({ profiles: [] }));
+  const sb = createDockerSpaceBrowser({ api: e.api, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  await sb.keepAlive!();
+  assert.equal(e.created.length, 0, "no container was made");
+  assert.equal(e.execs.length, 0, "and nothing was asked");
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const before = e.execs.length;
+  await sb.keepAlive!();
+  assert.equal(e.execs.length, before + 1, "a running one is asked once");
+  await sb.keepAlive!();
+  assert.equal(e.execs.length, before + 1, "and not again within a few minutes");
+});
+
+test("health says how many saved sign-in profiles were not copied from the old shared browser, and that they stay there", async () => {
+  const e = engine((action) =>
+    action === "status"
+      ? ok({
+          profiles: [],
+          adopt: { copied: ["agt_a"], unproven: ["agt_b", "agt_c"], failed: [{ id: "agt_d", why: "disk full" }] },
+        })
+      : ok({}),
+  );
+  const sb = createDockerSpaceBrowser({ api: e.api, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const h = await sb.health();
+  assert.equal(h.ok, true);
+  assert.match(h.detail ?? "", /3 saved browser sign-in profiles from the old shared browser were not copied/);
+});
+
+test("a Space's long-running browser container mounts only its own volume, never the old shared one; the copy is a one-shot container that mounts the old one read-only", () => {
+  const o = { api: {} as DockerApi, name: "vyre-sbrowser-spc_one", adopt: { space: "spc_one", all: true } };
+  const run = browserContainerConfig(o);
+  assert.deepEqual(
+    run.HostConfig.Binds,
+    ["vyre-sbrowser-spc_one-data:/data:rw"],
+    "no other volume, not even read-only",
+  );
+  assert.ok(!run.Env.some((x) => x.startsWith("VYRE_BROWSER_ADOPT") || x.startsWith("VYRE_ADOPT")));
+  const mig = migrationContainerConfig(o);
+  assert.deepEqual(mig.HostConfig.Binds, ["vyre-sbrowser-data:/old-data:ro", "vyre-sbrowser-spc_one-data:/data:rw"]);
+  assert.equal(mig.HostConfig.NetworkMode, "none");
+  assert.deepEqual(mig.Cmd, ["node", "/opt/browserd/adopt-run.ts"]);
+  assert.deepEqual(mig.Env, ["VYRE_ADOPT_SPACE=spc_one", "VYRE_ADOPT_ALL=1"]);
+  assert.equal(migrationName("spc_one"), "vyre-sbmig-spc_one");
+});
+
+test("the browser waits for the copy of saved sign-ins when the old shared container is there: the one-shot container runs and is removed, and a copy that failed stops the browser from starting", async () => {
+  for (const exit of [0, 3]) {
+    const e = engine((action) => (action === "status" ? ok({ profiles: [] }) : ok({})));
+    const made: string[] = [];
+    const real = e.api.containerCreate;
+    e.api.containerCreate = async (n, c) => {
+      made.push(n);
+      return real(n, c);
+    };
+    const removed: string[] = [];
+    const rm = e.api.containerRemove;
+    e.api.containerRemove = async (n) => {
+      removed.push(n);
+      return rm(n);
+    };
+    const sb = createDockerSpaceBrowser({
+      api: e.api,
+      user: { uid: 10001, gid: 10001 },
+      sleep: async () => {},
+      name: "vyre-sbrowser-spc_one",
+      adopt: { space: "spc_one", all: false },
+      http: async (r: { method: string; path: string }) =>
+        r.path === "/containers/vyre-sbrowser/json"
+          ? { status: 200, body: new TextEncoder().encode("{}") }
+          : r.path.endsWith("/wait")
+            ? { status: 200, body: new TextEncoder().encode(JSON.stringify({ StatusCode: exit })) }
+            : r.path === "/networks/create"
+              ? { status: 201, body: new Uint8Array() }
+              : r.path.startsWith("/networks/")
+                ? {
+                    status: 200,
+                    body: new TextEncoder().encode(
+                      JSON.stringify({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }),
+                    ),
+                  }
+                : { status: 404, body: new TextEncoder().encode("{}") },
+    } as never);
+    const go = sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+    if (exit === 0) {
+      await go;
+      assert.deepEqual(made, ["vyre-sbmig-spc_one", "vyre-sbrowser-spc_one"], "the copy first, then the browser");
+    } else {
+      // a copy that fails waits twice (the browser is not made), and the third try starts the browser with the profiles that did copy: one corrupt profile never leaves a Space without a browser
+      await assert.rejects(go, /waiting to move this Space's saved sign-ins/);
+      assert.ok(!made.includes("vyre-sbrowser-spc_one"), "no browser container while a copy is unfinished");
+      await assert.rejects(
+        sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 }),
+        /waiting/,
+      );
+      assert.ok(!made.includes("vyre-sbrowser-spc_one"), "still not the second time");
+      await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+      assert.ok(made.includes("vyre-sbrowser-spc_one"), "the third try starts it");
+      assert.equal(made.filter((n) => n === "vyre-sbmig-spc_one").length, 3, "each try ran the copy");
+    }
+    assert.ok(removed.includes("vyre-sbmig-spc_one"), "the one-shot container is removed either way");
+  }
+});
+
+test("profiles the copy could not finish are named in the doctor line by agent, and are tried again once beside the running service", async () => {
+  let report = { copied: ["agt_a"], unproven: ["agt_u"], failed: [{ id: "agt_bad", why: "unreadable" }] };
+  const e = engine((action) => (action === "status" ? ok({ profiles: [], adopt: report }) : ok({})));
+  const made: string[] = [];
+  const real = e.api.containerCreate;
+  e.api.containerCreate = async (n, c) => {
+    made.push(n);
+    return real(n, c);
+  };
+  const sb = createDockerSpaceBrowser({
+    api: e.api,
+    user: { uid: 10001, gid: 10001 },
+    sleep: async () => {},
+    name: "vyre-sbrowser-spc_one",
+    adopt: { space: "spc_one", all: false },
+    http: async (r: { method: string; path: string }) =>
+      r.path === "/containers/vyre-sbrowser/json"
+        ? { status: 200, body: new TextEncoder().encode("{}") }
+        : r.path.endsWith("/wait")
+          ? { status: 200, body: new TextEncoder().encode(JSON.stringify({ StatusCode: 0 })) }
+          : r.path === "/networks/create"
+            ? { status: 201, body: new Uint8Array() }
+            : r.path.startsWith("/networks/")
+              ? {
+                  status: 200,
+                  body: new TextEncoder().encode(
+                    JSON.stringify({ IPAM: { Config: [{ Subnet: "172.30.0.0/16", Gateway: "172.30.0.1" }] } }),
+                  ),
+                }
+              : { status: 404, body: new TextEncoder().encode("{}") },
+  } as never);
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const before = made.filter((n) => n === "vyre-sbmig-spc_one").length;
+  const h = await sb.health();
+  assert.match(h.detail ?? "", /2 saved browser sign-in profiles.*Agents: agt_u, agt_bad/);
+  await sb.keepAlive!();
+  assert.equal(
+    made.filter((n) => n === "vyre-sbmig-spc_one").length,
+    before + 1,
+    "the failed ones are tried again by the running service's pass",
+  );
+  report = { copied: ["agt_a", "agt_bad"], unproven: [], failed: [] } as never;
 });

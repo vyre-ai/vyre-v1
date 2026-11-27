@@ -428,6 +428,22 @@ export function terminalAskOf(
   return { command: c.command, risk, ...(host ? { host } : {}) };
 }
 
+/** The sign-in card a question carries (terminal.ask_signin, computers.browser.ask_signin): where, whose computer, which terminal or site; null for any other question. */
+export function signinAskOf(
+  d: Record<string, unknown>,
+): { surface: "terminal" | "browser"; agentId: string; terminalId?: string; site?: string } | null {
+  const c = d.card;
+  if (!isRec(c) || c.kind !== "signin") return null;
+  const surface = c.surface === "terminal" || c.surface === "browser" ? c.surface : null;
+  if (surface === null || typeof c.agentId !== "string" || c.agentId === "") return null;
+  return {
+    surface,
+    agentId: c.agentId,
+    ...(typeof c.terminalId === "string" && c.terminalId !== "" ? { terminalId: c.terminalId } : {}),
+    ...(typeof c.site === "string" && c.site !== "" ? { site: c.site } : {}),
+  };
+}
+
 export interface PlanStep {
   id: string;
   text: string;
@@ -1126,3 +1142,8 @@ export function decisionOf(messages: readonly Message[]): string | null {
   }
   return null;
 }
+
+/** The line the agent is sent when a sign-in card is answered ("Answered: Done, I signed in (done)"): for the agent, not for people, since the card already says who signed in. A test holds these words to lib/signin-card.ts. */
+export const SIGNIN_ANSWER_LINE = /^Answered: (Done, I signed in \(done\)|I can't sign in \(cannot\))$/;
+export const isSigninAnswerLine = (m: { body: string; author: { kind: string } }): boolean =>
+  m.author.kind !== "agent" && SIGNIN_ANSWER_LINE.test(m.body);

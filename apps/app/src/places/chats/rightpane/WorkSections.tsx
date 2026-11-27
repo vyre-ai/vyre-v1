@@ -21,6 +21,7 @@ import { Dot, GroupHead, SectionHead } from "./WorkParts.tsx";
 import {
   browserHead,
   groupSessions,
+  jobWords,
   olderDesktopMenu,
   sessionTitle,
   sessionWords,
@@ -333,6 +334,38 @@ export function WorkSections({ deps, window }: { deps: PaneDeps; window?: Virtua
               : {}),
           });
         }
+      }
+      // the background jobs the agent keeps running: what each is doing, and a Stop for one that runs
+      for (const j of v.jobs ?? []) {
+        const w = jobWords(j);
+        const live = j.state === "running" || j.state === "restarting" || j.state === "starting";
+        entries.push({
+          key: `job-${j.jobId}`,
+          type: "row",
+          title: j.name,
+          note: w.note,
+          leading: (
+            <View style={st.dotLead}>
+              <Dot tone={w.dot} />
+            </View>
+          ),
+          trailing:
+            live && data.workspace?.stopJob ? (
+              <TextButton
+                label="Stop"
+                testID={`job-stop-${j.jobId}`}
+                onPress={() => {
+                  setBusy(true);
+                  void data.workspace!.stopJob!(agentId, j.jobId)
+                    .catch((e: unknown) => setOpenLine(e instanceof Error ? e.message : "The job did not stop."))
+                    .finally(() => setBusy(false));
+                }}
+              />
+            ) : (
+              <Text style={st.state}>{w.word}</Text>
+            ),
+          testID: `job-${j.jobId}`,
+        });
       }
       // no computer can open one at all: the one plain line, no row that could not open and no picture that pretends to sleep
       if (groups.length === 0 && noComputer)

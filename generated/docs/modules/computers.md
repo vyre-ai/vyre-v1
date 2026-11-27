@@ -4,8 +4,9 @@ Lane L2. Kind module. Version 0.1.0.
 
 Requires: chat.
 
-## Capabilities (74)
+## Capabilities (75)
 
+- [computers.browser.ask_signin](../capabilities/computers.browser.ask_signin.md): Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done
 - [computers.browser.give_back](../capabilities/computers.browser.give_back.md): Give an agent's browser back to the agent; the person who has the controls or an admin may
 - [computers.browser.my_sign_ins](../capabilities/computers.browser.my_sign_ins.md): The sites the browser profile your own turns of this agent use is signed in to, by site and when, never a value: a person who does not own a shared agent has a profile of their own on it. Nothing of another person's
 - [computers.browser.pause](../capabilities/computers.browser.pause.md): Pause an agent's browser: its next browser call waits, spending nothing, until you resume; a take-over, a stop or half an hour also end it. Who may take over may pause

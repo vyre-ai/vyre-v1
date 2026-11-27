@@ -4513,6 +4513,13 @@
           },
           "card": {
             "properties": {
+              "agentId": {
+                "examples": [
+                  "agt_a1b2c3"
+                ],
+                "pattern": "^agt_[a-z0-9]+$",
+                "type": "string"
+              },
               "command": {
                 "type": "string"
               },
@@ -4526,7 +4533,8 @@
               },
               "kind": {
                 "enum": [
-                  "terminal"
+                  "terminal",
+                  "signin"
                 ],
                 "type": "string"
               },
@@ -4537,11 +4545,28 @@
                   "danger"
                 ],
                 "type": "string"
+              },
+              "site": {
+                "maxLength": 200,
+                "type": "string"
+              },
+              "surface": {
+                "enum": [
+                  "terminal",
+                  "browser"
+                ],
+                "type": "string"
+              },
+              "terminalId": {
+                "examples": [
+                  "trm_a1b2c3"
+                ],
+                "pattern": "^trm_[a-z0-9]+$",
+                "type": "string"
               }
             },
             "required": [
-              "kind",
-              "command"
+              "kind"
             ],
             "type": "object"
           },
@@ -9358,6 +9383,44 @@
       "name": "bookings_page_create",
       "planMode": "blocked",
       "toolset": "automations",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "question"
+      ],
+      "cap": "computers.browser.ask_signin",
+      "deferred": false,
+      "description": "Ask the person to sign in for you in your browser (password, code, CAPTCHA): one sign-in card in the chat; people who may take over see Open browser and Done, others see who you wait for; your turn waits for Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "site": {
+            "description": "The site, when you know it",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "description": "What to sign in to, in a sentence the person understands",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "browser_ask_signin",
+      "planMode": "allowed",
+      "toolset": "computer",
       "v": 1
     },
     {
@@ -70937,6 +71000,47 @@
       "v": 1
     },
     {
+      "blocks": [
+        "question"
+      ],
+      "cap": "terminal.ask_signin",
+      "deferred": false,
+      "description": "Ask the person to finish a login in your terminal (gh auth login, a vendor CLI): one sign-in card in the chat; people who may take over see Open terminal and Done, others see who you wait for; your turn waits for Done",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          },
+          "threadId": {
+            "examples": [
+              "thr_a1b2c3"
+            ],
+            "pattern": "^thr_[a-z0-9]+$",
+            "type": "string"
+          },
+          "why": {
+            "description": "What to sign in to, in a sentence the person understands",
+            "type": "string"
+          }
+        },
+        "required": [
+          "threadId",
+          "terminalId",
+          "why"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_ask_signin",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
       "blocks": [],
       "cap": "terminal.attach",
       "deferred": false,
@@ -71066,6 +71170,126 @@
         "type": "object"
       },
       "name": "terminal_interrupt",
+      "planMode": "blocked",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.job.list",
+      "deferred": false,
+      "description": "The background jobs of a computer, newest first: running, restarting or ended, how often each restarted, and the last line it printed. Never wakes the computer",
+      "effects": "read",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "name": "terminal_job_list",
+      "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "terminal"
+      ],
+      "cap": "terminal.job.start",
+      "deferred": false,
+      "description": "Keep a command running on your computer as a background job (a server, a watcher, a bot): it is started again if it dies and after a restart, keeps its log, and keeps your computer awake until it ends. Gated like terminal.run",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "cwd": {
+            "type": "string"
+          },
+          "env": {
+            "additionalProperties": {
+              "description": "A literal value, never a Vault handle",
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "idempotencyKey": {
+            "examples": [
+              "idem_1"
+            ],
+            "minLength": 1,
+            "type": "string"
+          },
+          "name": {
+            "description": "What the person sees in the list. Left out: the command",
+            "maxLength": 80,
+            "type": "string"
+          },
+          "restart": {
+            "enum": [
+              "on-failure",
+              "always",
+              "never"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "idempotencyKey"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_job_start",
+      "planMode": "blocked",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [
+        "terminal"
+      ],
+      "cap": "terminal.job.stop",
+      "deferred": false,
+      "description": "Stop a background job of your computer; it stays in the list as stopped, with its log",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "agentId": {
+            "examples": [
+              "agt_a1b2c3"
+            ],
+            "pattern": "^agt_[a-z0-9]+$",
+            "type": "string"
+          },
+          "jobId": {
+            "examples": [
+              "job_a1b2c3d4e5f6"
+            ],
+            "pattern": "^job_[a-f0-9]{12}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jobId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_job_stop",
       "planMode": "blocked",
       "toolset": "terminal",
       "v": 1
@@ -71678,6 +71902,32 @@
       },
       "name": "terminal_status",
       "planMode": "allowed",
+      "toolset": "terminal",
+      "v": 1
+    },
+    {
+      "blocks": [],
+      "cap": "terminal.stream",
+      "deferred": false,
+      "description": "Open a live stream of a session's screen over a WebSocket: changes as they happen, numbered, resumable. Send the ticket as the first message, not in the address. Typing stays terminal.keys",
+      "effects": "write",
+      "inputSchema": {
+        "properties": {
+          "terminalId": {
+            "examples": [
+              "trm_a1b2c3"
+            ],
+            "pattern": "^trm_[a-z0-9]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "terminalId"
+        ],
+        "type": "object"
+      },
+      "name": "terminal_stream",
+      "planMode": "blocked",
       "toolset": "terminal",
       "v": 1
     },

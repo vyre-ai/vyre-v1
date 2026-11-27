@@ -2,7 +2,9 @@
 // the frames down and the person's clicks, wheel and keys up (the ticket opens once, so the two never share one). Wire format: host/src/routes/browser-stream.ts and images/space-browser/browserd/view.ts.
 import { createElement, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactElement } from "react";
-import { Image, Platform, Pressable, StyleSheet } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSurface } from "./use-surface.ts";
+import type { SurfaceState } from "./surface.ts";
 
 /** The size pages are drawn at when neither the stream nor the first frame has said: browserd's screencast ceiling. Used only until a real size is known. */
 export const BROWSER_VIEW = { width: 1280, height: 800 } as const;
@@ -163,6 +165,20 @@ interface Opened {
   ws?: string;
   width?: number;
   height?: number;
+  expiresAt?: number;
+}
+
+/** The ticket of a stream is good for this long and opens once (modules/computers/projections.ts TICKET_MS). */
+export const STREAM_TICKET_MS = 60_000;
+/** A live socket that has heard nothing (no frame, no pong) for this long is dead: it is closed and opened again. */
+export const SOCKET_DEAD_MS = 15_000;
+export const SOCKET_PING_MS = 5_000;
+
+/** What the view says over the picture while it is not simply live: nothing, or one honest line, with a Try again once it has given up. */
+export function surfaceLine(s: SurfaceState): { text: string; retry: boolean } | null {
+  if (s.kind === "reconnecting") return { text: "Reconnecting", retry: false };
+  if (s.kind === "failed") return { text: s.retryable ? "Couldn't reach the browser" : s.reason, retry: s.retryable };
+  return null;
 }
 
 export function BrowserLive({
@@ -172,6 +188,7 @@ export function BrowserLive({
   spaceUrl,
   testID = "browser-live-view",
   onNote,
+  giveUpMs,
 }: {
   agentId: string;
   control: boolean;
@@ -179,8 +196,9 @@ export function BrowserLive({
   spaceUrl?: string | undefined;
   testID?: string;
   onNote?: (text: string) => void;
+  /** How long it keeps reconnecting before it says it could not reach the browser; the default is surface.ts RECONNECT_GIVE_UP_MS. */
+  giveUpMs?: number;
 }): ReactElement {
-  const [opened, setOpened] = useState<Opened | null>(null);
   const [frame, setFrame] = useState<string | null>(null);
   const canvas = useRef<PaintTarget | null>(null);
   // on the web the frames are drawn on a canvas; elsewhere (and where a canvas or bitmap decoding is missing) each frame is a picture address
@@ -191,32 +209,29 @@ export function BrowserLive({
   const seq = useRef(0);
   const natural = useRef<FrameSize | null>(null);
   const note = useMemo(() => onNote ?? (() => undefined), [onNote]);
-
-  // a new address when the controls change hands: the take-over ticket is a different one
+  // one reconnecting surface (surface.ts): a new address when the controls change hands (the take-over ticket is a different one), a new one after every loss, and an honest line while it works on it
+  const surface = useSurface<Opened>(
+    () => Promise.resolve(call("computers.browser.stream", { agentId })) as Promise<Opened>,
+    `${agentId}:${control}`,
+    STREAM_TICKET_MS,
+    giveUpMs,
+  );
+  const opened = surface.value;
+  const surfaceRef = useRef(surface);
+  surfaceRef.current = surface;
+  // the frames come on the WebSocket the same call hands out, for a person who only watches as well as for the one in control (the server does not take their input): one transport, so a lost one is seen (onclose)
+  // and a dead one is found by the pings below, where an image of a stream never says that it ended
+  const socketMode = canvasOk || control;
   useEffect(() => {
-    let live = true;
-    setOpened(null);
-    void Promise.resolve(call("computers.browser.stream", { agentId })).then(
-      (o) => {
-        if (live) setOpened(o as Opened);
-      },
-      () => {
-        if (live) note("The live view could not open.");
-      },
-    );
-    return () => {
-      live = false;
-    };
-  }, [call, agentId, control, note]);
-
-  useEffect(() => {
-    if (!control || !opened?.ws) return;
+    if (!socketMode || !opened?.ws) return;
     const WS = (
       globalThis as {
         WebSocket?: new (u: string) => {
           binaryType: string;
           onmessage: ((e: { data: unknown }) => void) | null;
           onclose: (() => void) | null;
+          onopen: (() => void) | null;
+          onerror: (() => void) | null;
           send(s: string): void;
           close(): void;
         };
@@ -227,6 +242,38 @@ export function BrowserLive({
     if (!WS || !Url || !Blob_) return;
     const ws = new WS(socketUrl(spaceUrl, opened.ws));
     ws.binaryType = "arraybuffer";
+    let over = false;
+    let heard = Date.now();
+    const lostIt = (why: string): void => {
+      if (over) return;
+      over = true;
+      surfaceRef.current.lost(why);
+    };
+    ws.onopen = () => {
+      heard = Date.now();
+      surfaceRef.current.connected();
+    };
+    ws.onclose = () => lostIt("the socket closed");
+    ws.onerror = () => lostIt("the socket failed");
+    // the relay answers {t:"ping"} with {t:"pong"}: a socket that has heard nothing for SOCKET_DEAD_MS is dead whatever the network says
+    const beat = setInterval(() => {
+      if (over) return;
+      if (Date.now() - heard >= SOCKET_DEAD_MS) {
+        lostIt("nothing heard");
+        try {
+          ws.close();
+        } catch {
+          /* gone */
+        }
+        return;
+      }
+      try {
+        ws.send(JSON.stringify({ t: "ping", seq: 0 }));
+      } catch {
+        lostIt("the socket could not send");
+      }
+    }, SOCKET_PING_MS);
+    (beat as unknown as { unref?: () => void }).unref?.();
     let last: string | null = null;
     const paint = canvasOk
       ? framePainter({
@@ -238,10 +285,11 @@ export function BrowserLive({
           drawn: (size) => {
             natural.current = size;
           },
-          failed: () => note("The live view lost its picture. Give the browser back and take over again."),
+          failed: () => surfaceRef.current.lost("frames could not be read"),
         })
       : null;
     ws.onmessage = (e) => {
+      heard = Date.now();
       if (typeof e.data === "string") {
         try {
           const m = JSON.parse(e.data) as { t?: string; reason?: string };
@@ -262,14 +310,19 @@ export function BrowserLive({
     };
     socket.current = ws;
     return () => {
+      over = true;
+      clearInterval(beat);
       socket.current = null;
       ws.onmessage = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onopen = null;
       paint?.dispose();
       ws.close();
       if (last) Url.revokeObjectURL(last);
       setFrame(null);
     };
-  }, [control, opened, spaceUrl, note, canvasOk]);
+  }, [socketMode, opened, spaceUrl, note, canvasOk]);
 
   const send = (m: Record<string, unknown>): void => {
     socket.current?.send(JSON.stringify({ ...m, seq: ++seq.current }));
@@ -326,80 +379,122 @@ export function BrowserLive({
       el.removeEventListener?.("keydown", onKey as never, true);
     };
   }, [control]);
-  const uri =
-    control && canvasOk ? null : control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
+  const line = surfaceLine(surface.state);
+  const uri = canvasOk ? null : control && frame ? frame : !control && opened ? viewUrl(spaceUrl, opened.url) : null;
   // while you are in control the frames are painted on one canvas that fills the box and keeps the page's shape, as the picture does ("contain"): clicks are mapped the same way (pointOf)
-  const painted =
-    control && canvasOk
-      ? createElement("canvas", {
-          ref: (el: PaintTarget | null) => {
-            canvas.current = el;
-          },
-          "data-testid": `${testID}-image`,
-          "aria-label": "Live view",
-          style: {
-            position: "absolute",
-            left: 0,
-            top: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "contain",
-            pointerEvents: "none",
-          },
-        })
-      : null;
+  const painted = canvasOk
+    ? createElement("canvas", {
+        ref: (el: PaintTarget | null) => {
+          canvas.current = el;
+        },
+        "data-testid": `${testID}-image`,
+        "aria-label": "Live view",
+        style: {
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          pointerEvents: "none",
+        },
+      })
+    : null;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={control ? "The browser, in your control" : "The browser, live"}
-      testID={testID}
-      disabled={!control}
-      onPress={onPress}
-      onLayout={(e) => {
-        box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
-      }}
-      ref={viewRef as never}
-      style={st.fill}
-    >
-      {uri ? (
-        Platform.OS === "web" ? (
-          // a plain picture element, so closing the view can end the stream: a framework image keeps its request open after it is gone, and the browser then counts a viewer nobody is
-          createElement("img", {
-            key: uri,
-            ref: mjpegRef,
-            "data-testid": `${testID}-image`,
-            alt: "Live view",
-            src: uri,
-            draggable: false,
-            onLoad: (e: { currentTarget: { naturalWidth: number; naturalHeight: number } }) => {
-              natural.current = sized(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) ?? natural.current;
-            },
-            style: {
-              position: "absolute",
-              left: 0,
-              top: 0,
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              pointerEvents: "none",
-            },
-          })
-        ) : (
-          <Image
-            testID={`${testID}-image`}
-            accessibilityLabel="Live view"
-            source={{ uri }}
-            resizeMode="contain"
-            style={st.fill}
-            onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => {
-              natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current;
-            }}
-          />
-        )
+    <View style={st.fill}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={control ? "The browser, in your control" : "The browser, live"}
+        testID={testID}
+        disabled={!control}
+        onPress={onPress}
+        onLayout={(e) => {
+          box.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height };
+        }}
+        ref={viewRef as never}
+        style={st.fill}
+      >
+        {uri ? (
+          Platform.OS === "web" ? (
+            // a plain picture element, so closing the view can end the stream: a framework image keeps its request open after it is gone, and the browser then counts a viewer nobody is
+            createElement("img", {
+              key: uri,
+              ref: mjpegRef,
+              "data-testid": `${testID}-image`,
+              alt: "Live view",
+              src: uri,
+              draggable: false,
+              onError: () => surfaceRef.current.lost("the picture stream failed"),
+              onLoad: (e: { currentTarget: { naturalWidth: number; naturalHeight: number } }) => {
+                surfaceRef.current.connected();
+                natural.current = sized(e.currentTarget.naturalWidth, e.currentTarget.naturalHeight) ?? natural.current;
+              },
+              style: {
+                position: "absolute",
+                left: 0,
+                top: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                pointerEvents: "none",
+              },
+            })
+          ) : (
+            <Image
+              testID={`${testID}-image`}
+              accessibilityLabel="Live view"
+              source={{ uri }}
+              resizeMode="contain"
+              style={st.fill}
+              onLoad={(e: { nativeEvent?: { source?: { width?: number; height?: number } } }) => {
+                natural.current = sized(e.nativeEvent?.source?.width, e.nativeEvent?.source?.height) ?? natural.current;
+              }}
+            />
+          )
+        ) : null}
+        {painted}
+      </Pressable>
+      {line ? (
+        <View testID={`${testID}-state`} accessibilityLiveRegion="polite" style={st.state}>
+          <Text style={st.stateText}>{line.text}</Text>
+          {line.retry ? (
+            <Pressable
+              testID={`${testID}-retry`}
+              accessibilityRole="button"
+              accessibilityLabel="Try again"
+              onPress={() => surface.retry()}
+              style={st.stateBtn}
+            >
+              <Text style={st.stateBtnText}>Try again</Text>
+            </Pressable>
+          ) : null}
+        </View>
       ) : null}
-      {painted}
-    </Pressable>
+    </View>
   );
 }
 
-const st = StyleSheet.create({ fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 } });
+const st = StyleSheet.create({
+  fill: { position: "absolute", left: 0, top: 0, right: 0, bottom: 0 },
+  // the one honest line over a picture that is not live: the last frame stays under it, dimmed by the bar's own backing
+  state: {
+    position: "absolute",
+    left: 12,
+    bottom: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: "rgba(20,22,26,0.82)" as string,
+  },
+  stateText: { fontSize: 13, color: "#fff" as string },
+  stateBtn: {
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.18)" as string,
+  },
+  stateBtnText: { fontSize: 13, fontWeight: "600", color: "#fff" as string },
+});

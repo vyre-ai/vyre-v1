@@ -24,6 +24,7 @@ import type { StartServer } from "./start.ts";
 import { createControl, refusalOf } from "./control.ts";
 import { createBridgeHub } from "./bridge.ts";
 import type { BridgeHub } from "./bridge.ts";
+import type { AdoptReport } from "./adopt.ts";
 import { createProfileManager, checkProfileId, memoryLimitMb, pidsLimit, slotsFor } from "./profiles.ts";
 import { createCdpInput, createScreencastHub, startViewServer } from "./view.ts";
 import type { Hub, ViewOf } from "./view.ts";
@@ -235,6 +236,7 @@ async function dispatch(action: string, a: Args): Promise<Args> {
         }),
         maxRunning: MAX_RUNNING,
         viewers: views.viewers(),
+        ...(adoptReportOnDisk() ? { adopt: adoptReportOnDisk() } : {}),
       };
     case "channel":
       return { key: control.mint(), address: address(), port: PORT };
@@ -438,6 +440,15 @@ function serve(c: Socket): void {
       (e: unknown) => c.end(JSON.stringify(refusalOf(e)) + "\n"),
     );
   });
+}
+
+/** The report of the last move of saved sign-ins into this volume (written by the one-shot migration container, adopt-run.ts), shown in status for the doctor. */
+function adoptReportOnDisk(): AdoptReport | null {
+  try {
+    return JSON.parse(readFileSync(`${ROOT}/.adopt-report.json`, "utf8")) as AdoptReport;
+  } catch {
+    return null;
+  }
 }
 
 async function main(): Promise<void> {

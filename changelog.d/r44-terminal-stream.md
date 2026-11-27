@@ -1,0 +1,1 @@
+- The terminal screen arrives on a live stream of numbered changes instead of the whole screen four times a second: far less data, nothing looked at while the terminal prints nothing, and a lost connection is seen and picked up again where it left off (the ticket is the socket's first message, never in the address).

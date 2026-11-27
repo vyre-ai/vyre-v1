@@ -37,7 +37,6 @@ import { createFillService, fillHttp } from "./handlers/fill.ts";
 import type { FillSource, FillUse } from "./handlers/fill.ts";
 import { bindFill, bindHost, boundHost, ensure as ensureSchema } from "./projections.ts";
 import { inTurn, markOwnProfiles, reconcileClaims, turnActive, turnEnded, turnStarted } from "./sbrowser/room.ts";
-import { warmBrowser } from "./sbrowser/warm.ts";
 import { dropPausesOfAgent } from "./sbrowser/pause.ts";
 import { browserOfDeleted, browserOfLeaver, browserOfRestored, forgetExpired } from "./sbrowser/forget.ts";
 import {
@@ -58,6 +57,7 @@ import "./sbrowser/room.ts";
 import { bindSpaceBrowser, spaceBrowser } from "./sbrowser/port.ts";
 import type { SpaceBrowser } from "./sbrowser/port.ts";
 import { createDockerSpaceBrowser, DEFAULT_BROWSER_IMAGE } from "./sbrowser/docker.ts";
+import { browserNameFor } from "./sbrowser/names.ts";
 
 export const handlers: Record<string, Handler> = table as unknown as Record<string, Handler>;
 
@@ -913,7 +913,7 @@ export interface ComputersHostConfig {
   /** The Space browser image (images/space-browser). Default vyre/space-browser:1. */
   browserImage?: string;
   /** How many browsers the Space browser holds at once and how long a quiet one stays (minutes). */
-  browser?: { maxRunning?: number; idleMinutes?: number; name?: string };
+  browser?: { maxRunning?: number; idleMinutes?: number; name?: string; space?: string; adoptAll?: boolean };
   filesRoot?: (agentId: string) => string | null;
   startTimeoutMs?: number;
   /** What the host says it can hold instead of the machine's own figures: a test of room, so it does not depend on what else runs on the runner. */
@@ -1014,6 +1014,10 @@ export function buildSpaceBrowser(c: ComputersHostConfig): SpaceBrowser {
     ...(c.browser?.idleMinutes !== undefined ? { idleMinutes: c.browser.idleMinutes } : {}),
     // a container of its own (and so a volume of its own) for a test on a machine that may run a real Space browser; behind the runner the name stays vyre-sbrowser, the only one it allows
     ...(c.browser?.name !== undefined && !c.runner ? { name: c.browser.name } : {}),
+    // a Space's own container and volume (rc.44), and the move of its saved sign-ins from the old shared one: a test's own name keeps the old behaviour
+    ...(c.browser?.name === undefined && c.browser?.space !== undefined
+      ? { name: browserNameFor(c.browser.space), adopt: { space: c.browser.space, all: c.browser.adoptAll === true } }
+      : {}),
     ...(c.startTimeoutMs !== undefined ? { startTimeoutMs: c.startTimeoutMs } : {}),
     // calls go to browserd's own port, not one `docker exec` each (131 ms a call before); `ctl` stays as the way back wherever the port cannot be reached
     channel: true,
@@ -1056,8 +1060,8 @@ export const consumers = {
       if (event.name === "turn.started") {
         if (typeof a === "string") {
           turnStarted(ctx.space, a, t, ctx.now());
-          // warm before asked (sbrowser/warm.ts): in the background, so the turn and the events behind it never wait for a browser to start; it never raises
-          setTimeout(() => void warmBrowser(ctx, a), 0);
+          // no warm start here since rc.44 (owner ruling 13 Nov: the browser is asleep by default; the agent wakes it, a person wakes it by pressing the picture): a turn does not say whether it will browse,
+          // and a start for every turn kept Chromium running for agents that never opened a page. sbrowser/warm.ts stays for an explicit computers.browser.warm ask.
         }
         return;
       }
@@ -1103,6 +1107,7 @@ export const periodic = {
       const sb = spaceBrowser();
       if (!sb) return;
       ensureSchema(ctx.db);
+      await sb.keepAlive?.().catch(() => undefined);
       await reconcileClaims(ctx, sb, { force: true });
       await markOwnProfiles(ctx, sb);
       await forgetExpired(ctx);

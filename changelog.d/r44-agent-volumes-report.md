@@ -1,0 +1,1 @@
+- Server health reports how much disk the agents' computers use (workspace homes, Files mirrors, project folders, browser profiles) and names any volume over a soft cap of 5 GB (VYRE_VOLUME_SOFT_CAP_MB); nothing is stopped or removed.

@@ -15,6 +15,8 @@ Area: terminal. Risk: medium. Applies to: terminal, computer.
 ## Capabilities that need it
 
 - runbooks.run
+- terminal.job.start
+- terminal.job.stop
 - terminal.open
 - terminal.rules.set
 - terminal.run

@@ -17,6 +17,20 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
  && rm -f /usr/bin/su /bin/su /usr/bin/passwd /usr/bin/chsh /usr/bin/chfn /usr/bin/newgrp /usr/bin/gpasswd /usr/bin/mount /usr/bin/umount
 
+# The GitHub CLI (owner ruling, 27 Nov: whoami, git and gh work in the agent's terminal). A pinned release with its published checksum, not the apt repository: the build needs no key and no network
+# after this step, and a changed file fails the build. Its login lives in ~/.config/gh in the agent's home volume, so it survives sleep and updates; the sign-in itself is the person's (a device code in the terminal).
+ARG GH_VERSION=2.106.0
+ARG GH_SHA256_AMD64=a476449fa9625413c54a3734eded62e9e480e49f421ff08e7f3b3879c059a033
+ARG GH_SHA256_ARM64=5e8a0c51e1a8345f36bd0b8bb88604b6a5388df16f3ab3e3b9b6d794fa223a67
+RUN set -eu; \
+    case "$(uname -m)" in x86_64) a=amd64; sum="$GH_SHA256_AMD64";; aarch64) a=arm64; sum="$GH_SHA256_ARM64";; *) echo "no gh for $(uname -m)"; exit 1;; esac; \
+    curl -fsSL -o /tmp/gh.tgz "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_${a}.tar.gz"; \
+    echo "${sum}  /tmp/gh.tgz" | sha256sum -c -; \
+    tar -xzf /tmp/gh.tgz -C /tmp; \
+    install -m 0755 "/tmp/gh_${GH_VERSION}_linux_${a}/bin/gh" /usr/local/bin/gh; \
+    rm -rf /tmp/gh.tgz "/tmp/gh_${GH_VERSION}_linux_${a}"; \
+    gh --version
+
 # No setuid or setgid program is left (no-new-privileges stops them at run time; this removes them from the image).
 RUN find / -xdev \( -perm -4000 -o -perm -2000 \) -type f -exec chmod a-s {} +
 
@@ -38,6 +52,11 @@ RUN mkdir -p -m 0711 /people \
 RUN mkdir -p /shared/projects /shared/chats /shared/Vyre \
  && chown -R 10001:10001 /shared && chmod 0711 /shared /shared/projects /shared/chats && chmod 0700 /shared/Vyre
 
+# The job supervisor (rc.44): the container's one program. It starts what the agent asked for as background jobs (~/.vyre/jobs), restarts a job that dies, keeps its log, and, because Docker restarts the container after a
+# reboot, starts them all again. Owned by root and not writable by the agent: the agent changes jobs only through their folders. See supervisor.mjs.
+COPY supervisor.mjs /opt/vyre/supervisor.mjs
+RUN chmod 0644 /opt/vyre/supervisor.mjs
+
 # One tmux config for every session: a big scrollback (the terminal tab reads it back), no status bar (the tab has its own chrome), no escape delay.
 COPY tmux.conf /etc/tmux.conf
 
@@ -48,5 +67,5 @@ ENV HOME=/home/agent \
 
 USER 10001:10001
 WORKDIR /home/agent
-# Created with Init: true, so a process that dies is reaped by Docker's init. The container only has to stay up; every command is a `docker exec`.
-CMD ["sleep", "infinity"]
+# Created with Init: true, so a process that dies is reaped by Docker's init. The supervisor keeps the container up and runs the agent's background jobs; every other command is a `docker exec`.
+CMD ["node", "/opt/vyre/supervisor.mjs"]

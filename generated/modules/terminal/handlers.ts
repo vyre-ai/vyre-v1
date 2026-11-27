@@ -5,6 +5,7 @@ import type { CapMap, HandlerCtx } from '../../types.ts';
 export type Handler<C extends keyof CapMap, X extends HandlerCtx = HandlerCtx> = (ctx: X, input: CapMap[C]['in']) => Promise<CapMap[C]['out']>;
 
 export type Handlers<X extends HandlerCtx = HandlerCtx> = {
+  "terminal.ask_signin": Handler<"terminal.ask_signin", X>;
   "terminal.attach": Handler<"terminal.attach", X>;
   "terminal.capture": Handler<"terminal.capture", X>;
   "terminal.close": Handler<"terminal.close", X>;
@@ -13,6 +14,9 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.health": Handler<"terminal.health", X>;
   "terminal.input": Handler<"terminal.input", X>;
   "terminal.interrupt": Handler<"terminal.interrupt", X>;
+  "terminal.job.list": Handler<"terminal.job.list", X>;
+  "terminal.job.start": Handler<"terminal.job.start", X>;
+  "terminal.job.stop": Handler<"terminal.job.stop", X>;
   "terminal.keys": Handler<"terminal.keys", X>;
   "terminal.list": Handler<"terminal.list", X>;
   "terminal.log.list": Handler<"terminal.log.list", X>;
@@ -28,6 +32,7 @@ export type Handlers<X extends HandlerCtx = HandlerCtx> = {
   "terminal.rules.set": Handler<"terminal.rules.set", X>;
   "terminal.run": Handler<"terminal.run", X>;
   "terminal.status": Handler<"terminal.status", X>;
+  "terminal.stream": Handler<"terminal.stream", X>;
   "terminal.take_over": Handler<"terminal.take_over", X>;
   "terminal.workspace": Handler<"terminal.workspace", X>;
 }

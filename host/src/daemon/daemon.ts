@@ -268,6 +268,8 @@ import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
 import { createBrowserStream } from "../routes/browser-stream.ts";
+import { createTerminalStream } from "../routes/terminal-stream.ts";
+import type { TerminalStreamDeps } from "../routes/terminal-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import { createSampler, realDeps } from "../machines/sample.ts";
 import type { SampleDeps } from "../machines/sample.ts";
@@ -1248,6 +1250,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     open: (t, a) => browserOpen(t, a),
     mayInput: (a, p) => browserInput(a, p),
   });
+  // the live stream of a terminal's screen, relayed (host/src/routes/terminal-stream.ts); the terminal module spends the ticket and keeps one watcher per terminal (modules/terminal/watch.ts)
+  let terminalOpen: TerminalStreamDeps["open"] = () => Promise.resolve(null);
+  const terminalStream = createTerminalStream({ open: (t, k, r, send) => terminalOpen(t, k, r, send) });
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
   let idleSessions: (person?: string) => number = () => 0;
@@ -1304,6 +1309,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       m.person,
     );
     if (m.person) browserStream.endPerson(m.person);
+    if (m.person) terminalStream.endPerson(m.person);
     // the cookie sessions of artifacts and sites a person opened (sites_ticket rows of theirs) hold no session id: they end with any session end of the person, as the live views do
     if (m.person) {
       try {
@@ -1314,6 +1320,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
   };
   closers.push(() => computeStream.close());
+  // the live views of browsers and terminals end with the Space, so a viewer sees it go at once and opens again
+  closers.push(() => void browserStream.endAll());
+  closers.push(() => void terminalStream.endAll());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
   const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
@@ -2649,6 +2658,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } | null;
       browserInput = async (agentId, personId) =>
         (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
+      terminalOpen = async (terminalId, ticket, since, send) => {
+        const mod = loaded.moduleExports.get("terminal") as
+          | {
+              openScreen?: (
+                db: unknown,
+                t: string,
+                k: string,
+                r: number | undefined,
+                now: number,
+                send: (text: string) => void,
+              ) => ReturnType<TerminalStreamDeps["open"]>;
+            }
+          | undefined;
+        if (!mod?.openScreen || !db) return null;
+        return await mod.openScreen(db, terminalId, ticket, since, now(), send);
+      };
       computeStreamOpen = async (ticket, computerId) =>
         (await hookRunner.call("computers.stream_open", { ticket, computerId })) as {
           nodeId: string;
@@ -6089,6 +6114,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           createComputersHost({
             dataDir: paths.root,
             version: cfg.version,
+            space: { id: spaceId, personal: cfg.spaceKind === "personal" },
             ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
             // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
             ...(o.computersSocketPath === undefined && computersRunnerSocket()
@@ -7597,7 +7623,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub =>
         createLiveHub({
-          claims: (req) => computeStream.claims(req) || browserStream.claims(req) || chromeDirect.claims(req),
+          claims: (req) =>
+            computeStream.claims(req) ||
+            browserStream.claims(req) ||
+            terminalStream.claims(req) ||
+            chromeDirect.claims(req),
           // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
           session: (h, url) => {
             const ticket = url.searchParams.get("ticket");
@@ -8133,6 +8163,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
             if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
             else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+            else if (terminalStream.claims(req)) terminalStream.upgrade(req, socket, head);
             else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
           },
           (where, error) =>
