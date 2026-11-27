@@ -35,4 +35,6 @@ try {
   /* a cache that cannot be made is no cache: the start is the same without it */
 }
 process.env["VYRE_COMPILE_CACHE_WARM"] = warm;
+// the server's code is loaded in pieces with a turn of the event loop between them, so the loop answers (the guard measures this) while about 2,000 files are linked; then the one import that starts it
+if (process.env["VYRE_SLICE_IMPORT"] !== "off") await (await import("./slice-import.ts")).sliceImport(new URL("./run.ts", import.meta.url));
 await import("./run.ts");
