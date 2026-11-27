@@ -242,10 +242,13 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
 const sameGrant = (a: GrantRec, b: GrantRec): boolean => a === b || canonical(a) === canonical(b);
 const baseOf = (store: AccessStore): Base => {
   const resVersion = mapVersion(store.resources);
-  // a sealed map keeps a log of what it changed: a base of it is the map and its version, not a copy of 38,000 resources (12 ms to 20 ms on every publish)
-  if (resVersion !== undefined)
-    return { resources: new Map(), grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store), resMap: store.resources, resVersion };
-  return { resources: new Map(store.resources), grants: new Map(store.grants), rest: restOf(store), people: peopleOf(store) };
+  return {
+    resources: new Map(store.resources),
+    grants: new Map(store.grants),
+    rest: restOf(store),
+    people: peopleOf(store),
+    ...(resVersion !== undefined ? { resMap: store.resources, resVersion } : {}),
+  };
 };
 
 /** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
@@ -259,11 +262,14 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   const roots = new Set<string>();
   // the same sealed map the base was copied from: its change log names the keys that differ, and the other thirty thousand are not looked at
   const log = base.resMap === store.resources && base.resVersion !== undefined ? mapChangesSince(store.resources, base.resVersion) : null;
-  // a base that is a version of a sealed map holds no copy to compare with: every key the map changed since is a root (a superset of what differs), and a log that no longer reaches back is everything
-  if (base.resMap !== undefined && !log) return null;
   if (log) {
     shareKept.logCompared++;
-    for (const id of log) roots.add(id);
+    for (const id of new Set(log)) {
+      const was = base.resources.get(id);
+      const r = store.resources.get(id);
+      if (!was && !r) continue;
+      if (!was || !r || !sameResource(was, r)) roots.add(id);
+    }
   } else {
     for (const [id, r] of store.resources) {
       const was = base.resources.get(id);
@@ -1042,7 +1048,7 @@ function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?:
   const from = ss.from;
   ss.from = null;
   let base: Base;
-  if (resources && from && from.store === store && from.epoch + 1 === store.epoch && from.base.resMap === undefined) {
+  if (resources && from && from.store === store && from.epoch + 1 === store.epoch) {
     for (const id of resources) {
       const r = store.resources.get(id);
       if (r) from.base.resources.set(id, r);
