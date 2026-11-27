@@ -198,6 +198,7 @@ test(
         listenedAt: number | null;
         blocks: { at: number; ms: number }[];
       };
+      fs.writeFileSync(`${out}/loop-guard-server/monitor-${variant}.json`, JSON.stringify({ ...seen, pid: s.child.pid }));
       const phaseOf = (wall: number): string => phases.find((p) => wall >= p.from && wall <= p.to)?.name ?? "after";
       const lines = seen.blocks.map((b) => `block ${b.ms} ms at +${(b.at / 1000).toFixed(1)} s [${phaseOf(seen.wall0 + b.at)}${seen.listenedAt !== null && b.at > seen.listenedAt ? ", after listen" : ", before listen"}]`);
       const text = `${variant}: listening at +${seen.listenedAt === null ? "?" : (seen.listenedAt / 1000).toFixed(1)} s (${listenedWall - spawnedAt} ms after the spawn); ${lines.length} blocks before the bound ${seen.bound} ms\n${lines.join("\n")}\n`;
