@@ -159,7 +159,7 @@ export interface DockerSpaceBrowserOptions {
   idleMinutes?: number;
   /** How often browserd looks for quiet profiles, in seconds. Default 30. */
   sweepSeconds?: number;
-  /** Minutes with nothing asking browserd before it closes every browser and the container stops (its daemon is gone). Default 10, set in the image. */
+  /** Minutes with nothing asking browserd before it closes every browser and the container stops (its daemon is gone). Default 720: the container stays up while its daemon runs, only a profile's Chromium sleeps. */
   orphanMinutes?: number;
   /**
    * Raw Engine access: for the image pull and the service's own network. With it the container is on a network of its own (with or without the runner), so the daemon knows a request from it by its
@@ -219,7 +219,8 @@ export function browserContainerConfig(o: DockerSpaceBrowserOptions, net?: { gat
       ...(o.maxRunning !== undefined ? [`VYRE_BROWSER_MAX_RUNNING=${o.maxRunning}`] : []),
       `VYRE_BROWSER_IDLE_MINUTES=${o.idleMinutes ?? 10}`,
       ...(o.sweepSeconds !== undefined ? [`VYRE_BROWSER_SWEEP_SECONDS=${o.sweepSeconds}`] : []),
-      ...(o.orphanMinutes !== undefined ? [`VYRE_BROWSER_ORPHAN_MINUTES=${o.orphanMinutes}`] : []),
+      // the service stays up while its daemon is (the daemon asks it every few minutes, keepAlive below); it ends itself only after this long with nobody asking, so a daemon that is gone for good does not leave it running for ever
+      `VYRE_BROWSER_ORPHAN_MINUTES=${o.orphanMinutes ?? 720}`,
     ],
     Labels: { "vyre.sbrowser": "1" },
     StopTimeout: 10,
@@ -579,6 +580,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
       restUntil = 0;
       failsInARow = 0;
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
+      // browserd answers a moment after the container starts: ask again soon and a little less often each time (a flat 400 ms wait added up to 0.4 s to every cold open)
+      let wait = 25;
       for (;;) {
         try {
           await exec("status", {});
@@ -599,7 +602,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
               "unavailable",
               `The Space browser did not answer in time: ${e instanceof Error ? e.message.slice(0, 160) : "unknown"}`,
             );
-          await sleep(400);
+          await sleep(wait);
+          wait = Math.min(wait * 2, 200);
         }
       }
     })().finally(() => {
@@ -644,6 +648,8 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     });
     return opening;
   }
+  let lastKeep = 0;
+  const KEEP_MS = 4 * 60_000;
   const VIA_CTL = Symbol("via ctl");
   /** The call over the open line, or VIA_CTL when it was certainly not done there and `ctl` should carry it. */
   async function viaChannel(action: string, body: Record<string, unknown>): Promise<BrowserAnswer | typeof VIA_CTL> {
@@ -705,8 +711,10 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
     } catch (e) {
       if (!starting(e)) throw e;
       const deadline = Date.now() + (o.startTimeoutMs ?? 30_000);
+      let wait = 25;
       for (;;) {
-        await sleep(400);
+        await sleep(wait);
+        wait = Math.min(wait * 2, 200);
         try {
           await exec("status", {});
           break;
@@ -749,6 +757,13 @@ export function createDockerSpaceBrowser(o: DockerSpaceBrowserOptions): SpaceBro
         ...(a.space ? { spaceId: a.space } : {}),
         ...(a.agentName ? { agentName: a.agentName } : {}),
       });
+    },
+    async keepAlive() {
+      // only a container that already runs is asked (this never starts one), and not more than every few minutes: it is what tells browserd its daemon is still here
+      if (clock() - lastKeep < KEEP_MS) return;
+      if (!(await o.api.containerRunning(name))) return;
+      lastKeep = clock();
+      await exec("status", {});
     },
     async markSpace(space, profileIds) {
       // not up: -1, asked again at the next pass

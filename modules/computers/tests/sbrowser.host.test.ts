@@ -249,7 +249,12 @@ test("the container is held to the computer profile: no capability, no new privi
     name: "vyre-sbrowser-x",
   });
   assert.equal(small.HostConfig.Memory, 1024 * 1024 * 1024);
-  assert.deepEqual(small.Env, ["VYRE_BROWSER_MAX_RUNNING=2", "VYRE_BROWSER_IDLE_MINUTES=3"]);
+  // the service stays up while its daemon runs: it ends itself only after half a day with nobody asking
+  assert.deepEqual(small.Env, [
+    "VYRE_BROWSER_MAX_RUNNING=2",
+    "VYRE_BROWSER_IDLE_MINUTES=3",
+    "VYRE_BROWSER_ORPHAN_MINUTES=720",
+  ]);
   assert.deepEqual(small.HostConfig.Binds, ["vyre-sbrowser-x-data:/data:rw"]);
 });
 
@@ -708,4 +713,18 @@ test("the container is replaced only one way: an error is never a difference, an
     0,
     "made since this daemon started (by the other daemon): left alone",
   );
+});
+
+test("keepAlive asks a running service now and then and never starts one", async () => {
+  const e = engine((action) => ok({ profiles: [] }));
+  const sb = createDockerSpaceBrowser({ api: e.api, user: { uid: 10001, gid: 10001 }, sleep: async () => {} });
+  await sb.keepAlive!();
+  assert.equal(e.created.length, 0, "no container was made");
+  assert.equal(e.execs.length, 0, "and nothing was asked");
+  await sb.tool({ profileId: "agt_dex", tool: "chrome_state", args: {}, timeoutMs: 1000 });
+  const before = e.execs.length;
+  await sb.keepAlive!();
+  assert.equal(e.execs.length, before + 1, "a running one is asked once");
+  await sb.keepAlive!();
+  assert.equal(e.execs.length, before + 1, "and not again within a few minutes");
 });

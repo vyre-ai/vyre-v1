@@ -1102,6 +1102,7 @@ export const periodic = {
       const sb = spaceBrowser();
       if (!sb) return;
       ensureSchema(ctx.db);
+      await sb.keepAlive?.().catch(() => undefined);
       await reconcileClaims(ctx, sb, { force: true });
       await markOwnProfiles(ctx, sb);
       await forgetExpired(ctx);
