@@ -1,0 +1,1 @@
+- The first build of the share cache for a big view applies its rows with a turn of the loop every 20,000 rows.

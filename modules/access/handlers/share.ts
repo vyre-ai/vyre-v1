@@ -784,6 +784,43 @@ function applyRows(
   now: number,
   who: ReadonlySet<string> | null = null,
 ): { gone: AccessRow[]; touched: AccessRow[] } {
+  const steps = applyRowsSteps(ctx, store, ss, roots, scope, next, now, who);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+  }
+}
+
+/** `applyRows` with a turn of the loop every 20,000 rows (the first build of a view of 38,000 resources and several people went through every cached row in one stretch: 70 ms). */
+async function applyRowsSliced(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+  next: Map<string, AccessRow>,
+  now: number,
+  who: ReadonlySet<string> | null,
+  turn: () => Promise<void>,
+): Promise<{ gone: AccessRow[]; touched: AccessRow[] }> {
+  const steps = applyRowsSteps(ctx, store, ss, roots, scope, next, now, who);
+  for (;;) {
+    const r = steps.next();
+    if (r.done) return r.value;
+    await turn();
+  }
+}
+
+function* applyRowsSteps(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  scope: Set<string> | null,
+  next: Map<string, AccessRow>,
+  now: number,
+  who: ReadonlySet<string> | null,
+): Generator<void, { gone: AccessRow[]; touched: AccessRow[] }, void> {
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
   const dropIfGone = (key: string): void => {
@@ -796,9 +833,12 @@ function applyRows(
   };
   if (scope === null || (roots !== "all" && roots.some((id) => !store.resources.has(id)))) {
     // everything, or a thing that is no longer there is among the roots: every cached row is looked at
-    for (const [key, old] of [...ss.access]) {
+    // the live map is walked (a row dropped while walking it is safe), not a copy of it; a turn of the loop every 20,000 rows
+    let seen = 0;
+    for (const [key, old] of ss.access) {
       const inScope = scope === null || scope.has(old.id) || !store.resources.has(old.id);
       if (inScope) dropIfGone(key);
+      if (++seen % 20_000 === 0) yield;
     }
   } else {
     // the rows of what is in scope, and those of a resource that is no longer there (a lookup per resource, not per row)
@@ -808,7 +848,9 @@ function applyRows(
     for (const id of ids) for (const key of [...(index.get(id) ?? [])]) dropIfGone(key);
   }
   const touched: AccessRow[] = [];
+  let put = 0;
   for (const [key, row] of next) {
+    if (++put % 20_000 === 0) yield;
     const old = ss.access.get(key);
     if (old && same(old, row)) continue;
     if (old) gone.push(old);
@@ -950,7 +992,17 @@ async function buildSliced(
     shareKept.discarded++;
     return false;
   }
-  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now, who ? new Set(who) : null);
+  const { gone, touched } = await applyRowsSliced(
+    ctx,
+    store,
+    ss,
+    roots,
+    scope,
+    next,
+    now,
+    who ? new Set(who) : null,
+    turn,
+  );
   if (who) ss.pendingWho = [];
   else ss.pending = [];
   // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
