@@ -177,7 +177,8 @@ test(
     fs.mkdirSync(`${out}/loop-guard-server`, { recursive: true });
 
     const failures: string[] = [];
-    for (const variant of ["cold", "warm"] as const) {
+    // GUARD_VARIANTS=warm runs only the warm variant (a repeat of three runs in a row does not need the cold one each time)
+    for (const variant of (process.env["GUARD_VARIANTS"] ?? "cold,warm").split(",") as ("cold" | "warm")[]) {
       // 2. each variant starts from its own copy of the seeded Space, with no compile cache of any earlier start
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), `vyre-guard-${variant}-`));
       execFileSync("cp", ["-a", `${w.dir}/.`, dir]);
