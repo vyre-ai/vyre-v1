@@ -1,5 +1,6 @@
 // `vyred` entry point: node host/src/daemon/main.ts --role space --data-dir D [--space spc_x] [--port 8420] [--host 127.0.0.1]
 // The installer's launchd and systemd units, the Tauri sidecar and `vyre server start` all run this file. SIGTERM, SIGINT and Windows SIGBREAK stop it cleanly.
+import { bootReport } from "./boot-timing.ts";
 import { CaddyAdmin, CaddyRouter } from "../caddy/index.ts";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "./config.ts";
@@ -217,6 +218,7 @@ async function main(): Promise<number> {
     return 1;
   }
   process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
+  process.stderr.write(`vyred ${bootReport()}\n`);
   if (d.claim) process.stdout.write(`Claim this Space as its owner (one time, valid 24 hours): ${d.claim.url}\n`);
   await Promise.race([
     stopped,
