@@ -1,0 +1,1 @@
+- The live-browser walk on the real Space browser follows the Computer tab as it has been since 14 Nov (the pane is a self-refreshing picture, the stream is in the full-screen view) instead of waiting for an element that is no longer in the pane.

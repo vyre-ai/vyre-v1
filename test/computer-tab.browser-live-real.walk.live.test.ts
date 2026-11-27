@@ -51,13 +51,24 @@ test(
         });
       });
       await k.computerTab();
-      await k.me.page.getByTestId("browser-live-view-image").waitFor({ timeout: 30_000 });
+      // the Computer tab of 14 Nov (fcf16b7d2, 6557cc852): the pane shows one self-refreshing picture (browser-picture, layers browser-preview-0 and -1); the streaming element browser-live-view-image exists only
+      // in the full-screen view (after the press below). So watching is sampled on the picture, in control on the stream.
+      await k.me.page.getByTestId("browser-picture").waitFor({ timeout: 30_000 });
+      await k.me.page
+        .locator('[data-testid^="browser-preview-"]')
+        .first()
+        .waitFor({ state: "attached", timeout: 30_000 });
       const sample = (ms: number) =>
         k.me.page.evaluate(async (span) => {
           const out: Array<{ pic: string | null; w: number; h: number }> = [];
           const t0 = Date.now();
           while (Date.now() - t0 < span) {
-            const el = document.querySelector("[data-testid=browser-live-view-image]") as HTMLElement | null;
+            const el = (document.querySelector("[data-testid=browser-live-view-image]") ??
+              [...document.querySelectorAll("[data-testid^=browser-preview-]")].find(
+                (e) =>
+                  (e as HTMLElement).querySelector("img") !== null || /url\(/.test(getComputedStyle(e).backgroundImage),
+              ) ??
+              document.querySelector("[data-testid^=browser-preview-]")) as HTMLElement | null;
             const tag = el?.querySelector("img") as HTMLImageElement | null;
             const bg = el ? /url\("?([^")]+)"?\)/.exec(getComputedStyle(el).backgroundImage)?.[1] : undefined;
             const box = (
