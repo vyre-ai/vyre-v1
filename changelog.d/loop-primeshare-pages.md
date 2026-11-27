@@ -1,0 +1,1 @@
+- The share state read ahead at start adds its my_access rows a page at a time, with a turn of the loop between pages, instead of all of them in one step.
