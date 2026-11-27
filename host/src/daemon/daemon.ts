@@ -1,7 +1,7 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
 import { bootBegin, bootMark } from "./boot-timing.ts";
 import { startCheckpointer } from "./checkpointer.ts";
-import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
+import { UNIT_MS, loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
@@ -2058,9 +2058,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       bootMark("before migrations");
       migrate(db, codeRoot, now);
       bootMark("migrations");
+      await loopYield(UNIT_MS);
       if (!space) throw new Error("this data directory has no Space yet: pass --space <id> to create one");
       log = await LogClient.open({ path: paths.events, space });
       bootMark("open events.db");
+      await loopYield(UNIT_MS);
       closers.push(() => log?.close());
       // The chain is checked from the point the last start left (host_chain_checkpoint) to the head: the start waits for the tail only, not for every event of a Space with a long history. A tail that does
       // not verify is checked again from the start, and the whole chain is checked again in the background after every start (the commit gate closes if it fails), so nothing is skipped for good.
@@ -2453,6 +2455,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
       bootMark("log check and the access fold");
+      await loopYield(UNIT_MS);
       const loaded = await loadHost({
         registry: reg,
         modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")),
@@ -2464,6 +2467,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         ...(o.http ? { fetch: o.http } : {}),
       });
       bootMark("load modules");
+      await loopYield(UNIT_MS);
       workspacesReady = (): Promise<void> =>
         (
           loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined
@@ -8295,6 +8299,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       new Promise<void>((r) => setTimeout(r, 5000).unref?.()),
     ]).catch(() => undefined);
     bootMark("wiring and start-up passes");
+    await loopYield(UNIT_MS);
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
