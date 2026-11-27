@@ -1,5 +1,7 @@
 // logs.db (ARCH 4.10): structured rows written in batches by a sink, read by trace id. No content goes in a row: `msg` is a fixed template key, `attrs` holds ids and counts, and a redaction pass drops
 // any attr whose key names content (body, text, subject, value, secret, ...) and any string equal to a secret the process knows.
+import { startCheckpointer } from "../daemon/checkpointer.ts";
+import type { Checkpointer } from "../daemon/checkpointer.ts";
 import { DatabaseSync } from "node:sqlite";
 import type { TelemetryBatch, TelemetryPosition } from "../../../lib/telemetry.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
@@ -19,7 +21,7 @@ const PRUNE_EVERY_MS = 60_000;
  * One flush writes at most this many rows and spans in one short transaction, and one look for the mirror reads at most this many of each: the event loop is held for a batch, not for a thousand rows
  * (r39: the flush and the mirror's write held it 643 ms and 365 ms in a minute on the firm's server). What is left goes on at the next turn of the loop, in order.
  */
-export const FLUSH_BATCH = 200;
+export const FLUSH_BATCH = 100;
 const PRUNE_BATCH = 2_000;
 const PRUNE_ROUNDS = 20;
 /** Keys that carry content. A lint forbids them in attrs; the sink drops them as a second line. */
@@ -164,6 +166,8 @@ export class LogSink implements SpanSink {
   private rollupMs: number;
   private tallies = new Map<string, Tally>();
   private prunedAt = 0;
+  private checkpointer: Checkpointer | null = null;
+  private spansLast = false;
   /** Over the size cap: pruning goes on until the rows take three quarters of it. */
   private over = false;
 
@@ -178,6 +182,8 @@ export class LogSink implements SpanSink {
     this.rollupMs = o.rollupMs ?? ROLLUP_MS;
     try {
       this.sourceId = this.open(o.path !== undefined && o.path !== ":memory:");
+      // logs.db's log is moved into the file by a worker thread, not by the commit that crosses 1,000 pages on the main thread (a 135 ms COMMIT in the guard)
+      if (o.path !== undefined && o.path !== ":memory:") this.checkpointer = startCheckpointer(this.db, o.path);
     } catch (e) {
       if (own)
         try {
@@ -500,8 +506,12 @@ export class LogSink implements SpanSink {
       if (this.observe()) this.scheduleSoon();
       return;
     }
-    const rows = this.rows.splice(0, FLUSH_BATCH),
-      spans = this.spans.splice(0, FLUSH_BATCH);
+    // rows and spans take turns when both are waiting: a flush of 100 of each was 200 inserts in one stretch
+    const both = this.rows.length > 0 && this.spans.length > 0 && this.rows.length + this.spans.length > FLUSH_BATCH;
+    const rowsTurn = !both || this.spansLast;
+    const rows = rowsTurn ? this.rows.splice(0, FLUSH_BATCH) : [],
+      spans = !both || !rowsTurn ? this.spans.splice(0, FLUSH_BATCH) : [];
+    this.spansLast = !rowsTurn;
     const { insLog, insSpan, seq: readSeq, setSeq } = this.statements();
     this.db.exec("BEGIN");
     try {
@@ -655,6 +665,8 @@ export class LogSink implements SpanSink {
         this.soon = null;
       }
       this.stmts = undefined;
+      void this.checkpointer?.stop();
+      this.checkpointer = null;
       this.db.close();
     }
   }

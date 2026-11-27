@@ -1,0 +1,1 @@
+- The Space browser container now stays up while its Space runs (only a profile's Chromium sleeps), and the wait for it to answer after a start is 25 ms and growing instead of a flat 400 ms: the first open after Chromium slept takes about 0.6 s, and from a stopped container about 1.5 s (was 1.9 s).

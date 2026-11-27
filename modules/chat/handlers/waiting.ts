@@ -13,7 +13,7 @@ const firstLine = (s: string): string => {
 };
 
 /** The person a question or plan waits on: the one whose turn asked it, else the person who started the thread. Nobody when a thread has no person behind it. */
-function personFor(ctx: ChatCtx, t: ThreadRec): string | undefined {
+export function personFor(ctx: ChatCtx, t: ThreadRec): string | undefined {
   for (const id of [askerOf(ctx), t.starter]) if (id?.startsWith("usr_")) return id;
   return undefined;
 }
@@ -34,7 +34,20 @@ interface Ask {
  * An Answer takes words or a pick, never a bare press, so it offers only Answer. A plan keeps the Approve task's own actions.
  */
 export async function openAsk(ctx: ChatCtx, t: ThreadRec, a: Ask): Promise<string | undefined> {
-  const person = personFor(ctx, t);
+  return openAskFor(ctx, t, personFor(ctx, t), a);
+}
+
+/**
+ * The same task for a named person (the sign-in card, rc.44: a card in a chat nobody is reading, a routine at 03:00, must still reach the people who may take that computer over, so each of them gets the task and
+ * its notification). Every task of one block carries the block's id, so answering any of them answers the question and closes the others (tasks resume.ts, act.ts decideInChat).
+ */
+export async function openAskFor(
+  ctx: ChatCtx,
+  t: ThreadRec,
+  person: string | undefined,
+  a: Ask,
+  key = `ask:${a.blockId}`,
+): Promise<string | undefined> {
   if (!person || !ctx.call) return undefined;
   try {
     const made = (await ctx.call("tasks.create", {
@@ -46,7 +59,7 @@ export async function openAsk(ctx: ChatCtx, t: ThreadRec, a: Ask): Promise<strin
       blocks: [{ type: a.block.type, v: 1, data: a.block.data }],
       notes: { "chat.block": a.blockId, ...(a.planId !== undefined ? { "chat.plan": a.planId } : {}) },
       ...(a.kind === "answer" ? { actions: ANSWER_ONLY } : {}),
-      idempotencyKey: `ask:${a.blockId}`,
+      idempotencyKey: key,
     })) as { task?: { id?: string } };
     return made.task?.id;
   } catch (e) {

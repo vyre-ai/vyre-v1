@@ -294,6 +294,7 @@ export function terminalData(
     team: rt.space.kind !== "personal",
     ...(o.nameOf ? { nameOf: o.nameOf } : {}),
     newKey: o.newKey,
+    ...(rt.baseUrl ? { spaceUrl: rt.baseUrl } : {}),
     clock: rt.clock,
     nav: {
       openTerminal: (id) => go.terminal(id),

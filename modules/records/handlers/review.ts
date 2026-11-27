@@ -27,7 +27,12 @@ export interface RvCtx {
   call?: (cap: string, input: unknown) => Promise<unknown>;
   /** The host decision for the caller on one thing; the relations map leaves out what they may not see. */
   authorize?: (
-    action: { perm: string | null; level: "view" | "use" | "edit" | "manage"; cap?: string },
+    action: {
+      perm: string | null;
+      level: "view" | "use" | "edit" | "manage";
+      cap?: string;
+      fields?: readonly string[];
+    },
     resource: { type: string; id: string | null },
   ) => { effect: string };
 }

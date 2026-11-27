@@ -1,0 +1,1 @@
+- Saved browser sign-ins can be copied (never moved) from the shared browser volume into a Space's own volume, only for profiles that provably belong to that Space; a failed copy changes nothing and is retried, and the old volume is left untouched. The copy logic and its tests are in; the per-Space container that uses it follows.

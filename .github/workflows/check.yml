@@ -183,7 +183,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: ./.github/actions/deps  # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
+      - uses: ./.github/actions/deps # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
       - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
         run: bash scripts/ci-iolock.sh shared
       - name: Did images/ or a heavy test change on this branch?
@@ -257,7 +257,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - uses: ./.github/actions/deps  # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
+      - uses: ./.github/actions/deps # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
       - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
         run: bash scripts/ci-iolock.sh shared
       - name: Did the sandbox, the terminal module, the person-sandbox image or the heavy tests change on this branch?
@@ -363,7 +363,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/deps  # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
+      - uses: ./.github/actions/deps # this job boots the server, so it needs the workspace packages of this commit, not whatever an earlier job left on the runner
       - name: Disk lock (heavy jobs share the disk, perf jobs run alone on it)
         run: bash scripts/ci-iolock.sh shared
       - name: Docker on this runner (printed so a failure below can be read against it)
@@ -518,7 +518,31 @@ jobs:
           npx playwright-core install chromium
           node scripts/test-run.ts --no-cache --files scripts/shots/owner-model.test.ts 2>&1 | tee owner-model.out
           grep -q '^ok .*scripts/shots/owner-model.test.ts' owner-model.out
+  loop-guard:
+    # The event-loop guard (test/loop.guard.live.test.ts, 24 Nov 2026, the Mac-hosted freeze): a Meier-sized Space is started and driven through its start-up, everyday requests and two scheduler ticks, and
+    # the main thread must never be held for more than 100 ms. It runs alone on the pinned perf host (timing), straight under node --test so the file's own timeout (25 minutes) applies, not a shard's
+    # cap. Reports only for now (does not gate `check`). The report (every block with the jobs, requests and SQL in it) is kept as an artifact either way.
+    runs-on: [self-hosted, linux, v1-perf]
+    timeout-minutes: 35
+    continue-on-error: true # reports only until three full-scale runs show 0 blocks (see the switch in the `check` job)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/deps
+      - name: Disk lock (a timing job runs alone on the disk)
+        run: bash scripts/ci-iolock.sh exclusive
+      - name: The main thread is never held over 100 ms on a Meier-sized Space
+        env:
+          VYRE_TEST_CAPTURE_DIR: ${{ github.workspace }}/loop-guard-out
+        run: node --test --test-timeout=1500000 test/loop.guard.live.test.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: loop-guard-report
+          path: loop-guard-out/loop-guard/
+          if-no-files-found: ignore
   check:
+    # loop-guard is not in this list yet: it runs on every push and keeps its report, but a red guard does not fail `check`. THE SWITCH: once three full-scale runs in a row show 0 blocks on the perf host,
+    # add `loop-guard` here, set LOOPGUARD below back in the env block, restore its line in the script, and drop `continue-on-error` from the job.
     needs: [select, shards, gates, typecheck, chrome-real, computer-lifecycle]
     if: always()
     runs-on: [self-hosted, linux, v1]

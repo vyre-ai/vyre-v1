@@ -1,0 +1,1 @@
+- The access tables are read in pages of 250 rows, not 1,000, so one page read that stalls on the disk (161 ms once) holds the loop for a quarter as long.

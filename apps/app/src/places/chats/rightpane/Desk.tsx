@@ -26,6 +26,7 @@ import type { DeskStep, WorkspaceView } from "./work-model.ts";
 import type { PaneDeps } from "./actions.ts";
 import type { BrowserView } from "./work-model.ts";
 import { Dot } from "./WorkParts.tsx";
+import { backoffMs } from "./surface.ts";
 import { keyAction, keysMayAct, needsShift } from "./desk-model.ts";
 import type { ActiveKind } from "./desk-model.ts";
 import { drawnAt, showsCursor } from "./desk-pointer.ts";
@@ -34,6 +35,8 @@ import type { DeskKey, DeskMode, DeskRoom } from "./desk-model.ts";
 import { deskDispatch, useDesk } from "./desk-store.ts";
 import type { DeskSession } from "./desk-store.ts";
 
+/** How many times the desk asks for the browser to start before it gives up and offers Try again. */
+export const WAKE_TRIES = 6;
 const MARGIN = 0.025;
 export const MINI = { width: 272, height: 196, right: 20, bottom: 104 } as const;
 const EDGES =
@@ -191,15 +194,27 @@ export function Desk({
   const mine = view.state === "takeover" && view.mine === true;
   const [busy, setBusy] = useState(false);
   const full = mode === "full";
-  // a sleeping browser wakes when the desk opens: the call that hands out the live address is the one that starts it
-  const woke = useRef(false);
+  // a sleeping browser wakes when the desk opens: the call that hands out the live address is the one that starts it. A start that fails (browserd late, no room yet) is tried again with a growing wait, up to
+  // WAKE_TRIES times, and then the bar says so and a Try again starts over; before rc.44 one failure was final until the desk was closed and opened again.
+  const [wakeTry, setWakeTry] = useState(0);
+  const [wakeGaveUp, setWakeGaveUp] = useState(false);
   useEffect(() => {
-    if (!known || view.state !== "closed" || woke.current) return;
-    woke.current = true;
-    data
-      .open(agentId)
-      .catch((e: unknown) => session.note(e instanceof Error && e.message ? e.message : "The browser did not start."));
-  }, [known, view.state, agentId, data, session]);
+    if (!known || view.state !== "closed") return undefined;
+    let live = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    data.open(agentId).catch((e: unknown) => {
+      if (!live) return;
+      session.note(e instanceof Error && e.message ? e.message : "The browser did not start.");
+      if (wakeTry + 1 >= WAKE_TRIES) setWakeGaveUp(true);
+      else timer = setTimeout(() => setWakeTry((n) => n + 1), backoffMs(wakeTry));
+    });
+    return () => {
+      live = false;
+      if (timer) clearTimeout(timer);
+    };
+    // data and session are the desk's own and do not change while it is open
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [known, view.state, agentId, wakeTry]);
   const starting = view.state === "closed" || view.state === "starting";
   const t0 = useRef(Date.now());
   const [, tick] = useState(0);
@@ -558,6 +573,17 @@ export function Desk({
                       disabled={busy}
                       onPress={() => run(() => data.open(agentId))}
                       testID="browser-restart"
+                    />
+                  ) : null}
+                  {starting && wakeGaveUp ? (
+                    <Pill
+                      label="Try again"
+                      disabled={busy}
+                      onPress={() => {
+                        setWakeGaveUp(false);
+                        setWakeTry((n) => n + 1);
+                      }}
+                      testID="browser-wake-retry"
                     />
                   ) : null}
                 </View>

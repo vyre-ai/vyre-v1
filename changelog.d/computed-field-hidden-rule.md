@@ -1,0 +1,1 @@
+A formula, lookup or rollup value is shown only to a person who may read everything it was computed from; if one input or one linked record is hidden from them the value is simply not there, never a smaller sum.

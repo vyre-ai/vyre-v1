@@ -1076,3 +1076,46 @@ test("a type has one card face, set by type.update, checked against its own fiel
     undefined,
   );
 });
+
+test("computed fields: two formulas that would read each other are refused when the second is made, and a chain that does not come back is fine", async () => {
+  const k = kit();
+  await base(k);
+  const add = (field: string, expr: string): SchemaOp => ({
+    op: "field.add",
+    type: "acme_person",
+    field,
+    def: { type: "formula", title: field.toUpperCase(), options: { expr } },
+  });
+  await k.h["schema.apply"](k.ctx, { ops: [add("fa", "name")] });
+  await k.h["schema.apply"](k.ctx, { ops: [add("fb", "fa")] });
+  const chain = await k.h["schema.apply"](k.ctx, { ops: [add("fc", "fb")] });
+  assert.equal(chain.applied, 1, "a chain of formulas over formulas is allowed");
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [{ op: "field.update", type: "acme_person", field: "fa", def: { options: { expr: "fc" } } }],
+    }),
+    (e) => /read itself/.test(JSON.stringify(e)),
+  );
+});
+
+test("computed fields: a loop made across several ops of one apply is refused over the final types", async () => {
+  const k = kit();
+  await base(k);
+  const f = (field: string, expr: string): SchemaOp => ({
+    op: "field.add",
+    type: "acme_person",
+    field,
+    def: { type: "formula", title: field, options: { expr } },
+  });
+  // each formula is fine when it is looked at alone against the types before the apply; together they read each other
+  await assert.rejects(
+    k.h["schema.apply"](k.ctx, {
+      ops: [
+        f("ga", "name"),
+        f("gb", "ga"),
+        { op: "field.update", type: "acme_person", field: "ga", def: { options: { expr: "gb" } } },
+      ],
+    }),
+    (e) => /read themselves|read itself/.test(JSON.stringify(e)),
+  );
+});

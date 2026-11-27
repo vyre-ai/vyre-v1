@@ -53,7 +53,10 @@ const removedAll = (asked: string[]): boolean =>
   asked.includes("rm -f vyre-sbrowser") &&
   asked.includes("volume rm -f vyre-sbrowser-data") &&
   asked.includes("network rm n_browser");
-const removedAny = (asked: string[]): boolean => asked.some((a) => /^rm -f|^volume rm|^network rm/.test(a));
+// the SHARED container, volume and network (this Space's own `vyre-sbrowser-<space id>` ones always go on a purge and are checked in their own test below)
+const OWN = /vyre-sbrowser-spc_mine/;
+const removedAny = (asked: string[]): boolean =>
+  asked.some((a) => /^rm -f|^volume rm|^network rm/.test(a) && !OWN.test(a));
 
 for (const os_ of ["linux", "macos"] as const) {
   test(`${os_}: a purge asks browserd to remove only this Space's profiles, by its Space id`, () => {
@@ -62,6 +65,20 @@ for (const os_ of ["linux", "macos"] as const) {
       asked.some((a) => a === 'exec vyre-sbrowser /opt/browserd/ctl purge_space {"spaceId":"spc_mine"}'),
       asked.join(" | "),
     );
+  });
+  test(`${os_}: this Space's own browser container, volume and network go on a purge, whatever else is on the engine`, () => {
+    for (const [reply, others] of [
+      ['{"removed":2,"others":3,"unmarked":0}', "0"],
+      ['{"removed":1,"others":0,"unmarked":0}', "1"],
+    ] as const) {
+      const { asked } = run(os_, reply, others);
+      for (const want of [
+        "rm -f vyre-sbrowser-spc_mine",
+        "volume rm -f vyre-sbrowser-spc_mine-data",
+        "network rm vyre-sbrowser-spc_minenet",
+      ])
+        assert.ok(asked.includes(want), `${want}: ${asked.join(" | ")}`);
+    }
   });
   test(`${os_}: another Space's profiles on the volume: the container, its volume and its network stay, and the purge says so`, () => {
     const { asked, out } = run(os_, '{"removed":2,"others":3,"unmarked":0}', "0");

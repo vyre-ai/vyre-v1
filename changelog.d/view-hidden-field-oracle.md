@@ -1,0 +1,4 @@
+A saved view filtered or sorted by a field a person cannot read no longer picks or places records for them: those records are left out of the view and its total.
+A saved view a person reads no longer gives away records it left out: a page is read on until it holds the number asked for, so it can hold more than the limit and is never short because a record was left out, and a restricted reader gets no total for a view that filters or sorts by a field.
+A view read now judges every caller record by record, owners and admins included, and reads on past records it leaves out; after 1,000 pages read a page can still end short, and its total is then left out. The total is the count of records the caller may have.
+A view read looks at no more than 5,000 records for one page and for its total: past that the page ends where it is and there is no total (exact totals for a big table are in records.counts).

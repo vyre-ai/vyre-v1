@@ -8,6 +8,9 @@ import { pathToFileURL } from "node:url";
 const runtime = path.resolve(process.argv[2] ?? "");
 const need = [
   "host/src/daemon/main.ts",
+  "host/src/daemon/run.ts",
+  "host/src/daemon/warm-cache.ts",
+  "host/src/daemon/slice-import.ts",
   "sandbox/src/seatbelt.ts",
   "sandbox/src/index.ts",
   "modules/engine/sandbox.ts",

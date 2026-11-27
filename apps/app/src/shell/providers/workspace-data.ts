@@ -2,7 +2,12 @@
 // agent_computer); `by` says whose each tab is. The workspace has no state of its own on the wire: it is Running while a session of it is alive and Asleep otherwise (it sleeps when idle and wakes on the
 // next command, which is what Attach and Wake do by opening a session). A refusal on open, such as no room, comes back as the sentence the server sent.
 import type { ScreenHooks } from "../../../../../client/src/index.ts";
-import type { WorkspaceData, WorkspaceSession, WorkspaceView } from "../../places/chats/rightpane/work-model.ts";
+import type {
+  JobView,
+  WorkspaceData,
+  WorkspaceSession,
+  WorkspaceView,
+} from "../../places/chats/rightpane/work-model.ts";
 
 export interface TerminalRowLike {
   terminalId: string;
@@ -164,13 +169,27 @@ export function workspaceData(d: {
           const projects = (await Promise.all((read.projects ?? []).map(nameOfProject))).filter(
             (x): x is string => x !== null,
           );
+          // the jobs it keeps running: asked only while it is awake (an asleep computer runs none, and the question never wakes it)
+          const jobs: JobView[] =
+            read.state === "running"
+              ? (
+                  (
+                    (await d.call("terminal.job.list", { agentId }).catch(() => ({ jobs: [] }))) as {
+                      jobs?: JobView[];
+                    }
+                  ).jobs ?? []
+                ).filter((j) => typeof j.jobId === "string")
+              : [];
           // what each terminal last printed, for the row's one live line: read for a few rows, never blocking the first paint (it comes with the next answer)
           const mineRows = rows.filter(
             (r) => r.agentId === agentId && r.host === "agent_computer" && r.state !== "exited",
           );
           if (live && mine === seq) {
             shown = true;
-            on(workspaceView(agentId, read, withStates(agentId, rows), projects, lastSeen.get(agentId)));
+            on({
+              ...workspaceView(agentId, read, withStates(agentId, rows), projects, lastSeen.get(agentId)),
+              ...(jobs.length > 0 ? { jobs } : {}),
+            });
           }
           if (mineRows.length > 0 && mineRows.length <= 12 && read.state === "running") {
             try {
@@ -187,7 +206,10 @@ export function workspaceData(d: {
               lastSeen.set(agentId, m);
               lastStates.set(agentId, ss);
               if (live && mine === seq && JSON.stringify([[...m], [...ss]]) !== before)
-                on(workspaceView(agentId, read, withStates(agentId, rows), projects, m));
+                on({
+                  ...workspaceView(agentId, read, withStates(agentId, rows), projects, m),
+                  ...(jobs.length > 0 ? { jobs } : {}),
+                });
             } catch {
               /* the rows keep what they had */
             }
@@ -215,6 +237,14 @@ export function workspaceData(d: {
     },
     async wake(agentId) {
       await open(agentId);
+    },
+    async stopJob(agentId, jobId) {
+      try {
+        await d.call("terminal.job.stop", { agentId, jobId, idempotencyKey: d.newKey() });
+      } catch (e) {
+        throw Object.assign(new Error(sentence(e)), { cause: e });
+      }
+      for (const f of refreshers.get(agentId) ?? []) f();
     },
     // the agent's computer has a terminal open before anyone asks: one open at a time per agent, and only while the agent has none (a second pane or a second call finds the first one's)
     async ensure(agentId) {

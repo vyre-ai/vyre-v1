@@ -850,6 +850,8 @@ test(
   },
 );
 
+// a file of this run's own: a fixed name under /tmp meets a file another user left there (the box's runner) and a root run cannot write it (fs.protected_regular), so the test read an old, dead process id
+const BGPID = `/tmp/vyre-bg-${process.pid}.pid`;
 test(
   "real tmux (release gate, 12 Nov): a command whose turn was stopped is interrupted at once, and the next command runs in a usable shell right away",
   { skip },
@@ -889,7 +891,7 @@ test(
       "after-trap",
     );
     // a background job the agent started earlier in the turn is left running when a later command of that turn is stopped
-    await host.run("trm_heavy_stop", { command: "sleep 300 & echo $! > /tmp/vyre-bg.pid", env: {}, timeoutMs: 20_000 });
+    await host.run("trm_heavy_stop", { command: `sleep 300 & echo $! > ${BGPID}`, env: {}, timeoutMs: 20_000 });
     const later = new AbortController();
     const fg = host.run("trm_heavy_stop", { command: "sleep 120", env: {}, timeoutMs: 150_000, signal: later.signal });
     await sleep(1500);
@@ -898,7 +900,7 @@ test(
     assert.equal(
       (
         await host.run("trm_heavy_stop", {
-          command: "kill -0 $(cat /tmp/vyre-bg.pid) && echo alive",
+          command: `kill -0 $(cat ${BGPID}) && echo alive`,
           env: {},
           timeoutMs: 20_000,
         })
@@ -906,7 +908,7 @@ test(
       "alive",
       "the background job is still running",
     );
-    await host.run("trm_heavy_stop", { command: "kill $(cat /tmp/vyre-bg.pid)", env: {}, timeoutMs: 20_000 });
+    await host.run("trm_heavy_stop", { command: `kill $(cat ${BGPID})`, env: {}, timeoutMs: 20_000 });
     await host.close("trm_heavy_stop");
   },
 );

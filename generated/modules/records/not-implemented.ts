@@ -21,6 +21,7 @@ export const handlers: Handlers<HandlerCtx> = {
   "records.export": async (ctx) => { throw new VyreErr(notImplemented("records.export", ctx.trace)); },
   "records.gap_check": async (ctx) => { throw new VyreErr(notImplemented("records.gap_check", ctx.trace)); },
   "records.get": async (ctx) => { throw new VyreErr(notImplemented("records.get", ctx.trace)); },
+  "records.get_many": async (ctx) => { throw new VyreErr(notImplemented("records.get_many", ctx.trace)); },
   "records.history": async (ctx) => { throw new VyreErr(notImplemented("records.history", ctx.trace)); },
   "records.hold": async (ctx) => { throw new VyreErr(notImplemented("records.hold", ctx.trace)); },
   "records.merge": async (ctx) => { throw new VyreErr(notImplemented("records.merge", ctx.trace)); },

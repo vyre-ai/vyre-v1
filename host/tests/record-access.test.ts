@@ -91,27 +91,65 @@ test("conditional hidden-field probes are rejected before any canonical row quer
     level: "view",
     conditions: { rowFilter: { op: "eq", field: "name", value: "no visible row" }, hiddenFields: ["secret"] },
   });
-  for (const input of [
-    { filter: { field: "secret", op: "eq", value: "no match" } },
-    { sort: [{ field: "secret", dir: "asc" }] },
-    { group: "secret" },
-  ])
-    await assert.rejects(
-      f.guard.collection(
-        "records.query",
-        { type: "type", ...input },
-        f.seed,
-        {
-          principal: "reader",
-          action: { perm: null, level: "view" },
-          resource: { type: "record_type", id: "type" },
-          now: 1,
-        },
-        "trace",
-      ),
-      (error) => (error as { error?: { code?: string } }).error?.code === "permission.no_grant",
+  const ask = (input: Record<string, unknown>) =>
+    f.guard.collection(
+      "records.query",
+      { type: "type", ...input },
+      f.seed,
+      {
+        principal: "reader",
+        action: { perm: null, level: "view" },
+        resource: { type: "record_type", id: "type" },
+        now: 1,
+      },
+      "trace",
     );
+  await assert.rejects(
+    ask({ filter: { field: "secret", op: "eq", value: "no match" } }),
+    (error) => (error as { error?: { code?: string } }).error?.code === "permission.no_grant",
+  );
   assert.equal(queries, 0);
+});
+test("a sort or group by a hidden field is not refused: the field counts as empty, so the stored order never follows its values", async () => {
+  const f = fixture();
+  const seen: unknown[] = [];
+  f.store.query = async (_type: string, q: unknown) => {
+    seen.push(q);
+    return { rows: [f.row] };
+  };
+  f.snapshot.putGrant({
+    id: "grant",
+    subject_kind: "actor",
+    subject_id: "reader",
+    resource_type: "record_type",
+    resource_id: "type",
+    level: "view",
+    conditions: { hiddenFields: ["secret"] },
+  });
+  for (const input of [{ sort: [{ field: "secret", dir: "asc" }] }, { group: "secret" }]) {
+    const scoped = await f.guard.collection(
+      "records.query",
+      { type: "type", ...input },
+      f.seed,
+      {
+        principal: "reader",
+        action: { perm: null, level: "view" },
+        resource: { type: "record_type", id: "type" },
+        now: 1,
+      },
+      "trace",
+    );
+    assert.ok(scoped, "the read is answered by the scoped path");
+    const out = (await scoped!.finish()) as { rows: Array<{ fields: Record<string, unknown> }> };
+    assert.equal(out.rows.length, 1, "the row is still there");
+    assert.equal("secret" in out.rows[0]!.fields, false, "and carries no hidden value");
+    const last = seen[seen.length - 1] as { sort?: Array<{ field: string }> };
+    assert.equal(
+      (last.sort ?? []).some((row) => row.field === "secret"),
+      false,
+      "the read that answered was not ordered by the hidden field",
+    );
+  }
 });
 test("dropping classified fields or a type after preparation never declassifies retained values", async () => {
   const f = fixture();
@@ -308,4 +346,90 @@ test("a restricted reader's page waits for a record the snapshot has not folded 
   };
   assert.deepEqual(await read(), ["row", "late", "tail"], "no existing record was skipped");
   assert.equal(refreshes, 1, "one fold found them");
+});
+
+test("a page of 200 records reads their computed values and rows in a constant number of queries, whatever the type has", async () => {
+  const f = fixture();
+  const ids = Array.from({ length: 200 }, (_, i) => `row${i}`);
+  for (const id of ids)
+    f.snapshot.putResource({ id, type: "record", parent_id: "type", label: 0, owner_id: null, holds: 0 });
+  const store = {
+    types: async () => [
+      {
+        name: "type",
+        fields: [
+          { name: "name", kind: "text" },
+          { name: "secret", kind: "text", sensitivity: "restricted" },
+          { name: "double0", kind: "number" },
+          { name: "double1", kind: "number" },
+          { name: "double2", kind: "number" },
+        ],
+      },
+    ],
+    get: async (_t: string, id: string) => ({ ...f.row, id }),
+  } as unknown as Store;
+  let asked = 0;
+  const side: { has: boolean; fields: number } = { has: false, fields: 1 };
+  const guard = createRecordAccess({
+    store: () => store,
+    snapshot: () => f.snapshot,
+    now: () => 1,
+    fresh: () => true,
+    rows: {
+      all: (sql: string, ...args: unknown[]) => {
+        asked++;
+        if (/FROM records_computed WHERE type = \? LIMIT 1/.test(sql)) return side.has ? [{ x: 1 }] : [];
+        if (/FROM records_computed_job/.test(sql)) return [];
+        if (/FROM records_computed WHERE type = \? AND id IN/.test(sql))
+          return (args.slice(1) as string[]).flatMap((id) =>
+            Array.from({ length: side.fields }, (_, n) => ({
+              id,
+              field: `double${n}`,
+              value: "2",
+              inputs: '["type.name"]',
+              kind: "formula",
+              computed_at: 1,
+              link_ids: null,
+            })),
+          );
+        if (/FROM rt_type WHERE deleted_at IS NULL AND id IN/.test(sql))
+          return (args as string[]).map((id) => ({ id, data: JSON.stringify(f.row.data) }));
+        if (/FROM records_computed WHERE type = \? AND id = \?/.test(sql) || /FROM rt_type WHERE id = \?/.test(sql))
+          return ["one query for one record"].map(() => ({}));
+        return [];
+      },
+    },
+  });
+  const page = ids.map((id) => ({ id, fields: f.row.data }));
+  const run = async (): Promise<{ asked: number; rows: Array<{ fields: Record<string, unknown> }> }> => {
+    asked = 0;
+    const finish = await guard.project("records.query", { type: "type" }, f.seed, { rows: page }, "trace");
+    const out = (await finish()) as { rows: Array<{ fields: Record<string, unknown> }> };
+    return { asked, rows: out.rows };
+  };
+  const without = await run();
+  side.has = true;
+  const one = await run();
+  side.fields = 3;
+  const three = await run();
+  console.log(
+    `SQL statements for a page of 200 rows: ${without.asked} with no computed field, ${one.asked} with one, ${three.asked} with three`,
+  );
+  assert.equal(without.rows.length, 200);
+  assert.ok(
+    without.asked <= 2,
+    `a type with no computed field costs a constant number of statements (${without.asked})`,
+  );
+  assert.ok(
+    one.rows.every((r) => r.fields["double0"] === 2),
+    "control: every row has its computed value",
+  );
+  assert.ok(
+    three.rows.every((r) => r.fields["double2"] === 2),
+    "and with three computed fields",
+  );
+  assert.ok(
+    one.asked <= 8 && three.asked <= 8,
+    `a page costs a constant number of statements however many rows and fields (${one.asked}, ${three.asked})`,
+  );
 });

@@ -1,0 +1,1 @@
+- An agent that needs a person to finish a login in its terminal or browser can ask for it: one sign-in card appears in the chat where it asked, with Open terminal or Open browser and Done for the people who may take over that computer, and "Waiting for <name> to sign in" for everyone else.

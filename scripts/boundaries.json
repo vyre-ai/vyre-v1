@@ -211,6 +211,8 @@
       "modules/memory/local-embedder.ts",
       "ui/src/theme/theme.firstframe.test.ts",
       "host/src/loader.ts",
+      "host/src/daemon/warm-cache.ts",
+      "host/src/daemon/slice-import.ts",
       "agent/tests/sandbox.heavy.test.ts",
       "agent/tests/sandbox.net.heavy.test.ts",
       "apps/desktop/tests/personal.heavy.test.ts",

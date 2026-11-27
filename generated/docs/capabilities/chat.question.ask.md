@@ -35,10 +35,14 @@ type In = {
     }>;
   allowOther?: boolean;
   card?: {
-    kind: "terminal";
-    command: string;
+    kind: "terminal" | "signin";
+    command?: string;
     host?: "agent_computer" | "space_server" | "device";
     risk?: "read" | "change" | "danger";
+    surface?: "terminal" | "browser";
+    terminalId?: string;
+    site?: string;
+    agentId?: string;
   };
 };
 ```
@@ -68,10 +72,14 @@ type Out = {
   "input": {
     "allowOther": true,
     "card": {
+      "agentId": "agt_a1b2c3",
       "command": "example",
       "host": "agent_computer",
       "kind": "terminal",
-      "risk": "read"
+      "risk": "read",
+      "site": "example",
+      "surface": "terminal",
+      "terminalId": "trm_a1b2c3"
     },
     "mode": "single",
     "options": [

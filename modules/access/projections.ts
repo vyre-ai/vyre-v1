@@ -1,7 +1,9 @@
 // Access projections (ARCH 4.5). Roles, groups, grants, resources, policies and the authorize snapshot.
 // Built-in role columns come from the permission catalogue. The snapshot is the hot path; access.changed drops it.
 // Durable tables: migrations/0001_access_core.sql. Authorize never reads a module table except through this snapshot.
+import { loopYield } from "../../lib/loop-budget.ts";
 import { fail } from "../../host/src/routes/errors.ts";
+import { rawDbOf } from "../../host/src/ctx/db.ts";
 import { registry } from "../../generated/registry.ts";
 import type { PermissionDef } from "../../packages/contracts/src/index.ts";
 import { AccessSnapshot } from "../../kernel/src/authorize/index.ts";
@@ -435,6 +437,9 @@ const grantVals = (g: GrantRec): unknown[] => [
   1,
 ];
 
+/** How many rows a sliced hydrate reads and turns into records between two yields (a test sets it low to force many). */
+export const hydrateTuning = { page: 250 };
+
 export class AccessStore {
   epoch = 0;
   catalogue = new Set<string>();
@@ -486,6 +491,25 @@ export class AccessStore {
   bump(): void {
     this.epoch++;
     this.snap = null;
+  }
+  /**
+   * `bump` for a change to the named resources only: the snapshot this store holds is changed in place for those rows (as access.sync does for a registered object) and kept, not built again from
+   * every resource (that was 0.1 s to 0.3 s on 38,000 resources, for each folder the sweep made follow its record). Without a current snapshot there is nothing to change and it is dropped, as `bump` does.
+   */
+  bumpResources(ids: readonly string[]): void {
+    const held = this.snap !== null && this.snapEpoch === this.epoch ? this.snap : null;
+    this.epoch++;
+    this.snap = null;
+    if (!held) return;
+    const recs: ResourceRec[] = [];
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      if (!r) return; // a row removed: built again when asked
+      recs.push(r);
+    }
+    for (const r of recs) held.putResource(kernelResource(r));
+    this.snap = held;
+    this.snapEpoch = this.epoch;
   }
   invalidate(): void {
     this.snap = null;
@@ -573,7 +597,36 @@ export class AccessStore {
     return this.build();
   }
 
+  /**
+   * `snapshot()` for a store nobody else holds yet (one just read in slices): the snapshot is built with a turn of the event loop between its steps, and kept for the epoch it was built at. Building it
+   * in one go held the loop for 40 ms to 100 ms on 38,000 resources, the first time each writer needed it.
+   */
+  async snapshotSliced(): Promise<AccessSnapshot> {
+    if (this.snap && this.snapEpoch === this.epoch) return this.snap;
+    const epoch = this.epoch;
+    const steps = this.buildSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) {
+        if (this.epoch === epoch && !(this.snap && this.snapEpoch === epoch)) {
+          this.snap = r.value;
+          this.snapEpoch = epoch;
+        }
+        return this.snap && this.snapEpoch === this.epoch ? this.snap : r.value;
+      }
+      await loopYield();
+    }
+  }
+
   private build(): AccessSnapshot {
+    const steps = this.buildSteps();
+    for (;;) {
+      const r = steps.next();
+      if (r.done) return r.value;
+    }
+  }
+
+  private *buildSteps(): Generator<void, AccessSnapshot, void> {
     const snap = new AccessSnapshot();
     snap.labelNames = ["Public", "Internal", "Confidential", "Restricted"];
     for (const r of this.roles.values()) {
@@ -603,7 +656,16 @@ export class AccessStore {
     for (const a of this.actors.values())
       if (a.engineerMcp && a.status === "active") snap.addPrincipalRole({ holder: a.id, role: "rol_engineer_mcp" });
     for (const g of this.groups.values()) for (const m of g.members) snap.addMember({ group: g.id, member: m.id });
-    for (const r of this.resources.values()) snap.putResource(kernelResource(r));
+    let batch: ResourceRow[] = [];
+    for (const r of this.resources.values()) {
+      batch.push(kernelResource(r));
+      if (batch.length >= 1000) {
+        snap.putResources(batch);
+        batch = [];
+        yield;
+      }
+    }
+    snap.putResources(batch);
     for (const k of this.fieldLabels.keys())
       if (k.startsWith("assistant:")) snap.setAssistant(k.slice("assistant:".length), true);
     for (const g of this.grants.values()) snap.putGrant(kernelGrant(g));
@@ -693,7 +755,7 @@ export class AccessStore {
    * Every row of the durable tables as this store holds it: table, primary key columns, and each row's columns. `persist` compares this with what the store last read or wrote, so it writes
    * only what this store changed. A call holds its own copy of the store (hydrated when the call began), and a whole-table rewrite from an older copy wrote away the rows other calls had added since.
    */
-  private rows(): Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> {
+  private rows(withResources = true): Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> {
     const out: Array<{ table: string; pk: string[]; cols: string[]; vals: unknown[] }> = [];
     const add = (table: string, pk: string[], cols: string[], vals: unknown[]): void => {
       out.push({ table, pk, cols, vals });
@@ -744,13 +806,9 @@ export class AccessStore {
       for (const roleId of roles)
         add("access_assignments", ["holder", "role_id"], ["holder", "role_id"], [holder, roleId]);
     for (const g of this.grants.values()) add("access_grants", ["id"], GRANT_COLS, grantVals(g));
-    for (const r of this.resources.values())
-      add(
-        "access_resources",
-        ["id"],
-        ["id", "type", "parent_id", "label", "owner_id", "holds", "row_json"],
-        [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null],
-      );
+    if (withResources)
+      for (const r of this.resources.values())
+        add("access_resources", ["id"], SHAPES["access_resources"]!.cols, resourceVals(r));
     for (const p of this.policies.values())
       add(
         "access_policies",
@@ -784,9 +842,9 @@ export class AccessStore {
   }
 
   /** The rows as they stand now, by table and key, as the comparison `persist` makes next time. */
-  private baseline(): Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> {
+  private baseline(withResources = true): Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> {
     const by = new Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }>();
-    for (const r of this.rows()) {
+    for (const r of this.rows(withResources)) {
       let t = by.get(r.table);
       if (!t) {
         t = { pk: r.pk, cols: r.cols, vals: new Map() };
@@ -798,6 +856,12 @@ export class AccessStore {
   }
 
   private base: Map<string, { pk: string[]; cols: string[]; vals: Map<string, unknown[]> }> | null = null;
+  /**
+   * The resource rows as this store last read or wrote them, field by field (not as JSON): the table that grows with the Space (38,000 rows on a firm's) is not worked out into JSON on every commit to
+   * find the few rows a handler changed. A resource is unchanged when its fields and its `row` object are the ones recorded; handlers replace `row`, they never edit it in place. Null where this store has no
+   * copy of the table to compare with (it was seeded, or not read), and then every resource is written.
+   */
+  private resBase: Map<string, ResourceRec> | null = null;
   /** The rows hydrate read, until the first persist turns them into `base`. Building the comparison only when something is written keeps a read of the store cheap. */
   private raw: Map<string, Record<string, unknown>[]> | null = null;
 
@@ -807,6 +871,7 @@ export class AccessStore {
     for (const [table, rows] of this.raw) {
       const shape = SHAPES[table];
       if (!shape) continue;
+      if (table === "access_resources" && this.resBase) continue;
       const vals = new Map<string, unknown[]>();
       for (const row of rows)
         vals.set(
@@ -820,7 +885,8 @@ export class AccessStore {
 
   /** Write what this store changed since it last read or wrote the tables: a changed or new row is upserted, a row it dropped is deleted, and nothing else is touched. */
   persist(db: Db): void {
-    const now = this.baseline();
+    const byFields = persistMode.resourcesByFields;
+    const now = this.baseline(!byFields);
     const was = this.base ?? this.fromRaw();
     for (const [table, t] of now) {
       const before = was?.get(table)?.vals;
@@ -857,6 +923,124 @@ export class AccessStore {
     }
     this.base = now;
     this.raw = null;
+    if (byFields) this.persistResourceRows(db);
+  }
+
+  /** The resource rows that differ from the rows this store read or wrote: upserted, and deleted where the store dropped them. Costs one comparison of fields per resource, no JSON of the unchanged ones. */
+  private persistResourceRows(db: Db): void {
+    const was = this.resBase;
+    const next = was ?? new Map<string, ResourceRec>();
+    const cols = SHAPES["access_resources"]!.cols;
+    const sql = `INSERT OR REPLACE INTO access_resources (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`;
+    let seen = 0;
+    for (const r of this.resources.values()) {
+      const s = was?.get(r.id);
+      if (s) {
+        seen++;
+        if (
+          s.type === r.type &&
+          s.parentId === r.parentId &&
+          s.label === r.label &&
+          s.ownerId === r.ownerId &&
+          s.holds === r.holds &&
+          s.row === r.row
+        )
+          continue;
+        // the fields moved but the row it would write is the same (a row replaced by an equal one): not written, as before
+        if (JSON.stringify(resourceVals(s)) === JSON.stringify(resourceVals(r))) {
+          next.set(r.id, { ...r });
+          continue;
+        }
+      }
+      db.run(sql, ...resourceVals(r));
+      next.set(r.id, { ...r });
+    }
+    if (was && was.size > seen)
+      for (const id of [...was.keys()])
+        if (!this.resources.has(id)) {
+          db.run(`DELETE FROM access_resources WHERE "id" = ?`, id);
+          was.delete(id);
+        }
+    this.resBase = next;
+  }
+
+  /**
+   * Write the rows of the named resources that differ from what this store read (or last wrote), and the epoch: nothing else is compared or written. For a handler that changes only those resources
+   * (a folder made to follow a record). `persist` turns every row of every table into text to find the same few rows (0.3 s on 11,000 resources, seconds on a firm's). Answers the rows written (what
+   * the write counter moves by), or null when the store holds no copy of the resource rows to compare with (the caller then uses `persist`).
+   */
+  persistChangedResources(db: Db, ids: readonly string[]): number | null {
+    if (this.resBase) return this.persistResourcesByFields(db, ids);
+    const shape = SHAPES["access_resources"]!;
+    const rawRows = this.raw?.get("access_resources");
+    const baseVals = this.base?.get("access_resources")?.vals;
+    if (!rawRows && !baseVals) return null;
+    const valsOf = (row: Record<string, unknown>): unknown[] => shape.cols.map((c) => row[c] ?? null);
+    let writes = 0;
+    for (const id of ids) {
+      const r = this.resources.get(id);
+      const key = JSON.stringify([id]);
+      let before: unknown[] | undefined;
+      let at = -1;
+      if (rawRows) {
+        at = rawRows.findIndex((x) => x["id"] === id);
+        if (at >= 0) before = valsOf(rawRows[at]!);
+      } else before = baseVals!.get(key);
+      if (!r) {
+        if (before === undefined) continue;
+        writes += db.run(`DELETE FROM access_resources WHERE "id" = ?`, id).changes;
+        if (rawRows && at >= 0) rawRows.splice(at, 1);
+        else baseVals?.delete(key);
+        continue;
+      }
+      const vals = [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
+      if (before !== undefined && JSON.stringify(before) === JSON.stringify(vals)) continue;
+      const cols = shape.cols.map((c) => `"${c}"`).join(",");
+      writes += db.run(
+        `INSERT OR REPLACE INTO access_resources (${cols}) VALUES (${shape.cols.map(() => "?").join(",")})`,
+        ...vals,
+      ).changes;
+      if (rawRows) {
+        const row = Object.fromEntries(shape.cols.map((c, i) => [c, vals[i]]));
+        if (at >= 0) rawRows[at] = row;
+        else rawRows.push(row);
+      } else baseVals!.set(key, vals);
+    }
+    writes += db.run(
+      `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+      "space",
+      this.epoch,
+    ).changes;
+    return writes;
+  }
+
+  /** `persistChangedResources` where the store keeps the rows it read as fields (`resBase`): one comparison of fields per named resource, no JSON of an unchanged one. */
+  private persistResourcesByFields(db: Db, ids: readonly string[]): number {
+    const was = this.resBase!;
+    const cols = SHAPES["access_resources"]!.cols;
+    let writes = 0;
+    for (const id of new Set(ids)) {
+      const r = this.resources.get(id);
+      const s = was.get(id);
+      if (!r) {
+        if (!s) continue;
+        writes += db.run(`DELETE FROM access_resources WHERE "id" = ?`, id).changes;
+        was.delete(id);
+        continue;
+      }
+      if (s && JSON.stringify(resourceVals(s)) === JSON.stringify(resourceVals(r))) continue;
+      writes += db.run(
+        `INSERT OR REPLACE INTO access_resources (${cols.map((c) => `"${c}"`).join(",")}) VALUES (${cols.map(() => "?").join(",")})`,
+        ...resourceVals(r),
+      ).changes;
+      was.set(id, { ...r });
+    }
+    writes += db.run(
+      `INSERT INTO access_meta (id,epoch) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET epoch = max(epoch, excluded.epoch)`,
+      "space",
+      this.epoch,
+    ).changes;
+    return writes;
   }
 
   /**
@@ -921,6 +1105,47 @@ export class AccessStore {
   }
 
   /**
+   * Write the Trash mark of these resources, which already have a row: only row_json changes, so the rows that now hold the same text are written by one UPDATE for each hundreds of ids (a folder of ten thousand
+   * files is a few dozen statements, not a hundred deletes and inserts). What was written is noted in the comparison `persist` makes, as in persistResources.
+   */
+  persistMarks(db: Db, ids: Iterable<string>): void {
+    if (!this.base && this.raw) {
+      this.base = this.fromRaw();
+      this.raw = null;
+    }
+    const byText = new Map<string | null, ResourceRec[]>();
+    for (const id of new Set(ids)) {
+      const r = this.resources.get(id);
+      if (!r) continue;
+      const text = r.row ? JSON.stringify(r.row) : null;
+      const at = byText.get(text);
+      if (at) at.push(r);
+      else byText.set(text, [r]);
+    }
+    const write = (): void => {
+      for (const [text, rows] of byText)
+        for (let i = 0; i < rows.length; i += 500) {
+          const part = rows.slice(i, i + 500);
+          db.run(
+            `UPDATE access_resources SET row_json = ? WHERE id IN (${part.map(() => "?").join(",")})`,
+            text,
+            ...part.map((r) => r.id),
+          );
+          if (!this.base) continue;
+          let t = this.base.get("access_resources");
+          if (!t) {
+            t = { pk: SHAPES["access_resources"]!.pk, cols: SHAPES["access_resources"]!.cols, vals: new Map() };
+            this.base.set("access_resources", t);
+          }
+          for (const r of part)
+            t.vals.set(JSON.stringify([r.id]), [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, text]);
+        }
+    };
+    if (db.batch) db.batch(write);
+    else write();
+  }
+
+  /**
    * Write just these resources and the cursor of the folded events, for a batch that only registered objects (consumers.ts `apply`): two statements per object instead of the comparison of
    * every row `persist` makes. What was written is noted in that comparison, so a later `persist` of this store neither writes these rows again nor misses one.
    */
@@ -930,6 +1155,11 @@ export class AccessStore {
       this.raw = null;
     }
     const note = (table: string, key: unknown[], vals: unknown[]): void => {
+      if (table === "access_resources" && this.resBase) {
+        const r = this.resources.get(String(key[0]));
+        if (r) this.resBase.set(r.id, { ...r });
+        return;
+      }
       if (!this.base) return;
       let t = this.base.get(table);
       const shape = SHAPES[table]!;
@@ -944,7 +1174,7 @@ export class AccessStore {
       for (const id of new Set(ids)) {
         // an id named twice is written once
         const r = this.resources.get(id);
-        if (r) rows.push([r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null]);
+        if (r) rows.push(resourceVals(r));
       }
       // a hundred objects to a statement: a thousand new objects were two thousand statements, each through the guard and the trigger that moves the write counter
       for (let i = 0; i < rows.length; i += 100) {
@@ -981,12 +1211,39 @@ export class AccessStore {
   }
 
   hydrate(db: Db): void {
+    for (const step of this.hydrateSteps(db)) void step;
+  }
+
+  /**
+   * hydrate in steps: the three tables that grow with the Space (resources, grants, principals) are read a page at a time (1,000 rows) and their rows turned into records a page at a time, and each page or
+   * batch ends with a yield. hydrate() runs the steps straight through; a caller that can wait (loadStoreSliced, for access.sync at a start: reading 38,000 resources whole held the loop 4.4 s) gives
+   * the event loop a turn at each yield. The result is the same store either way.
+   */
+  *hydrateSteps(db: Db): Generator<void, void, void> {
     // the rows as read are kept: they are what the next persist compares against, and keeping them costs nothing here
     const raw = new Map<string, Record<string, unknown>[]>();
     const read = (table: string): unknown[] => {
       const rows = db.all(`SELECT * FROM ${table}`) as Record<string, unknown>[];
       raw.set(table, rows);
       return rows;
+    };
+    const readPaged = function* (table: string): Generator<void, Record<string, unknown>[], void> {
+      const out: Record<string, unknown>[] = [];
+      for (let after = 0; ; ) {
+        const page = db.all(
+          `SELECT rowid AS _rid, * FROM ${table} WHERE rowid > ? ORDER BY rowid LIMIT ${hydrateTuning.page}`,
+          after,
+        ) as Record<string, unknown>[];
+        for (const r of page) {
+          after = Number(r["_rid"]);
+          delete r["_rid"];
+          out.push(r);
+        }
+        if (page.length < hydrateTuning.page) break;
+        yield;
+      }
+      raw.set(table, out);
+      return out;
     };
     this.roles.clear();
     this.roleChanges.clear();
@@ -999,6 +1256,7 @@ export class AccessStore {
     this.assignments.clear();
     this.fieldLabels.clear();
     this.catalogue.clear();
+    const shadow = persistMode.resourcesByFields ? new Map<string, ResourceRec>() : null;
     const meta = read("access_meta") as { epoch: number }[];
     for (const r of read("access_roles") as Record<string, unknown>[]) {
       const permissions = JSON.parse(String(r.permissions)) as string[];
@@ -1036,7 +1294,9 @@ export class AccessStore {
         managers: JSON.parse(String(g.managers)) as Ref[],
       });
     }
-    for (const p of read("access_principals") as Record<string, unknown>[]) {
+    let sinceYield = 0;
+    for (const p of (yield* readPaged("access_principals")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const rec: PrincipalRec = {
         id: String(p.id),
         kind: p.kind as PKind,
@@ -1053,7 +1313,8 @@ export class AccessStore {
       list.push(a.role_id);
       this.assignments.set(a.holder, list);
     }
-    for (const g of read("access_grants") as Record<string, unknown>[]) {
+    for (const g of (yield* readPaged("access_grants")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const conditions = JSON.parse(String(g.conditions)) as Cond;
       if (g.expiresAt != null && conditions.expiresAt === undefined) conditions.expiresAt = Number(g.expiresAt);
       const rec: GrantRec = {
@@ -1068,7 +1329,8 @@ export class AccessStore {
       if (g.source) rec.source = String(g.source);
       this.grants.set(rec.id, rec);
     }
-    for (const r of read("access_resources") as Record<string, unknown>[]) {
+    for (const r of (yield* readPaged("access_resources")) as Record<string, unknown>[]) {
+      if (++sinceYield % hydrateTuning.page === 0) yield;
       const rec: ResourceRec = {
         id: String(r.id),
         type: String(r.type),
@@ -1079,6 +1341,7 @@ export class AccessStore {
       };
       if (r.row_json) rec.row = JSON.parse(String(r.row_json)) as Record<string, unknown>;
       this.resources.set(rec.id, rec);
+      shadow?.set(rec.id, { ...rec });
     }
     for (const p of read("access_policies") as Record<string, unknown>[]) {
       const rec: PolicyRec = {
@@ -1119,9 +1382,24 @@ export class AccessStore {
     this.snap = null;
     this.snapEpoch = -1;
     this.base = null;
+    if (shadow) raw.delete("access_resources");
+    this.resBase = shadow;
     this.raw = raw;
   }
 }
+
+/** A resource as access_resources holds it, in the order of the table's columns. */
+function resourceVals(r: ResourceRec): unknown[] {
+  return [r.id, r.type, r.parentId, r.label, r.ownerId, r.holds, r.row ? JSON.stringify(r.row) : null];
+}
+
+/**
+ * The Trash mark of a file or folder resource, kept in the resource's own row (row_json, no migration): the id of the file or folder whose move to Trash took this one with it (the same value as the
+ * root_id of Files' own Trash row). The access module folds Files' Trash events into it (consumers.ts trashEvent), so a list reads it with the rows it already has, and asks Files nothing.
+ */
+export const TRASH_KEY = "trashRoot";
+/** Is this resource in Trash (the mark is set)? */
+export const isTrashed = (r: ResourceRec | undefined): boolean => typeof r?.row?.[TRASH_KEY] === "string";
 
 /** A resource as the authorize snapshot holds it. */
 export function kernelResource(r: ResourceRec): ResourceRow {
@@ -1189,7 +1467,7 @@ export function pkey(key: string, scope: string): string {
 const STORES = new WeakMap<Db, AccessStore>();
 
 /** The tables' write counter (migrations/0006_local_stamp.sql), or null where there is none. */
-function stampNow(db: Db): number | null {
+export function stampNow(db: Db): number | null {
   try {
     const n = (db.all(`SELECT "n" FROM access_local_stamp WHERE "id" = 1`)[0] as { n?: unknown } | undefined)?.n;
     return typeof n === "number" || typeof n === "bigint" ? Number(n) : null;
@@ -1214,7 +1492,7 @@ export interface GrantChange {
 }
 type GrantCtx = Pick<AccessCtx, "db" | "emit" | "principal">;
 /** For the tests: false makes grant handlers read and write the whole store, as every handler did, to compare the tables the two ways leave. */
-export const persistMode = { targeted: true };
+export const persistMode = { targeted: true, resourcesByFields: true };
 let grantAdopter: ((ctx: GrantCtx, change: GrantChange) => void) | null = null;
 export function setGrantAdopter(f: (ctx: GrantCtx, change: GrantChange) => void): void {
   grantAdopter = f;
@@ -1253,6 +1531,59 @@ export function grantWriter<C extends object, A extends unknown[], R>(
   };
 }
 
+/**
+ * The writer store a folder-follows call left behind (audienceSet), per database, with the write counter as that call left it. The next writer takes it instead of reading the tables again (38,000 resources
+ * is 39 page reads per call, and the folder sweep makes one call per project): it is taken only while the counter stands where the call left it, so nothing else has written since, and it is handed
+ * to one call at a time (taking it removes it; a call that finishes puts it back with keepWarm).
+ */
+const WARM = new WeakMap<object, { store: AccessStore; stamp: number }>();
+function takeWarm(ctx: AccessCtx): AccessStore | null {
+  const raw = rawDbOf(ctx.db);
+  const w = raw ? WARM.get(raw) : undefined;
+  if (!raw || !w) return null;
+  WARM.delete(raw);
+  if (stampNow(ctx.db) !== w.stamp) return null;
+  LOAD_STAMP.set(w.store, w.stamp);
+  return w.store;
+}
+/** The warm writer store, looked at and not taken: null unless the tables still stand where its last call left them. */
+export function peekWarm(ctx: AccessCtx): AccessStore | null {
+  const raw = rawDbOf(ctx.db);
+  const w = raw ? WARM.get(raw) : undefined;
+  return w && stampNow(ctx.db) === w.stamp ? w.store : null;
+}
+/** What a writer that changed only resources hands to the kept store of access.sync, so it takes the change in place instead of reading the tables again (consumers.ts). */
+export interface ResourceChange {
+  loaded: number;
+  after: number;
+  ids: readonly string[];
+  store: AccessStore;
+}
+let resourceAdopter: ((ctx: GrantCtx, change: ResourceChange) => void) | null = null;
+export function setResourceAdopter(f: (ctx: GrantCtx, change: ResourceChange) => void): void {
+  resourceAdopter = f;
+}
+/** What changedResources saw of the write counter inside the transaction that wrote the rows: where it stood when the transaction began (it holds the write lock from there), the rows it wrote, where it stood after. */
+const WRITTEN = new WeakMap<AccessStore, { before: number | null; after: number | null; writes: number }>();
+/**
+ * A handler that changed only the named resources and wrote them keeps its store for the next writer, and the kept store of access.sync takes the same rows in place. It is kept only when the counter
+ * (maintained by the tables' triggers) stood, at the start of the very transaction that wrote the rows, exactly where the store was read: nothing was written to the access tables in between, by anyone.
+ * The rows counted against the counter's move are only a second look that can refuse (a write that fired no trigger or an uncounted one): it never accepts. Call it last, once the change is complete.
+ */
+export function keepWarm(ctx: AccessCtx, store: AccessStore, writes: number | null, ids: readonly string[]): void {
+  const raw = rawDbOf(ctx.db);
+  const loaded = LOAD_STAMP.get(store);
+  const w = WRITTEN.get(store);
+  WRITTEN.delete(store);
+  if (!raw || writes === null || !w || store.isGrantView || loaded == null) return;
+  if (w.before === null || w.after === null || w.before !== loaded) return; // the tables moved since the store was read: not kept
+  if (w.after !== w.before + w.writes || w.writes !== writes) return; // a write the rows do not account for: not kept
+  if (stampNow(ctx.db) !== w.after) return;
+  resourceAdopter?.(ctx, { loaded, after: w.after, ids, store });
+  LOAD_STAMP.set(store, w.after);
+  WARM.set(raw, { store, stamp: w.after });
+}
+
 export function storeOf(ctx: AccessCtx): AccessStore {
   // a read-only capability (handlers/index.ts readOnly) reads the kept view of access.sync: no read of the tables, and no way to change it
   if (READERS.has(ctx) && readView) {
@@ -1261,14 +1592,58 @@ export function storeOf(ctx: AccessCtx): AccessStore {
   }
   let s = STORES.get(ctx.db);
   if (s) return s;
-  s = loadStore(ctx.db);
+  // a read never writes: on empty tables a reader answers from the seed in memory, writes nothing (a write here could race the owner's claim on a fresh Space) and keeps nothing, so the writer's first
+  const reader = READERS.has(ctx);
+  if (!reader) {
+    const warm = takeWarm(ctx);
+    if (warm) {
+      STORES.set(ctx.db, warm);
+      return warm;
+    }
+  }
+  let kept = true;
+  s = loadStore(
+    ctx.db,
+    (ok) => {
+      if (!ok && reader) kept = false;
+    },
+    !reader,
+  );
   LOAD_STAMP.set(s, stampNow(ctx.db));
-  STORES.set(ctx.db, s);
+  if (kept) STORES.set(ctx.db, s);
   return s;
 }
 
-/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once. */
-export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore {
+/**
+ * The writer store of this call's db handle, read in slices before the handler first asks for it (storeOf then finds it). A handler that is async can wait for this; reading the tables whole inside
+ * storeOf held the event loop for up to 0.4 s per call on a Space of 38,000 records (the folder sweep makes 40 such calls). The store is kept only if the write counter did not move while it was read;
+ * otherwise nothing is kept and storeOf reads the tables as before.
+ */
+export async function primeStore(ctx: AccessCtx): Promise<void> {
+  if (READERS.has(ctx) || STORES.has(ctx.db)) return;
+  const warm = takeWarm(ctx);
+  if (warm) {
+    STORES.set(ctx.db, warm);
+    return;
+  }
+  const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
+  // another writer may move the counter while the tables are read in slices: the read is made again (a few times) before storeOf is left to read them whole, which holds the loop for the whole read
+  for (let tries = 0; tries < 4; tries++) {
+    const before = stampNow(ctx.db);
+    if (before === null || before === undefined) return;
+    const s = await loadStoreSliced(ctx.db, turn);
+    if (!s || STORES.has(ctx.db)) return;
+    await s.snapshotSliced();
+    if (STORES.has(ctx.db)) return;
+    if (stampNow(ctx.db) !== before) continue;
+    LOAD_STAMP.set(s, before);
+    STORES.set(ctx.db, s);
+    return;
+  }
+}
+
+/** A store read from the tables; a Space whose tables are empty gets the built-in roles and policies, written at once (`persist` false: seeded in memory only, for a read). */
+export function loadStore(db: Db, written?: (ok: boolean) => void, persist = true): AccessStore {
   const s = new AccessStore();
   let rows: unknown[] = [];
   try {
@@ -1285,12 +1660,36 @@ export function loadStore(db: Db, written?: (ok: boolean) => void): AccessStore 
       /* a Space from before migration 0004 */
     }
     s.seed();
+    if (!persist) {
+      written?.(false); // the seed stays in memory: the caller must not keep this store as if the tables held it
+      return s;
+    }
     // a db that cannot take the tables still serves the memory snapshot; `written` says the seed did not reach them, so nobody keeps this store as if it had
     try {
       s.persist(db);
     } catch {
       written?.(false);
     }
+  }
+  return s;
+}
+
+/**
+ * A store read from the tables in steps, with `turn` awaited between them so the event loop is served meanwhile. Null where the tables hold no roles yet: that is the seed path, which loadStore
+ * takes. The tables may change while it is read (another handler writes between two steps): the caller compares the write counter before and after and discards the store if it moved.
+ */
+export async function loadStoreSliced(db: Db, turn: () => Promise<void>): Promise<AccessStore | null> {
+  let rows: unknown[] = [];
+  try {
+    rows = db.all("SELECT id FROM access_roles LIMIT 1");
+  } catch {
+    rows = [];
+  }
+  if (!rows.length) return null;
+  const s = new AccessStore();
+  for (const step of s.hydrateSteps(db)) {
+    void step;
+    await turn();
   }
   return s;
 }
@@ -1353,25 +1752,53 @@ class SealedMap<K, V> extends Map<K, V> {
   sealed = false;
   /** Moves on every change, so what is derived from the map (an index of the children of each resource) can be kept while it stands. */
   version = 0;
+  /** The keys changed at versions floor+1 .. version, newest last (bounded): what a holder of an older version has to look at, instead of every entry. (The Map constructor calls `set` before these fields exist: those are not logged.) */
+  private log: K[] = [];
+  private floor = 0;
+  private note(k: K): void {
+    const log = this.log as K[] | undefined;
+    if (!log) return;
+    log.push(k);
+    if (log.length > 4096) {
+      const drop = log.length - 2048;
+      log.splice(0, drop);
+      this.floor += drop;
+    }
+  }
+  /** The keys changed since `version`, or null when that is older than the log goes back (look at everything). */
+  changesSince(version: number): K[] | null {
+    if (version < this.floor || version > this.version) return null;
+    return this.log.slice(version - this.floor);
+  }
   override set(k: K, v: V): this {
     if (this.sealed) {
       mustWrite();
       deepFreeze(v);
     }
     this.version++;
+    this.note(k);
     return super.set(k, v);
   }
   override delete(k: K): boolean {
     if (this.sealed) mustWrite();
     this.version++;
+    this.note(k);
     return super.delete(k);
   }
   override clear(): void {
     if (this.sealed) mustWrite();
     this.version++;
+    this.log = [];
+    this.floor = this.version;
     super.clear();
   }
 }
+/** The version of a sealed resource map, or undefined for a plain Map. */
+export const mapVersion = (m: unknown): number | undefined =>
+  m instanceof SealedMap ? (m as SealedMap<unknown, unknown>).version : undefined;
+/** The keys a sealed map changed since `version`, or null (a plain map, or a version the log no longer reaches). */
+export const mapChangesSince = (m: unknown, version: number): string[] | null =>
+  m instanceof SealedMap ? (m as SealedMap<string, unknown>).changesSince(version) : null;
 class SealedSet<T> extends Set<T> {
   sealed = false;
   override add(v: T): this {
@@ -1419,11 +1846,23 @@ function sealFields(o: object, methods: readonly string[]): void {
 
 /** Seal a store for the read view (called once, as the writer, on the store access.sync keeps). */
 const READ_VIEWS = new WeakSet<AccessStore>();
+/** The records of a store frozen a slice at a time, with a turn of the event loop between slices: sealStore (one pass over every record, 40 ms on 38,000) then finds them frozen already. */
+export async function freezeSliced(store: AccessStore): Promise<void> {
+  for (const v of Object.values(store as unknown as Record<string, unknown>)) {
+    if (!(v instanceof Map)) continue;
+    let n = 0;
+    for (const x of v.values()) {
+      deepFreeze(x);
+      if (++n % 1000 === 0) await loopYield();
+    }
+  }
+}
+
 export function sealStore(store: AccessStore): AccessStore {
   READ_VIEWS.add(store);
   const rec = store as unknown as Record<string, unknown>;
   for (const [k, v] of Object.entries(rec)) {
-    if (k === "base" || k === "raw") continue; // what persist compares against: the store's own, never read by a capability
+    if (k === "base" || k === "raw" || k === "resBase") continue; // what persist compares against: the store's own, never read by a capability
     if (v instanceof Map) {
       const m = new SealedMap(v);
       for (const x of m.values()) deepFreeze(x);
@@ -1442,6 +1881,7 @@ export function sealStore(store: AccessStore): AccessStore {
     "hydrate",
     "persist",
     "persistResources",
+    "persistChangedResources",
     "persistGrants",
     "setRoles",
     "adoptSnapshot",
@@ -1460,6 +1900,7 @@ const SNAP_MUTATORS = [
   "putGrant",
   "revokeGrant",
   "putResource",
+  "putResources",
   "setFieldLabel",
   "setPolicies",
   "changed",
@@ -1504,6 +1945,25 @@ export function changed(
   ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what, by: ctx.principal.id });
   try {
     store.persist(ctx.db);
+  } catch (e) {
+    store.bump();
+    throw e;
+  }
+}
+
+/** `changed` for a handler that changes only the named resources (see AccessStore.persistChangedResources); falls back to the whole write where the store has no copy of the rows to compare with. */
+export function changedResources(ctx: AccessCtx, store: AccessStore, ids: readonly string[]): number | null {
+  store.bumpResources(ids);
+  ctx.emit("access.changed", String(store.epoch), { epoch: store.epoch, what: "assignment", by: ctx.principal.id });
+  try {
+    const run = (): number | null => {
+      const before = stampNow(ctx.db);
+      const writes = store.persistChangedResources(ctx.db, ids);
+      if (writes === null) store.persist(ctx.db);
+      else WRITTEN.set(store, { before, after: stampNow(ctx.db), writes });
+      return writes;
+    };
+    return ctx.db.batch ? ctx.db.batch(run) : run();
   } catch (e) {
     store.bump();
     throw e;

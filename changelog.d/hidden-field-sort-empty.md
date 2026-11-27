@@ -1,0 +1,1 @@
+A person whose access hides a field and who sorts or groups a list by it now sees every row they may see, in the order they get with no sort (the hidden field counts as empty), instead of an empty list; the order never depends on the hidden values (lead decision).

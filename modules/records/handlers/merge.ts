@@ -13,6 +13,9 @@
 //
 // Export: CSV (RFC 4180, UTF-8 BOM, formula-safe) or XLSX (inline strings, stored zip). Sealed values are masked. The bytes go to the files module through deps.putFile.
 import { turns } from "../../../lib/yield-loop.ts";
+import { mayReadComputed } from "../../../lib/computed-fields.ts";
+import { createUnique } from "../../../lib/unique-file-name.ts";
+import type { ComputedSide } from "../../../lib/computed-fields.ts";
 import { canonical } from "../../../lib/canonical.ts";
 import { formatHlc } from "../../../lib/hlc.ts";
 import { mintUuid } from "../../../lib/ids.ts";
@@ -1142,7 +1145,7 @@ export async function toXlsx(
 }
 
 /** An export is a file in the caller's own Exports folder (Personal), made through the Files module as the caller, so what they cannot read was never in it and the file is theirs to share. */
-function filesPort(
+export function filesPort(
   call: (cap: string, input: unknown) => Promise<unknown>,
   trace: string,
 ): (f: { name: string; mime: string; bytes: Uint8Array }) => Promise<string> {
@@ -1173,14 +1176,28 @@ function filesPort(
       }
     }
     if (!folder) throw new Error("no folder for the export");
-    const made = (await call("files.create", {
-      folderId: folder,
-      name: f.name,
-      mime: f.mime,
-      content: { base64: Buffer.from(f.bytes).toString("base64") },
-      idempotencyKey: `export:${trace}`,
-    })) as { file: { fileId: string } };
-    return made.file.fileId;
+    const dot = f.name.lastIndexOf(".");
+    const stem = dot > 0 ? f.name.slice(0, dot) : f.name;
+    // A person may export as often as they like: a second file of the same name in the folder (the name is the table and the day) is saved as "name (2).csv", then "(3)": the first free number among the names
+    // the caller can see (the folder is listed once), and the call never fails over a name.
+    return createUnique(
+      f.name,
+      async () =>
+        (
+          (await call("files.list", { folder, q: stem.slice(0, 200), limit: 500 })) as { files?: { name: string }[] }
+        ).files?.map((x) => x.name) ?? [],
+      async (name) =>
+        (
+          (await call("files.create", {
+            folderId: folder,
+            name,
+            mime: f.mime,
+            content: { base64: Buffer.from(f.bytes).toString("base64") },
+            // the key names the file asked for: the same name replays the same file (an outer layer that runs the call again with the same trace), a different name is a new key
+            idempotencyKey: `export:${trace}:${name}`,
+          })) as { file: { fileId: string } }
+        ).file.fileId,
+    );
   };
 }
 
@@ -1215,9 +1232,28 @@ async function exportRows(
   const first: ViewSpec = {
     ...(input.filter !== undefined ? { filter: input.filter } : {}),
     ...(input.sort ? { sort: input.sort } : {}),
-    ...(input.offset ? { offset: input.offset } : {}),
     limit: MAX_LIMIT,
   };
+  const computedNames = new Set(
+    def.fields.filter((f) => ["formula", "lookup", "rollup"].includes(String(f["ftype"] ?? ""))).map((f) => f.name),
+  );
+  // the fields the filter and the sort name, split into plain and computed ones
+  const named = new Set<string>();
+  const walk = (f: unknown): void => {
+    if (!f || typeof f !== "object") return;
+    const o = f as Record<string, unknown>;
+    for (const k of ["and", "or"]) if (Array.isArray(o[k])) (o[k] as unknown[]).forEach(walk);
+    if (o["not"] !== undefined) walk(o["not"]);
+    if (typeof o["field"] === "string") named.add(o["field"].split(".")[0]!);
+  };
+  walk(input.filter);
+  for (const k of input.sort ?? []) named.add(k.field.split(".")[0]!);
+  const judged = {
+    plain: [...named].filter((f) => !computedNames.has(f) && f !== "id" && byName.has(f)),
+    computed: [...named].filter((f) => computedNames.has(f)),
+  };
+  // the first `offset` rows are skipped here, among the rows the caller may have (not in the query): an offset the query counted would count the rows left out too, and stepping it would say which they were
+  let toSkip = input.offset ?? 0;
   let cursor: string | undefined;
   for (;;) {
     const res = findRows(tx, input.type, { ...first, ...(cursor ? { cursor } : {}) });
@@ -1232,13 +1268,56 @@ async function exportRows(
       // is hidden), then column by column for a row where something is
       const names = columns.map((c) => c.name);
       const at = { type: "record", id: r.id };
-      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow") rows.push(r.fields);
+      // computed values (formula, lookup, rollup) come from the side table, and only when the caller may read everything they were computed from: the same rule a read applies
+      const sideOf = (type: string, id: string): readonly ComputedSide[] => {
+        try {
+          return tx.all<ComputedSide>(
+            "SELECT field, value, inputs, kind, computed_at, link_ids FROM records_computed WHERE type = ? AND id = ?",
+            type,
+            id,
+          );
+        } catch {
+          return [];
+        }
+      };
+      const side = sideOf(input.type, r.id);
+      const readable = (c: ComputedSide): boolean =>
+        mayReadComputed(
+          {
+            visibleOn: (t, i, fs) =>
+              ctx.authorize!({ perm: null, level: "view", fields: [...fs] }, { type: "record", id: i }).effect ===
+              "allow",
+            sideOf,
+          },
+          input.type,
+          r.id,
+          c,
+        );
+      // a filter or sort that names a field the caller cannot read on this record would pick or place the record by a value they may not know: the record is left out
+      if (
+        judged.plain.some((f) => ctx.authorize!({ perm: null, level: "view", fields: [f] }, at).effect !== "allow") ||
+        judged.computed.some((f) => {
+          const c = side.find((x) => x.field === f);
+          return !c || !readable(c);
+        })
+      )
+        continue;
+      if (toSkip > 0) {
+        toSkip--;
+        continue;
+      }
+      const fieldsOf: Record<string, unknown> = { ...r.fields };
+      for (const c of side)
+        if (computedNames.has(c.field) && readable(c))
+          fieldsOf[c.field] = c.value === null ? null : JSON.parse(c.value);
+      if (ctx.authorize({ perm: null, level: "view", fields: names }, at).effect === "allow")
+        rows.push(Object.fromEntries(columns.map((c) => [c.name, fieldsOf[c.name]])));
       else
         rows.push(
           Object.fromEntries(
             columns
               .filter((c) => ctx.authorize!({ perm: null, level: "view", fields: [c.name] }, at).effect === "allow")
-              .map((c) => [c.name, r.fields[c.name]]),
+              .map((c) => [c.name, fieldsOf[c.name]]),
           ),
         );
     }

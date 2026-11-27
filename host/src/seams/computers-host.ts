@@ -43,6 +43,8 @@ export interface ComputersHostDeps {
   image?: string;
   /** This release's version: when no setting names an image, the host asks for the release's own image by this tag (release-images.ts). Omitted: the local build names. */
   version?: string;
+  /** This Space: its Space browser gets a container and volume of its own, and the saved sign-ins of its profiles on the old shared volume are copied to it. `personal`: the host has this Space only, so every profile there that names no other Space is its. */
+  space?: { id: string; personal: boolean };
   startTimeoutMs?: number;
   /** See ComputersHostSeam.capacity. */
   capacity?: () => Promise<{ totalMb: number; freeMb: number; cpus: number; os: string; diskFreeMb?: number }>;
@@ -73,7 +75,9 @@ export function createComputersHost(d: ComputersHostDeps): ComputersHostSeam {
     // tests only: a Space browser container (and volume) of their own, never the machine's vyre-sbrowser
     ...(/^vyre-sbrowser-test-[a-z0-9-]{1,40}$/.test(process.env["VYRE_SPACE_BROWSER_NAME"] ?? "")
       ? { browser: { name: process.env["VYRE_SPACE_BROWSER_NAME"]! } }
-      : {}),
+      : d.space
+        ? { browser: { space: d.space.id, adoptAll: d.space.personal } }
+        : {}),
     startTimeoutMs: d.startTimeoutMs ?? 120_000,
     ...(d.capacity ? { capacity: d.capacity } : {}),
     ...(d.callAs && d.putBytes

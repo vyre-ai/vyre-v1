@@ -1,0 +1,1 @@
+- The purge of a dropped type no longer holds the server for a quarter of a second: its change-feed and history cleaning run in slices, the search index is merged a few pages at a time, and an older file that cannot hand pages back is listed by the doctor until the planned compact. An old rebased row that held a purged field is erased too.

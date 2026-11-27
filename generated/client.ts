@@ -572,6 +572,7 @@ export function createClient(transport: Transport) {
     },
     computers: {
       browser: {
+        ask_signin: call("computers.browser.ask_signin", 1),
         give_back: call("computers.browser.give_back", 1),
         my_sign_ins: call("computers.browser.my_sign_ins", 1),
         pause: call("computers.browser.pause", 1),
@@ -2419,6 +2420,7 @@ export function createClient(transport: Transport) {
       export: call("records.export", 1),
       gap_check: call("records.gap_check", 1),
       get: call("records.get", 1),
+      get_many: call("records.get_many", 1),
       history: call("records.history", 1),
       hold: call("records.hold", 1),
       merge: call("records.merge", 1),
@@ -3081,6 +3083,7 @@ export function createClient(transport: Transport) {
       save: call("templates.save", 1),
     },
     terminal: {
+      ask_signin: call("terminal.ask_signin", 1),
       attach: call("terminal.attach", 1),
       capture: call("terminal.capture", 1),
       close: call("terminal.close", 1),
@@ -3089,6 +3092,11 @@ export function createClient(transport: Transport) {
       health: call("terminal.health", 1),
       input: call("terminal.input", 1),
       interrupt: call("terminal.interrupt", 1),
+      job: {
+        list: call("terminal.job.list", 1),
+        start: call("terminal.job.start", 1),
+        stop: call("terminal.job.stop", 1),
+      },
       keys: call("terminal.keys", 1),
       list: call("terminal.list", 1),
       log: {
@@ -3108,6 +3116,7 @@ export function createClient(transport: Transport) {
       },
       run: call("terminal.run", 1),
       status: call("terminal.status", 1),
+      stream: call("terminal.stream", 1),
       take_over: call("terminal.take_over", 1),
       workspace: call("terminal.workspace", 1),
     },

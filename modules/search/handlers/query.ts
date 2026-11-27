@@ -11,6 +11,7 @@ import {
   ensure,
   matchText,
   rowsOf,
+  scrubHidden,
   str,
   vectorsOf,
   wordsOf,
@@ -214,7 +215,9 @@ function agentDocs(ctx: SearchCtx, ns: readonly number[]): AgentDocs {
 }
 
 /** The document as this caller may see it: itself for a person, the agent's view for an agent-bound caller, null when agents may not see it. */
-function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
+function asSeen(ctx: SearchCtx, d: DocRow, agent: AgentDocs): DocRow | null {
+  // the records of a type whose entries the one-time scrub of removed-field text has not yet read again are not shown (handlers/scrub.ts)
+  if (d.kind === "record" && d.recordType !== null && scrubHidden(ctx.db, d.recordType)) return null;
   const a = agent?.get(d.n);
   if (!a) return d;
   if (a.withheld) return null;
@@ -223,7 +226,7 @@ function asSeen(d: DocRow, agent: AgentDocs): DocRow | null {
 
 /** The field keys of a record type, asked of the schema once per type for a call (the memo is the call's). Empty when the schema cannot be read: the record is then read and rebuilt, never shown whole.
  * Known limit: these are the type's CURRENT fields. A field the type has retired is not asked about, so a hit whose document words still hold a retired field that a grant hides passes the fast path with
- * those words (records.get hides keys that have no label, the check here does not). It needs a retired field a grant still names; rc.44 (LAUNCH-STATE) rebuilds a hit when a word of it is not explained by the type's fields. */
+ * those words (records.get hides keys that have no label, the check here does not). Closed in rc.44: the fast path also asks for "*" (every field, retired ones too), so a grant that hides any field sends the hit to the rebuild. */
 const typeKeys = new WeakMap<object, Map<string, string[]>>();
 async function fieldKeys(ctx: SearchCtx, type: string, memo: Map<string, DocRow | null>): Promise<string[]> {
   let per = typeKeys.get(memo);
@@ -256,7 +259,8 @@ async function fieldsSeen(ctx: SearchCtx, d: DocRow, memo: Map<string, DocRow | 
   const keys = d.recordType ? await fieldKeys(ctx, d.recordType, memo) : [];
   if (
     keys.length > 0 &&
-    ctx.authorize({ perm: null, level: "view", fields: keys }, { type: d.resType, id: d.resId }).effect === "allow"
+    ctx.authorize({ perm: null, level: "view", fields: [...keys, "*"] }, { type: d.resType, id: d.resId }).effect ===
+      "allow"
   ) {
     memo.set(key, d);
     return d;
@@ -490,7 +494,7 @@ export async function query(
   for (const [n, e] of order) {
     const raw = docs.get(n);
     if (!raw) continue;
-    const seenDoc = asSeen(raw, agent);
+    const seenDoc = asSeen(ctx, raw, agent);
     if (!seenDoc) continue;
     const d = await afterJoin(ctx, seenDoc, cuts);
     if (!d) continue;
@@ -539,7 +543,7 @@ export async function recentList(
     )[0];
     if (!d) continue;
     const raw = docOf(d);
-    const seenDoc = asSeen(raw, agentDocs(ctx, [raw.n]));
+    const seenDoc = asSeen(ctx, raw, agentDocs(ctx, [raw.n]));
     const doc = seenDoc ? await afterJoin(ctx, seenDoc, new Map()) : null;
     if (!doc || !(await readable(ctx, doc))) continue;
     hits.push(hitOf(doc, 1 / (RRF + hits.length), []));
@@ -550,13 +554,28 @@ export async function recentList(
 
 // ---- Resolve
 
+/**
+ * The text of an indexed item as THIS caller may read it, for what is put in front of a model (Ask the Space): the raw index row passed through the same gates a hit goes through: the agent's view of a file, a
+ * chat cut at the last join, and a record rebuilt from the fields the caller gets (a field a grant hides is not in it). `undefined` when the item is not in the index (a note: only its snippet exists), "" when the caller
+ * may not read it at all. Never the raw body of a record.
+ */
+export async function seenBody(ctx: SearchCtx, kind: Kind, id: string): Promise<string | undefined> {
+  ensure(ctx.db);
+  const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", kind, id)[0];
+  if (!row) return undefined;
+  const raw = docOf(row);
+  const seen = asSeen(ctx, raw, agentDocs(ctx, [raw.n]));
+  const doc = seen ? await afterJoin(ctx, seen, new Map()) : null;
+  return doc && (await readable(ctx, doc)) ? doc.body : "";
+}
+
 /** One indexed item by kind and id, as the asker may see it (a record's hit names its record type). Absent when it is not indexed or not visible. */
 export async function resolveItem(ctx: SearchCtx, input: { kind: Kind; itemId: string }): Promise<{ hit?: Hit }> {
   ensure(ctx.db);
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return {};
   const raw = docOf(row);
-  const seenDoc = asSeen(raw, agentDocs(ctx, [raw.n]));
+  const seenDoc = asSeen(ctx, raw, agentDocs(ctx, [raw.n]));
   const doc = seenDoc ? await afterJoin(ctx, seenDoc, new Map()) : null;
   return doc && (await readable(ctx, doc)) ? { hit: hitOf(doc, 1, []) } : {};
 }
@@ -608,7 +627,7 @@ export async function related(
   const row = rowsOf(ctx.db, "SELECT * FROM search_docs WHERE kind = ? AND id = ?", input.kind, input.itemId)[0];
   if (!row) return { hits: [] };
   const selfRaw = docOf(row);
-  const selfSeen = asSeen(selfRaw, agentDocs(ctx, [selfRaw.n]));
+  const selfSeen = asSeen(ctx, selfRaw, agentDocs(ctx, [selfRaw.n]));
   const self = selfSeen ? await afterJoin(ctx, selfSeen, new Map()) : null;
   if (!self || !(await readable(ctx, self))) return { hits: [] };
   const terms = termsOf(self);
@@ -629,7 +648,7 @@ export async function related(
   for (const c of cands) {
     const raw = docs.get(Number(c["n"]));
     if (!raw || raw.n === self.n) continue;
-    const seenDoc = asSeen(raw, agent);
+    const seenDoc = asSeen(ctx, raw, agent);
     const d = seenDoc ? await afterJoin(ctx, seenDoc, cuts) : null;
     if (!d || (d !== raw && !wordsIn(d, terms, true)) || !(await readable(ctx, d))) continue;
     hits.push(hitOf(d, 1 / (RRF + hits.length), terms));

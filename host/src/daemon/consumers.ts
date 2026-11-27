@@ -9,6 +9,7 @@
 // ctx.emit, ctx.call, ctx.db (the module's own tables) and ctx.log behave as they do in a handler, and what is emitted commits with the same ids, clock and publish. The caller is the
 // host service with `preAuth`: a hook acts as the system, not as a person.
 // The async consumers a module also exports as projections (`mode: "async"`, kernel ProjectionHost) have another shape and are not touched here.
+import { UNIT_MS, loopOverBudget, loopTurn } from "../../../lib/loop-budget.ts";
 import { isErased } from "../../../kernel/src/events/compact.ts";
 import type { StoredEvent } from "../../../kernel/src/log/index.ts";
 import type { Ctx } from "../../../packages/contracts/src/ctx.ts";
@@ -21,8 +22,9 @@ import { ERASE_CALL, ERASE_CALLERS } from "../../../lib/erase-agent.ts";
 export const MAX_TRIES = 5;
 const PAGE = 200;
 /** After this many ms of work the pass lets the event loop run (requests wait behind a long backlog otherwise). */
-const YIELD_EVERY_MS = 20;
-const yieldLoop = (): Promise<void> => new Promise((r) => setImmediate(r));
+/** One time budget for the whole server (lib/loop-budget.ts): the hook pump, the projections pump and the sweeps count their work together. */
+const overBudget = (): boolean => loopOverBudget(UNIT_MS);
+const yieldTurn = loopTurn;
 /** How often the runs module's escalation clock is swept. */
 export const RUNS_ESCALATION_EVERY_MS = 60_000;
 export const SYSTEM_PRINCIPAL = { kind: "service", id: "svc_host" } as const;
@@ -106,12 +108,16 @@ export interface HookEvent {
   device?: string;
   /** the person who caused it has no standing in the Space (a guest): decided by the kernel's snapshot when the event is handed over, never by a call the consumer makes */
   outsider?: boolean;
+  /** True once the server is stopping: a long consumer looks at it between its slices and throws the kept error (routes/errors.ts keptForRestart), so the stop does not wait for the whole job and the next start hands it the same event again. */
+  stopping?: () => boolean;
 }
 
 export interface ConsumerDef {
   name: string;
   module: string;
   on: readonly string[];
+  /** Takes an announcement made by a repair (payload.repair: a record an old build never announced): only a consumer that keeps derived data of the record asks for it. Every other consumer is not told, so an Automation, a webhook, a notification or a watcher never fires for a repair. */
+  takesRepair?: boolean;
   run(ctx: Ctx, event: HookEvent): Promise<unknown> | unknown;
 }
 export interface PeriodicDef {
@@ -119,6 +125,8 @@ export interface PeriodicDef {
   module: string;
   everyMs: number;
   /** run once as soon as the scheduler starts (a boot check), then every everyMs */ immediate?: boolean;
+  /** not spread over the minute with the other jobs (the scheduler's stagger): it runs at its boundary */
+  exact?: boolean;
   run(ctx: Ctx): Promise<unknown> | unknown;
 }
 /** A function a module offers the host to run as that module (`export const hostCalls = { "<module>.<name>": (ctx, input) => ... }`): the host's way to hand work to a module that has no capability for it, with the module's own ctx. */
@@ -152,6 +160,7 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
         name,
         module,
         on: (def["on"] as unknown[]).filter((x): x is string => typeof x === "string"),
+        ...(def["takesRepair"] === true ? { takesRepair: true } : {}),
         run: (ctx, event) => run(ctx, event),
       });
     }
@@ -171,6 +180,7 @@ export function collectHooks(module: string, ns: Record<string, unknown>): Modul
         module,
         everyMs: def["everyMs"],
         ...(def["immediate"] === true ? { immediate: true } : {}),
+        ...(def["exact"] === true ? { exact: true } : {}),
         run: (ctx) => run(ctx),
       });
     }
@@ -320,7 +330,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
     const n = capName("consumer", c.name);
     caps.push(base(n, c.module));
     moduleOf.set(n, c.module);
-    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, input.event);
+    handlers[n] = (ctx, input: { event: HookEvent }) => c.run(ctx, { ...input.event, stopping: () => closing });
   }
   for (const p of periodic) {
     if (byPeriodic.has(p.name)) {
@@ -443,6 +453,8 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function deliver(c: ConsumerDef, e: StoredEvent): Promise<boolean> {
     const ev = toHookEvent(e);
     if (d.outsiderOf?.(e.actor) === true) ev.outsider = true;
+    // an announcement a repair made for a record an old build never announced is for the access view, the search index and the replicas (they fold it as a projection) and for a consumer that asked for it: nobody else is told
+    if (ev.payload["repair"] === true && c.takesRepair !== true) return true;
     inFlight = { consumer: c.name, event: e.type, seq: e.seq };
     try {
       await d.invoke(
@@ -492,7 +504,6 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   async function passFor(c: ConsumerDef): Promise<void> {
     let at = cursor(c.name);
     if (at === undefined) return; // start() has not run for it yet
-    let since = performance.now();
     for (;;) {
       // the log is asked only for the events this consumer handles, so a consumer of a rare event does not read every event of the Space (a hundred consumers each reading a backlog of 70,000 was most of the
       // server's CPU after a sync); once it has read to the end, it is at the head that was there when it asked
@@ -517,10 +528,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
           } // stop here: this event is tried again on the next pass, before any later one
           at = e.seq;
           setCursor(c.name, at); // a delivered event is recorded at once, so a crash repeats at most the one in flight
-          if (performance.now() - since >= YIELD_EVERY_MS) {
-            await yieldLoop();
-            since = performance.now();
-          }
+          if (overBudget()) await yieldTurn();
         } else at = e.seq;
       }
       readPast(c.name, at);
@@ -528,7 +536,7 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
         if (head > at) readPast(c.name, head);
         return;
       }
-      await yieldLoop();
+      await yieldTurn();
     }
   }
 
@@ -540,11 +548,13 @@ export function createHookRunner(d: HookRunnerDeps): HookRunner {
   const run = (): Promise<void> =>
     (async () => {
       try {
-        await null; // let `running` be assigned before the first check, even with nothing to run
+        // a macrotask of its own before the first delivery: the pump is started by the commit of a request, and its first deliveries must not run in that request's turn; it also lets `running` be assigned before the first check, even with nothing to run
+        await loopTurn();
         do {
           again = false;
           for (const c of byConsumer.values()) {
             if (closing) break;
+            if (overBudget()) await yieldTurn();
             await passFor(c);
           }
           flush();

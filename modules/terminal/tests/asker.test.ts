@@ -559,3 +559,35 @@ test("an admin with Manage on the agent and no share is told what anyone without
   ).find((x) => x.terminalId === own.terminalId);
   assert.equal(listed?.elsewhere, true);
 });
+
+test("a terminal that foreign() hides from an admin with Manage is refused to them on every door: take_over, keys, input, capture, stream and attach (not_yours), and the owner still enters it", async () => {
+  const w = setup({ ownerId: "usr_maya", kind: "agent" }); // everything is allowed, Manage included
+  const own = await h["terminal.run"]!(w.turn("usr_maya"), { command: "echo hi", idempotencyKey: idem() });
+  const admin = w.person("usr_admin");
+  const hidden = (await h["terminal.get"]!(admin, { terminalId: own.terminalId })).terminal;
+  assert.equal(hidden.elsewhere, true, "it is hidden from the admin");
+  const refused = async (f: () => unknown): Promise<unknown> => {
+    try {
+      await f();
+    } catch (e) {
+      return (e as { error?: { details?: { reason?: unknown } } }).error?.details?.reason ?? codeOf(e);
+    }
+    return "allowed";
+  };
+  const id = own.terminalId;
+  for (const [cap, input] of [
+    ["terminal.take_over", {}],
+    ["terminal.keys", { lease: "lse_x", seq: 1, idempotencyKey: idem(), keys: [{ text: "echo no" }] }],
+    ["terminal.input", { data: "echo no\n" }],
+    ["terminal.capture", {}],
+    ["terminal.stream", {}],
+    ["terminal.attach", {}],
+  ] as const)
+    assert.equal(await refused(() => h[cap]!(admin, { terminalId: id, ...input })), "not_yours", cap);
+  // the owner is not refused
+  assert.equal(
+    await refused(() => h["terminal.read"]!(w.person("usr_maya"), { terminalId: id })),
+    "allowed",
+    "the owner reads it",
+  );
+});

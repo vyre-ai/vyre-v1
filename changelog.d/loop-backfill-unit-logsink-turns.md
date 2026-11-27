@@ -1,0 +1,1 @@
+- The project folder sweep gives the loop back after each folder that used a unit of work, the log sink writes rows and spans in turns when many wait, and the desktop bundle check names run.ts, warm-cache.ts and slice-import.ts.

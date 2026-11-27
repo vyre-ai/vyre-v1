@@ -111,7 +111,7 @@ function seed(raw: HostDb): void {
   });
 }
 
-import { shareKept } from "../handlers/share.ts";
+import { shareKept, sliceTuning } from "../handlers/share.ts";
 
 const lists = (raw: HostDb, who: string) =>
   (handlers["access.lists"] as unknown as (c: unknown, i: unknown) => Promise<{ rows: { id: string }[] }>)(
@@ -189,7 +189,8 @@ test("incremental: each kind of change gives the rows a full rebuild gives, and 
   await same(raw, "a grant on a folder reaches what is under it");
   assert.ok(shareKept.incremental >= inc + 4, "those were worked out incrementally, not rebuilt whole");
   const built = shareKept.built;
-  // changes it cannot scope are a full rebuild, and still equal
+  const people = shareKept.incremental;
+  // a change that names people is worked out for those people over every resource, and for nobody else
   sync(ctxOf(raw), { events: [ev("group.member_added", { group: "grp_everyone", member: "usr_noor" })] });
   await same(raw, "a group membership");
   sync(ctxOf(raw), {
@@ -200,9 +201,44 @@ test("incremental: each kind of change gives the rows a full rebuild gives, and 
   await same(raw, "a role change");
   sync(ctxOf(raw), { events: [ev("principal.suspended", { principalId: "usr_mia" })] });
   await same(raw, "a suspension");
-  assert.ok(shareKept.built >= built + 4, "those were full rebuilds");
+  assert.ok(shareKept.incremental >= people + 4, "those were worked out for the people they name");
+  assert.equal(shareKept.built, built, "and none of them rebuilt the whole Space");
+  // a change it cannot scope to people or objects (what a role holds) is a full rebuild, and still equal
+  sync(ctxOf(raw), {
+    events: [ev("role.defined", { id: "rol_extra", name: "Extra", perms: ["files.read"], clearance: 0 })],
+  });
+  await same(raw, "a role defined");
+  assert.ok(shareKept.built >= built + 1, "that was a full rebuild");
   raw.run("DELETE FROM access_grants WHERE id = ?", "gr_i2"); // plain SQL
   await same(raw, "a plain SQL delete");
+});
+
+test("incremental: a change that names people is built in slices for those people only, with a resource change in the same interval, and equals a full rebuild", async () => {
+  const { raw } = fresh("who-sliced");
+  seed(raw);
+  const was = sliceTuning.from;
+  sliceTuning.from = 1;
+  try {
+    await lists(raw, "usr_mia"); // publishes the view
+    const built = shareKept.built;
+    const sliced = shareKept.sliced;
+    // people and objects change before the next read: the resources are worked out for everyone, and the people over every resource
+    sync(ctxOf(raw), { events: [res("rec_9", "record", "fld_1", 0, "usr_owner")] });
+    sync(ctxOf(raw), { events: [ev("group.member_added", { group: "grp_everyone", member: "usr_noor" })] });
+    sync(ctxOf(raw), { events: [ev("principal.suspended", { principalId: "usr_mia" })] });
+    sync(ctxOf(raw), {
+      events: [ev("principal.created", { id: "usr_new", kind: "person", name: "new", status: "active" })],
+    });
+    await lists(raw, "usr_noor");
+    await same(raw, "a resource, a member, a suspension and a new person before one read");
+    assert.ok(shareKept.sliced > sliced, "the work was done in slices");
+    assert.equal(shareKept.built, built, "and was not a build of the whole view");
+    sync(ctxOf(raw), { events: [ev("principal.reactivated", { principalId: "usr_mia" })] });
+    assert.deepEqual(await lists(raw, "usr_mia"), ["fld_1"], "a person reactivated is served again");
+    await same(raw, "after a reactivation");
+  } finally {
+    sliceTuning.from = was;
+  }
 });
 
 test("incremental: an expiring grant is gone when its time comes, with nothing else written", async () => {
@@ -276,4 +312,33 @@ test("incremental: random changes, 150 steps, equal to a full rebuild after ever
   }
   await same(raw, "end");
   assert.ok(shareKept.incremental > 20, "most steps were worked out incrementally");
+});
+
+test("incremental: a folder made to follow a record gives the rows a full rebuild gives, and does not rebuild the whole Space", async () => {
+  const { raw } = fresh("follows");
+  seed(raw);
+  await same(raw, "first read");
+  sync(ctxOf(raw), {
+    events: [
+      res("fld_child", "folder", "fld_1", 0, "usr_owner"),
+      res("rec_3", "record", "contact", 3, "usr_owner"),
+      res("rec_4", "record", "fld_child", 0, "usr_mia"),
+    ],
+  });
+  await same(raw, "folders and records added");
+  const audienceSet = handlers["access.audience_set"] as unknown as (c: unknown, i: unknown) => Promise<unknown>;
+  const host = (): Ctx => ({ ...ctxOf(raw), principal: { kind: "service", id: "svc_host" } });
+  const built = shareKept.built;
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_1" }, follows: "rec_2" });
+  await same(raw, "fld_1 follows rec_2 (Space-wide access to it, and to what is under it, changes)");
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_3" });
+  await same(raw, "fld_child follows rec_3 (a record only its owner may open)");
+  const parent = (id: string): unknown =>
+    (raw.all("SELECT parent_id FROM access_resources WHERE id = ?", id)[0] as { parent_id: unknown }).parent_id;
+  assert.equal(parent("fld_child"), "rec_3", "the changed row is in the table");
+  assert.equal(parent("fld_1"), "rec_2");
+  assert.equal(parent("rec_4"), "fld_child", "and nothing else moved");
+  await audienceSet(host(), { resource: { type: "folder", id: "fld_child" }, follows: "rec_1" });
+  await same(raw, "fld_child follows another record");
+  assert.equal(shareKept.built, built, "no follows call rebuilt the whole Space");
 });

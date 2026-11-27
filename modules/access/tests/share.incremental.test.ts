@@ -456,6 +456,73 @@ test(
   },
 );
 
+test(
+  "a handler commit writes the resource rows by comparing fields, and leaves every access table exactly as writing the whole store does",
+  { timeout: 600_000 },
+  async () => {
+    for (const seedNo of [41, 42, 43]) {
+      const byFields: string[] = [];
+      const whole: string[] = [];
+      persistMode.resourcesByFields = true;
+      await run(seedNo, 150, byFields);
+      persistMode.resourcesByFields = false;
+      try {
+        await run(seedNo, 150, whole);
+      } finally {
+        persistMode.resourcesByFields = true;
+      }
+      assert.equal(byFields.length, whole.length);
+      for (let i = 0; i < byFields.length; i++)
+        assert.equal(
+          byFields[i],
+          whole[i],
+          `seed ${seedNo} step ${i + 1}: the tables differ between comparing resource fields and writing the whole store`,
+        );
+    }
+  },
+);
+
+test("a role change on a Space of 1,500 resources does not turn every resource into JSON to find what changed", async () => {
+  const stringified = async (byFields: boolean): Promise<number> => {
+    const raw = fresh(byFields ? "fields" : "whole");
+    seq = 0;
+    seedSpace(raw);
+    sync(ctxOf(raw), {
+      events: Array.from({ length: 1500 }, (_, i) =>
+        ev("resource.created", {
+          id: `fil_big${i}`,
+          type: "file",
+          parent_id: "fld_b",
+          label: 0,
+          owner_id: "usr_mia",
+          holds: 0,
+        }),
+      ),
+    });
+    persistMode.resourcesByFields = byFields;
+    const was = JSON.stringify;
+    let n = 0;
+    JSON.stringify = ((...a: Parameters<typeof JSON.stringify>) => {
+      n++;
+      return was(...a);
+    }) as typeof JSON.stringify;
+    try {
+      await call(raw, "usr_owner", "access.roles.assign", {
+        subject: { kind: "person", id: "usr_noor" },
+        roleId: "rol_developer",
+      });
+    } finally {
+      JSON.stringify = was;
+      persistMode.resourcesByFields = true;
+    }
+    return n;
+  };
+  const whole = await stringified(false);
+  const fields = await stringified(true);
+  assert.ok(whole > 3000, `the whole-store write was expected to turn every resource into JSON, saw ${whole} calls`);
+  assert.ok(fields < 500, `a role change made ${fields} JSON calls on 1,500 resources`);
+});
+
 test("taking away what an agent made for a person changes the resource too: it is done on a store of its own, and the tables, the kept snapshot and the rows agree", async () => {
   const raw = fresh("made");
   seq = 0;

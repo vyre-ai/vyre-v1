@@ -1,0 +1,1 @@
+- modules.db, logs.db and the Space store are checkpointed by the worker every 50 ms with SQLite's own checkpoint kept on as a backstop at twice its default (a log left to grow slowed the purge of a dropped type to 250 ms blocks); a projection's cursor is written at most every 100 ms or 500 events while its pass yields, and at the end of a page and of the pass.

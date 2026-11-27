@@ -18,6 +18,8 @@ export const KEPT: Record<string, string> = {
     "the port goes straight into startStreamServer in the next statement (product code that binds a given port and builds its own address from it); the gap is one tick",
   "modules/computers/tests/images.malformed-request.test.ts":
     "the port goes straight into startStreamServer and startViewServer (product code that binds a given port on all addresses and builds its own address from it, so it cannot be handed a socket or port 0); the gap is one tick, and a failed bind fails that test loudly",
+  "test/terminal-stream.kill.heavy.test.ts":
+    "the test kills the daemon and starts a new process on the SAME port and the same data (that is what it proves: a client reconnects to the address it had); the port is handed to the daemon child, which binds it itself",
   "agent/tests/sandbox.net.heavy.test.ts": "the port is handed to a sandboxed program that binds it itself",
   "modules/engine/tests/access.heavy.test.ts": "the port is handed to sshd, which binds it itself",
   "modules/esign/tests/documenso.heavy.test.ts": "the port is handed to a Documenso container, which binds it itself",

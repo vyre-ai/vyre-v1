@@ -5,6 +5,7 @@
 // DECISION: a note's layer comes from its folder path (Agents/<agent>/memory, Projects/<project>/memory, People/<person>/memory/<agent>, Knowledge/Memory); the agent or project id is found by name.
 // DECISION: graph_export writes its JSON into the agent's folder, or the first Space root for a Space graph, because the contract takes no folder.
 import { headings, frontmatter, links as mdLinks } from "../../../lib/md.ts";
+import { createUnique } from "../../../lib/unique-file-name.ts";
 import { parseLinks, subjectKey } from "../pages.ts";
 import { actorOf, ensure, makeAccess, mintId, num, orNull, raise, rowsOf, sealText, str } from "../projections.ts";
 import type { Layer, MemCtx, Row } from "../projections.ts";
@@ -71,6 +72,68 @@ export async function indexGraph(ctx: MemCtx, input: { entity: string; id: strin
     input.seq,
   );
   return out;
+}
+
+/**
+ * A field was dropped or retyped: the record nodes of the type are read again, so a title taken from the dropped field and the [[links]] written in it leave the graph. schema.apply rewrites the rows without a
+ * record event, so the graph follows the schema change (the same reason as the search index). Only records that already have a node are read again; a page of 50 at a time, the loop given back between them.
+ */
+export async function followSchemaChange(
+  ctx: MemCtx,
+  e: { type?: string; name?: string; seq: number; payload: Record<string, unknown> },
+): Promise<number> {
+  ensure(ctx.db);
+  const name = e.type ?? e.name ?? "";
+  const p = e.payload;
+  if (name === "schema.type_dropped" && typeof p["type"] === "string") {
+    // the nodes of a dropped type's records go (the graph kept which records it read, by type, in memory_graph_seen)
+    const type = p["type"] as string;
+    let gone = 0;
+    for (const r of rowsOf(ctx.db, "SELECT ref FROM memory_graph_seen WHERE entity = ?", `record:${type}`)) {
+      const id = str(r["ref"]);
+      removeNode(ctx, `record:${id}`);
+      ctx.db.run("DELETE FROM memory_mentions WHERE source_kind = 'record' AND source_ref = ?", id);
+      ctx.db.run("DELETE FROM memory_graph_seen WHERE entity = ? AND ref = ?", `record:${type}`, id);
+      gone++;
+    }
+    return gone;
+  }
+  if (name !== "schema.changed" || !Array.isArray(p["ops"])) return 0;
+  const touched = new Set<string>();
+  for (const o of p["ops"] as Array<Record<string, unknown>>)
+    if (
+      (o["op"] === "field.drop" || o["op"] === "field.retype") &&
+      typeof o["type"] === "string" &&
+      (typeof p["type"] !== "string" || p["type"] === o["type"])
+    )
+      touched.add(o["type"] as string);
+  let done = 0;
+  for (const type of touched) {
+    let cursor: string | undefined;
+    for (let guard = 0; guard < 10_000; guard++) {
+      let page: { rows?: Array<{ id?: unknown }>; next?: unknown };
+      try {
+        page = (await ctx.call("records.query", { type, limit: 50, ...(cursor ? { cursor } : {}) })) as typeof page;
+      } catch {
+        break;
+      }
+      for (const r of page.rows ?? []) {
+        const id = typeof r.id === "string" ? r.id : "";
+        if (
+          !id ||
+          rowsOf(ctx.db, "SELECT 1 AS x FROM memory_graph_nodes WHERE node_id = ?", `record:${id}`).length === 0
+        )
+          continue;
+        ctx.db.run("DELETE FROM memory_graph_seen WHERE entity = ? AND ref = ?", `record:${type}`, id);
+        await indexRecord(ctx, type, id);
+        done++;
+      }
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      cursor = typeof page.next === "string" ? page.next : undefined;
+      if (!cursor) break;
+    }
+  }
+  return done;
 }
 
 function removeNode(ctx: MemCtx, nodeId: string): void {
@@ -861,14 +924,26 @@ export async function graphExport(
   }
   if (!folderId) raise(ctx, "validation.bad_input", "There is no folder to write the export into.");
   const day = new Date(ctx.now()).toISOString().slice(0, 10);
-  const made = (await ctx.call("files.create", {
-    folderId,
-    name: `memory-graph-${input.scope}-${day}.json`,
-    kind: "text",
-    mime: "application/json",
-    content: { text: JSON.stringify(g) },
-    idempotencyKey: `memgraph:${mintId("x", ctx.now())}`,
-  })) as { file: { fileId: string } };
+  // exporting twice in a day must not fail over the name: the second file is "memory-graph-space-2026-11-26 (2).json", then "(3)": the first free number among the names the caller can see (the folder is listed once).
+  // For the scope "space" the folder is the shared one, so the number in the name tells how many files of that name exist there; reviewed and accepted.
+  const made = await createUnique(
+    `memory-graph-${input.scope}-${day}.json`,
+    async () =>
+      (
+        (await ctx.call("files.list", { folder: folderId, q: `memory-graph-${input.scope}-${day}`, limit: 500 })) as {
+          files?: { name: string }[];
+        }
+      ).files?.map((x) => x.name) ?? [],
+    async (name, attempt) =>
+      (await ctx.call("files.create", {
+        folderId,
+        name,
+        kind: "text",
+        mime: "application/json",
+        content: { text: JSON.stringify(g) },
+        idempotencyKey: `memgraph:${mintId("x", ctx.now())}:${attempt}`,
+      })) as { file: { fileId: string } },
+  );
   return { fileId: made.file.fileId };
 }
 

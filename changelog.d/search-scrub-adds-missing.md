@@ -1,0 +1,1 @@
+- The one-time search check also puts back records that exist but had lost their search entry, and the doctor says how many.

@@ -64,3 +64,28 @@ test("memory.graph_export: a context with no authorize writes no file", async ()
   await assert.rejects(graphExport(h.ctx, { scope: "space" }));
   assert.equal(created, 0);
 });
+
+test("memory.graph_export: exporting again the same day makes a file of its own, and never fails over the name", async () => {
+  const taken = new Set<string>();
+  const h = setup({
+    "files.list": () => ({ files: [...taken].map((name) => ({ name })) }),
+    "files.create": (i) => {
+      const name = String(i["name"]);
+      if (taken.has(name))
+        throw Object.assign(new Error("That name is already in this folder."), {
+          error: { code: "validation.duplicate" },
+        });
+      taken.add(name);
+      return { file: { fileId: `fil_${taken.size}` } };
+    },
+  });
+  await indexGraph(h.ctx, { entity: "file", id: "fil_open", seq: 1 });
+  const a = await graphExport(h.ctx, { scope: "space" });
+  const b = await graphExport(h.ctx, { scope: "space" });
+  const c = await graphExport(h.ctx, { scope: "space" });
+  assert.deepEqual([a.fileId, b.fileId, c.fileId], ["fil_1", "fil_2", "fil_3"]);
+  const names = [...taken];
+  assert.match(names[0]!, /^memory-graph-space-\d{4}-\d{2}-\d{2}\.json$/);
+  assert.match(names[1]!, / \(2\)\.json$/);
+  assert.match(names[2]!, / \(3\)\.json$/);
+});

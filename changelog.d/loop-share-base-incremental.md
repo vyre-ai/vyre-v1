@@ -1,0 +1,1 @@
+- A change to a few resources (a folder made to follow its record) brings the kept copy of the share state up to date for those resources, and a writer whose kept store is current skips the settle; the tmux probe at start runs 0.4 s after it.

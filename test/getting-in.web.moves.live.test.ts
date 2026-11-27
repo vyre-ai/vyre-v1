@@ -145,6 +145,10 @@ test("a Space that moves between the relay and its own address is found where it
                 })
                 .catch(() => undefined);
             });
+            let lastNavigation = Date.now();
+            page.on("framenavigated", () => {
+              lastNavigation = Date.now();
+            });
             const t0 = Date.now();
             // the reload is the navigation that makes the browser ask for the relay worker's script: the address now answers with the retiring worker, which takes over and sends the open pages to
             // the address again (client.navigate), by design. That second navigation can land before the reload has finished, which ends it with ERR_ABORTED; the end state is asserted right below
@@ -175,7 +179,22 @@ test("a Space that moves between the relay and its own address is found where it
                 timeout: 20_000,
               },
             );
-            const before = carried.length;
+            // The page stops being the old one in steps: the worker is unregistered (this wait ends), then it sends the page to the address again, and the old document's public boot reads through the worker
+            // being removed reach the address a moment after that. So the baseline is taken once nothing has moved for 300 ms, neither the page (no new navigation) nor the count; from there, anything the
+            // relay's worker carries fails the assertion below.
+            let before = carried.length;
+            const quietBy = Date.now() + 10_000;
+            for (let still = Date.now(); Date.now() - Math.max(still, lastNavigation) < 300; ) {
+              assert.ok(
+                Date.now() < quietBy,
+                `the page never went quiet: last navigation ${Date.now() - lastNavigation} ms ago, ${carried.length} requests carried by the relay's worker`,
+              );
+              await new Promise((r) => setTimeout(r, 50));
+              if (carried.length !== before) {
+                before = carried.length;
+                still = Date.now();
+              }
+            }
             await page.reload();
             await page.getByTestId("si-user").waitFor({ timeout: 30_000 });
             assert.equal(carried.length, before, "nothing goes through the relay's worker any more");

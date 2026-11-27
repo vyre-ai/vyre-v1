@@ -1,0 +1,1 @@
+- The one-time search check no longer drops the search entries of records it could not read for a moment: it tries again, and the doctor says how many it had to remove.

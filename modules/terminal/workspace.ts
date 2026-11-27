@@ -19,11 +19,15 @@ import { createTmuxHost, HISTORY_ENV } from "./impl.ts";
 import { START_SCRIPT, READ_SCRIPT, STOP_SCRIPT, SWEEP_SCRIPT, parseRead, streamFile } from "./stream-log.ts";
 import { ensureCommand, grantCommand, SQUATTED } from "./asker.ts";
 import type { AskerPlace } from "./asker.ts";
+import { volumesOf } from "./volumes.ts";
+import type { VolumeUse } from "./volumes.ts";
 import type { TmuxHost } from "./impl.ts";
 import type { ExecResult } from "./impl.ts";
 import type { AdoptArgs, TerminalHost } from "./projections.ts";
 
 export const DEFAULT_WORKSPACE_IMAGE = "vyre/agent-workspace:1";
+/** The program a workspace container runs: the job supervisor of its image (images/agent-workspace/supervisor.mjs). */
+export const WORKSPACE_SUPERVISOR = "/opt/vyre/supervisor.mjs";
 export const WORKSPACE_PREFIX = "vyre-ws-";
 export const PROJECT_VOLUME_PREFIX = "vyre-wsproj-";
 export const WORKSPACE_HOME = "/home/agent";
@@ -60,6 +64,12 @@ export const DEFAULT_IDLE_MS = 10 * 60_000;
  * server) would otherwise hold it and its room forever. Then it sleeps anyway, and the next command says so once.
  */
 export const MAX_BUSY_AWAKE_MS = 12 * 60 * 60_000;
+/** The longest a wake waits for the first pass of the Files mirrors before it hands the shell over (the passes go on in the background). */
+export const FIRST_MIRROR_MS = 1500;
+/** The longest a look at a container (inspect, running or not) may take before it fails with a plain error. */
+export const READ_MS = 10_000;
+/** How often the volumes' sizes are read for server health. */
+const VOLUME_EVERY_MS = 5 * 60_000;
 /** How often a project change waiting for a busy workspace is looked at again. */
 export const MOUNT_RECHECK_MS = 5000;
 
@@ -142,6 +152,8 @@ export interface WorkspaceOptions {
   projectKickMs?: number;
   /** A workspace with nothing using it for this long sleeps. Default 10 minutes. */
   idleMs?: number;
+  /** The longest a wake waits for the first Files mirror pass. Default FIRST_MIRROR_MS. */
+  firstMirrorMs?: number;
   /** The Space this manager works for: its workspaces carry it (label vyre.space), and it only ever sleeps, removes or gives back the room of those. Omitted: every workspace on the engine (tests). */
   owner?: string;
   /** Does this Space know the agent (a container made before the Space label is ours only then). */
@@ -262,8 +274,16 @@ export interface WorkspaceManager {
   networkNote(): string | null;
   /** The subnets of every network on this host's Docker (behind the runner: subnets only), for the count of networks it has left; null when Docker does not answer. */
   hostSubnets(): Promise<string[] | null>;
+  /** The sizes of Vyre's volumes on this host (workspace homes, Files mirrors, project folders, browser profiles), biggest first, read at most every few minutes; null when Docker does not answer. */
+  hostVolumes(): Promise<VolumeUse[] | null>;
   /** Is its container running now: one look at that container only (a tab's 400 ms read asks this, so it must not list every workspace). */
   awake(agentId: string): Promise<boolean>;
+  /** The agent's background jobs. A look: it never wakes the workspace (asleep, there is nothing running to show). */
+  jobList(agentId: string): Promise<JobRow[]>;
+  /** Keep a command running in the workspace (woken if asleep): the supervisor starts it, starts it again when it dies, and keeps the workspace awake until it ends. */
+  jobStart(agentId: string, spec: JobSpec): Promise<JobRow>;
+  /** Ask a job to stop; the row as it stands after a moment. Null when the workspace has no such job. */
+  jobStop(agentId: string, jobId: string): Promise<JobRow | null>;
   /** Before a command: one pass of the workspace's mirrors when they slowed down, at most `ms`; false when that did not finish in time. */
   freshen(agentId: string, ms?: number): Promise<boolean>;
   /** Something changed in Files (the folders and file the event names): the slowed mirrors it touches make their next pass soon. */
@@ -300,11 +320,92 @@ export const BUSY_SCRIPT = [
   '  [ "$1" = Z ] && continue',
   '  [ "$2" = 0 ] || [ "$2" = "$$" ] && continue; case "$t" in *" $2 "*) continue;; esac',
   '  case "$panes" in *" $p "*) continue;; esac',
-  "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; fi",
+  "  if [ \"$2\" = 1 ]; then c=$(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null); [ \"$c\" = 'sleep infinity ' ] && continue; [ \"$c\" = 'node /opt/vyre/supervisor.mjs ' ] && continue; fi",
   "  echo \"$p $(tr '\\000' ' ' < \"$d/cmdline\" 2>/dev/null | cut -c1-80)\"",
   "done",
   "true",
 ].join("\n");
+
+// ---- background jobs ----------------------------------------------------------------------------------------------------------------------------------
+
+/** What an agent asked to keep running, and how it is doing (images/agent-workspace/supervisor.mjs writes the status). */
+export interface JobRow {
+  jobId: string;
+  name: string;
+  command: string;
+  state: "starting" | "running" | "restarting" | "stopped" | "done" | "failed";
+  restart: "on-failure" | "always" | "never";
+  startedAt?: number;
+  restarts: number;
+  exitCode?: number | null;
+  /** The last line the job printed. */
+  lastLine?: string;
+  /** It ended and was started again so often in an hour that its supervisor stopped it for good. */
+  loop?: boolean;
+}
+export interface JobSpec {
+  name: string;
+  command: string;
+  cwd?: string;
+  env?: Record<string, string>;
+  restart: "on-failure" | "always" | "never";
+}
+const JOB_ID = /^job_[a-f0-9]{12}$/;
+/** What the daemon runs in a workspace about its jobs: one program of the image (images/agent-workspace/jobs-cli.mjs), plain node, no shell. `list` prints every job's spec, status and log tail as one JSON document. */
+export const JOBS_CLI = "/opt/vyre/jobs-cli.mjs";
+export const JOBS_LIST_CMD = ["node", JOBS_CLI, "list"] as const;
+/** Writes a job's spec, from the environment (VYRE_JOB = {id, spec}), atomically: the supervisor looks at the folder every second. */
+export const JOB_WRITE_CMD = ["node", JOBS_CLI, "write"] as const;
+/** Asks a job to stop (VYRE_JOB_ID): its spec says desired stopped; the supervisor does the rest. Exits 3 when there is no such job. */
+export const JOB_STOP_CMD = ["node", JOBS_CLI, "stop"] as const;
+
+/** One entry of the list script's answer as a row; null for one that is not a job. */
+export function jobRowOf(x: unknown): JobRow | null {
+  const e = x as {
+    id?: unknown;
+    spec?: Record<string, unknown>;
+    status?: Record<string, unknown> | null;
+    tail?: unknown;
+  } | null;
+  if (!e || typeof e.id !== "string" || !JOB_ID.test(e.id) || !e.spec || typeof e.spec["command"] !== "string")
+    return null;
+  const st = e.status ?? null;
+  const want = e.spec["desired"] === "stopped" ? "stopped" : "running";
+  const known = ["running", "restarting", "stopped", "done", "failed"];
+  const state = (
+    st && typeof st["state"] === "string" && known.includes(st["state"])
+      ? st["state"]
+      : want === "stopped"
+        ? "stopped"
+        : "starting"
+  ) as JobRow["state"];
+  const last =
+    typeof e.tail === "string"
+      ? e.tail
+          .split("\n")
+          .map((l) => l.trim())
+          .filter((l) => l !== "" && !l.startsWith("[supervisor]"))
+          .pop()
+      : undefined;
+  const restart = e.spec["restart"] === "always" || e.spec["restart"] === "never" ? e.spec["restart"] : "on-failure";
+  return {
+    jobId: e.id,
+    name:
+      typeof e.spec["name"] === "string" && e.spec["name"] !== ""
+        ? e.spec["name"].slice(0, 80)
+        : String(e.spec["command"]).slice(0, 60),
+    command: String(e.spec["command"]).slice(0, 2000),
+    state,
+    restart,
+    restarts: typeof st?.["restarts"] === "number" ? st["restarts"] : 0,
+    ...(typeof st?.["startedAt"] === "number" ? { startedAt: st["startedAt"] } : {}),
+    ...(st && "exitCode" in st && (typeof st["exitCode"] === "number" || st["exitCode"] === null)
+      ? { exitCode: st["exitCode"] as number | null }
+      : {}),
+    ...(last ? { lastLine: last.slice(0, 200) } : {}),
+    ...(st && st["loop"] === true ? { loop: true } : {}),
+  };
+}
 
 // ---- the container --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -315,7 +416,14 @@ export interface MountSpec {
 /** The label that says what a container was made with: its project folders, and the shared network when it is on it (a workspace made on the default bridge before 12 Nov is made again once, when quiet). */
 const stable = (m: MountSpec, net?: string): string =>
   sha256Hex(
-    JSON.stringify({ p: [...m.projects].sort(), h: 1, u: 1, s: 1, ...(net === SHARED_NETWORK ? { n: net } : {}) }),
+    JSON.stringify({
+      p: [...m.projects].sort(),
+      h: 1,
+      u: 1,
+      s: 1,
+      j: 1,
+      ...(net === SHARED_NETWORK ? { n: net } : {}),
+    }),
   ).slice(0, 16);
 
 /**
@@ -356,7 +464,7 @@ export function workspaceContainerConfig(
     Hostname: WORKSPACE_HOSTNAME,
     User: `${WORKSPACE_UID}:${WORKSPACE_UID}`,
     WorkingDir: WORKSPACE_HOME,
-    Cmd: ["sleep", "infinity"],
+    Cmd: ["node", WORKSPACE_SUPERVISOR],
     Env: [`VYRE_WORKSPACE_AGENT=${agentId}`, `HOME=${WORKSPACE_HOME}`, "TERM=xterm-256color", "LANG=en_US.UTF-8"],
     Labels: {
       "vyre.workspace": agentId,
@@ -388,6 +496,7 @@ export function workspaceContainerConfig(
       NanoCpus: Math.round(limits.cpus * 1e9),
       MemoryReservation: Math.round(limits.reserveMb * 1024 * 1024),
       CpuShares: 256,
+      RestartPolicy: { Name: "unless-stopped" },
       Init: true,
       AutoRemove: false,
       Ulimits: [
@@ -530,6 +639,8 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   const http = o.http;
   const image = o.image ?? DEFAULT_WORKSPACE_IMAGE;
   const idleMs = o.idleMs ?? DEFAULT_IDLE_MS;
+  /** What `/system/df` said last: it walks every volume on the disk, so it is asked at most every VOLUME_EVERY_MS. */
+  let volumeCache: { at: number; rows: VolumeUse[] } | null = null;
   const log = o.log ?? (() => undefined);
   const lastUsed = new Map<string, number>();
   const gens = new Map<string, number>();
@@ -666,7 +777,14 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
   async function inspect(
     name: string,
   ): Promise<{ running: boolean; labels: Record<string, string>; projects: string[]; network: string } | null> {
-    const r = await http({ method: "GET", path: `/containers/${name}/json` });
+    // a look at the container is a short question: 10 s, then a plain error (rc.44; the default was 60 s with the agent's whole queue waiting behind it)
+    const r = await http({ method: "GET", path: `/containers/${name}/json`, timeoutMs: READ_MS }).catch(
+      (e: unknown) => {
+        throw wsError(
+          `Docker did not answer in ${READ_MS / 1000} seconds for the workspace (${e instanceof Error ? e.message.slice(0, 120) : "no reason"}).`,
+        );
+      },
+    );
     if (r.status === 404) return null;
     if (r.status !== 200) throw wsError(`Docker did not answer for the workspace (${r.status}: ${bodyText(r.body)}).`);
     const j = JSON.parse(dec.decode(r.body)) as {
@@ -1398,6 +1516,27 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
    * Is something working in the workspace: a run Vyre holds, a pane whose foreground command is not a shell, or any process that is not the workspace's own (BUSY_SCRIPT). A workspace that does not
    * answer is taken as busy: nothing is stopped on a guess.
    */
+  /** The jobs of a workspace, from the supervisor's folders; empty when it is asleep (nothing runs) or cannot be asked. Never wakes it, never counts as use. */
+  async function listJobs(agentId: string): Promise<JobRow[]> {
+    if (!AGENT_ID.test(agentId)) return [];
+    try {
+      if (!(await api.containerRunning(workspaceName(agentId)))) return [];
+      const r = await execIn(agentId, [...JOBS_LIST_CMD], undefined);
+      if (r.code !== 0) return [];
+      const rows = (JSON.parse(r.stdout.trim() || "[]") as unknown[])
+        .map(jobRowOf)
+        .filter((x): x is JobRow => x !== null);
+      return rows.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
+    } catch {
+      return [];
+    }
+  }
+  /** How many jobs are running or waiting to start again: while one is, the workspace does not sleep and the 12 hour ceiling for other work does not apply. */
+  async function jobsAlive(agentId: string): Promise<number> {
+    return (await listJobs(agentId)).filter(
+      (j) => j.state === "running" || j.state === "restarting" || j.state === "starting",
+    ).length;
+  }
   async function busy(agentId: string): Promise<boolean> {
     return (await work(agentId)) !== null;
   }
@@ -1579,12 +1718,22 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
     if (o.capacity) claimed.add(agentId);
     gens.set(agentId, (gens.get(agentId) ?? 0) + 1);
     lastUsed.set(agentId, now());
-    // Files down into ~/Vyre before the first command, then every few seconds while it is awake
-    await homePass(agentId);
+    // Files down into ~/Vyre, then every few seconds while it is awake. The first prompt does not wait for the whole folder (27 Nov, rc.44: a big Files folder made the first screen slow and held every other
+    // call for the agent behind this wake): the passes are started and waited for at most FIRST_MIRROR_MS; what is not done by then goes on in the background (the same shared pass, so a command that
+    // needs a file still freshens it first, `freshen`).
+    const first = homePass(agentId);
     startHome(agentId);
     mounted.set(agentId, want.projects);
     startProjects(agentId, want.projects);
-    for (const p of want.projects) await projectPass(p);
+    const passes = [first, ...want.projects.map((p) => projectPass(p))];
+    await Promise.race([
+      Promise.all(passes),
+      new Promise<void>((done) => {
+        const t = setTimeout(done, o.firstMirrorMs ?? FIRST_MIRROR_MS) as unknown as { unref?: () => void };
+        t.unref?.();
+      }),
+    ]);
+    for (const p of passes) void p.catch(() => undefined);
     startTimer();
     log("info", info ? "workspace.woke" : "workspace.created", { agent: agentId });
     return info ? "woke" : "created";
@@ -1705,6 +1854,10 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
         const at = lastUsed.get(agentId);
         if (at !== undefined && now() - at < idleMs) return false;
         const doing = await work(agentId);
+        if ((await jobsAlive(agentId)) > 0) {
+          lastUsed.set(agentId, now() - idleMs + 60_000);
+          return false;
+        }
         if (doing !== null) {
           if (!overCeiling(agentId)) {
             lastUsed.set(agentId, now() - idleMs + 60_000);
@@ -1845,6 +1998,11 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       if (now() - at < idleMs) continue;
       // never sleeps mid-task: a run Vyre holds, a pane that runs something other than a shell, or any process of the agent's (a script, a job in the background) is work
       // ...but for at most MAX_BUSY_AWAKE_MS after the last command or keystroke: then it sleeps anyway (sleepNow says why to the next command)
+      // a background job the agent asked for keeps its computer awake until it ends: no ceiling (rc.44)
+      if ((await jobsAlive(id)) > 0) {
+        lastUsed.set(id, now() - idleMs + 60_000);
+        continue;
+      }
       if ((await busy(id)) && !overCeiling(id)) {
         lastUsed.set(id, now() - idleMs + 60_000);
         continue;
@@ -1916,6 +2074,68 @@ export function createWorkspaceManager(o: WorkspaceOptions): WorkspaceManager {
       } catch {
         return null;
       }
+    },
+    hostVolumes: async () => {
+      if (volumeCache && now() - volumeCache.at < VOLUME_EVERY_MS) return volumeCache.rows;
+      const r = await http({ method: "GET", path: "/system/df", query: { type: "volume" }, timeoutMs: 60_000 }).catch(
+        () => null,
+      );
+      if (!r || r.status !== 200) return null;
+      try {
+        const rows = volumesOf(JSON.parse(dec.decode(r.body)));
+        volumeCache = { at: now(), rows };
+        return rows;
+      } catch {
+        return null;
+      }
+    },
+    jobList: (agentId) => listJobs(agentId),
+    async jobStart(agentId, spec) {
+      const id = `job_${Array.from(globalThis.crypto.getRandomValues(new Uint8Array(6)), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+      const doc = {
+        id,
+        spec: {
+          id,
+          name: spec.name,
+          command: spec.command,
+          ...(spec.cwd ? { cwd: spec.cwd } : {}),
+          ...(spec.env ? { env: spec.env } : {}),
+          restart: spec.restart,
+          desired: "running",
+          at: now(),
+        },
+      };
+      const w = await exec(agentId, [...JOB_WRITE_CMD], { env: { VYRE_JOB: JSON.stringify(doc) } });
+      if (w.code !== 0) throw wsError("The job could not be written in the workspace.");
+      // the supervisor looks every second: the first answer is the job as it stands a moment later
+      let row: JobRow | null = null;
+      for (let i = 0; i < 8 && row?.state !== "running"; i++) {
+        await sleep(400);
+        row = (await listJobs(agentId)).find((j) => j.jobId === id) ?? null;
+        if (row && row.state !== "starting") break;
+      }
+      return (
+        row ?? {
+          jobId: id,
+          name: spec.name,
+          command: spec.command,
+          state: "starting",
+          restart: spec.restart,
+          restarts: 0,
+        }
+      );
+    },
+    async jobStop(agentId, jobId) {
+      if (!JOB_ID.test(jobId)) return null;
+      const r = await exec(agentId, [...JOB_STOP_CMD], { env: { VYRE_JOB_ID: jobId }, quiet: true });
+      if (r.code === 3) return null;
+      let row: JobRow | null = null;
+      for (let i = 0; i < 12; i++) {
+        await sleep(500);
+        row = (await listJobs(agentId)).find((j) => j.jobId === jobId) ?? null;
+        if (row && row.state !== "running" && row.state !== "restarting" && row.state !== "starting") break;
+      }
+      return row;
     },
     awake: (agentId) =>
       AGENT_ID.test(agentId) ? api.containerRunning(workspaceName(agentId)).catch(() => false) : Promise.resolve(false),

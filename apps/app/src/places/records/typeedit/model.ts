@@ -659,6 +659,10 @@ export async function commitChange(call: Call, staged: Staged): Promise<{ ok: tr
 
 export const valuesWord = (n: number): string => `${n} ${n === 1 ? "value" : "values"}`;
 
+/** What the confirm line says while a field is being deleted: the apply answers when every record is done, which can take a while on a big type. */
+export const dropBusyLine = (name: string, rows: number): string =>
+  `Removing ${name} from ${rows} ${rows === 1 ? "record" : "records"}…`;
+
 /** The one confirm line before a destructive change, with the count schema.diff gave. */
 export function confirmLine(
   kind: "field.drop" | "field.retype" | "field.seal" | "type.drop",

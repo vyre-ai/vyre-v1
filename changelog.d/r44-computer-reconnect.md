@@ -1,0 +1,1 @@
+- The browser and the terminal in the Computer tab and the full view now find out when their connection is lost and open it again by themselves: the view says "Reconnecting", then "Couldn't reach the browser" with Try again, instead of freezing on the last picture. A failed first start of the browser is tried again with a growing wait.

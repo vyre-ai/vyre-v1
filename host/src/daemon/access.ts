@@ -1,5 +1,6 @@
 // The daemon's access snapshot: the event log folded into the kernel's AccessSnapshot so `authorize` answers for the live Space. Booting reads the whole log once; every commit folds its own events.
 // Only the access event types matter here (the same six the seeded Spaces use); the access module's own projections (L7a) can replace this fold without touching the daemon's callers.
+import { decodePayload } from "../../../lib/decode-payload.ts";
 import { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import type {
   GrantRow,
@@ -16,7 +17,7 @@ export interface FoldableEvent {
 
 function body<T>(e: FoldableEvent): T {
   const p = e.payload;
-  if (p instanceof Uint8Array) return JSON.parse(new TextDecoder().decode(p)) as T;
+  if (p instanceof Uint8Array) return decodePayload(p) as T;
   return p as T;
 }
 
@@ -105,6 +106,13 @@ const MODULE_EVENTS = new Set([
   "space.ownership_transferred",
   "agent.privacy_set",
   "agent.renamed",
+  // Files' Trash events: the module keeps a Trash mark on its own file and folder rows
+  "file.deleted",
+  "file.restored",
+  "file.purged",
+  "folder.deleted",
+  "folder.restored",
+  "folder.purged",
 ]);
 export const isAccessEvent = (type: string): boolean => MODULE_EVENTS.has(type);
 /** Events after which the module's tables may differ from the snapshot the daemon holds: the ones it folds, plus what its own capabilities emit when a role, share, revoke or policy changes. */
@@ -253,6 +261,8 @@ export function createAccessRun(o: {
   pending(): number;
   read(after: number, limit: number): Promise<readonly { seq: number; type: string; payload: unknown; enc?: number }[]>;
   call(events: Held[]): Promise<AccessSnapshot>;
+  /** How many Trash marks the module has still to set (a folder of many thousand files is marked in steps of 2,000); asked after each fold, and the module is called with no events until it is 0. */
+  trashPending?(): Promise<number>;
   adopt(s: AccessSnapshot): void;
   adopted(): boolean;
   stale: { get(): boolean; set(v: boolean): void };
@@ -278,6 +288,10 @@ export function createAccessRun(o: {
       for (let at = 0; at === 0 || at < batch.events.length; at += SYNC_SLICE) {
         if (at > 0) await new Promise<void>((done) => setImmediate(done));
         snap = await o.call(batch.events.slice(at, at + SYNC_SLICE));
+      }
+      for (let guard = 0; o.trashPending && (await o.trashPending()) > 0 && guard < 100_000; guard++) {
+        await new Promise<void>((done) => setImmediate(done));
+        snap = await o.call([]);
       }
       o.adopt(snap!);
       upTo = batch.upTo;

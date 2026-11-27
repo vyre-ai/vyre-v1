@@ -153,11 +153,17 @@ export async function doctorCommand(io: CliIo, p: Parsed, o: { alwaysOffline: bo
     try {
       const r = await callCap(io, target, "health.doctor", {});
       if (r.ok) {
-        const d = r.data as { ok: boolean; findings: { key: string; state: string; next: string }[] };
+        const d = r.data as {
+          ok: boolean;
+          findings: { key: string; title?: string; state: string; detail?: string; notSetUp?: boolean; next: string }[];
+        };
         if (asJson) line(io, JSON.stringify(d, null, 2));
         else {
-          for (const f of d.findings)
-            line(io, `${f.state.padEnd(8)} ${f.key}${f.state === "healthy" ? "" : `\n         Next: ${f.next}`}`);
+          for (const f of d.findings) {
+            const label = f.notSetUp ? "not set up" : f.state;
+            line(io, `${label.padEnd(10)} ${f.key}${f.detail ? `: ${f.detail}` : ""}`);
+            if (f.state !== "healthy") line(io, `           Next: ${f.next}`);
+          }
           line(io, d.ok ? "Everything checks out." : "Some checks need attention.");
         }
         return d.ok ? EXIT.OK : EXIT.FAILED;

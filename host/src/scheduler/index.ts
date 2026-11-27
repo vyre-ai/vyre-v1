@@ -1,10 +1,17 @@
 // The scheduler (ARCH 1.2): the daemon's clock. Jobs run on an interval or once a day at a fixed time; a job never overlaps itself; a failing job is counted and reported, never fatal.
 // The scheduler stamps `lastTickAt` on every tick: the `scheduler` host probe reads it, so a stalled event loop shows up in health. Automations and Journeys have their own
 // schedules in their modules; this one runs the host's chores (probes, command queues, idempotency purge, log retention).
+import { loopTurn } from "../../../lib/loop-budget.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 
 export type Schedule =
-  | { everyMs: number; /** run once as soon as the scheduler starts */ immediate?: boolean }
+  | {
+      everyMs: number;
+      /** run once as soon as the scheduler starts */
+      immediate?: boolean;
+      /** never given a stagger phase: the job has to run at its boundary (the schedule tick of the automations: a cron minute is not allowed to fire up to a minute late) */
+      exact?: boolean;
+    }
   | { daily: { hour: number; minute: number }; utc?: boolean };
 
 export interface JobSpec {
@@ -34,6 +41,11 @@ export interface SchedulerOptions {
   /** how often due jobs are looked for, default 1000 ms */
   tickMs?: number;
   log?: Logger;
+  /**
+   * Give each job a stable phase of up to STAGGER_MS after its interval (a hash of its name), so the dozens of jobs added at one moment do not all fall due in the same second at every 10-minute
+   * boundary (one burst held the loop 2.7 s on a Meier-sized Space). Off by default: a test with a fake clock wants nextAt to be exactly now + everyMs.
+   */
+  stagger?: boolean;
   /** called after every run; the daemon turns these into log rows */
   onRun?: (r: { job: string; ok: boolean; ms: number; error?: string }) => void;
 }
@@ -53,6 +65,21 @@ interface Job {
 }
 
 const ABANDON_AFTER_MS = 600_000;
+/** The longest phase a staggered job gets, in ms: jobs that fall due together are spread over this. */
+export const STAGGER_MS = 60_000;
+
+/** A stable number from a job's name (FNV-1a), the same on every start. */
+export function nameHash(name: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) h = Math.imul(h ^ name.charCodeAt(i), 0x01000193) >>> 0;
+  // FNV leaves similar names in similar places in the low bits: mix them (the murmur3 finaliser) so names that differ in one letter land far apart
+  h ^= h >>> 16;
+  h = Math.imul(h, 0x85ebca6b) >>> 0;
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35) >>> 0;
+  h ^= h >>> 16;
+  return h >>> 0;
+}
 
 /** The first moment after `after` that is `hour:minute` (local time, or UTC). */
 export function nextDaily(after: number, hour: number, minute: number, utc = false): number {
@@ -70,6 +97,7 @@ export class Scheduler {
   private jobs = new Map<string, Job>();
   private now: () => number;
   private tickMs: number;
+  private stagger: boolean;
   private log: Logger | undefined;
   private onRun: NonNullable<SchedulerOptions["onRun"]>;
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -83,6 +111,7 @@ export class Scheduler {
   constructor(o: SchedulerOptions = {}) {
     this.now = o.now ?? Date.now;
     this.tickMs = o.tickMs ?? 1000;
+    this.stagger = o.stagger === true;
     this.log = o.log;
     this.onRun = o.onRun ?? (() => {});
   }
@@ -92,8 +121,16 @@ export class Scheduler {
     const s = spec.schedule;
     if ("everyMs" in s && !(s.everyMs >= 1)) throw new Error(`job ${spec.name}: everyMs must be at least 1`);
     const t = this.now();
+    const phase =
+      this.stagger && "everyMs" in s && !s.immediate && !s.exact
+        ? nameHash(spec.name) % Math.min(s.everyMs, STAGGER_MS)
+        : 0;
     const nextAt =
-      "everyMs" in s ? (s.immediate ? t : t + s.everyMs) : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
+      "everyMs" in s
+        ? s.immediate
+          ? t
+          : t + s.everyMs + phase
+        : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
     this.jobs.set(spec.name, {
       spec,
       nextAt,
@@ -158,6 +195,8 @@ export class Scheduler {
         continue;
       }
       j.nextAt = "everyMs" in s ? t + s.everyMs : nextDaily(t, s.daily.hour, s.daily.minute, s.utc ?? false);
+      // a turn of the event loop between two jobs that start in the same tick: a request that arrived meanwhile is answered between them, not after all of them
+      if (started.length) await loopTurn(); // the server's shared turn: the pumps and the sweeps count their work from the same one
       started.push(this.runJob(j));
     }
     await Promise.all(started);

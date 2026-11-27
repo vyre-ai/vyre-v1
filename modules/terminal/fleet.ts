@@ -187,6 +187,28 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     restore(agentId) {
       for (const m of all()) m.restore(agentId);
     },
+    async jobList(agentId) {
+      const m = homes.get(agentId);
+      if (m) return m.jobList(agentId);
+      for (const x of all()) {
+        const rows = await x.jobList(agentId).catch(() => []);
+        if (rows.length > 0) return rows;
+      }
+      return [];
+    },
+    async jobStart(agentId, spec) {
+      return (await managerFor(agentId)).jobStart(agentId, spec);
+    },
+    async jobStop(agentId, jobId) {
+      const m = homes.get(agentId);
+      if (m) return m.jobStop(agentId, jobId);
+      // this process has not used the agent's workspace yet (it was started again since): the machine that has the job says
+      for (const x of all()) {
+        const row = await x.jobStop(agentId, jobId).catch(() => null);
+        if (row !== null) return row;
+      }
+      return null;
+    },
     async awake(agentId) {
       const m = homes.get(agentId);
       if (m) return m.awake(agentId);
@@ -199,6 +221,9 @@ export function createWorkspaceFleet(o: FleetOptions): WorkspaceFleet {
     },
     networkNote() {
       return o.space ? o.space.networkNote() : null;
+    },
+    async hostVolumes() {
+      return o.space ? o.space.hostVolumes() : null;
     },
     async hostSubnets() {
       return o.space ? o.space.hostSubnets() : null;

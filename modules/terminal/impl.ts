@@ -20,10 +20,15 @@ import {
   openTabForRun,
   stopRuns,
 } from "./handlers/sessions.ts";
+import { screenOf } from "./handlers/sessions.ts";
+import { createWatcher } from "./watch.ts";
+import type { Watcher } from "./watch.ts";
 import type { AccessDeps } from "./handlers/sessions.ts";
 import { chatFolderCommand, chatLinkCommand, grantCommand, removeCommand } from "./asker.ts";
 import {
   bindWorkspaceStatus,
+  bindWorkspaceJobs,
+  boundWorkspaceJobs,
   bindChatFolder,
   bindNotes,
   bindPlaceGrant,
@@ -37,6 +42,7 @@ import {
   bindValues,
   bindWorkspaces,
   boundHost,
+  clean,
   hideRunLine,
   redeemTicket,
   scopeOfId,
@@ -50,6 +56,7 @@ import { createWorkspaceFleet, remoteDockerHttp } from "./fleet.ts";
 import type { WorkspaceFleet } from "./fleet.ts";
 import type { AdoptArgs, Db, PlaceOf, Target, TermCtx, TermState, TerminalHost, ValueSource } from "./projections.ts";
 import { networkRoom, networkRoomFinding, siteRoom } from "./netroom.ts";
+import { DEFAULT_SOFT_CAP_MB, volumeFinding } from "./volumes.ts";
 import type { RoomFinding } from "./netroom.ts";
 
 /**
@@ -236,7 +243,7 @@ tmux send-keys -t "$s" Enter || exit 91
 printf '__VYRE_SENT__\n' >&2
 nl='
 '
-t0=$(date +%s); st=wait; n=0; cap=; rcv=
+t0=$(date +%s); st=wait; n=0; settle=0; cap=; rcv=
 while :; do
   n=$((n + 1))
   out=$(tmux capture-pane -p -J -t "$s" -S "-$scroll" \\; display-message -p -t "$s" "__VYRE_X__#{$rc}|#{$cx}")
@@ -248,7 +255,12 @@ while :; do
     num=\${rest%%"$nl"*}
     case $num in ''|*[!0-9]*) ;; *) st=done; break;; esac
   fi
-  case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  case $rcv in ''|*[!0-9]*) ;; *)
+    # the stored code is set a moment BEFORE the line prints its end mark, and the mark is not on the screen yet (it would have ended above): look again (at most 15 more looks, 0.3 s) so a command that rewrites
+    # rows above the cursor is read after its own mark has landed and never half way; a command that overwrote the mark or cleared the screen ends by the stored code, as before
+    if [ $settle -ge 15 ]; then st=done; break; fi
+    settle=$((settle + 1)); sleep 0.02; continue;;
+  esac
   if [ -n "$cxv" ]; then st=cancel; break; fi
   if [ $n -gt 25 ]; then
     now=$(date +%s)
@@ -619,8 +631,20 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         return cut(screen.slice(0, m.index).split("\n"), Number(m[1]));
       }
       if (/^\d+$/.test(rc)) {
+        // the stored code is set a moment BEFORE the line prints its end mark: read again until the mark is on the screen (at most 15 looks), so a command that rewrites rows above the cursor is read after its own
+        // mark has landed and never half way; a command that overwrote the mark or cleared the screen ends by the stored code as before
+        let seen = screen;
+        for (let k = 0; k < 15 && !endRe.test(seen); k += 1) {
+          await sleep(20);
+          const again = tidy(
+            await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, scrollback)}`]),
+          );
+          seen = again;
+        }
         await forget();
-        return cut(screen.split("\n"), Number(rc));
+        const m2 = endRe.exec(seen);
+        if (m2 && m2.index !== undefined) return cut(seen.slice(0, m2.index).split("\n"), Number(m2[1]));
+        return cut(seen.split("\n"), Number(rc));
       }
       if (signal?.aborted) {
         await stopIn(session);
@@ -796,15 +820,23 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
     },
     async status(ids) {
       const out: Array<{ terminalId: string; state: TermState; lastLine?: string; exitCode: number | null }> = [];
+      // a status read is quiet (rc.44): the pane asks every few seconds for every row, and it must neither wait behind a wake (the serial chain), nor count as use (a page left open kept the workspace awake for
+      // ever), nor start the container; where the host has no quiet way it is the ordinary one
+      const q = o.quietExec ?? o.exec;
+      const qt = async (args: readonly string[]): Promise<string> => {
+        const r = await q(["tmux", ...args]);
+        if (r.code !== 0) throw new Error(`tmux ${args[0] ?? ""} failed: ${r.stderr.trim().slice(0, 200)}`);
+        return r.stdout;
+      };
       for (const terminalId of ids) {
         const session = nameOf(terminalId);
-        const has = await o.exec(["tmux", "has-session", "-t", session]);
+        const has = await q(["tmux", "has-session", "-t", session]);
         if (has.code !== 0) {
           out.push({ terminalId, state: "exited", exitCode: null });
           continue;
         }
-        const cmd = tidy(await tmux(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
-        const last = (await capture(session, 5))
+        const cmd = tidy(await qt(["display-message", "-p", "-t", session, "#{pane_current_command}"]));
+        const last = tidy(await qt(["capture-pane", "-p", "-J", "-t", session, "-S", "-5"]))
           .split("\n")
           .filter((l) => l.trim() !== "")
           .pop();
@@ -899,6 +931,54 @@ export async function openFrames(
       carry = "";
       stop();
     },
+  };
+}
+
+/** One watcher per terminal, for the host that was bound when it was made: a host bound since (a daemon started again in this process) gets a watcher of its own, never the old one's. */
+const watchers = new Map<string, { host: TerminalHost; w: Watcher }>();
+
+/**
+ * The live stream of a session's screen (terminal.stream; host/src/routes/terminal-stream.ts): spends the ticket, joins the terminal's one watcher (watch.ts) and sends every numbered change as a JSON text. `since` is
+ * the number the viewer last had, for a viewer that is coming back. The screen passes through the same scrub as terminal.capture, so a Vault value filled into a command never reaches the viewer. Null when the
+ * ticket is unknown, spent, expired or for another session, or this host draws no screens.
+ */
+export async function openScreen(
+  db: Db,
+  terminalId: string,
+  ticket: string,
+  since: number | undefined,
+  now: number,
+  send: (text: string) => void,
+): Promise<{ terminalId: string; personId: string; stop(): void; resync(): void } | null> {
+  const host = boundHost();
+  if (!host?.capture || !host.stream) return null;
+  const who = await redeemTicket(db, ticket, now);
+  if (!who || who.terminalId !== terminalId) return null;
+  let w = watchers.get(terminalId)?.host === host ? watchers.get(terminalId)!.w : undefined;
+  if (!w) {
+    const scope = scopeOfId(db, terminalId);
+    w = createWatcher({
+      capture: async () => {
+        const r = await host.capture!(terminalId, { lines: 2000 });
+        return screenOf(r, clean(scope, r.text));
+      },
+      frames: (on) => host.stream!(terminalId, () => on()),
+    });
+    watchers.set(terminalId, { host, w });
+  }
+  const sub = await w.subscribe((m) => send(JSON.stringify(m)), since).catch(() => null);
+  if (!sub) {
+    if (w.viewers() === 0 && watchers.get(terminalId)?.w === w) watchers.delete(terminalId);
+    return null;
+  }
+  const mine = w;
+  return {
+    ...who,
+    stop() {
+      sub.stop();
+      if (mine.viewers() === 0 && watchers.get(terminalId)?.w === mine) watchers.delete(terminalId);
+    },
+    resync: () => sub.resync(),
   };
 }
 
@@ -1289,9 +1369,12 @@ export function createLocalHost(
         return v;
       }));
   // a host that starts removes what a run of this daemon left on this computer's tmux server before it died (review 12 Nov, 3b)
-  void hasTmux()
-    .then((on) => (on ? tmux.sweep() : undefined))
-    .catch(() => undefined);
+  // in a turn of its own: starting the probe (a child process) costs 30 ms to 50 ms, and the start of the server has other steps of that size around it
+  setTimeout(() => {
+    void hasTmux()
+      .then((on) => (on ? tmux.sweep() : undefined))
+      .catch(() => undefined);
+  }, 400).unref();
   const owner = new Map<string, TerminalHost>();
   /** Sessions whose row this process has been told about (adopt), so a session is looked for and made again at most once per process. */
   const adopted = new Set<string>();
@@ -1427,6 +1510,15 @@ export function setTerminalHost(seam: TerminalHostSeam | null): void {
   bindWorkspaces(fleet ? (agentId) => fleet.available(agentId) : false);
   bindWorkspaceStatus(fleet ? (agentId) => fleet.status(agentId) : null);
   bindNotes(fleet ? (agentId) => fleet.takeNotes(agentId) : null);
+  bindWorkspaceJobs(
+    fleet
+      ? {
+          list: (agentId) => fleet.jobList(agentId),
+          start: (agentId, spec) => fleet.jobStart(agentId, spec),
+          stop: (agentId, jobId) => fleet.jobStop(agentId, jobId),
+        }
+      : null,
+  );
   bindPlaceGrant(
     fleet
       ? async (agentId, place) => {
@@ -1465,8 +1557,14 @@ export async function networkRoomFindings(ok: string): Promise<RoomFinding[]> {
   const subnets = await workspaceManager?.hostSubnets().catch(() => null);
   // while workspaces go on Docker's default network because the shared one cannot be had: one line an admin sees, gone once the network exists (third look T3)
   const note = workspaceManager?.networkNote() ?? null;
+  const vols = await workspaceManager?.hostVolumes().catch(() => null);
+  const capMb =
+    Number(process.env["VYRE_VOLUME_SOFT_CAP_MB"]) > 0
+      ? Number(process.env["VYRE_VOLUME_SOFT_CAP_MB"])
+      : DEFAULT_SOFT_CAP_MB;
   return [
     ...(subnets ? [networkRoomFinding(networkRoom(subnets), ok, siteRoom(subnets))] : []),
+    ...(vols ? [volumeFinding(vols, capMb, ok)] : []),
     ...(note
       ? [
           {
@@ -1520,7 +1618,64 @@ function accessDeps(ctx: TermCtx): AccessDeps {
   };
 }
 
+/** Tell an agent's owner, once, that a background job of the agent's kept ending and was stopped (a crash loop): a task in their Needs you with its notification. */
+export async function jobLoopsWatch(ctx: TermCtx): Promise<string[]> {
+  ensureTerminalTables(ctx.db);
+  const jobs = boundWorkspaceJobs();
+  if (!jobs || !ctx.call) return [];
+  const told: string[] = [];
+  const agents = (
+    ctx.db.all(
+      "SELECT DISTINCT agent_id FROM terminal_sessions WHERE host = 'agent_computer' AND agent_id IS NOT NULL",
+    ) as Array<{ agent_id?: unknown }>
+  ).map((r) => String(r.agent_id));
+  for (const agentId of agents) {
+    const rows = await jobs.list(agentId).catch(() => []);
+    for (const j of rows) {
+      if (j.loop !== true) continue;
+      if (
+        (
+          ctx.db.all(
+            "SELECT 1 FROM terminal_job_loops WHERE agent_id = ? AND job_id = ?",
+            agentId,
+            j.jobId,
+          ) as unknown[]
+        ).length > 0
+      )
+        continue;
+      ctx.db.run(
+        "INSERT INTO terminal_job_loops (agent_id, job_id, told_at) VALUES (?, ?, ?)",
+        agentId,
+        j.jobId,
+        ctx.now(),
+      );
+      try {
+        const owner = ((await ctx.call("agents.share_class", { agentId })) as { ownerId?: string }).ownerId;
+        if (typeof owner !== "string") continue;
+        await ctx.call("tasks.create", {
+          kind: "work",
+          title: `"${j.name}" kept crashing and was stopped`,
+          assigned: { kind: "person", id: owner },
+          summary: `A background job on this agent's computer ended and was started again more than 20 times in an hour, so it was stopped for good and no longer keeps the computer awake. Its last line: ${j.lastLine ?? "none"}. Its log is kept on the computer.`,
+          source: { kind: "manual", id: j.jobId },
+          idempotencyKey: `jobloop:${agentId}:${j.jobId}`,
+        });
+        told.push(j.jobId);
+      } catch (e) {
+        ctx.log.warn("terminal: the owner could not be told of a crash-looping job", {
+          agentId,
+          jobId: j.jobId,
+          reason: e instanceof Error ? e.message.slice(0, 120) : "unknown",
+        });
+      }
+    }
+  }
+  return told.map((id) => `${id} told`);
+}
+
 export const periodic = {
+  /** Every minute: a background job that was stopped for crash looping is told to its agent's owner, once. */
+  "terminal.jobs_watch": { everyMs: 60_000, run: (ctx: TermCtx): Promise<string[]> => jobLoopsWatch(ctx) },
   /** Hourly: the kept output of commands that ended a week ago or more is deleted (cmdlog.ts). */
   "terminal.cmdlog_expire": {
     everyMs: 60 * 60_000,

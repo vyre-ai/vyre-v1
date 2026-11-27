@@ -6,8 +6,21 @@
 // Project roles reuse the 0.6 idea in kernel/gateway/project-members.js@dbd2dfb: a team role is a grant tagged with source 'project:<id>' and
 // removing the member revokes by source. Role to level: Lead manage, Member edit, Reviewer view, Guest view (spec 2.4).
 // Path mapping: this packet owns handlers/share.ts; the capability table in handlers/index.ts is wired to these functions (one edit, no logic).
+import { loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { rawDbOf } from "../../../host/src/ctx/db.ts";
-import { NeedFullStore, asReader, changedGrants, isReader } from "../projections.ts";
+import {
+  NeedFullStore,
+  TRASH_KEY,
+  asReader,
+  changedGrants,
+  isReader,
+  isTrashed,
+  keepWarm,
+  mapChangesSince,
+  mapVersion,
+  peekWarm,
+  stampNow,
+} from "../projections.ts";
 import { MADE_FOR_PERSON_NOT, authorize, evalExpr, mayShareWithEveryone } from "../../../kernel/src/authorize/index.ts";
 import type { AccessSnapshot } from "../../../kernel/src/authorize/index.ts";
 import { ladderFor, levelIncludes } from "../../../packages/contracts/src/levels.ts";
@@ -41,6 +54,8 @@ import {
   pkey,
   raise,
   storeOf,
+  primeStore,
+  changedResources,
   decisionSnapshot,
 } from "../projections.ts";
 import { isHostOwnService, isHostService, isOwnPress, isSystemCall } from "../../../lib/trust.ts";
@@ -108,8 +123,12 @@ export class ShareStore {
   idem = new Map<string, unknown>();
   /** The objects whose rows must be worked out again before this cache is current (what the access tables did since it was built): taken from the kept copy by `shareOf`, worked off by `ensureFresh` or `commit`. */
   pending: string[] = [];
+  /** The people whose rows must be worked out again, over every resource, before this cache is current (a role given, a group joined, a person added or suspended): worked off like `pending`. */
+  pendingWho: string[] = [];
   /** `access` by resource: which cached rows each resource has, built when first needed and kept in step by `setRow` and `dropRow`. */
   byRes: Map<string, Set<string>> | null = null;
+  /** The kept copy this state was taken from (its store, epoch and base), so a writer that changes only a few resources brings the base up to date for those instead of copying every resource again (publish). */
+  from: { store: AccessStore; epoch: number; base: Base } | null = null;
 }
 
 const SHARES = new WeakMap<Db, ShareStore>();
@@ -140,8 +159,13 @@ function tryAll(db: Db, sql: string): Record<string, unknown>[] {
 interface Base {
   resources: Map<string, ResourceRec>;
   grants: Map<string, GrantRec>;
-  /** everything else the store holds, as text: small, and compared whole */
+  /** everything else the store holds but what is each person's own, as text: small, and compared whole */
   rest: string;
+  /** each person's own state (the person, the roles given to them, the groups they are in), as text: a difference names the person whose rows must be worked out again */
+  people: Map<string, string>;
+  /** The sealed map of resources this base was copied from and its version then: while the store still holds that very map, only the keys it changed since are compared (undefined when the base is not a copy of one). */
+  resMap?: object;
+  resVersion?: number;
 }
 interface Kept {
   /** the store the copy was built from and its epoch: the same store at the same epoch has changed nothing, so nothing is compared */
@@ -152,29 +176,60 @@ interface Kept {
   /** the counters of access_local_my_state when this copy was published: a row of my_access or of the folder tables written by anyone since makes it untrustworthy */
   rows: number;
   folders: number;
+  /** The write counter of the access tables (migrations/0006) when this copy was published: while it stands, no access row was written since, so any store of this database holds what the copy was built from. */
+  stamp: number | null;
 }
 const KEPT = new WeakMap<object, Kept>();
 const stateOf = (db: Db): { rows: number; folders: number } | null => {
   const r = tryAll(db, `SELECT "rows", "folders" FROM access_local_my_state WHERE "id" = 1`)[0];
   return r ? { rows: Number(r["rows"]), folders: Number(r["folders"]) } : null;
 };
-export const shareKept = { hits: 0, built: 0, incremental: 0, sliced: 0, discarded: 0 };
+export const shareKept = {
+  hits: 0,
+  built: 0,
+  incremental: 0,
+  sliced: 0,
+  discarded: 0,
+  settleSkips: 0,
+  stampShared: 0,
+  logCompared: 0,
+};
 
 /** What the store holds besides resources and grants, as text that does not depend on the order things were put in (a store built by events and one loaded from the tables hold the same things in different orders). */
 function restOf(store: AccessStore): string {
   const sorted = <K, V>(m: Iterable<[K, V]>): [K, V][] =>
     [...m].sort((a, b) => (String(a[0]) < String(b[0]) ? -1 : String(a[0]) > String(b[0]) ? 1 : 0));
+  const person = (id: string): boolean => store.principals.get(id)?.kind === "person";
   return canonical([
     [...store.catalogue].sort(),
     sorted(store.roles),
     sorted(store.roleChanges),
-    sorted(store.groups),
-    sorted(store.principals),
+    // a group without the people in it (who is in it is each person's own state, see peopleOf)
+    sorted([...store.groups].map(([k, g]) => [k, { ...g, members: g.members.filter((m) => !person(m.id)) }] as const)),
+    sorted([...store.principals].filter(([, p]) => p.kind !== "person")),
     sorted(store.policies),
     sorted(store.actors),
-    sorted(store.assignments),
+    sorted([...store.assignments].filter(([holder]) => !person(holder))),
     sorted([...store.fieldLabels].filter(([k]) => k !== CURSOR_KEY)),
   ]);
+}
+
+/** What belongs to each person alone: their record, the roles given to them, the groups they are in. A change to one of these changes that person's rows and nobody else's. */
+function peopleOf(store: AccessStore): Map<string, string> {
+  const inGroups = new Map<string, string[]>();
+  for (const g of store.groups.values())
+    for (const m of g.members) {
+      const l = inGroups.get(m.id) ?? [];
+      l.push(g.id);
+      inGroups.set(m.id, l);
+    }
+  const out = new Map<string, string>();
+  for (const p of store.principals.values()) {
+    if (p.kind !== "person") continue;
+    out.set(p.id, canonical([p, [...(store.assignments.get(p.id) ?? [])].sort(), (inGroups.get(p.id) ?? []).sort()]));
+  }
+  // a holder or a member that is no principal of kind person yet still is somebody's: it is named by its id
+  return out;
 }
 /** The same resource, field by field (a store loaded again holds new objects for the same rows). */
 function sameResource(a: ResourceRec, b: ResourceRec): boolean {
@@ -190,10 +245,15 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
     return false;
   if (a.row === b.row) return true;
   if (!a.row || !b.row) return false;
-  const ka = Object.keys(a.row);
-  if (ka.length !== Object.keys(b.row).length) return false;
+  // the Trash mark (projections.ts TRASH_KEY) is not part of who may see a thing, so a resource that only gained or lost it needs none of its rows worked out again
+  let na = 0,
+    nb = 0;
+  for (const k in a.row) if (k !== TRASH_KEY) na++;
+  for (const k in b.row) if (k !== TRASH_KEY) nb++;
+  if (na !== nb) return false;
   // one value at a time, by identity first: a row of plain values is compared without writing it out as text
-  for (const k of ka) {
+  for (const k in a.row) {
+    if (k === TRASH_KEY) continue;
     const x = a.row[k],
       y = b.row[k];
     if (x !== y && (typeof x !== "object" || typeof y !== "object" || canonical(x) !== canonical(y))) return false;
@@ -201,21 +261,46 @@ function sameResource(a: ResourceRec, b: ResourceRec): boolean {
   return true;
 }
 const sameGrant = (a: GrantRec, b: GrantRec): boolean => a === b || canonical(a) === canonical(b);
-const baseOf = (store: AccessStore): Base => ({
-  resources: new Map(store.resources),
-  grants: new Map(store.grants),
-  rest: restOf(store),
-});
+const baseOf = (store: AccessStore): Base => {
+  const resVersion = mapVersion(store.resources);
+  return {
+    resources: new Map(store.resources),
+    grants: new Map(store.grants),
+    rest: restOf(store),
+    people: peopleOf(store),
+    ...(resVersion !== undefined ? { resMap: store.resources, resVersion } : {}),
+  };
+};
 
 /** The objects whose rows must be worked out again since `base`, or null when the change is not one it can scope (then everything is). */
-export function changedRoots(base: Base, store: AccessStore): string[] | null {
+export function changedRoots(base: Base, store: AccessStore): { roots: string[]; who: string[] } | null {
   if (restOf(store) !== base.rest) return null;
+  const now = peopleOf(store);
+  // the people whose own state differs, or who are new or gone: their rows are worked out again over every resource, and nobody else's are
+  const who: string[] = [];
+  for (const [id, text] of now) if (base.people.get(id) !== text) who.push(id);
+  for (const id of base.people.keys()) if (!now.has(id)) who.push(id);
   const roots = new Set<string>();
-  for (const [id, r] of store.resources) {
-    const was = base.resources.get(id);
-    if (!was || !sameResource(was, r)) roots.add(id);
+  // the same sealed map the base was copied from: its change log names the keys that differ, and the other thirty thousand are not looked at
+  const log =
+    base.resMap === store.resources && base.resVersion !== undefined
+      ? mapChangesSince(store.resources, base.resVersion)
+      : null;
+  if (log) {
+    shareKept.logCompared++;
+    for (const id of new Set(log)) {
+      const was = base.resources.get(id);
+      const r = store.resources.get(id);
+      if (!was && !r) continue;
+      if (!was || !r || !sameResource(was, r)) roots.add(id);
+    }
+  } else {
+    for (const [id, r] of store.resources) {
+      const was = base.resources.get(id);
+      if (!was || !sameResource(was, r)) roots.add(id);
+    }
+    for (const id of base.resources.keys()) if (!store.resources.has(id)) roots.add(id);
   }
-  for (const id of base.resources.keys()) if (!store.resources.has(id)) roots.add(id);
   const grantAt = (g: GrantRec): boolean => {
     const where = g.resource?.id;
     if (typeof where !== "string" || where === "" || where === "*") return false; // a grant on a whole type
@@ -229,11 +314,25 @@ export function changedRoots(base: Base, store: AccessStore): string[] | null {
     if (!grantAt(g) || (was && !grantAt(was))) return null;
   }
   for (const [id, g] of base.grants) if (!store.grants.has(id) && !grantAt(g)) return null;
-  return [...roots];
+  return { roots: [...roots], who };
 }
 
-/** The share state as the tables hold it: folders, placement, and the my_access rows. */
-function loadShare(ctx: AccessCtx): ShareStore {
+/** The my_access rows as the cache holds them (read in pages by primeShare, or whole by loadShare). */
+function addAccessRows(ss: ShareStore, rows: readonly Record<string, unknown>[]): void {
+  for (const a of rows) {
+    const row: AccessRow = {
+      person: String(a.person),
+      type: String(a.resourceType),
+      id: String(a.resourceId),
+      level: a.level as Level,
+      via: a.via as Via,
+    };
+    ss.access.set(ak(row.person, row.type, row.id), row);
+  }
+}
+
+/** The share state as the tables hold it: folders, placement, and the my_access rows (`mine`: the my_access rows already read, in pages, by primeShare). */
+function loadShare(ctx: AccessCtx, mine?: Record<string, unknown>[]): ShareStore {
   const ss = new ShareStore();
   for (const f of tryAll(ctx.db, "SELECT * FROM access_folders")) {
     ss.folders.set(String(f.id), {
@@ -250,16 +349,7 @@ function loadShare(ctx: AccessCtx): ShareStore {
     ss.placement.set(pk(String(p.resourceType), String(p.resourceId)), String(p.folderId));
   for (const p of tryAll(ctx.db, "SELECT * FROM access_placement_prev"))
     ss.prev.set(pk(String(p.resourceType), String(p.resourceId)), p.prevParent == null ? null : String(p.prevParent));
-  for (const a of tryAll(ctx.db, "SELECT * FROM access_my_access")) {
-    const row: AccessRow = {
-      person: String(a.person),
-      type: String(a.resourceType),
-      id: String(a.resourceId),
-      level: a.level as Level,
-      via: a.via as Via,
-    };
-    ss.access.set(ak(row.person, row.type, row.id), row);
-  }
+  addAccessRows(ss, mine ?? tryAll(ctx.db, "SELECT * FROM access_my_access"));
   return ss;
 }
 
@@ -273,19 +363,23 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     const st = kept ? stateOf(ctx.db) : null;
     if (kept && st && st.rows === kept.rows && st.folders === kept.folders && kept.ss.fresh >= 0) {
       const store = storeOf(ctx);
-      const roots =
+      const changes =
         ctx.now() >= kept.ss.until
           ? null
           : kept.store === store && kept.epoch === store.epoch
-            ? []
-            : changedRoots(kept.base, store);
-      if (roots) {
+            ? { roots: [], who: [] }
+            : kept.stamp !== null && stampNow(ctx.db) === kept.stamp
+              ? (shareKept.stampShared++, { roots: [], who: [] }) // another store of the same tables (the sync's view, a writer's): nothing was written since, so nothing differs, and every resource is not compared to find that out
+              : changedRoots(kept.base, store);
+      if (changes) {
         if (!reader) KEPT.delete(raw);
         const ss = kept.ss;
-        ss.pending = roots;
+        ss.from = { store: kept.store, epoch: kept.epoch, base: kept.base };
+        ss.pending = changes.roots;
+        ss.pendingWho = changes.who;
         ss.fresh = store.epoch;
         ss.idem = new Map(); // what a call remembered of its own idempotency keys is that call's, not the next call's
-        if (!roots.length) shareKept.hits++;
+        if (!changes.roots.length && !changes.who.length) shareKept.hits++;
         SHARES.set(ctx.db, ss);
         return ss;
       }
@@ -293,9 +387,50 @@ export function shareOf(ctx: AccessCtx): ShareStore {
     if (!reader) KEPT.delete(raw);
   }
   storeOf(ctx);
-  const ss = loadShare(ctx);
+  const primed = raw ? PRIMED.get(raw) : undefined;
+  if (raw) PRIMED.delete(raw);
+  const now = primed ? stateOf(ctx.db) : null;
+  const ss = primed && now && now.rows === primed.rows && now.folders === primed.folders ? primed.ss : loadShare(ctx);
   SHARES.set(ctx.db, ss);
   return ss;
+}
+
+/** A share state read ahead in pages by primeShare, with the counters it was read at: used by the next shareOf only while the tables stand where they did. */
+const PRIMED = new WeakMap<object, { ss: ShareStore; rows: number; folders: number }>();
+/**
+ * Reads the my_access rows in pages with a turn of the event loop between them (one read of every row held the loop for 90 ms on a Space of 38,000 records), before the first call that needs them.
+ * Nothing is kept unless the counters of the tables did not move while it read.
+ */
+export async function primeShare(ctx: AccessCtx): Promise<void> {
+  const raw = rawDbOf(ctx.db);
+  if (!raw || SHARES.has(ctx.db) || PRIMED.has(raw)) return;
+  const kept = KEPT.get(raw);
+  if (kept && kept.ss.fresh >= 0) return;
+  const st = stateOf(ctx.db);
+  if (!st) return;
+  const ss = loadShare(ctx, []); // folders and placement; the my_access rows are added a page at a time below, so no step holds the loop for all of them
+  for (let after = 0; ; ) {
+    let page: Record<string, unknown>[];
+    try {
+      page = ctx.db.all(
+        "SELECT rowid AS _rid, * FROM access_my_access WHERE rowid > ? ORDER BY rowid LIMIT 2000",
+        after,
+      ) as Record<string, unknown>[];
+    } catch {
+      return; // a Space from before the table: shareOf reads what there is, as it always did
+    }
+    for (const r of page) {
+      after = Number(r["_rid"]);
+      delete r["_rid"];
+    }
+    addAccessRows(ss, page);
+    if (page.length < 2000) break;
+    await loopTurn();
+  }
+  await loopYield();
+  const now = stateOf(ctx.db);
+  if (!now || now.rows !== st.rows || now.folders !== st.folders) return;
+  PRIMED.set(raw, { ss, rows: st.rows, folders: st.folders });
 }
 
 function persistFolders(ctx: AccessCtx, ss: ShareStore): void {
@@ -632,6 +767,11 @@ function snapshotForRows(store: AccessStore): AccessSnapshot {
 }
 const activePeople = (store: AccessStore): string[] =>
   [...store.principals.values()].filter((p) => p.kind === "person" && p.status === "active").map((p) => p.id);
+/** The people whose rows are worked out: those named (when any are), and active. A person named who is gone or suspended is worked out as nobody, so the rows they had are dropped. */
+const peopleToWork = (store: AccessStore, who: readonly string[] | null): string[] =>
+  who
+    ? who.filter((id) => store.principals.get(id)?.kind === "person" && store.principals.get(id)?.status === "active")
+    : activePeople(store);
 
 /** Put `next` (the rows worked out for `scope`) into the cache in memory, and say which rows to delete from and write to the table. Writes nothing to the table. */
 function applyRows(
@@ -642,11 +782,13 @@ function applyRows(
   scope: Set<string> | null,
   next: Map<string, AccessRow>,
   now: number,
+  who: ReadonlySet<string> | null = null,
 ): { gone: AccessRow[]; touched: AccessRow[] } {
   const same = (a: AccessRow, b: AccessRow): boolean => a.level === b.level && a.via === b.via;
   const gone: AccessRow[] = [];
   const dropIfGone = (key: string): void => {
     const old = ss.access.get(key);
+    if (who && old && !who.has(old.person)) return; // somebody this rebuild was not asked about
     if (old && !next.get(key)) {
       dropRow(ss, key);
       gone.push(old);
@@ -706,12 +848,18 @@ function writeFailed(ctx: AccessCtx, ss: ShareStore, e: unknown): never {
 }
 
 /** Bring my_access up to date. `roots` limits the work to those resources and what sits under them, and is honoured only when the cache was fresh before the change. */
-function rebuild(ctx: AccessCtx, store: AccessStore, ss: ShareStore, roots: readonly string[] | "all"): void {
+function rebuild(
+  ctx: AccessCtx,
+  store: AccessStore,
+  ss: ShareStore,
+  roots: readonly string[] | "all",
+  who: readonly string[] | null = null,
+): void {
   const snap = snapshotForRows(store);
   const now = ctx.now();
   const scope = roots === "all" ? null : descendants(store, roots);
-  const next = computeRows(ss, store, snap, activePeople(store), scope, now);
-  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
+  const next = computeRows(ss, store, snap, peopleToWork(store, who), scope, now);
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now, who ? new Set(who) : null);
   try {
     // the rows of one rebuild are one transaction: each statement was a commit of its own, and a change to a hundred files (an export of a connector) paid for a few hundred commits, each dearer on a bigger database
     const write = (): void => {
@@ -777,6 +925,7 @@ async function buildSliced(
   ss: ShareStore,
   roots: readonly string[] | "all",
   scope: Set<string> | null,
+  who: readonly string[] | null = null,
 ): Promise<boolean> {
   shareKept.sliced++;
   const turn = turns();
@@ -791,7 +940,7 @@ async function buildSliced(
     ss,
     store,
     snap,
-    activePeople(store),
+    peopleToWork(store, who),
     scope,
     now,
     turn,
@@ -801,8 +950,9 @@ async function buildSliced(
     shareKept.discarded++;
     return false;
   }
-  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now);
-  ss.pending = [];
+  const { gone, touched } = applyRows(ctx, store, ss, roots, scope, next, now, who ? new Set(who) : null);
+  if (who) ss.pendingWho = [];
+  else ss.pending = [];
   // the table is written a slice at a time; any write to it that is not ours between two slices (another call, a peer) means the copy is not kept for the next call
   let clean = true;
   let seen = stateOf(ctx.db)?.rows;
@@ -841,6 +991,26 @@ async function buildSliced(
 export async function settleForWriter(ctx: AccessCtx): Promise<void> {
   if (isReader(ctx)) return settleView(ctx);
   if (SHARES.has(ctx.db)) return;
+  // the store this call will work on is the one the last call kept warm, and the share state kept with it was built for that very store at its epoch, from the tables as they stand: nothing to settle
+  // (settling reads the kept view of the sync, a different store, and works out what changed between the two over every resource)
+  const warm = peekWarm(ctx);
+  const raw = rawDbOf(ctx.db);
+  const kept = raw ? KEPT.get(raw) : undefined;
+  if (
+    warm &&
+    kept &&
+    kept.store === warm &&
+    kept.epoch === warm.epoch &&
+    kept.ss.fresh >= 0 &&
+    ctx.now() < kept.ss.until
+  ) {
+    const st = stateOf(ctx.db);
+    if (st && st.rows === kept.rows && st.folders === kept.folders) {
+      shareKept.settleSkips++;
+      return;
+    }
+  }
+  await primeShare(ctx);
   try {
     await settleView(asReader(ctx));
   } finally {
@@ -856,15 +1026,22 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
   if (!isReader(ctx)) return;
   const raw = rawDbOf(ctx.db);
   if (!raw) return;
-  for (let tries = 0; tries < 2; tries++) {
+  await primeShare(ctx);
+  for (let tries = 0; tries < 3; tries++) {
     const store = storeOf(ctx);
     const ss = shareOf(ctx);
     // stale for the whole Space (the first read after a start, or the world moved too far), or fresh but with many resources to work out again (a sync that added thousands of records): either way the same work, in slices
     const fresh = isFresh(ctx, store, ss);
-    if (fresh && !ss.pending.length) return;
-    const roots: readonly string[] | "all" = fresh ? [...ss.pending] : "all";
+    if (fresh && !ss.pending.length && !ss.pendingWho.length) return;
+    // fresh: the resources to work out again (for everyone) first, then the people (over every resource); stale: everything
+    const roots: readonly string[] | "all" = fresh && ss.pending.length ? [...ss.pending] : "all";
+    const who: readonly string[] | null = fresh && !ss.pending.length ? [...ss.pendingWho] : null;
     const scope = roots === "all" ? null : descendants(store, roots);
-    if ((scope ? scope.size : store.resources.size) * Math.max(1, activePeople(store).length) < sliceTuning.from)
+    if (
+      (scope ? scope.size : store.resources.size) *
+        Math.max(1, who ? peopleToWork(store, who).length : activePeople(store).length) <
+      sliceTuning.from
+    )
       return;
     const under = BUILDING.get(raw);
     if (under) {
@@ -872,7 +1049,7 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
       dropShare(ctx.db);
       continue;
     }
-    const build = buildSliced(ctx, store, ss, roots, scope);
+    const build = buildSliced(ctx, store, ss, roots, scope, who);
     BUILDING.set(
       raw,
       build.then(
@@ -885,11 +1062,12 @@ export async function settleView(ctx: AccessCtx): Promise<void> {
       applied = await build;
     } finally {
       BUILDING.delete(raw);
-      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with
-      dropShare(ctx.db);
+      // the call asks for its share state again: the kept copy this build made, brought up to date by what changed meanwhile, and not the one it started with. Where the build did one part of the work (the resources
+      // changed, the people changed are still to do) this call's own state is kept: it is what the next part is worked out on, and nothing is published until both are done
+      if (!applied || !(ss.pending.length || ss.pendingWho.length)) dropShare(ctx.db);
     }
     // the store moved on while it was worked out: nothing was applied, and the view is looked at again as it is now
-    if (applied) return;
+    if (applied && !(ss.pending.length || ss.pendingWho.length)) return;
   }
 }
 
@@ -899,23 +1077,45 @@ function isFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): boolean {
 }
 
 /** Keep what this call built for the next call (a reader after its read, a writer once its change is committed), with the counters it was built against. */
-function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
+function publish(ctx: AccessCtx, store: AccessStore, ss: ShareStore, resources?: readonly string[]): void {
   const raw = rawDbOf(ctx.db);
   const st = raw ? stateOf(ctx.db) : null;
-  if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length) return;
-  KEPT.set(raw, { store, epoch: store.epoch, ss, base: baseOf(store), rows: st.rows, folders: st.folders });
+  if (!raw || !st || ss.fresh !== store.epoch || ss.pending.length || ss.pendingWho.length) return;
+  // a change to these resources only, on the store the kept copy was built for, one epoch on: the base of that copy is brought up to date for them (a copy of 38,000 resources took 10 ms to 20 ms per call)
+  const from = ss.from;
+  ss.from = null;
+  let base: Base;
+  if (resources && from && from.store === store && from.epoch + 1 === store.epoch) {
+    for (const id of resources) {
+      const r = store.resources.get(id);
+      if (r) from.base.resources.set(id, r);
+      else from.base.resources.delete(id);
+    }
+    // no map and version here: this base holds the writer's own rows, which the sealed map's log knows nothing of
+    base = {
+      resources: from.base.resources,
+      grants: new Map(store.grants),
+      rest: restOf(store),
+      people: peopleOf(store),
+    };
+  } else base = baseOf(store);
+  KEPT.set(raw, { store, epoch: store.epoch, ss, base, rows: st.rows, folders: st.folders, stamp: stampNow(ctx.db) });
 }
 
 function ensureFresh(ctx: AccessCtx, store: AccessStore, ss: ShareStore): void {
   const reader = isReader(ctx);
   if (isFresh(ctx, store, ss)) {
-    if (!ss.pending.length) return;
+    if (!ss.pending.length && !ss.pendingWho.length) return;
     const roots = ss.pending;
+    const who = ss.pendingWho;
     ss.pending = [];
-    rebuild(ctx, store, ss, roots);
+    ss.pendingWho = [];
+    if (roots.length) rebuild(ctx, store, ss, roots);
+    if (who.length) rebuild(ctx, store, ss, "all", who);
     shareKept.incremental++;
   } else {
     ss.pending = [];
+    ss.pendingWho = [];
     rebuild(ctx, store, ss, "all");
     shareKept.built++;
   }
@@ -930,12 +1130,16 @@ function commit(
   wasFresh: boolean,
   roots: readonly string[],
   persistFolderTables: boolean,
+  resourcesOnly = false,
 ): void {
   if (persistFolderTables) persistFolders(ctx, ss);
   const pending = ss.pending;
+  const who = ss.pendingWho;
   ss.pending = [];
+  ss.pendingWho = [];
   rebuild(ctx, store, ss, wasFresh ? [...new Set([...roots, ...pending])] : "all");
-  if (!isReader(ctx)) publish(ctx, store, ss);
+  if (wasFresh && who.length) rebuild(ctx, store, ss, "all", who);
+  if (!isReader(ctx)) publish(ctx, store, ss, resourcesOnly ? [...new Set([...roots, ...pending])] : undefined);
 }
 
 // ---- access.share, access.unshare, access.shares_of -------------------------------------------------------------------
@@ -1880,6 +2084,7 @@ export async function audienceSet(
   opts?: { hostNarrow?: boolean },
 ) {
   await settleForWriter(ctx as AccessCtx);
+  await primeStore(ctx as AccessCtx);
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const trace = ctx.trace.traceId;
@@ -1902,8 +2107,9 @@ export async function audienceSet(
       else delete res.row;
     }
     res.parentId = rec.id;
-    changed(ctx, store, "assignment");
-    commit(ctx, store, ss, false && wasFresh, [res.id], false);
+    const writes = changedResources(ctx, store, [res.id]);
+    commit(ctx, store, ss, wasFresh, [res.id], false, true);
+    keepWarm(ctx as AccessCtx, store, writes, [res.id]);
     return { audience: "space" as Audience, exporters: "admins" as Exporters, outside: false };
   }
   // A folder too, with Only people added or the whole Space, never Only me: the files folder of an agent a private chat made follows that chat (modules/chat/handlers/owned.ts), cut off from
@@ -2487,7 +2693,8 @@ export async function foldersList(ctx: ShareCtx, input: { type: string; scope?: 
       (f) =>
         f.type === input.type &&
         (!input.scope || f.scope === input.scope) &&
-        ss.access.has(ak(ctx.principal.id, "folder", f.id)),
+        ss.access.has(ak(ctx.principal.id, "folder", f.id)) &&
+        !isTrashed(store.resources.get(f.id)),
     )
     .sort((a, b) =>
       a.name.toLowerCase() < b.name.toLowerCase()
@@ -2509,7 +2716,10 @@ export async function lists(
   const store = storeOf(ctx);
   const ss = shareOf(ctx);
   const person = ctx.principal.id;
-  const rows = mine(ctx, store, ss, person, input.type);
+  // a file or folder that Files put in Trash is not listed: the mark is on the resource row (see TRASH_KEY), read here with the rows, no call to Files
+  const all = mine(ctx, store, ss, person, input.type);
+  const rows =
+    input.type === "file" || input.type === "folder" ? all.filter((r) => !isTrashed(store.resources.get(r.id))) : all;
   const marks = ctx.marks?.(person, input.type);
   const starred = marks?.starred ?? new Set<string>();
   const following = marks?.following ?? new Set<string>();

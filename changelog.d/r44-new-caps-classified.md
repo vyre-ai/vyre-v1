@@ -1,0 +1,1 @@
+- The sign-in hand-off capabilities are classified for guests (never) and a held background job has its own words ("start a background job"), which the full test run asked for.

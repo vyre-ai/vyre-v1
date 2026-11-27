@@ -1,0 +1,1 @@
+- The server turns on Node's compile cache for its own source (compile-cache/<version> in the data directory): a restart imports its code in about 2.5 s less. The first start after an update runs without it and fills it afterwards in a background process at the lowest priority.

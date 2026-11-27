@@ -1,0 +1,1 @@
+- Ask the Space no longer puts a record field that the asker's access hides in front of the model: the text of a record in the prompt is built from the fields the asker may read.

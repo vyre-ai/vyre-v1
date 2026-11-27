@@ -309,23 +309,19 @@ test("a holder who is suspended, removed or signed out gives the keyboard back a
   assert.equal(hn.rows("SELECT * FROM terminal_lease").length, 0);
 });
 
-test("when a manager takes the keyboard the event names the agent and its owner; the owner taking their own names nobody", async () => {
+test("a manager who uses the agent from a place of their own is refused the keyboard of the agent's own terminal (not_yours) and nothing is said; the owner taking their own names nobody", async () => {
   const { hn } = world();
   const id = await open(hn);
   const asked = (who: string, ownerId: string): Harness["ctx"] => ({
     ...hn.as({ kind: "person", id: who }),
     call: async (cap: string) => (cap === "agents.get" ? { agent: { ownerId, kind: "agent", name: "Desk" } } : {}),
   });
-  await call(hn, "terminal.take_over", { terminalId: id }, asked("usr_wes", "usr_dana"));
-  const p = hn.named("terminal.taken")[0]!.payload;
-  assert.deepEqual(
-    [p["by"], p["agentId"], p["agentName"], p["agentOwner"]],
-    ["usr_wes", "agt_intake", "Desk", "usr_dana"],
-  );
-  await call(hn, "terminal.give_back", { terminalId: id }, asked("usr_wes", "usr_dana"));
-  assert.equal(hn.named("terminal.given_back")[0]!.payload["agentOwner"], "usr_dana");
+  const refused = await failure(() => h["terminal.take_over"]!(asked("usr_wes", "usr_dana"), { terminalId: id }));
+  assert.equal(refused.code, "permission.role_lacks_permission");
+  assert.equal(refused.reason, "not_yours");
+  assert.equal(hn.named("terminal.taken").length, 0, "nobody is told of a keyboard nobody took");
   await call(hn, "terminal.take_over", { terminalId: id }, asked("usr_dana", "usr_dana"));
-  assert.equal(hn.named("terminal.taken")[1]!.payload["agentOwner"], undefined, "the owner is not told of their own");
+  assert.equal(hn.named("terminal.taken")[0]!.payload["agentOwner"], undefined, "the owner is not told of their own");
 });
 
 // ---- the second review: every door of a person's own terminal, old rows, orphans, a different text under one number

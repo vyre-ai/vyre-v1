@@ -1,0 +1,1 @@
+- The workspace's three background-job helpers are now one program in the workspace image (jobs-cli.mjs) instead of node one-liners held as strings in the daemon, and a computers test uses its own fixture, so the boundaries check passes with no new known entries.

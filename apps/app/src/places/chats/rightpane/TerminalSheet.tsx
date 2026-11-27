@@ -390,6 +390,7 @@ export function TerminalSheet({
               taking={takingRef}
               seat={seat}
               newKey={data.newKey}
+              spaceUrl={data.spaceUrl}
               onSaid={setSaid}
               onHidden={(h) => {
                 setHiddenPrompt(h);

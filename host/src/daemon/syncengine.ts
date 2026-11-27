@@ -486,19 +486,21 @@ export function remoteStore(
       try {
         // a list is a read: it does not wait at the Gate when the pass runs as an agent or the host; a write goes through connectors.run
         const reading = action === nameList || action === nameAfter || parentReads.has(action);
+        const sent =
+          opts.unmaskToken && reading
+            ? {
+                ...(isObj(input) ? input : {}),
+                ...(opts.sealed?.length ? { __unmask: `${opts.unmaskToken}:${passNonce}` } : {}),
+                __keep: `${opts.unmaskToken}:${passNonce}`,
+              }
+            : input;
+        // the key names the whole call as it is sent and the pass it belongs to: the same key is always the same input (what the key leaves out, the pass's own token and nonce, once made a repeated key over a changed input: "That key was already used with different input")
         const out = (await ctx.call(reading ? "connectors.read" : "connectors.run", {
           key: b.connector,
           action,
           connectionId: b.connectionId,
-          input:
-            opts.unmaskToken && reading
-              ? {
-                  ...(isObj(input) ? input : {}),
-                  ...(opts.sealed?.length ? { __unmask: `${opts.unmaskToken}:${passNonce}` } : {}),
-                  __keep: `${opts.unmaskToken}:${passNonce}`,
-                }
-              : input,
-          idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(input)}|${opts.nonce ?? ""}`).slice(0, 32)}`,
+          input: sent,
+          idempotencyKey: `sync:${sha256Hex(`${b.connectionId}|${action}|${canon(sent)}|${passNonce}`).slice(0, 32)}`,
         })) as { output?: unknown };
         if (slowedDowns > 0) {
           slowedDowns = 0;

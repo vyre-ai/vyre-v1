@@ -5,6 +5,7 @@
 //   rules.get / rules.set / health
 // The machine does the work through the TerminalHost port (projections.ts); this module keeps what Vyre knows about a session and enforces who may do what in it.
 import { DEFAULT_TAIL, keepCmdLog, listCmdLogs, readCmdLog } from "../cmdlog.ts";
+import { signinQuestion } from "../../../lib/signin-card.ts";
 import { randomHex } from "../../../kernel/src/log/hash.ts";
 import { hmac } from "../../../kernel/src/seal/wire.ts";
 import { STOPPED_LINE } from "../stop-line.ts";
@@ -49,6 +50,7 @@ import {
   touch,
   workspacesFor,
   boundWorkspaceStatus,
+  boundWorkspaceJobs,
   boundChatFolder,
   boundNotes,
   boundPlaceGrant,
@@ -737,7 +739,7 @@ export async function openServer(ctx: TermCtx, input: { name?: string; cwd?: str
 
 /**
  * A terminal of someone else's place on an agent's computer, or the agent's own one to a person who only uses it, is shown to the caller as a row that says it is there and nothing of what it holds: no
- * folder, no chat, no name, no one at the keyboard (F30). The person it belongs to, and whoever manages the agent for the agent's own terminals, see the whole row.
+ * folder, no chat, no name, no one at the keyboard (F30). Only the person it belongs to sees the whole row (for the agent's own terminals, the agent's owner, who has no place of their own); a manager who uses the agent from a place of their own is shown the same hint and refused every call that enters it (not_yours).
  */
 async function foreign(ctx: TermCtx, x: SessionRow, facts: Facts): Promise<boolean> {
   if (x.host !== "agent_computer" || x.agentId === undefined || isTrustedService(ctx.principal)) return false;
@@ -952,6 +954,32 @@ export async function attach(ctx: TermCtx, input: { terminalId: string }) {
   return { ticket, expiresAt, replay };
 }
 
+/**
+ * The address and ticket of the live stream of a session's screen (host/src/routes/terminal-stream.ts): the same access as attach, the same one-use ticket, but the ticket is sent as the first message of the
+ * WebSocket and not in its address (an address is logged and kept in history), and what comes down are numbered screen changes (watch.ts), not the whole screen every few hundred milliseconds.
+ */
+export async function stream(ctx: TermCtx, input: { terminalId: string }) {
+  ensure(ctx.db);
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  needOwnTerminal(ctx, x);
+  await needOwnPlace(ctx, x);
+  const host = await hostFor(ctx, x);
+  if (!host.capture || !host.stream)
+    raise(ctx, "validation.precondition_failed", "This terminal draws lines, not a screen.", { reason: "no_screen" });
+  const now = ctx.now();
+  const ticket = ticketSecret();
+  const expiresAt = now + TICKET_MS;
+  ctx.db.run(
+    "INSERT INTO terminal_tickets (ticket_hash, terminal_id, person_id, expires_at, used_at) VALUES (?, ?, ?, ?, NULL)",
+    await sha256(ticket),
+    input.terminalId,
+    actorOf(ctx),
+    expiresAt,
+  );
+  touch(ctx.db, input.terminalId, now);
+  return { ws: `/terminals/${x.terminalId}/ws`, ticket, expiresAt };
+}
+
 // ---- the keyboard ---------------------------------------------------------------------------------------------------------------------------------------
 
 /**
@@ -1001,16 +1029,20 @@ async function needOwnPlace(ctx: TermCtx, x: SessionRow): Promise<void> {
     if (me !== x.owner) refuse();
     return;
   }
-  // a terminal in no one's place is in the agent's own home: its owner and those who manage the agent enter it (an agent's turn for them too). A person who may only use the agent, or an agent acting for
-  // one, has a place of their own and no more.
+  // a terminal in no one's place is in the agent's own home: its owner enters it, and so does an agent acting for nobody. A person who uses the agent from a place of their own, whatever they manage, is shown
+  // that terminal as "someone else's" (foreign() above) and is refused every call that would enter it, with the reason not_yours (owner decision, 27 Nov 2026, the wall of 15 Nov, F30). An admin who needs to step in
+  // stops or restarts the agent's computer from the Console, which stays available.
   if (x.owner === me) return;
   const mine = await askerPlaceFor(ctx, x.agentId, me);
   if (mine === undefined) return;
-  if (
-    ctx.principal.kind === "agent" ||
-    ctx.authorize({ perm: null, level: "manage" }, { type: "agent", id: x.agentId }).effect !== "allow"
-  )
-    refuse();
+  // an agent working for such a person is told, as before, that it is not in their place
+  if (ctx.principal.kind === "agent") refuse();
+  raise(
+    ctx,
+    "permission.role_lacks_permission",
+    "That is the agent's own terminal. Only its owner can use it; to step in, stop or restart the agent's computer from the Console.",
+    { reason: "not_yours", terminalId: x.terminalId },
+  );
 }
 
 /**
@@ -1317,7 +1349,7 @@ export async function input(ctx: TermCtx, a: { terminalId: string; data: string 
 }
 
 /** A screen with its text changed: when rows were taken out (the run's typed line, hidden) the screen keeps its height and the cursor, which sits below them, moves up by as many. */
-function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
+export function screenOf<T extends { text: string; cursor: { x: number; y: number } | null }>(r: T, text: string): T {
   const before = r.text.split("\n").length;
   const after = text.split("\n").length;
   if (after >= before) return { ...r, text };
@@ -2384,6 +2416,151 @@ export async function request(
     ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
   })) as { blockId: string; messageId: string };
   return { blockId: asked.blockId, messageId: asked.messageId, risk: j.risk };
+}
+
+/**
+ * An agent needs a person to finish a login in its terminal (`gh auth login`, a vendor CLI, an ssh passphrase): the chat gets the one sign-in card (lib/signin-card.ts) where the agent asked. The people who may
+ * take over this computer see Open terminal and Done; everyone else sees who the agent waits for. Done hands the keyboard back and the parked turn carries on. Only an agent asks, and only about its own terminal.
+ */
+export async function askSignin(
+  ctx: TermCtx,
+  input: { threadId: string; terminalId: string; why: string; idempotencyKey?: string },
+) {
+  ensure(ctx.db);
+  const why = input.why.trim();
+  if (why === "") raise(ctx, "validation.bad_input", "Say what the person should sign in to.");
+  if (ctx.principal.kind !== "agent") raise(ctx, "permission.no_grant", "Only an agent asks a person to sign in.");
+  const x = await needAccess(ctx, live(ctx, input.terminalId));
+  if (x.agentId === undefined || x.host !== "agent_computer" || x.agentId !== ctx.principal.id)
+    raise(ctx, "validation.precondition_failed", "That is not a terminal of your own computer.", {
+      reason: "not_your_terminal",
+    });
+  if (!ctx.call) raise(ctx, "internal.unavailable", "The chat is not reachable from here.");
+  const asked = (await ctx.call("chat.question.ask", {
+    threadId: input.threadId,
+    ...signinQuestion({ surface: "terminal", why, agentId: x.agentId, terminalId: x.terminalId }),
+    ...(input.idempotencyKey === undefined ? {} : { idempotencyKey: `${input.idempotencyKey}:q` }),
+  })) as { blockId: string; messageId: string };
+  return { blockId: asked.blockId, messageId: asked.messageId };
+}
+
+// ---- background jobs (rc.44) ---------------------------------------------------------------------------------------------------------------------------
+
+const MAX_JOB_ENV = 40;
+/** The most background jobs one computer keeps running at once. */
+export const MAX_JOBS = 5;
+const JOB_ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
+const HANDLE_ONLY = /^#[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$/;
+
+/** Whose workspace a job call is about: an agent's own (it may leave the agent out), or the agent a person names whose computer they may enter. */
+async function jobAgent(ctx: TermCtx, agentId: string | undefined): Promise<string> {
+  const id = agentId ?? (ctx.principal.kind === "agent" ? ctx.principal.id : undefined);
+  if (id === undefined) raise(ctx, "validation.bad_input", "Name the agent whose computer this is.");
+  if (ctx.principal.kind === "agent" && ctx.principal.id !== id)
+    raise(ctx, "permission.role_lacks_permission", "An agent keeps jobs on its own computer only.", {
+      reason: "not_your_computer",
+    });
+  await needWorkspace(ctx, id);
+  if (boundWorkspaceJobs() === null)
+    raise(ctx, "validation.precondition_failed", isTeam(ctx.space) ? NO_WORKSPACE_TEAM : NO_WORKSPACE_PERSONAL, {
+      reason: "no_workspace",
+    });
+  return id;
+}
+
+/**
+ * Keep a command running on the agent's computer (27 Nov 2026, rc.44; the owner's pattern: a computer sleeps when idle and wakes fast on any trigger, but a job the agent starts keeps it awake until the job ends).
+ * The workspace's supervisor starts it, starts it again when it dies (`restart`), keeps its log, and starts it again after a restart of the daemon, a sleep and wake, or a reboot of the host. The command goes
+ * through the same Gate as terminal.run (a destructive command is held for a yes). It is the agent's own user, in the agent's home, like any command; no Vault value is filled into it.
+ */
+export async function jobStart(
+  ctx: TermCtx,
+  input: {
+    command: string;
+    name?: string;
+    cwd?: string;
+    env?: Record<string, string>;
+    restart?: "on-failure" | "always" | "never";
+    agentId?: string;
+    idempotencyKey?: string;
+  },
+) {
+  ensure(ctx.db);
+  const command = input.command.trim();
+  if (command === "" || command.length > MAX_COMMAND_CHARS)
+    raise(ctx, "validation.bad_input", "Give the command to keep running, up to 20,000 characters.");
+  const env = input.env ?? {};
+  const names = Object.keys(env);
+  if (names.length > MAX_JOB_ENV || names.some((k) => !JOB_ENV_NAME.test(k)))
+    raise(ctx, "validation.bad_input", "A job takes at most 40 environment variables with plain names.");
+  for (const k of names) {
+    const v = env[k]!;
+    if (v.length > 4000) raise(ctx, "validation.bad_input", `The value of ${k} is too long.`);
+    if (HANDLE_ONLY.test(v))
+      raise(
+        ctx,
+        "validation.bad_input",
+        "A job cannot be given a Vault value yet: put it where the program reads it from.",
+        {
+          reason: "no_handles",
+        },
+      );
+  }
+  const agentId = await jobAgent(ctx, input.agentId);
+  const jobs = boundWorkspaceJobs()!;
+  // five jobs at a time on one computer: a sixth waits until one ends
+  const alive = (await jobs.list(agentId)).filter(
+    (j) => j.state === "running" || j.state === "restarting" || j.state === "starting",
+  );
+  if (alive.length >= MAX_JOBS)
+    raise(
+      ctx,
+      "validation.precondition_failed",
+      `This computer already keeps ${MAX_JOBS} jobs running. Stop one before starting another.`,
+      {
+        reason: "too_many_jobs",
+      },
+    );
+  const name = (input.name ?? command).trim().replace(/\s+/g, " ").slice(0, 80);
+  try {
+    const row = await jobs.start(agentId, {
+      name,
+      command,
+      ...(input.cwd === undefined || input.cwd.trim() === "" ? {} : { cwd: input.cwd.trim().slice(0, 500) }),
+      ...(names.length === 0 ? {} : { env }),
+      restart: input.restart ?? "on-failure",
+    });
+    return { job: scrubbedJob(agentId, row) };
+  } catch (e) {
+    return unexpected(ctx, "start the job", e);
+  }
+}
+
+/** Ask a job to stop. The row as it stands a moment later (stopped, or still stopping). A job that is not there is not found. */
+export async function jobStop(ctx: TermCtx, input: { jobId: string; agentId?: string; idempotencyKey?: string }) {
+  ensure(ctx.db);
+  const agentId = await jobAgent(ctx, input.agentId);
+  try {
+    const row = await boundWorkspaceJobs()!.stop(agentId, input.jobId);
+    if (row === null) raise(ctx, "validation.not_found", "There is no such job.", { jobId: input.jobId });
+    return { job: scrubbedJob(agentId, row) };
+  } catch (e) {
+    if ((e as { error?: { code?: string } } | null)?.error?.code !== undefined) throw e;
+    return unexpected(ctx, "stop the job", e);
+  }
+}
+
+/** What a job printed is scrubbed of Vault values like every other reading of the computer's output. */
+const scrubbedJob = <T extends { lastLine?: string }>(agentId: string, row: T): T =>
+  row.lastLine === undefined
+    ? row
+    : { ...row, lastLine: clean(scopeOf({ terminalId: "", host: "agent_computer", agentId }), row.lastLine) };
+
+/** The agent's jobs, newest first: what is running, what ended and how, and the last line each printed. Never wakes the computer. */
+export async function jobList(ctx: TermCtx, input: { agentId?: string }) {
+  ensure(ctx.db);
+  const agentId = await jobAgent(ctx, input.agentId);
+  return { jobs: (await boundWorkspaceJobs()!.list(agentId)).map((r) => scrubbedJob(agentId, r)) };
 }
 
 /** The Gate's condition on terminal.run (`terminal.is_danger(input.command)`): red commands are held for a yes. Anything unreadable counts as red. */

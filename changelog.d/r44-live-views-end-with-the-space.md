@@ -1,0 +1,1 @@
+- When the Space stops (an update, a restart), every live view of a browser or a terminal is closed at once, so a viewer sees it go and opens again instead of waiting for a dead connection to time out.

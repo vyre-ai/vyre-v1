@@ -1,0 +1,1 @@
+- A sync pass over a type with a sealed field no longer fails every hour with "That key was already used with different input": the key of each list call now names the whole call as sent and the pass it belongs to (Meier, dv_questionnaire and dv_fin_category).

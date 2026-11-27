@@ -40,9 +40,13 @@ export function ShownLocationProvider({
   place,
   hash,
   links,
+  reports,
   children,
 }: ShownLocation & { children?: ReactNode }): ReactElement {
-  const value = useMemo(() => ({ place, hash, ...(links === undefined ? {} : { links }) }), [place, hash, links]);
+  const value = useMemo(
+    () => ({ place, hash, ...(links === undefined ? {} : { links }), ...(reports === undefined ? {} : { reports }) }),
+    [place, hash, links, reports],
+  );
   return <ShownContext.Provider value={value}>{children}</ShownContext.Provider>;
 }
 

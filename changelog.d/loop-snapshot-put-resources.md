@@ -1,0 +1,1 @@
+- A snapshot of 38,000 resources is built with the derived views dropped once per slice, not once per resource.

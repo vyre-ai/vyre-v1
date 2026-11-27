@@ -328,6 +328,7 @@ export const HOLD_PHRASES: Readonly<Record<string, string>> = {
   "telephony.number.release": "give back a phone number",
   "telephony.registration.submit": "submit the texting registration",
   "telephony.send_sms": "send a text",
+  "terminal.job.start": "start a background job",
   "terminal.run": "run a command",
   "twilio.a2p.attach_number": "attach a number to texting",
   "twilio.a2p.create_brand": "register the brand for texting",

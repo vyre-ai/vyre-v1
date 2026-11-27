@@ -1,0 +1,1 @@
+- On the first start after this update the server reads again the records of every type that had a field dropped and takes the dropped text out of search, without ever showing it and without holding the server; the doctor says how many entries it found.

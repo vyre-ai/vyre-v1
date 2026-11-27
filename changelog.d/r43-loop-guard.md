@@ -1,0 +1,1 @@
+- Test only: a live guard test (test/loop.guard.live.test.ts) starts a Meier-sized Space, then drives start-up, everyday requests and two accelerated 10-minute scheduler ticks, and reports every main-thread block over 100 ms with the jobs, requests and SQL in flight. It is red on purpose until the freeze fixes land.

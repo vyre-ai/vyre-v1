@@ -1,0 +1,1 @@
+- The server start yields to the loop between its phases (migrations, the log, loading modules, wiring).

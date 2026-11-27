@@ -229,14 +229,25 @@ test("attach, read, type, interrupt, resize and close on a workspace session are
     (await failure(() => h["terminal.attach"]!(admin, { terminalId: run.terminalId }))).reason,
     "others_place",
   );
-  // a session of the agent itself (a turn for nobody) is the agent's own: an admin attaches to a team agent's workspace and sees the same screen
+  // a session of the agent itself (a turn for nobody) is the agent's own home: an admin who uses the agent from a place of their own is shown it as someone else's and is refused every door into it (owner
+  // decision, 27 Nov 2026, F30: managing an agent is not entering its owner's terminals); the Console stops or restarts the computer
   const own = await call({ ...hn.as(AGENT, undefined, "run_2"), thread: "thr_chat" }, "terminal.run", {
     command: "echo hi",
     idempotencyKey: idem(),
   });
-  const att = await call(admin, "terminal.attach", { terminalId: own.terminalId });
-  assert.match(att.replay, /\$ echo hi\nhi/, "an admin attaches to a team agent's workspace and sees the same screen");
-  assert.equal((await call(admin, "terminal.input", { terminalId: own.terminalId, data: "ls\n" })).ok, true);
+  for (const [cap, extra] of [
+    ["terminal.attach", {}],
+    ["terminal.read", {}],
+    ["terminal.input", { data: "ls\n" }],
+    ["terminal.capture", {}],
+    ["terminal.stream", {}],
+    ["terminal.take_over", {}],
+  ] as const)
+    assert.equal(
+      (await failure(() => h[cap]!(admin, { terminalId: own.terminalId, ...extra }))).reason,
+      "not_yours",
+      `an admin: ${cap} on the agent's own terminal`,
+    );
 });
 
 test("a person attaches to their own Assistant's session and types in it", async () => {

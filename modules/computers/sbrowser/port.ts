@@ -123,6 +123,8 @@ export interface SpaceBrowser {
   /** Close the least recently used quiet browser of another Space that has been quiet for `quietMs` (this Space has nothing of its own to close and the service is full). The id, or null. */
   closeOther?(space: string, quietMs: number): Promise<string | null>;
   /** Write this Space into its own profiles' folders that name none yet (so a purge of another install never takes them, and one of this install finds them). How many were marked; -1: the service is not up. */
+  /** Tell a running service its daemon is still here (never starts it); asked every half minute, acted on at most every few minutes. */
+  keepAlive?(): Promise<void>;
   markSpace?(space: string, profileIds: readonly string[]): Promise<number>;
   health(): Promise<{ ok: boolean; detail?: string }>;
   /** The subnets of the service's own network: a request from one reaches only the Vault channel of the daemon (computerSubnets). */

@@ -2,6 +2,8 @@
 // The module loader (ARCH 4.4, 12.4). At boot it reads the frozen module list (host/modules.json) and the merged registry, checks they agree, loads each module's handlers
 // (generated stub-impl while the module is `status:'stub'` in host/modules.json, its own impl once `live`), indexes the route table, and builds the per-call services (ctx.db scoped to the module, ctx.http limited to its connector's domains).
 // Only the host builds a ctx (boundary B2); modules never see the raw database or fetch.
+import { UNIT_MS, loopYield } from "../../lib/loop-budget.ts";
+import { sliceImport } from "./daemon/slice-import.ts";
 import { readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { fail } from "./routes/errors.ts";
@@ -68,7 +70,9 @@ export interface LoadedHost {
 export function fileImporter(root: string): Importer {
   return async (id, kind) => {
     const rel = kind === "stub" ? `generated/modules/${id}/stub-impl.ts` : `modules/${id}/impl.ts`;
-    const m = (await import(pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`).href)) as { handlers?: HandlerMap };
+    const href = pathToFileURL(`${root.replace(/\/$/, "")}/${rel}`);
+    await sliceImport(href, 4); // the module's own graph in pieces, a turn of the loop between them
+    const m = (await import(href.href)) as { handlers?: HandlerMap };
     if (!m.handlers) throw new Error(`${rel} exports no handlers`);
     return m.handlers;
   };
@@ -132,6 +136,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     if (!o.registry.capabilities.some((c) => c.module === m.id)) continue; // a kit has no capabilities and nothing to load
     const kind = listed.get(m.id)?.status === "live" ? "live" : "stub"; // a kit is not listed and has no capabilities, so it never gets here
     serving.set(m.id, kind);
+    await loopYield(UNIT_MS); // one module's graph is linked at a time, with a turn of the loop between them
     let map: HandlerMap;
     try {
       map = await o.importer(m.id, kind);
@@ -152,6 +157,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
   if (o.seamImporter) {
     for (const m of o.registry.modules) {
       if (!o.registry.capabilities.some((c) => c.module === m.id)) continue;
+      await loopYield(UNIT_MS);
       const s = await o.seamImporter(m.id);
       for (const [k, fn] of Object.entries(s ?? {})) {
         if (typeof fn !== "function") continue;
@@ -167,6 +173,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
   if (o.exportsImporter) {
     for (const [id, kind] of serving) {
       if (kind !== "live") continue;
+      await loopYield(UNIT_MS);
       const ns = await o.exportsImporter(id);
       if (ns) moduleExports.set(id, ns);
     }
@@ -179,7 +186,7 @@ export async function loadHost(o: LoaderOptions): Promise<LoadedHost> {
     domains.set(c.module, [...(domains.get(c.module) ?? []), ...(c.domains ?? [])]);
   const capModule = new Map([...caps].map(([k, c]) => [k, c.module]));
   const refuse = (what: string) => (): never => {
-    throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what } });
+    throw fail("internal.not_implemented", "0".repeat(32), { details: { service: what, reason: "not_set_up" } });
   };
 
   return {

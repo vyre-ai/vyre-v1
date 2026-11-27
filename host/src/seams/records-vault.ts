@@ -14,6 +14,8 @@ export interface RecordsVaultSeam {
   discard(ref: string): Promise<void>;
   /** After a field was sealed: take the old plaintext out of the copies only the host reaches (the Space log, kept answers, the sync copies, the search index). */
   scrubField(type: string, field: string): Promise<void>;
+  /** The same for several fields at once, in one pass over the host's copies (a dropped type's purge). */
+  scrubFields?(type: string, fields: readonly string[]): Promise<void>;
 }
 
 export interface RecordsVaultDeps {
@@ -24,6 +26,7 @@ export interface RecordsVaultDeps {
   /** Make the folder a resource in access, as the Vault's folder repair does, so people with the Space role can reach what is in it. */
   registerFolder(folderId: string): Promise<void>;
   scrub(type: string, field: string): Promise<void>;
+  scrubMany?(type: string, fields: readonly string[]): Promise<void>;
 }
 
 export { SEALED_FOLDER };
@@ -78,6 +81,7 @@ export function createRecordsVaultHost(d: RecordsVaultDeps): RecordsVaultSeam {
       });
     },
     scrubField: (type, field) => d.scrub(type, field),
+    ...(d.scrubMany ? { scrubFields: (type: string, fields: readonly string[]) => d.scrubMany!(type, fields) } : {}),
     async reveal(ref, person) {
       const out = (await d.as(person, "vault.item.reveal", {
         itemId: ref,

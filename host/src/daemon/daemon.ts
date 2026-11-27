@@ -1,4 +1,7 @@
 import { sitesAsHost } from "../seams/sites-as-host.ts";
+import { bootBegin, bootMark } from "./boot-timing.ts";
+import { startCheckpointer } from "./checkpointer.ts";
+import { UNIT_MS, loopTurn, loopYield } from "../../../lib/loop-budget.ts";
 import { protectionHolds } from "../../../lib/key-target.ts";
 import type { SiteFacts } from "../../../lib/key-target.ts";
 import { workspaceInTurn } from "./workspace-turns.ts";
@@ -266,6 +269,8 @@ import { createWebhookRoute } from "../routes/webhooks.ts";
 import { createComputeRoute } from "../routes/compute.ts";
 import { createComputeStream } from "../routes/compute-stream.ts";
 import { createBrowserStream } from "../routes/browser-stream.ts";
+import { createTerminalStream } from "../routes/terminal-stream.ts";
+import type { TerminalStreamDeps } from "../routes/terminal-stream.ts";
 import { createReporter } from "../machines/reporter.ts";
 import { createSampler, realDeps } from "../machines/sample.ts";
 import type { SampleDeps } from "../machines/sample.ts";
@@ -684,6 +689,8 @@ export interface DaemonOptions {
 export interface Daemon {
   /** Resolves when the work the start leaves running after the daemon serves has finished (today: the Personal calendars of people who have none). Tests that read the log head wait for it. */
   startupWork(): Promise<void>;
+  /** Runs the one-time scrub of search entries that carry text of removed fields now (the start runs it once the daemon serves) and answers when it has finished; a finished job does nothing. */
+  searchScrub(): Promise<void>;
   url: string;
   /** the one-time link the owner of a fresh Space opens to claim it (ruling 71); null once claimed or when this host did not make the Space */
   claim: { url: string; expiresAt: number } | null;
@@ -771,6 +778,7 @@ const bootFoldTypes: readonly string[] = [
 ];
 
 export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
+  bootBegin();
   ignoreTestSwitches();
   const cfg = o.config;
   const now = o.now ?? Date.now;
@@ -1244,6 +1252,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     open: (t, a) => browserOpen(t, a),
     mayInput: (a, p) => browserInput(a, p),
   });
+  // the live stream of a terminal's screen, relayed (host/src/routes/terminal-stream.ts); the terminal module spends the ticket and keeps one watcher per terminal (modules/terminal/watch.ts)
+  let terminalOpen: TerminalStreamDeps["open"] = () => Promise.resolve(null);
+  const terminalStream = createTerminalStream({ open: (t, k, r, send) => terminalOpen(t, k, r, send) });
   // a person's own computer links with their signed-in session (lane l-runson); who it is comes from the same resolver as the gateway, once the Space is open
   let closeIdleSessions: (person?: string) => Promise<number> = () => Promise.resolve(0);
   let idleSessions: (person?: string) => number = () => 0;
@@ -1300,6 +1311,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       m.person,
     );
     if (m.person) browserStream.endPerson(m.person);
+    if (m.person) terminalStream.endPerson(m.person);
     // the cookie sessions of artifacts and sites a person opened (sites_ticket rows of theirs) hold no session id: they end with any session end of the person, as the live views do
     if (m.person) {
       try {
@@ -1310,6 +1322,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     }
   };
   closers.push(() => computeStream.close());
+  // the live views of browsers and terminals end with the Space, so a viewer sees it go at once and opens again
+  closers.push(() => void browserStream.endAll());
+  closers.push(() => void terminalStream.endAll());
   // A device-role daemon (the Vyre app's, on the person's own computer) links to each Team Space its person is signed in to here, so their chats there can run on this computer (lane l-runson).
   // A daemon that hosts a Space does not: its Space is here, and its turns already run here.
   const linkDevice = async (l: TeamLink, signal: AbortSignal): Promise<void> => {
@@ -1729,6 +1744,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   /** After a stop between a record and its announcement (host/src/daemon/record-announce.ts): the missing record.created events are made once the daemon serves. */
   let startRecordAnnouncements: (startedAtMs: number) => void = () => {};
   let announceSweep: Promise<void> = Promise.resolve();
+  /** The one-time scrub of search entries that carry text of removed fields (modules/search/handlers/scrub.ts): started once the daemon serves, a slice at a time, and done for good when its row says so. */
+  let startSearchScrub: () => void = () => {};
+  let searchScrub: Promise<void> = Promise.resolve();
   let startupWork: () => Promise<void> = async () => {};
   const access = createAccess();
   // Ruling 70: authorize answers from the access module's snapshot. The log's access events wait here until the module has folded them; `syncAccess` (set once the hooks run)
@@ -2025,6 +2043,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
   });
   const scheduler = new Scheduler({
     now,
+    stagger: true,
     tickMs: o.intervals?.tick ?? 1000,
     log: sink.logger({ space: space ?? "-", place: "scheduler" }),
     onRun: jobRanLog(sink, () => space ?? "-"),
@@ -2042,9 +2061,17 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       // ---- the Space: modules.db, events.db, access, handlers, invoke, gateway
       db = openDb(paths.modules);
       closers.push(() => db?.close());
+      // modules.db is checkpointed by a worker thread, not by the commit that crosses 1,000 pages on this one (pushed after the close, so it stops first: the closers run in reverse)
+      const checkpointer = startCheckpointer(db, paths.modules);
+      closers.push(() => checkpointer.stop());
+      bootMark("before migrations");
       migrate(db, codeRoot, now);
+      bootMark("migrations");
+      await loopYield(UNIT_MS);
       if (!space) throw new Error("this data directory has no Space yet: pass --space <id> to create one");
       log = await LogClient.open({ path: paths.events, space });
+      bootMark("open events.db");
+      await loopYield(UNIT_MS);
       closers.push(() => log?.close());
       // The chain is checked from the point the last start left (host_chain_checkpoint) to the head: the start waits for the tail only, not for every event of a Space with a long history. A tail that does
       // not verify is checked again from the start, and the whole chain is checked again in the background after every start (the commit gate closes if it fails), so nothing is skipped for good.
@@ -2083,7 +2110,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       const ownedScan: { seq: number; id: string; type: string; actor: string; payload: unknown }[] = [];
       for (let after = 0; ; ) {
         const page = await log.read({ after, limit: 5000, types: bootFoldTypes });
+        let folded = 0;
         for (const e of page) {
+          if (++folded % 200 === 0) await loopYield();
           if (
             e.type === "resource.created" ||
             e.type === "principal.created" ||
@@ -2110,6 +2139,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       if (first.ok && first.seq > accessFedTo) accessFedTo = first.seq;
       // registrations in the Space owner's name from before the mark: marked at every start (only the mark: an existing resource keeps everything else)
       // a Vault folder is the Space's only when its row names no owner (one a person made, the Space owner included, stays theirs)
+      await loopTurn(); // each scan over the folded events is one step: the loop serves a request between them
       const marks = hostOwnedMarks(ownedScan, space)
         .filter((m) => {
           if (m.type !== "vault_folder") return true;
@@ -2141,6 +2171,18 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       } catch {
         /* a fresh store has no calendars yet */
       }
+      // Files and folders that were put in Trash before the access module kept the Trash mark on its own rows: Files' Trash rows are read at every start and the mark is set where it is missing (idempotent, only the mark)
+      try {
+        const bin = db!.all(`SELECT id, root_id FROM files_trash`) as { id: string; root_id: string }[];
+        for (const t of bin)
+          accessPending.push({
+            seq: -1,
+            type: "resource.created",
+            payload: { id: t.id, trash_root: t.root_id, trash_only: true },
+          });
+      } catch {
+        /* a fresh store has no Files tables yet */
+      }
       // Ruling 71: an empty log is a fresh install. The host makes the Space once, with an owner who claims it through a one-time link.
       if (!sawSpace) {
         const made = await bootstrapSpace(log, { space, name: cfg.spaceName ?? space, owner: mintOwner(cfg.owner) });
@@ -2166,6 +2208,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             throw new Error(`reconciliation event ID collision for ${event.id ?? "event"}`);
           return repaired;
         };
+        await loopTurn();
         for (const row of missingAgentResources({ space, events: agentAccessEvents })) {
           const repaired = await appendRepair({
             id: `evt_res_${row.id}`,
@@ -2343,6 +2386,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         };
         // Prototype/import logs predate both registrars.  The immutable agent.created
         // payload, not a subsequent host event, is the authority for every repair.
+        await loopTurn();
         for (const repairedEvent of missingAgentPrincipalEvents({ space, events: agentAccessEvents, levelOf })) {
           const repaired = await appendRepair({
             id: `evt_agent_access_${repairedEvent.type.replace(".", "_")}_${repairedEvent.id}`,
@@ -2387,6 +2431,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               r.folderId !== null &&
               access.snap.resource(r.folderId) !== undefined,
           );
+          await loopTurn();
           for (const e of missingAgentHomeEvents({ events: agentAccessEvents, agents: known })) {
             const repaired = await appendRepair({
               id: `evt_agent_home_${e.id}`,
@@ -2418,6 +2463,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       let grantOwnPlaces: ((owner: string) => Promise<void>) | null = null;
       const reg = registry as unknown as RegistryLike;
+      bootMark("log check and the access fold");
+      await loopYield(UNIT_MS);
       const loaded = await loadHost({
         registry: reg,
         modulesJson: readModuleList(path.join(codeRoot, "host/modules.json")),
@@ -2428,6 +2475,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         db,
         ...(o.http ? { fetch: o.http } : {}),
       });
+      bootMark("load modules");
+      await loopYield(UNIT_MS);
       workspacesReady = (): Promise<void> =>
         (
           loaded.moduleExports.get("terminal") as { workspacesReady?: () => Promise<void> } | undefined
@@ -2620,6 +2669,22 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         } | null;
       browserInput = async (agentId, personId) =>
         (await hookRunner.call("computers.browser_stream_input", { agentId, personId })) === true;
+      terminalOpen = async (terminalId, ticket, since, send) => {
+        const mod = loaded.moduleExports.get("terminal") as
+          | {
+              openScreen?: (
+                db: unknown,
+                t: string,
+                k: string,
+                r: number | undefined,
+                now: number,
+                send: (text: string) => void,
+              ) => ReturnType<TerminalStreamDeps["open"]>;
+            }
+          | undefined;
+        if (!mod?.openScreen || !db) return null;
+        return await mod.openScreen(db, terminalId, ticket, since, now(), send);
+      };
       computeStreamOpen = async (ticket, computerId) =>
         (await hookRunner.call("computers.stream_open", { ticket, computerId })) as {
           nodeId: string;
@@ -3454,6 +3519,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           now,
           fresh: () => !accessStale,
           refresh: () => syncAccess(true),
+          rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
           warn: (info) =>
             sink.log({ space: spaceId, level: 40, msg: "records.read_mismatch", place: "read", attrs: { ...info } }),
         }),
@@ -4041,9 +4107,21 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           accessPending = [...es, ...accessPending];
         },
         pending: () => accessPending.length,
+        trashPending: async () => {
+          try {
+            return Number(await hookRunner.call("access.trash_pending", {})) || 0;
+          } catch {
+            return 0;
+          }
+        },
         // read on this thread through a read-only connection: the log worker's queue (every consumer reads through it after a commit) made each access sync wait behind it
         read: (after, limit) => Promise.resolve(accessLogRead(after, limit)),
-        call: async (events) => (await hookRunner.call("access.sync", { events })) as AccessSnapshot,
+        call: async (events) => {
+          // a sync whose kept store is gone (a start, or a handler wrote access rows since) would read the access tables whole, 0.3 to 4 s of blocked loop on a big Space: the module reads them in slices first and keeps what it read
+          await hookRunner.call("access.prime", {}).catch(() => false);
+          await loopYield(); // the sync itself (folding, and building the snapshot again when the batch needs it: 40 ms on 38,000 resources) starts in a turn of its own
+          return (await hookRunner.call("access.sync", { events })) as AccessSnapshot;
+        },
         adopt: (s) => access.adopt(s),
         adopted: () => access.adopted(),
         stale: {
@@ -4174,6 +4252,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           });
         }
       }
+      // the last scan of the boot's events is done: the lists are let go, with the payloads decoded from them (lib/decode-payload.ts keeps a decoded payload as long as its bytes live)
+      agentAccessEvents.length = 0;
+      ownedScan.length = 0;
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();
@@ -4243,6 +4324,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           spaceDb: spaceStorePath(paths.root),
           eventsDb: paths.events,
           markFile: path.join(paths.root, "records-announced.seq"),
+          repairFile: path.join(paths.root, "records-announce-repair.v1"),
+          version: cfg.version,
           startedAt: startedAtMs,
           exists: (id) => access.snap.info(id) !== null,
           spaceOwner: () => access.owner() ?? null,
@@ -4278,7 +4361,61 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             }),
           );
       };
-      startupWork = () => Promise.all([personalSweep, announceSweep]).then(() => undefined);
+      let scrubStopped = false;
+      let scrubRunning = false;
+      startSearchScrub = () => {
+        if (loaded.serving.get("search") !== "live" || scrubRunning) return;
+        scrubRunning = true;
+        const say = (level: number, msg: string, attrs: Record<string, unknown>): void =>
+          sink.log({ space: spaceId, level, msg, place: "boot", attrs });
+        const run = async (): Promise<void> => {
+          let lastSaid = 0;
+          let first = true;
+          for (;;) {
+            if (scrubStopped) return;
+            const r = (await hookRunner.call("search.scrub_removed_fields", {})) as {
+              done: boolean;
+              state: string;
+              before: number;
+              after: number;
+              scanned: number;
+              total: number;
+              types: string[];
+              waiting?: boolean;
+              unreadable?: number;
+            };
+            if (r.done && first) return; // finished on an earlier start: nothing to say, nothing to do
+            const at = performance.now();
+            if (first || r.done || at - lastSaid > 5_000) {
+              say(20, r.done ? "search.scrub_removed_fields.done" : "search.scrub_removed_fields.progress", {
+                scanned: r.scanned,
+                total: r.total,
+                entriesWithRemovedText: r.before,
+                entriesLeft: r.after,
+                typesLeft: r.types.length,
+                ...(r.unreadable ? { entriesRemovedUnreadable: r.unreadable } : {}),
+              });
+              lastSaid = at;
+            }
+            first = false;
+            if (r.done) return;
+            // the loop is given back after every slice; after a failed read the next try waits a moment
+            await new Promise<void>((resolve) => (r.waiting ? setTimeout(resolve, 500) : setImmediate(resolve)));
+          }
+        };
+        searchScrub = run()
+          .catch((e: unknown) =>
+            say(40, "search.scrub_removed_fields.failed", { error: e instanceof Error ? e.message : String(e) }),
+          )
+          .finally(() => {
+            scrubRunning = false;
+          });
+      };
+      closers.push(() => {
+        scrubStopped = true;
+        return searchScrub;
+      });
+      startupWork = () => Promise.all([personalSweep, announceSweep, searchScrub]).then(() => undefined);
       closers.push(() => {
         personalStopped = true;
         return personalSweep;
@@ -4591,6 +4728,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         snapshot: () => access.snap,
         now,
         fresh: () => !accessStale,
+        rows: { all: (sql, ...a) => spaceStore.open().tx.all(sql, ...a) },
       });
       dispatchSystem = system;
       // The connectors that ship with the server (Google, Microsoft, Stripe, HubSpot...) are resources in the access projection so that a connection can be made under one: connections.create
@@ -4916,10 +5054,69 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
               (r) => (r.status === "ok" ? r.output : Promise.reject(new Error(`${cap} was held for approval`))),
             ),
           registerFolder: (id) => registerVaultFolder(id, access.owner() ?? cfg.owner ?? null, false, true),
-          scrub: (type, field) => scrubSealedField(type, field),
+          scrub: (type, field) => scrubSealedFields(type, [field]),
+          scrubMany: (type, fields) => scrubSealedFields(type, fields, { vacuum: false }),
         }));
       // A field was sealed: the plaintext it held is taken out of what only the host reaches. The events of the Space log that carry it lose their payloads (the chain stays), the kept answers of old writes lose the value, and the search documents of the type go and are read again from the records, which now hold references.
-      const scrubSealedField = async (type: string, field: string): Promise<void> => {
+      // A passive checkpoint, then a truncating one: tried a few times, a few seconds apart, until the writer is idle (a truncate that finds readers answers busy and is not forced). Each try is a few milliseconds.
+      const settleJournal = (
+        d: { all(sql: string, ...a: unknown[]): unknown[]; run?(sql: string, ...a: unknown[]): unknown },
+        tries = 8,
+      ): void => {
+        const timer = setTimeout(() => {
+          try {
+            d.all("PRAGMA wal_checkpoint(PASSIVE)");
+            const r = d.all("PRAGMA wal_checkpoint(TRUNCATE)")[0] as { busy?: number } | undefined;
+            if (!r?.busy) return;
+            if (tries > 1) return settleJournal(d, tries - 1);
+            // the journal could not be folded after every try: the host says so in its log and counts it for the doctor (host_journal_owed in the modules database)
+            sink.log({
+              space: spaceId,
+              level: 40,
+              msg: "journal.not_folded",
+              place: "boot",
+              attrs: { file: "modules.db-wal", tries: 8 },
+            });
+            d.run?.(
+              `CREATE TABLE IF NOT EXISTS host_journal_owed (id INTEGER PRIMARY KEY AUTOINCREMENT, at INTEGER NOT NULL, file TEXT NOT NULL, tries INTEGER NOT NULL)`,
+            );
+            d.run?.(
+              "INSERT INTO host_journal_owed (at, file, tries) VALUES (?, ?, ?)",
+              Date.now(),
+              "modules.db-wal",
+              8,
+            );
+          } catch {
+            /* the database is closed: the next start folds it */
+          }
+        }, 2_000);
+        timer.unref?.();
+      };
+      // After a delete that must leave no copy: fold the journal in and hand freed pages back a slice at a time where the file gives pages back by itself (auto_vacuum = incremental). Never a VACUUM of a live file:
+      // freed pages are zeroed by secure_delete, and a file that cannot shed them waits for the planned compact.
+      const reclaimFreePages = async (d: {
+        exec(sql: string): unknown;
+        all(sql: string, ...a: unknown[]): unknown[];
+      }): Promise<void> => {
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        const mode = Number((d.all("PRAGMA auto_vacuum")[0] as { auto_vacuum?: number } | undefined)?.auto_vacuum ?? 0);
+        if (mode !== 2) return;
+        for (let guard = 0; guard < 10_000; guard++) {
+          d.exec("PRAGMA incremental_vacuum(256)");
+          const free = Number(
+            (d.all("PRAGMA freelist_count")[0] as { freelist_count?: number } | undefined)?.freelist_count ?? 0,
+          );
+          if (free === 0) break;
+          await new Promise<void>((resolve) => setImmediate(resolve));
+        }
+        d.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      };
+      // `vacuum`: a seal vacuums the modules database whole (its tests hold every byte to be gone); a purge of a possibly big type never does (it would hold the loop), and relies on secure_delete and the planned compact
+      const scrubSealedFields = async (
+        type: string,
+        fields: readonly string[],
+        o: { vacuum: boolean } = { vacuum: true },
+      ): Promise<void> => {
         const dec = new TextDecoder();
         const seqs: number[] = [];
         const ids = new Set<string>();
@@ -4928,7 +5125,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           v !== null &&
           !(typeof v === "object" && typeof (v as { sealed?: unknown }).sealed === "string");
         for (let after = 0; ; ) {
-          const page = await spaceLog.read({ after, limit: 2000 });
+          // a page of 250 events (about 20 ms of parsing), the loop given back between pages
+          const page = await spaceLog.read({ after, limit: 250 });
+          await new Promise<void>((resolve) => setImmediate(resolve));
           for (const e of page) {
             if (!e.type.startsWith("record.") || isErased(e)) continue;
             let p: Record<string, unknown>;
@@ -4941,33 +5140,47 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             if (
               ["fields", "prev", "data", "before"].some((k) => {
                 const part = p[k];
-                return !!part && typeof part === "object" && plain((part as Record<string, unknown>)[field]);
+                return (
+                  !!part && typeof part === "object" && fields.some((f) => plain((part as Record<string, unknown>)[f]))
+                );
               })
             ) {
               seqs.push(e.seq);
               if (typeof p["recordId"] === "string") ids.add(p["recordId"] as string);
             }
           }
-          if (page.length < 2000) break;
+          if (page.length < 250) break;
           after = page[page.length - 1]!.seq;
         }
-        if (seqs.length) await spaceLog.compactSeqs(seqs);
-        await spaceLog.forgetField(type, field);
+        // the log's own worker does these two; they are asked for in parts of 400 events so each part is short
+        for (let i = 0; i < seqs.length; i += 400) await spaceLog.compactSeqs(seqs.slice(i, i + 400));
+        for (const field of fields) await spaceLog.forgetField(type, field);
         if (db && ids.size) {
           const mine = db;
           try {
             mine.exec("PRAGMA secure_delete = ON");
-            for (const id of ids) {
+            // the documents leave in slices of at most 15 ms, the loop given back between them
+            const idList = [...ids];
+            let since = performance.now();
+            for (const id of idList) {
               mine.run(
                 "DELETE FROM search_fts WHERE rowid IN (SELECT n FROM search_docs WHERE entity = ? AND id = ?)",
                 `record:${type}`,
                 id,
               );
               mine.run("DELETE FROM search_docs WHERE entity = ? AND id = ?", `record:${type}`, id);
+              if (performance.now() - since > 15) {
+                await new Promise<void>((resolve) => setImmediate(resolve));
+                since = performance.now();
+              }
             }
-            mine.exec("INSERT INTO search_fts(search_fts) VALUES('optimize')");
-            mine.exec("PRAGMA wal_checkpoint(TRUNCATE)");
-            mine.exec("VACUUM");
+            // the full text index merges its segments a few pages at a time (never one whole optimize), then the journal is folded in and freed pages are handed back by the incremental path where the file allows it
+            for (let step = 0; step < 40; step++) {
+              mine.exec("INSERT INTO search_fts(search_fts, rank) VALUES('merge', 32)");
+              await new Promise<void>((resolve) => setImmediate(resolve));
+            }
+            await reclaimFreePages(mine);
+            if (o.vacuum) mine.exec("VACUUM");
           } catch {
             /* a Space without the search index has nothing to clear */
           }
@@ -4975,7 +5188,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
         // the records are read again by search: the touch is an ordinary record.updated, with no values in it
         for (const id of ids) {
           await spaceLog.appendResult({
-            id: `evt_seal_${type}_${field}_${id}`.slice(0, 120),
+            id: `evt_seal_${type}_${fields.length === 1 ? fields[0] : `${fields.length}f`}_${id}`.slice(0, 120),
             type: "record.updated",
             sv: 1,
             trace_id: "5e".repeat(16),
@@ -4986,6 +5199,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             payload: { recordId: id, type, fields: {}, prev: {}, version: 0 },
           });
         }
+        // the search index is folded into the journal again once the touches are in, and again a moment later when the writer is idle: the erased text is not left in the journal file
+        if (db && ids.size) settleJournal(db);
       };
       // a team agent's shared computer (workspace, browser profile, old desktop) holds only Vault items shared for it (host/src/seams/team-vault.ts). Every decision is the kernel's own
       // resolution at this moment (start and end, expiry, ceiling, hidden fields, filter), for the field the handle names; whatever cannot be read is a refusal.
@@ -5913,6 +6128,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           createComputersHost({
             dataDir: paths.root,
             version: cfg.version,
+            space: { id: spaceId, personal: cfg.spaceKind === "personal" },
             ...(o.computersSocketPath !== undefined ? { socketPath: o.computersSocketPath } : {}),
             // On a Team server vyred holds no Docker socket: agent computers are made and run through the runner beside it (the same one that runs sites), which refuses anything else
             ...(o.computersSocketPath === undefined && computersRunnerSocket()
@@ -7421,7 +7637,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
 
       const mkHub = (): LiveHub =>
         createLiveHub({
-          claims: (req) => computeStream.claims(req) || browserStream.claims(req) || chromeDirect.claims(req),
+          claims: (req) =>
+            computeStream.claims(req) ||
+            browserStream.claims(req) ||
+            terminalStream.claims(req) ||
+            chromeDirect.claims(req),
           // a socket shows its address to the browser console and to logs: a device with no header presents a one-time ticket, never its session token
           session: (h, url) => {
             const ticket = url.searchParams.get("ticket");
@@ -7891,7 +8111,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     for (const p of hooks?.periodic ?? [])
       scheduler.add({
         name: `hook.${p.name}`,
-        schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) },
+        schedule: {
+          everyMs: p.everyMs,
+          ...(p.immediate ? { immediate: true } : {}),
+          ...(p.exact ? { exact: true } : {}),
+        },
         run: async () => {
           if (peerService && !peerService.mayRun(p.name)) return;
           await hooks?.runPeriodic(p.name);
@@ -7957,6 +8181,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
             takeVisitor(req); // the relay's visitor headers are read and removed here too (seams/visitor-proof.ts)
             if (computeStream.claims(req)) computeStream.upgrade(req, socket, head);
             else if (browserStream.claims(req)) browserStream.upgrade(req, socket, head);
+            else if (terminalStream.claims(req)) terminalStream.upgrade(req, socket, head);
             else if (chromeDirect.claims(req)) chromeDirect.upgrade(req, socket, head);
           },
           (where, error) =>
@@ -8112,6 +8337,8 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       workspacesReady?.() ?? Promise.resolve(),
       new Promise<void>((r) => setTimeout(r, 5000).unref?.()),
     ]).catch(() => undefined);
+    bootMark("wiring and start-up passes");
+    await loopYield(UNIT_MS);
     await new Promise<void>((resolve, reject) => {
       const onError = (err: Error): void => reject(err);
       server.once("error", onError);
@@ -8121,6 +8348,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
       });
     });
     boundPort = (server.address() as { port: number }).port;
+    bootMark("listen");
     // A step after the listen that throws (the MCP runtime reads its tool table here) must close the listener it leaves behind, or every restart of this unit meets EADDRINUSE on its own port and the
     // supervisor ends up reporting that instead of the real cause.
     try {
@@ -8276,6 +8504,7 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     });
     startPersonalCalendars();
     startRecordAnnouncements(startedAt);
+    startSearchScrub();
   } catch (e) {
     for (const c of closers.reverse()) await Promise.resolve(c()).catch(() => {});
     clearInfo(paths);
@@ -8338,6 +8567,10 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     ensureIngress: () => ensureIngress(false),
     peers: peerService,
     startupWork: () => startupWork(),
+    searchScrub: () => {
+      startSearchScrub();
+      return searchScrub;
+    },
     stop,
   };
 }

@@ -827,6 +827,13 @@ browser_remove_all() {
 purge_browser() {
   command -v docker >/dev/null 2>&1 || return 0
   sid=${1:-}; [ -n "$sid" ] || sid=$(space_id_of) || sid=""
+  # this Space's own browser container, volume and network (rc.44: `vyre-sbrowser-<space id>`) hold this Space's profiles only, so a purge removes all three; the old shared ones below are handled as before
+  if [ -n "$sid" ] && [ "$SBROWSER" = vyre-sbrowser ]; then
+    docker rm -f "vyre-sbrowser-$sid" >/dev/null 2>&1 || true
+    docker volume rm -f "vyre-sbrowser-$sid-data" >/dev/null 2>&1 || true
+    docker network rm "vyre-sbrowser-${sid}net" >/dev/null 2>&1 || true
+    for c in $(docker ps -aq --filter "label=vyre.sbrowser-migrate=$sid" 2>/dev/null); do docker rm -f "$c" >/dev/null 2>&1 || true; done
+  fi
   if ! docker inspect "$SBROWSER" >/dev/null 2>&1; then
     # no container: its volume holds profiles nobody can sort by Space now; it goes only when no other install is here
     if other_installs; then say "  The Space browser's volume stays: another Space's server is on this Docker engine and may keep its agents' sign-ins there."

@@ -1,0 +1,1 @@
+- The server loads its modules one at a time with a turn of the event loop between them.

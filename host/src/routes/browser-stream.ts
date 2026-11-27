@@ -41,6 +41,8 @@ export interface BrowserStream {
   /** GET /browsers/<agent>/stream. False when the request is not for this route. */
   handle(req: http.IncomingMessage, res: http.ServerResponse): boolean;
   views(): number;
+  /** The Space is stopping: every view ends now, so a viewer sees it go at once and opens again, instead of waiting for a dead connection to time out. Returns how many. */
+  endAll(): number;
   /** The person can no longer watch (signed out, suspended, removed): every view of theirs ends now. Returns how many. */
   endPerson(personId: string): number;
 }
@@ -335,6 +337,15 @@ export function createBrowserStream(deps: BrowserStreamDeps): BrowserStream {
       return true;
     },
     views: () => views,
+    endAll() {
+      let n = 0;
+      for (const e of [...open]) {
+        open.delete(e);
+        e.end();
+        n++;
+      }
+      return n;
+    },
     endPerson(personId) {
       let n = 0;
       for (const e of [...open])

@@ -7,6 +7,7 @@
 // register one. The first event about an object is its birth, whatever it is called (`record.created`, `schema.type_changed` for a new record type, `kit.installed`).
 //   parent  the capability's own container (the `parent` pointer of its resource binding, read from the input) when that container is a known resource, else the Space
 //   owner   the person the birth event names as ownerId when the type opts in (OWNER_NAMED), else the person the call acts for (the principal when nobody is acted for)
+import { decodePayload } from "../../../lib/decode-payload.ts";
 import type { ResourceRow } from "../../../kernel/src/authorize/index.ts";
 import type { EventEnvelope } from "../../../packages/contracts/src/envelope.ts";
 import type { CapabilityDef } from "../../../packages/contracts/src/types.ts";
@@ -111,7 +112,7 @@ type EventLike = Pick<EventEnvelope, "type" | "payload">;
 const recordOf = (value: unknown): Record<string, unknown> => {
   if (value instanceof Uint8Array) {
     try {
-      return JSON.parse(new TextDecoder().decode(value)) as Record<string, unknown>;
+      return decodePayload(value) as Record<string, unknown>;
     } catch {
       return {};
     }

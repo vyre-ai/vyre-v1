@@ -12,6 +12,7 @@ import {
   unitOf,
   unitTests,
   dynamicDirs,
+  OWN_JOB,
 } from "./ci-select.ts";
 import { shardFiles, toMatrix } from "./shard.ts";
 import { imports } from "./lib/graph.mjs";
@@ -409,4 +410,11 @@ test("--perf-only lists every perf file as a v1-perf job, --no-perf lists none (
   const none = run("--no-perf");
   const perfFiles = new Set(only.map((m) => m.files));
   assert.ok(none.every((m) => m.files.split(" ").every((f) => !perfFiles.has(f))));
+});
+
+test("the event-loop guards are never put in a shard: they run alone in their own job (rc.44 CI: a shard failed the guard on its 120 s cap)", () => {
+  assert.ok(OWN_JOB.test("test/loop.guard.live.test.ts"));
+  assert.ok(OWN_JOB.test("test/loop.guard.server.live.test.ts"));
+  assert.ok(!OWN_JOB.test("test/loopblock.live.test.ts"));
+  assert.ok(!OWN_JOB.test("host/src/daemon/loopblock.test.ts"));
 });

@@ -1,0 +1,1 @@
+- When a person takes the keyboard of a line terminal, the screen takes the focus at once, so the next key goes to it with nothing to click first (the screen of a tmux terminal already did).

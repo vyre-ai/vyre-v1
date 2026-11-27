@@ -1,0 +1,1 @@
+- The compile-cache warm-up takes a lock file in the cache folder (one warm-up at a time) and is covered by a test: it writes only into the cache, opens nothing and ends by itself. The log sink writes its rows 100 at a time (was 200), so one batch holds the loop for half as long.

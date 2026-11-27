@@ -1,0 +1,1 @@
+A person can export as often as they like: the second export of a table the same day is saved as "name (2).csv", then "(3)", instead of failing over the name; the same for the memory graph export. A saved view filtered or sorted by a computed field picks and places only by values the person may read all the inputs of.

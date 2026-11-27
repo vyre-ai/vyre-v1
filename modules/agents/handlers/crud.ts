@@ -5,6 +5,7 @@
 //   config.get / config.validate / limits.get              what the next run will see, what a text would change, and the limits after the Space caps
 //   snapshot.take / versions / restore_version             the files a run uses, and rolling back
 // A broken agent.toml never stops an agent: the last good configuration stays in agents_agent.config and is what every read here returns.
+import { loopYield } from "../../../lib/loop-budget.ts";
 import { erasedRow } from "./erase.ts";
 import {
   AGENT_MD_DEFAULT,
@@ -1419,6 +1420,7 @@ export async function restoreAgentFiles(ctx: AgentsCtx): Promise<string[]> {
   const put: string[] = [];
   await adoptAgentPrincipals(ctx, put);
   for (let a of allAgents(ctx.db)) {
+    await loopYield(); // one agent after another: the loop is given back when the work since it last ran has used its turn
     if (a.folderId === undefined) {
       // a record with no home: make Agents/<name> with the decided tree and both files, and point the record at them
       try {

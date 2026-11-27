@@ -1,0 +1,1 @@
+A role given, a group joined, a person added or suspended no longer sets off a rebuild of everyone's access to everything in the Space: only that person's rows are worked out again, in slices on a big Space.

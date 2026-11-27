@@ -1,0 +1,1 @@
+- modules.db is checkpointed by a worker thread (PASSIVE, once its log passes 4 MB), not by the commit that crosses 1,000 pages on the main thread, which held it for up to 66 ms.

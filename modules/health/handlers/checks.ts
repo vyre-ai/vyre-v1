@@ -322,6 +322,11 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   });
 }
 
+function reasonOf(e: unknown): string | undefined {
+  const reason = asRow(asRow(asRow(e)?.["error"])?.["details"])?.["reason"];
+  return typeof reason === "string" ? reason : undefined;
+}
+
 function codeOf(e: unknown): string {
   if (e instanceof TimeoutError) return "timeout";
   const err = asRow(e)?.["error"];
@@ -352,6 +357,10 @@ export async function evaluate(ctx: HealthCtx, def: HealthDef): Promise<Outcome>
   try {
     answer = await withTimeout(Promise.resolve(ctx.call(def.cap as CapName, {})), def.timeoutMs);
   } catch (e) {
+    // a service the Space does not have wired says so itself (details.reason "not_set_up", set where the host refuses an unwired service): that is not set up and not a failure. Any other failure, internal.unavailable
+    // included (a broken event chain, access being re-checked) and a capability with no handler, is down.
+    if (reasonOf(e) === "not_set_up")
+      return { state: "healthy", detail: `${def.title} is not set up.`, latencyMs: Math.round(performance.now() - t0) };
     return {
       state: "down",
       detail: `The check could not run (${codeOf(e)}).`,
@@ -584,12 +593,31 @@ export function pausedOf(ctx: HealthCtx): { area: Area; key: string; reason: str
   return out;
 }
 
-/** Run every check now and list the ones that are not healthy, each with its next step: the output of `vyre-server doctor`. */
+/** A service that is not set up reads healthy, with this in its detail (the convention of every module's check): the doctor says so in words and does not count it as a failure. */
+const NOT_SET_UP = /\bnot set up\b/i;
+
+export interface Finding {
+  key: string;
+  title: string;
+  state: State;
+  detail?: string;
+  notSetUp?: boolean;
+  next: string;
+}
+
+/** Run every check now and list each one with its state, what it found and its next step: the output of `vyre-server doctor`. A check that is fine is listed too; `ok` is true when none is degraded or down. */
 export async function doctor(
   ctx: HealthCtx,
   defs: readonly HealthDef[],
-): Promise<{ ok: boolean; findings: { key: string; state: State; next: string }[] }> {
+): Promise<{ ok: boolean; findings: Finding[] }> {
   const { rows } = await runChecks(ctx, defs);
-  const findings = rows.filter((r) => r.state !== "healthy").map((r) => ({ key: r.key, state: r.state, next: r.next }));
-  return { ok: findings.length === 0, findings };
+  const findings = rows.map((r) => ({
+    key: r.key,
+    title: r.title,
+    state: r.state,
+    ...(r.detail ? { detail: r.detail } : {}),
+    ...(r.state === "healthy" && r.detail && NOT_SET_UP.test(r.detail) ? { notSetUp: true } : {}),
+    next: r.next,
+  }));
+  return { ok: findings.every((f) => f.state === "healthy"), findings };
 }

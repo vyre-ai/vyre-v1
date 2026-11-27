@@ -1,0 +1,1 @@
+- A hook delivery or a projection step that has run 5 ms gives the event loop a turn before the next one starts (the turn budget stays 15 ms for the sweeps), so a request is not left behind a chain of deliveries.

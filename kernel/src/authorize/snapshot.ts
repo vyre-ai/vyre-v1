@@ -165,6 +165,12 @@ export class AccessSnapshot {
     this.resources.set(r.id, r);
     this.changed();
   }
+  /** Many resources, with the derived views dropped once (a build of 38,000 rows dropped them 38,000 times: a third of its time). */
+  putResources(rows: readonly ResourceRow[]): void {
+    if (rows.length === 0) return;
+    for (const r of rows) this.resources.set(r.id, r);
+    this.changed();
+  }
   setFieldLabel(type: string, field: string, label: number): void {
     this.fieldLabels.set(`${type}.${field}`, label);
     this.changed();

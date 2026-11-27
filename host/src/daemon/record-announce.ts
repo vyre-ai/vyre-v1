@@ -26,6 +26,8 @@ export interface PendingAnnouncement {
   runId?: string;
   traceId: string;
   quiet: boolean;
+  /** Made by the repair of records no announcement named: the event says so (payload.repair), and only the consumers that keep derived data take it. */
+  repair?: boolean;
   depth?: number;
   origin?: string;
   seq: number;
@@ -34,6 +36,8 @@ export interface PendingAnnouncement {
 const dec = new TextDecoder();
 const TYPE_NAME = /^[a-z][a-z0-9_]{0,62}$/;
 const PAGE = 500;
+/** Ids read per step by the repair's scan: a step is short, and the loop is given back between steps. */
+const ID_PAGE = 1000;
 
 export const readMark = (file: string): number | null => {
   try {
@@ -138,6 +142,152 @@ export async function pendingAnnouncements(a: {
   return { pending: out, scannedTo };
 }
 
+/**
+ * What the repair has already looked at: for each record table, the highest rowid checked, and when. A start looks only at rows past it (a record that was made after the last look is the only one that
+ * can be missing an announcement now), by the rowid, so a start costs a few reads whatever the size of the Space (a count over a table of 9,400 records took 120 ms on a Meier-sized Space). A table the
+ * mark does not name, or a mark older than a week (a rowid freed by a delete is reused), is looked at whole, in steps.
+ */
+export interface RepairMark {
+  v: 2;
+  at: number;
+  /** The version of the server that looked: after an update (when rows an older build left appear) the whole Space is looked at again. */
+  ver?: string;
+  tables: Record<string, number>;
+}
+const MARK_MAX_AGE_MS = 7 * 86_400_000;
+export function readRepairMark(file: string, now: number, ver?: string): RepairMark | null {
+  try {
+    const m = JSON.parse(fs.readFileSync(file, "utf8")) as Partial<RepairMark>;
+    if (m.v !== 2 || typeof m.at !== "number" || !m.tables || typeof m.tables !== "object") return null;
+    if (m.ver !== ver) return null; // another version of the server: a whole look
+    return now - m.at > MARK_MAX_AGE_MS ? null : (m as RepairMark);
+  } catch {
+    return null; // no file, a file of the first version (a timestamp), or one that cannot be read: a whole look
+  }
+}
+
+/**
+ * Records that exist with no `record.created` in the Space log and no marker in their own event to say one was owed: the ones an older build made (a sync pass that was stopped by an update before its call
+ * committed its announcements, 26 Nov 2026: Meier's dv_event had 4,267 records and the owner saw 986), or any whose own event predates the marker. A record the log never heard of is not a resource, so nobody
+ * can see it. Each is announced as the call that made it would have (quiet: no automation runs for a repair), for the actor its own event names, else the Space owner. Records younger than `before` only.
+ * With a `mark` only the rows past it are looked at; every step is short and the loop is given back between steps.
+ */
+export async function orphanAnnouncements(a: {
+  spaceDb: string;
+  eventsDb: string;
+  before: number;
+  mark: RepairMark | null;
+  now?: number;
+  version?: string;
+}): Promise<{ pending: PendingAnnouncement[]; mark: RepairMark }> {
+  const out: PendingAnnouncement[] = [];
+  const next: RepairMark = {
+    v: 2,
+    at: a.now ?? Date.now(),
+    ...(a.version !== undefined ? { ver: a.version } : {}),
+    tables: {},
+  };
+  if (!fs.existsSync(a.spaceDb) || !fs.existsSync(a.eventsDb)) return { pending: out, mark: next };
+  const space = openDb(a.spaceDb, fs.existsSync(`${a.spaceDb}-wal`) ? { readOnly: true } : { immutable: true });
+  const log = openDb(a.eventsDb, fs.existsSync(`${a.eventsDb}-wal`) ? { readOnly: true } : { immutable: true });
+  const turn = turns();
+  try {
+    const tables = (
+      space.all(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'rt!_%' ESCAPE '!' AND name NOT LIKE '%!_!_fm' ESCAPE '!'",
+      ) as { name: string }[]
+    ).map((t) => t.name);
+    // the ids the log has heard of, read whole and only when some table has no mark
+    let heard: Set<string> | null = null;
+    const heardWhole = async (): Promise<Set<string>> => {
+      if (heard) return heard;
+      heard = new Set<string>();
+      for (let after = 0; ; ) {
+        const rows = log.all(
+          "SELECT seq, entity_id FROM events WHERE type = 'record.created' AND entity = 'record' AND seq > ? ORDER BY seq LIMIT 1000",
+          after,
+        ) as { seq: number; entity_id: string | null }[];
+        if (!rows.length) break;
+        for (const r of rows) if (typeof r.entity_id === "string") heard.add(r.entity_id);
+        after = rows[rows.length - 1]!.seq;
+        await turn();
+      }
+      return heard;
+    };
+    const known = (id: string): boolean =>
+      log.all(
+        "SELECT 1 AS x FROM events INDEXED BY ev_entity WHERE entity = 'record' AND entity_id = ? AND type = 'record.created' LIMIT 1",
+        id,
+      ).length > 0;
+    for (const t of tables) {
+      const type = t.slice(3);
+      if (!TYPE_NAME.test(type)) continue;
+      const from = a.mark?.tables[t];
+      const whole = from === undefined;
+      const ids = whole ? await heardWhole() : null;
+      // the newest row made before the daemon started: where the next start begins (a younger row belongs to a call that is alive, and is looked at then)
+      const newest = space.all(
+        `SELECT rowid AS rid FROM "${t}" WHERE created_at < ? ORDER BY rowid DESC LIMIT 1`,
+        a.before,
+      )[0] as { rid: number } | undefined;
+      next.tables[t] = newest ? Number(newest.rid) : (from ?? 0);
+      for (let after = from ?? 0; ; ) {
+        const rows = space.all(
+          `SELECT rowid AS rid, id FROM "${t}" WHERE rowid > ? AND deleted_at IS NULL AND created_at < ? ORDER BY rowid LIMIT ${ID_PAGE}`,
+          after,
+          a.before,
+        ) as { rid: number; id: string }[];
+        if (!rows.length) break;
+        for (const r of rows) {
+          after = Number(r.rid);
+          if (ids ? ids.has(r.id) : known(r.id)) continue;
+          let data: Record<string, unknown> = {};
+          try {
+            const row = space.all(`SELECT data FROM "${t}" WHERE id = ?`, r.id)[0] as { data: string } | undefined;
+            data = row ? (JSON.parse(row.data) as Record<string, unknown>) : {};
+          } catch {
+            /* a row that cannot be read is announced with no fields: it still becomes a resource */
+          }
+          // who made it: the record's own event, when it has one (by the entity index); else nobody, and the replay runs it as the Space owner
+          let env: { actor?: string; on_behalf?: string; run_id?: string; trace_id?: string } = {};
+          let seq = 0;
+          try {
+            const own = space.all(
+              "SELECT seq, event FROM events WHERE type = 'record.created' AND entity = ? AND entity_id = ? LIMIT 1",
+              type,
+              r.id,
+            )[0] as { seq: number; event: string } | undefined;
+            if (own) {
+              env = JSON.parse(own.event);
+              seq = own.seq;
+            }
+          } catch {
+            env = {};
+          }
+          out.push({
+            id: r.id,
+            type,
+            data,
+            actor: typeof env.actor === "string" ? env.actor : "",
+            ...(env.on_behalf ? { onBehalf: env.on_behalf } : {}),
+            ...(env.run_id ? { runId: env.run_id } : {}),
+            traceId:
+              typeof env.trace_id === "string" && /^[0-9a-f]{32}$/.test(env.trace_id) ? env.trace_id : "0".repeat(32),
+            quiet: true,
+            repair: true,
+            seq,
+          });
+        }
+        await turn();
+      }
+    }
+  } finally {
+    space.close();
+    log.close();
+  }
+  return { pending: out, mark: next };
+}
+
 /** The event the call would have committed: the same type, subject and payload records.bulk_upsert and records.create give it. The id is fixed by the record, so making it twice writes it once. */
 export function announcementSpec(p: PendingAnnouncement): {
   name: "record.created";
@@ -149,7 +299,13 @@ export function announcementSpec(p: PendingAnnouncement): {
     name: "record.created",
     subject: `record/${p.id}`,
     id: `evt_${p.id.replace(/^rec_/, "a")}`,
-    payload: { recordId: p.id, type: p.type, fields: { ...p.data }, ...(p.quiet ? { quiet: true } : {}) },
+    payload: {
+      recordId: p.id,
+      type: p.type,
+      fields: { ...p.data },
+      ...(p.quiet ? { quiet: true } : {}),
+      ...(p.repair ? { repair: true } : {}),
+    },
   };
 }
 
@@ -210,7 +366,58 @@ export async function replayAnnouncements(a: {
   exists: (id: string) => boolean;
   spaceOwner: () => string | null;
   say?: (msg: string, attrs: Record<string, unknown>) => void;
+  /** Turns the repair of records no announcement ever named on. The file says the full repair was done (once per version); it holds what was looked at, so a start looks only at records made since. */
+  repairFile?: string;
+  /** The server's version: a repair mark made by another version is not trusted. */
+  version?: string;
 }): Promise<number> {
+  const marked = await replayMarked(a);
+  const repaired = a.repairFile === undefined ? 0 : await repairOrphans(a);
+  return marked + repaired;
+}
+
+/** The records an older build left without an announcement: announced now, so they are resources and visible. The repair file holds what was looked at; it is written when every one was made. */
+async function repairOrphans(a: Parameters<typeof replayAnnouncements>[0]): Promise<number> {
+  const now = Date.now();
+  const { pending, mark } = await orphanAnnouncements({
+    spaceDb: a.spaceDb,
+    eventsDb: a.eventsDb,
+    before: a.startedAt,
+    mark: readRepairMark(a.repairFile!, now, a.version),
+    now,
+    ...(a.version !== undefined ? { version: a.version } : {}),
+  });
+  let made = 0;
+  let failed = 0;
+  // each announcement is a commit through the pipeline: the loop is given back between steps (lib/yield-loop, about 15 ms of work per turn), so thousands of them never hold the start of the server
+  const turn = turns();
+  for (const p of pending) {
+    await turn();
+    const owner = a.spaceOwner();
+    const who = p.actor
+      ? replayActors(p, a.exists, owner)
+      : owner && a.exists(owner)
+        ? { actor: owner, changed: true }
+        : null;
+    if (!who) {
+      failed++;
+      a.say?.("records.announce_skipped", { id: p.id, why: "no actor and no Space owner exists" });
+      continue;
+    }
+    try {
+      await a.commit(p, who);
+      made++;
+    } catch (e) {
+      failed++;
+      a.say?.("records.announce_failed", { id: p.id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  if (made) a.say?.("records.announced_by_repair", { made, of: pending.length });
+  if (!failed) fs.writeFileSync(a.repairFile!, `${JSON.stringify(mark)}\n`);
+  return made;
+}
+
+async function replayMarked(a: Parameters<typeof replayAnnouncements>[0]): Promise<number> {
   let mark = readMark(a.markFile);
   if (mark === null) {
     // the first start with this feature: no record made before it carries a marker, so there is nothing to look for; the mark goes to where the record log is now

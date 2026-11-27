@@ -1,0 +1,1 @@
+- The agent's terminal has the GitHub CLI (`gh`), pinned and checksum-checked in the workspace image, so `gh auth login` and `gh pr` work and the login stays in the agent's home across sleep and updates.

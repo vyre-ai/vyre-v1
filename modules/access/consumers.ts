@@ -18,15 +18,19 @@ import {
   LABEL_RANK,
   changed,
   clearMadeBy,
+  freezeSliced,
   kernelResource,
   labelOf,
   loadStore,
+  loadStoreSliced,
   rowOfResource,
   sealSnapshot,
   sealStore,
   setPrivate,
+  TRASH_KEY,
   setDecisionView,
   setGrantAdopter,
+  setResourceAdopter,
   setWriterView,
   setLoadStamp,
   kernelGrant,
@@ -72,6 +76,13 @@ export const ACCESS_EVENTS = [
   "space.ownership_transferred",
   "agent.privacy_set",
   "agent.renamed",
+  // Files' Trash events: the module keeps a Trash mark on its own file and folder rows (trashEvent), so access.lists leaves a trashed one out without asking Files
+  "file.deleted",
+  "file.restored",
+  "file.purged",
+  "folder.deleted",
+  "folder.restored",
+  "folder.purged",
 ] as const;
 
 const rec = (v: unknown): Record<string, unknown> =>
@@ -146,6 +157,196 @@ export function dropMadeBy(store: AccessStore, resourceId: string, ownerChanged:
       ...store.rolesOf(g.subject.id).map((rid) => LABEL_RANK[store.roles.get(rid)?.clearance ?? "public"]),
     );
     if (ownerChanged || label > clearance) store.grants.delete(gid);
+  }
+}
+
+/** The mark as the resource holds it now. A record is replaced, never edited (see applyEvent). */
+function setTrash(store: AccessStore, id: string, root: string | null, idx?: TrashIndex): boolean {
+  const r = store.resources.get(id);
+  if (!r || (r.type !== "file" && r.type !== "folder")) return false;
+  const had = r.row?.[TRASH_KEY];
+  if (idx?.byRoot) {
+    if (typeof had === "string") idx.byRoot.get(had)?.delete(id);
+    if (root !== null) {
+      const at = idx.byRoot.get(root);
+      if (at) at.add(id);
+      else idx.byRoot.set(root, new Set([id]));
+    }
+  }
+  if (root === null) {
+    if (had === undefined) return false;
+    const { [TRASH_KEY]: _t, ...rest } = r.row ?? {};
+    void _t;
+    const { row: _r, ...bare } = r;
+    void _r;
+    store.resources.set(id, Object.keys(rest).length ? { ...bare, row: rest } : bare);
+    return true;
+  }
+  if (had === root) return false;
+  store.resources.set(id, { ...r, row: { ...(r.row ?? {}), [TRASH_KEY]: root } });
+  return true;
+}
+
+/**
+ * What a batch of Trash events looks things up in, built once from the store the first time one of them needs it and kept up to date by the marks the batch itself sets: the children of each file or folder
+ * (by parent id), and the ids that carry each root's mark. A step in the store that is not a Trash event drops it (the caller sets `idx.kids = null`). Without it every event walked every resource in the store.
+ */
+export interface TrashIndex {
+  kids: Map<string, string[]> | null;
+  byRoot: Map<string, Set<string>> | null;
+  /** how many more marks this call may set (a folder of ten thousand files is set in steps, see TRASH_STEP) */
+  left: number;
+  /** the marks still to set or clear, in the order of their events: the store's own queue */
+  backlog: TrashTask[];
+}
+/** What is left of a folder's Trash or restore: the ids still to mark with `root` (set), or to take the mark `root` off (clear). */
+interface TrashTask {
+  root: string;
+  set: boolean;
+  ids: string[];
+  at: number;
+}
+/** How many marks one call of access.sync sets or clears at most: about 15 ms of the server's loop (a folder of 10,000 files cost 70 to 110 ms in one call). The rest is done by the calls that follow (hostCalls access.trash_pending). */
+export const TRASH_STEP = 2000;
+const BACKLOGS = new WeakMap<AccessStore, TrashTask[]>();
+/** How many marks the store still has to set or clear (the host calls access.sync again, with no events, until this is 0). */
+export const pendingTrash = (store: AccessStore): number =>
+  (BACKLOGS.get(store) ?? []).reduce((n, t) => n + t.ids.length - t.at, 0);
+export function newTrashIndex(store?: AccessStore, step: number = TRASH_STEP): TrashIndex {
+  let backlog: TrashTask[] = [];
+  if (store) {
+    backlog = BACKLOGS.get(store) ?? [];
+    BACKLOGS.set(store, backlog);
+  }
+  return { kids: null, byRoot: null, left: step, backlog };
+}
+
+/** Do the marks that are still queued: all of them (`all`, before an event that could meet them) or as many as this call has left. */
+export function drainTrash(store: AccessStore, idx: TrashIndex, all: boolean): string[] {
+  const touched: string[] = [];
+  while (idx.backlog.length) {
+    const t = idx.backlog[0]!;
+    while (t.at < t.ids.length && (all || idx.left > 0)) {
+      const id = t.ids[t.at++]!;
+      const had = store.resources.get(id)?.row?.[TRASH_KEY];
+      // a set takes only what is not marked; a clear takes off only the mark of its own root
+      if (t.set ? had === undefined : had === t.root) {
+        if (setTrash(store, id, t.set ? t.root : null, idx)) touched.push(id);
+        idx.left--;
+      }
+    }
+    if (t.at < t.ids.length) break;
+    idx.backlog.shift();
+  }
+  return touched;
+}
+
+/** The files and folders under a folder (its descendants in the resource tree, the folder itself not included), by the children index. */
+function underFolder(store: AccessStore, folderId: string, idx: TrashIndex): string[] {
+  if (!idx.kids) {
+    const kids = new Map<string, string[]>();
+    for (const r of store.resources.values()) {
+      if (r.parentId === null || (r.type !== "file" && r.type !== "folder")) continue;
+      const at = kids.get(r.parentId);
+      if (at) at.push(r.id);
+      else kids.set(r.parentId, [r.id]);
+    }
+    idx.kids = kids;
+  }
+  const out: string[] = [];
+  const seen = new Set<string>([folderId]);
+  for (let at = [folderId]; at.length; ) {
+    const next: string[] = [];
+    for (const id of at)
+      for (const kid of idx.kids.get(id) ?? [])
+        if (!seen.has(kid)) {
+          seen.add(kid);
+          out.push(kid);
+          next.push(kid);
+        }
+    at = next;
+  }
+  return out;
+}
+
+/** The ids that carry this root's mark. */
+function markedBy(store: AccessStore, root: string, idx: TrashIndex): string[] {
+  if (!idx.byRoot) {
+    const by = new Map<string, Set<string>>();
+    for (const r of store.resources.values()) {
+      const m = r.row?.[TRASH_KEY];
+      if (typeof m !== "string") continue;
+      const at = by.get(m);
+      if (at) at.add(r.id);
+      else by.set(m, new Set([r.id]));
+    }
+    idx.byRoot = by;
+  }
+  return [...(idx.byRoot.get(root) ?? [])];
+}
+
+/**
+ * Files' Trash events, folded into the Trash mark of the file and folder resources (projections.ts TRASH_KEY). The mark holds what Files' own Trash row holds as root_id, so a folder put in Trash takes
+ * with it only what was not in Trash already, and bringing the folder back brings back only what it took (a file that was trashed by itself stays in Trash). A file taken out of Trash on its own
+ * loses its mark whatever its root was. A purge marks too: whatever is left of a purged file or folder in the store is never listed. Answers the ids whose rows changed, or null for an event that is not one of these.
+ */
+export function trashEvent(
+  store: AccessStore,
+  e: LogEvent,
+  idx: TrashIndex = newTrashIndex(undefined, Number.POSITIVE_INFINITY),
+): string[] | null {
+  const p = rec(e.payload);
+  const touched: string[] = [];
+  if (!/^(file|folder)\.(deleted|restored|purged)$/.test(e.type)) return null;
+  // an event that is met while marks are still queued finds them done: the order of the events is the order of the marks
+  touched.push(...drainTrash(store, idx, true));
+  const mark = (id: string, root: string | null): void => {
+    if (setTrash(store, id, root, idx)) touched.push(id);
+  };
+  switch (e.type) {
+    case "file.deleted":
+    case "file.purged": {
+      const id = str(p["fileId"]);
+      if (id) mark(id, id);
+      return touched;
+    }
+    case "file.restored": {
+      const id = str(p["fileId"]);
+      if (id) mark(id, null);
+      return touched;
+    }
+    case "folder.deleted":
+    case "folder.purged": {
+      const id = str(p["folderId"]);
+      if (!id) return touched;
+      mark(id, id);
+      // under it: only what is not marked yet (a file or folder that was in Trash before keeps its own root); what this call has no room for is queued
+      const rest: string[] = [];
+      for (const child of underFolder(store, id, idx)) {
+        if (store.resources.get(child)?.row?.[TRASH_KEY] !== undefined) continue;
+        if (idx.left > 0) {
+          idx.left--;
+          mark(child, id);
+        } else rest.push(child);
+      }
+      if (rest.length) idx.backlog.push({ root: id, set: true, ids: rest, at: 0 });
+      return touched;
+    }
+    case "folder.restored": {
+      const id = str(p["folderId"]);
+      if (!id) return touched;
+      const rest: string[] = [];
+      for (const marked of markedBy(store, id, idx)) {
+        if (idx.left > 0) {
+          idx.left--;
+          mark(marked, null);
+        } else rest.push(marked);
+      }
+      if (rest.length) idx.backlog.push({ root: id, set: false, ids: rest, at: 0 });
+      return touched;
+    }
+    default:
+      return null;
   }
 }
 
@@ -326,7 +527,7 @@ export function applyEvent(store: AccessStore, e: LogEvent, at: number, grantAt:
     case "member.removed":
       return setStatus(store, str(p["personId"]), "removed");
     default:
-      return false;
+      return (trashEvent(store, e)?.length ?? 0) > 0;
   }
 }
 
@@ -346,11 +547,21 @@ function apply(
   store: AccessStore,
   events: readonly LogEvent[],
   grantAt: number = at,
-): { touched: Set<string>; rebuild: boolean } {
+  /** how many Trash marks this call sets at most; the call with no host to call it again passes Infinity */
+  step: number = TRASH_STEP,
+): { touched: Set<string>; marks: Set<string>; rebuild: boolean } {
   let cursor = cursorOf(store),
     changed = false,
     onlyResources = true;
   const touched = new Set<string>();
+  // the rows whose Trash mark moved: written like a registration, but nothing about who may see them changed, so the snapshot does not take them again
+  const marks = new Set<string>();
+  const idx = newTrashIndex(store, step);
+  // marks queued by an earlier call are set first, as many as this call has room for
+  for (const id of drainTrash(store, idx, false)) {
+    changed = true;
+    marks.add(id);
+  }
   for (const e of events) {
     if (e.seq >= 0 && e.seq <= cursor) continue;
     // a boot-time registration (seq -1: the host's record types at every start) makes a resource that is missing and never changes one that exists: its label, owner, parent and
@@ -365,6 +576,15 @@ function apply(
           store.resources.set(id, { ...have, row: { ...(have.row ?? {}), outside: true } });
           changed = true;
           touched.add(id);
+        }
+        continue;
+      }
+      // a file or folder that was put in Trash before the module kept the mark (the host reads Files' Trash rows at every start): set the mark, change nothing else (idempotent)
+      if (rec(e.payload)["trash_only"] === true) {
+        const root = str(rec(e.payload)["trash_root"]);
+        if (root && setTrash(store, id, root, idx)) {
+          changed = true;
+          marks.add(id);
         }
         continue;
       }
@@ -386,8 +606,20 @@ function apply(
         continue;
       }
     }
+    // Files' Trash events change a mark on the rows of the files and folders they name, nothing else: written like a registration (those rows only), the snapshot is not built again
+    const marked = trashEvent(store, e, idx);
+    if (marked) {
+      if (marked.length) {
+        changed = true;
+        for (const id of marked) marks.add(id);
+      }
+      if (e.seq >= 0) cursor = e.seq;
+      continue;
+    }
     if (applyEvent(store, e, at, grantAt)) {
       changed = true;
+      idx.kids = null; // a registration or a move: the children index is out of date
+      idx.byRoot = null;
       if (e.type === "resource.created") {
         const id = str(rec(e.payload)["id"]);
         if (id) touched.add(id);
@@ -397,14 +629,15 @@ function apply(
   }
   const moved = cursor !== cursorOf(store);
   if (moved) store.fieldLabels.set(CURSOR, cursor);
-  if (!changed && !moved) return { touched, rebuild: false };
+  if (!changed && !moved) return { touched, marks, rebuild: false };
   store.bump();
   if (changed && !onlyResources) {
     store.persist(db);
-    return { touched, rebuild: true };
+    return { touched, marks, rebuild: true };
   }
+  if (marks.size) store.persistMarks(db, marks);
   store.persistResources(db, touched, moved);
-  return { touched, rebuild: false };
+  return { touched, marks, rebuild: false };
 }
 
 /**
@@ -423,7 +656,7 @@ const SYNCED = new WeakMap<object, Synced>();
 /** The snapshot the host decides with that goes with each kept store (it is changed in place beside the store). */
 const KEPT_BY_STORE = new WeakMap<AccessStore, AccessSnapshot>();
 /** How access.sync answered (tests read it): from the tables, by building the snapshot again from a kept store, or by changing the kept snapshot in place. */
-export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0 };
+export const syncCounts = { hydrated: 0, rebuilt: 0, inPlace: 0, sliced: 0, cold: 0, moved: 0, empty: 0 };
 
 /** The tables migration 0006 gives a counter trigger. The sync counts its own writes against the counter, so a write to any other table would count a change no trigger saw. */
 export const TRIGGERED: ReadonlySet<string> = new Set([
@@ -468,6 +701,42 @@ function build(store: AccessStore, space: string): { snap: AccessSnapshot; rows:
 }
 
 /**
+ * The first sync after a start (or after another writer moved the write counter) has no kept store, and reading the access tables whole held the event loop for seconds on a Space of 38,000 records.
+ * Here the store is read in slices with a turn of the event loop between them, and kept (as syncKept would have kept it) when the write counter did not move meanwhile; syncKept then finds it and only
+ * folds the events. If the counter moved, or the tables hold no roles yet (the seed path), nothing is kept and syncKept reads the tables as it always did.
+ */
+async function primeKept(ctx: AccessCtx, key: object): Promise<void> {
+  const turn = (): Promise<void> => new Promise((done) => setImmediate(done));
+  for (let tries = 0; tries < 2; tries++) {
+    const before = stampOf(ctx.db);
+    if (before === null) return;
+    const kept = SYNCED.get(key);
+    if (kept && kept.stamp === before) return;
+    const read: Db = {
+      all: (sql, ...args) => ctx.db.all(sql, ...args),
+      run: () => ({ changes: 0 }),
+      batch: <T>(fn: () => T): T => fn(),
+    };
+    const store = await loadStoreSliced(read, turn);
+    if (!store) {
+      syncCounts.empty++;
+      return;
+    }
+    await freezeSliced(store); // sealing below finds the records frozen already
+    await store.snapshotSliced(); // the snapshot is built with turns of the loop between its steps; sealing and keeping it below then find it built
+    if (stampOf(ctx.db) !== before) continue; // another writer moved the tables while they were read: look again
+    asKeptWriter(() => {
+      const sealed = sealStore(store);
+      const { snap, rows } = build(sealed, ctx.space);
+      sealed.invalidate();
+      syncCounts.sliced++;
+      SYNCED.set(key, { store: sealed, snap, rows, stamp: before, plain: null });
+    });
+    return;
+  }
+}
+
+/**
  * access.sync on a daemon database. The kept store and snapshot are used only while the write counter stands exactly where this path's own last write left it: then nothing else (a
  * handler, a copy from another computer, plain SQL) has written an access row since, and the kept store holds what the tables hold. Otherwise the tables are read again, as every call did
  * before. The kept store is this path's alone: a handler's change that is not yet written (and may never be) cannot reach it. A batch that only registered objects puts those resources
@@ -488,7 +757,11 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
     };
     const before = stampOf(ctx.db);
     let kept = SYNCED.get(key);
-    if (kept && kept.stamp !== before) kept = undefined;
+    if (!kept) syncCounts.cold++;
+    if (kept && kept.stamp !== before) {
+      syncCounts.moved++;
+      kept = undefined;
+    }
     SYNCED.delete(key); // put back only once this call has written everything and checked the counter
     let complete = true;
     const store =
@@ -499,7 +772,7 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         }),
       );
     if (!kept) syncCounts.hydrated++;
-    const { touched, rebuild } = apply(db, ctx.now(), store, events, 1);
+    const { touched, marks, rebuild } = apply(db, ctx.now(), store, events, 1);
     let out: { snap: AccessSnapshot; rows: Map<string, ResourceRec> };
     let plain = kept?.plain ?? null;
     if (!kept || rebuild) {
@@ -515,6 +788,11 @@ function syncKept(ctx: AccessCtx, key: object, events: readonly LogEvent[]): Acc
         out.rows.set(id, r);
         out.snap.putResource(kernelResource(r));
         plain?.putResource(kernelResource(r));
+      }
+      // a Trash mark is read from the store; the row source holds the same record, the snapshot needs none of it
+      for (const id of marks) {
+        const r = store.resources.get(id);
+        if (r) out.rows.set(id, r);
       }
       if (plain) store.adoptSnapshot(plain);
       syncCounts.inPlace++;
@@ -579,6 +857,34 @@ setGrantAdopter((ctx, change) => {
       kept.store.adoptSnapshot(kept.plain);
       if (change.store.isGrantView) change.store.adoptSnapshot(kept.plain);
     }
+  });
+  kept.stamp = change.after;
+});
+
+/**
+ * A writer changed only resource rows (a folder made to follow its record) and the write counter moved by exactly what it wrote: the kept store takes the same rows in place, as it takes a registered
+ * object (applyEvent), and moves its counter to where the writer left it. Any other write in between and the sync reads the tables again on its next run.
+ */
+setResourceAdopter((ctx, change) => {
+  const key = rawDbOf(ctx.db);
+  const kept = key ? SYNCED.get(key) : undefined;
+  if (!kept || kept.stamp !== change.loaded) return;
+  const recs: ResourceRec[] = [];
+  for (const id of change.ids) {
+    const r = change.store.resources.get(id);
+    if (!r) return; // a row removed: the sync reads the tables
+    recs.push(structuredClone(r));
+  }
+  asKeptWriter(() => {
+    for (const r of recs) {
+      kept.store.resources.set(r.id, r);
+      kept.rows.set(r.id, r);
+      kept.snap.putResource(kernelResource(r));
+      kept.plain?.putResource(kernelResource(r));
+    }
+    kept.store.epoch = Math.max(kept.store.epoch, change.store.epoch);
+    kept.store.invalidate();
+    if (kept.plain) kept.store.adoptSnapshot(kept.plain);
   });
   kept.stamp = change.after;
 });
@@ -665,13 +971,27 @@ export const hostCalls = {
     return actor ? { actorId: actor.id } : null;
   },
   /** Fold events the store has not seen and answer the authorize snapshot, in one call so a commit pays for one pass over the tables. */
+  /** Read the kept store in slices ahead of the first access.sync (the host asks before it), so that sync only folds events. Answers whether it kept one. */
+  "access.prime": async (ctx: Ctx): Promise<boolean> => {
+    const actx = ctx as unknown as AccessCtx;
+    const key = rawDbOf(actx.db);
+    if (!key) return false;
+    await primeKept(actx, key);
+    return SYNCED.has(key);
+  },
+  /** How many Trash marks are still queued (a folder of many thousand files is marked in steps): the host calls access.sync with no events until it is 0. */
+  "access.trash_pending": (ctx: Ctx): number => {
+    const key = rawDbOf((ctx as unknown as AccessCtx).db);
+    const kept = key ? SYNCED.get(key) : undefined;
+    return kept ? pendingTrash(kept.store) : 0;
+  },
   "access.sync": (ctx: Ctx, input: { events: LogEvent[] }): AccessSnapshot => {
     const actx = ctx as unknown as AccessCtx;
     const key = rawDbOf(actx.db);
     if (key) return syncKept(actx, key, input.events);
     // a db handle the host did not make (a test's own): the store of that handle, as before
     const store = storeOf(actx);
-    apply(actx.db, actx.now(), store, input.events);
+    apply(actx.db, actx.now(), store, input.events, actx.now(), Number.POSITIVE_INFINITY);
     return withRoleGrants(store.snapshot(), store, actx.space);
   },
   /** Files has already authorized folder.settings; this internal seam keeps Personal Spaces out of the public Team-only labels.set gate. */
