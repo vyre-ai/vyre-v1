@@ -5,7 +5,13 @@ import { loopTurn } from "../../../lib/loop-budget.ts";
 import type { Logger } from "../../../packages/contracts/src/ctx.ts";
 
 export type Schedule =
-  | { everyMs: number; /** run once as soon as the scheduler starts */ immediate?: boolean }
+  | {
+      everyMs: number;
+      /** run once as soon as the scheduler starts */
+      immediate?: boolean;
+      /** never given a stagger phase: the job has to run at its boundary (the schedule tick of the automations: a cron minute is not allowed to fire up to a minute late) */
+      exact?: boolean;
+    }
   | { daily: { hour: number; minute: number }; utc?: boolean };
 
 export interface JobSpec {
@@ -115,7 +121,10 @@ export class Scheduler {
     const s = spec.schedule;
     if ("everyMs" in s && !(s.everyMs >= 1)) throw new Error(`job ${spec.name}: everyMs must be at least 1`);
     const t = this.now();
-    const phase = this.stagger && "everyMs" in s && !s.immediate ? nameHash(spec.name) % Math.min(s.everyMs, STAGGER_MS) : 0;
+    const phase =
+      this.stagger && "everyMs" in s && !s.immediate && !s.exact
+        ? nameHash(spec.name) % Math.min(s.everyMs, STAGGER_MS)
+        : 0;
     const nextAt =
       "everyMs" in s
         ? s.immediate

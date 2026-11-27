@@ -21,7 +21,11 @@ export interface Checkpointer {
 export const BACKSTOP_PAGES = 2000;
 export const CHECKPOINT_BYTES = 1024 * 1024;
 
-export function startCheckpointer(db: PragmaDb, file: string, o: { minBytes?: number; everyMs?: number } = {}): Checkpointer {
+export function startCheckpointer(
+  db: PragmaDb,
+  file: string,
+  o: { minBytes?: number; everyMs?: number } = {},
+): Checkpointer {
   let live = true;
   let worker: Worker | null = null;
   const giveBack = (): void => {

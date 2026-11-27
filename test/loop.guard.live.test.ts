@@ -21,7 +21,12 @@ const SCALE = Number(process.env["LOOP_SCALE"] ?? 1);
 const TICK_MS = 600_000;
 
 /** What a person does all day, one request each, timed as spans by the guard. */
-async function everyday(d: Daemon, g: Guard, ctx: { contact: string; project: string; role: string }, round: number): Promise<void> {
+async function everyday(
+  d: Daemon,
+  g: Guard,
+  ctx: { contact: string; project: string; role: string },
+  round: number,
+): Promise<void> {
   const r = (name: string, cap: string, input: unknown) =>
     g.request(name, async () => {
       const out = await call(d, cap, input);
@@ -31,8 +36,16 @@ async function everyday(d: Daemon, g: Guard, ctx: { contact: string; project: st
   await r("list records", "records.query", { type: "contact", limit: 50 });
   await r("open a record", "records.get", { type: "contact", recordId: ctx.contact });
   await r("search", "search.query", { q: "Person 777" });
-  await r("edit a field", "records.update", { type: "contact", recordId: ctx.contact, patch: { name: `Person edited ${round}` } });
-  await r("create a record", "records.create", { type: "contact", fields: { name: `New ${round}`, email: `new${round}@x.test` }, idempotencyKey: `guard-create-${round}` });
+  await r("edit a field", "records.update", {
+    type: "contact",
+    recordId: ctx.contact,
+    patch: { name: `Person edited ${round}` },
+  });
+  await r("create a record", "records.create", {
+    type: "contact",
+    fields: { name: `New ${round}`, email: `new${round}@x.test` },
+    idempotencyKey: `guard-create-${round}`,
+  });
   await r("grant change", "access.share", {
     resource: { type: "record", id: ctx.contact },
     subject: { kind: "role", id: ctx.role },
@@ -53,13 +66,23 @@ test(
       // 1. the Space: the seed through the real path (the group commit), then twenty projects
       await seed(
         d,
-        { matters: Math.round(FIRM.matters * SCALE), fields: FIRM.fields, contacts: Math.round(FIRM.contacts * SCALE), orgs: Math.round(FIRM.orgs * SCALE) },
+        {
+          matters: Math.round(FIRM.matters * SCALE),
+          fields: FIRM.fields,
+          contacts: Math.round(FIRM.contacts * SCALE),
+          orgs: Math.round(FIRM.orgs * SCALE),
+        },
         (m) => process.stderr.write(`[guard] ${m}\n`),
       );
       let projectId = "";
       for (let i = 0; i < 20; i++) {
-        const p = await call(d, "projects.create", { type: "project", title: `Client file ${i}`, idempotencyKey: `guard-project-${i}` });
-        if (p.status === 200 && !projectId) projectId = String(p.data.project?.id ?? p.data.projectId ?? p.data.id ?? "");
+        const p = await call(d, "projects.create", {
+          type: "project",
+          title: `Client file ${i}`,
+          idempotencyKey: `guard-project-${i}`,
+        });
+        if (p.status === 200 && !projectId)
+          projectId = String(p.data.project?.id ?? p.data.projectId ?? p.data.id ?? "");
       }
       const first = await call(d, "records.query", { type: "contact", limit: 1 });
       const contact = String(first.data.rows[0].id);
@@ -75,8 +98,20 @@ test(
       const proto = AccessStore.prototype as unknown as { hydrate: (...a: unknown[]) => unknown };
       const hydrateWas = proto.hydrate;
       proto.hydrate = function (this: unknown, ...a: unknown[]) {
-        const frames = (new Error().stack ?? "").split("\n").slice(2, 9).map((f) => f.trim().replace(/^at /, "").replace(/\(?file:\/\/\/[^)]*\/(modules|host)\//, "(").slice(0, 90));
-        const key = frames.filter((f) => !/projections\.ts/.test(f)).slice(0, 3).join(" < ");
+        const frames = (new Error().stack ?? "")
+          .split("\n")
+          .slice(2, 9)
+          .map((f) =>
+            f
+              .trim()
+              .replace(/^at /, "")
+              .replace(/\(?file:\/\/\/[^)]*\/(modules|host)\//, "(")
+              .slice(0, 90),
+          );
+        const key = frames
+          .filter((f) => !/projections\.ts/.test(f))
+          .slice(0, 3)
+          .join(" < ");
         hydrators.set(key, (hydrators.get(key) ?? 0) + 1);
         return hydrateWas.apply(this, a);
       };
@@ -86,7 +121,10 @@ test(
         d = await boot(dir, (async function* () {})() as never, { vault: undefined, now: () => clock });
         g.wrapJobs(d);
         const counts: string[] = [];
-        const snap = (label: string): void => void counts.push(`${label}: access.sync hydrated ${syncCounts.hydrated} (cold ${syncCounts.cold}, counter moved ${syncCounts.moved}, sliced ${syncCounts.sliced}, no roles ${syncCounts.empty}), rebuilt ${syncCounts.rebuilt}, in place ${syncCounts.inPlace}, read views ${readCounts.views}`);
+        const snap = (label: string): void =>
+          void counts.push(
+            `${label}: access.sync hydrated ${syncCounts.hydrated} (cold ${syncCounts.cold}, counter moved ${syncCounts.moved}, sliced ${syncCounts.sliced}, no roles ${syncCounts.empty}), rebuilt ${syncCounts.rebuilt}, in place ${syncCounts.inPlace}, read views ${readCounts.views}`,
+          );
         await d.startupWork();
         await new Promise((ok) => setTimeout(ok, 5_000));
         snap("after start-up");
@@ -106,10 +144,14 @@ test(
           await Promise.all([tick, requests]);
           // the jobs the tick started that are still running (a job never overlaps itself) are waited for
           const until = Date.now() + 180_000;
-          while (d.scheduler.runningNames().length && Date.now() < until) await new Promise((ok) => setTimeout(ok, 200));
+          while (d.scheduler.runningNames().length && Date.now() < until)
+            await new Promise((ok) => setTimeout(ok, 200));
         }
         snap("after the ticks");
-        counters = `${counts.join("\n")}\nhydrated by:\n${[...hydrators.entries()].sort((a, b) => b[1] - a[1]).map(([k, n]) => `  ${n}x ${k}`).join("\n")}`;
+        counters = `${counts.join("\n")}\nhydrated by:\n${[...hydrators.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([k, n]) => `  ${n}x ${k}`)
+          .join("\n")}`;
       } finally {
         g.stop();
         proto.hydrate = hydrateWas;

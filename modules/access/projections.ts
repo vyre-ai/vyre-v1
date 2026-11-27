@@ -1794,10 +1794,11 @@ class SealedMap<K, V> extends Map<K, V> {
   }
 }
 /** The version of a sealed resource map, or undefined for a plain Map. */
-export const mapVersion = (m: unknown): number | undefined => (m instanceof SealedMap ? (m as SealedMap<unknown, unknown>).version : undefined);
+export const mapVersion = (m: unknown): number | undefined =>
+  m instanceof SealedMap ? (m as SealedMap<unknown, unknown>).version : undefined;
 /** The keys a sealed map changed since `version`, or null (a plain map, or a version the log no longer reaches). */
 export const mapChangesSince = (m: unknown, version: number): string[] | null =>
-  m instanceof SealedMap ? ((m as SealedMap<string, unknown>).changesSince(version)) : null;
+  m instanceof SealedMap ? (m as SealedMap<string, unknown>).changesSince(version) : null;
 class SealedSet<T> extends Set<T> {
   sealed = false;
   override add(v: T): this {

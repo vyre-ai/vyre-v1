@@ -1,0 +1,1 @@
+- A cron minute of an automation fires at its minute again (the schedule tick is not spread over the minute with the other jobs), the line the desktop shell reads is written by main.ts again, a compute node keeps no compile cache in its data directory, and the files of this work are formatted.

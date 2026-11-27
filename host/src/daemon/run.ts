@@ -185,7 +185,8 @@ async function runCompute(config: DaemonConfig): Promise<number> {
   }
 }
 
-async function main(): Promise<number> {
+/** The start. `announce` writes the one line the desktop shell and the supervisors read once the server listens (host/src/daemon/main.ts holds its text). */
+export async function run(announce: (d: Daemon) => void): Promise<number> {
   let config: DaemonConfig;
   try {
     config = loadConfig(process.argv.slice(2), process.env, version);
@@ -207,7 +208,12 @@ async function main(): Promise<number> {
   let d: Daemon;
   try {
     const guard = process.env["VYRE_LOOP_MONITOR"] ? await import("./loop-monitor.ts") : null;
-    d = await startDaemon({ config, onStopped: resolveStopped, engineInstall: true, ...(guard ? { now: guard.now } : {}) });
+    d = await startDaemon({
+      config,
+      onStopped: resolveStopped,
+      engineInstall: true,
+      ...(guard ? { now: guard.now } : {}),
+    });
     guard?.attachLoopMonitor(d);
   } catch (e) {
     // A daemon that could not start ends here, at once and non-zero, with the reason on stderr: the services it had begun (the scheduler, the stores) would otherwise keep the process alive and the
@@ -222,7 +228,7 @@ async function main(): Promise<number> {
     process.stderr.write(`vyred: ${e instanceof Error ? e.message : String(e)}\n`, () => process.exit(1));
     return 1;
   }
-  process.stdout.write(`vyred ${version} ${d.roles.join(",")} ${d.space ?? "-"} listening on ${d.url}\n`);
+  announce(d);
   process.stderr.write(`vyred ${bootReport()}\n`);
   // a start with no compile cache fills it for the next one, in a process of its own at the lowest priority (main.ts, warm-cache.ts)
   const warm = process.env["VYRE_COMPILE_CACHE_WARM"];
@@ -236,11 +242,15 @@ async function main(): Promise<number> {
         /* no lock */
       }
       fs.closeSync(fs.openSync(lock, "wx"));
-      const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(new URL("./warm-cache.ts", import.meta.url))], {
-        detached: true,
-        stdio: "ignore",
-        env: { ...process.env, NODE_COMPILE_CACHE: warm, VYRE_COMPILE_CACHE_WARM: "", VYRE_COMPILE_CACHE_LOCK: lock },
-      });
+      const child = spawn(
+        process.execPath,
+        [...process.execArgv, fileURLToPath(new URL("./warm-cache.ts", import.meta.url))],
+        {
+          detached: true,
+          stdio: "ignore",
+          env: { ...process.env, NODE_COMPILE_CACHE: warm, VYRE_COMPILE_CACHE_WARM: "", VYRE_COMPILE_CACHE_LOCK: lock },
+        },
+      );
       child.once("error", () => fs.rmSync(lock, { force: true }));
       child.unref();
     } catch {
@@ -266,5 +276,3 @@ async function main(): Promise<number> {
   ]);
   return 0;
 }
-
-process.exitCode = await main();

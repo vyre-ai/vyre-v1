@@ -21,7 +21,11 @@ test("with the checkpointer, a commit past 1,000 pages is not a checkpoint, and 
   db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
   const cp = startCheckpointer(db, file, { minBytes: 256 * 1024, everyMs: 50 });
   try {
-    assert.equal((db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"], 2000, "SQLite checkpoint stays on as a backstop at twice its default");
+    assert.equal(
+      (db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"],
+      2000,
+      "SQLite checkpoint stays on as a backstop at twice its default",
+    );
     const blob = "x".repeat(2000);
     for (let i = 0; i < 6000; i++) db.run("INSERT INTO t (v) VALUES (?)", blob); // ~12 MB: SQLite's own checkpoint would have run a dozen times
     const grown = walSize(file);
@@ -37,7 +41,11 @@ test("with the checkpointer, a commit past 1,000 pages is not a checkpoint, and 
     assert.equal((db.all("SELECT COUNT(*) AS n FROM t")[0] as { n: number }).n, 6000);
   } finally {
     await cp.stop();
-    assert.equal((db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"], 1000, "stopped: SQLite's own checkpoint is back");
+    assert.equal(
+      (db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"],
+      1000,
+      "stopped: SQLite's own checkpoint is back",
+    );
     db.close();
     fs.rmSync(dir, { recursive: true, force: true });
   }

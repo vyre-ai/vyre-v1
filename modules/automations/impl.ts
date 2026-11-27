@@ -134,7 +134,8 @@ export const consumers = {
   },
 };
 export const periodic = {
-  "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
+  // exact: a cron minute fires at its minute, not up to a minute later (the scheduler spreads the other jobs over the minute)
+  "automations.schedule_tick": { everyMs: SCHEDULE_EVERY_MS, exact: true, run: (ctx: Ctx) => runDueSchedules(ctx as AutoCtx) },
   "automations.watches_tick": { everyMs: 60_000, run: (ctx: Ctx) => watchesTick(ctx as unknown as AutoCtx) },
   "automations.grants_backfill": {
     everyMs: SCHEDULE_EVERY_MS,

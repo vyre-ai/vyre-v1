@@ -8081,7 +8081,11 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
     for (const p of hooks?.periodic ?? [])
       scheduler.add({
         name: `hook.${p.name}`,
-        schedule: { everyMs: p.everyMs, ...(p.immediate ? { immediate: true } : {}) },
+        schedule: {
+          everyMs: p.everyMs,
+          ...(p.immediate ? { immediate: true } : {}),
+          ...(p.exact ? { exact: true } : {}),
+        },
         run: async () => {
           if (peerService && !peerService.mayRun(p.name)) return;
           await hooks?.runPeriodic(p.name);

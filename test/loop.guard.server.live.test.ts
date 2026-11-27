@@ -31,17 +31,31 @@ interface Server {
 /** vyred through main.ts, in a child process, on a copy of the seeded data directory. */
 async function start(dir: string, report: string | null): Promise<Server> {
   let out = "";
-  const prof = process.env["GUARD_CPU_PROF"] && report ? [`--cpu-prof`, `--cpu-prof-dir=${process.env["GUARD_CPU_PROF"]}`, `--cpu-prof-interval=1000`] : [];
-  const child = spawn(process.execPath, [...prof, "host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0"], {
-    cwd: ROOT,
-    env: { ...process.env, VYRE_ADMIN_TOKEN: TOKEN, ...(report ? { VYRE_LOOP_MONITOR: report, VYRE_LOOP_BOUND_MS: String(BOUND_MS) } : {}) },
-    stdio: ["ignore", "pipe", "pipe"],
-  });
+  const prof =
+    process.env["GUARD_CPU_PROF"] && report
+      ? [`--cpu-prof`, `--cpu-prof-dir=${process.env["GUARD_CPU_PROF"]}`, `--cpu-prof-interval=1000`]
+      : [];
+  const child = spawn(
+    process.execPath,
+    [...prof, "host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0"],
+    {
+      cwd: ROOT,
+      env: {
+        ...process.env,
+        VYRE_ADMIN_TOKEN: TOKEN,
+        ...(report ? { VYRE_LOOP_MONITOR: report, VYRE_LOOP_BOUND_MS: String(BOUND_MS) } : {}),
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
   child.stdout?.on("data", (b: Buffer) => (out += b.toString()));
   child.stderr?.on("data", (b: Buffer) => (out += b.toString()));
   const exited = new Promise<number | null>((r) => child.once("exit", (c) => r(c)));
   const url = await new Promise<string>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`the server did not start within 120 s: ${out.slice(-2000)}`)), 120_000);
+    const timer = setTimeout(
+      () => reject(new Error(`the server did not start within 120 s: ${out.slice(-2000)}`)),
+      120_000,
+    );
     const poll = setInterval(() => {
       const m = /listening on (http\S+)/.exec(out);
       if (m) {
@@ -71,7 +85,11 @@ async function start(dir: string, report: string | null): Promise<Server> {
 }
 const asDaemon = (s: Server): Daemon => ({ url: s.url, token: TOKEN }) as unknown as Daemon;
 
-async function everyday(s: Server, ctx: { contact: string; project: string; role: string }, round: number): Promise<void> {
+async function everyday(
+  s: Server,
+  ctx: { contact: string; project: string; role: string },
+  round: number,
+): Promise<void> {
   const d = asDaemon(s);
   const r = async (name: string, cap: string, input: unknown): Promise<void> => {
     const out = await inProcessCall(d, cap, input);
@@ -80,8 +98,16 @@ async function everyday(s: Server, ctx: { contact: string; project: string; role
   await r("list records", "records.query", { type: "contact", limit: 50 });
   await r("open a record", "records.get", { type: "contact", recordId: ctx.contact });
   await r("search", "search.query", { q: "Person 777" });
-  await r("edit a field", "records.update", { type: "contact", recordId: ctx.contact, patch: { name: `Person edited ${round}` } });
-  await r("create a record", "records.create", { type: "contact", fields: { name: `New ${round}`, email: `new${round}@x.test` }, idempotencyKey: `guard-create-${round}` });
+  await r("edit a field", "records.update", {
+    type: "contact",
+    recordId: ctx.contact,
+    patch: { name: `Person edited ${round}` },
+  });
+  await r("create a record", "records.create", {
+    type: "contact",
+    fields: { name: `New ${round}`, email: `new${round}@x.test` },
+    idempotencyKey: `guard-create-${round}`,
+  });
   await r("grant change", "access.share", {
     resource: { type: "record", id: ctx.contact },
     subject: { kind: "role", id: ctx.role },
@@ -118,13 +144,23 @@ test(
       const d = w.d;
       await seed(
         d,
-        { matters: Math.round(FIRM.matters * SCALE), fields: FIRM.fields, contacts: Math.round(FIRM.contacts * SCALE), orgs: Math.round(FIRM.orgs * SCALE) },
+        {
+          matters: Math.round(FIRM.matters * SCALE),
+          fields: FIRM.fields,
+          contacts: Math.round(FIRM.contacts * SCALE),
+          orgs: Math.round(FIRM.orgs * SCALE),
+        },
         (m) => process.stderr.write(`[guard] ${m}\n`),
       );
       let projectId = "";
       for (let i = 0; i < 20; i++) {
-        const p = await inProcessCall(d, "projects.create", { type: "project", title: `Client file ${i}`, idempotencyKey: `guard-project-${i}` });
-        if (p.status === 200 && !projectId) projectId = String(p.data.project?.id ?? p.data.projectId ?? p.data.id ?? "");
+        const p = await inProcessCall(d, "projects.create", {
+          type: "project",
+          title: `Client file ${i}`,
+          idempotencyKey: `guard-project-${i}`,
+        });
+        if (p.status === 200 && !projectId)
+          projectId = String(p.data.project?.id ?? p.data.projectId ?? p.data.id ?? "");
       }
       const first = await inProcessCall(d, "records.query", { type: "contact", limit: 1 });
       const roles = (await inProcessCall(d, "access.roles.list", {})).data.roles as { id: string; name: string }[];
@@ -153,7 +189,13 @@ test(
         const cacheDir = path.join(dir, "compile-cache");
         const filled = (): boolean => {
           try {
-            return fs.readdirSync(cacheDir).some((v) => fs.readdirSync(path.join(cacheDir, v)).some((f) => f !== ".warming") && !fs.existsSync(path.join(cacheDir, v, ".warming")));
+            return fs
+              .readdirSync(cacheDir)
+              .some(
+                (v) =>
+                  fs.readdirSync(path.join(cacheDir, v)).some((f) => f !== ".warming") &&
+                  !fs.existsSync(path.join(cacheDir, v, ".warming")),
+              );
           } catch {
             return false;
           }
@@ -167,7 +209,9 @@ test(
       const spawnedAt = Date.now();
       const s = await start(dir, report);
       const listenedWall = Date.now();
-      const phases: { name: string; from: number; to: number }[] = [{ name: "boot", from: spawnedAt, to: listenedWall }];
+      const phases: { name: string; from: number; to: number }[] = [
+        { name: "boot", from: spawnedAt, to: listenedWall },
+      ];
       const phase = async (name: string, run: () => Promise<void>): Promise<void> => {
         const from = Date.now();
         await run();
@@ -198,9 +242,15 @@ test(
         listenedAt: number | null;
         blocks: { at: number; ms: number }[];
       };
-      fs.writeFileSync(`${out}/loop-guard-server/monitor-${variant}.json`, JSON.stringify({ ...seen, pid: s.child.pid }));
+      fs.writeFileSync(
+        `${out}/loop-guard-server/monitor-${variant}.json`,
+        JSON.stringify({ ...seen, pid: s.child.pid }),
+      );
       const phaseOf = (wall: number): string => phases.find((p) => wall >= p.from && wall <= p.to)?.name ?? "after";
-      const lines = seen.blocks.map((b) => `block ${b.ms} ms at +${(b.at / 1000).toFixed(1)} s [${phaseOf(seen.wall0 + b.at)}${seen.listenedAt !== null && b.at > seen.listenedAt ? ", after listen" : ", before listen"}]`);
+      const lines = seen.blocks.map(
+        (b) =>
+          `block ${b.ms} ms at +${(b.at / 1000).toFixed(1)} s [${phaseOf(seen.wall0 + b.at)}${seen.listenedAt !== null && b.at > seen.listenedAt ? ", after listen" : ", before listen"}]`,
+      );
       const text = `${variant}: listening at +${seen.listenedAt === null ? "?" : (seen.listenedAt / 1000).toFixed(1)} s (${listenedWall - spawnedAt} ms after the spawn); ${lines.length} blocks before the bound ${seen.bound} ms\n${lines.join("\n")}\n`;
       fs.writeFileSync(`${out}/loop-guard-server/report-${variant}.txt`, text);
       process.stderr.write(`[guard] ${text}`);

@@ -15,7 +15,12 @@ let built: Generated | null = null;
 let building: Promise<Generated> | null = null;
 const read = (rel: string): string => readFileSync(new URL(`../../../${rel}`, import.meta.url), "utf8");
 
-const inputs = (): { caps: RegistryCapRow[]; agentTools: AgentToolRow[]; tools: McpToolRow[]; defaults: Set<string> } => {
+const inputs = (): {
+  caps: RegistryCapRow[];
+  agentTools: AgentToolRow[];
+  tools: McpToolRow[];
+  defaults: Set<string>;
+} => {
   const reg = registry as unknown as { capabilities: RegistryCapRow[]; agentTools: AgentToolRow[] };
   return {
     caps: reg.capabilities,
@@ -29,7 +34,10 @@ const inputs = (): { caps: RegistryCapRow[]; agentTools: AgentToolRow[]; tools: 
 export function generatedCatalog(): Generated {
   if (built) return built;
   const i = inputs();
-  built = { catalog: offerable(buildCatalog(i.caps, i.tools, i.agentTools), (cap) => DEFERRED_CAPS.has(cap)), defaults: i.defaults };
+  built = {
+    catalog: offerable(buildCatalog(i.caps, i.tools, i.agentTools), (cap) => DEFERRED_CAPS.has(cap)),
+    defaults: i.defaults,
+  };
   return built;
 }
 
@@ -39,7 +47,9 @@ export function warmGeneratedCatalog(turn: () => Promise<void>): Promise<Generat
   building ??= (async () => {
     const i = inputs();
     await turn();
-    const catalog = offerable(await buildCatalogSliced(i.caps, i.tools, i.agentTools, turn), (cap) => DEFERRED_CAPS.has(cap));
+    const catalog = offerable(await buildCatalogSliced(i.caps, i.tools, i.agentTools, turn), (cap) =>
+      DEFERRED_CAPS.has(cap),
+    );
     built ??= { catalog, defaults: i.defaults };
     return built;
   })().finally(() => {
