@@ -6,14 +6,18 @@ let first = last;
 
 /** The start of this process's own work: time before it (node starting and importing the daemon's modules) is what performance.now() already counts. */
 export function bootBegin(): void {
+  listenedAt = null;
   first = last = performance.now();
   marks.length = 0;
 }
+/** performance.now() when the server last began to listen (null before it does): what a measurement of the start needs to say whether a stall came before the server answered requests or after. */
+export let listenedAt: number | null = null;
 /** Phase `name` ended now. */
 export function bootMark(name: string): void {
   const at = performance.now();
   marks.push([name, at - last]);
   last = at;
+  if (name === "listen") listenedAt = at;
 }
 /** One line: how long from the process start to now, how much of it was importing, and each phase in order. */
 export function bootReport(): string {
