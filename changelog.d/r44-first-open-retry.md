@@ -1,0 +1,1 @@
+- The first open of a Space on a page tries once more by itself, 0.3 s later, when the first read fails at the network level ("Failed to fetch"), before it shows "Couldn't reach the Space". An answer from the Space is never retried this way. The sign-in walk no longer presses Retry itself.

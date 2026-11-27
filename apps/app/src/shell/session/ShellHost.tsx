@@ -1,3 +1,4 @@
+import { openRetryDelay } from "./open-retry.ts";
 import { NewTabSidebar } from "../tabs/NewTabSidebar.tsx";
 import { takeOpenHow } from "../tabs/open-how.ts";
 import { lookApplier, startupPlan } from "../providers/settings-look.ts";
@@ -188,6 +189,8 @@ export function ShellHost({
   // The session opens from what this device kept of the Space (session/kept.ts), unless that was tried and the Space said otherwise: then it opens the plain way, which reports what is wrong.
   const plainOpen = useRef(false);
   const reopened = useRef(0);
+  // how many times the first open has been tried again by itself after a failed fetch (open-retry.ts)
+  const autoTries = useRef(0);
   // This device kept this session's first screen: until the session is there (a few ms: it opens from the kept facts) the place is not drawn at all, so the loading frame is never the first
   // thing under the launch screen. It is given up after a moment, and the place then draws its loading frame as it always did.
   const [keptComing, setKeptComing] = useState(() =>
@@ -264,6 +267,13 @@ export function ShellHost({
         signedOutRef.current();
         return;
       }
+      // a failed fetch on the first open is tried again by itself a few times before it is shown (open-retry.ts)
+      const wait = openRetryDelay(e, autoTries.current);
+      if (wait !== null) {
+        autoTries.current += 1;
+        setTimeout(() => setAttempt((n) => n + 1), wait);
+        return;
+      }
       setFailed(e instanceof Error && e.message ? e.message : "The Space did not answer.");
       // the gate asks where the Space is now: it may only need one more try, or it moved to Vyre's relay and opens in the browser (SessionGate shellUnreachable)
       unreachableRef.current?.();
@@ -284,6 +294,7 @@ export function ShellHost({
             return;
           }
           opened = s;
+          autoTries.current = 0;
           writeStored({ ...stored, def: s.def, personId: s.me.id, ...(s.me.name ? { displayName: s.me.name } : {}) });
           setSession(s);
         })
@@ -324,6 +335,7 @@ export function ShellHost({
             return;
           }
           opened = s;
+          autoTries.current = 0;
           setSession(s);
           s.confirmed.then(
             (c) => {

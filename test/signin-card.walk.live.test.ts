@@ -83,24 +83,6 @@ test(
       // the owner, in the real app
       const page = k.me.page;
       await open(k.me, k.s, "/chat");
-      // the first read of the Space can fail under load ("Couldn't reach ... Failed to fetch", seen when three walks share one busy box): a person presses Retry, so the walk does
-      for (let i = 0; i < 6; i++) {
-        if (
-          await page
-            .getByText("ops", { exact: true })
-            .first()
-            .isVisible()
-            .catch(() => false)
-        )
-          break;
-        if ((await page.getByText(/Couldn't reach/).count()) > 0)
-          await page
-            .getByText("Retry", { exact: true })
-            .first()
-            .click({ timeout: 2_000 })
-            .catch(() => undefined);
-        await new Promise((r) => setTimeout(r, 4_000));
-      }
       await page.getByText("ops", { exact: true }).first().waitFor({ timeout: 60_000 });
       await page.getByText("ops", { exact: true }).first().click();
       await page.getByTestId(`signin-card-${blockId}`).waitFor({ timeout: 30_000 });
