@@ -76,7 +76,7 @@ export async function cleanFields(
 ): Promise<{ events: number }> {
   const host = deps.host;
   const { tx } = deps;
-  const turn = turns(15);
+  const turn = turns(5); // a unit of work, not a turn (the shared UNIT_MS): the purge of 5,000 records read 106 ms in CI against its limit of 100
   const erasedSeqs: number[] = [];
   let live = await still();
   if (live.size === 0) return { events: 0 };
