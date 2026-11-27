@@ -31,7 +31,8 @@ interface Server {
 /** vyred through main.ts, in a child process, on a copy of the seeded data directory. */
 async function start(dir: string, report: string | null): Promise<Server> {
   let out = "";
-  const child = spawn(process.execPath, ["host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0"], {
+  const prof = process.env["GUARD_CPU_PROF"] && report ? [`--cpu-prof`, `--cpu-prof-dir=${process.env["GUARD_CPU_PROF"]}`, `--cpu-prof-interval=1000`] : [];
+  const child = spawn(process.execPath, [...prof, "host/src/daemon/main.ts", "--role", "space", "--data-dir", dir, "--port", "0"], {
     cwd: ROOT,
     env: { ...process.env, VYRE_ADMIN_TOKEN: TOKEN, ...(report ? { VYRE_LOOP_MONITOR: report, VYRE_LOOP_BOUND_MS: String(BOUND_MS) } : {}) },
     stdio: ["ignore", "pipe", "pipe"],
