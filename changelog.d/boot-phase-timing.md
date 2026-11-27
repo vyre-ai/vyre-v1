@@ -1,0 +1,1 @@
+- The server writes one line at start with the time of each phase of the boot (imports, migrations, the log, loading the modules, wiring, listening), so a slow start names its slow part.

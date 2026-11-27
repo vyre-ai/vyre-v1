@@ -14,6 +14,7 @@ import type { Guard } from "./support/loop-guard-kit.ts";
 import type { Daemon } from "../host/src/daemon/daemon.ts";
 import { syncCounts, readCounts } from "../modules/access/consumers.ts";
 import { AccessStore } from "../modules/access/projections.ts";
+import { listenedAt } from "../host/src/daemon/boot-timing.ts";
 
 const BOUND_MS = Number(process.env["LOOP_BOUND_MS"] ?? 100);
 const SCALE = Number(process.env["LOOP_SCALE"] ?? 1);
@@ -115,7 +116,13 @@ test(
       }
       const out = process.env["VYRE_TEST_CAPTURE_DIR"] ?? path.join(dir, "capture");
       fs.mkdirSync(`${out}/loop-guard`, { recursive: true });
-      const text = `${counters}\nbound ${BOUND_MS} ms; ${g.blocks.length} blocks\nworst: ${g
+      // the moment the server began to listen, and which blocks came before it (the server answered nobody then) and which after (the server was up): an added line, nothing is asserted on it
+      const heard = listenedAt === null ? null : listenedAt - g.t0;
+      const listening =
+        heard === null
+          ? "listening: not seen"
+          : `listening at +${(heard / 1000).toFixed(1)} s: ${g.blocks.filter((b) => b.at <= heard).length} blocks before it (during the boot), ${g.blocks.filter((b) => b.at > heard).length} after it (the server up)`;
+      const text = `${counters}\n${listening}\nbound ${BOUND_MS} ms; ${g.blocks.length} blocks\nworst: ${g
         .worst()
         .slice(0, 12)
         .map((x) => `${x.name} ${x.ms} ms`)

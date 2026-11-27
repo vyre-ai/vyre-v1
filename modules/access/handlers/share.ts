@@ -293,6 +293,20 @@ export function changedRoots(base: Base, store: AccessStore): { roots: string[];
   return { roots: [...roots], who };
 }
 
+/** The my_access rows as the cache holds them (read in pages by primeShare, or whole by loadShare). */
+function addAccessRows(ss: ShareStore, rows: readonly Record<string, unknown>[]): void {
+  for (const a of rows) {
+    const row: AccessRow = {
+      person: String(a.person),
+      type: String(a.resourceType),
+      id: String(a.resourceId),
+      level: a.level as Level,
+      via: a.via as Via,
+    };
+    ss.access.set(ak(row.person, row.type, row.id), row);
+  }
+}
+
 /** The share state as the tables hold it: folders, placement, and the my_access rows (`mine`: the my_access rows already read, in pages, by primeShare). */
 function loadShare(ctx: AccessCtx, mine?: Record<string, unknown>[]): ShareStore {
   const ss = new ShareStore();
@@ -311,16 +325,7 @@ function loadShare(ctx: AccessCtx, mine?: Record<string, unknown>[]): ShareStore
     ss.placement.set(pk(String(p.resourceType), String(p.resourceId)), String(p.folderId));
   for (const p of tryAll(ctx.db, "SELECT * FROM access_placement_prev"))
     ss.prev.set(pk(String(p.resourceType), String(p.resourceId)), p.prevParent == null ? null : String(p.prevParent));
-  for (const a of mine ?? tryAll(ctx.db, "SELECT * FROM access_my_access")) {
-    const row: AccessRow = {
-      person: String(a.person),
-      type: String(a.resourceType),
-      id: String(a.resourceId),
-      level: a.level as Level,
-      via: a.via as Via,
-    };
-    ss.access.set(ak(row.person, row.type, row.id), row);
-  }
+  addAccessRows(ss, mine ?? tryAll(ctx.db, "SELECT * FROM access_my_access"));
   return ss;
 }
 
@@ -379,7 +384,7 @@ export async function primeShare(ctx: AccessCtx): Promise<void> {
   if (kept && kept.ss.fresh >= 0) return;
   const st = stateOf(ctx.db);
   if (!st) return;
-  const mine: Record<string, unknown>[] = [];
+  const ss = loadShare(ctx, []); // folders and placement; the my_access rows are added a page at a time below, so no step holds the loop for all of them
   for (let after = 0; ; ) {
     let page: Record<string, unknown>[];
     try {
@@ -390,15 +395,15 @@ export async function primeShare(ctx: AccessCtx): Promise<void> {
     for (const r of page) {
       after = Number(r["_rid"]);
       delete r["_rid"];
-      mine.push(r);
     }
+    addAccessRows(ss, page);
     if (page.length < 2000) break;
     await loopTurn();
   }
   await loopYield();
   const now = stateOf(ctx.db);
   if (!now || now.rows !== st.rows || now.folders !== st.folders) return;
-  PRIMED.set(raw, { ss: loadShare(ctx, mine), rows: st.rows, folders: st.folders });
+  PRIMED.set(raw, { ss, rows: st.rows, folders: st.folders });
 }
 
 function persistFolders(ctx: AccessCtx, ss: ShareStore): void {
