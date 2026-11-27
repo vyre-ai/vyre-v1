@@ -21,11 +21,11 @@ test("with the checkpointer, a commit past 1,000 pages is not a checkpoint, and 
   db.exec("CREATE TABLE t (id INTEGER PRIMARY KEY, v TEXT)");
   const cp = startCheckpointer(db, file, { minBytes: 256 * 1024, everyMs: 50 });
   try {
-    assert.equal((db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"], 0);
+    assert.equal((db.all("PRAGMA wal_autocheckpoint")[0] as Record<string, number>)["wal_autocheckpoint"], 2000, "SQLite checkpoint stays on as a backstop at twice its default");
     const blob = "x".repeat(2000);
     for (let i = 0; i < 6000; i++) db.run("INSERT INTO t (v) VALUES (?)", blob); // ~12 MB: SQLite's own checkpoint would have run a dozen times
     const grown = walSize(file);
-    assert.ok(grown > 4 * 1024 * 1024, `the log grew to ${grown} bytes with no checkpoint on the main thread`);
+    assert.ok(grown > 4 * 1024 * 1024, `the log grew to ${grown} bytes`);
     // the worker checkpoints (PASSIVE; here only looked at, NOOP): everything in the log is in the file, so the log is reused from its start
     let backfilled = false;
     for (let i = 0; i < 100 && !backfilled; i++) {

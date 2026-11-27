@@ -12,15 +12,22 @@ const db = new DatabaseSync(init.path);
 db.exec("PRAGMA busy_timeout = 2000");
 let stopped = false;
 
+// The log file keeps its size once it has grown (it is reused from its start, not shortened), so its size says nothing after the first checkpoint: what is looked at is whether it was written to since the
+// last pass (size and modification time), and a pass is made when it was and the file is past the threshold.
+let seen = "";
 function tick(): void {
   if (stopped) return;
   let size = 0;
+  let stamp = "";
   try {
-    size = fs.statSync(`${init.path}-wal`).size;
+    const st = fs.statSync(`${init.path}-wal`);
+    size = st.size;
+    stamp = `${st.size}:${st.mtimeMs}`;
   } catch {
     /* no log file yet */
   }
-  if (size < init.minBytes) return;
+  if (size < init.minBytes || stamp === seen) return;
+  seen = stamp;
   try {
     db.exec("PRAGMA wal_checkpoint(PASSIVE)");
   } catch {

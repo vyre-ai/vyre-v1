@@ -1,0 +1,1 @@
+- The computed-values hook skips an event of a record whose type was dropped, instead of retrying it and warning.

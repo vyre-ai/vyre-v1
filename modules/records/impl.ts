@@ -1079,7 +1079,14 @@ async function runComputed(
         ? event.payload["id"]
         : "";
   if (type === "" || id === "") return;
-  await recomputeWithDependents(computedEnv(ctx), type, id);
+  try {
+    await recomputeWithDependents(computedEnv(ctx), type, id);
+  } catch (e) {
+    // an event of a record whose type has been dropped since (the purge of a type deletes its records, announcing each): there are no computed values to keep for it, and retrying it only fills the log with warnings
+    const code = String((e as { code?: unknown; error?: { code?: unknown } } | null)?.code ?? (e as { error?: { code?: unknown } } | null)?.error?.code ?? "");
+    if (/unknown_type$/.test(code) || (e instanceof Error && /^no type /.test(e.message))) return;
+    throw e;
+  }
 }
 
 /** The site tables (P-L3_ST): the sites module announces a table, this module makes the record type. The host runs it once per event after commit (ruling 32). */
