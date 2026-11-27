@@ -237,6 +237,27 @@ test("records with no announcement and no marker are announced at the start, qui
     log.close();
     got.length = 0;
     assert.equal(await run(), 0);
+    // a start after an update looks at the whole Space again: a record at or below the mark that no announcement named is found (a rowid a delete freed was used again)
+    const lowSpace = new DatabaseSync(w.spaceDb);
+    lowSpace.prepare("INSERT INTO rt_party VALUES ('rec_low', 1, 150, 150, NULL, '{}')").run();
+    lowSpace.close();
+    // a mark that is past it (as if the row took a rowid a delete had freed)
+    fs.writeFileSync(repairFile, `${JSON.stringify({ v: 2, at: Date.now(), tables: { rt_party: 1000 } })}\n`);
+    got.length = 0;
+    assert.equal(await run(), 0, "the same version trusts the mark: the record under it is not looked at");
+    assert.equal(
+      await replayAnnouncements({ ...base(w, async (p) => void got.push(p)), repairFile, version: "2.0.0" }),
+      1,
+      "a new version looks at everything",
+    );
+    assert.deepEqual(
+      got.map((p) => p.id),
+      ["rec_low"],
+    );
+    const lowDel = new DatabaseSync(w.spaceDb);
+    lowDel.prepare("DELETE FROM rt_party WHERE id = 'rec_low'").run();
+    lowDel.close();
+    got.length = 0;
     // a record made later is past the mark: found even though the repair was done
     const space = new DatabaseSync(w.spaceDb);
     space.prepare("INSERT INTO rt_party VALUES ('rec_late', 1, 500, 500, NULL, '{}')").run();
