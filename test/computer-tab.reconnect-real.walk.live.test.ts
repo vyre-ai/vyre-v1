@@ -66,9 +66,23 @@ test(
         );
       const nBefore = (await socks()).length;
       const t0 = Date.now();
+      // the view now comes back so fast (a wait of at most 2 s and a browser that answers in 25 ms steps) that the line "Reconnecting" can be gone before a test reads it: it is recorded on the page as it is drawn
+      await page.evaluate(() => {
+        const w = window as unknown as { __said: string[] };
+        w.__said = [];
+        const look = (): void => {
+          const t = document.querySelector('[data-testid="browser-live-view-state"]')?.textContent ?? "";
+          if (t !== "" && w.__said[w.__said.length - 1] !== t) w.__said.push(t);
+        };
+        new MutationObserver(look).observe(document.body, { subtree: true, childList: true, characterData: true });
+        look();
+      });
       execFileSync("docker", ["stop", "-t", "2", k.dockerName], { stdio: "ignore" });
-      await page.getByTestId("browser-live-view-state").waitFor({ timeout: 15_000 });
-      assert.match((await page.getByTestId("browser-live-view-state").textContent()) ?? "", /Reconnecting/);
+      await page.waitForFunction(() => (window as unknown as { __said: string[] }).__said.length > 0, undefined, {
+        timeout: 15_000,
+      });
+      const said = await page.evaluate(() => (window as unknown as { __said: string[] }).__said);
+      assert.match(said.join(" | "), /Reconnecting/, "the view said it was reconnecting");
       await shoot(page, DIR, "02-reconnecting");
       // no press anywhere from here: the view opens a new address, which starts the browser again
       await page.getByTestId("browser-live-view-state").waitFor({ state: "detached", timeout: 90_000 });

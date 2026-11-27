@@ -898,3 +898,48 @@ test("a stopped container whose network was removed is made again on the new net
   assert.equal(made.length, 2, "made, then made again");
   assert.equal(starts, 2);
 });
+
+test("a Space's own network is made with a small block of Vyre's range, the next block when Docker says one overlaps, and the shared one without a block", async () => {
+  const { makeSpaceBrowserNetwork, spaceNetStart, spaceNetSubnet } = await import("../sbrowser/docker.ts");
+  const posts: Array<{ Name: string; IPAM?: { Config: Array<{ Subnet: string; Gateway: string }> } }> = [];
+  let refuse = 2;
+  const http = async (r: { method: string; path: string; json?: unknown }) => {
+    posts.push(r.json as never);
+    if (refuse > 0) {
+      refuse--;
+      return {
+        status: 403,
+        body: new TextEncoder().encode(
+          JSON.stringify({ message: "Pool overlaps with other one on this address space" }),
+        ),
+      };
+    }
+    return { status: 201, body: new Uint8Array() };
+  };
+  await makeSpaceBrowserNetwork(http as never, "vyre-sbrowser-spc_one" + "net");
+  assert.equal(posts.length, 3, "two blocks were taken, the third was made");
+  const start = spaceNetStart("vyre-sbrowser-spc_onenet");
+  assert.deepEqual(
+    posts.map((p) => p.IPAM!.Config[0]!.Subnet),
+    [0, 1, 2].map((k) => spaceNetSubnet(start + k).subnet),
+  );
+  for (const p of posts) assert.match(p.IPAM!.Config[0]!.Subnet, /^10\.213\.\d+\.\d+\/28$/);
+  // Docker's own pools being full is not "this block is taken": it is reported, not walked through
+  const full = async () => ({
+    status: 400,
+    body: new TextEncoder().encode(
+      JSON.stringify({ message: "all predefined address pools have been fully subnetted" }),
+    ),
+  });
+  await assert.rejects(makeSpaceBrowserNetwork(full as never, "vyre-sbrowser-spc_twonet"), /predefined address pools/);
+  // the shared network is as before
+  posts.length = 0;
+  await makeSpaceBrowserNetwork(http as never, "vyre-sbrowsernet").catch(() => undefined);
+  assert.equal(posts[0]!.IPAM, undefined);
+  // the blocks are 16 apart and stay inside the range
+  assert.equal(spaceNetSubnet(0).subnet, "10.213.0.0/28");
+  assert.equal(spaceNetSubnet(1).subnet, "10.213.0.16/28");
+  assert.equal(spaceNetSubnet(16).subnet, "10.213.1.0/28");
+  assert.equal(spaceNetSubnet(4095).subnet, "10.213.255.240/28");
+  assert.equal(spaceNetSubnet(4096).subnet, "10.213.0.0/28");
+});

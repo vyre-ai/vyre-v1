@@ -1,0 +1,1 @@
+- The sign-in walk presses Retry, as a person would, when the first read of the Space fails under load ("Couldn't reach ... Failed to fetch"), instead of waiting out a timeout.

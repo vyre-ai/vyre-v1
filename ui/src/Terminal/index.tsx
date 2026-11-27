@@ -579,6 +579,14 @@ export function Terminal(props: TerminalViewProps): ReactElement {
   const session = props.state !== undefined;
   const locked = props.locked === true;
   const interactive = !locked && props.readonly !== true && !exited;
+  // The keyboard is the person's from the moment the screen takes it: the next key goes to the screen, with nothing to click first (the screen is drawn with the keyboard on it, or the keyboard arrives).
+  // Only when the keyboard turns on, never on every draw, so a person who moved on to a field is not pulled back.
+  const screenRef = useRef<{ focus?: () => void } | null>(null);
+  const wasInteractive = useRef(false);
+  useEffect(() => {
+    if (interactive && !wasInteractive.current && props.source !== undefined) screenRef.current?.focus?.();
+    wasInteractive.current = interactive;
+  }, [interactive, props.source]);
 
   const feed = useMemo(
     () => new TerminalFeed(props.output ?? "", props.engine ?? new TerminalBuffer(), props.replaySeq ?? 0),
@@ -800,6 +808,7 @@ export function Terminal(props: TerminalViewProps): ReactElement {
         </View>
       ) : (
         <View
+          ref={screenRef as never}
           style={[styles.scroll, NO_OUTLINE]}
           testID="terminal-screen"
           {...webProps({ tabIndex: 0, onKeyDown: onKey, onMouseUp, onWheel: gesture, onTouchMove: gesture })}

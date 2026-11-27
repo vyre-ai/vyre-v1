@@ -1,0 +1,2 @@
+- A manager who uses an agent from a place of their own, shown the agent's own terminal only as "someone else's", is now also refused every door into it (take over, keys, input, capture, stream, attach, read) with the reason not_yours, as the owner decided; the Console still stops or restarts the computer.
+- A command run in a terminal is read after its own end mark has landed (the stored exit code is set a moment before the mark): a command that rewrites rows above the cursor no longer gives one answer or another depending on the moment the screen was read.

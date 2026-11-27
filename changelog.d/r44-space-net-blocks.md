@@ -1,0 +1,2 @@
+- Each Space's own browser network takes a small block (a /28 out of 10.213.0.0/16, 4,096 of them) instead of a block of Docker's default address pools, which run out after about 30 networks: a server with 30 or more Spaces can still start every browser. The runner accepts only such a block on a Space's own network. A heavy test makes 60 in a row and removes them; the soak and cold-open tests now remove the network they make.
+- The real-browser reconnect walk records the "Reconnecting" line as it is drawn, because the view now comes back before a test can read it.

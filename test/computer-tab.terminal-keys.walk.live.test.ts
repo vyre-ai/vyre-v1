@@ -58,13 +58,28 @@ test(
       await page.keyboard.type("printf '\\033[31mred-text\\033[0m plain\\n'");
       await page.keyboard.press("Enter");
       await until("the coloured line", (s) => /\nred-text plain/.test(s));
-      const color = await page.evaluate(() => {
+      // the palette follows the surface (XTermView): the light colours on a dark one, the darker ones (4.5 to 1 on the light skin) on a light one; the walk runs on whichever skin it has
+      const drawn = await page.evaluate(() => {
         const sp = [...document.querySelectorAll("[data-testid=terminal-screen] span")].find(
           (e) => e.textContent === "red-text",
         ) as HTMLElement | undefined;
-        return sp ? getComputedStyle(sp).color : "";
+        const screen = document.querySelector("[data-testid=terminal-screen]") as HTMLElement | null;
+        let bg = "";
+        for (
+          let n: HTMLElement | null = screen;
+          n && (bg === "" || /rgba\(.*, 0\)|transparent/.test(bg));
+          n = n.parentElement
+        )
+          bg = getComputedStyle(n).backgroundColor;
+        return { color: sp ? getComputedStyle(sp).color : "", bg };
       });
-      assert.match(color, /rgb\(224, 108, 117\)/, "the red of the escape sequence is drawn");
+      const m = /(\d+)\D+(\d+)\D+(\d+)/.exec(drawn.bg);
+      const light = m !== null && (0.2126 * Number(m[1]) + 0.7152 * Number(m[2]) + 0.0722 * Number(m[3])) / 255 > 0.55;
+      assert.match(
+        drawn.color,
+        light ? /rgb\(182, 54, 40\)/ : /rgb\(224, 108, 117\)/,
+        `the red of the escape sequence is drawn in the ${light ? "light" : "dark"} skin's palette (surface ${drawn.bg})`,
+      );
       await shoot(page, DIR, "j-terminal-colours");
       // Tab completes, Left and Backspace edit, Ctrl-C stops
       fs.writeFileSync(path.join(walkDir, "unique-walk-file.txt"), "x");

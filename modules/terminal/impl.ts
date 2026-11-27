@@ -243,7 +243,7 @@ tmux send-keys -t "$s" Enter || exit 91
 printf '__VYRE_SENT__\n' >&2
 nl='
 '
-t0=$(date +%s); st=wait; n=0; cap=; rcv=
+t0=$(date +%s); st=wait; n=0; settle=0; cap=; rcv=
 while :; do
   n=$((n + 1))
   out=$(tmux capture-pane -p -J -t "$s" -S "-$scroll" \\; display-message -p -t "$s" "__VYRE_X__#{$rc}|#{$cx}")
@@ -255,7 +255,12 @@ while :; do
     num=\${rest%%"$nl"*}
     case $num in ''|*[!0-9]*) ;; *) st=done; break;; esac
   fi
-  case $rcv in ''|*[!0-9]*) ;; *) st=done; break;; esac
+  case $rcv in ''|*[!0-9]*) ;; *)
+    # the stored code is set a moment BEFORE the line prints its end mark, and the mark is not on the screen yet (it would have ended above): look again (at most 15 more looks, 0.3 s) so a command that rewrites
+    # rows above the cursor is read after its own mark has landed and never half way; a command that overwrote the mark or cleared the screen ends by the stored code, as before
+    if [ $settle -ge 15 ]; then st=done; break; fi
+    settle=$((settle + 1)); sleep 0.02; continue;;
+  esac
   if [ -n "$cxv" ]; then st=cancel; break; fi
   if [ $n -gt 25 ]; then
     now=$(date +%s)
@@ -626,8 +631,20 @@ export function createTmuxHost(o: TmuxOptions): TmuxHost {
         return cut(screen.slice(0, m.index).split("\n"), Number(m[1]));
       }
       if (/^\d+$/.test(rc)) {
+        // the stored code is set a moment BEFORE the line prints its end mark: read again until the mark is on the screen (at most 15 looks), so a command that rewrites rows above the cursor is read after its own
+        // mark has landed and never half way; a command that overwrote the mark or cleared the screen ends by the stored code as before
+        let seen = screen;
+        for (let k = 0; k < 15 && !endRe.test(seen); k += 1) {
+          await sleep(20);
+          const again = tidy(
+            await tmux(["capture-pane", "-p", "-J", "-t", session, "-S", `-${Math.max(1, scrollback)}`]),
+          );
+          seen = again;
+        }
         await forget();
-        return cut(screen.split("\n"), Number(rc));
+        const m2 = endRe.exec(seen);
+        if (m2 && m2.index !== undefined) return cut(seen.slice(0, m2.index).split("\n"), Number(m2[1]));
+        return cut(seen.split("\n"), Number(rc));
       }
       if (signal?.aborted) {
         await stopIn(session);
