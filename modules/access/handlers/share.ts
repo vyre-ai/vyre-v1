@@ -327,7 +327,14 @@ function addAccessRows(ss: ShareStore, rows: readonly Record<string, unknown>[])
       level: a.level as Level,
       via: a.via as Via,
     };
-    ss.access.set(ak(row.person, row.type, row.id), row);
+    const key = ak(row.person, row.type, row.id);
+    ss.access.set(key, row);
+    if (ss.byRes) {
+      // the index by resource is kept in step as the rows come in (primeShare asks for it), so it is not built in one stretch afterwards
+      const keys = ss.byRes.get(row.id) ?? new Set<string>();
+      keys.add(key);
+      ss.byRes.set(row.id, keys);
+    }
   }
 }
 
@@ -408,7 +415,8 @@ export async function primeShare(ctx: AccessCtx): Promise<void> {
   if (kept && kept.ss.fresh >= 0) return;
   const st = stateOf(ctx.db);
   if (!st) return;
-  const ss = loadShare(ctx, []); // folders and placement; the my_access rows are added a page at a time below, so no step holds the loop for all of them
+  const ss = loadShare(ctx, []);
+  ss.byRes = new Map(); // filled with the rows below; folders and placement are read by loadShare; the my_access rows are added a page at a time below, so no step holds the loop for all of them
   for (let after = 0; ; ) {
     let page: Record<string, unknown>[];
     try {

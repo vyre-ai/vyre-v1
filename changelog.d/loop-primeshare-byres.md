@@ -1,0 +1,1 @@
+- The share state read ahead at start builds its index by resource as its rows come in, not in one stretch afterwards.
