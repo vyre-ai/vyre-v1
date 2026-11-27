@@ -4227,6 +4227,9 @@ export async function startDaemon(o: DaemonOptions): Promise<Daemon> {
           });
         }
       }
+      // the last scan of the boot's events is done: the lists are let go, with the payloads decoded from them (lib/decode-payload.ts keeps a decoded payload as long as its bytes live)
+      agentAccessEvents.length = 0;
+      ownedScan.length = 0;
       const personalRuns = new Map<string, Promise<void>>();
       ensurePersonalCalendar = (person) => {
         if (!person || loaded.serving.get("calendar") !== "live") return Promise.resolve();

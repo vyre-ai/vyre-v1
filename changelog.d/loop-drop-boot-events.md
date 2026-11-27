@@ -1,0 +1,1 @@
+- The boot's event lists, and the payloads decoded from them, are let go after the last start-up scan.
